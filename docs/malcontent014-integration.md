@@ -36,3 +36,9 @@ The implementation subscribes before submitting, correlates the returned
 cookie, passes `ALLOW_INTERACTIVE_AUTHORIZATION`, and reports only a generic
 failure in child-facing UI. Detailed errors use the extension log prefix.
 
+Malcontent 0.14 may not emit `EstimatedTimesChanged` after approving an
+extension (upstream issue #133). GNOME Shell would otherwise retain its cached
+`LIMIT_REACHED` state until another event, such as switching users, refreshes
+it. After an approval the extension therefore explicitly asks GNOME Shell's
+time-limits manager to reload the daemon estimates before dismissing the
+request dialog.

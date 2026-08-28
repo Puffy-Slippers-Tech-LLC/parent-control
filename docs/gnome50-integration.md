@@ -18,6 +18,12 @@ extracting the JavaScript resources embedded in `/usr/lib/gnome-shell/libshell-1
 - `UnlockDialog` listens to `notify::state` on `Main.timeLimitsManager`. The
   manager's `state` is a readable GObject property, and it emits
   `daily-limit-reached` on the transition into `LIMIT_REACHED`.
+- `UnlockDialog._otherUserClicked()` transfers control to GDM before cancelling
+  the child authentication prompt. Malcontent 0.14 does not install a PAM
+  account module, so the greeter cannot independently enforce the exhausted
+  child's timer when that existing session is selected again. The extension
+  therefore hides the Switch User action only while the native limit shield is
+  active and restores GNOME's policy-derived visibility afterward.
 
 The manager combines GNOME wellbeing and parental-control timer state, but the
 unlock shield is reached only through the parental-controls lock path. The
@@ -37,4 +43,3 @@ Source resources inspected:
 - `/org/gnome/shell/misc/timeLimitsManager.js`
 - `/org/gnome/shell/ui/unlockDialog.js`
 - `/org/gnome/shell/ui/screenShield.js`
-

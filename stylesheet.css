@@ -2,6 +2,10 @@
   margin-top: 12px;
 }
 
+.screen-time-remaining-label {
+  font-weight: 600;
+}
+
 .request-more-time-content {
   spacing: 12px;
   min-width: 320px;

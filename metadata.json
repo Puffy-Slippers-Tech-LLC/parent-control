@@ -4,5 +4,5 @@
   "description": "Adds duration choices to GNOME's parental-controls screen-time shield.",
   "version": 1,
   "shell-version": ["50"],
-  "session-modes": ["user", "unlock-dialog"]
+  "session-modes": ["user", "ubuntu", "unlock-dialog"]
 }

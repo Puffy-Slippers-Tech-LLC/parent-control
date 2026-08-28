@@ -1,0 +1,26 @@
+.request-more-time-button {
+  margin-top: 12px;
+}
+
+.request-more-time-content {
+  spacing: 12px;
+  min-width: 320px;
+}
+
+.request-more-time-title {
+  font-size: 1.4em;
+  font-weight: bold;
+}
+
+.request-more-time-choice {
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.request-more-time-choice:checked {
+  background-color: -st-accent-color;
+}
+
+.request-more-time-error {
+  color: #ff7b63;
+}

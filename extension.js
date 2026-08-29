@@ -3,7 +3,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {MalcontentClient} from './malcontentClient.js';
 import {ParentalControlsIntegration} from './parentalControlsIntegration.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
-import {RequestDialog} from './requestDialog.js';
+import {RequestDialog, RequestPopover} from './requestDialog.js';
 
 const LOG_PREFIX = '[request-more-time]';
 
@@ -13,7 +13,8 @@ export default class RequestMoreTimeExtension extends Extension {
         this._client = new MalcontentClient();
         this._integration = new ParentalControlsIntegration(() => this._showDialog());
         this._integration.enable();
-        this._indicator = new RemainingTimeIndicator();
+        this._indicator = new RemainingTimeIndicator(sourceActor =>
+            this._showDialog(sourceActor));
     }
 
     disable() {
@@ -28,13 +29,15 @@ export default class RequestMoreTimeExtension extends Extension {
         console.log(`${LOG_PREFIX} extension disabled`);
     }
 
-    _showDialog() {
+    _showDialog(sourceActor = null) {
         if (this._dialog)
             return;
 
         console.log(`${LOG_PREFIX} request dialog opened`);
-        this._dialog = new RequestDialog(async durationSeconds => {
-            if (!this._integration?.isExhausted())
+        const request = async durationSeconds => {
+            // The panel entry point is available while time remains, so let
+            // the timer service decide whether a proactive request is valid.
+            if (!sourceActor && !this._integration?.isExhausted())
                 throw new Error('Screen-time limit is no longer active');
 
             console.log(`${LOG_PREFIX} requesting ${durationSeconds} seconds`);
@@ -49,8 +52,14 @@ export default class RequestMoreTimeExtension extends Extension {
                 }
             }
             return granted;
+        };
+        this._dialog = sourceActor
+            ? new RequestPopover(request, sourceActor)
+            : new RequestDialog(request);
+        this._dialog.connect('destroy', () => {
+            sourceActor?.setRequestActive?.(false);
+            this._dialog = null;
         });
-        this._dialog.connect('destroy', () => (this._dialog = null));
         if (!this._dialog.open()) {
             console.error(`${LOG_PREFIX} could not open request dialog`);
             this._dialog.destroy();

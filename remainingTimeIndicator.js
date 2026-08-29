@@ -15,14 +15,60 @@ const TIMER_INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
 
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
-    _init() {
+    _init(onRequest) {
         super._init(0.0, 'Screen Time Remaining', true);
+
+        this._onRequest = onRequest;
+
+        const content = new St.BoxLayout({
+            style_class: 'screen-time-remaining-content',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
 
         this._label = new St.Label({
             style_class: 'screen-time-remaining-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this.add_child(this._label);
+        content.add_child(this._label);
+
+        const iconBox = new St.Widget({
+            style_class: 'screen-time-request-icon',
+            layout_manager: new Clutter.BinLayout(),
+        });
+        iconBox.add_child(new St.Icon({
+            icon_name: 'hourglass-symbolic',
+            style_class: 'screen-time-request-hourglass',
+        }));
+        iconBox.add_child(new St.Label({
+            text: '+',
+            style_class: 'screen-time-request-plus',
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.START,
+        }));
+
+        this._requestButton = new St.Button({
+            style_class: 'screen-time-request-button',
+            child: iconBox,
+            can_focus: true,
+            reactive: true,
+            track_hover: true,
+            accessible_name: 'Request more time',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._requestTooltip = new St.Label({
+            style_class: 'dash-label',
+            text: 'Request time',
+            visible: false,
+        });
+        Main.uiGroup.add_child(this._requestTooltip);
+        this._requestButton.connect('notify::hover', () => this._syncRequestTooltip());
+        this._requestButton.connect('clicked', () => {
+            this._requestTooltip.hide();
+            this.setRequestActive(true);
+            this._onRequest?.(this);
+        });
+        content.add_child(this._requestButton);
+        this.add_child(content);
 
         this.reactive = false;
         this.can_focus = false;
@@ -30,6 +76,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._signals = [];
         this._timeoutId = 0;
+        this._flashTimeoutId = 0;
         this._destroyed = false;
         this._grantedUntil = 0;
         this._sessionEnd = 0;
@@ -56,12 +103,38 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._refreshEstimate();
     }
 
+    setRequestActive(active) {
+        this._requestButton?.set_checked(active);
+    }
+
+    _syncRequestTooltip() {
+        if (!this._requestButton.hover) {
+            this._requestTooltip.hide();
+            return;
+        }
+
+        const [buttonX, buttonY] = this._requestButton.get_transformed_position();
+        const [buttonWidth, buttonHeight] = this._requestButton.get_transformed_size();
+        const [tooltipWidth] = this._requestTooltip.get_preferred_size();
+        const monitor = Main.layoutManager.findMonitorForActor(this._requestButton);
+        const tooltipX = Math.clamp(
+            Math.floor(buttonX + (buttonWidth - tooltipWidth) / 2),
+            monitor.x,
+            monitor.x + monitor.width - tooltipWidth);
+
+        this._requestTooltip.set_position(tooltipX, buttonY + buttonHeight + 6);
+        this._requestTooltip.show();
+    }
+
     _connect(object, signal, callback) {
         this._signals.push([object, object.connect(signal, callback)]);
     }
 
     destroy() {
         this._destroyed = true;
+        this._onRequest = null;
+        this._requestTooltip?.destroy();
+        this._requestTooltip = null;
 
         for (const [object, id] of this._signals) {
             if (!id)
@@ -75,6 +148,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._signals = [];
 
         this._clearTimeout();
+        this._clearFlash();
 
         if (this._timerSignalId)
             Gio.DBus.system.signal_unsubscribe(this._timerSignalId);
@@ -88,6 +162,19 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
+    }
+
+    _clearFlash() {
+        if (this._flashTimeoutId) {
+            GLib.source_remove(this._flashTimeoutId);
+            this._flashTimeoutId = 0;
+        }
+        this._label?.remove_style_pseudo_class('flash');
+    }
+
+    _clearCountdownWarning() {
+        this._clearFlash();
+        this._label?.remove_style_pseudo_class('countdown');
     }
 
     _remainingSeconds() {
@@ -201,7 +288,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _updateLabel(remainingSecs) {
-        if (remainingSecs >= 60) {
+        if (remainingSecs >= 60)
+            this._clearCountdownWarning();
+
+        if (remainingSecs > 60) {
             const totalMinutes = Math.floor(remainingSecs / 60);
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;
@@ -212,13 +302,29 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         } else {
             this._label.text = `${remainingSecs} seconds left`;
         }
+
+        if (remainingSecs < 60) {
+            this._label.add_style_pseudo_class('countdown');
+            this._flashLabel();
+        }
+    }
+
+    _flashLabel() {
+        this._clearFlash();
+        this._label.add_style_pseudo_class('flash');
+        this._flashTimeoutId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT, 350, () => {
+                this._flashTimeoutId = 0;
+                this._label?.remove_style_pseudo_class('flash');
+                return GLib.SOURCE_REMOVE;
+            });
     }
 
     _schedule(remainingSecs) {
         this._clearTimeout();
 
         let delay;
-        if (remainingSecs >= 60) {
+        if (remainingSecs > 60) {
             const remainder = remainingSecs % 60;
             delay = remainder === 0 ? 60 : remainder;
         } else {

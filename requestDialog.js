@@ -37,7 +37,7 @@ class RequestForm {
             style_class: 'request-more-time-title',
             text: 'Request Time',
         }));
-        for (const duration of DURATIONS) {
+        for (const [index, duration] of DURATIONS.entries()) {
             const button = new St.Button({
                 style_class: 'request-more-time-choice',
                 can_focus: true,
@@ -49,6 +49,8 @@ class RequestForm {
                 label: duration.label,
             });
             button.connect('clicked', () => this._select(duration.seconds));
+            button.connect('key-press-event', (_actor, event) =>
+                this._handleChoiceKeyPress(index, event));
             this.actor.add_child(button);
             this._choiceButtons.push([button, duration.seconds]);
         }
@@ -66,6 +68,10 @@ class RequestForm {
             Clutter.InputContentPurpose.DIGITS);
         this._customEntry.clutter_text.connect('key-press-event', (_actor, event) => {
             const key = event.get_key_symbol();
+            if (key === Clutter.KEY_Return || key === Clutter.KEY_KP_Enter) {
+                this.request();
+                return Clutter.EVENT_STOP;
+            }
             if (key === Clutter.KEY_Up || key === Clutter.KEY_Down) {
                 this._adjustCustomMinutes(key === Clutter.KEY_Up
                     ? CUSTOM_STEP_MINUTES
@@ -81,6 +87,31 @@ class RequestForm {
         }));
         this.actor.add_child(this._customRow);
         this._select(this._selected);
+    }
+
+    _handleChoiceKeyPress(index, event) {
+        const key = event.get_key_symbol();
+        if (key === Clutter.KEY_Return || key === Clutter.KEY_KP_Enter) {
+            this.request();
+            return Clutter.EVENT_STOP;
+        }
+
+        if (key !== Clutter.KEY_Up && key !== Clutter.KEY_Down)
+            return Clutter.EVENT_PROPAGATE;
+
+        const nextIndex = Math.clamp(index + (key === Clutter.KEY_Up ? -1 : 1),
+            0, this._choiceButtons.length - 1);
+        const [button, seconds] = this._choiceButtons[nextIndex];
+        this._select(seconds);
+        if (seconds !== null)
+            button.grab_key_focus();
+        return Clutter.EVENT_STOP;
+    }
+
+    focusSelectedChoice() {
+        const selected = this._choiceButtons.find(([, seconds]) =>
+            seconds === this._selected);
+        selected?.[0].grab_key_focus();
     }
 
     addPopupActions() {
@@ -193,7 +224,12 @@ class RequestDialog extends ModalDialog.ModalDialog {
         this.contentLayout.add_child(this._form.actor);
         this.setButtons([
             {label: 'Cancel', action: () => this.close(), key: Clutter.KEY_Escape},
-            {label: 'Request', default: true, action: () => this._form.request()},
+            {
+                label: 'Request',
+                default: true,
+                action: () => this._form.request(),
+                key: Clutter.KEY_Return,
+            },
         ]);
     }
 
@@ -226,6 +262,7 @@ export class RequestPopover extends PopupMenu.PopupMenu {
 
     open() {
         super.open(BoxPointer.PopupAnimation.FULL);
+        this._form.focusSelectedChoice();
         return this.isOpen;
     }
 

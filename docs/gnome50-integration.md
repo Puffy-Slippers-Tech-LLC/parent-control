@@ -22,8 +22,8 @@ extracting the JavaScript resources embedded in `/usr/lib/gnome-shell/libshell-1
   the child authentication prompt. Malcontent 0.14 does not install a PAM
   account module, so the greeter cannot independently enforce the exhausted
   child's timer when that existing session is selected again. The extension
-  therefore hides the Switch User action only while the native limit shield is
-  active and restores GNOME's policy-derived visibility afterward.
+  leaves Switch User available, but relocks the child session when its Shell
+  observes it return unlocked while `TimeLimitsState.LIMIT_REACHED` remains set.
 
 The manager combines GNOME wellbeing and parental-control timer state, but the
 unlock shield is reached only through the parental-controls lock path. The

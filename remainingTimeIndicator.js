@@ -31,6 +31,37 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         });
         content.add_child(this._label);
 
+        this._urgencyVisual = new St.Widget({
+            style_class: 'screen-time-urgency-visual',
+            layout_manager: new Clutter.BinLayout(),
+            visible: false,
+        });
+        this._bomb = new St.Label({
+            // The bomb glyph supplies the rounded body and curved fuse; the
+            // overlaid spark below remains animated as the countdown ticks.
+            text: '💣',
+            style_class: 'screen-time-bomb',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._spark = new St.Label({
+            text: '✦',
+            style_class: 'screen-time-bomb-spark',
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.START,
+        });
+        this._explosion = new St.Label({
+            text: '✹',
+            style_class: 'screen-time-explosion',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            visible: false,
+        });
+        this._urgencyVisual.add_child(this._bomb);
+        this._urgencyVisual.add_child(this._spark);
+        this._urgencyVisual.add_child(this._explosion);
+        content.add_child(this._urgencyVisual);
+
         const iconBox = new St.Widget({
             style_class: 'screen-time-request-icon',
             layout_manager: new Clutter.BinLayout(),
@@ -175,6 +206,17 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     _clearCountdownWarning() {
         this._clearFlash();
         this._label?.remove_style_pseudo_class('countdown');
+        this._clearUrgencyVisual();
+    }
+
+    _clearUrgencyVisual() {
+        for (const actor of [this._urgencyVisual, this._bomb, this._spark,
+            this._explosion])
+            actor?.remove_style_pseudo_class('expanded');
+        this._bomb?.show();
+        this._spark?.show();
+        this._explosion?.hide();
+        this._urgencyVisual?.hide();
     }
 
     _remainingSeconds() {
@@ -307,6 +349,39 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._label.add_style_pseudo_class('countdown');
             this._flashLabel();
         }
+
+        this._updateUrgencyVisual(remainingSecs);
+    }
+
+    _updateUrgencyVisual(remainingSecs) {
+        if (remainingSecs > 10) {
+            this._clearUrgencyVisual();
+            return;
+        }
+
+        this._urgencyVisual.show();
+        if (remainingSecs <= 3) {
+            this._bomb.hide();
+            this._spark.hide();
+            this._explosion.show();
+            this._explosion.text = ['✹', '✷', '✸'][3 - remainingSecs];
+            this._setExpanded(this._explosion, remainingSecs % 2 === 1);
+            return;
+        }
+
+        this._explosion.hide();
+        this._bomb.show();
+        this._spark.show();
+        const expanded = remainingSecs % 2 === 0;
+        this._setExpanded(this._bomb, expanded);
+        this._spark.text = expanded ? '✶' : '✦';
+        this._setExpanded(this._spark, expanded);
+    }
+
+    _setExpanded(actor, expanded) {
+        actor.remove_style_pseudo_class('expanded');
+        if (expanded)
+            actor.add_style_pseudo_class('expanded');
     }
 
     _flashLabel() {

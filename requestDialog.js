@@ -47,6 +47,7 @@ class RequestForm {
     constructor(onRequest, onClose) {
         this._onRequest = onRequest;
         this._onClose = onClose;
+        this._destroyed = false;
         this._working = false;
         this._selected = this._loadSelectedDuration();
         this._choiceButtons = [];
@@ -271,6 +272,9 @@ class RequestForm {
     }
 
     _showError(message = 'Your request could not be approved.') {
+        if (this._destroyed)
+            return;
+
         if (!this._errorLabel) {
             this._errorLabel = new St.Label({
                 style_class: 'request-more-time-error',
@@ -283,6 +287,9 @@ class RequestForm {
     }
 
     _setWorking(working) {
+        if (this._destroyed)
+            return;
+
         this._working = working;
         for (const [button] of this._choiceButtons)
             button.reactive = !working;
@@ -290,6 +297,7 @@ class RequestForm {
     }
 
     destroy() {
+        this._destroyed = true;
         this._onRequest = null;
         this._onClose = null;
     }

@@ -5,6 +5,8 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {TimeLimitsState} from 'resource:///org/gnome/shell/misc/timeLimitsManager.js';
 
+import {runExclusiveTimerUpdate} from './timerQuery.js';
+
 const LOG_PREFIX = '[request-more-time]';
 
 // This is the only module which knows GNOME Shell's private unlock-dialog
@@ -44,7 +46,7 @@ export class ParentalControlsIntegration {
         // extension.  Refresh GNOME Shell's cached estimates explicitly so
         // UnlockDialog replaces the shield with the password prompt without
         // requiring a user switch to provoke another state calculation.
-        await Main.timeLimitsManager._updateEstimatedTimes();
+        await runExclusiveTimerUpdate(() => Main.timeLimitsManager._updateEstimatedTimes());
         this._sync();
     }
 

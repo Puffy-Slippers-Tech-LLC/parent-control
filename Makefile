@@ -1,5 +1,5 @@
 UUID := request-more-time@example.com
-SOURCES := customDurationStore.js malcontentClient.js parentalControlsIntegration.js remainingTimeIndicator.js requestDialog.js
+SOURCES := customDurationStore.js malcontentClient.js parentalControlsIntegration.js remainingTimeIndicator.js requestDialog.js timerQuery.js
 EXTENSION_BASE ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 RUNTIME_FILES := metadata.json stylesheet.css extension.js $(SOURCES)

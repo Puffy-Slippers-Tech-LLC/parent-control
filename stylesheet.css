@@ -6,6 +6,62 @@
   font-weight: 600;
 }
 
+.screen-time-remaining-label:countdown {
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 123, 99, 0.85);
+  border-radius: 4px;
+}
+
+.screen-time-remaining-label:flash {
+  box-shadow: 0 0 8px 2px rgba(255, 123, 99, 0.95);
+}
+
+.screen-time-remaining-content {
+  spacing: 7px;
+}
+
+.screen-time-request-button {
+  width: 28px;
+  height: 28px;
+  padding: 3px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background-gradient-direction: vertical;
+  background-gradient-start: rgba(255, 255, 255, 0.28);
+  background-gradient-end: rgba(0, 0, 0, 0.32);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.65);
+}
+
+.screen-time-request-button:hover,
+.screen-time-request-button:focus {
+  border-color: rgba(255, 255, 255, 0.9);
+  background-gradient-start: rgba(255, 255, 255, 0.4);
+}
+
+.screen-time-request-button:active,
+.screen-time-request-button:checked {
+  border-color: rgba(0, 0, 0, 0.65);
+  background-gradient-start: rgba(0, 0, 0, 0.38);
+  background-gradient-end: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.8);
+}
+
+.screen-time-request-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.screen-time-request-hourglass {
+  icon-size: 18px;
+}
+
+.screen-time-request-plus {
+  font-size: 11px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 1px 2px black;
+}
+
 .request-more-time-content {
   spacing: 12px;
   min-width: 320px;
@@ -21,10 +77,42 @@
   text-align: left;
 }
 
+.request-more-time-choice:hover {
+  background-color: rgba(128, 128, 128, 0.35);
+  box-shadow: inset 0 0 0 2px -st-accent-color;
+}
+
 .request-more-time-choice:checked {
   background-color: -st-accent-color;
+  color: -st-accent-fg-color;
+}
+
+.request-more-time-choice:checked:hover {
+  background-color: -st-accent-color;
+  color: -st-accent-fg-color;
+  box-shadow: inset 0 0 0 2px -st-accent-fg-color;
+}
+
+.request-more-time-custom-row {
+  spacing: 8px;
+}
+
+.request-more-time-custom-entry {
+  width: 4em;
 }
 
 .request-more-time-error {
   color: #ff7b63;
+}
+
+.request-more-time-popup-item {
+  padding: 0;
+}
+
+.request-more-time-popup-actions {
+  spacing: 8px;
+}
+
+.request-more-time-popup-button {
+  padding: 8px 14px;
 }

@@ -101,7 +101,7 @@ export class ParentalControlsIntegration {
         this._shield = shield;
         this._button = new St.Button({
             style_class: 'parental-controls-shield-button request-more-time-button',
-            label: 'Request More Time',
+            label: 'Request Time',
             can_focus: true,
             reactive: true,
             x_align: Clutter.ActorAlign.CENTER,

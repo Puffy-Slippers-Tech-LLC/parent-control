@@ -7,11 +7,15 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
+import {queryEstimatedTimes} from './timerQuery.js';
+
 const LOG_PREFIX = '[request-more-time]';
 const ROLE = 'screenTimeRemaining';
 const TIMER_BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const TIMER_OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
 const TIMER_INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
+const DOCK_SETTINGS_SCHEMA = 'org.gnome.shell.extensions.dash-to-dock';
+const DOCK_POSITION_KEY = 'dock-position';
 
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
@@ -112,6 +116,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._grantedUntil = 0;
         this._sessionEnd = 0;
         this._refreshPending = false;
+        this._dockSettings = null;
+        const schemaSource = Gio.SettingsSchemaSource.get_default();
+        if (schemaSource.lookup(DOCK_SETTINGS_SCHEMA, true))
+            this._dockSettings = new Gio.Settings({schema_id: DOCK_SETTINGS_SCHEMA});
 
         this._timerSignalId = Gio.DBus.system.signal_subscribe(
             TIMER_BUS_NAME, TIMER_INTERFACE, 'EstimatedTimesChanged',
@@ -129,6 +137,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-time', () => this._sync());
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-enabled', () => this._sync());
         this._connect(Main.sessionMode, 'updated', () => this._sync());
+        if (this._dockSettings)
+            this._connect(this._dockSettings, `changed::${DOCK_POSITION_KEY}`, () => this._sync());
 
         this._sync();
         this._refreshEstimate();
@@ -226,31 +236,29 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         return Math.ceil(limitTime - manager.getCurrentTime());
     }
 
-    _refreshEstimate() {
+    async _refreshEstimate() {
         if (this._destroyed || this._refreshPending)
             return;
 
         this._refreshPending = true;
-        Gio.DBus.system.call(
-            TIMER_BUS_NAME, TIMER_OBJECT_PATH, TIMER_INTERFACE,
-            'GetEstimatedTimes', new GLib.Variant('(s)', ['login-session']),
-            new GLib.VariantType('(ta{s(btttt)})'),
-            Gio.DBusCallFlags.NONE, -1, null, (connection, result) => {
-                this._refreshPending = false;
-                if (this._destroyed)
-                    return;
+        try {
+            const estimates = await queryEstimatedTimes();
+            if (this._destroyed)
+                return;
 
-                try {
-                    const [, estimates] = connection.call_finish(result).deepUnpack();
-                    const estimate = estimates[''];
-                    this._sessionEnd = estimate ? Number(estimate[2]) : 0;
-                    console.log(`${LOG_PREFIX} timer estimate loaded; session end=${this._sessionEnd}`);
-                } catch (error) {
-                    this._sessionEnd = 0;
-                    console.warn(`${LOG_PREFIX} timer query failed: ${error.message}`);
-                }
+            const estimate = estimates[''];
+            this._sessionEnd = estimate ? Number(estimate[2]) : 0;
+            console.log(`${LOG_PREFIX} timer estimate loaded; session end=${this._sessionEnd}`);
+        } catch (error) {
+            if (!this._destroyed) {
+                this._sessionEnd = 0;
+                console.warn(`${LOG_PREFIX} timer query failed: ${error.message}`);
+            }
+        } finally {
+            this._refreshPending = false;
+            if (!this._destroyed)
                 this._sync();
-            });
+        }
     }
 
     showGrantedTime(durationSeconds) {
@@ -329,6 +337,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this.container.visible = shown;
     }
 
+    _compactLabel() {
+        if (!this._dockSettings)
+            return false;
+        const position = this._dockSettings.get_string(DOCK_POSITION_KEY);
+        return position === 'LEFT' || position === 'RIGHT';
+    }
+
     _updateLabel(remainingSecs) {
         if (remainingSecs >= 60)
             this._clearCountdownWarning();
@@ -337,8 +352,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             const totalMinutes = Math.floor(remainingSecs / 60);
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;
-            this._label.text =
-                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} left`;
+            const time = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            this._label.text = this._compactLabel() ? time : `${time} left`;
         } else if (remainingSecs === 1) {
             this._label.text = '1 second left';
         } else {

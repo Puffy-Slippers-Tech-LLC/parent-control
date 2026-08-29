@@ -19,10 +19,11 @@ in the development sandbox; that limitation is recorded in
   cookie, extra data
 
 For a device/session request, record type is `login-session` and identifier is
-empty. Positive durations are arbitrary seconds. Duration zero is explicitly
-handled by the daemon and its authorization message as “until the end of
-today”; using that sentinel also leaves the local-timezone calculation with
-Malcontent rather than duplicating it in the extension.
+empty. Positive durations are arbitrary seconds. Duration zero asks the
+extension agent to choose a duration (typically until the end of today), but
+does not guarantee that result. The extension calculates the exact duration
+to the next local midnight for its “Rest of the day” choice and sends that
+positive value.
 
 The request originates from the restricted user's system-bus connection. The
 daemon identifies the caller and forwards it to

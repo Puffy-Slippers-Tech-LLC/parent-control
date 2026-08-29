@@ -1,11 +1,19 @@
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
+import GLib from 'gi://GLib';
 import St from 'gi://St';
 
 import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+
+import {
+    loadLastCustomMinutes,
+    loadLastSelectedDuration,
+    saveLastCustomMinutes,
+    saveLastSelectedDuration,
+} from './customDurationStore.js';
 
 export const DURATIONS = Object.freeze([
     {label: '5 minutes', seconds: 5 * 60},
@@ -18,7 +26,21 @@ export const DURATIONS = Object.freeze([
     {label: 'Custom value', seconds: null},
 ]);
 
-const CUSTOM_STEP_MINUTES = 15;
+const DEFAULT_DURATION_SECONDS = 30 * 60;
+
+// A zero-duration RequestExtension asks the extension agent to choose a
+// duration; it is not a guaranteed end-of-day grant. Send the actual interval
+// to local midnight for this choice instead.
+export function secondsUntilEndOfLocalDay(now = GLib.DateTime.new_now_local()) {
+    const tomorrow = now.add_days(1);
+    const startOfTomorrow = GLib.DateTime.new_local(
+        tomorrow.get_year(), tomorrow.get_month(), tomorrow.get_day_of_month(),
+        0, 0, 0);
+
+    // This uses local time, including daylight-saving transitions, and the
+    // timer service requires a positive duration.
+    return Math.max(1, startOfTomorrow.to_unix() - now.to_unix());
+}
 
 // Both the login modal and panel popup use this form.
 class RequestForm {
@@ -26,8 +48,9 @@ class RequestForm {
         this._onRequest = onRequest;
         this._onClose = onClose;
         this._working = false;
-        this._selected = DURATIONS[1].seconds;
+        this._selected = this._loadSelectedDuration();
         this._choiceButtons = [];
+        this._lastCustomMinutes = loadLastCustomMinutes();
 
         this.actor = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
@@ -96,7 +119,7 @@ class RequestForm {
             style_class: 'request-more-time-custom-entry',
             can_focus: true,
             reactive: true,
-            text: String(CUSTOM_STEP_MINUTES),
+            text: String(this._lastCustomMinutes),
         });
         this._customEntry.clutter_text.set_editable(true);
         this._customEntry.clutter_text.set_selectable(true);
@@ -109,21 +132,32 @@ class RequestForm {
                 return Clutter.EVENT_STOP;
             }
             if (key === Clutter.KEY_Up || key === Clutter.KEY_Down) {
-                this._adjustCustomMinutes(key === Clutter.KEY_Up
-                    ? CUSTOM_STEP_MINUTES
-                    : -CUSTOM_STEP_MINUTES);
+                this._selectAdjacentChoice(DURATIONS.length - 1,
+                    key === Clutter.KEY_Up ? -1 : 1);
                 return Clutter.EVENT_STOP;
             }
             return Clutter.EVENT_PROPAGATE;
         });
+        this._customEntry.clutter_text.connect('key-focus-in', () =>
+            this._customEntry.clutter_text.set_selection(0, -1));
         this._customRow.add_child(this._customEntry);
         this._customRow.add_child(new St.Label({
             style_class: 'request-more-time-custom-hint',
-            text: 'minutes  •  Use ↑/↓ to adjust by 15',
+            text: 'minutes',
             y_align: Clutter.ActorAlign.CENTER,
         }));
         this.actor.add_child(this._customRow);
         this._select(this._selected);
+    }
+
+    _loadSelectedDuration() {
+        const savedDuration = loadLastSelectedDuration();
+        if (savedDuration === null)
+            return DEFAULT_DURATION_SECONDS;
+        const seconds = savedDuration === 'custom' ? null : Number(savedDuration);
+        return DURATIONS.some(duration => duration.seconds === seconds)
+            ? seconds
+            : DEFAULT_DURATION_SECONDS;
     }
 
     _handleChoiceKeyPress(index, event) {
@@ -136,19 +170,27 @@ class RequestForm {
         if (key !== Clutter.KEY_Up && key !== Clutter.KEY_Down)
             return Clutter.EVENT_PROPAGATE;
 
-        const nextIndex = Math.clamp(index + (key === Clutter.KEY_Up ? -1 : 1),
-            0, this._choiceButtons.length - 1);
+        this._selectAdjacentChoice(index, key === Clutter.KEY_Up ? -1 : 1);
+        return Clutter.EVENT_STOP;
+    }
+
+    _selectAdjacentChoice(index, direction) {
+        const nextIndex = (index + direction + this._choiceButtons.length) %
+            this._choiceButtons.length;
         const [button, seconds] = this._choiceButtons[nextIndex];
         this._select(seconds);
         if (seconds !== null)
             button.grab_key_focus();
-        return Clutter.EVENT_STOP;
     }
 
     focusSelectedChoice() {
-        const selected = this._choiceButtons.find(([, seconds]) =>
-            seconds === this._selected);
+        const selected = this.getSelectedChoice();
         selected?.[0].grab_key_focus();
+    }
+
+    getSelectedChoice() {
+        return this._choiceButtons.find(([, seconds]) =>
+            seconds === this._selected);
     }
 
     addPopupActions() {
@@ -188,13 +230,6 @@ class RequestForm {
             global.stage.set_key_focus(this._customEntry.clutter_text);
     }
 
-    _adjustCustomMinutes(change) {
-        const current = Number.parseInt(this._customEntry.get_text(), 10);
-        const minutes = Math.max(1,
-            (Number.isSafeInteger(current) ? current : 0) + change);
-        this._customEntry.set_text(String(minutes));
-    }
-
     async request() {
         if (!this._onRequest || this._working)
             return;
@@ -208,14 +243,21 @@ class RequestForm {
                 this._showError('Enter a positive whole number of minutes.');
                 return;
             }
+            this._lastCustomMinutes = minutes;
             seconds = minutes * 60;
         }
+
+        if (seconds === 0)
+            seconds = secondsUntilEndOfLocalDay();
 
         this._errorLabel?.hide();
         this._setWorking(true);
         try {
             const granted = await this._onRequest(seconds);
             if (granted) {
+                saveLastSelectedDuration(this._selected);
+                if (this._selected === null)
+                    saveLastCustomMinutes(this._lastCustomMinutes);
                 this._onClose?.();
                 return;
             }
@@ -268,6 +310,7 @@ class RequestDialog extends ModalDialog.ModalDialog {
                 key: Clutter.KEY_Return,
             },
         ]);
+        this.setInitialKeyFocus(this._form.getSelectedChoice()?.[0]);
     }
 
     destroy() {

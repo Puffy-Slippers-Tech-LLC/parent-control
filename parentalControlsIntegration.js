@@ -18,13 +18,17 @@ export class ParentalControlsIntegration {
         this._watchedDialog = null;
         this._dialogSignalId = 0;
         this._syncSourceId = 0;
-        this._blockedSwitchButton = null;
+        this._relockSourceId = 0;
     }
 
     enable() {
         this._connect(Main.timeLimitsManager, 'notify::state', () => this._sync());
         this._connect(Main.sessionMode, 'updated', () => this._sync());
-        this._connect(Main.screenShield, 'active-changed', () => this._sync());
+        this._connect(Main.screenShield, 'active-changed', () => {
+            this._sync();
+            if (!Main.screenShield.active)
+                this._scheduleRelockCheck();
+        });
         this._sync();
     }
 
@@ -60,6 +64,10 @@ export class ParentalControlsIntegration {
             GLib.source_remove(this._syncSourceId);
             this._syncSourceId = 0;
         }
+        if (this._relockSourceId) {
+            GLib.source_remove(this._relockSourceId);
+            this._relockSourceId = 0;
+        }
         this._removeButton();
         this._onRequest = null;
     }
@@ -77,22 +85,15 @@ export class ParentalControlsIntegration {
     }
 
     _sync() {
+        this._relockIfLimitWasBypassed();
         this._watchDialog();
         const shield = this._findShield();
         const shouldShow = this.isExhausted() && shield !== null;
 
         if (!shouldShow) {
-            this._setUserSwitchBlocked(false);
             this._removeButton();
             return;
         }
-
-        // Leaving an exhausted session for GDM drops enforcement into a
-        // different Shell process.  GDM can then reactivate this session
-        // without consulting this user's TimeLimitsManager.  There is no PAM
-        // account check supplied by malcontent, so prevent that fail-open path
-        // while the native limit shield is active.
-        this._setUserSwitchBlocked(true);
 
         if (this._button && this._shield === shield)
             return;
@@ -139,7 +140,6 @@ export class ParentalControlsIntegration {
     }
 
     _unwatchDialog() {
-        this._setUserSwitchBlocked(false);
         if (this._dialogSignalId) {
             try {
                 this._watchedDialog?._promptBox?.disconnect(this._dialogSignalId);
@@ -151,34 +151,31 @@ export class ParentalControlsIntegration {
         this._watchedDialog = null;
     }
 
-    _setUserSwitchBlocked(blocked) {
-        const dialog = Main.screenShield?._dialog;
-        const button = dialog?._otherUserButton ?? null;
-
-        if (blocked) {
-            if (!button || this._blockedSwitchButton === button)
-                return;
-
-            this._setUserSwitchBlocked(false);
-            this._blockedSwitchButton = button;
-            button.hide();
-            button.set({reactive: false, can_focus: false});
-            console.log(`${LOG_PREFIX} disabled user switching while time limit is active`);
-            return;
-        }
-
-        if (!this._blockedSwitchButton)
+    _relockIfLimitWasBypassed() {
+        const screenShield = Main.screenShield;
+        if (Main.timeLimitsManager.state !== TimeLimitsState.LIMIT_REACHED ||
+            !screenShield || screenShield.locked)
             return;
 
-        const blockedDialog = this._watchedDialog;
-        const blockedButton = this._blockedSwitchButton;
-        this._blockedSwitchButton = null;
+        // GDM can unlock an existing session without recreating this session's
+        // UnlockDialog. The time-limit state remains LIMIT_REACHED, so GNOME's
+        // state-transition dispatcher does not request another lock. Re-lock
+        // when this Shell next observes the now-unlocked session.
+        screenShield.lock(false);
+        console.log(`${LOG_PREFIX} re-locked session after exhausted-limit bypass`);
+    }
 
-        if (blockedButton.get_parent()) {
-            // Re-evaluate all of GNOME's normal policy/settings checks rather
-            // than assuming the switch button was visible before we hid it.
-            blockedDialog?._updateUserSwitchVisibility();
-        }
+    _scheduleRelockCheck() {
+        if (this._relockSourceId)
+            return;
+
+        // ScreenShield emits active-changed before its unlock animation has
+        // finished clearing `locked`. Recheck once that transition completes.
+        this._relockSourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+            this._relockSourceId = 0;
+            this._relockIfLimitWasBypassed();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _removeButton() {

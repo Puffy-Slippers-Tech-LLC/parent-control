@@ -33,10 +33,36 @@ class RequestForm {
             orientation: Clutter.Orientation.VERTICAL,
             style_class: 'request-more-time-content',
         });
-        this.actor.add_child(new St.Label({
+
+        const header = new St.BoxLayout({
+            style_class: 'request-more-time-header',
+            x_expand: true,
+        });
+        header.add_child(new St.Icon({
+            style_class: 'request-more-time-header-icon',
+            icon_name: 'alarm-symbolic',
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        const headerCopy = new St.BoxLayout({
+            orientation: Clutter.Orientation.VERTICAL,
+            style_class: 'request-more-time-header-copy',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        headerCopy.add_child(new St.Label({
             style_class: 'request-more-time-title',
             text: 'Request Time',
         }));
+        headerCopy.add_child(new St.Label({
+            style_class: 'request-more-time-subtitle',
+            text: 'Choose how much extra time you need',
+        }));
+        header.add_child(headerCopy);
+        this.actor.add_child(header);
+
+        const choices = new St.BoxLayout({
+            orientation: Clutter.Orientation.VERTICAL,
+            style_class: 'request-more-time-choices',
+        });
         for (const [index, duration] of DURATIONS.entries()) {
             const button = new St.Button({
                 style_class: 'request-more-time-choice',
@@ -48,12 +74,19 @@ class RequestForm {
                 x_align: Clutter.ActorAlign.FILL,
                 label: duration.label,
             });
-            button.connect('clicked', () => this._select(duration.seconds));
+            button.connect('clicked', () => {
+                this._select(duration.seconds);
+                if (duration.seconds === null)
+                    global.stage.set_key_focus(this._customEntry.clutter_text);
+                else
+                    button.grab_key_focus();
+            });
             button.connect('key-press-event', (_actor, event) =>
                 this._handleChoiceKeyPress(index, event));
-            this.actor.add_child(button);
+            choices.add_child(button);
             this._choiceButtons.push([button, duration.seconds]);
         }
+        this.actor.add_child(choices);
 
         this._customRow = new St.BoxLayout({
             style_class: 'request-more-time-custom-row',
@@ -62,8 +95,11 @@ class RequestForm {
         this._customEntry = new St.Entry({
             style_class: 'request-more-time-custom-entry',
             can_focus: true,
+            reactive: true,
             text: String(CUSTOM_STEP_MINUTES),
         });
+        this._customEntry.clutter_text.set_editable(true);
+        this._customEntry.clutter_text.set_selectable(true);
         this._customEntry.clutter_text.set_input_purpose(
             Clutter.InputContentPurpose.DIGITS);
         this._customEntry.clutter_text.connect('key-press-event', (_actor, event) => {
@@ -82,7 +118,8 @@ class RequestForm {
         });
         this._customRow.add_child(this._customEntry);
         this._customRow.add_child(new St.Label({
-            text: 'minutes (↑/↓: ±15 minutes)',
+            style_class: 'request-more-time-custom-hint',
+            text: 'minutes  •  Use ↑/↓ to adjust by 15',
             y_align: Clutter.ActorAlign.CENTER,
         }));
         this.actor.add_child(this._customRow);
@@ -148,7 +185,7 @@ class RequestForm {
         this._errorLabel?.hide();
         this._customRow.visible = seconds === null;
         if (seconds === null)
-            this._customEntry.grab_key_focus();
+            global.stage.set_key_focus(this._customEntry.clutter_text);
     }
 
     _adjustCustomMinutes(change) {

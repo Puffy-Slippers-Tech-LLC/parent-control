@@ -17,8 +17,9 @@ Without that package, GDM does not ask Malcontent whether a login is allowed,
 so login-session extensions and enforcement can become inconsistent when a
 restricted session is entered through the greeter.
 
-The extension also uses one system-level polkit policy file for its combined
-screen-time/app-approval prompt. Install it with:
+The extension also uses one system-level polkit policy file for its single
+combined screen-time/app-approval prompt. Install (or reinstall) it after
+updating the extension with:
 
     sudo make install-policy
 

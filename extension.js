@@ -55,38 +55,37 @@ export default class RequestMoreTimeExtension extends Extension {
 
             console.log(`${LOG_PREFIX} requesting ${durationSeconds} seconds`);
 
-            // The Malcontent extension agent owns the real
-            // SessionLimits.Extend polkit action. ALLOW_INTERACTIVE_AUTHORIZATION
-            // must be present on this request so that agent can ask the parent;
-            // preauthorizing a separate action for GNOME Shell does not grant
-            // authorization to the agent process.
+            // Authorize the combined meta-action once. Polkit evaluates the
+            // Malcontent check for this same system-bus subject even though a
+            // separate extension-agent process performs that check.
             this._integration?.ensurePolkitAgentPatched();
-            const granted = await this._client.requestExtensionInteractive(
-                durationSeconds);
+            const granted = await this._approval.withAuthorization(async () => {
+                // Both backend actions are implied by the combined approval,
+                // so neither call may open its own authentication dialog.
+                const approved = await this._client.requestExtension(
+                    durationSeconds);
 
-            if (granted) {
-                // Record the authenticated Malcontent approval before any
-                // optional follow-up work can yield back to the lock screen.
-                this._integration?.recordApprovedGrant(durationSeconds);
-                this._indicator?.showGrantedTime(durationSeconds);
-            }
+                if (approved) {
+                    // Record the authenticated Malcontent approval before any
+                    // optional follow-up work can yield back to the lock screen.
+                    this._integration?.recordApprovedGrant(durationSeconds);
+                    this._indicator?.showGrantedTime(durationSeconds);
 
-            if (granted) {
-                try {
-                    const policy = loadAppPolicy();
-                    const blockedTargets = getBlockedTargets(
-                        policy, clearAppRestrictions);
-                    // Changing an AccountsService app filter is privileged.
-                    // Permit Polkit interaction here so the requested policy
-                    // transition cannot silently fail for a restricted user.
-                    await this._appFilter.setBlockedTargets(blockedTargets, true);
-                    console.log(`${LOG_PREFIX} applied ${blockedTargets.length} app restrictions`);
-                } catch (error) {
-                    // A time grant must remain successful even if the optional
-                    // app-filter update requires separate authorization.
-                    console.warn(`${LOG_PREFIX} app filter update failed: ${error.message}`);
+                    try {
+                        const policy = loadAppPolicy();
+                        const blockedTargets = getBlockedTargets(
+                            policy, clearAppRestrictions);
+                        await this._appFilter.setBlockedTargets(blockedTargets);
+                        console.log(`${LOG_PREFIX} applied ${blockedTargets.length} app restrictions`);
+                    } catch (error) {
+                        // A time grant must remain successful even if the
+                        // optional app-filter update fails.
+                        console.warn(`${LOG_PREFIX} app filter update failed: ${error.message}`);
+                    }
                 }
-            }
+
+                return approved;
+            });
 
             console.log(`${LOG_PREFIX} request ${granted ? 'approved' : 'rejected'}`);
             return granted;

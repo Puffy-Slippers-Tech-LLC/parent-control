@@ -9,7 +9,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
 import {queryEstimatedTimes} from './timerQuery.js';
 
-const LOG_PREFIX = '[request-more-time]';
+const LOG_PREFIX = '[oh-no-parent-control]';
 const ROLE = 'screenTimeRemaining';
 const TIMER_BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const TIMER_OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
@@ -85,7 +85,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             can_focus: true,
             reactive: true,
             track_hover: true,
-            accessible_name: 'Request more time',
+            accessible_name: 'Oh No! Parent Control',
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._requestTooltip = new St.Label({
@@ -287,6 +287,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         const visible = !Main.sessionMode.isLocked &&
             !Main.sessionMode.isGreeter &&
             (managerRemaining > 0 || grantedRemaining > 0);
+        // An authenticated grant is the new total, not an amount to add to
+        // the daemon's previously reported remainder.
         const remainingSecs = grantedRemaining > 0
             ? grantedRemaining
             : managerRemaining;

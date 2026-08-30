@@ -56,29 +56,29 @@ class RequestForm {
 
         this.actor = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
-            style_class: 'request-more-time-content',
+            style_class: 'oh-no-parent-control-content',
         });
 
         const header = new St.BoxLayout({
-            style_class: 'request-more-time-header',
+            style_class: 'oh-no-parent-control-header',
             x_expand: true,
         });
         header.add_child(new St.Icon({
-            style_class: 'request-more-time-header-icon',
+            style_class: 'oh-no-parent-control-header-icon',
             icon_name: 'alarm-symbolic',
             y_align: Clutter.ActorAlign.CENTER,
         }));
         const headerCopy = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
-            style_class: 'request-more-time-header-copy',
+            style_class: 'oh-no-parent-control-header-copy',
             y_align: Clutter.ActorAlign.CENTER,
         });
         headerCopy.add_child(new St.Label({
-            style_class: 'request-more-time-title',
-            text: 'Request Time',
+            style_class: 'oh-no-parent-control-title',
+            text: 'Oh No! Parent Control',
         }));
         headerCopy.add_child(new St.Label({
-            style_class: 'request-more-time-subtitle',
+            style_class: 'oh-no-parent-control-subtitle',
             text: 'Choose how much extra time you need',
         }));
         header.add_child(headerCopy);
@@ -86,11 +86,11 @@ class RequestForm {
 
         const choices = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
-            style_class: 'request-more-time-choices',
+            style_class: 'oh-no-parent-control-choices',
         });
         for (const [index, duration] of DURATIONS.entries()) {
             const button = new St.Button({
-                style_class: 'request-more-time-choice',
+                style_class: 'oh-no-parent-control-choice',
                 can_focus: true,
                 reactive: true,
                 track_hover: true,
@@ -114,11 +114,11 @@ class RequestForm {
         this.actor.add_child(choices);
 
         this._customRow = new St.BoxLayout({
-            style_class: 'request-more-time-custom-row',
+            style_class: 'oh-no-parent-control-custom-row',
             x_align: Clutter.ActorAlign.CENTER,
         });
         this._customEntry = new St.Entry({
-            style_class: 'request-more-time-custom-entry',
+            style_class: 'oh-no-parent-control-custom-entry',
             can_focus: true,
             reactive: true,
             text: String(this._lastCustomMinutes),
@@ -144,14 +144,14 @@ class RequestForm {
             this._customEntry.clutter_text.set_selection(0, -1));
         this._customRow.add_child(this._customEntry);
         this._customRow.add_child(new St.Label({
-            style_class: 'request-more-time-custom-hint',
+            style_class: 'oh-no-parent-control-custom-hint',
             text: 'minutes',
             y_align: Clutter.ActorAlign.CENTER,
         }));
         this.actor.add_child(this._customRow);
 
         this._appFilterToggle = new St.Button({
-            style_class: 'request-more-time-app-filter-toggle',
+            style_class: 'oh-no-parent-control-app-filter-toggle',
             label: 'Allow blocked apps during extra time',
             can_focus: true,
             reactive: true,
@@ -210,11 +210,11 @@ class RequestForm {
 
     addPopupActions() {
         const actions = new St.BoxLayout({
-            style_class: 'request-more-time-popup-actions',
+            style_class: 'oh-no-parent-control-popup-actions',
             x_expand: true,
         });
         const cancelButton = new St.Button({
-            style_class: 'button request-more-time-popup-button',
+            style_class: 'button oh-no-parent-control-popup-button',
             label: 'Cancel',
             can_focus: true,
             x_expand: true,
@@ -224,7 +224,7 @@ class RequestForm {
         actions.add_child(cancelButton);
 
         const requestButton = new St.Button({
-            style_class: 'button request-more-time-popup-button suggested-action',
+            style_class: 'button oh-no-parent-control-popup-button suggested-action',
             label: 'Request',
             can_focus: true,
             x_expand: true,
@@ -280,7 +280,7 @@ class RequestForm {
             }
             this._showError();
         } catch (error) {
-            console.error(`[request-more-time] ${error.message}`);
+            console.error(`[oh-no-parent-control] ${error.message}`);
             this._showError();
         } finally {
             this._setWorking(false);
@@ -293,7 +293,7 @@ class RequestForm {
 
         if (!this._errorLabel) {
             this._errorLabel = new St.Label({
-                style_class: 'request-more-time-error',
+                style_class: 'oh-no-parent-control-error',
                 text: message,
             });
             this.actor.add_child(this._errorLabel);
@@ -324,7 +324,7 @@ class RequestForm {
 export const RequestDialog = GObject.registerClass(
 class RequestDialog extends ModalDialog.ModalDialog {
     _init(onRequest) {
-        super._init({styleClass: 'request-more-time-dialog'});
+        super._init({styleClass: 'oh-no-parent-control-dialog'});
         this._form = new RequestForm(onRequest, () => this.close());
         this.contentLayout.add_child(this._form.actor);
         this.setButtons([
@@ -353,7 +353,7 @@ export class RequestPopover extends PopupMenu.PopupMenu {
         const item = new PopupMenu.PopupBaseMenuItem({
             reactive: false,
             can_focus: false,
-            style_class: 'request-more-time-popup-item',
+            style_class: 'oh-no-parent-control-popup-item',
         });
         this._form = new RequestForm(onRequest, () =>
             this.close(BoxPointer.PopupAnimation.FULL));

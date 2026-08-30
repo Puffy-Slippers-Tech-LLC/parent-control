@@ -1,9 +1,9 @@
 import Gio from 'gi://Gio';
 import Polkit from 'gi://Polkit';
 
-const LOG_PREFIX = '[request-more-time]';
+const LOG_PREFIX = '[oh-no-parent-control]';
 const APPROVAL_ACTION =
-    'org.gnome.shell.extensions.request-more-time.ApproveTimeAndApps';
+    'org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps';
 
 export class ParentalApproval {
     constructor() {
@@ -18,9 +18,9 @@ export class ParentalApproval {
                 const busName = Gio.DBus.system.get_unique_name();
                 if (!busName)
                     throw new Error('system bus connection has no unique name');
-                subject = new Polkit.SystemBusName({
-                    name: busName,
-                });
+                // AccountsService sees both subsequent property writes from
+                // this exact system-bus subject.
+                subject = new Polkit.SystemBusName({name: busName});
             } catch (error) {
                 console.warn(`${LOG_PREFIX} polkit subject setup failed: ${error.message}`);
                 reject(new Error(`Could not identify polkit subject: ${error.message}`));
@@ -38,9 +38,16 @@ export class ParentalApproval {
                         const authorization =
                             authority.check_authorization_finish(result);
                         if (authorization.get_is_authorized()) {
+                            const temporaryAuthorizationId =
+                                authorization.get_temporary_authorization_id();
+                            if (!temporaryAuthorizationId) {
+                                reject(new Error(
+                                    'Combined authorization was not retained'));
+                                return;
+                            }
                             console.log(
                                 `${LOG_PREFIX} combined time/app approval authorized`);
-                            resolve(authorization.get_temporary_authorization_id());
+                            resolve(temporaryAuthorizationId);
                             return;
                         }
 

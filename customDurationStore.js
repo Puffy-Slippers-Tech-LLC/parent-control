@@ -1,7 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-const DIRECTORY_NAME = 'request-more-time';
+const DIRECTORY_NAME = 'oh-no-parent-control';
 const CUSTOM_MINUTES_FILE_NAME = 'last-custom-minutes';
 const SELECTED_DURATION_FILE_NAME = 'last-selected-duration';
 
@@ -19,7 +19,7 @@ function load(fileName) {
         return new TextDecoder().decode(contents).trim();
     } catch (error) {
         if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
-            console.warn(`[request-more-time] could not load stored value: ${error.message}`);
+            console.warn(`[oh-no-parent-control] could not load stored value: ${error.message}`);
         return null;
     }
 }
@@ -35,7 +35,7 @@ function save(fileName, value) {
             Gio.FileCreateFlags.REPLACE_DESTINATION,
             null);
     } catch (error) {
-        console.warn(`[request-more-time] could not save stored value: ${error.message}`);
+        console.warn(`[oh-no-parent-control] could not save stored value: ${error.message}`);
     }
 }
 

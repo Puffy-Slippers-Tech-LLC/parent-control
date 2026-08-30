@@ -1,4 +1,4 @@
-.request-more-time-button {
+.oh-no-parent-control-button {
   margin-top: 12px;
 }
 
@@ -109,14 +109,14 @@
   text-shadow: 0 0 4px rgba(69, 223, 141, 0.72);
 }
 
-.request-more-time-content {
+.oh-no-parent-control-content {
   spacing: 16px;
   min-width: 350px;
   padding: 6px;
 }
 
-.request-more-time-dialog,
-.request-more-time-popup-item {
+.oh-no-parent-control-dialog,
+.oh-no-parent-control-popup-item {
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 24px;
   background-gradient-direction: vertical;
@@ -125,12 +125,12 @@
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.20);
 }
 
-.request-more-time-header {
+.oh-no-parent-control-header {
   spacing: 13px;
   padding: 4px 2px 2px;
 }
 
-.request-more-time-header-icon {
+.oh-no-parent-control-header-icon {
   icon-size: 24px;
   padding: 10px;
   color: white;
@@ -142,22 +142,22 @@
   box-shadow: 0 0 18px rgba(69, 223, 141, 0.48), inset 0 1px rgba(255, 255, 255, 0.35);
 }
 
-.request-more-time-header-copy {
+.oh-no-parent-control-header-copy {
   spacing: 3px;
 }
 
-.request-more-time-title {
+.oh-no-parent-control-title {
   font-size: 1.45em;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.98);
 }
 
-.request-more-time-subtitle {
+.oh-no-parent-control-subtitle {
   font-size: 0.92em;
   color: rgba(255, 255, 255, 0.62);
 }
 
-.request-more-time-choices {
+.oh-no-parent-control-choices {
   spacing: 7px;
   padding: 7px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -166,7 +166,7 @@
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.12);
 }
 
-.request-more-time-choice {
+.oh-no-parent-control-choice {
   padding: 10px 13px;
   text-align: left;
   border: 1px solid transparent;
@@ -176,15 +176,15 @@
   transition-duration: 150ms;
 }
 
-.request-more-time-choice:hover,
-.request-more-time-choice:focus {
+.oh-no-parent-control-choice:hover,
+.oh-no-parent-control-choice:focus {
   color: white;
   border-color: rgba(255, 255, 255, 0.18);
   background-color: rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.request-more-time-choice:checked {
+.oh-no-parent-control-choice:checked {
   color: white;
   border-color: rgba(115, 230, 167, 0.72);
   background-gradient-direction: horizontal;
@@ -193,13 +193,13 @@
   box-shadow: 0 0 16px rgba(69, 223, 141, 0.42), inset 0 1px rgba(255, 255, 255, 0.28);
 }
 
-.request-more-time-choice:checked:hover {
+.oh-no-parent-control-choice:checked:hover {
   border-color: rgba(168, 245, 199, 0.92);
   background-gradient-start: rgba(92, 214, 148, 0.80);
   background-gradient-end: rgba(43, 194, 120, 0.72);
 }
 
-.request-more-time-custom-row {
+.oh-no-parent-control-custom-row {
   spacing: 10px;
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.13);
@@ -207,7 +207,7 @@
   background-color: rgba(255, 255, 255, 0.07);
 }
 
-.request-more-time-custom-entry {
+.oh-no-parent-control-custom-entry {
   width: 4em;
   padding: 7px 9px;
   border: 1px solid rgba(115, 230, 167, 0.48);
@@ -217,12 +217,12 @@
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.28);
 }
 
-.request-more-time-custom-hint {
+.oh-no-parent-control-custom-hint {
   color: rgba(255, 255, 255, 0.62);
   font-size: 0.88em;
 }
 
-.request-more-time-app-filter-toggle {
+.oh-no-parent-control-app-filter-toggle {
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
@@ -232,14 +232,14 @@
   transition-duration: 150ms;
 }
 
-.request-more-time-app-filter-toggle:hover,
-.request-more-time-app-filter-toggle:focus {
+.oh-no-parent-control-app-filter-toggle:hover,
+.oh-no-parent-control-app-filter-toggle:focus {
   color: white;
   border-color: rgba(255, 255, 255, 0.22);
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-.request-more-time-app-filter-toggle:checked {
+.oh-no-parent-control-app-filter-toggle:checked {
   color: white;
   border-color: rgba(115, 230, 167, 0.72);
   background-gradient-direction: horizontal;
@@ -248,13 +248,13 @@
   box-shadow: 0 0 16px rgba(69, 223, 141, 0.38), inset 0 1px rgba(255, 255, 255, 0.26);
 }
 
-.request-more-time-app-filter-toggle:checked:hover {
+.oh-no-parent-control-app-filter-toggle:checked:hover {
   border-color: rgba(168, 245, 199, 0.92);
   background-gradient-start: rgba(92, 214, 148, 0.80);
   background-gradient-end: rgba(43, 194, 120, 0.72);
 }
 
-.request-more-time-error {
+.oh-no-parent-control-error {
   padding: 9px 11px;
   border: 1px solid rgba(255, 123, 99, 0.32);
   border-radius: 11px;
@@ -262,16 +262,16 @@
   background-color: rgba(255, 92, 72, 0.11);
 }
 
-.request-more-time-popup-item {
+.oh-no-parent-control-popup-item {
   padding: 16px;
 }
 
-.request-more-time-popup-actions {
+.oh-no-parent-control-popup-actions {
   spacing: 10px;
   padding-top: 2px;
 }
 
-.request-more-time-popup-button {
+.oh-no-parent-control-popup-button {
   padding: 10px 16px;
   border-radius: 14px;
 }
@@ -279,40 +279,40 @@
 /* Keep modal actions legible in both the desktop and GDM themes.  The dialog
  * has its own dark surface, so inheriting the session theme's foreground and
  * background colors can produce dark-on-dark buttons at the login screen. */
-.request-more-time-dialog .modal-dialog-button-box .modal-dialog-button {
+.oh-no-parent-control-dialog .modal-dialog-button-box .modal-dialog-button {
   color: rgba(255, 255, 255, 0.9);
   background-color: rgba(255, 255, 255, 0.09);
 }
 
-.request-more-time-dialog .modal-dialog-button-box .modal-dialog-button:hover,
-.request-more-time-dialog .modal-dialog-button-box .modal-dialog-button:focus {
+.oh-no-parent-control-dialog .modal-dialog-button-box .modal-dialog-button:hover,
+.oh-no-parent-control-dialog .modal-dialog-button-box .modal-dialog-button:focus {
   color: white;
   background-color: rgba(255, 255, 255, 0.15);
 }
 
-.request-more-time-dialog .modal-dialog-button-box .modal-dialog-button:active,
-.request-more-time-dialog .modal-dialog-button-box .modal-dialog-button:checked {
+.oh-no-parent-control-dialog .modal-dialog-button-box .modal-dialog-button:active,
+.oh-no-parent-control-dialog .modal-dialog-button-box .modal-dialog-button:checked {
   color: white;
   background-color: rgba(255, 255, 255, 0.2);
 }
 
-.request-more-time-dialog .modal-dialog-button-box .modal-dialog-button:insensitive {
+.oh-no-parent-control-dialog .modal-dialog-button-box .modal-dialog-button:insensitive {
   color: rgba(255, 255, 255, 0.42);
   background-color: rgba(255, 255, 255, 0.05);
 }
 
-.request-more-time-popup-button.suggested-action,
-.request-more-time-dialog .modal-dialog-button-box .modal-dialog-button:last-child {
+.oh-no-parent-control-popup-button.suggested-action,
+.oh-no-parent-control-dialog .modal-dialog-button-box .modal-dialog-button:last-child {
   border: 1px solid rgba(115, 230, 167, 0.64);
   color: white;
   background-color: rgba(36, 182, 111, 0.48);
   box-shadow: 0 0 14px rgba(69, 223, 141, 0.30), inset 0 1px rgba(255, 255, 255, 0.24);
 }
 
-.request-more-time-popup-button.suggested-action:hover,
-.request-more-time-popup-button.suggested-action:focus,
-.request-more-time-dialog .modal-dialog-button-box .modal-dialog-button:last-child:hover,
-.request-more-time-dialog .modal-dialog-button-box .modal-dialog-button:last-child:focus {
+.oh-no-parent-control-popup-button.suggested-action:hover,
+.oh-no-parent-control-popup-button.suggested-action:focus,
+.oh-no-parent-control-dialog .modal-dialog-button-box .modal-dialog-button:last-child:hover,
+.oh-no-parent-control-dialog .modal-dialog-button-box .modal-dialog-button:last-child:focus {
   border-color: rgba(168, 245, 199, 0.88);
   background-color: rgba(43, 194, 120, 0.62);
   box-shadow: 0 0 18px rgba(69, 223, 141, 0.42), inset 0 1px rgba(255, 255, 255, 0.30);

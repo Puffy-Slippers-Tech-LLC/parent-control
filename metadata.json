@@ -1,7 +1,7 @@
 {
-  "uuid": "request-more-time@example.com",
-  "name": "Request More Time",
-  "description": "Adds duration choices to GNOME's parental-controls screen-time shield.",
+  "uuid": "oh-no-parent-control@example.com",
+  "name": "Oh No! Parent Control",
+  "description": "Oh No! Parent Control adds duration choices to GNOME's parental-controls screen-time shield.",
   "version": 3,
   "shell-version": ["50"],
   "session-modes": ["user", "ubuntu", "unlock-dialog"]

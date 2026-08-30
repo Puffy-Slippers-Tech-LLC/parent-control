@@ -1,7 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-const LOG_PREFIX = '[request-more-time]';
+const LOG_PREFIX = '[oh-no-parent-control]';
 const ACCOUNTS_BUS_NAME = 'org.freedesktop.Accounts';
 const ACCOUNTS_OBJECT_PATH = '/org/freedesktop/Accounts';
 const ACCOUNTS_INTERFACE = 'org.freedesktop.Accounts';

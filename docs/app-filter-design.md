@@ -3,14 +3,15 @@
 The request flow uses one custom Polkit meta-action which implies the two
 privileged backend actions:
 
-- `org.freedesktop.Malcontent.SessionLimits.Extend`
+- `com.endlessm.ParentalControls.SessionLimits.ChangeOwn`
 - `com.endlessm.ParentalControls.AppFilter.ChangeOwn`
 
 The GNOME Shell extension first checks
-`org.gnome.shell.extensions.request-more-time.ApproveTimeAndApps` with user
-interaction enabled. It then calls both `RequestExtension` and `AppFilter.Set`
-without `ALLOW_INTERACTIVE_AUTHORIZATION`, so only the meta-action can display
-an authentication dialog.
+`org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps` with user
+interaction enabled. It then writes `ActiveExtension` and `AppFilter` through
+AccountsService without `ALLOW_INTERACTIVE_AUTHORIZATION`, so only the
+meta-action can display an authentication dialog. `ActiveExtension` is replaced
+with `(approval time, requested duration)`.
 
 ## Why the authorization is retained briefly
 
@@ -21,15 +22,15 @@ subsequent D-Bus calls. The combined action therefore uses `auth_admin_keep`.
 
 The extension captures the temporary authorization ID and revokes it in a
 `finally` block immediately after the two backend operations finish. Polkit
-also scopes the authorization to the GNOME Shell subject. This gives the
-sequential operations one approval without leaving the combined grant active
-for Polkit's normal retention window.
+also scopes the authorization to the GNOME Shell system-bus subject. This gives
+the sequential operations one approval without leaving the combined grant
+active for Polkit's normal retention window.
 
-The Malcontent extension agent runs in another process, but it is the trusted
-mechanism checking authorization for the original GNOME Shell system-bus
-subject. It does not check authorization for its own service user. Therefore,
-the implied `SessionLimits.Extend` authorization applies to the request even
-though the agent performs the check.
+Both properties are changed on the same system-bus connection used for the
+combined check. This avoids Malcontent 0.14's delegated timer-agent check,
+which represents the caller as a different Polkit subject and cannot consume
+the combined authorization reliably. The app-filter write is skipped if its
+target list is already correct.
 
 ## App-filter semantics
 

@@ -38,11 +38,7 @@ function cloneApps(apps) {
     return JSON.parse(JSON.stringify(apps));
 }
 
-class AppPolicyPage extends Adw.PreferencesPage {
-    static {
-        GObject.registerClass(this);
-    }
-
+const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.PreferencesPage {
     constructor(window) {
         super({
             title: 'App Access',
@@ -178,7 +174,7 @@ class AppPolicyPage extends Adw.PreferencesPage {
             }
             this._saveButton.sensitive = false;
         } catch (error) {
-            console.error(`[request-more-time] could not read app filter: ${error.message}`);
+            console.error(`[oh-no-parent-control] could not read app filter: ${error.message}`);
             this._window.add_toast(new Adw.Toast({
                 title: `Could not read system app access: ${error.message}`,
                 timeout: 5,
@@ -215,7 +211,7 @@ class AppPolicyPage extends Adw.PreferencesPage {
                 title: `App access saved — ${blocked.length} restricted target${blocked.length === 1 ? '' : 's'}`,
             }));
         } catch (error) {
-            console.error(`[request-more-time] could not save app policy: ${error.message}`);
+            console.error(`[oh-no-parent-control] could not save app policy: ${error.message}`);
             this._window.add_toast(new Adw.Toast({
                 title: `Could not save app access: ${error.message}`,
                 timeout: 5,
@@ -226,9 +222,9 @@ class AppPolicyPage extends Adw.PreferencesPage {
             this._saveButton.label = 'Save Changes';
         }
     }
-}
+});
 
-export default class RequestMoreTimePreferences extends ExtensionPreferences {
+export default class OhNoParentControlPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const provider = new Gtk.CssProvider();
         provider.load_from_path(`${this.path}/prefs.css`);

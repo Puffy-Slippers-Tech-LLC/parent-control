@@ -38,7 +38,7 @@ extracting the JavaScript resources embedded in `/usr/lib/gnome-shell/libshell-1
   in the Shell binary rather than part of this extension,
   `parentalControlsIntegration.js` applies a narrow runtime patch to the loaded
   `polkitAgent` component: it adds the extension's
-  `org.gnome.shell.extensions.request-more-time.ApproveTimeAndApps` action to
+  `org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps` action to
   that one allowlist. The patch restores the original method on disable and
   does not change authentication itself.
 

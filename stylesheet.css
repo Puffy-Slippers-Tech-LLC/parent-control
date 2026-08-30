@@ -15,58 +15,9 @@
   box-shadow: 0 0 8px 2px rgba(255, 123, 99, 0.95);
 }
 
-.screen-time-remaining-content {
-  spacing: 7px;
-}
-
-.screen-time-urgency-visual {
-  width: 30px;
-  height: 30px;
-}
-
-.screen-time-bomb,
-.screen-time-explosion {
-  width: 30px;
-  height: 30px;
-  font-size: 23px;
-  text-align: center;
-}
-
-.screen-time-bomb:expanded {
-  font-size: 28px;
-}
-
-.screen-time-bomb-spark {
-  width: 30px;
-  height: 30px;
-  padding: 0 0 2px 0;
-  color: #ffd75a;
-  font-size: 15px;
-  font-weight: bold;
-  text-shadow: 0 0 4px #ff6a00;
-}
-
-.screen-time-bomb-spark:expanded {
-  padding: 1px 0 0 0;
-  color: #fff29a;
-  font-size: 20px;
-}
-
-.screen-time-explosion {
-  font-size: 24px;
-  color: #ff9d2e;
-  text-shadow: 0 0 5px #ff3b1f;
-}
-
-.screen-time-explosion:expanded {
-  font-size: 29px;
-  color: #ffe56b;
-}
-
 .screen-time-request-button {
-  width: 28px;
   height: 28px;
-  padding: 3px;
+  padding: 3px 6px 3px 9px;
   border-radius: 99px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   background-gradient-direction: vertical;
@@ -74,6 +25,10 @@
   background-gradient-end: rgba(112, 132, 157, 0.18);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.26), inset 0 1px rgba(255, 255, 255, 0.24);
   transition-duration: 150ms;
+}
+
+.screen-time-request-button-content {
+  spacing: 7px;
 }
 
 .screen-time-request-button:hover,

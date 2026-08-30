@@ -31,57 +31,34 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             style_class: 'screen-time-remaining-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
-        content.add_child(this._label);
 
-        this._urgencyVisual = new St.Widget({
-            style_class: 'screen-time-urgency-visual',
-            layout_manager: new Clutter.BinLayout(),
-            visible: false,
-        });
-        this._bomb = new St.Label({
-            // The bomb glyph supplies the rounded body and curved fuse; the
-            // overlaid spark below remains animated as the countdown ticks.
-            text: '💣',
-            style_class: 'screen-time-bomb',
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        this._spark = new St.Label({
-            text: '✦',
-            style_class: 'screen-time-bomb-spark',
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.START,
-        });
-        this._explosion = new St.Label({
-            text: '✹',
-            style_class: 'screen-time-explosion',
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-            visible: false,
-        });
-        this._urgencyVisual.add_child(this._bomb);
-        this._urgencyVisual.add_child(this._spark);
-        this._urgencyVisual.add_child(this._explosion);
-        content.add_child(this._urgencyVisual);
-
-        const iconBox = new St.Widget({
+        this._requestIcon = new St.Widget({
             style_class: 'screen-time-request-icon',
             layout_manager: new Clutter.BinLayout(),
         });
-        iconBox.add_child(new St.Icon({
+        this._requestIcon.set_pivot_point(0.5, 0.5);
+        this._requestIconSpinning = false;
+        this._requestIcon.add_child(new St.Icon({
             icon_name: 'hourglass-symbolic',
             style_class: 'screen-time-request-hourglass',
         }));
-        iconBox.add_child(new St.Label({
+        this._requestIcon.add_child(new St.Label({
             text: '+',
             style_class: 'screen-time-request-plus',
             x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.START,
         }));
 
+        const buttonContent = new St.BoxLayout({
+            style_class: 'screen-time-request-button-content',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        buttonContent.add_child(this._label);
+        buttonContent.add_child(this._requestIcon);
+
         this._requestButton = new St.Button({
             style_class: 'screen-time-request-button',
-            child: iconBox,
+            child: buttonContent,
             can_focus: true,
             reactive: true,
             track_hover: true,
@@ -211,17 +188,15 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     _clearCountdownWarning() {
         this._clearFlash();
         this._label?.remove_style_pseudo_class('countdown');
-        this._clearUrgencyVisual();
+        this._stopRequestIconSpin();
     }
 
-    _clearUrgencyVisual() {
-        for (const actor of [this._urgencyVisual, this._bomb, this._spark,
-            this._explosion])
-            actor?.remove_style_pseudo_class('expanded');
-        this._bomb?.show();
-        this._spark?.show();
-        this._explosion?.hide();
-        this._urgencyVisual?.hide();
+    _stopRequestIconSpin() {
+        this._requestIcon?.remove_all_transitions();
+        if (this._requestIcon) {
+            this._requestIcon.rotation_angle_z = 0;
+            this._requestIconSpinning = false;
+        }
     }
 
     _remainingSeconds() {
@@ -298,6 +273,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         if (!visible || remainingSecs <= 0) {
             this._clearTimeout();
+            this._stopRequestIconSpin();
             this._setShown(false);
             return;
         }
@@ -366,38 +342,27 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._flashLabel();
         }
 
-        this._updateUrgencyVisual(remainingSecs);
+        this._updateRequestIcon(remainingSecs);
+        this._requestButton.accessible_name =
+            `Request time, ${this._label.text}`;
     }
 
-    _updateUrgencyVisual(remainingSecs) {
+    _updateRequestIcon(remainingSecs) {
         if (remainingSecs > 10) {
-            this._clearUrgencyVisual();
+            this._stopRequestIconSpin();
             return;
         }
 
-        this._urgencyVisual.show();
-        if (remainingSecs <= 3) {
-            this._bomb.hide();
-            this._spark.hide();
-            this._explosion.show();
-            this._explosion.text = ['✹', '✷', '✸'][3 - remainingSecs];
-            this._setExpanded(this._explosion, remainingSecs % 2 === 1);
+        if (this._requestIconSpinning)
             return;
-        }
 
-        this._explosion.hide();
-        this._bomb.show();
-        this._spark.show();
-        const expanded = remainingSecs % 2 === 0;
-        this._setExpanded(this._bomb, expanded);
-        this._spark.text = expanded ? '✶' : '✦';
-        this._setExpanded(this._spark, expanded);
-    }
-
-    _setExpanded(actor, expanded) {
-        actor.remove_style_pseudo_class('expanded');
-        if (expanded)
-            actor.add_style_pseudo_class('expanded');
+        this._requestIconSpinning = true;
+        this._requestIcon.ease({
+            rotation_angle_z: 360,
+            duration: 1000,
+            mode: Clutter.AnimationMode.LINEAR,
+            repeatCount: -1,
+        });
     }
 
     _flashLabel() {

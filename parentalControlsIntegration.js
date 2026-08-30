@@ -413,15 +413,14 @@ export class ParentalControlsIntegration {
             return;
         }
 
-        const reportedEnd = Number(estimates[2]);
-        if (approvedEnd <= (Number.isFinite(reportedEnd) ? reportedEnd : 0))
-            return;
-
         const overlaidEstimates = estimates.slice();
         overlaidEstimates[2] = approvedEnd;
         manager._estimatedTimes = overlaidEstimates;
-        console.debug(`${LOG_PREFIX} overlaid stale timer estimate; ` +
-            `reported=${reportedEnd}, approved=${approvedEnd}`);
+        const reportedEnd = Number(estimates[2]);
+        if (reportedEnd !== approvedEnd) {
+            console.debug(`${LOG_PREFIX} replaced stale timer estimate; ` +
+                `reported=${reportedEnd}, approved=${approvedEnd}`);
+        }
     }
 
     _recalculateTimeLimits() {

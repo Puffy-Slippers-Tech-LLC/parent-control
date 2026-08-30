@@ -40,7 +40,7 @@ export class ParentalApproval {
                         if (authorization.get_is_authorized()) {
                             console.log(
                                 `${LOG_PREFIX} combined time/app approval authorized`);
-                            resolve();
+                            resolve(authorization.get_temporary_authorization_id());
                             return;
                         }
 
@@ -52,6 +52,42 @@ export class ParentalApproval {
                         console.error(`${LOG_PREFIX} authorization failed: ${error.message}`);
                         reject(error);
                     }
+                });
+        });
+    }
+
+    async withAuthorization(callback, actionId = APPROVAL_ACTION) {
+        if (typeof callback !== 'function')
+            throw new Error('Authorized operation must be a function');
+
+        const temporaryAuthorizationId =
+            await this.ensureAuthorization(actionId);
+        try {
+            return await callback();
+        } finally {
+            if (temporaryAuthorizationId)
+                await this._revokeAuthorization(temporaryAuthorizationId);
+        }
+    }
+
+    _revokeAuthorization(authorizationId) {
+        return new Promise(resolve => {
+            this._authority.revoke_temporary_authorization_by_id(
+                authorizationId,
+                null,
+                (authority, result) => {
+                    try {
+                        authority.revoke_temporary_authorization_by_id_finish(result);
+                        console.log(
+                            `${LOG_PREFIX} combined authorization released`);
+                    } catch (error) {
+                        // The grant is scoped to this process and Polkit will
+                        // expire it even if an explicit cleanup races shutdown.
+                        console.warn(
+                            `${LOG_PREFIX} could not release combined authorization: ` +
+                            error.message);
+                    }
+                    resolve();
                 });
         });
     }

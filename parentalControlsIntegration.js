@@ -185,6 +185,8 @@ export class ParentalControlsIntegration {
                 this._polkitAgent.connect(
                     'initiate', this._polkitOriginalInitiate.bind(this._polkitAgent));
         }
+        if (this._polkitAgent?._requestMoreTimePolkitPatch === this)
+            delete this._polkitAgent._requestMoreTimePolkitPatch;
         this._polkitInitiateHandlerId = 0;
         this._polkitAgent = null;
         this._polkitOriginalInitiate = null;
@@ -515,7 +517,7 @@ export class ParentalControlsIntegration {
                 'lock-screen approval may be deferred until it appears');
             return false;
         }
-        if (agent._requestMoreTimePolkitPatch)
+        if (agent._requestMoreTimePolkitPatch === this)
             return true;
 
         const originalInitiate = agent._onInitiate;
@@ -554,7 +556,11 @@ export class ParentalControlsIntegration {
         this._polkitAgent = agent;
         this._polkitOriginalInitiate = originalInitiate;
         this._polkitInitiateHandlerId = agent.connect('initiate', wrappedInitiate);
-        agent._requestMoreTimePolkitPatch = true;
+        // Track the owner rather than leaving a boolean behind. Extensions can
+        // be disabled and re-enabled while the Shell's component survives;
+        // a stale marker would otherwise suppress this lock-screen exception
+        // and Polkit would defer the prompt until after unlock.
+        agent._requestMoreTimePolkitPatch = this;
         console.log(`${LOG_PREFIX} patched polkit agent for lock-screen app approval`);
         return true;
     }

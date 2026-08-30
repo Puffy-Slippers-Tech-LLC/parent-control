@@ -33,9 +33,12 @@ agent requests the existing Polkit action
 `org.freedesktop.Malcontent.SessionLimits.Extend`. The extension neither grants
 time nor changes stored policy.
 
-The implementation subscribes before submitting, correlates the returned
-cookie, passes `ALLOW_INTERACTIVE_AUTHORIZATION`, and reports only a generic
-failure in child-facing UI. Detailed errors use the extension log prefix.
+The implementation subscribes before submitting and correlates the returned
+cookie. Its custom Polkit meta-action is authorized interactively once and
+temporarily implies both `SessionLimits.Extend` and the app-filter action for
+the GNOME Shell system-bus subject. `RequestExtension` itself is deliberately
+non-interactive, so it cannot open a second authentication dialog. Detailed
+errors use the extension log prefix.
 
 Malcontent 0.14 may not emit `EstimatedTimesChanged` after approving an
 extension (upstream issue #133). GNOME Shell would otherwise retain its cached

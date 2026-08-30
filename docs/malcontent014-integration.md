@@ -25,6 +25,11 @@ does not guarantee that result. The extension calculates the exact duration
 to the next local midnight for its “Rest of the day” choice and sends that
 positive value.
 
+An approved positive duration replaces the active extension beginning at the
+approval time. The selected value is therefore the new total remaining time,
+not an amount added to the previously reported remainder. “Rest of the day” is
+sent as the already-calculated interval to local midnight.
+
 The request originates from the restricted user's system-bus connection. The
 daemon identifies the caller and forwards it to
 `org.freedesktop.MalcontentTimer1.ExtensionAgent` at
@@ -33,23 +38,32 @@ agent requests the existing Polkit action
 `org.freedesktop.Malcontent.SessionLimits.Extend`. The extension neither grants
 time nor changes stored policy.
 
-The implementation subscribes before submitting and correlates the returned
-cookie. Its custom Polkit meta-action is authorized interactively once and
-temporarily implies both `SessionLimits.Extend` and the app-filter action for
-the GNOME Shell system-bus subject. `RequestExtension` itself is deliberately
-non-interactive, so it cannot open a second authentication dialog. Detailed
-errors use the extension log prefix.
+The native GNOME shield still uses this request API. The extension subscribes
+to its responses and correlates their returned cookies.
+
+The extension's combined time/app request cannot use `RequestExtension`
+non-interactively: Malcontent 0.14 delegates its Polkit check to a separate
+agent using a forwarded pidfd subject, which does not reliably consume a
+temporary meta-action authorization created for the Shell's system-bus
+subject. Making it interactive would add a second authentication dialog.
+
+Instead, the combined action temporarily implies the two AccountsService
+permissions `SessionLimits.ChangeOwn` and `AppFilter.ChangeOwn`. After the one
+interactive combined check, the extension replaces the documented
+`ActiveExtension` property `(tu)` with `(approval time, selected duration)` and
+optionally writes the app filter. Both writes are non-interactive and originate
+from the same GNOME Shell system-bus subject.
 
 Malcontent 0.14 may not emit `EstimatedTimesChanged` after approving an
 extension (upstream issue #133). GNOME Shell would otherwise retain its cached
 `LIMIT_REACHED` state until another event, such as switching users, refreshes
 it. Malcontent may also temporarily publish a shorter estimate when concurrent
 clients encounter its per-user database lock. For the lifetime of an
-authenticated positive `ExtensionResponse`, the extension overlays the approved
-expiry as a floor on GNOME Shell's cached `currentSessionEnd` before its native
-state calculation runs. This keeps the native manager `ACTIVE` without
-auto-unlocking a manually locked screen. At expiry, the overlay is removed and
-the authoritative estimate is refreshed.
+authenticated positive native `ExtensionResponse` or combined AccountsService
+write, the extension overlays the approved expiry as a floor on GNOME Shell's
+cached `currentSessionEnd` before its native state calculation runs. This keeps
+the native manager `ACTIVE` without auto-unlocking a manually locked screen. At
+expiry, the overlay is removed and the authoritative estimate is refreshed.
 
 The native shield's Ignore button uses the same response signal. The extension
 observes a native click and accepts a response only when its cookie exactly

@@ -1,7 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-const DIRECTORY_NAME = 'request-more-time';
+const DIRECTORY_NAME = 'oh-no-parent-control';
 const FILE_NAME = 'app-policy.json';
 const FORMAT_VERSION = 1;
 const VALID_STATES = new Set(['allowed', 'permanent', 'conditional']);
@@ -50,7 +50,7 @@ export function loadAppPolicy() {
         return {version: FORMAT_VERSION, apps};
     } catch (error) {
         if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
-            console.warn(`[request-more-time] could not load app policy: ${error.message}`);
+            console.warn(`[oh-no-parent-control] could not load app policy: ${error.message}`);
         return {version: FORMAT_VERSION, apps: {}};
     }
 }

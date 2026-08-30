@@ -1,9 +1,12 @@
-UUID := request-more-time@example.com
-SOURCES := appCatalog.js appFilterClient.js appPolicyStore.js approvedGrantStore.js customDurationStore.js malcontentClient.js parentalApproval.js parentalControlsIntegration.js remainingTimeIndicator.js requestDialog.js timerQuery.js
-EXTENSION_BASE ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)
+UUID := oh-no-parent-control@example.com
+SOURCES := appCatalog.js appFilterClient.js appPolicyStore.js approvedGrantStore.js customDurationStore.js malcontentClient.js parentalApproval.js parentalControlsIntegration.js remainingTimeIndicator.js requestDialog.js sessionLimitsClient.js timerQuery.js
+# Shell extensions belong to the host user's data directory. In particular,
+# terminals launched by a confined IDE can export a sandbox-specific
+# XDG_DATA_HOME which GNOME Shell never searches.
+EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 RUNTIME_FILES := metadata.json stylesheet.css prefs.css extension.js prefs.js $(SOURCES)
-POLICY_FILE := policy/org.gnome.shell.extensions.request-more-time.policy
+POLICY_FILE := policy/org.gnome.shell.extensions.oh-no-parent-control.policy
 POLKIT_ACTION_DIR ?= /usr/share/polkit-1/actions
 
 .PHONY: pack check install install-policy

@@ -4,7 +4,7 @@ import GLib from 'gi://GLib';
 const BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
 const INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
-const LOG_PREFIX = '[request-more-time]';
+const LOG_PREFIX = '[oh-no-parent-control]';
 
 export class MalcontentClient {
     constructor(onUnsolicitedResponse = null) {
@@ -12,6 +12,7 @@ export class MalcontentClient {
         this._onUnsolicitedResponse = onUnsolicitedResponse;
         this._pending = new Map();
         this._earlyResponses = new Map();
+        this._awaitingResponseCookies = new Set();
         this._submissionsInFlight = 0;
         this._signalId = this._connection.signal_subscribe(
             BUS_NAME, INTERFACE, 'ExtensionResponse', OBJECT_PATH, null,
@@ -36,6 +37,11 @@ export class MalcontentClient {
                     this._submissionsInFlight--;
                     try {
                         const [cookie] = connection.call_finish(result).deepUnpack();
+                        // Mark ownership before resolving the submission
+                        // promise. A fast ExtensionResponse can otherwise be
+                        // mistaken for an unsolicited native request before
+                        // waitForResponse() installs its pending entry.
+                        this._awaitingResponseCookies.add(cookie);
                         console.log(`${LOG_PREFIX} request submitted`);
                         resolve(cookie);
                     } catch (error) {
@@ -60,8 +66,10 @@ export class MalcontentClient {
 
     waitForResponse(cookie) {
         if (this._earlyResponses.has(cookie)) {
-            const granted = this._earlyResponses.get(cookie);
+            const {granted, extraData} = this._earlyResponses.get(cookie);
             this._earlyResponses.delete(cookie);
+            this._awaitingResponseCookies.delete(cookie);
+            this._logRejection(granted, extraData);
             return Promise.resolve(granted);
         }
 
@@ -78,6 +86,7 @@ export class MalcontentClient {
             reject(new Error('Extension disabled'));
         this._pending.clear();
         this._earlyResponses.clear();
+        this._awaitingResponseCookies.clear();
         this._submissionsInFlight = 0;
         this._onUnsolicitedResponse = null;
     }
@@ -90,8 +99,9 @@ export class MalcontentClient {
             // service may emit ExtensionResponse before that method reply is
             // dispatched. Keep responses only while one of our submissions
             // is awaiting its cookie, then consume it in waitForResponse().
-            if (this._submissionsInFlight > 0) {
-                this._earlyResponses.set(cookie, granted);
+            if (this._submissionsInFlight > 0 ||
+                this._awaitingResponseCookies.has(cookie)) {
+                this._earlyResponses.set(cookie, {granted, extraData});
             } else {
                 this._onUnsolicitedResponse?.({
                     granted,
@@ -102,6 +112,19 @@ export class MalcontentClient {
             return;
         }
         this._pending.delete(cookie);
+        this._awaitingResponseCookies.delete(cookie);
+        this._logRejection(granted, extraData);
         pending.resolve(granted);
+    }
+
+    _logRejection(granted, extraData) {
+        if (granted)
+            return;
+
+        let errorName = extraData?.['error-name'];
+        if (typeof errorName?.deepUnpack === 'function')
+            errorName = errorName.deepUnpack();
+        console.warn(`${LOG_PREFIX} extension response denied` +
+            (errorName ? `: ${errorName}` : ' by the authorization agent'));
     }
 }

@@ -12,11 +12,11 @@ import {
     saveApprovedGrant,
 } from './approvedGrantStore.js';
 
-const LOG_PREFIX = '[request-more-time]';
+const LOG_PREFIX = '[oh-no-parent-control]';
 const SESSION_LIMITS_EXTEND_ACTION =
     'org.freedesktop.Malcontent.SessionLimits.Extend';
 const COMBINED_APPROVAL_ACTION =
-    'org.gnome.shell.extensions.request-more-time.ApproveTimeAndApps';
+    'org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps';
 const NATIVE_REQUEST_TIMEOUT_SECONDS = 2 * 60;
 
 // This is the only module which knows GNOME Shell's private unlock-dialog
@@ -97,6 +97,10 @@ export class ParentalControlsIntegration {
         saveApprovedGrant(durationSeconds);
         this._setApprovedGrantRemaining(durationSeconds);
         this._recalculateTimeLimits();
+        // The previous grant may have left a later overlaid end in GNOME's
+        // private estimate cache. Reload the daemon's newly replaced active
+        // extension so a shorter total takes effect immediately too.
+        this._refreshTimeLimitsEstimate();
         this._sync();
     }
 
@@ -185,8 +189,8 @@ export class ParentalControlsIntegration {
                 this._polkitAgent.connect(
                     'initiate', this._polkitOriginalInitiate.bind(this._polkitAgent));
         }
-        if (this._polkitAgent?._requestMoreTimePolkitPatch === this)
-            delete this._polkitAgent._requestMoreTimePolkitPatch;
+        if (this._polkitAgent?._ohNoParentControlPolkitPatch === this)
+            delete this._polkitAgent._ohNoParentControlPolkitPatch;
         this._polkitInitiateHandlerId = 0;
         this._polkitAgent = null;
         this._polkitOriginalInitiate = null;
@@ -224,8 +228,8 @@ export class ParentalControlsIntegration {
         this._removeButton();
         this._shield = shield;
         this._button = new St.Button({
-            style_class: 'parental-controls-shield-button request-more-time-button',
-            label: 'Request Time',
+            style_class: 'parental-controls-shield-button oh-no-parent-control-button',
+            label: 'Oh No! Parent Control',
             can_focus: true,
             reactive: true,
             x_align: Clutter.ActorAlign.CENTER,
@@ -360,7 +364,7 @@ export class ParentalControlsIntegration {
             console.warn(`${LOG_PREFIX} time-limits manager cannot apply grant overlay`);
             return false;
         }
-        if (manager._requestMoreTimeGrantOverlay) {
+        if (manager._ohNoParentControlGrantOverlay) {
             console.warn(`${LOG_PREFIX} time-limits grant overlay is already installed`);
             return false;
         }
@@ -372,7 +376,7 @@ export class ParentalControlsIntegration {
         this._timeLimitsOriginalUpdateState = originalUpdateState;
         this._timeLimitsWrappedUpdateState = wrappedUpdateState;
         manager._updateState = wrappedUpdateState;
-        manager._requestMoreTimeGrantOverlay = wrappedUpdateState;
+        manager._ohNoParentControlGrantOverlay = wrappedUpdateState;
         console.log(`${LOG_PREFIX} installed authenticated grant overlay`);
         return true;
     }
@@ -381,9 +385,9 @@ export class ParentalControlsIntegration {
         const manager = Main.timeLimitsManager;
         if (manager?._updateState === this._timeLimitsWrappedUpdateState)
             manager._updateState = this._timeLimitsOriginalUpdateState;
-        if (manager?._requestMoreTimeGrantOverlay ===
+        if (manager?._ohNoParentControlGrantOverlay ===
             this._timeLimitsWrappedUpdateState)
-            delete manager._requestMoreTimeGrantOverlay;
+            delete manager._ohNoParentControlGrantOverlay;
 
         this._timeLimitsOriginalUpdateState = null;
         this._timeLimitsWrappedUpdateState = null;
@@ -517,7 +521,7 @@ export class ParentalControlsIntegration {
                 'lock-screen approval may be deferred until it appears');
             return false;
         }
-        if (agent._requestMoreTimePolkitPatch === this)
+        if (agent._ohNoParentControlPolkitPatch === this)
             return true;
 
         const originalInitiate = agent._onInitiate;
@@ -560,7 +564,7 @@ export class ParentalControlsIntegration {
         // be disabled and re-enabled while the Shell's component survives;
         // a stale marker would otherwise suppress this lock-screen exception
         // and Polkit would defer the prompt until after unlock.
-        agent._requestMoreTimePolkitPatch = this;
+        agent._ohNoParentControlPolkitPatch = this;
         console.log(`${LOG_PREFIX} patched polkit agent for lock-screen app approval`);
         return true;
     }

@@ -1,7 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-const DIRECTORY_NAME = 'request-more-time';
+const DIRECTORY_NAME = 'oh-no-parent-control';
 const FILE_NAME = 'approved-grant';
 const FORMAT_VERSION = 1;
 
@@ -22,7 +22,7 @@ function removeStoreFile() {
         getStoreFile().delete(null);
     } catch (error) {
         if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
-            console.warn(`[request-more-time] could not remove expired grant: ${error.message}`);
+            console.warn(`[oh-no-parent-control] could not remove expired grant: ${error.message}`);
     }
 }
 
@@ -51,7 +51,7 @@ export function saveApprovedGrant(durationSeconds) {
     } catch (error) {
         // The authenticated Malcontent grant remains valid even if local
         // persistence is unavailable. Keep the in-process guard active.
-        console.warn(`[request-more-time] could not persist approved grant: ${error.message}`);
+        console.warn(`[oh-no-parent-control] could not persist approved grant: ${error.message}`);
         return false;
     }
 }
@@ -63,7 +63,7 @@ export function loadApprovedGrantRemaining() {
         grant = JSON.parse(new TextDecoder().decode(contents));
     } catch (error) {
         if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND)) {
-            console.warn(`[request-more-time] could not load approved grant: ${error.message}`);
+            console.warn(`[oh-no-parent-control] could not load approved grant: ${error.message}`);
             removeStoreFile();
         }
         return 0;
@@ -75,7 +75,7 @@ export function loadApprovedGrantRemaining() {
         Number.isSafeInteger(grant.expiresAt) &&
         grant.expiresAt === grant.issuedAt + grant.durationSeconds;
     if (!valid) {
-        console.warn('[request-more-time] discarded invalid approved grant record');
+        console.warn('[oh-no-parent-control] discarded invalid approved grant record');
         removeStoreFile();
         return 0;
     }

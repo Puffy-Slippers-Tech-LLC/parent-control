@@ -1,8 +1,8 @@
-# Design & Implementation Spec: GNOME Shell “Request More Time” Extension
+# Design & Implementation Spec: “Oh No! Parent Control” GNOME Shell Extension
 
 ## 1. Objective
 
-Build a GNOME Shell extension for Ubuntu 26.04 / GNOME 50 that adds a **“Request More Time”** button to the existing GNOME parental-controls lock-screen UI.
+Build a GNOME Shell extension for Ubuntu 26.04 / GNOME 50 that adds an **“Oh No! Parent Control”** button to the existing GNOME parental-controls lock-screen UI.
 
 The button must appear **only when the child’s screen-time limit has actually been exhausted**, i.e. in the same lock-screen state where GNOME’s built-in **“Ignore”** button appears.
 
@@ -10,7 +10,7 @@ The extension must:
 
 1. Run in GNOME Shell's `unlock-dialog` session mode.
 2. Detect the parental-controls time-limit-exhausted state reliably.
-3. Add a **Request More Time** button to the existing parental-controls lock-screen UI.
+3. Add an **Oh No! Parent Control** button to the existing parental-controls lock-screen UI.
 4. Leave GNOME's native **Ignore** button untouched initially.
 5. Open a custom Shell-native dialog when the new button is clicked.
 6. Let the child select a requested duration.
@@ -65,7 +65,7 @@ ParentalControlsShield
     |
     +-- Ignore                    <-- native GNOME behavior
     |
-    +-- Request More Time         <-- this extension
+    +-- Oh No! Parent Control         <-- this extension
              |
              v
       Custom Shell dialog
@@ -79,25 +79,25 @@ ParentalControlsShield
 
 # 4. Critical functional requirement
 
-The extension MUST NOT display “Request More Time” merely because the screen is locked.
+The extension MUST NOT display “Oh No! Parent Control” merely because the screen is locked.
 
 For example:
 
 ```text
 Child manually locks screen
-    -> NO Request More Time
+    -> NO Oh No! Parent Control
 
 Parent locks screen
-    -> NO Request More Time
+    -> NO Oh No! Parent Control
 
 Normal unlock dialog
-    -> NO Request More Time
+    -> NO Oh No! Parent Control
 
 Child still has screen time remaining
-    -> NO Request More Time
+    -> NO Oh No! Parent Control
 
 Child has exhausted parental-control screen time
-    -> YES Request More Time
+    -> YES Oh No! Parent Control
 ```
 
 The button must appear only in the same state as GNOME's parental-control **Ignore** button.
@@ -246,7 +246,7 @@ The extension must be able to run while the lock/unlock dialog is displayed.
 Use a proper UUID, e.g.:
 
 ```text
-request-more-time@example.com
+oh-no-parent-control@example.com
 ```
 
 unless the project already has an established UUID.
@@ -265,7 +265,7 @@ Initially the UI should be:
 |       Screen time limit reached      |
 |                                      |
 |       [ Ignore ]                     |
-|       [ Request More Time ]          |
+|       [ Oh No! Parent Control ]          |
 |                                      |
 +--------------------------------------+
 ```
@@ -275,7 +275,7 @@ The native Ignore button must continue to behave exactly as GNOME intended.
 The extension owns only:
 
 ```text
-Request More Time
+Oh No! Parent Control
 ```
 
 This provides a safe fallback and makes debugging easier.
@@ -333,7 +333,7 @@ remove/hide the button
 Examples:
 
 ```text
-Child clicks Request More Time
+Child clicks Oh No! Parent Control
     -> dialog opens
 
 Child cancels dialog
@@ -366,7 +366,7 @@ Expected UI:
 
 ```text
 +--------------------------------------+
-|        Request More Time             |
+|        Oh No! Parent Control             |
 |                                      |
 |  How much additional time?           |
 |                                      |
@@ -528,7 +528,7 @@ can be used.
 If it can:
 
 ```text
-Request More Time
+Oh No! Parent Control
        |
        v
 Malcontent request-extension
@@ -562,7 +562,7 @@ Therefore:
 
 ```text
 Child:
-    Request More Time
+    Oh No! Parent Control
     -> selects 30 minutes
     -> clicks Request
 
@@ -653,7 +653,7 @@ Implement automated/unit tests where practical, plus manual integration tests.
 Expected:
 
 ```text
-No Request More Time button.
+No Oh No! Parent Control button.
 ```
 
 ## Test B — manually lock child session
@@ -661,7 +661,7 @@ No Request More Time button.
 Expected:
 
 ```text
-No Request More Time button.
+No Oh No! Parent Control button.
 ```
 
 ## Test C — child has time remaining
@@ -669,7 +669,7 @@ No Request More Time button.
 Expected:
 
 ```text
-No Request More Time button.
+No Oh No! Parent Control button.
 ```
 
 ## Test D — daily limit exhausted
@@ -679,10 +679,10 @@ Expected:
 ```text
 GNOME parental-controls shield appears.
 Ignore appears.
-Request More Time appears.
+Oh No! Parent Control appears.
 ```
 
-## Test E — click Request More Time
+## Test E — click Oh No! Parent Control
 
 Expected:
 
@@ -799,7 +799,7 @@ The extension logs the exhausted-time state only when the native Ignore UI is ex
 Add:
 
 ```text
-Request More Time
+Oh No! Parent Control
 ```
 
 without changing native Ignore.
@@ -845,7 +845,7 @@ Verify:
 
 ```text
 Child
-  -> Request More Time
+  -> Oh No! Parent Control
   -> selects 30 minutes
   -> Request
   -> parent authorization
@@ -891,21 +891,21 @@ _private Shell actors
 Use a consistent prefix:
 
 ```text
-[request-more-time]
+[oh-no-parent-control]
 ```
 
 Example:
 
 ```text
-[request-more-time] extension enabled
-[request-more-time] entered unlock-dialog
-[request-more-time] parental control limit exhausted
-[request-more-time] showing request button
-[request-more-time] request dialog opened
-[request-more-time] requesting 1800 seconds
-[request-more-time] request submitted
-[request-more-time] request approved
-[request-more-time] request rejected
+[oh-no-parent-control] extension enabled
+[oh-no-parent-control] entered unlock-dialog
+[oh-no-parent-control] parental control limit exhausted
+[oh-no-parent-control] showing request button
+[oh-no-parent-control] request dialog opened
+[oh-no-parent-control] requesting 1800 seconds
+[oh-no-parent-control] request submitted
+[oh-no-parent-control] request approved
+[oh-no-parent-control] request rejected
 ```
 
 Never log:
@@ -964,9 +964,9 @@ The implementation is complete when all of the following are true:
 
 - [ ] Extension loads on GNOME Shell 50.
 - [ ] Extension runs in `unlock-dialog`.
-- [ ] Request More Time is invisible during normal use.
-- [ ] Request More Time is invisible during ordinary manual lock.
-- [ ] Request More Time appears when the native parental-control Ignore button appears.
+- [ ] Oh No! Parent Control is invisible during normal use.
+- [ ] Oh No! Parent Control is invisible during ordinary manual lock.
+- [ ] Oh No! Parent Control appears when the native parental-control Ignore button appears.
 - [ ] Native Ignore button remains unchanged.
 - [ ] Custom duration dialog works on the lock screen.
 
@@ -1019,7 +1019,7 @@ The extension should be a **thin UI layer** over GNOME/Malcontent:
                     |
           +---------+---------+
           |                   |
-       Ignore        Request More Time
+       Ignore        Oh No! Parent Control
           |                   |
       GNOME native        Custom dialog
           |                   |

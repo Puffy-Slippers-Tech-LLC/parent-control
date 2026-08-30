@@ -3,10 +3,10 @@
  "-//freedesktop//DTD polkit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
 <policyconfig>
-  <vendor>Request More Time</vendor>
-  <vendor_url>https://example.com/request-more-time</vendor_url>
+  <vendor>Oh No! Parent Control</vendor>
+  <vendor_url>https://example.com/oh-no-parent-control</vendor_url>
 
-  <action id="org.gnome.shell.extensions.request-more-time.ApproveTimeAndApps">
+  <action id="org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps">
     <description>Extend screen time and update app restrictions</description>
     <message>Authentication is required to extend screen time and update app restrictions.</message>
     <defaults>
@@ -18,12 +18,12 @@
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.imply">
-      org.freedesktop.Malcontent.SessionLimits.Extend
+      com.endlessm.ParentalControls.SessionLimits.ChangeOwn
       com.endlessm.ParentalControls.AppFilter.ChangeOwn
     </annotate>
   </action>
 
-  <action id="org.gnome.shell.extensions.request-more-time.ConfigureApps">
+  <action id="org.gnome.shell.extensions.oh-no-parent-control.ConfigureApps">
     <description>Configure parental app restrictions</description>
     <message>Administrator authentication is required to change app restrictions.</message>
     <defaults>

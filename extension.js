@@ -7,10 +7,11 @@ import {ParentalApproval} from './parentalApproval.js';
 import {ParentalControlsIntegration} from './parentalControlsIntegration.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
 import {RequestDialog, RequestPopover} from './requestDialog.js';
+import {SessionLimitsClient} from './sessionLimitsClient.js';
 
-const LOG_PREFIX = '[request-more-time]';
+const LOG_PREFIX = '[oh-no-parent-control]';
 
-export default class RequestMoreTimeExtension extends Extension {
+export default class OhNoParentControlExtension extends Extension {
     enable() {
         console.log(`${LOG_PREFIX} extension enabled`);
         this._client = new MalcontentClient(response => {
@@ -21,6 +22,7 @@ export default class RequestMoreTimeExtension extends Extension {
         });
         this._approval = new ParentalApproval();
         this._appFilter = new AppFilterClient();
+        this._sessionLimits = new SessionLimitsClient();
         this._integration = new ParentalControlsIntegration(() => this._showDialog());
         this._integration.enable();
         this._indicator = new RemainingTimeIndicator(
@@ -39,6 +41,7 @@ export default class RequestMoreTimeExtension extends Extension {
         this._client = null;
         this._approval = null;
         this._appFilter = null;
+        this._sessionLimits = null;
         console.log(`${LOG_PREFIX} extension disabled`);
     }
 
@@ -53,38 +56,41 @@ export default class RequestMoreTimeExtension extends Extension {
             if (!sourceActor && !this._integration?.isExhausted())
                 throw new Error('Screen-time limit is no longer active');
 
-            console.log(`${LOG_PREFIX} requesting ${durationSeconds} seconds`);
+            console.log(`${LOG_PREFIX} requesting ${durationSeconds} seconds ` +
+                'as the new total remaining time');
 
-            // Authorize the combined meta-action once. Polkit evaluates the
-            // Malcontent check for this same system-bus subject even though a
-            // separate extension-agent process performs that check.
+            // Both privileged writes go through AccountsService for the same
+            // system-bus subject, so the combined meta-action can authorize
+            // them with one dialog.
             this._integration?.ensurePolkitAgentPatched();
             const granted = await this._approval.withAuthorization(async () => {
-                // Both backend actions are implied by the combined approval,
-                // so neither call may open its own authentication dialog.
-                const approved = await this._client.requestExtension(
+                await this._sessionLimits.replaceActiveExtension(
                     durationSeconds);
 
-                if (approved) {
-                    // Record the authenticated Malcontent approval before any
-                    // optional follow-up work can yield back to the lock screen.
-                    this._integration?.recordApprovedGrant(durationSeconds);
-                    this._indicator?.showGrantedTime(durationSeconds);
+                // Record the authenticated backend write before any optional
+                // follow-up work can yield back to the lock screen.
+                this._integration?.recordApprovedGrant(durationSeconds);
+                this._indicator?.showGrantedTime(durationSeconds);
 
-                    try {
-                        const policy = loadAppPolicy();
-                        const blockedTargets = getBlockedTargets(
-                            policy, clearAppRestrictions);
+                try {
+                    const policy = loadAppPolicy();
+                    const blockedTargets = getBlockedTargets(
+                        policy, clearAppRestrictions);
+                    const currentTargets =
+                        await this._appFilter.getBlockedTargets();
+                    if (!sameTargets(currentTargets, blockedTargets)) {
+                        // The combined action implies this permission, so this
+                        // must never initiate another auth dialog.
                         await this._appFilter.setBlockedTargets(blockedTargets);
-                        console.log(`${LOG_PREFIX} applied ${blockedTargets.length} app restrictions`);
-                    } catch (error) {
-                        // A time grant must remain successful even if the
-                        // optional app-filter update fails.
-                        console.warn(`${LOG_PREFIX} app filter update failed: ${error.message}`);
                     }
+                    console.log(`${LOG_PREFIX} applied ${blockedTargets.length} app restrictions`);
+                } catch (error) {
+                    // A time grant must remain successful even if the
+                    // optional app-filter update fails.
+                    console.warn(`${LOG_PREFIX} app filter update failed: ${error.message}`);
                 }
 
-                return approved;
+                return true;
             });
 
             console.log(`${LOG_PREFIX} request ${granted ? 'approved' : 'rejected'}`);
@@ -102,4 +108,11 @@ export default class RequestMoreTimeExtension extends Extension {
             this._dialog.destroy();
         }
     }
+}
+
+function sameTargets(left, right) {
+    if (left.length !== right.length)
+        return false;
+    const sortedLeft = [...left].sort();
+    return sortedLeft.every((target, index) => target === right[index]);
 }

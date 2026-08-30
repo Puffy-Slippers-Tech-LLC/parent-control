@@ -5,7 +5,7 @@ native parental-controls screen-time shield. It delegates approval and the
 temporary grant to Malcontent and Polkit.
 
 Run `make install` to install the extension for the current user, then enable
-it with `gnome-extensions enable oh-no-parent-control@example.com`. A Shell
+it with `gnome-extensions enable oh-no-parent-control@tech.puffyslippers.com`. A Shell
 restart/log-out is normally required on Wayland. Installation uses only the
 files in this folder and does not require it to be a Git repository.
 

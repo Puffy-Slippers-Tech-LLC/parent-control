@@ -325,6 +325,8 @@ export const RequestDialog = GObject.registerClass(
 class RequestDialog extends ModalDialog.ModalDialog {
     _init(onRequest) {
         super._init({styleClass: 'oh-no-parent-control-dialog'});
+        Main.sessionMode.connectObject('updated', () => this._syncParent(), this);
+        this._syncParent();
         this._form = new RequestForm(onRequest, () => this.close());
         this.contentLayout.add_child(this._form.actor);
         this.setButtons([
@@ -339,7 +341,21 @@ class RequestDialog extends ModalDialog.ModalDialog {
         this.setInitialKeyFocus(this._form.getSelectedChoice()?.[0]);
     }
 
+    _syncParent() {
+        const lockDialogGroup = Main.screenShield?._lockDialogGroup;
+        const wantedParent = Main.sessionMode.isLocked && lockDialogGroup
+            ? lockDialogGroup
+            : Main.layoutManager.modalDialogGroup;
+        const currentParent = this.get_parent();
+        if (!wantedParent || currentParent === wantedParent)
+            return;
+
+        currentParent?.remove_child(this);
+        wantedParent.add_child(this);
+    }
+
     destroy() {
+        Main.sessionMode.disconnectObject(this);
         this._form?.destroy();
         this._form = null;
         super.destroy();

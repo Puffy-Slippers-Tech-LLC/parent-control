@@ -545,9 +545,34 @@ export class ParentalControlsIntegration {
                 return;
             }
 
-            originalInitiate.call(
-                agent, nativeAgent, actionId, message, iconName,
-                cookie, userNames);
+            if (!Main.sessionMode.isLocked) {
+                originalInitiate.call(
+                    agent, nativeAgent, actionId, message, iconName,
+                    cookie, userNames);
+                const dialog = agent._currentDialog;
+                if (isLockScreenRequest && dialog)
+                    this._keepPolkitDialogAboveLockScreen(dialog);
+                return;
+            }
+
+            // GNOME's agent only recognizes Malcontent's native extension
+            // action as lock-screen initiated. The extension's combined
+            // meta-action is equally user initiated, so let the native agent
+            // create its one AuthenticationDialog without deferring it until
+            // unlock. Restore the real mode before any asynchronous work.
+            const wasLocked = Main.sessionMode.isLocked;
+            Main.sessionMode.isLocked = false;
+            try {
+                originalInitiate.call(
+                    agent, nativeAgent, actionId, message, iconName,
+                    cookie, userNames);
+            } finally {
+                Main.sessionMode.isLocked = wasLocked;
+            }
+
+            const dialog = agent._currentDialog;
+            if (dialog)
+                this._keepPolkitDialogAboveLockScreen(dialog);
         };
 
         let handlerId = GObject.signal_handler_find(agent, {signalId: 'initiate'});
@@ -566,5 +591,29 @@ export class ParentalControlsIntegration {
         agent._ohNoParentControlPolkitPatch = this;
         console.log(`${LOG_PREFIX} patched polkit agent for lock-screen app approval`);
         return true;
+    }
+
+    _keepPolkitDialogAboveLockScreen(dialog) {
+        // AuthenticationDialog normally hides itself whenever the session is
+        // locked. Replace that visibility handler with a parent-layer update;
+        // this preserves the same dialog and authentication transaction when
+        // moving between the lock screen and the desktop.
+        Main.sessionMode.disconnectObject(dialog);
+        Main.sessionMode.connectObject('updated', () =>
+            this._placePolkitDialog(dialog), dialog);
+        this._placePolkitDialog(dialog);
+    }
+
+    _placePolkitDialog(dialog) {
+        const lockDialogGroup = Main.screenShield?._lockDialogGroup;
+        const wantedParent = Main.sessionMode.isLocked && lockDialogGroup
+            ? lockDialogGroup
+            : Main.layoutManager.modalDialogGroup;
+        const currentParent = dialog.get_parent();
+        if (!wantedParent || currentParent === wantedParent)
+            return;
+
+        currentParent?.remove_child(dialog);
+        wantedParent.add_child(dialog);
     }
 }

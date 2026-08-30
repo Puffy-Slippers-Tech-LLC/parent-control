@@ -7,9 +7,12 @@ const INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
 const LOG_PREFIX = '[request-more-time]';
 
 export class MalcontentClient {
-    constructor() {
+    constructor(onUnsolicitedResponse = null) {
         this._connection = Gio.DBus.system;
+        this._onUnsolicitedResponse = onUnsolicitedResponse;
         this._pending = new Map();
+        this._earlyResponses = new Map();
+        this._submissionsInFlight = 0;
         this._signalId = this._connection.signal_subscribe(
             BUS_NAME, INTERFACE, 'ExtensionResponse', OBJECT_PATH, null,
             Gio.DBusSignalFlags.NONE,
@@ -17,27 +20,53 @@ export class MalcontentClient {
                 this._onResponse(parameters));
     }
 
-    requestExtension(durationSeconds) {
+    submitExtension(durationSeconds, flags = Gio.DBusCallFlags.NONE) {
         if (!Number.isSafeInteger(durationSeconds) || durationSeconds < 0)
             return Promise.reject(new Error('Invalid extension duration'));
 
         return new Promise((resolve, reject) => {
+            this._submissionsInFlight++;
             this._connection.call(
                 BUS_NAME, OBJECT_PATH, INTERFACE, 'RequestExtension',
                 new GLib.Variant('(ssta{sv})', ['login-session', '', durationSeconds, {}]),
                 new GLib.VariantType('(o)'),
-                Gio.DBusCallFlags.ALLOW_INTERACTIVE_AUTHORIZATION,
+                flags,
                 -1, null,
                 (connection, result) => {
+                    this._submissionsInFlight--;
                     try {
                         const [cookie] = connection.call_finish(result).deepUnpack();
-                        this._pending.set(cookie, {resolve, reject});
                         console.log(`${LOG_PREFIX} request submitted`);
+                        resolve(cookie);
                     } catch (error) {
                         console.error(`${LOG_PREFIX} request failed: ${error.message}`);
                         reject(error);
                     }
                 });
+        });
+    }
+
+    requestExtension(durationSeconds) {
+        return this.submitExtension(durationSeconds).then(cookie =>
+            this.waitForResponse(cookie));
+    }
+
+    requestExtensionInteractive(durationSeconds) {
+        return this.submitExtension(
+            durationSeconds,
+            Gio.DBusCallFlags.ALLOW_INTERACTIVE_AUTHORIZATION).then(cookie =>
+            this.waitForResponse(cookie));
+    }
+
+    waitForResponse(cookie) {
+        if (this._earlyResponses.has(cookie)) {
+            const granted = this._earlyResponses.get(cookie);
+            this._earlyResponses.delete(cookie);
+            return Promise.resolve(granted);
+        }
+
+        return new Promise((resolve, reject) => {
+            this._pending.set(cookie, {resolve, reject});
         });
     }
 
@@ -48,13 +77,30 @@ export class MalcontentClient {
         for (const {reject} of this._pending.values())
             reject(new Error('Extension disabled'));
         this._pending.clear();
+        this._earlyResponses.clear();
+        this._submissionsInFlight = 0;
+        this._onUnsolicitedResponse = null;
     }
 
     _onResponse(parameters) {
-        const [granted, cookie] = parameters.deepUnpack();
+        const [granted, cookie, extraData] = parameters.deepUnpack();
         const pending = this._pending.get(cookie);
-        if (!pending)
+        if (!pending) {
+            // RequestExtension returns its cookie asynchronously, but the
+            // service may emit ExtensionResponse before that method reply is
+            // dispatched. Keep responses only while one of our submissions
+            // is awaiting its cookie, then consume it in waitForResponse().
+            if (this._submissionsInFlight > 0) {
+                this._earlyResponses.set(cookie, granted);
+            } else {
+                this._onUnsolicitedResponse?.({
+                    granted,
+                    cookie,
+                    extraData,
+                });
+            }
             return;
+        }
         this._pending.delete(cookie);
         pending.resolve(granted);
     }

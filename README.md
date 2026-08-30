@@ -9,6 +9,26 @@ it with `gnome-extensions enable request-more-time@example.com`. A Shell
 restart/log-out is normally required on Wayland. Installation uses only the
 files in this folder and does not require it to be a Git repository.
 
+Install Ubuntu's supported PAM account integration as a system prerequisite:
+
+    sudo apt install libpam-malcontent
+
+Without that package, GDM does not ask Malcontent whether a login is allowed,
+so login-session extensions and enforcement can become inconsistent when a
+restricted session is entered through the greeter.
+
+The extension also uses one system-level polkit policy file for its combined
+screen-time/app-approval prompt. Install it with:
+
+    sudo make install-policy
+
+The policy file is installed to `/usr/share/polkit-1/actions/` and must be
+present before a combined time-and-app request can be approved. Open the
+app-access page from the extension manager's standard gear button. Saving its
+Allowed, Permanently Blocked, and Conditionally Blocked choices uses the
+system app-filter authorization prompt and does not depend on the extension's
+custom policy being installed.
+
 Run `make check` for static JavaScript/patch checks and `make pack` to create a
 complete installable extension archive.
 

@@ -52,6 +52,7 @@ class RequestForm {
         this._selected = this._loadSelectedDuration();
         this._choiceButtons = [];
         this._lastCustomMinutes = loadLastCustomMinutes();
+        this._appFilterToggle = null;
 
         this.actor = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
@@ -148,6 +149,19 @@ class RequestForm {
             y_align: Clutter.ActorAlign.CENTER,
         }));
         this.actor.add_child(this._customRow);
+
+        this._appFilterToggle = new St.Button({
+            style_class: 'request-more-time-app-filter-toggle',
+            label: 'Allow blocked apps during extra time',
+            can_focus: true,
+            reactive: true,
+            toggle_mode: true,
+            x_align: Clutter.ActorAlign.FILL,
+        });
+        this._appFilterToggle.accessible_name =
+            'Allow conditionally blocked apps during extra time';
+        this._appFilterToggle.set_checked(false);
+        this.actor.add_child(this._appFilterToggle);
         this._select(this._selected);
     }
 
@@ -254,7 +268,9 @@ class RequestForm {
         this._errorLabel?.hide();
         this._setWorking(true);
         try {
-            const granted = await this._onRequest(seconds);
+            const granted = await this._onRequest(
+                seconds,
+                this._appFilterToggle.checked);
             if (granted) {
                 saveLastSelectedDuration(this._selected);
                 if (this._selected === null)
@@ -294,12 +310,14 @@ class RequestForm {
         for (const [button] of this._choiceButtons)
             button.reactive = !working;
         this._customEntry.reactive = !working;
+        this._appFilterToggle.reactive = !working;
     }
 
     destroy() {
         this._destroyed = true;
         this._onRequest = null;
         this._onClose = null;
+        this._appFilterToggle = null;
     }
 }
 

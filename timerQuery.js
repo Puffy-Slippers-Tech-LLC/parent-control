@@ -5,6 +5,7 @@ const BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
 const INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
 const ESTIMATE_REPLY_TYPE = '(ta{s(btttt)})';
+const BUSY_RETRY_DELAYS_MS = Object.freeze([100, 250, 500, 1000, 2000]);
 
 let _queue = Promise.resolve();
 
@@ -15,7 +16,22 @@ function enqueue(task) {
 }
 
 export function queryEstimatedTimes() {
-    return enqueue(() => new Promise((resolve, reject) => {
+    return enqueue(async () => {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await callEstimatedTimes();
+            } catch (error) {
+                const retryDelay = BUSY_RETRY_DELAYS_MS[attempt];
+                if (!isDatabaseBusy(error) || retryDelay === undefined)
+                    throw error;
+                await wait(retryDelay);
+            }
+        }
+    });
+}
+
+function callEstimatedTimes() {
+    return new Promise((resolve, reject) => {
         Gio.DBus.system.call(
             BUS_NAME, OBJECT_PATH, INTERFACE, 'GetEstimatedTimes',
             new GLib.Variant('(s)', ['login-session']),
@@ -29,9 +45,18 @@ export function queryEstimatedTimes() {
                     reject(error);
                 }
             });
-    }));
+    });
 }
 
-export function runExclusiveTimerUpdate(task) {
-    return enqueue(() => Promise.resolve(task()));
+function isDatabaseBusy(error) {
+    return Gio.DBusError.get_remote_error(error)?.endsWith('.Error.Busy') ?? false;
+}
+
+function wait(delayMs) {
+    return new Promise(resolve => {
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, delayMs, () => {
+            resolve();
+            return GLib.SOURCE_REMOVE;
+        });
+    });
 }

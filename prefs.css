@@ -1,0 +1,94 @@
+.preferences-page {
+  background: linear-gradient(135deg, alpha(@window_bg_color, 0.98), alpha(#96a7bd, 0.18));
+}
+
+.apps-panel > box > box {
+  border: 1px solid alpha(@window_fg_color, 0.10);
+  border-radius: 22px;
+  background: linear-gradient(125deg, alpha(@window_bg_color, 0.76), alpha(#91a4bd, 0.24));
+  box-shadow: 0 12px 32px alpha(black, 0.16), inset 0 1px alpha(white, 0.34);
+}
+
+.apps-panel-header {
+  min-height: 68px;
+  background: linear-gradient(115deg, alpha(white, 0.12), alpha(#879ab5, 0.12));
+}
+
+.app-policy-row {
+  min-height: 50px;
+  background: alpha(@window_bg_color, 0.24);
+}
+
+.apps-panel-header title,
+.app-policy-row title {
+  font-weight: 600;
+}
+
+.apps-search {
+  min-height: 40px;
+  min-width: 280px;
+  border: 0;
+  border-radius: 14px;
+  background: alpha(@window_fg_color, 0.075);
+  box-shadow: inset 0 1px 2px alpha(black, 0.10), inset 0 1px alpha(white, 0.20);
+}
+
+.apps-search:focus-within {
+  background: alpha(@window_bg_color, 0.66);
+  box-shadow: 0 0 0 2px alpha(@accent_color, 0.30), inset 0 1px 2px alpha(black, 0.08);
+}
+
+.policy-selector {
+  padding: 3px;
+  border: 1px solid alpha(@window_fg_color, 0.10);
+  border-radius: 22px;
+  background: alpha(@window_fg_color, 0.055);
+  box-shadow: inset 0 1px 2px alpha(black, 0.10), inset 0 1px alpha(white, 0.20);
+}
+
+.policy-choice {
+  min-width: 48px;
+  min-height: 38px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 19px;
+  color: alpha(@window_fg_color, 0.28);
+  background: transparent;
+  box-shadow: none;
+}
+
+.policy-choice:hover {
+  color: alpha(@window_fg_color, 0.64);
+  background: alpha(@window_fg_color, 0.07);
+}
+
+.policy-choice.policy-allowed:checked {
+  color: #24b66f;
+  background: alpha(#73e6a7, 0.27);
+  box-shadow: 0 0 18px alpha(#45df8d, 0.70), inset 0 1px alpha(white, 0.48);
+}
+
+.policy-choice.policy-permanent:checked {
+  color: #df3838;
+  background: alpha(#ff817e, 0.30);
+  box-shadow: 0 0 18px alpha(#ff6464, 0.68), inset 0 1px alpha(white, 0.52);
+}
+
+.policy-choice.policy-conditional:checked {
+  color: #d5a62e;
+  background: alpha(#f4cc69, 0.24);
+  box-shadow: 0 0 16px alpha(#edbc42, 0.45), inset 0 1px alpha(white, 0.42);
+}
+
+.policy-choice:checked {
+  border: 0;
+}
+
+.policy-save {
+  border-radius: 12px;
+  padding: 8px 18px;
+  border-color: alpha(#73e6a7, 0.72);
+  background: alpha(#24b66f, 0.72);
+  box-shadow: 0 0 16px alpha(#45df8d, 0.38), inset 0 1px alpha(white, 0.30);
+}

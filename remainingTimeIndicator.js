@@ -14,12 +14,10 @@ const ROLE = 'screenTimeRemaining';
 const TIMER_BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const TIMER_OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
 const TIMER_INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
-const DOCK_SETTINGS_SCHEMA = 'org.gnome.shell.extensions.dash-to-dock';
-const DOCK_POSITION_KEY = 'dock-position';
 
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
-    _init(onRequest) {
+    _init(onRequest, approvedGrantRemaining = 0) {
         super._init(0.0, 'Screen Time Remaining', true);
 
         this._onRequest = onRequest;
@@ -113,14 +111,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._timeoutId = 0;
         this._flashTimeoutId = 0;
         this._destroyed = false;
-        this._grantedUntil = 0;
+        this._grantedUntil = approvedGrantRemaining > 0
+            ? Main.timeLimitsManager.getCurrentTime() + approvedGrantRemaining
+            : 0;
         this._sessionEnd = 0;
         this._refreshPending = false;
-        this._dockSettings = null;
-        const schemaSource = Gio.SettingsSchemaSource.get_default();
-        if (schemaSource.lookup(DOCK_SETTINGS_SCHEMA, true))
-            this._dockSettings = new Gio.Settings({schema_id: DOCK_SETTINGS_SCHEMA});
-
         this._timerSignalId = Gio.DBus.system.signal_subscribe(
             TIMER_BUS_NAME, TIMER_INTERFACE, 'EstimatedTimesChanged',
             TIMER_OBJECT_PATH, null, Gio.DBusSignalFlags.NONE,
@@ -137,8 +132,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-time', () => this._sync());
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-enabled', () => this._sync());
         this._connect(Main.sessionMode, 'updated', () => this._sync());
-        if (this._dockSettings)
-            this._connect(this._dockSettings, `changed::${DOCK_POSITION_KEY}`, () => this._sync());
+        this._connect(Main.panel, 'notify::width', () => this._sync());
+        this._connect(Main.panel, 'notify::height', () => this._sync());
 
         this._sync();
         this._refreshEstimate();
@@ -251,8 +246,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             console.log(`${LOG_PREFIX} timer estimate loaded; session end=${this._sessionEnd}`);
         } catch (error) {
             if (!this._destroyed) {
-                this._sessionEnd = 0;
-                console.warn(`${LOG_PREFIX} timer query failed: ${error.message}`);
+                // A transient daemon/database failure says nothing about the
+                // last successful estimate. Preserve it until a supported
+                // D-Bus query supplies a replacement.
+                console.warn(`${LOG_PREFIX} timer query failed; keeping previous estimate: ` +
+                    error.message);
             }
         } finally {
             this._refreshPending = false;
@@ -338,26 +336,27 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _compactLabel() {
-        if (!this._dockSettings)
-            return false;
-        const position = this._dockSettings.get_string(DOCK_POSITION_KEY);
-        return position === 'LEFT' || position === 'RIGHT';
+        // Use the panel's rendered orientation, not a particular dock
+        // extension's setting. That setting can remain LEFT while another
+        // extension places the visible panel along the top or bottom.
+        return Main.panel.height > Main.panel.width;
     }
 
     _updateLabel(remainingSecs) {
         if (remainingSecs >= 60)
             this._clearCountdownWarning();
 
+        const compact = this._compactLabel();
         if (remainingSecs > 60) {
             const totalMinutes = Math.floor(remainingSecs / 60);
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;
             const time = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-            this._label.text = this._compactLabel() ? time : `${time} left`;
+            this._label.text = compact ? time : `${time} left`;
         } else if (remainingSecs === 1) {
-            this._label.text = '1 second left';
+            this._label.text = compact ? '1' : '1 left';
         } else {
-            this._label.text = `${remainingSecs} seconds left`;
+            this._label.text = compact ? `${remainingSecs}` : `${remainingSecs} left`;
         }
 
         if (remainingSecs < 60) {

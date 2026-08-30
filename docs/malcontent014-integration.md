@@ -40,6 +40,30 @@ failure in child-facing UI. Detailed errors use the extension log prefix.
 Malcontent 0.14 may not emit `EstimatedTimesChanged` after approving an
 extension (upstream issue #133). GNOME Shell would otherwise retain its cached
 `LIMIT_REACHED` state until another event, such as switching users, refreshes
-it. After an approval the extension therefore explicitly asks GNOME Shell's
-time-limits manager to reload the daemon estimates before dismissing the
-request dialog.
+it. Malcontent may also temporarily publish a shorter estimate when concurrent
+clients encounter its per-user database lock. For the lifetime of an
+authenticated positive `ExtensionResponse`, the extension overlays the approved
+expiry as a floor on GNOME Shell's cached `currentSessionEnd` before its native
+state calculation runs. This keeps the native manager `ACTIVE` without
+auto-unlocking a manually locked screen. At expiry, the overlay is removed and
+the authoritative estimate is refreshed.
+
+The native shield's Ignore button uses the same response signal. The extension
+observes a native click and accepts a response only when its cookie exactly
+matches that shield's private request cookie. It records the daemon-supplied
+`duration-secs`; unrelated system-bus responses are ignored.
+
+`GetEstimatedTimes` can return `Error.Busy` while another supported client has
+the user's timer database open. Estimate reads use bounded backoff for that
+transient error and preserve the last successful estimate if all attempts fail.
+
+The authenticated approval guard is persisted atomically in the child's user
+data directory until its real-time expiry. The record contains only the issue
+time, approved duration, and expiry; it is validated and bounded by the
+original duration when loaded. This lets the grant overlay and additional
+GDM-bypass re-lock guard survive a GNOME Shell/session restart without
+contradicting a valid grant when Malcontent temporarily publishes a stale
+estimate. Persistence uses public `Gio.File` and `GLib` APIs and does not alter
+Malcontent's policy or authorization state. Like GNOME/Malcontent parental
+controls generally, this user-owned extension and record are not a security
+boundary against a technically advanced child account.

@@ -29,8 +29,9 @@ active for Polkit's normal retention window.
 Both properties are changed on the same system-bus connection used for the
 combined check. This avoids Malcontent 0.14's delegated timer-agent check,
 which represents the caller as a different Polkit subject and cannot consume
-the combined authorization reliably. The app-filter write is skipped if its
-target list is already correct.
+the combined authorization reliably. Every approved request derives and
+writes the app filter from the extension policy file; the live filter is not
+read back into that configuration.
 
 ## App-filter semantics
 
@@ -38,10 +39,10 @@ The app filter remains a blocklist, represented as:
 
     AppFilter = (false, [blocked app targets])
 
-When “Allow blocked apps during extra time” is checked, conditional targets
-are omitted while permanent targets remain. When it is unchecked, both
-conditional and permanent targets remain blocked. Other apps are allowed by
-the blocklist automatically.
+When “Allow soft blocked apps” is checked, soft blocked targets are omitted
+while hard blocked targets remain. When it is unchecked, both soft blocked and
+hard blocked targets remain blocked. Other apps are allowed by the blocklist
+automatically.
 
 The policy file must be installed under `/usr/share/polkit-1/actions/`; bundling
 it only with the user extension is not sufficient.

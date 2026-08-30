@@ -57,13 +57,15 @@ from the same GNOME Shell system-bus subject.
 Malcontent 0.14 may not emit `EstimatedTimesChanged` after approving an
 extension (upstream issue #133). GNOME Shell would otherwise retain its cached
 `LIMIT_REACHED` state until another event, such as switching users, refreshes
-it. Malcontent may also temporarily publish a shorter estimate when concurrent
+it. Malcontent may also temporarily publish a stale estimate when concurrent
 clients encounter its per-user database lock. For the lifetime of an
 authenticated positive native `ExtensionResponse` or combined AccountsService
-write, the extension overlays the approved expiry as a floor on GNOME Shell's
-cached `currentSessionEnd` before its native state calculation runs. This keeps
-the native manager `ACTIVE` without auto-unlocking a manually locked screen. At
-expiry, the overlay is removed and the authoritative estimate is refreshed.
+write, the extension replaces GNOME Shell's cached `currentSessionEnd` with the
+approved expiry before its native state calculation runs. The approved value is
+authoritative in both directions, so choosing a shorter duration replaces a
+longer remainder instead of preserving it. This keeps the native manager
+`ACTIVE` without auto-unlocking a manually locked screen. At expiry, the overlay
+is removed and the authoritative estimate is refreshed.
 
 The native shield's Ignore button uses the same response signal. The extension
 observes a native click and accepts a response only when its cookie exactly

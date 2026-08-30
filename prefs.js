@@ -52,6 +52,7 @@ class AppPolicyPage extends Adw.PreferencesPage {
         this._policy = loadAppPolicy();
         this._draft = cloneApps(this._policy.apps);
         this._rows = [];
+        this._apps = [];
         this._working = false;
 
         this._appsGroup = new Adw.PreferencesGroup({
@@ -72,8 +73,10 @@ class AppPolicyPage extends Adw.PreferencesPage {
         searchRow.add_suffix(this._search);
         this._appsGroup.add(searchRow);
 
-        for (const app of listLaunchableApps())
+        for (const app of listLaunchableApps()) {
+            this._apps.push(app);
             this._addApp(app);
+        }
         this.add(this._appsGroup);
 
         const actions = new Adw.PreferencesGroup();
@@ -82,7 +85,7 @@ class AppPolicyPage extends Adw.PreferencesPage {
             subtitle: 'Saving replaces the current system app-filter policy for this account.',
         });
         this._saveButton = new Gtk.Button({
-            label: 'Save Changes',
+            label: 'Loading System Policy…',
             css_classes: ['suggested-action', 'policy-save'],
             valign: Gtk.Align.CENTER,
             sensitive: false,
@@ -91,22 +94,27 @@ class AppPolicyPage extends Adw.PreferencesPage {
         actionRow.add_suffix(this._saveButton);
         actions.add(actionRow);
         this.add(actions);
+
+        this._loadSystemPolicy();
     }
 
     _addApp(app) {
         const state = this._draft[app.id]?.state ?? 'allowed';
+        if (state !== 'allowed')
+            this._draft[app.id].targets = app.targets;
         const row = new Adw.ActionRow({
             title: app.name,
             subtitle: app.description || app.id,
             css_classes: ['app-policy-row'],
         });
         row.searchText = `${app.name} ${app.description} ${app.id}`.toLowerCase();
+        row.policyButtons = new Map();
         if (app.icon)
             row.add_prefix(new Gtk.Image({gicon: app.icon, pixel_size: 32}));
 
         const selector = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
-            spacing: 0,
+            spacing: 3,
             valign: Gtk.Align.CENTER,
             css_classes: ['policy-selector'],
         });
@@ -115,13 +123,18 @@ class AppPolicyPage extends Adw.PreferencesPage {
             const button = new Gtk.CheckButton({
                 group: firstButton,
                 active: definition.id === state,
+                sensitive: false,
                 tooltip_text: definition.label,
                 css_classes: ['policy-choice', definition.css],
-                child: new Gtk.Image({icon_name: definition.icon}),
+                child: new Gtk.Image({
+                    icon_name: definition.icon,
+                    pixel_size: 19,
+                }),
                 valign: Gtk.Align.CENTER,
             });
             if (!firstButton)
                 firstButton = button;
+            row.policyButtons.set(definition.id, button);
             button.connect('toggled', () => {
                 if (!button.active)
                     return;
@@ -138,6 +151,44 @@ class AppPolicyPage extends Adw.PreferencesPage {
         this._rows.push(row);
     }
 
+    _setPolicyControlsSensitive(sensitive) {
+        for (const row of this._rows) {
+            for (const button of row.policyButtons.values())
+                button.sensitive = sensitive;
+        }
+    }
+
+    async _loadSystemPolicy() {
+        try {
+            const blocked = new Set(await new AppFilterClient().getBlockedTargets());
+            for (let index = 0; index < this._apps.length; index++) {
+                const app = this._apps[index];
+                const cachedState = this._draft[app.id]?.state;
+                const isBlocked = app.targets.length > 0 &&
+                    app.targets.every(target => blocked.has(target));
+                const state = isBlocked
+                    ? (cachedState === 'conditional' ? 'conditional' : 'permanent')
+                    : 'allowed';
+
+                if (state === 'allowed')
+                    delete this._draft[app.id];
+                else
+                    this._draft[app.id] = {state, targets: app.targets};
+                this._rows[index].policyButtons.get(state).active = true;
+            }
+            this._saveButton.sensitive = false;
+        } catch (error) {
+            console.error(`[request-more-time] could not read app filter: ${error.message}`);
+            this._window.add_toast(new Adw.Toast({
+                title: `Could not read system app access: ${error.message}`,
+                timeout: 5,
+            }));
+        } finally {
+            this._setPolicyControlsSensitive(true);
+            this._saveButton.label = 'Save Changes';
+        }
+    }
+
     _filterRows() {
         const query = this._search.text.trim().toLowerCase();
         for (const row of this._rows)
@@ -152,7 +203,12 @@ class AppPolicyPage extends Adw.PreferencesPage {
         this._saveButton.label = 'Authenticating…';
         try {
             const blocked = getBlockedTargets({apps: this._draft}, false);
-            await new AppFilterClient().setBlockedTargets(blocked, true);
+            const client = new AppFilterClient();
+            await client.setBlockedTargets(blocked, true);
+            const applied = await client.getBlockedTargets();
+            if (blocked.length !== applied.length ||
+                blocked.some(target => !applied.includes(target)))
+                throw new Error('the system did not retain the requested app filter');
             saveAppPolicy(this._draft);
             this._policy.apps = cloneApps(this._draft);
             this._window.add_toast(new Adw.Toast({

@@ -48,7 +48,7 @@ function resolveExecutable(app) {
 
     // Blocking a generic launcher would unintentionally block many unrelated
     // apps. Desktop entries which only expose a wrapper are omitted unless a
-    // Flatpak ID supplies an app-specific target above.
+    // Flatpak ref supplies an app-specific target above.
     const genericLaunchers = new Set([
         '/usr/bin/env', '/bin/sh', '/usr/bin/sh', '/bin/bash', '/usr/bin/bash',
         '/usr/bin/flatpak', '/usr/bin/snap',
@@ -56,10 +56,41 @@ function resolveExecutable(app) {
     return genericLaunchers.has(resolved) ? null : resolved;
 }
 
+function flatpakTarget(app, flatpakId) {
+    const commandline = app.get_commandline?.();
+    if (!commandline)
+        return null;
+
+    let argv;
+    try {
+        [, argv] = GLib.shell_parse_argv(commandline);
+    } catch (error) {
+        return null;
+    }
+
+    let arch = null;
+    let branch = null;
+    for (let index = 0; index < argv.length; index++) {
+        const argument = argv[index];
+        if (argument.startsWith('--arch='))
+            arch = argument.slice('--arch='.length);
+        else if (argument === '--arch')
+            arch = argv[++index] ?? null;
+        else if (argument.startsWith('--branch='))
+            branch = argument.slice('--branch='.length);
+        else if (argument === '--branch')
+            branch = argv[++index] ?? null;
+    }
+
+    return arch && branch ? `app/${flatpakId}/${arch}/${branch}` : null;
+}
+
 function appTargets(app) {
     const flatpakId = app.get_string?.('X-Flatpak');
-    if (flatpakId?.includes('.'))
-        return [flatpakId];
+    if (flatpakId?.includes('.')) {
+        const target = flatpakTarget(app, flatpakId);
+        return target ? [target] : [];
+    }
 
     const executable = resolveExecutable(app);
     return executable ? [executable] : [];

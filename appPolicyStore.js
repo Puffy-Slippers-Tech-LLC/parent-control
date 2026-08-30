@@ -6,6 +6,17 @@ const FILE_NAME = 'app-policy.json';
 const FORMAT_VERSION = 1;
 const VALID_STATES = new Set(['allowed', 'permanent', 'conditional']);
 
+export function isValidAppTarget(target) {
+    if (typeof target !== 'string')
+        return false;
+    if (target.startsWith('/'))
+        return true;
+
+    const parts = target.split('/');
+    return parts.length === 4 && parts[0] === 'app' &&
+        parts.slice(1).every(part => part.length > 0);
+}
+
 function getPolicyFile() {
     return Gio.File.new_for_path(GLib.build_filenamev([
         GLib.get_user_data_dir(), DIRECTORY_NAME, FILE_NAME,
@@ -17,10 +28,7 @@ function normalizeEntry(entry) {
         return null;
 
     const targets = Array.isArray(entry.targets)
-        ? [...new Set(entry.targets.filter(target =>
-            typeof target === 'string' &&
-            (target.startsWith('/') ||
-             (target.includes('.') && !target.startsWith('/')))))]
+        ? [...new Set(entry.targets.filter(isValidAppTarget))]
         : [];
     return {state: entry.state, targets};
 }

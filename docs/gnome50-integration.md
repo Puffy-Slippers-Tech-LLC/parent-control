@@ -18,12 +18,29 @@ extracting the JavaScript resources embedded in `/usr/lib/gnome-shell/libshell-1
 - `UnlockDialog` listens to `notify::state` on `Main.timeLimitsManager`. The
   manager's `state` is a readable GObject property, and it emits
   `daily-limit-reached` on the transition into `LIMIT_REACHED`.
+- `TimeLimitsManager._updateState()` derives that state from its private
+  `_estimatedTimes` cache. During an authenticated grant, the extension wraps
+  that calculation and floors only `currentSessionEnd` at the approved expiry.
+  The wrapper is restored on disable. This prevents a transient regressed
+  estimate from driving both the native lock dispatcher and unlock shield while
+  leaving manual screen locks intact.
 - `UnlockDialog._otherUserClicked()` transfers control to GDM before cancelling
-  the child authentication prompt. Malcontent 0.14 does not install a PAM
-  account module, so the greeter cannot independently enforce the exhausted
-  child's timer when that existing session is selected again. The extension
-  leaves Switch User available, but relocks the child session when its Shell
-  observes it return unlocked while `TimeLimitsState.LIMIT_REACHED` remains set.
+  the child authentication prompt. GDM can independently check the exhausted
+  child's timer only when Ubuntu's separate `libpam-malcontent` package is
+  installed and its required account rule is present in `common-account`. The
+  extension leaves Switch User available and retains its re-lock safeguard for
+  systems where that prerequisite is missing or the cached state remains
+  exhausted.
+- GNOME Shell's built-in polkit agent normally defers any locked-screen
+  authentication request except
+  `org.freedesktop.Malcontent.SessionLimits.Extend`. The combined time/app
+  approval action needs the same exception. Since `polkitAgent.js` is embedded
+  in the Shell binary rather than part of this extension,
+  `parentalControlsIntegration.js` applies a narrow runtime patch to the loaded
+  `polkitAgent` component: it adds the extension's
+  `org.gnome.shell.extensions.request-more-time.ApproveTimeAndApps` action to
+  that one allowlist. The patch restores the original method on disable and
+  does not change authentication itself.
 
 The manager combines GNOME wellbeing and parental-control timer state, but the
 unlock shield is reached only through the parental-controls lock path. The

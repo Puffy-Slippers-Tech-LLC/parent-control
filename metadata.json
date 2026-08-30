@@ -2,7 +2,7 @@
   "uuid": "request-more-time@example.com",
   "name": "Request More Time",
   "description": "Adds duration choices to GNOME's parental-controls screen-time shield.",
-  "version": 1,
+  "version": 3,
   "shell-version": ["50"],
   "session-modes": ["user", "ubuntu", "unlock-dialog"]
 }

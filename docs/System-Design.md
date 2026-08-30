@@ -246,7 +246,7 @@ The extension must be able to run while the lock/unlock dialog is displayed.
 Use a proper UUID, e.g.:
 
 ```text
-oh-no-parent-control@example.com
+oh-no-parent-control@tech.puffyslippers.com
 ```
 
 unless the project already has an established UUID.

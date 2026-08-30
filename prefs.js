@@ -16,21 +16,21 @@ import {
 const STATES = Object.freeze([
     {
         id: 'allowed',
-        label: 'Allowed',
+        label: 'Always Allowed',
         icon: 'emblem-ok-symbolic',
         css: 'policy-allowed',
     },
     {
         id: 'permanent',
-        label: 'Permanently Blocked',
+        label: 'Hard Blocked',
         icon: 'window-close-symbolic',
-        css: 'policy-permanent',
+        css: 'policy-hard-blocked',
     },
     {
         id: 'conditional',
-        label: 'Conditionally Blocked',
+        label: 'Soft Blocked',
         icon: 'dialog-warning-symbolic',
-        css: 'policy-conditional',
+        css: 'policy-soft-blocked',
     },
 ]);
 
@@ -45,11 +45,74 @@ const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.Pref
             icon_name: 'system-lock-screen-symbolic',
         });
         this._window = window;
-        this._policy = loadAppPolicy();
-        this._draft = cloneApps(this._policy.apps);
+        this._draft = cloneApps(loadAppPolicy().apps);
         this._rows = [];
-        this._apps = [];
         this._working = false;
+
+        const legend = new Adw.PreferencesGroup({
+            title: 'App access legend',
+            css_classes: ['policy-legend'],
+        });
+        const legendItems = [
+            {
+                title: 'Always allowed',
+                icon: 'emblem-ok-symbolic',
+                css: 'policy-allowed',
+            },
+            {
+                title: 'Hard blocked',
+                subtitle: 'Can only be unblocked in Preferences',
+                icon: 'window-close-symbolic',
+                css: 'policy-hard-blocked',
+            },
+            {
+                title: 'Soft blocked',
+                subtitle: 'Can be toggled in one-off extensions',
+                icon: 'dialog-warning-symbolic',
+                css: 'policy-soft-blocked',
+            },
+        ];
+        const legendRow = new Gtk.Grid({
+            column_homogeneous: true,
+            column_spacing: 12,
+            css_classes: ['policy-legend-row'],
+        });
+        for (const [index, item] of legendItems.entries()) {
+            const column = new Gtk.Box({
+                orientation: Gtk.Orientation.HORIZONTAL,
+                spacing: 8,
+                hexpand: true,
+                valign: Gtk.Align.CENTER,
+                css_classes: ['policy-legend-column'],
+            });
+            column.append(new Gtk.Image({
+                icon_name: item.icon,
+                pixel_size: 19,
+                css_classes: ['policy-legend-icon', item.css],
+            }));
+            const text = new Gtk.Box({
+                orientation: Gtk.Orientation.VERTICAL,
+                hexpand: true,
+                valign: Gtk.Align.CENTER,
+            });
+            text.append(new Gtk.Label({
+                label: item.title,
+                xalign: 0,
+                css_classes: ['policy-legend-title'],
+            }));
+            if (item.subtitle) {
+                text.append(new Gtk.Label({
+                    label: item.subtitle,
+                    xalign: 0,
+                    wrap: true,
+                    css_classes: ['policy-legend-description'],
+                }));
+            }
+            column.append(text);
+            legendRow.attach(column, index, 0, 1, 1);
+        }
+        legend.add(legendRow);
+        this.add(legend);
 
         this._appsGroup = new Adw.PreferencesGroup({
             css_classes: ['apps-panel'],
@@ -70,7 +133,6 @@ const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.Pref
         this._appsGroup.add(searchRow);
 
         for (const app of listLaunchableApps()) {
-            this._apps.push(app);
             this._addApp(app);
         }
         this.add(this._appsGroup);
@@ -81,7 +143,7 @@ const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.Pref
             subtitle: 'Saving replaces the current system app-filter policy for this account.',
         });
         this._saveButton = new Gtk.Button({
-            label: 'Loading System Policy…',
+            label: 'Save Changes',
             css_classes: ['suggested-action', 'policy-save'],
             valign: Gtk.Align.CENTER,
             sensitive: false,
@@ -90,8 +152,6 @@ const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.Pref
         actionRow.add_suffix(this._saveButton);
         actions.add(actionRow);
         this.add(actions);
-
-        this._loadSystemPolicy();
     }
 
     _addApp(app) {
@@ -116,10 +176,8 @@ const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.Pref
         });
         let firstButton = null;
         for (const definition of STATES) {
-            const button = new Gtk.CheckButton({
-                group: firstButton,
+            const button = new Gtk.ToggleButton({
                 active: definition.id === state,
-                sensitive: false,
                 tooltip_text: definition.label,
                 css_classes: ['policy-choice', definition.css],
                 child: new Gtk.Image({
@@ -128,7 +186,9 @@ const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.Pref
                 }),
                 valign: Gtk.Align.CENTER,
             });
-            if (!firstButton)
+            if (firstButton)
+                button.set_group(firstButton);
+            else
                 firstButton = button;
             row.policyButtons.set(definition.id, button);
             button.connect('toggled', () => {
@@ -147,44 +207,6 @@ const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.Pref
         this._rows.push(row);
     }
 
-    _setPolicyControlsSensitive(sensitive) {
-        for (const row of this._rows) {
-            for (const button of row.policyButtons.values())
-                button.sensitive = sensitive;
-        }
-    }
-
-    async _loadSystemPolicy() {
-        try {
-            const blocked = new Set(await new AppFilterClient().getBlockedTargets());
-            for (let index = 0; index < this._apps.length; index++) {
-                const app = this._apps[index];
-                const cachedState = this._draft[app.id]?.state;
-                const isBlocked = app.targets.length > 0 &&
-                    app.targets.every(target => blocked.has(target));
-                const state = isBlocked
-                    ? (cachedState === 'conditional' ? 'conditional' : 'permanent')
-                    : 'allowed';
-
-                if (state === 'allowed')
-                    delete this._draft[app.id];
-                else
-                    this._draft[app.id] = {state, targets: app.targets};
-                this._rows[index].policyButtons.get(state).active = true;
-            }
-            this._saveButton.sensitive = false;
-        } catch (error) {
-            console.error(`[oh-no-parent-control] could not read app filter: ${error.message}`);
-            this._window.add_toast(new Adw.Toast({
-                title: `Could not read system app access: ${error.message}`,
-                timeout: 5,
-            }));
-        } finally {
-            this._setPolicyControlsSensitive(true);
-            this._saveButton.label = 'Save Changes';
-        }
-    }
-
     _filterRows() {
         const query = this._search.text.trim().toLowerCase();
         for (const row of this._rows)
@@ -201,12 +223,7 @@ const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.Pref
             const blocked = getBlockedTargets({apps: this._draft}, false);
             const client = new AppFilterClient();
             await client.setBlockedTargets(blocked, true);
-            const applied = await client.getBlockedTargets();
-            if (blocked.length !== applied.length ||
-                blocked.some(target => !applied.includes(target)))
-                throw new Error('the system did not retain the requested app filter');
             saveAppPolicy(this._draft);
-            this._policy.apps = cloneApps(this._draft);
             this._window.add_toast(new Adw.Toast({
                 title: `App access saved — ${blocked.length} restricted target${blocked.length === 1 ? '' : 's'}`,
             }));

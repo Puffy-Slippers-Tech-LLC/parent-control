@@ -177,36 +177,84 @@
   font-size: 0.88em;
 }
 
-.oh-no-parent-control-app-filter-toggle {
-  padding: 10px 12px;
+.oh-no-parent-control-app-filter-controls {
+  spacing: 8px;
+}
+
+.oh-no-parent-control-app-filter-toggle,
+.oh-no-parent-control-preferences-button {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   color: rgba(255, 255, 255, 0.76);
   background-color: rgba(255, 255, 255, 0.06);
-  text-align: left;
   transition-duration: 150ms;
 }
 
 .oh-no-parent-control-app-filter-toggle:hover,
-.oh-no-parent-control-app-filter-toggle:focus {
+.oh-no-parent-control-app-filter-toggle:focus,
+.oh-no-parent-control-preferences-button:hover,
+.oh-no-parent-control-preferences-button:focus {
   color: white;
   border-color: rgba(255, 255, 255, 0.22);
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-.oh-no-parent-control-app-filter-toggle:checked {
-  color: white;
-  border-color: rgba(115, 230, 167, 0.72);
-  background-gradient-direction: horizontal;
-  background-gradient-start: rgba(75, 199, 131, 0.72);
-  background-gradient-end: rgba(36, 182, 111, 0.62);
-  box-shadow: 0 0 16px rgba(69, 223, 141, 0.38), inset 0 1px rgba(255, 255, 255, 0.26);
+.oh-no-parent-control-app-filter-toggle {
+  padding: 9px 11px;
+  text-align: left;
 }
 
-.oh-no-parent-control-app-filter-toggle:checked:hover {
-  border-color: rgba(168, 245, 199, 0.92);
-  background-gradient-start: rgba(92, 214, 148, 0.80);
-  background-gradient-end: rgba(43, 194, 120, 0.72);
+.oh-no-parent-control-app-filter-toggle-content {
+  spacing: 12px;
+}
+
+.oh-no-parent-control-app-filter-label {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.oh-no-parent-control-switch-track {
+  width: 42px;
+  height: 24px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 99px;
+  background-color: rgba(0, 0, 0, 0.30);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.30);
+  transition-duration: 150ms;
+}
+
+.oh-no-parent-control-switch-handle {
+  width: 18px;
+  height: 18px;
+  border-radius: 99px;
+  background-color: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.38);
+  transition-duration: 150ms;
+}
+
+.oh-no-parent-control-app-filter-toggle:checked .oh-no-parent-control-switch-track {
+  border-color: rgba(115, 230, 167, 0.82);
+  background-color: rgba(55, 201, 126, 0.82);
+  box-shadow: 0 0 10px rgba(69, 223, 141, 0.34), inset 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.oh-no-parent-control-app-filter-toggle:checked .oh-no-parent-control-switch-handle {
+  margin-left: 18px;
+  background-color: white;
+}
+
+.oh-no-parent-control-preferences-button {
+  padding: 9px 11px;
+}
+
+.oh-no-parent-control-preferences-icon {
+  icon-size: 24px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.oh-no-parent-control-preferences-button:hover .oh-no-parent-control-preferences-icon,
+.oh-no-parent-control-preferences-button:focus .oh-no-parent-control-preferences-icon {
+  color: white;
 }
 
 .oh-no-parent-control-error {

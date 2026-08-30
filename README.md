@@ -26,7 +26,7 @@ extension with:
 The policy file is installed to `/usr/share/polkit-1/actions/` and must be
 present before a combined time-and-app request can be approved. Open the
 app-access page from the extension manager's standard gear button to configure
-Allowed, Permanently Blocked, and Conditionally Blocked choices.
+Always Allowed, Hard Blocked, and Soft Blocked choices.
 
 Run `make check` for static JavaScript/patch checks and `make pack` to create a
 complete installable extension archive.

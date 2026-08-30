@@ -73,11 +73,11 @@ export function saveAppPolicy(apps) {
         null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
 }
 
-export function getBlockedTargets(policy, allowConditionalApps) {
+export function getBlockedTargets(policy, allowSoftBlockedApps) {
     const targets = [];
     for (const entry of Object.values(policy?.apps ?? {})) {
         if (entry.state === 'permanent' ||
-            (entry.state === 'conditional' && !allowConditionalApps))
+            (entry.state === 'conditional' && !allowSoftBlockedApps))
             targets.push(...entry.targets);
     }
     return [...new Set(targets)].sort();

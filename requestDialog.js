@@ -44,9 +44,10 @@ export function secondsUntilEndOfLocalDay(now = GLib.DateTime.new_now_local()) {
 
 // Both the login modal and panel popup use this form.
 class RequestForm {
-    constructor(onRequest, onClose) {
+    constructor(onRequest, onClose, onPreferences) {
         this._onRequest = onRequest;
         this._onClose = onClose;
+        this._onPreferences = onPreferences;
         this._destroyed = false;
         this._working = false;
         this._selected = this._loadSelectedDuration();
@@ -150,18 +151,64 @@ class RequestForm {
         }));
         this.actor.add_child(this._customRow);
 
+        const appFilterControls = new St.BoxLayout({
+            style_class: 'oh-no-parent-control-app-filter-controls',
+            x_expand: true,
+        });
+        const appFilterToggleContent = new St.BoxLayout({
+            style_class: 'oh-no-parent-control-app-filter-toggle-content',
+            x_expand: true,
+        });
+        appFilterToggleContent.add_child(new St.Label({
+            style_class: 'oh-no-parent-control-app-filter-label',
+            text: 'Allow soft blocked apps',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        const switchTrack = new St.BoxLayout({
+            style_class: 'oh-no-parent-control-switch-track',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        switchTrack.add_child(new St.Widget({
+            style_class: 'oh-no-parent-control-switch-handle',
+        }));
+        appFilterToggleContent.add_child(switchTrack);
+
         this._appFilterToggle = new St.Button({
             style_class: 'oh-no-parent-control-app-filter-toggle',
-            label: 'Allow blocked apps during extra time',
+            child: appFilterToggleContent,
             can_focus: true,
             reactive: true,
             toggle_mode: true,
+            x_expand: true,
             x_align: Clutter.ActorAlign.FILL,
         });
         this._appFilterToggle.accessible_name =
-            'Allow conditionally blocked apps during extra time';
+            'Allow soft blocked apps';
         this._appFilterToggle.set_checked(false);
-        this.actor.add_child(this._appFilterToggle);
+        appFilterControls.add_child(this._appFilterToggle);
+
+        this._preferencesButton = new St.Button({
+            style_class: 'oh-no-parent-control-preferences-button',
+            child: new St.Icon({
+                style_class: 'oh-no-parent-control-preferences-icon',
+                icon_name: 'emblem-system-symbolic',
+            }),
+            can_focus: true,
+            reactive: true,
+            track_hover: true,
+            y_align: Clutter.ActorAlign.FILL,
+        });
+        this._preferencesButton.accessible_name = 'Open app access preferences';
+        this._preferencesButton.connect('clicked', () => {
+            try {
+                this._onPreferences?.();
+            } catch (error) {
+                console.error(`[oh-no-parent-control] could not open preferences: ${error.message}`);
+            }
+        });
+        appFilterControls.add_child(this._preferencesButton);
+        this.actor.add_child(appFilterControls);
         this._select(this._selected);
     }
 
@@ -201,6 +248,10 @@ class RequestForm {
     focusSelectedChoice() {
         const selected = this.getSelectedChoice();
         selected?.[0].grab_key_focus();
+    }
+
+    setPreferencesVisible(visible) {
+        this._preferencesButton.visible = visible;
     }
 
     getSelectedChoice() {
@@ -311,23 +362,28 @@ class RequestForm {
             button.reactive = !working;
         this._customEntry.reactive = !working;
         this._appFilterToggle.reactive = !working;
+        this._preferencesButton.reactive = !working;
     }
 
     destroy() {
         this._destroyed = true;
         this._onRequest = null;
         this._onClose = null;
+        this._onPreferences = null;
         this._appFilterToggle = null;
+        this._preferencesButton = null;
     }
 }
 
 export const RequestDialog = GObject.registerClass(
 class RequestDialog extends ModalDialog.ModalDialog {
-    _init(onRequest) {
+    _init(onRequest, onPreferences) {
         super._init({styleClass: 'oh-no-parent-control-dialog'});
         Main.sessionMode.connectObject('updated', () => this._syncParent(), this);
         this._syncParent();
-        this._form = new RequestForm(onRequest, () => this.close());
+        this._form = new RequestForm(
+            onRequest, () => this.close(), onPreferences);
+        this._form.setPreferencesVisible(!Main.sessionMode.isLocked);
         this.contentLayout.add_child(this._form.actor);
         this.setButtons([
             {label: 'Cancel', action: () => this.close(), key: Clutter.KEY_Escape},
@@ -346,6 +402,7 @@ class RequestDialog extends ModalDialog.ModalDialog {
         const wantedParent = Main.sessionMode.isLocked && lockDialogGroup
             ? lockDialogGroup
             : Main.layoutManager.modalDialogGroup;
+        this._form?.setPreferencesVisible(!Main.sessionMode.isLocked);
         const currentParent = this.get_parent();
         if (!wantedParent || currentParent === wantedParent)
             return;
@@ -363,7 +420,7 @@ class RequestDialog extends ModalDialog.ModalDialog {
 });
 
 export class RequestPopover extends PopupMenu.PopupMenu {
-    constructor(onRequest, sourceActor) {
+    constructor(onRequest, sourceActor, onPreferences) {
         super(sourceActor, 0.5, St.Side.TOP);
 
         const item = new PopupMenu.PopupBaseMenuItem({
@@ -371,8 +428,10 @@ export class RequestPopover extends PopupMenu.PopupMenu {
             can_focus: false,
             style_class: 'oh-no-parent-control-popup-item',
         });
-        this._form = new RequestForm(onRequest, () =>
-            this.close(BoxPointer.PopupAnimation.FULL));
+        this._form = new RequestForm(
+            onRequest,
+            () => this.close(BoxPointer.PopupAnimation.FULL),
+            onPreferences);
         this._form.addPopupActions();
         item.add_child(this._form.actor);
         this.addMenuItem(item);

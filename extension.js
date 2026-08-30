@@ -50,7 +50,7 @@ export default class OhNoParentControlExtension extends Extension {
             return;
 
         console.log(`${LOG_PREFIX} request dialog opened`);
-        const request = async (durationSeconds, clearAppRestrictions) => {
+        const request = async (durationSeconds, allowSoftBlockedApps) => {
             // The panel entry point is available while time remains, so let
             // the timer service decide whether a proactive request is valid.
             if (!sourceActor && !this._integration?.isExhausted())
@@ -75,14 +75,10 @@ export default class OhNoParentControlExtension extends Extension {
                 try {
                     const policy = loadAppPolicy();
                     const blockedTargets = getBlockedTargets(
-                        policy, clearAppRestrictions);
-                    const currentTargets =
-                        await this._appFilter.getBlockedTargets();
-                    if (!sameTargets(currentTargets, blockedTargets)) {
-                        // The combined action implies this permission, so this
-                        // must never initiate another auth dialog.
-                        await this._appFilter.setBlockedTargets(blockedTargets);
-                    }
+                        policy, allowSoftBlockedApps);
+                    // The combined action implies this permission, so this
+                    // must never initiate another auth dialog.
+                    await this._appFilter.setBlockedTargets(blockedTargets);
                     console.log(`${LOG_PREFIX} applied ${blockedTargets.length} app restrictions`);
                 } catch (error) {
                     // A time grant must remain successful even if the
@@ -96,9 +92,13 @@ export default class OhNoParentControlExtension extends Extension {
             console.log(`${LOG_PREFIX} request ${granted ? 'approved' : 'rejected'}`);
             return granted;
         };
+        const openPreferences = () => {
+            this._dialog?.close();
+            this.openPreferences();
+        };
         this._dialog = sourceActor
-            ? new RequestPopover(request, sourceActor)
-            : new RequestDialog(request);
+            ? new RequestPopover(request, sourceActor, openPreferences)
+            : new RequestDialog(request, openPreferences);
         this._dialog.connect('destroy', () => {
             sourceActor?.setRequestActive?.(false);
             this._dialog = null;
@@ -108,11 +108,4 @@ export default class OhNoParentControlExtension extends Extension {
             this._dialog.destroy();
         }
     }
-}
-
-function sameTargets(left, right) {
-    if (left.length !== right.length)
-        return false;
-    const sortedLeft = [...left].sort();
-    return sortedLeft.every((target, index) => target === right[index]);
 }

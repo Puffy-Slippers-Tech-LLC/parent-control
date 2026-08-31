@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import pwd
+
 import gi
 
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
+
+from .core import UserAccount
 
 DBUS_NAME = "org.freedesktop.DBus"
 DBUS_PATH = "/org/freedesktop/DBus"
@@ -58,12 +62,12 @@ class PolkitAuthorizer:
     def __init__(self, connection):
         self.connection = connection
 
-    def check(self, sender: str, correlation_id: str) -> str:
+    def check(self, sender: str, correlation_id: str, target_label: str) -> str:
         subject = (
             "system-bus-name",
             {"name": GLib.Variant("s", sender)},
         )
-        details = {"polkit.message": "Authorize additional time and the selected soft-app access"}
+        details = {"target-account": target_label}
         try:
             reply = _call(
                 self.connection, POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE,
@@ -105,27 +109,79 @@ class AccountsService:
         )
         return reply.unpack()[0]
 
+    def _account_from_path(self, path: str) -> UserAccount:
+        reply = _call(
+            self.connection, ACCOUNTS_NAME, path, PROPERTIES_INTERFACE,
+            "GetAll", GLib.Variant("(s)", (ACCOUNTS_INTERFACE + ".User",)), "(a{sv})",
+        )
+        properties = reply.unpack()[0]
+        uid = properties["Uid"]
+        expected_path = f"/org/freedesktop/Accounts/User{uid}"
+        if path != expected_path:
+            raise RuntimeError("AccountsService returned an unexpected user object")
+        username = properties.get("UserName", "")
+        real_name = " ".join(properties.get("RealName", "").split())[:120]
+        label = real_name or username or str(uid)
+        return UserAccount(
+            uid=uid,
+            username=username,
+            label=label,
+            is_admin=properties.get("AccountType", 0) != 0,
+            is_system=properties.get("SystemAccount", True),
+            is_local=properties.get("LocalAccount", False),
+        )
+
+    def list_users(self) -> tuple[UserAccount, ...]:
+        # ListCachedUsers is explicitly non-exhaustive. Enumerate current NSS
+        # identities so a newly created local account appears before first
+        # login, then use AccountsService as the authority for account type.
+        uids = sorted({entry.pw_uid for entry in pwd.getpwall()
+                       if 1000 <= entry.pw_uid <= (1 << 32) - 1})
+        users = []
+        for uid in uids:
+            try:
+                users.append(self.get_user(uid))
+            except GLib.Error:
+                # The account may have been deleted during enumeration.
+                continue
+        return tuple(users)
+
+    def get_user(self, uid: int) -> UserAccount:
+        return self._account_from_path(self._user_path(uid))
+
     def _set(self, uid: int, interface: str, prop: str, value: GLib.Variant):
         _call(
             self.connection, ACCOUNTS_NAME, self._user_path(uid), PROPERTIES_INTERFACE,
             "Set", GLib.Variant("(ssv)", (interface, prop, value)), "()",
         )
 
-    def get_filter(self, child_uid: int) -> tuple[bool, tuple[str, ...]]:
-        allowlist, targets = self._get(child_uid, APP_FILTER_INTERFACE, "AppFilter")
+    def get_filter(self, target_uid: int) -> tuple[bool, tuple[str, ...]]:
+        allowlist, targets = self._get(target_uid, APP_FILTER_INTERFACE, "AppFilter")
         return bool(allowlist), tuple(targets)
 
-    def set_filter(self, child_uid: int, value: tuple[bool, tuple[str, ...]]) -> None:
+    def set_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None:
         allowlist, targets = value
-        self._set(child_uid, APP_FILTER_INTERFACE, "AppFilter",
+        self._set(target_uid, APP_FILTER_INTERFACE, "AppFilter",
                   GLib.Variant("(bas)", (allowlist, list(targets))))
 
-    def get_extension(self, child_uid: int) -> tuple[int, int]:
+    def get_extension(self, target_uid: int) -> tuple[int, int]:
         grant_time, duration = self._get(
-            child_uid, SESSION_LIMITS_INTERFACE, "ActiveExtension"
+            target_uid, SESSION_LIMITS_INTERFACE, "ActiveExtension"
         )
         return grant_time, duration
 
-    def set_extension(self, child_uid: int, value: tuple[int, int]) -> None:
-        self._set(child_uid, SESSION_LIMITS_INTERFACE, "ActiveExtension",
+    def set_extension(self, target_uid: int, value: tuple[int, int]) -> None:
+        self._set(target_uid, SESSION_LIMITS_INTERFACE, "ActiveExtension",
                   GLib.Variant("(tu)", value))
+
+    def get_limit_type(self, uid: int) -> int:
+        return self._get(uid, SESSION_LIMITS_INTERFACE, "LimitType")
+
+    def set_limit_type(self, uid: int, value: int) -> None:
+        self._set(uid, SESSION_LIMITS_INTERFACE, "LimitType", GLib.Variant("u", value))
+
+    def get_daily_limit(self, uid: int) -> int:
+        return self._get(uid, SESSION_LIMITS_INTERFACE, "DailyLimit")
+
+    def set_daily_limit(self, uid: int, value: int) -> None:
+        self._set(uid, SESSION_LIMITS_INTERFACE, "DailyLimit", GLib.Variant("u", value))

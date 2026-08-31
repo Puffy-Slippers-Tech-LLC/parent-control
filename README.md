@@ -1,7 +1,8 @@
 # Oh No! Parent Control
 
 Oh No! Parent Control is a dedicated GNOME Kiosk request station for granting
-additional session time to a separate, Malcontent-restricted child account. A
+additional session time to a selected local standard account. Eligible
+accounts are discovered at runtime, including accounts created after installation. A
 root-owned broker validates the shared duration and hard/soft app policy, performs one
 interactive Polkit check for the real kiosk caller, and updates the supported
 AccountsService parental-control properties.
@@ -23,7 +24,7 @@ Exercise packaging in a disposable directory:
 
 ```sh
 stage="$(mktemp -d)"
-make install DESTDIR="$stage"
+make _install-product-files DESTDIR="$stage"
 find "$stage" -type f -print
 make uninstall DESTDIR="$stage"
 ```
@@ -37,21 +38,21 @@ The existing child-session extension remains independently buildable:
 ```sh
 make pack-extension
 make install-extension
-sudo make install-extension-policy
 ```
+
+The system installation below installs the extension's Polkit policy.
 
 ## Deployment
 
-Follow [docs/Deployment.md](docs/Deployment.md). Deployment is intentionally
-fail-closed: provisioning requires the operator to complete the mandatory GDM
-session-confinement gate first, then explicitly pass:
+On a clean Ubuntu 26.04 Desktop computer, extract the release and run its one
+root installer:
 
 ```sh
-sudo make provision KIOSK_USER=oh-no-request CHILD_USER=child \
-  KIOSK_CONFINEMENT_VERIFIED=1
+sudo ./install.sh
 ```
 
-The flag records an operator assertion; it does not turn the GDM default
-session into an access-control mechanism. If the target distribution cannot
-prevent the kiosk UID from choosing a normal desktop, deployment remains
-blocked as required by [docs/System-Design.md](docs/System-Design.md).
+It installs dependencies and product files, creates and confines the kiosk
+account, provisions the broker, and validates the installation. It marks the
+system as requiring a reboot but does not reboot automatically. No managed
+account is required. See [docs/Deployment.md](docs/Deployment.md) for the
+deployment and runtime account-discovery details.

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from oh_no_parent_control.config import validate
 from oh_no_parent_control.core import (
     AccessDenied, BackendFailure, Broker, Busy, InvalidRequest, RateLimited, RollbackFailure,
-    seconds_until_local_midnight,
+    UserAccount, seconds_until_local_midnight,
 )
 from test_config import valid_config
 
@@ -17,8 +17,8 @@ class Authorizer:
         self.calls = []
         self.callback = callback
 
-    def check(self, sender, correlation_id):
-        self.calls.append((sender, correlation_id))
+    def check(self, sender, correlation_id, target_label):
+        self.calls.append((sender, correlation_id, target_label))
         if self.callback:
             self.callback()
         return self.outcome
@@ -26,11 +26,27 @@ class Authorizer:
 
 class Accounts:
     def __init__(self):
+        self.users = {
+            1001: UserAccount(1001, "child", "Child", False, False, True),
+            1002: UserAccount(1002, "other", "Other", False, False, True),
+            1003: UserAccount(1003, "admin", "Admin", True, False, True),
+            1004: UserAccount(1004, "system", "System", False, True, True),
+            1005: UserAccount(1005, "remote", "Remote", False, False, False),
+            991: UserAccount(991, "kiosk", "Kiosk", False, False, True),
+        }
         self.filter = (False, ("old.App",))
         self.extension = (1, 2)
+        self.limit_type = 2
+        self.daily_limit = 3600
         self.events = []
         self.fail_extension = False
         self.fail_rollback = False
+
+    def list_users(self):
+        return tuple(self.users.values())
+
+    def get_user(self, uid):
+        return self.users[uid]
 
     def get_filter(self, uid):
         self.events.append(("get_filter", uid))
@@ -48,9 +64,25 @@ class Accounts:
 
     def set_extension(self, uid, value):
         self.events.append(("set_extension", uid, value))
-        if self.fail_extension:
+        if self.fail_extension and value != (1, 2):
             raise RuntimeError("failed")
         self.extension = value
+
+    def get_limit_type(self, uid):
+        self.events.append(("get_limit_type", uid))
+        return self.limit_type
+
+    def set_limit_type(self, uid, value):
+        self.events.append(("set_limit_type", uid, value))
+        self.limit_type = value
+
+    def get_daily_limit(self, uid):
+        self.events.append(("get_daily_limit", uid))
+        return self.daily_limit
+
+    def set_daily_limit(self, uid, value):
+        self.events.append(("set_daily_limit", uid, value))
+        self.daily_limit = value
 
 
 def make_broker(authorizer=None, accounts=None, clock=None, alive=lambda _s: True):
@@ -62,31 +94,71 @@ def make_broker(authorizer=None, accounts=None, clock=None, alive=lambda _s: Tru
 
 
 class CoreTests(unittest.TestCase):
-    def test_options_expose_only_the_target_label(self):
-        options = make_broker().get_options(991)
-        self.assertEqual(options.child_label, "Child")
+    def test_list_exposes_only_local_standard_accounts(self):
+        users = make_broker().list_managed_users(991)
+        self.assertEqual([(user.uid, user.label) for user in users], [
+            (1001, "Child"), (1002, "Other"),
+        ])
 
     def test_wrong_caller_denied(self):
         with self.assertRaises(AccessDenied):
-            make_broker().get_options(1001)
+            make_broker().list_managed_users(1001)
+
+    def test_admin_target_is_rejected_without_authorization(self):
+        auth, accounts = Authorizer(), Accounts()
+        with self.assertRaises(AccessDenied):
+            make_broker(auth, accounts).request_access(991, ":1.2", 1003, 900, False)
+        self.assertEqual(auth.calls, [])
+
+    def test_account_created_after_broker_start_is_discovered(self):
+        accounts = Accounts()
+        broker = make_broker(accounts=accounts)
+        accounts.users[1006] = UserAccount(
+            1006, "new-child", "New Child", False, False, True,
+        )
+        self.assertIn(1006, [user.uid for user in broker.list_managed_users(991)])
+
+    def test_unrestricted_account_is_initialized_after_single_authorization(self):
+        auth, accounts = Authorizer(), Accounts()
+        accounts.limit_type = 0
+        accounts.daily_limit = 7200
+        make_broker(auth, accounts).request_access(991, ":1.2", 1001, 900, False)
+        self.assertEqual(len(auth.calls), 1)
+        self.assertEqual(accounts.limit_type, 2)
+        self.assertEqual(accounts.daily_limit, 0)
+
+    def test_account_change_during_authorization_causes_no_writes(self):
+        accounts = Accounts()
+
+        def promote():
+            old = accounts.users[1001]
+            accounts.users[1001] = UserAccount(
+                old.uid, old.username, old.label, True, old.is_system, old.is_local,
+            )
+
+        with self.assertRaises(AccessDenied):
+            make_broker(Authorizer(callback=promote), accounts).request_access(
+                991, ":1.2", 1001, 900, False,
+            )
+        self.assertEqual(accounts.events, [])
 
     def test_duration_and_toggle_are_validated_before_authorization(self):
         auth, accounts = Authorizer(), Accounts()
         broker = make_broker(auth, accounts)
         for duration, allow_soft in ((5, False), (86401, False), (900, 1)):
             with self.assertRaises(InvalidRequest):
-                broker.request_access(991, ":1.2", duration, allow_soft)
+                broker.request_access(991, ":1.2", 1001, duration, allow_soft)
         self.assertEqual(auth.calls, [])
         self.assertEqual(accounts.events, [])
 
     def test_rest_of_day_is_calculated_after_approval(self):
         accounts = Accounts()
-        make_broker(accounts=accounts).request_access(991, ":1.2", 0, False)
+        make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 0, False)
         self.assertEqual(accounts.extension[1], 14 * 60 * 60)
 
     def test_denial_makes_no_writes_and_one_check(self):
         auth, accounts = Authorizer("denied"), Accounts()
-        result = make_broker(auth, accounts).request_access(991, ":1.2", 900, False)
+        result = make_broker(auth, accounts).request_access(991, ":1.2", 1001, 900, False)
         self.assertEqual(result[1], "denied")
         self.assertEqual(len(auth.calls), 1)
         self.assertEqual(accounts.events, [])
@@ -94,53 +166,66 @@ class CoreTests(unittest.TestCase):
     def test_disconnected_caller_makes_no_writes(self):
         accounts = Accounts()
         result = make_broker(accounts=accounts, alive=lambda _s: False).request_access(
-            991, ":1.2", 900, False
+            991, ":1.2", 1001, 900, False
         )
         self.assertEqual(result[1], "denied")
         self.assertEqual(accounts.events, [])
 
     def test_allow_soft_omits_only_soft_targets(self):
         accounts = Accounts()
-        result = make_broker(accounts=accounts).request_access(991, ":1.2", 900, True)
+        result = make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, True)
         self.assertEqual(result[1], "approved")
         self.assertEqual(accounts.filter, (False, ("org.example.Game",)))
 
     def test_filter_precedes_extension_and_readback(self):
         accounts = Accounts()
-        make_broker(accounts=accounts).request_access(991, ":1.2", 900, False)
+        make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, False)
         names = [event[0] for event in accounts.events]
         self.assertLess(names.index("set_filter"), names.index("set_extension"))
         self.assertEqual(accounts.filter, (False, ("/usr/bin/game", "org.example.Game")))
         self.assertEqual(accounts.extension[1], 900)
 
+    def test_existing_four_hour_allowance_is_migrated_to_zero(self):
+        accounts = Accounts()
+        accounts.limit_type = 2
+        accounts.daily_limit = 4 * 60 * 60
+
+        make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, False)
+
+        self.assertEqual(accounts.limit_type, 2)
+        self.assertEqual(accounts.daily_limit, 0)
+        self.assertIn(("set_daily_limit", 1001, 0), accounts.events)
+
     def test_extension_failure_rolls_filter_back(self):
         accounts = Accounts()
         accounts.fail_extension = True
         with self.assertRaises(BackendFailure):
-            make_broker(accounts=accounts).request_access(991, ":1.2", 900, False)
+            make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, False)
         self.assertEqual(accounts.filter, (False, ("old.App",)))
 
     def test_rollback_failure_is_escalated(self):
         accounts = Accounts()
         accounts.fail_extension = accounts.fail_rollback = True
         with self.assertRaises(RollbackFailure):
-            make_broker(accounts=accounts).request_access(991, ":1.2", 900, False)
+            make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, False)
 
     def test_rate_limit(self):
         broker = make_broker(clock=lambda: 100)
-        broker.request_access(991, ":1.2", 900, False)
+        broker.request_access(991, ":1.2", 1001, 900, False)
         with self.assertRaises(RateLimited):
-            broker.request_access(991, ":1.3", 900, False)
+            broker.request_access(991, ":1.3", 1001, 900, False)
 
     def test_concurrent_request_is_busy(self):
         entered, release = threading.Event(), threading.Event()
         auth = Authorizer(callback=lambda: (entered.set(), release.wait(2)))
         broker = make_broker(authorizer=auth)
-        thread = threading.Thread(target=lambda: broker.request_access(991, ":1.2", 900, False))
+        thread = threading.Thread(
+            target=lambda: broker.request_access(991, ":1.2", 1001, 900, False)
+        )
         thread.start()
         self.assertTrue(entered.wait(1))
         with self.assertRaises(Busy):
-            broker.request_access(991, ":1.3", 900, False)
+            broker.request_access(991, ":1.3", 1001, 900, False)
         release.set()
         thread.join()
 

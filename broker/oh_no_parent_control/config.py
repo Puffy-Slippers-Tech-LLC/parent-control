@@ -8,20 +8,18 @@ import re
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+
 
 UINT32_MAX = (1 << 32) - 1
 MAX_REQUEST_INTERVAL = 3600
-ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 FLATPAK_ID_RE = re.compile(
     r"^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+$"
 )
 TOP_KEYS = {
-    "version", "kiosk_uid", "child_uid", "child_label", "durations",
-    "app_filter_profiles", "minimum_request_interval_seconds",
+    "version", "kiosk_uid", "child_uid", "child_label", "app_filter",
+    "minimum_request_interval_seconds",
 }
-DURATION_KEYS = {"label", "seconds"}
-PROFILE_KEYS = {"label", "blocked_targets"}
+APP_FILTER_KEYS = {"hard_blocked_targets", "soft_blocked_targets"}
 
 
 class ConfigurationError(ValueError):
@@ -29,15 +27,9 @@ class ConfigurationError(ValueError):
 
 
 @dataclass(frozen=True)
-class Duration:
-    label: str
-    seconds: int | str
-
-
-@dataclass(frozen=True)
-class FilterProfile:
-    label: str
-    blocked_targets: tuple[str, ...]
+class AppFilter:
+    hard_blocked_targets: tuple[str, ...]
+    soft_blocked_targets: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -45,8 +37,7 @@ class Configuration:
     kiosk_uid: int
     child_uid: int
     child_label: str
-    durations: Mapping[str, Duration]
-    app_filter_profiles: Mapping[str, FilterProfile]
+    app_filter: AppFilter
     minimum_request_interval_seconds: int
 
 
@@ -76,12 +67,6 @@ def _label(value, where):
     return value.strip()
 
 
-def _choice_id(value, where):
-    if not isinstance(value, str) or not ID_RE.fullmatch(value):
-        raise ConfigurationError(f"invalid {where} ID")
-    return value
-
-
 def validate_target(target: object) -> str:
     if not isinstance(target, str) or not target or "\x00" in target:
         raise ConfigurationError("app-filter targets must be non-empty strings")
@@ -107,55 +92,22 @@ def validate(raw: object, *, uid_min: int = 1000) -> Configuration:
     if kiosk_uid == child_uid:
         raise ConfigurationError("kiosk_uid and child_uid must differ")
 
-    durations_raw = raw["durations"]
-    if not isinstance(durations_raw, dict) or not durations_raw:
-        raise ConfigurationError("durations must be a non-empty object")
-    durations = {}
-    labels = set()
-    logical_durations = set()
-    for duration_id, item in durations_raw.items():
-        _choice_id(duration_id, "duration")
-        _exact_keys(item, DURATION_KEYS, f"duration {duration_id}")
-        label = _label(item["label"], f"duration {duration_id} label")
-        folded = label.casefold()
-        if folded in labels:
-            raise ConfigurationError("duplicate duration label")
-        labels.add(folded)
-        seconds = item["seconds"]
-        if seconds != "local-midnight" and (
-            type(seconds) is not int or seconds <= 0 or seconds > UINT32_MAX
-        ):
-            raise ConfigurationError(f"invalid duration seconds: {duration_id}")
-        if seconds in logical_durations:
-            raise ConfigurationError("duplicate logical duration")
-        logical_durations.add(seconds)
-        durations[duration_id] = Duration(label, seconds)
+    filter_raw = raw["app_filter"]
+    _exact_keys(filter_raw, APP_FILTER_KEYS, "app_filter")
 
-    profiles_raw = raw["app_filter_profiles"]
-    if not isinstance(profiles_raw, dict):
-        raise ConfigurationError("app_filter_profiles must be an object")
-    profiles = {}
-    labels = set()
-    logical_profiles = set()
-    for profile_id, item in profiles_raw.items():
-        _choice_id(profile_id, "profile")
-        _exact_keys(item, PROFILE_KEYS, f"profile {profile_id}")
-        label = _label(item["label"], f"profile {profile_id} label")
-        folded = label.casefold()
-        if folded in labels:
-            raise ConfigurationError("duplicate profile label")
-        labels.add(folded)
-        targets_raw = item["blocked_targets"]
+    def targets(key):
+        targets_raw = filter_raw[key]
         if not isinstance(targets_raw, list):
-            raise ConfigurationError("blocked_targets must be an array")
-        targets = tuple(validate_target(value) for value in targets_raw)
-        if len(targets) != len(set(targets)):
+            raise ConfigurationError(f"{key} must be an array")
+        validated = tuple(validate_target(value) for value in targets_raw)
+        if len(validated) != len(set(validated)):
             raise ConfigurationError("duplicate blocked target")
-        canonical_targets = tuple(sorted(targets))
-        if canonical_targets in logical_profiles:
-            raise ConfigurationError("duplicate logical filter profile")
-        logical_profiles.add(canonical_targets)
-        profiles[profile_id] = FilterProfile(label, targets)
+        return validated
+
+    hard_targets = targets("hard_blocked_targets")
+    soft_targets = targets("soft_blocked_targets")
+    if set(hard_targets) & set(soft_targets):
+        raise ConfigurationError("hard and soft blocked targets must be disjoint")
 
     interval = raw["minimum_request_interval_seconds"]
     if type(interval) is not int or not 1 <= interval <= MAX_REQUEST_INTERVAL:
@@ -164,8 +116,7 @@ def validate(raw: object, *, uid_min: int = 1000) -> Configuration:
         kiosk_uid=kiosk_uid,
         child_uid=child_uid,
         child_label=_label(raw["child_label"], "child_label"),
-        durations=durations,
-        app_filter_profiles=profiles,
+        app_filter=AppFilter(hard_targets, soft_targets),
         minimum_request_interval_seconds=interval,
     )
 

@@ -27,12 +27,10 @@ INTROSPECTION_XML = f"""
   <interface name="{INTERFACE}">
     <method name="GetRequestOptions">
       <arg name="child_label" type="s" direction="out"/>
-      <arg name="durations" type="a(ss)" direction="out"/>
-      <arg name="filter_profiles" type="a(ss)" direction="out"/>
     </method>
     <method name="RequestAccess">
-      <arg name="duration_id" type="s" direction="in"/>
-      <arg name="filter_profile_id" type="s" direction="in"/>
+      <arg name="duration_seconds" type="u" direction="in"/>
+      <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
       <arg name="correlation_id" type="s" direction="out"/>
       <arg name="result_code" type="s" direction="out"/>
     </method>
@@ -63,14 +61,13 @@ class Service:
             if method == "GetRequestOptions":
                 options = self.broker.get_options(caller_uid)
                 invocation.return_value(GLib.Variant(
-                    "(sa(ss)a(ss))",
-                    (options.child_label, options.durations, options.filter_profiles),
+                    "(s)", (options.child_label,),
                 ))
             elif method == "RequestAccess":
-                duration_id, profile_id = parameters.unpack()
+                duration_seconds, allow_soft = parameters.unpack()
                 threading.Thread(
                     target=self._request_worker,
-                    args=(invocation, caller_uid, sender, duration_id, profile_id),
+                    args=(invocation, caller_uid, sender, duration_seconds, allow_soft),
                     daemon=True,
                 ).start()
             else:
@@ -83,10 +80,10 @@ class Service:
             logging.exception("[oh-no-parent-control] request dispatch failed")
             invocation.return_dbus_error(f"{BUS_NAME}.Error.Failed", "service failure")
 
-    def _request_worker(self, invocation, caller_uid, sender, duration_id, profile_id):
+    def _request_worker(self, invocation, caller_uid, sender, duration_seconds, allow_soft):
         try:
             result = self.broker.request_access(
-                caller_uid, sender, duration_id, profile_id
+                caller_uid, sender, duration_seconds, allow_soft
             )
             GLib.idle_add(self._return_value, invocation, result)
         except BrokerError as error:

@@ -315,9 +315,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._clearCountdownWarning();
 
         const compact = this._syncOrientation();
-        if (remainingSecs < 10) {
-            this._label.text = `${remainingSecs}`;
-        } else if (remainingSecs > 60) {
+        if (remainingSecs > 60) {
             const totalMinutes = Math.floor(remainingSecs / 60);
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;

@@ -1,13 +1,15 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
+import {
+    MAX_CUSTOM_MINUTES,
+    MIN_CUSTOM_MINUTES,
+} from './requestOptions.js';
+
 const DIRECTORY_NAME = 'oh-no-parent-control';
 const CUSTOM_MINUTES_FILE_NAME = 'last-custom-minutes';
 const SELECTED_DURATION_FILE_NAME = 'last-selected-duration';
 const ALLOW_SOFT_BLOCKED_APPS_FILE_NAME = 'allow-soft-blocked-apps';
-
-export const MIN_CUSTOM_MINUTES = 0.1;
-export const MAX_CUSTOM_MINUTES = 24 * 60;
 
 function getStoreFile(fileName) {
     const directory = GLib.build_filenamev([

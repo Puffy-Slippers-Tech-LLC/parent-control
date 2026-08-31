@@ -63,7 +63,7 @@ class PolkitAuthorizer:
             "system-bus-name",
             {"name": GLib.Variant("s", sender)},
         )
-        details = {"polkit.message": "Authorize additional time and the selected app restrictions"}
+        details = {"polkit.message": "Authorize additional time and the selected soft-app access"}
         try:
             reply = _call(
                 self.connection, POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE,

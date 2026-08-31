@@ -77,6 +77,8 @@ Install and configure the application:
   sudo env DEBIAN_FRONTEND=noninteractive pam-auth-update --disable malcontent
   sudo malcontent-client set-session-limits child daily-limit --daily-limit 0
 
+  # The per-user systemd manager must start outside the timed login session.
+  # Apply Malcontent to child logins, but bypass it for systemd-user itself.
   sudo install -o root -g root -m 0644 /dev/stdin \
     /usr/share/pam-configs/oh-no-parent-control-child-limits <<'CHILD_PAM'
 Name: Oh No Parent Control child session limits
@@ -84,6 +86,7 @@ Default: yes
 Priority: 1000
 Account-Type: Additional
 Account:
+ [success=2 default=ignore] pam_succeed_if.so quiet service = systemd-user
  [success=1 default=ignore] pam_succeed_if.so quiet user != child
  required pam_malcontent.so
 CHILD_PAM
@@ -191,10 +194,10 @@ directory.
 ## 4. Complete the deployment check
 
 1. Sign in to the **Oh No! Parent Control** account without a password.
-2. Submit a time-only request and approve it with an administrator account.
+2. Submit a request with soft-blocked apps disallowed and approve it with an administrator account.
 3. Sign in to `child` and confirm that the additional time is available.
 4. Sign out, return to the **Oh No! Parent Control** account, and approve a
-   request containing both time and an application profile.
+   request with **Allow soft blocked apps** enabled.
 5. Sign in to `child` and confirm that the time and application restrictions
    are active.
 6. Sign out, sign in to the **Oh No! Parent Control** account, and select

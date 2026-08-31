@@ -5,8 +5,8 @@
   <vendor>Puffy Slippers</vendor>
   <vendor_url>https://puffyslippers.com/</vendor_url>
   <action id="com.puffyslippers.OhNoParentControl1.request-access">
-    <description>Authorize additional time and selected app restrictions</description>
-    <message>Authentication is required to grant additional time and apply the selected app restrictions</message>
+    <description>Authorize additional time and app access</description>
+    <message>Authentication is required to grant additional time and apply the selected soft-app access</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>

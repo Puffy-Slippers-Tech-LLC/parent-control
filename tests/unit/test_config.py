@@ -15,12 +15,9 @@ def valid_config():
         "kiosk_uid": 991,
         "child_uid": 1001,
         "child_label": "Child",
-        "durations": {
-            "short": {"label": "15 minutes", "seconds": 900},
-            "today": {"label": "Rest of today", "seconds": "local-midnight"},
-        },
-        "app_filter_profiles": {
-            "school": {"label": "School", "blocked_targets": ["org.example.Game", "/usr/bin/game"]}
+        "app_filter": {
+            "hard_blocked_targets": ["org.example.Game"],
+            "soft_blocked_targets": ["/usr/bin/game"],
         },
         "minimum_request_interval_seconds": 5,
     }
@@ -30,13 +27,12 @@ class ConfigTests(unittest.TestCase):
     def test_valid(self):
         config = validate(valid_config())
         self.assertEqual(config.child_uid, 1001)
-        self.assertEqual(config.app_filter_profiles["school"].blocked_targets[0], "org.example.Game")
+        self.assertEqual(config.app_filter.hard_blocked_targets[0], "org.example.Game")
 
     def test_unknown_keys_rejected_at_each_level(self):
         for mutate in (
             lambda c: c.update(extra=True),
-            lambda c: c["durations"]["short"].update(extra=True),
-            lambda c: c["app_filter_profiles"]["school"].update(extra=True),
+            lambda c: c["app_filter"].update(extra=True),
         ):
             value = valid_config()
             mutate(value)
@@ -52,11 +48,9 @@ class ConfigTests(unittest.TestCase):
 
     def test_malformed_choices(self):
         mutations = (
-            lambda c: c.update(durations={}),
-            lambda c: c["durations"]["short"].update(seconds=0),
-            lambda c: c["durations"].update({"Bad ID": {"label": "x", "seconds": 1}}),
-            lambda c: c["app_filter_profiles"]["school"].update(blocked_targets=["bad"]),
-            lambda c: c["app_filter_profiles"]["school"].update(blocked_targets=["/a/../b"]),
+            lambda c: c["app_filter"].update(hard_blocked_targets=["bad"]),
+            lambda c: c["app_filter"].update(soft_blocked_targets=["/a/../b"]),
+            lambda c: c["app_filter"].update(soft_blocked_targets=["org.example.Game"]),
             lambda c: c.update(minimum_request_interval_seconds=0),
         )
         for mutate in mutations:

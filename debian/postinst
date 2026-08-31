@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = configure ]; then
+    kiosk_user=oh-no-parent-control
+    if ! getent passwd "$kiosk_user" >/dev/null; then
+        adduser --disabled-password --gecos "Oh No! Parent Control" \
+            --home "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
+    fi
+    /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"
+    systemctl daemon-reload >/dev/null || true
+    systemctl reload dbus.service >/dev/null || true
+fi
+
+#DEBHELPER#
+
+exit 0

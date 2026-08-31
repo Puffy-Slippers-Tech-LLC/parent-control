@@ -12,9 +12,7 @@ import {
     loadAllowSoftBlockedApps,
     loadLastCustomMinutes,
     loadLastSelectedDuration,
-    saveAllowSoftBlockedApps,
-    saveLastCustomMinutes,
-    saveLastSelectedDuration,
+    saveRequestPreferences,
 } from './requestPreferencesStore.js';
 import {
     DEFAULT_DURATION_SECONDS,
@@ -40,10 +38,9 @@ export function secondsUntilEndOfLocalDay(now = GLib.DateTime.new_now_local()) {
 
 // Both the login modal and panel popup use this form.
 class RequestForm {
-    constructor(onRequest, onClose, onPreferences) {
+    constructor(onRequest, onClose) {
         this._onRequest = onRequest;
         this._onClose = onClose;
-        this._onPreferences = onPreferences;
         this._destroyed = false;
         this._working = false;
         this._selected = this._loadSelectedDuration();
@@ -147,10 +144,6 @@ class RequestForm {
         }));
         this.actor.add_child(this._customRow);
 
-        const appFilterControls = new St.BoxLayout({
-            style_class: 'oh-no-parent-control-app-filter-controls',
-            x_expand: true,
-        });
         const appFilterToggleContent = new St.BoxLayout({
             style_class: 'oh-no-parent-control-app-filter-toggle-content',
             x_expand: true,
@@ -182,31 +175,7 @@ class RequestForm {
         this._appFilterToggle.accessible_name =
             'Allow soft blocked apps';
         this._appFilterToggle.set_checked(loadAllowSoftBlockedApps());
-        this._appFilterToggle.connect('notify::checked', toggle =>
-            saveAllowSoftBlockedApps(toggle.checked));
-        appFilterControls.add_child(this._appFilterToggle);
-
-        this._preferencesButton = new St.Button({
-            style_class: 'oh-no-parent-control-preferences-button',
-            child: new St.Icon({
-                style_class: 'oh-no-parent-control-preferences-icon',
-                icon_name: 'emblem-system-symbolic',
-            }),
-            can_focus: true,
-            reactive: true,
-            track_hover: true,
-            y_align: Clutter.ActorAlign.FILL,
-        });
-        this._preferencesButton.accessible_name = 'Open app access preferences';
-        this._preferencesButton.connect('clicked', () => {
-            try {
-                this._onPreferences?.();
-            } catch (error) {
-                console.error(`[oh-no-parent-control] could not open preferences: ${error.message}`);
-            }
-        });
-        appFilterControls.add_child(this._preferencesButton);
-        this.actor.add_child(appFilterControls);
+        this.actor.add_child(this._appFilterToggle);
         this._select(this._selected);
     }
 
@@ -246,10 +215,6 @@ class RequestForm {
     focusSelectedChoice() {
         const selected = this.getSelectedChoice();
         selected?.[0].grab_key_focus();
-    }
-
-    setPreferencesVisible(visible) {
-        this._preferencesButton.visible = visible;
     }
 
     getSelectedChoice() {
@@ -325,9 +290,9 @@ class RequestForm {
                 seconds,
                 this._appFilterToggle.checked);
             if (granted) {
-                saveLastSelectedDuration(this._selected);
-                if (this._selected === null)
-                    saveLastCustomMinutes(this._lastCustomMinutes);
+                saveRequestPreferences(
+                    this._selected, this._lastCustomMinutes,
+                    this._appFilterToggle.checked);
                 this._onClose?.();
                 return;
             }
@@ -364,28 +329,24 @@ class RequestForm {
             button.reactive = !working;
         this._customEntry.reactive = !working;
         this._appFilterToggle.reactive = !working;
-        this._preferencesButton.reactive = !working;
     }
 
     destroy() {
         this._destroyed = true;
         this._onRequest = null;
         this._onClose = null;
-        this._onPreferences = null;
         this._appFilterToggle = null;
-        this._preferencesButton = null;
     }
 }
 
 export const RequestDialog = GObject.registerClass(
 class RequestDialog extends ModalDialog.ModalDialog {
-    _init(onRequest, onPreferences) {
+    _init(onRequest) {
         super._init({styleClass: 'oh-no-parent-control-dialog'});
         Main.sessionMode.connectObject('updated', () => this._syncParent(), this);
         this._syncParent();
         this._form = new RequestForm(
-            onRequest, () => this.close(), onPreferences);
-        this._form.setPreferencesVisible(!Main.sessionMode.isLocked);
+            onRequest, () => this.close());
         this.contentLayout.add_child(this._form.actor);
         this.setButtons([
             {label: 'Cancel', action: () => this.close(), key: Clutter.KEY_Escape},
@@ -404,7 +365,6 @@ class RequestDialog extends ModalDialog.ModalDialog {
         const wantedParent = Main.sessionMode.isLocked && lockDialogGroup
             ? lockDialogGroup
             : Main.layoutManager.modalDialogGroup;
-        this._form?.setPreferencesVisible(!Main.sessionMode.isLocked);
         const currentParent = this.get_parent();
         if (!wantedParent || currentParent === wantedParent)
             return;
@@ -422,7 +382,7 @@ class RequestDialog extends ModalDialog.ModalDialog {
 });
 
 export class RequestPopover extends PopupMenu.PopupMenu {
-    constructor(onRequest, sourceActor, onPreferences) {
+    constructor(onRequest, sourceActor) {
         super(sourceActor, 0.5, St.Side.TOP);
 
         const item = new PopupMenu.PopupBaseMenuItem({
@@ -432,8 +392,7 @@ export class RequestPopover extends PopupMenu.PopupMenu {
         });
         this._form = new RequestForm(
             onRequest,
-            () => this.close(BoxPointer.PopupAnimation.FULL),
-            onPreferences);
+            () => this.close(BoxPointer.PopupAnimation.FULL));
         this._form.addPopupActions();
         item.add_child(this._form.actor);
         this.addMenuItem(item);

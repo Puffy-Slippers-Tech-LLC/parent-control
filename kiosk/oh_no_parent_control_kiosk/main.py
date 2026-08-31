@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import sys
 from pathlib import Path
 
@@ -38,6 +39,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self.set_content(self._stack)
         self._request_content = RequestContent(
             self._request_access, self._logout, self._load_users,
+            self._load_preferences,
         )
         self._stack.add_named(self._request_content, "request")
 
@@ -87,12 +89,26 @@ class RequestWindow(Adw.ApplicationWindow):
             LOG.warning("users outcome=unavailable error_type=%s", type(error).__name__)
             self._show_error(error)
 
+    def _load_preferences(self, target_uid):
+        self._bus_call(
+            "GetPreferences", GLib.Variant("(u)", (target_uid,)), "(s)",
+            self._preferences_done,
+        )
+
+    def _preferences_done(self, connection, result):
+        try:
+            encoded, = connection.call_finish(result).unpack()
+            self._request_content.set_preferences(json.loads(encoded))
+        except Exception as error:
+            LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
+
     def _request_access(self, *_args):
         if not self._state.begin():
             return
         try:
             target_uid, target_label, duration_seconds, allow_soft = \
                 self._request_content.selected()
+            selected, custom, allow_soft = self._request_content.selected_preferences()
         except ValueError as error:
             self._state.finish()
             self._request_content.show_validation_error(str(error))
@@ -102,6 +118,19 @@ class RequestWindow(Adw.ApplicationWindow):
         LOG.info("target_uid=%d duration_seconds=%d allow_soft=%s stage=request",
                  target_uid, duration_seconds, allow_soft)
         try:
+            self._pending_request = (target_uid, duration_seconds, allow_soft)
+            self._bus_call(
+                "UpdateRequestPreferences",
+                GLib.Variant("(usdb)", (target_uid, selected, custom, allow_soft)),
+                "(s)", self._preferences_saved,
+            )
+        except Exception as error:
+            self._request_failed(error)
+
+    def _preferences_saved(self, connection, result):
+        try:
+            connection.call_finish(result)
+            target_uid, duration_seconds, allow_soft = self._pending_request
             self._bus_call(
                 "RequestAccess",
                 GLib.Variant("(uub)", (target_uid, duration_seconds, allow_soft)),

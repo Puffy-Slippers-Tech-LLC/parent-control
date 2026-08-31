@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Oh No! Parent Control
+Comment=Manage parent controls for child accounts
+Exec=/usr/bin/oh-no-parent-control-parent
+Icon=preferences-system-parental-controls
+Type=Application
+Categories=Settings;Security;
+Keywords=parental;control;children;apps;
+DBusActivatable=false

@@ -11,12 +11,8 @@ from oh_no_parent_control.config import ConfigurationError, load, validate, vali
 
 def valid_config():
     return {
-        "version": 2,
+        "version": 3,
         "kiosk_uid": 991,
-        "app_filter": {
-            "hard_blocked_targets": ["org.example.Game"],
-            "soft_blocked_targets": ["/usr/bin/game"],
-        },
         "minimum_request_interval_seconds": 5,
     }
 
@@ -25,12 +21,11 @@ class ConfigTests(unittest.TestCase):
     def test_valid(self):
         config = validate(valid_config())
         self.assertEqual(config.kiosk_uid, 991)
-        self.assertEqual(config.app_filter.hard_blocked_targets[0], "org.example.Game")
+        self.assertEqual(config.minimum_request_interval_seconds, 5)
 
     def test_unknown_keys_rejected_at_each_level(self):
         for mutate in (
             lambda c: c.update(extra=True),
-            lambda c: c["app_filter"].update(extra=True),
         ):
             value = valid_config()
             mutate(value)
@@ -46,9 +41,6 @@ class ConfigTests(unittest.TestCase):
 
     def test_malformed_choices(self):
         mutations = (
-            lambda c: c["app_filter"].update(hard_blocked_targets=["bad"]),
-            lambda c: c["app_filter"].update(soft_blocked_targets=["/a/../b"]),
-            lambda c: c["app_filter"].update(soft_blocked_targets=["org.example.Game"]),
             lambda c: c.update(minimum_request_interval_seconds=0),
         )
         for mutate in mutations:
@@ -59,6 +51,10 @@ class ConfigTests(unittest.TestCase):
 
     def test_target_forms(self):
         self.assertEqual(validate_target("org.example.App"), "org.example.App")
+        self.assertEqual(
+            validate_target("app/org.example.App/x86_64/stable"),
+            "app/org.example.App/x86_64/stable",
+        )
         self.assertEqual(validate_target("/usr/bin/example"), "/usr/bin/example")
         for value in ("example", "../bin/x", "relative/path", "/", "/a/../b", ""):
             with self.assertRaises(ConfigurationError):

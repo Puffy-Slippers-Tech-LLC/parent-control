@@ -1,9 +1,9 @@
 import unittest
 
-from oh_no_parent_control_app.model import RequestState, public_error
+from oh_no_parent_control_kiosk.model import RequestState, public_error
 
 
-class AppModelTests(unittest.TestCase):
+class KioskModelTests(unittest.TestCase):
     def test_single_flight(self):
         state = RequestState()
         self.assertTrue(state.begin())

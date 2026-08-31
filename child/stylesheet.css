@@ -191,12 +191,7 @@
   font-size: 0.88em;
 }
 
-.oh-no-parent-control-app-filter-controls {
-  spacing: 8px;
-}
-
-.oh-no-parent-control-app-filter-toggle,
-.oh-no-parent-control-preferences-button {
+.oh-no-parent-control-app-filter-toggle {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   color: rgba(255, 255, 255, 0.76);
@@ -205,9 +200,7 @@
 }
 
 .oh-no-parent-control-app-filter-toggle:hover,
-.oh-no-parent-control-app-filter-toggle:focus,
-.oh-no-parent-control-preferences-button:hover,
-.oh-no-parent-control-preferences-button:focus {
+.oh-no-parent-control-app-filter-toggle:focus {
   color: white;
   border-color: rgba(255, 255, 255, 0.22);
   background-color: rgba(255, 255, 255, 0.1);
@@ -255,20 +248,6 @@
 .oh-no-parent-control-app-filter-toggle:checked .oh-no-parent-control-switch-handle {
   margin-left: 18px;
   background-color: white;
-}
-
-.oh-no-parent-control-preferences-button {
-  padding: 9px 11px;
-}
-
-.oh-no-parent-control-preferences-icon {
-  icon-size: 24px;
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.oh-no-parent-control-preferences-button:hover .oh-no-parent-control-preferences-icon,
-.oh-no-parent-control-preferences-button:focus .oh-no-parent-control-preferences-icon {
-  color: white;
 }
 
 .oh-no-parent-control-error {

@@ -36,20 +36,20 @@ stack:
 
 The conclusions about private GNOME Shell fields are intentionally limited to
 this target. They must be rechecked before adding another Shell version to
-`metadata.json`.
+`child/metadata.json`.
 
 ### Key implementation files
 
-- `extension.js` coordinates the combined authorization and the two writes.
-- `parentalApproval.js` performs and revokes the combined Polkit authorization.
-- `sessionLimitsClient.js` writes `ActiveExtension`.
-- `appFilterClient.js` writes `AppFilter`.
-- `policy/org.gnome.shell.extensions.oh-no-parent-control.policy` defines the
+- `child/extension.js` coordinates the combined authorization and the two writes.
+- `child/parentalApproval.js` performs and revokes the combined Polkit authorization.
+- `child/sessionLimitsClient.js` writes `ActiveExtension`.
+- `child/appFilterClient.js` writes `AppFilter`.
+- `child/policy/org.gnome.shell.extensions.oh-no-parent-control.policy` defines the
   combined meta-action and implied permissions.
-- `parentalControlsIntegration.js` contains most private lock-screen, Polkit,
+- `child/parentalControlsIntegration.js` contains most private lock-screen, Polkit,
   and time-manager integration.
-- `requestDialog.js` contains additional private lock-dialog placement.
-- `timerQuery.js` uses the supported Malcontent estimated-times D-Bus API.
+- `child/requestDialog.js` contains additional private lock-dialog placement.
+- `child/timerQuery.js` uses the supported Malcontent estimated-times D-Bus API.
 
 ### Change and validation guard
 
@@ -91,7 +91,7 @@ including this extension's combined action, until after unlock. GNOME Shell 50
 does not expose a supported extension API for adding another action to that
 exception.
 
-`parentalControlsIntegration.js` therefore patches the loaded Polkit agent and
+`child/parentalControlsIntegration.js` therefore patches the loaded Polkit agent and
 depends on private implementation details, including:
 
 - `Main.componentManager._allComponents.polkitAgent`;
@@ -115,7 +115,7 @@ Malcontent integration point for the combined operation.
 
 ### Time-limits state overlay
 
-`parentalControlsIntegration.js` patches private `TimeLimitsManager` state:
+`child/parentalControlsIntegration.js` patches private `TimeLimitsManager` state:
 
 - `_updateState`;
 - `_estimatedTimes`; and
@@ -134,9 +134,9 @@ validated in a booted GNOME 50/Malcontent 0.14 environment.
 ### Other private lock-screen dependencies
 
 Private lock-screen access is not fully isolated to
-`parentalControlsIntegration.js`:
+`child/parentalControlsIntegration.js`:
 
-- `requestDialog.js` uses `Main.screenShield._lockDialogGroup`.
+- `child/requestDialog.js` uses `Main.screenShield._lockDialogGroup`.
 
 The lock-dialog-group dependency cannot be removed while retaining a custom
 modal above the stock lock screen, because GNOME Shell 50 exposes no public

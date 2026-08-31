@@ -1,9 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "kiosk_uid": 991,
-  "app_filter": {
-    "hard_blocked_targets": ["org.example.Game"],
-    "soft_blocked_targets": ["/usr/bin/example-game"]
-  },
   "minimum_request_interval_seconds": 5
 }

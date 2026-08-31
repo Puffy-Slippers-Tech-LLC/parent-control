@@ -8,6 +8,7 @@ import {ParentalControlsIntegration} from './parentalControlsIntegration.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
 import {RequestDialog, RequestPopover} from './requestDialog.js';
 import {SessionLimitsClient} from './sessionLimitsClient.js';
+import {refreshSharedPreferences} from './sharedPreferencesClient.js';
 
 const LOG_PREFIX = '[oh-no-parent-control]';
 
@@ -28,6 +29,8 @@ export default class OhNoParentControlExtension extends Extension {
         this._indicator = new RemainingTimeIndicator(
             sourceActor => this._showDialog(sourceActor),
             this._integration.getApprovedGrantRemaining());
+        refreshSharedPreferences().catch(error =>
+            console.warn(`${LOG_PREFIX} could not preload preferences: ${error.message}`));
     }
 
     disable() {
@@ -45,7 +48,18 @@ export default class OhNoParentControlExtension extends Extension {
         console.log(`${LOG_PREFIX} extension disabled`);
     }
 
-    _showDialog(sourceActor = null) {
+    async _showDialog(sourceActor = null) {
+        if (this._dialog || this._openingDialog)
+            return;
+
+        this._openingDialog = true;
+        try {
+            await refreshSharedPreferences();
+        } catch (error) {
+            console.warn(`${LOG_PREFIX} could not refresh preferences: ${error.message}`);
+        } finally {
+            this._openingDialog = false;
+        }
         if (this._dialog)
             return;
 
@@ -92,13 +106,9 @@ export default class OhNoParentControlExtension extends Extension {
             console.log(`${LOG_PREFIX} request ${granted ? 'approved' : 'rejected'}`);
             return granted;
         };
-        const openPreferences = () => {
-            this._dialog?.close();
-            this.openPreferences();
-        };
         this._dialog = sourceActor
-            ? new RequestPopover(request, sourceActor, openPreferences)
-            : new RequestDialog(request, openPreferences);
+            ? new RequestPopover(request, sourceActor)
+            : new RequestDialog(request);
         this._dialog.connect('destroy', () => {
             sourceActor?.setRequestActive?.(false);
             this._dialog = null;

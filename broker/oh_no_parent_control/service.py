@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import signal
@@ -15,7 +16,9 @@ from gi.repository import Gio, GLib
 
 from . import config
 from .adapters import AccountsService, CallerCredentials, PolkitAuthorizer
-from .core import Broker, BrokerError
+from .core import Broker, BrokerError, InvalidRequest
+from .extension_manager import ExtensionManager
+from .preferences import PreferenceStore
 
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
 OBJECT_PATH = "/com/puffyslippers/OhNoParentControl1"
@@ -35,6 +38,27 @@ INTROSPECTION_XML = f"""
       <arg name="correlation_id" type="s" direction="out"/>
       <arg name="result_code" type="s" direction="out"/>
     </method>
+    <method name="GetPreferences">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="preferences_json" type="s" direction="out"/>
+    </method>
+    <method name="SetPreferences">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="preferences_json" type="s" direction="in"/>
+      <arg name="saved_json" type="s" direction="out"/>
+    </method>
+    <method name="UpdateRequestPreferences">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="selected_duration" type="s" direction="in"/>
+      <arg name="custom_minutes" type="d" direction="in"/>
+      <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
+      <arg name="saved_json" type="s" direction="out"/>
+    </method>
+    <method name="SetParentControl">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="enabled" type="b" direction="in"/>
+      <arg name="saved_json" type="s" direction="out"/>
+    </method>
   </interface>
 </node>
 """
@@ -46,7 +70,8 @@ class Service:
         self.credentials = CallerCredentials(connection)
         self.broker = Broker(
             lambda: config.load(CONFIG_PATH), PolkitAuthorizer(connection),
-            AccountsService(connection), caller_alive=self.credentials.alive,
+            AccountsService(connection), PreferenceStore(), ExtensionManager(),
+            caller_alive=self.credentials.alive,
         )
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
 
@@ -72,6 +97,28 @@ class Service:
                           duration_seconds, allow_soft),
                     daemon=True,
                 ).start()
+            elif method == "GetPreferences":
+                target_uid, = parameters.unpack()
+                value = self.broker.get_preferences(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(value),)))
+            elif method == "SetPreferences":
+                target_uid, encoded = parameters.unpack()
+                try:
+                    value = json.loads(encoded)
+                except json.JSONDecodeError as error:
+                    raise InvalidRequest("preferences are not valid JSON") from error
+                saved = self.broker.set_preferences(caller_uid, target_uid, value)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method == "UpdateRequestPreferences":
+                target_uid, selected, custom, allow_soft = parameters.unpack()
+                saved = self.broker.update_request_preferences(
+                    caller_uid, target_uid, selected, custom, allow_soft,
+                )
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method == "SetParentControl":
+                target_uid, enabled = parameters.unpack()
+                saved = self.broker.set_parent_control(caller_uid, target_uid, enabled)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
             else:
                 invocation.return_dbus_error(
                     f"{BUS_NAME}.Error.InvalidRequest", "unknown method"

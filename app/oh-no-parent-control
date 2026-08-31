@@ -1,8 +1,0 @@
-#!/usr/bin/python3
-import sys
-
-sys.path.insert(0, "/usr/lib/oh-no-parent-control/app")
-
-from oh_no_parent_control_app.main import main
-
-raise SystemExit(main())

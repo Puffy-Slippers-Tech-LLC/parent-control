@@ -16,11 +16,12 @@ class PolkitAdapterTests(unittest.TestCase):
     def test_user_listing_uses_fresh_nss_candidates(self):
         accounts = AccountsService(object())
         entries = [
-            SimpleNamespace(pw_uid=999),
-            SimpleNamespace(pw_uid=1002),
-            SimpleNamespace(pw_uid=1001),
-            SimpleNamespace(pw_uid=1001),
-            SimpleNamespace(pw_uid=1 << 32),
+            SimpleNamespace(pw_uid=999, pw_shell="/bin/bash"),
+            SimpleNamespace(pw_uid=1002, pw_shell="/bin/bash"),
+            SimpleNamespace(pw_uid=1001, pw_shell="/bin/bash"),
+            SimpleNamespace(pw_uid=1001, pw_shell="/bin/bash"),
+            SimpleNamespace(pw_uid=1003, pw_shell="/usr/sbin/nologin"),
+            SimpleNamespace(pw_uid=1 << 32, pw_shell="/bin/bash"),
         ]
         with mock.patch("oh_no_parent_control.adapters.pwd.getpwall", return_value=entries), \
                 mock.patch.object(accounts, "get_user", side_effect=lambda uid: uid):

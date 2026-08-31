@@ -9,6 +9,7 @@ from oh_no_parent_control.core import (
     UserAccount, seconds_until_local_midnight,
 )
 from test_config import valid_config
+from oh_no_parent_control.preferences import default_preferences, validate_preferences
 
 
 class Authorizer:
@@ -85,9 +86,46 @@ class Accounts:
         self.daily_limit = value
 
 
-def make_broker(authorizer=None, accounts=None, clock=None, alive=lambda _s: True):
+class Preferences:
+    def __init__(self):
+        self.values = {}
+        value = default_preferences()
+        value["apps"] = {
+            "game.desktop": {"state": "permanent", "targets": ["org.example.Game"]},
+            "soft.desktop": {"state": "conditional", "targets": ["/usr/bin/game"]},
+        }
+        self.values[1001] = value
+
+    def load(self, uid):
+        return validate_preferences(self.values.get(uid, default_preferences()))
+
+    def save(self, uid, value):
+        self.values[uid] = validate_preferences(value)
+        return self.load(uid)
+
+    def update_request(self, uid, selected, custom, allow_soft):
+        value = self.load(uid)
+        value["request"] = {
+            "last_selected_duration": selected,
+            "last_custom_minutes": custom,
+            "allow_soft_blocked_apps": allow_soft,
+        }
+        return self.save(uid, value)
+
+
+class Extensions:
+    def __init__(self):
+        self.calls = []
+
+    def set_enabled(self, uid, enabled):
+        self.calls.append((uid, enabled))
+
+
+def make_broker(authorizer=None, accounts=None, preferences=None, extensions=None,
+                clock=None, alive=lambda _s: True):
     config = validate(valid_config())
     return Broker(lambda: config, authorizer or Authorizer(), accounts or Accounts(),
+                  preferences or Preferences(), extensions,
                   monotonic=clock or (lambda: 100),
                   now=lambda: datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles")),
                   caller_alive=alive)
@@ -103,6 +141,35 @@ class CoreTests(unittest.TestCase):
     def test_wrong_caller_denied(self):
         with self.assertRaises(AccessDenied):
             make_broker().list_managed_users(1001)
+
+    def test_preferences_are_scoped_by_role(self):
+        broker = make_broker()
+        self.assertEqual(broker.get_preferences(1001, 1001)["version"], 1)
+        self.assertEqual(broker.get_preferences(991, 1001)["version"], 1)
+        self.assertEqual(broker.get_preferences(1003, 1001)["version"], 1)
+        with self.assertRaises(AccessDenied):
+            broker.get_preferences(1002, 1001)
+
+    def test_only_admin_can_save_policy_or_toggle_extension(self):
+        preferences, extensions = Preferences(), Extensions()
+        broker = make_broker(preferences=preferences, extensions=extensions)
+        value = preferences.load(1001)
+        with self.assertRaises(AccessDenied):
+            broker.set_preferences(1001, 1001, value)
+        with self.assertRaises(AccessDenied):
+            broker.set_parent_control(1001, 1001, True)
+        saved = broker.set_parent_control(1003, 1001, True)
+        self.assertTrue(saved["parent_control_enabled"])
+        self.assertEqual(extensions.calls, [(1001, True)])
+
+    def test_child_and_kiosk_share_request_menu_values(self):
+        preferences = Preferences()
+        broker = make_broker(preferences=preferences)
+        broker.update_request_preferences(1001, 1001, "custom", 22.5, True)
+        request = broker.get_preferences(991, 1001)["request"]
+        self.assertEqual(request["last_selected_duration"], "custom")
+        self.assertEqual(request["last_custom_minutes"], 22.5)
+        self.assertTrue(request["allow_soft_blocked_apps"])
 
     def test_admin_target_is_rejected_without_authorization(self):
         auth, accounts = Authorizer(), Accounts()

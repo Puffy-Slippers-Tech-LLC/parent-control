@@ -1,0 +1,24 @@
+[Unit]
+Description=Oh No! Parent Control request broker
+Documentation=file:/usr/share/doc/oh-no-parent-control/Deployment.md
+
+[Service]
+Type=dbus
+BusName=com.puffyslippers.OhNoParentControl1
+ExecStart=/usr/libexec/oh-no-parent-control-broker
+User=root
+Group=root
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+TimeoutStopSec=5

@@ -1,0 +1,8 @@
+#!/usr/bin/python3
+import sys
+
+sys.path.insert(0, "/usr/lib/oh-no-parent-control/broker")
+
+from oh_no_parent_control.service import main
+
+raise SystemExit(main())

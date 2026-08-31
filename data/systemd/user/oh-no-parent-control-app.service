@@ -1,0 +1,12 @@
+[Unit]
+Description=Oh No! Parent Control kiosk application
+BindsTo=gnome-session.target
+After=gnome-session.target org.gnome.Kiosk@wayland.service
+OnFailure=gnome-session-shutdown.target
+OnFailureJobMode=replace-irreversibly
+OnSuccess=gnome-session-shutdown.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/oh-no-parent-control
+Restart=no

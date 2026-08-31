@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Oh No! Parent Control
+Comment=Request additional child access
+Exec=/usr/bin/oh-no-parent-control
+Type=Application
+Categories=GTK;System;
+NoDisplay=true
+DBusActivatable=false

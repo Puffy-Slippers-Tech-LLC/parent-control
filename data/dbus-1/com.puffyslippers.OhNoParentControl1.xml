@@ -1,0 +1,15 @@
+<node>
+  <interface name="com.puffyslippers.OhNoParentControl1">
+    <method name="GetRequestOptions">
+      <arg name="child_label" type="s" direction="out"/>
+      <arg name="durations" type="a(ss)" direction="out"/>
+      <arg name="filter_profiles" type="a(ss)" direction="out"/>
+    </method>
+    <method name="RequestAccess">
+      <arg name="duration_id" type="s" direction="in"/>
+      <arg name="filter_profile_id" type="s" direction="in"/>
+      <arg name="correlation_id" type="s" direction="out"/>
+      <arg name="result_code" type="s" direction="out"/>
+    </method>
+  </interface>
+</node>

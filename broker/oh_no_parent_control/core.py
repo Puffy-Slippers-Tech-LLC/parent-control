@@ -146,6 +146,22 @@ class Broker:
         users = (user for user in self._accounts.list_users() if self._eligible(config, user))
         return tuple(sorted(users, key=lambda user: (user.label.casefold(), user.uid)))
 
+    def authorize_log_component(self, caller_uid: int, component: str) -> None:
+        """Ensure a front end can write only to its own component log."""
+        config = self._load_config()
+        if component == "parent" and self._is_admin(caller_uid):
+            return
+        if component == "kiosk" and caller_uid == config.kiosk_uid:
+            return
+        if component == "child":
+            try:
+                user = self._accounts.get_user(caller_uid)
+            except Exception as error:
+                raise AccessDenied("caller cannot write this component log") from error
+            if self._eligible(config, user):
+                return
+        raise AccessDenied("caller cannot write this component log")
+
     def _target(self, config: Configuration, target_uid: int) -> UserAccount:
         if type(target_uid) is not int or not 0 <= target_uid <= UINT32_MAX:
             raise InvalidRequest("target UID is invalid")

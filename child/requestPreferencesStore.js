@@ -6,6 +6,7 @@ import {
     getSharedPreferences,
     updateSharedRequestPreferences,
 } from './sharedPreferencesClient.js';
+import {logWarning} from './logger.js';
 
 function request() {
     return getSharedPreferences().request;
@@ -17,7 +18,7 @@ function saveRequest(overrides) {
         value.last_selected_duration,
         value.last_custom_minutes,
         value.allow_soft_blocked_apps).catch(error =>
-        console.warn(`[oh-no-parent-control] could not save request preferences: ${error.message}`));
+        logWarning(`could not save request preferences: ${error.message}`));
 }
 
 export function loadLastCustomMinutes() {

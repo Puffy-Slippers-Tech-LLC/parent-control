@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import logging
 import os
 import pwd
 import shutil
@@ -13,6 +14,7 @@ from pathlib import Path
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
 SCHEMA = "org.gnome.shell"
 KEY = "enabled-extensions"
+LOG = logging.getLogger("oh-no-parent-control")
 
 
 class ExtensionManager:
@@ -30,13 +32,24 @@ class ExtensionManager:
 
     @staticmethod
     def _run_as(account, *arguments):
-        environment = os.environ.copy()
-        environment.update({"HOME": account.pw_dir, "USER": account.pw_name,
-                            "LOGNAME": account.pw_name})
-        return subprocess.run(
-            ["runuser", "-u", account.pw_name, "--", "dbus-run-session", "--", *arguments],
-            check=True, text=True, capture_output=True, env=environment,
-        )
+        environment = {
+            "HOME": account.pw_dir,
+            "LANG": os.environ.get("LANG", "C.UTF-8"),
+            "LOGNAME": account.pw_name,
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "USER": account.pw_name,
+        }
+        try:
+            return subprocess.run(
+                ["dbus-run-session", "--", *arguments], check=True, text=True,
+                capture_output=True, env=environment, user=account.pw_uid,
+                group=account.pw_gid, extra_groups=(),
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            detail = " ".join((getattr(error, "stderr", "") or "").split())[:500]
+            LOG.error("child settings command failed for uid=%d: %s",
+                      account.pw_uid, detail or type(error).__name__)
+            raise RuntimeError("child GNOME settings are unavailable") from error
 
     def _enabled(self, account):
         result = self._run_as(account, "gsettings", "get", SCHEMA, KEY)

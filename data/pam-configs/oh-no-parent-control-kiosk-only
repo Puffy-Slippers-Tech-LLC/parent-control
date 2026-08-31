@@ -1,0 +1,6 @@
+Name: Oh No Parent Control kiosk-only account
+Default: yes
+Priority: 1000
+Account-Type: Additional
+Account:
+ required pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-check

@@ -31,5 +31,10 @@
       <arg name="enabled" type="b" direction="in"/>
       <arg name="saved_json" type="s" direction="out"/>
     </method>
+    <method name="LogEvent">
+      <arg name="component" type="s" direction="in"/>
+      <arg name="level" type="s" direction="in"/>
+      <arg name="message" type="s" direction="in"/>
+    </method>
   </interface>
 </node>

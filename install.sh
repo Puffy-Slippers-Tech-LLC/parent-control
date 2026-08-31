@@ -3,6 +3,7 @@ set -euo pipefail
 
 readonly KIOSK_USER="oh-no-parent-control"
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+INSTALLER_USER="${SUDO_USER-}"
 
 usage() {
     echo "Usage: install.sh"
@@ -29,12 +30,26 @@ if (( EUID != 0 )); then
     exit 1
 fi
 
+# sudo is the documented entry point and identifies the desktop account whose
+# language should be used by the kiosk. A direct root invocation leaves the
+# kiosk on the machine-wide default locale.
+if [[ "$INSTALLER_USER" == root ]]; then
+    INSTALLER_USER=""
+elif [[ -n "$INSTALLER_USER" ]] && ! id -u "$INSTALLER_USER" >/dev/null 2>&1; then
+    INSTALLER_USER=""
+fi
+
 if [[ ! -f "$SCRIPT_DIR/Makefile" || ! -f "$SCRIPT_DIR/tools/provision.py" ]]; then
     echo "install: run the installer from a complete release directory" >&2
     exit 1
 fi
 
 export DEBIAN_FRONTEND=noninteractive
+
+# A previous package operation may have unpacked packages without completing
+# their configuration. APT refuses all subsequent installs in that state, so
+# finish the standard DPKG recovery step before asking APT to do more work.
+dpkg --configure -a
 
 apt-get update
 apt-get install -y software-properties-common
@@ -94,62 +109,29 @@ systemctl enable --now \
 pam-auth-update --disable malcontent
 
 # Keep the per-user systemd manager outside the timed login session. Apply
-# Malcontent to all present and future interactive users except the unlimited
-# request-station account.
-install -o root -g root -m 0644 /dev/stdin \
-    /usr/share/pam-configs/oh-no-parent-control-session-limits <<'LIMITS_PAM'
-Name: Oh No Parent Control managed session limits
-Default: yes
-Priority: 1000
-Account-Type: Additional
-Account:
- [success=2 default=ignore] pam_succeed_if.so quiet service = systemd-user
- [success=1 default=ignore] pam_succeed_if.so quiet user = oh-no-parent-control
- required pam_malcontent.so
-LIMITS_PAM
+# Malcontent only to accounts which can be managed children: the dedicated
+# request-station account and members of Ubuntu's administrator group are
+# intentionally unlimited.
+install -o root -g root -m 0644 \
+    "$SCRIPT_DIR/data/pam-configs/oh-no-parent-control-session-limits" \
+    /usr/share/pam-configs/oh-no-parent-control-session-limits
 
-install -o root -g root -m 0644 /dev/stdin \
-    /etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules <<'POLKIT_RULE'
-polkit.addRule(function(action, subject) {
-    if (action.id == "org.freedesktop.accounts.change-own-user-data" &&
-        subject.user == "oh-no-parent-control")
-        return polkit.Result.NO;
-});
-POLKIT_RULE
+install -o root -g root -m 0644 \
+    "$SCRIPT_DIR/data/polkit-1/rules.d/00-oh-no-parent-control-session.rules" \
+    /etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules
 
 install -d -o root -g root -m 0755 /etc/gdm3/PreSession
-install -o root -g root -m 0755 /dev/stdin \
-    /etc/gdm3/PreSession/Default <<'GDM_GATE'
-#!/bin/sh
-if [ "${USER-}" = "oh-no-parent-control" ] || [ \
-   "${LOGNAME-}" = "oh-no-parent-control" ]; then
-    [ "${GDMSESSION-}" = "oh-no-parent-control" ] || exit 1
-fi
-exit 0
-GDM_GATE
+install -o root -g root -m 0755 \
+    "$SCRIPT_DIR/data/gdm3/PreSession/Default" \
+    /etc/gdm3/PreSession/Default
 
-install -o root -g root -m 0755 /dev/stdin \
-    /usr/local/sbin/oh-no-parent-control-login-check <<'LOGIN_GATE'
-#!/bin/sh
-if [ "${PAM_USER-}" != "oh-no-parent-control" ]; then
-    exit 0
-fi
+install -o root -g root -m 0755 \
+    "$SCRIPT_DIR/tools/oh-no-parent-control-login-check" \
+    /usr/local/sbin/oh-no-parent-control-login-check
 
-case "${PAM_SERVICE-}" in
-    gdm-password|systemd-user) exit 0 ;;
-    *) exit 1 ;;
-esac
-LOGIN_GATE
-
-install -o root -g root -m 0644 /dev/stdin \
-    /usr/share/pam-configs/oh-no-parent-control-kiosk-only <<'KIOSK_PAM'
-Name: Oh No Parent Control kiosk-only account
-Default: yes
-Priority: 1000
-Account-Type: Additional
-Account:
- required pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-check
-KIOSK_PAM
+install -o root -g root -m 0644 \
+    "$SCRIPT_DIR/data/pam-configs/oh-no-parent-control-kiosk-only" \
+    /usr/share/pam-configs/oh-no-parent-control-kiosk-only
 
 pam-auth-update --enable oh-no-parent-control-session-limits
 pam-auth-update --enable oh-no-parent-control-kiosk-only
@@ -162,7 +144,20 @@ sed -i \
     '/^[[:space:]]*\[daemon\][[:space:]]*$/a AutomaticLoginEnable=false\nTimedLoginEnable=false' \
     /etc/gdm3/custom.conf
 
-/usr/libexec/oh-no-parent-control-provision --kiosk-user "$KIOSK_USER"
+provision_args=(--kiosk-user "$KIOSK_USER")
+if [[ -n "$INSTALLER_USER" ]]; then
+    provision_args+=(--language-source-user "$INSTALLER_USER")
+fi
+/usr/libexec/oh-no-parent-control-provision "${provision_args[@]}"
+
+# GNOME Initial Setup otherwise runs on the account's first session and asks
+# for language and diagnostics choices. The kiosk is fully provisioned here,
+# so record completion before it can log in.
+kiosk_gid="$(id -g "$KIOSK_USER")"
+install -d -o "$KIOSK_USER" -g "$kiosk_gid" -m 0700 \
+    "/home/$KIOSK_USER/.config"
+install -o "$KIOSK_USER" -g "$kiosk_gid" -m 0644 /dev/null \
+    "/home/$KIOSK_USER/.config/gnome-initial-setup-done"
 systemctl daemon-reload
 systemctl reload dbus.service
 systemctl restart accounts-daemon.service
@@ -184,12 +179,17 @@ test -s /usr/lib/systemd/user/oh-no-parent-control-polkit-agent.service
 test -s /usr/lib/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf
 test -s /usr/share/gnome-session/sessions/oh-no-parent-control.session
 test -s /usr/share/wayland-sessions/oh-no-parent-control.desktop
+test -f "/home/$KIOSK_USER/.config/gnome-initial-setup-done"
+test "$(stat -c %U "/home/$KIOSK_USER/.config/gnome-initial-setup-done")" = \
+    "$KIOSK_USER"
 grep -Fq "\"kiosk_uid\": $kiosk_uid" /etc/oh-no-parent-control/config.json
 grep -Fq '<allow send_destination="com.puffyslippers.OhNoParentControl1"' \
     /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
 grep -Fq "pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-check" \
     /etc/pam.d/common-account
 grep -Fq "pam_malcontent.so" /etc/pam.d/common-account
+grep -Fq "pam_succeed_if.so quiet user ingroup sudo" \
+    /etc/pam.d/common-account
 grep -Fq "AutomaticLoginEnable=false" /etc/gdm3/custom.conf
 grep -Fq "TimedLoginEnable=false" /etc/gdm3/custom.conf
 test "$(busctl --system get-property \
@@ -200,6 +200,17 @@ test "$(busctl --system get-property \
     org.freedesktop.Accounts \
     "/org/freedesktop/Accounts/User${kiosk_uid}" \
     org.freedesktop.Accounts.User Session)" = 's "oh-no-parent-control"'
+if [[ -n "$INSTALLER_USER" ]]; then
+    installer_uid="$(id -u "$INSTALLER_USER")"
+    test "$(busctl --system get-property \
+        org.freedesktop.Accounts \
+        "/org/freedesktop/Accounts/User${kiosk_uid}" \
+        org.freedesktop.Accounts.User Language)" = \
+        "$(busctl --system get-property \
+        org.freedesktop.Accounts \
+        "/org/freedesktop/Accounts/User${installer_uid}" \
+        org.freedesktop.Accounts.User Language)"
+fi
 systemctl is-enabled --quiet malcontent-timerd.service
 systemctl is-enabled --quiet malcontent-timer-extension-agent.service
 systemctl is-active --quiet malcontent-timerd.service

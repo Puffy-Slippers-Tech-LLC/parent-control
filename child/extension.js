@@ -9,12 +9,11 @@ import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
 import {RequestDialog, RequestPopover} from './requestDialog.js';
 import {SessionLimitsClient} from './sessionLimitsClient.js';
 import {refreshSharedPreferences} from './sharedPreferencesClient.js';
-
-const LOG_PREFIX = '[oh-no-parent-control]';
+import {logError, logInfo, logWarning} from './logger.js';
 
 export default class OhNoParentControlExtension extends Extension {
     enable() {
-        console.log(`${LOG_PREFIX} extension enabled`);
+        logInfo('extension enabled');
         this._client = new MalcontentClient(response => {
             const durationSeconds =
                 this._integration?.observeNativeExtensionResponse(response) ?? 0;
@@ -30,7 +29,7 @@ export default class OhNoParentControlExtension extends Extension {
             sourceActor => this._showDialog(sourceActor),
             this._integration.getApprovedGrantRemaining());
         refreshSharedPreferences().catch(error =>
-            console.warn(`${LOG_PREFIX} could not preload preferences: ${error.message}`));
+            logWarning(`could not preload preferences: ${error.message}`));
     }
 
     disable() {
@@ -45,7 +44,7 @@ export default class OhNoParentControlExtension extends Extension {
         this._approval = null;
         this._appFilter = null;
         this._sessionLimits = null;
-        console.log(`${LOG_PREFIX} extension disabled`);
+        logInfo('extension disabled');
     }
 
     async _showDialog(sourceActor = null) {
@@ -56,21 +55,21 @@ export default class OhNoParentControlExtension extends Extension {
         try {
             await refreshSharedPreferences();
         } catch (error) {
-            console.warn(`${LOG_PREFIX} could not refresh preferences: ${error.message}`);
+            logWarning(`could not refresh preferences: ${error.message}`);
         } finally {
             this._openingDialog = false;
         }
         if (this._dialog)
             return;
 
-        console.log(`${LOG_PREFIX} request dialog opened`);
+        logInfo('request dialog opened');
         const request = async (durationSeconds, allowSoftBlockedApps) => {
             // The panel entry point is available while time remains, so let
             // the timer service decide whether a proactive request is valid.
             if (!sourceActor && !this._integration?.isExhausted())
                 throw new Error('Screen-time limit is no longer active');
 
-            console.log(`${LOG_PREFIX} requesting ${durationSeconds} seconds ` +
+            logInfo(`requesting ${durationSeconds} seconds ` +
                 'as the new total remaining time');
 
             // Both privileged writes go through AccountsService for the same
@@ -93,17 +92,17 @@ export default class OhNoParentControlExtension extends Extension {
                     // The combined action implies this permission, so this
                     // must never initiate another auth dialog.
                     await this._appFilter.setBlockedTargets(blockedTargets);
-                    console.log(`${LOG_PREFIX} applied ${blockedTargets.length} app restrictions`);
+                    logInfo(`applied ${blockedTargets.length} app restrictions`);
                 } catch (error) {
                     // A time grant must remain successful even if the
                     // optional app-filter update fails.
-                    console.warn(`${LOG_PREFIX} app filter update failed: ${error.message}`);
+                    logWarning(`app filter update failed: ${error.message}`);
                 }
 
                 return true;
             });
 
-            console.log(`${LOG_PREFIX} request ${granted ? 'approved' : 'rejected'}`);
+            logInfo(`request ${granted ? 'approved' : 'rejected'}`);
             return granted;
         };
         this._dialog = sourceActor
@@ -114,7 +113,7 @@ export default class OhNoParentControlExtension extends Extension {
             this._dialog = null;
         });
         if (!this._dialog.open()) {
-            console.error(`${LOG_PREFIX} could not open request dialog`);
+            logError('could not open request dialog');
             this._dialog.destroy();
         }
     }

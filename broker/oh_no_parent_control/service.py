@@ -18,6 +18,7 @@ from . import config
 from .adapters import AccountsService, CallerCredentials, PolkitAuthorizer
 from .core import Broker, BrokerError, InvalidRequest
 from .extension_manager import ExtensionManager
+from .logs import DailyLogWriter, configure_broker_logging
 from .preferences import PreferenceStore
 
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
@@ -59,13 +60,18 @@ INTROSPECTION_XML = f"""
       <arg name="enabled" type="b" direction="in"/>
       <arg name="saved_json" type="s" direction="out"/>
     </method>
+    <method name="LogEvent">
+      <arg name="component" type="s" direction="in"/>
+      <arg name="level" type="s" direction="in"/>
+      <arg name="message" type="s" direction="in"/>
+    </method>
   </interface>
 </node>
 """
 
 
 class Service:
-    def __init__(self, connection):
+    def __init__(self, connection, log_writer):
         self.connection = connection
         self.credentials = CallerCredentials(connection)
         self.broker = Broker(
@@ -74,6 +80,7 @@ class Service:
             caller_alive=self.credentials.alive,
         )
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
+        self.log_writer = log_writer
 
     def register(self):
         self.connection.register_object(
@@ -84,6 +91,8 @@ class Service:
                      parameters, invocation):
         try:
             caller_uid = self.credentials.uid(sender)
+            if method != "LogEvent":
+                logging.info("dbus method=%s caller_uid=%d stage=dispatch", method, caller_uid)
             if method == "ListManagedUsers":
                 users = self.broker.list_managed_users(caller_uid)
                 invocation.return_value(GLib.Variant(
@@ -119,11 +128,23 @@ class Service:
                 target_uid, enabled = parameters.unpack()
                 saved = self.broker.set_parent_control(caller_uid, target_uid, enabled)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method == "LogEvent":
+                component, level, message = parameters.unpack()
+                self.broker.authorize_log_component(caller_uid, component)
+                try:
+                    self.log_writer.write(component, level, message, source_uid=caller_uid)
+                except ValueError as error:
+                    raise InvalidRequest(str(error)) from error
+                invocation.return_value(None)
             else:
                 invocation.return_dbus_error(
                     f"{BUS_NAME}.Error.InvalidRequest", "unknown method"
                 )
+            if method != "LogEvent":
+                logging.info("dbus method=%s caller_uid=%d outcome=accepted", method, caller_uid)
         except BrokerError as error:
+            logging.warning("dbus method=%s outcome=denied error_type=%s",
+                            method, type(error).__name__)
             invocation.return_dbus_error(error.dbus_name, str(error))
         except Exception:
             logging.exception("[oh-no-parent-control] request dispatch failed")
@@ -156,17 +177,21 @@ class Service:
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format="[oh-no-parent-control] %(levelname)s %(message)s")
     if os.geteuid() != 0:
+        logging.basicConfig(level=logging.INFO)
         logging.critical("broker must run as root")
         return 1
+    log_writer = DailyLogWriter()
+    configure_broker_logging(log_writer)
+    logging.info("broker starting config=%s", CONFIG_PATH)
     loop = GLib.MainLoop()
     service_holder = []
 
     def on_bus_acquired(_connection, _name):
-        service = Service(_connection)
+        service = Service(_connection, log_writer)
         service.register()
         service_holder.append(service)
+        logging.info("system bus acquired; broker ready")
 
     def on_name_lost(_connection, _name):
         logging.critical("could not own the system-bus name")
@@ -181,6 +206,7 @@ def main():
     try:
         loop.run()
     finally:
+        logging.info("broker stopping")
         Gio.bus_unown_name(owner_id)
     return 0
 

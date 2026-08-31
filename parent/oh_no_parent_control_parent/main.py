@@ -14,7 +14,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from .catalog import list_apps
-from .client import BrokerClient
+from .client import BrokerClient, configure_logging
 
 LOG = logging.getLogger("oh-no-parent-control-parent")
 STATES = (
@@ -34,6 +34,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._rows = []
         self._loading = False
         self._build()
+        LOG.info("window initialized app_count=%d", len(self._rows))
         GLib.idle_add(self._load_users)
 
     def _build(self):
@@ -112,6 +113,11 @@ class ParentWindow(Adw.ApplicationWindow):
             except Exception as caught:
                 LOG.warning("broker operation failed: %s", caught)
                 self._toast(f"Could not complete the change: {caught}")
+                self._loading = True
+                if self._preferences is not None:
+                    self._enabled.set_active(bool(
+                        self._preferences.get("parent_control_enabled")
+                    ))
                 self._loading = False
                 self._set_apps_sensitive(bool(
                     self._preferences and
@@ -128,11 +134,13 @@ class ParentWindow(Adw.ApplicationWindow):
         threading.Thread(target=worker, daemon=True).start()
 
     def _load_users(self):
+        LOG.info("managed-user discovery started")
         self._run(self._client.list_users, self._users_loaded)
         return GLib.SOURCE_REMOVE
 
     def _users_loaded(self, users):
         self._users = list(users)
+        LOG.info("managed-user discovery completed count=%d", len(self._users))
         self._account.set_model(Gtk.StringList.new([label for _uid, label in self._users]))
         if self._users:
             self._account.set_selected(0)
@@ -153,6 +161,7 @@ class ParentWindow(Adw.ApplicationWindow):
         if uid is None:
             return
         self._loading = True
+        LOG.info("preferences load started target_uid=%d", uid)
         self._set_apps_sensitive(False)
         self._run(lambda: self._client.get_preferences(uid),
                   lambda value: self._preferences_for(uid, value))
@@ -173,6 +182,9 @@ class ParentWindow(Adw.ApplicationWindow):
         self._loading = False
         self._set_apps_sensitive(preferences["parent_control_enabled"])
         self._save.set_sensitive(False)
+        LOG.info("preferences loaded target_uid=%d enabled=%s policy_count=%d",
+                 self._selected_uid(), preferences["parent_control_enabled"],
+                 len(preferences["apps"]))
 
     def _set_apps_sensitive(self, sensitive):
         self._account.set_sensitive(not self._loading)
@@ -183,6 +195,7 @@ class ParentWindow(Adw.ApplicationWindow):
         if self._loading or self._selected_uid() is None:
             return
         enabled, uid = switch.get_active(), self._selected_uid()
+        LOG.info("parent-control change started target_uid=%d enabled=%s", uid, enabled)
         self._loading = True
         self._set_apps_sensitive(False)
         self._run(lambda: self._client.set_parent_control(uid, enabled),
@@ -204,12 +217,15 @@ class ParentWindow(Adw.ApplicationWindow):
                     "state": state, "targets": row.app["targets"],
                 }
         uid = self._selected_uid()
+        LOG.info("app-policy save started target_uid=%d policy_count=%d",
+                 uid, len(value["apps"]))
         self._loading = True
         self._save.set_sensitive(False)
         self._run(lambda: self._client.set_preferences(uid, value), self._saved)
 
     def _saved(self, preferences):
         self._preferences_loaded(preferences)
+        LOG.info("app-policy save completed target_uid=%d", self._selected_uid())
         self._toast("App access saved")
 
     def _toast(self, title):
@@ -230,5 +246,6 @@ class Application(Adw.Application):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    configure_logging()
+    LOG.info("parent app starting")
     return Application().run(sys.argv)

@@ -23,6 +23,35 @@ REQUEST_TIMEOUT_MS = 190_000
 LOG = logging.getLogger("oh-no-parent-control")
 
 
+class BrokerLogHandler(logging.Handler):
+    """Forward kiosk records to the broker-owned daily log."""
+
+    def __init__(self):
+        super().__init__()
+        self._connection = None
+
+    def emit(self, record):
+        try:
+            if self._connection is None:
+                self._connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+            self._connection.call(
+                BUS_NAME, OBJECT_PATH, INTERFACE, "LogEvent",
+                GLib.Variant("(sss)", ("kiosk", record.levelname, self.format(record))),
+                GLib.VariantType.new("()"), Gio.DBusCallFlags.NONE, 5_000, None, None,
+            )
+        except Exception:
+            self._connection = None
+
+
+def configure_logging():
+    handler = BrokerLogHandler()
+    handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+
+
 class RequestWindow(Adw.ApplicationWindow):
     def __init__(self, application):
         super().__init__(application=application, title="Oh No! Parent Control")
@@ -31,6 +60,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._state = RequestState()
         self._system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
         self._build()
+        LOG.info("request station window initialized")
         self.connect("map", lambda *_args: self.fullscreen())
         self._load_users()
 
@@ -68,6 +98,7 @@ class RequestWindow(Adw.ApplicationWindow):
     def _logout(self, *_args):
         # OnSuccess=gnome-session-shutdown.target on the application unit turns
         # this clean exit into a supported kiosk-session logout back to GDM.
+        LOG.info("return to login requested")
         self.get_application().quit()
 
     def _bus_call(self, method, parameters, reply_signature, callback, timeout=30_000):
@@ -78,18 +109,21 @@ class RequestWindow(Adw.ApplicationWindow):
         )
 
     def _load_users(self, *_args):
+        LOG.info("managed-user discovery started")
         self._request_content.set_loading()
         self._bus_call("ListManagedUsers", None, "(a(us))", self._users_done)
 
     def _users_done(self, connection, result):
         try:
             users, = connection.call_finish(result).unpack()
+            LOG.info("managed-user discovery completed count=%d", len(users))
             self._request_content.set_accounts(users)
         except Exception as error:
             LOG.warning("users outcome=unavailable error_type=%s", type(error).__name__)
             self._show_error(error)
 
     def _load_preferences(self, target_uid):
+        LOG.info("preferences load started target_uid=%d", target_uid)
         self._bus_call(
             "GetPreferences", GLib.Variant("(u)", (target_uid,)), "(s)",
             self._preferences_done,
@@ -99,6 +133,7 @@ class RequestWindow(Adw.ApplicationWindow):
         try:
             encoded, = connection.call_finish(result).unpack()
             self._request_content.set_preferences(json.loads(encoded))
+            LOG.info("preferences load completed")
         except Exception as error:
             LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
 
@@ -197,10 +232,8 @@ class Application(Adw.Application):
 
 
 def main():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="[oh-no-parent-control] %(levelname)s %(message)s",
-    )
+    configure_logging()
+    LOG.info("kiosk app starting")
     return Application().run(sys.argv)
 
 

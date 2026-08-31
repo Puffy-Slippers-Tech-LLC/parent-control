@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ "${USER-}" = "oh-no-parent-control" ] || [ \
+   "${LOGNAME-}" = "oh-no-parent-control" ]; then
+    [ "${GDMSESSION-}" = "oh-no-parent-control" ] || exit 1
+fi
+exit 0

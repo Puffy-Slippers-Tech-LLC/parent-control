@@ -142,6 +142,21 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(AccessDenied):
             make_broker().list_managed_users(1001)
 
+    def test_component_log_access_matches_caller_role(self):
+        broker = make_broker()
+        for caller_uid, component in (
+            (1003, "parent"), (991, "kiosk"), (1001, "child"),
+        ):
+            with self.subTest(caller_uid=caller_uid, component=component):
+                broker.authorize_log_component(caller_uid, component)
+        for caller_uid, component in (
+            (1001, "parent"), (1003, "child"), (991, "child"),
+            (1003, "broker"), (1001, "unknown"),
+        ):
+            with self.subTest(caller_uid=caller_uid, component=component):
+                with self.assertRaises(AccessDenied):
+                    broker.authorize_log_component(caller_uid, component)
+
     def test_preferences_are_scoped_by_role(self):
         broker = make_broker()
         self.assertEqual(broker.get_preferences(1001, 1001)["version"], 1)

@@ -80,7 +80,6 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._signals = [];
         this._timeoutId = 0;
         this._layoutSyncId = 0;
-        this._startupLayoutSyncId = 0;
         this._flashTimeoutId = 0;
         this._destroyed = false;
         this._grantedUntil = approvedGrantRemaining > 0
@@ -105,17 +104,16 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-time', () => this._sync());
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-enabled', () => this._sync());
         this._connect(Main.sessionMode, 'updated', () => this._sync());
-        this._connect(Main.panel, 'notify::width', () => this._queueLayoutSync());
-        this._connect(Main.panel, 'notify::height', () => this._queueLayoutSync());
-        // Dash to Panel recursively rewrites nested BoxLayout orientations
-        // while rebuilding a vertical panel. Reconcile our layout after it
-        // has finished instead of relying only on panel size notifications.
+        this._connect(this.container, 'notify::width', () => this._queueLayoutSync());
+        this._connect(this.container, 'notify::height', () => this._queueLayoutSync());
+        // Panel extensions may rewrite nested BoxLayout orientations while
+        // rebuilding. Reconcile our layout without inspecting their private
+        // actor data.
         this._connect(this._buttonContent, 'notify::vertical',
             () => this._queueLayoutSync());
 
         this._sync();
         this._queueLayoutSync();
-        this._startLayoutSync();
         this._refreshEstimate();
     }
 
@@ -147,10 +145,6 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             GLib.source_remove(this._layoutSyncId);
             this._layoutSyncId = 0;
         }
-        if (this._startupLayoutSyncId) {
-            GLib.source_remove(this._startupLayoutSyncId);
-            this._startupLayoutSyncId = 0;
-        }
         this._clearFlash();
 
         if (this._timerSignalId)
@@ -177,25 +171,6 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 this._sync();
             return GLib.SOURCE_REMOVE;
         });
-    }
-
-    _startLayoutSync() {
-        let attempts = 0;
-        this._startupLayoutSyncId = GLib.timeout_add(
-            GLib.PRIORITY_DEFAULT, 250, () => {
-                if (this._destroyed) {
-                    this._startupLayoutSyncId = 0;
-                    return GLib.SOURCE_REMOVE;
-                }
-
-                this._sync();
-                attempts++;
-                if (attempts >= 20) {
-                    this._startupLayoutSyncId = 0;
-                    return GLib.SOURCE_REMOVE;
-                }
-                return GLib.SOURCE_CONTINUE;
-            });
     }
 
     _clearFlash() {
@@ -299,33 +274,9 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             return;
         }
 
-        this._placeBesideClock();
         this._setShown(true);
         this._updateLabel(remainingSecs);
         this._schedule(remainingSecs);
-    }
-
-    _placeBesideClock() {
-        const clock = Main.panel.statusArea.dateMenu?.container;
-        const centerBox = Main.panel._centerBox;
-        if (!clock || !centerBox)
-            return;
-
-        const clockPosition = centerBox.get_children().indexOf(clock);
-        if (clockPosition < 0)
-            return;
-
-        const currentParent = this.container.get_parent();
-        const currentPosition = currentParent === centerBox
-            ? centerBox.get_children().indexOf(this.container)
-            : -1;
-        const wantedPosition = clockPosition + 1;
-
-        if (currentParent === centerBox && currentPosition === wantedPosition)
-            return;
-
-        currentParent?.remove_child(this.container);
-        centerBox.insert_child_at_index(this.container, wantedPosition);
     }
 
     _setShown(shown) {
@@ -335,17 +286,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _compactLabel() {
-        // Dash to Panel exposes the orientation it used for the current panel
-        // allocation. This is available before Main.panel's dimensions have
-        // necessarily caught up during extension startup.
-        const panelVertical = Main.panel._delegate?.geom?.vertical;
-        if (typeof panelVertical === 'boolean')
-            return panelVertical;
-
-        // Use the panel's rendered orientation, not a particular dock
-        // extension's setting. That setting can remain LEFT while another
-        // extension places the visible panel along the top or bottom.
-        const [width, height] = Main.panel.get_transformed_size();
+        const [width, height] = this.container.get_transformed_size();
         return height > width;
     }
 

@@ -32,9 +32,8 @@ export const DURATIONS = Object.freeze([
 
 const DEFAULT_DURATION_SECONDS = 30 * 60;
 
-// A zero-duration RequestExtension asks the extension agent to choose a
-// duration; it is not a guaranteed end-of-day grant. Send the actual interval
-// to local midnight for this choice instead.
+// Zero is only the UI sentinel for this choice. The ActiveExtension backend
+// write requires a positive duration, so calculate the interval explicitly.
 export function secondsUntilEndOfLocalDay(now = GLib.DateTime.new_now_local()) {
     const tomorrow = now.add_days(1);
     const startOfTomorrow = GLib.DateTime.new_local(

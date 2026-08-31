@@ -25,10 +25,11 @@ CONFIG_PATH = os.environ.get("OH_NO_PARENT_CONTROL_CONFIG", "/etc/oh-no-parent-c
 INTROSPECTION_XML = f"""
 <node>
   <interface name="{INTERFACE}">
-    <method name="GetRequestOptions">
-      <arg name="child_label" type="s" direction="out"/>
+    <method name="ListManagedUsers">
+      <arg name="users" type="a(us)" direction="out"/>
     </method>
     <method name="RequestAccess">
+      <arg name="target_uid" type="u" direction="in"/>
       <arg name="duration_seconds" type="u" direction="in"/>
       <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
       <arg name="correlation_id" type="s" direction="out"/>
@@ -58,16 +59,17 @@ class Service:
                      parameters, invocation):
         try:
             caller_uid = self.credentials.uid(sender)
-            if method == "GetRequestOptions":
-                options = self.broker.get_options(caller_uid)
+            if method == "ListManagedUsers":
+                users = self.broker.list_managed_users(caller_uid)
                 invocation.return_value(GLib.Variant(
-                    "(s)", (options.child_label,),
+                    "(a(us))", ([(user.uid, user.label) for user in users],),
                 ))
             elif method == "RequestAccess":
-                duration_seconds, allow_soft = parameters.unpack()
+                target_uid, duration_seconds, allow_soft = parameters.unpack()
                 threading.Thread(
                     target=self._request_worker,
-                    args=(invocation, caller_uid, sender, duration_seconds, allow_soft),
+                    args=(invocation, caller_uid, sender, target_uid,
+                          duration_seconds, allow_soft),
                     daemon=True,
                 ).start()
             else:
@@ -80,10 +82,11 @@ class Service:
             logging.exception("[oh-no-parent-control] request dispatch failed")
             invocation.return_dbus_error(f"{BUS_NAME}.Error.Failed", "service failure")
 
-    def _request_worker(self, invocation, caller_uid, sender, duration_seconds, allow_soft):
+    def _request_worker(self, invocation, caller_uid, sender, target_uid,
+                        duration_seconds, allow_soft):
         try:
             result = self.broker.request_access(
-                caller_uid, sender, duration_seconds, allow_soft
+                caller_uid, sender, target_uid, duration_seconds, allow_soft
             )
             GLib.idle_add(self._return_value, invocation, result)
         except BrokerError as error:

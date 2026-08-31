@@ -1,9 +1,10 @@
 <node>
   <interface name="com.puffyslippers.OhNoParentControl1">
-    <method name="GetRequestOptions">
-      <arg name="child_label" type="s" direction="out"/>
+    <method name="ListManagedUsers">
+      <arg name="users" type="a(us)" direction="out"/>
     </method>
     <method name="RequestAccess">
+      <arg name="target_uid" type="u" direction="in"/>
       <arg name="duration_seconds" type="u" direction="in"/>
       <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
       <arg name="correlation_id" type="s" direction="out"/>

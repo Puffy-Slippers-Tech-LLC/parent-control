@@ -16,6 +16,8 @@ LOG = logging.getLogger("oh-no-parent-control")
 MAX_LOCAL_MIDNIGHT_SECONDS = 26 * 60 * 60
 MIN_REQUEST_SECONDS = 6
 MAX_REQUEST_SECONDS = 24 * 60 * 60
+MIN_MANAGED_UID = 1000
+DAILY_LIMIT_FLAG = 1 << 1
 
 
 class BrokerError(RuntimeError):
@@ -46,20 +48,31 @@ class RollbackFailure(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.RollbackFailure"
 
 
+@dataclass(frozen=True)
+class UserAccount:
+    uid: int
+    username: str
+    label: str
+    is_admin: bool
+    is_system: bool
+    is_local: bool
+
+
 class Authorizer(Protocol):
-    def check(self, sender: str, correlation_id: str) -> str: ...
+    def check(self, sender: str, correlation_id: str, target_label: str) -> str: ...
 
 
 class Accounts(Protocol):
-    def get_filter(self, child_uid: int) -> tuple[bool, tuple[str, ...]]: ...
-    def set_filter(self, child_uid: int, value: tuple[bool, tuple[str, ...]]) -> None: ...
-    def get_extension(self, child_uid: int) -> tuple[int, int]: ...
-    def set_extension(self, child_uid: int, value: tuple[int, int]) -> None: ...
-
-
-@dataclass(frozen=True)
-class RequestOptions:
-    child_label: str
+    def list_users(self) -> tuple[UserAccount, ...]: ...
+    def get_user(self, uid: int) -> UserAccount: ...
+    def get_filter(self, target_uid: int) -> tuple[bool, tuple[str, ...]]: ...
+    def set_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None: ...
+    def get_extension(self, target_uid: int) -> tuple[int, int]: ...
+    def set_extension(self, target_uid: int, value: tuple[int, int]) -> None: ...
+    def get_limit_type(self, target_uid: int) -> int: ...
+    def set_limit_type(self, target_uid: int, value: int) -> None: ...
+    def get_daily_limit(self, target_uid: int) -> int: ...
+    def set_daily_limit(self, target_uid: int, value: int) -> None: ...
 
 
 def seconds_until_local_midnight(now: datetime) -> int:
@@ -92,12 +105,33 @@ class Broker:
         if caller_uid != config.kiosk_uid:
             raise AccessDenied("caller is not the configured request station")
 
-    def get_options(self, caller_uid: int) -> RequestOptions:
+    @staticmethod
+    def _eligible(config: Configuration, user: UserAccount) -> bool:
+        return (
+            MIN_MANAGED_UID <= user.uid <= UINT32_MAX and
+            user.uid != config.kiosk_uid and
+            user.is_local and not user.is_system and not user.is_admin
+        )
+
+    def list_managed_users(self, caller_uid: int) -> tuple[UserAccount, ...]:
         config = self._load_config()
         self._check_caller(config, caller_uid)
-        return RequestOptions(config.child_label)
+        users = (user for user in self._accounts.list_users() if self._eligible(config, user))
+        return tuple(sorted(users, key=lambda user: (user.label.casefold(), user.uid)))
 
-    def request_access(self, caller_uid: int, sender: str, duration_seconds: int,
+    def _target(self, config: Configuration, target_uid: int) -> UserAccount:
+        if type(target_uid) is not int or not 0 <= target_uid <= UINT32_MAX:
+            raise InvalidRequest("target UID is invalid")
+        try:
+            user = self._accounts.get_user(target_uid)
+        except Exception as error:
+            raise InvalidRequest("selected account is unavailable") from error
+        if not self._eligible(config, user):
+            raise AccessDenied("selected account is not an eligible standard account")
+        return user
+
+    def request_access(self, caller_uid: int, sender: str, target_uid: int,
+                       duration_seconds: int,
                        allow_soft_blocked_apps: bool) -> tuple[str, str]:
         correlation_id = str(uuid.uuid4())
         if not self._request_lock.acquire(blocking=False):
@@ -112,12 +146,13 @@ class Broker:
                 raise InvalidRequest("duration is outside the supported range")
             if type(allow_soft_blocked_apps) is not bool:
                 raise InvalidRequest("allow-soft value must be boolean")
+            target = self._target(config, target_uid)
             self._apply_rate_limit(caller_uid, config.minimum_request_interval_seconds)
-            LOG.info("request=%s caller_uid=%d child_uid=%d duration_seconds=%d "
+            LOG.info("request=%s caller_uid=%d target_uid=%d duration_seconds=%d "
                      "allow_soft=%s stage=authorize", correlation_id, caller_uid,
-                     config.child_uid, duration_seconds, allow_soft_blocked_apps)
+                     target.uid, duration_seconds, allow_soft_blocked_apps)
 
-            outcome = self._authorizer.check(sender, correlation_id)
+            outcome = self._authorizer.check(sender, correlation_id, target.label)
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise BackendFailure("authorizer returned an invalid outcome")
             if outcome != "approved":
@@ -126,6 +161,10 @@ class Broker:
             if not self._caller_alive(sender):
                 LOG.warning("request=%s outcome=denied reason=caller-disconnected", correlation_id)
                 return correlation_id, "denied"
+            # Fail closed if the selected account changed while the parent was
+            # authenticating (including an AccountType promotion to admin).
+            if self._target(config, target_uid) != target:
+                raise AccessDenied("selected account changed during authorization")
 
             approved_at = self._now()
             duration = duration_seconds or seconds_until_local_midnight(approved_at)
@@ -133,7 +172,8 @@ class Broker:
             if issued_at <= 0 or issued_at > (1 << 64) - 1 or not 0 < duration <= UINT32_MAX:
                 raise BackendFailure("calculated extension is outside the supported range")
             self._apply(
-                config, allow_soft_blocked_apps, (issued_at, duration), correlation_id
+                config, target.uid, allow_soft_blocked_apps,
+                (issued_at, duration), correlation_id
             )
             LOG.info("request=%s outcome=approved", correlation_id)
             return correlation_id, "approved"
@@ -155,41 +195,58 @@ class Broker:
                 raise RateLimited("requests are being made too quickly")
             self._last_request[caller_uid] = current
 
-    def _apply(self, config: Configuration, allow_soft_blocked_apps: bool,
+    def _apply(self, config: Configuration, target_uid: int,
+               allow_soft_blocked_apps: bool,
                extension: tuple[int, int], correlation_id: str) -> None:
-        child_uid = config.child_uid
-        old_filter = self._accounts.get_filter(child_uid)
+        old_limit_type = self._accounts.get_limit_type(target_uid)
+        old_daily_limit = self._accounts.get_daily_limit(target_uid)
+        old_filter = self._accounts.get_filter(target_uid)
+        old_extension = self._accounts.get_extension(target_uid)
         targets = list(config.app_filter.hard_blocked_targets)
         if not allow_soft_blocked_apps:
             targets.extend(config.app_filter.soft_blocked_targets)
         desired_filter = (False, tuple(sorted(set(targets))))
         try:
+            if old_limit_type == 0 or old_daily_limit != 0:
+                LOG.info("request=%s stage=limit-initialize", correlation_id)
+                if old_daily_limit != 0:
+                    self._accounts.set_daily_limit(target_uid, 0)
+                    if self._accounts.get_daily_limit(target_uid) != 0:
+                        raise BackendFailure("daily-limit verification failed")
+                if old_limit_type == 0:
+                    self._accounts.set_limit_type(target_uid, DAILY_LIMIT_FLAG)
+                    if self._accounts.get_limit_type(target_uid) != DAILY_LIMIT_FLAG:
+                        raise BackendFailure("limit-type verification failed")
             LOG.info("request=%s stage=filter-write", correlation_id)
-            self._accounts.set_filter(child_uid, desired_filter)
-            if self._accounts.get_filter(child_uid) != desired_filter:
+            self._accounts.set_filter(target_uid, desired_filter)
+            if self._accounts.get_filter(target_uid) != desired_filter:
                 raise BackendFailure("app-filter verification failed")
-        except Exception as error:
-            self._restore_filter(child_uid, old_filter, correlation_id)
-            if isinstance(error, BrokerError):
-                raise
-            raise BackendFailure("app-filter update failed") from error
-        try:
             LOG.info("request=%s stage=extension-write", correlation_id)
-            self._accounts.set_extension(child_uid, extension)
-            if self._accounts.get_extension(child_uid) != extension:
+            self._accounts.set_extension(target_uid, extension)
+            if self._accounts.get_extension(target_uid) != extension:
                 raise BackendFailure("extension verification failed")
         except Exception as error:
-            self._restore_filter(child_uid, old_filter, correlation_id)
+            self._restore(
+                target_uid, old_limit_type, old_daily_limit, old_filter,
+                old_extension, correlation_id,
+            )
             if isinstance(error, BrokerError):
                 raise
-            raise BackendFailure("extension update failed") from error
+            raise BackendFailure("account update failed") from error
 
-    def _restore_filter(self, child_uid: int, old_filter, correlation_id: str) -> None:
+    def _restore(self, target_uid: int, old_limit_type: int, old_daily_limit: int,
+                 old_filter, old_extension, correlation_id: str) -> None:
         try:
-            LOG.warning("request=%s stage=filter-rollback", correlation_id)
-            self._accounts.set_filter(child_uid, old_filter)
-            if self._accounts.get_filter(child_uid) != old_filter:
+            LOG.warning("request=%s stage=rollback", correlation_id)
+            self._accounts.set_extension(target_uid, old_extension)
+            self._accounts.set_filter(target_uid, old_filter)
+            self._accounts.set_limit_type(target_uid, old_limit_type)
+            self._accounts.set_daily_limit(target_uid, old_daily_limit)
+            if (self._accounts.get_extension(target_uid) != old_extension or
+                    self._accounts.get_filter(target_uid) != old_filter or
+                    self._accounts.get_limit_type(target_uid) != old_limit_type or
+                    self._accounts.get_daily_limit(target_uid) != old_daily_limit):
                 raise RuntimeError("rollback read-back mismatch")
         except Exception as error:
             LOG.critical("request=%s outcome=rollback-failed", correlation_id)
-            raise RollbackFailure("app-filter rollback could not be verified") from error
+            raise RollbackFailure("account rollback could not be verified") from error

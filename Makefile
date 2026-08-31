@@ -6,16 +6,16 @@ DATADIR ?= $(PREFIX)/share
 SYSTEMD_SYSTEM_DIR ?= $(PREFIX)/lib/systemd/system
 SYSTEMD_USER_DIR ?= $(PREFIX)/lib/systemd/user
 PRODUCT_LIBDIR ?= $(PREFIX)/lib/oh-no-parent-control
-KIOSK_CONFINEMENT_VERIFIED ?= 0
 UUID := oh-no-parent-control@tech.puffyslippers.com
 EXTENSION_SOURCES := appCatalog.js appFilterClient.js appPolicyStore.js approvedGrantStore.js malcontentClient.js parentalApproval.js parentalControlsIntegration.js remainingTimeIndicator.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js timerQuery.js
 EXTENSION_ASSETS := request-options.json
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 
-.PHONY: check install provision uninstall pack-extension install-extension install-extension-policy
+.PHONY: check _install-product-files uninstall pack-extension install-extension
 
 check:
+	@bash -n install.sh
 	@for file in extension.js prefs.js $(filter %.js,$(EXTENSION_SOURCES)); do node --check "$$file"; done
 	@PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:app $(PYTHON) -m unittest discover -s tests/unit -v
 	@$(PYTHON) -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for p in pathlib.Path(".").glob("**/*.py") if ".git" not in p.parts]'
@@ -31,11 +31,9 @@ install-extension:
 	install -m 0644 metadata.json stylesheet.css prefs.css extension.js prefs.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS) "$(EXTENSION_DIR)/"
 	@echo "Installed $(UUID) to $(EXTENSION_DIR)"
 
-install-extension-policy:
-	install -d "$(DESTDIR)$(DATADIR)/polkit-1/actions"
-	install -m 0644 policy/org.gnome.shell.extensions.oh-no-parent-control.policy "$(DESTDIR)$(DATADIR)/polkit-1/actions/"
-
-install:
+# Internal target used by install.sh. Keep privileged host orchestration in the
+# shell installer and declarative product-file installation in the Makefile.
+_install-product-files:
 	install -d "$(DESTDIR)$(PREFIX)/bin" "$(DESTDIR)$(LIBEXECDIR)"
 	install -m 0755 app/oh-no-parent-control "$(DESTDIR)$(PREFIX)/bin/"
 	install -m 0755 broker/oh-no-parent-control-broker "$(DESTDIR)$(LIBEXECDIR)/"
@@ -64,11 +62,6 @@ install:
 	install -m 0755 tools/provision.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision"
 	install -m 0644 README.md docs/Deployment.md docs/System-Design.md "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"
 
-provision:
-	@test -n "$(KIOSK_USER)" -a -n "$(CHILD_USER)" || { echo 'Set KIOSK_USER and CHILD_USER'; exit 2; }
-	@test "$(KIOSK_CONFINEMENT_VERIFIED)" = 1 || { echo 'Complete the confinement gate, then set KIOSK_CONFINEMENT_VERIFIED=1'; exit 2; }
-	"$(LIBEXECDIR)/oh-no-parent-control-provision" --kiosk-user "$(KIOSK_USER)" --child-user "$(CHILD_USER)" --confinement-verified
-
 uninstall:
 	rm -f "$(DESTDIR)$(PREFIX)/bin/oh-no-parent-control" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-broker" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision"
 	rm -f "$(DESTDIR)$(DATADIR)/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service" "$(DESTDIR)$(DATADIR)/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml" "$(DESTDIR)$(DATADIR)/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf"
@@ -79,4 +72,4 @@ uninstall:
 	rm -f "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/README.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Deployment.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/System-Design.md"
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/oh-no-parent-control/config.json"
 	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/app/oh_no_parent_control_app/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/app/oh_no_parent_control_app/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/app/oh_no_parent_control_app/request-options.json" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"*.py
-	@echo 'Product files removed. Accounts and child policy were not changed.'
+	@echo 'Product files removed. Accounts and managed-account policies were not changed.'

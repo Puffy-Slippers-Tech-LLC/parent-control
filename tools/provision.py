@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Provision immutable UIDs and the account-specific system-bus policy."""
+"""Provision the immutable kiosk UID and account-specific system-bus policy."""
 
 import argparse
 import grp
@@ -54,21 +54,11 @@ def atomic_write(path, contents, mode=0o644):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--kiosk-user", required=True)
-    parser.add_argument("--child-user", required=True)
     parser.add_argument("--prefix", default="/")
-    parser.add_argument("--confinement-verified", action="store_true",
-                        help="attest that the mandatory target-VM confinement gate passed")
     args = parser.parse_args()
     if os.geteuid() != 0:
         fail("must run as root")
-    if not args.confinement_verified:
-        fail("refusing to provision until --confinement-verified is supplied after the target-VM gate")
     kiosk = account(args.kiosk_user, "kiosk")
-    child = account(args.child_user, "child")
-    if kiosk.pw_uid == child.pw_uid:
-        fail("kiosk and child accounts must differ")
-    if child.pw_uid < 1000:
-        fail("child account must be a non-system user")
 
     prefix = Path(args.prefix)
     example = prefix / "usr/share/oh-no-parent-control/config.example.json"
@@ -79,8 +69,6 @@ def main():
     except OSError as error:
         fail(f"installed template unavailable: {error}")
     config["kiosk_uid"] = kiosk.pw_uid
-    config["child_uid"] = child.pw_uid
-    config["child_label"] = child.pw_gecos.split(",", 1)[0] or child.pw_name
     sys.path.insert(0, str(prefix / "usr/lib/oh-no-parent-control/broker"))
     try:
         from oh_no_parent_control.config import validate
@@ -107,8 +95,7 @@ def main():
             "org.freedesktop.Accounts.User", "SetSession", "s", "oh-no-parent-control",
         ], check=True)
         subprocess.run(["systemctl", "reload", "dbus.service"], check=True)
-    print(f"Provisioned kiosk UID {kiosk.pw_uid} for child UID {child.pw_uid}")
-    print("The Session property selects a default only; retain the separately verified confinement control.")
+    print(f"Provisioned kiosk UID {kiosk.pw_uid}")
     return 0
 
 

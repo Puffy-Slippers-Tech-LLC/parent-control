@@ -31,12 +31,14 @@ class RequestWindow(Adw.ApplicationWindow):
         self._system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
         self._build()
         self.connect("map", lambda *_args: self.fullscreen())
-        self._load_options()
+        self._load_users()
 
     def _build(self):
         self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
         self.set_content(self._stack)
-        self._request_content = RequestContent(self._request_access, self._logout)
+        self._request_content = RequestContent(
+            self._request_access, self._logout, self._load_users,
+        )
         self._stack.add_named(self._request_content, "request")
 
         self._result_view = self._page("Request result")
@@ -73,31 +75,36 @@ class RequestWindow(Adw.ApplicationWindow):
             timeout, None, callback,
         )
 
-    def _load_options(self):
-        self._bus_call("GetRequestOptions", None, "(s)", self._options_done)
+    def _load_users(self, *_args):
+        self._request_content.set_loading()
+        self._bus_call("ListManagedUsers", None, "(a(us))", self._users_done)
 
-    def _options_done(self, connection, result):
+    def _users_done(self, connection, result):
         try:
-            child_label, = connection.call_finish(result).unpack()
-            self._request_content.set_child_label(child_label)
+            users, = connection.call_finish(result).unpack()
+            self._request_content.set_accounts(users)
         except Exception as error:
-            LOG.warning("options outcome=unavailable error_type=%s", type(error).__name__)
+            LOG.warning("users outcome=unavailable error_type=%s", type(error).__name__)
             self._show_error(error)
 
     def _request_access(self, *_args):
         if not self._state.begin():
             return
         try:
-            duration_seconds, allow_soft = self._request_content.selected()
+            target_uid, target_label, duration_seconds, allow_soft = \
+                self._request_content.selected()
         except ValueError as error:
             self._state.finish()
             self._request_content.show_validation_error(str(error))
             return
         self._set_request_controls(False)
-        LOG.info("duration_seconds=%d allow_soft=%s stage=request", duration_seconds, allow_soft)
+        self._requested_label = target_label
+        LOG.info("target_uid=%d duration_seconds=%d allow_soft=%s stage=request",
+                 target_uid, duration_seconds, allow_soft)
         try:
             self._bus_call(
-                "RequestAccess", GLib.Variant("(ub)", (duration_seconds, allow_soft)),
+                "RequestAccess",
+                GLib.Variant("(uub)", (target_uid, duration_seconds, allow_soft)),
                 "(ss)", self._request_done, REQUEST_TIMEOUT_MS,
             )
         except Exception as error:
@@ -110,7 +117,9 @@ class RequestWindow(Adw.ApplicationWindow):
                 raise ValueError("broker returned malformed result")
             LOG.info("request=%s outcome=%s", correlation_id, outcome)
             if outcome == "approved":
-                self._show_result("Request approved", "The requested access is ready.")
+                self._show_result(
+                    "Request approved", f"The requested access is ready for {self._requested_label}."
+                )
             elif outcome == "cancelled":
                 self._show_result("Authorization cancelled", "No changes were made.")
             else:

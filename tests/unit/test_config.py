@@ -11,10 +11,8 @@ from oh_no_parent_control.config import ConfigurationError, load, validate, vali
 
 def valid_config():
     return {
-        "version": 1,
+        "version": 2,
         "kiosk_uid": 991,
-        "child_uid": 1001,
-        "child_label": "Child",
         "app_filter": {
             "hard_blocked_targets": ["org.example.Game"],
             "soft_blocked_targets": ["/usr/bin/game"],
@@ -26,7 +24,7 @@ def valid_config():
 class ConfigTests(unittest.TestCase):
     def test_valid(self):
         config = validate(valid_config())
-        self.assertEqual(config.child_uid, 1001)
+        self.assertEqual(config.kiosk_uid, 991)
         self.assertEqual(config.app_filter.hard_blocked_targets[0], "org.example.Game")
 
     def test_unknown_keys_rejected_at_each_level(self):
@@ -40,9 +38,9 @@ class ConfigTests(unittest.TestCase):
                 validate(value)
 
     def test_uid_rules(self):
-        for kiosk, child in ((0, 1001), (1001, 1001), (991, 999), (991, 0)):
+        for kiosk in (0, -1, 1 << 32):
             value = valid_config()
-            value["kiosk_uid"], value["child_uid"] = kiosk, child
+            value["kiosk_uid"] = kiosk
             with self.assertRaises(ConfigurationError):
                 validate(value)
 

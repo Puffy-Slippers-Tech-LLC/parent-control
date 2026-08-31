@@ -2,9 +2,9 @@
 
 ## 1. Purpose
 
-Add a dedicated, unrestricted GNOME Kiosk session in which a child can request
-additional time and choose whether soft-blocked apps remain available on their restricted
-account. The child account's in-session GNOME Shell extension remains a
+Add a dedicated, unrestricted GNOME Kiosk session in which a child can select
+their local standard account, request additional time, and choose whether
+soft-blocked apps remain available. A child account's in-session GNOME Shell extension remains a
 separate supported request path.
 
 The finished request flow must show exactly one administrator authentication
@@ -58,10 +58,11 @@ unverified interface.
 
 ## 3. User-visible workflow
 
-The device has two distinct unprivileged accounts:
+The device has a dedicated request-station account and zero or more managed
+standard accounts:
 
-1. The **child account** is the normal desktop account. Malcontent session
-   limits and app filters apply to this account.
+1. A **managed account** is a local standard desktop account. Malcontent
+   session limits and app filters apply after its first approved request.
 2. The **request-station account** runs only the GNOME Kiosk request
    application. It has no Malcontent time limit.
 
@@ -72,6 +73,7 @@ Child account reaches its time limit
     -> GNOME locks or denies the child session normally
     -> child switches to the request-station account
     -> GNOME Kiosk shows only Oh No! Parent Control
+    -> child selects their local standard account
     -> child selects a duration
     -> child chooses whether soft-blocked apps are allowed
     -> child presses Request
@@ -95,7 +97,7 @@ Request-station account (unprivileged, unlimited)
   GNOME Kiosk 50
     Oh No! Parent Control GTK application
       |
-      | system D-Bus: RequestAccess(duration_seconds, allow_soft_blocked_apps)
+      | system D-Bus: RequestAccess(target_uid, duration_seconds, allow_soft_blocked_apps)
       v
 Root-owned request broker
       |
@@ -105,16 +107,17 @@ Polkit + the kiosk session's standard authentication agent
       |
       | approved once
       v
-AccountsService user object for the configured child UID
+Revalidated local standard AccountsService user object
+      +-- SessionLimits.LimitType / DailyLimit (first use only)
       +-- AppFilter.AppFilter
       +-- SessionLimits.ActiveExtension
 ```
 
 Use a privileged broker rather than granting the kiosk application temporary
-`ChangeAny` permissions. The broker exposes only the product operation, binds
-it to one configured child UID, validates the duration and root-owned policy,
-configuration, performs exactly one Polkit check, and then carries out both
-writes as root.
+`ChangeAny` permissions. The broker exposes only the product operation,
+enumerates eligible accounts itself, revalidates the selected account before
+and after authorization, validates the duration and root-owned policy, performs
+exactly one Polkit check, and then carries out the bounded writes as root.
 
 This is a normal supported Polkit service design. The broker must not replace
 Polkit, implement password entry, inspect authentication secrets, or draw its
@@ -162,9 +165,10 @@ The broker must therefore enforce all of the following independently of the
 UI:
 
 - the D-Bus caller is the configured request-station UID;
-- the target is exactly the configured child UID;
-- the target and kiosk UIDs differ;
-- neither target nor kiosk UID is `0`;
+- the target UID resolves through AccountsService to a local, non-system,
+  non-administrator standard account;
+- the target and kiosk UIDs differ and the target UID is at least 1000;
+- the target identity and account type are unchanged after authorization;
 - the duration is either the rest-of-day sentinel or within the supported custom range;
 - the app-access choice is a boolean and never supplies filter targets;
 - every app-filter target has the expected Flatpak-ID or absolute-path form;
@@ -196,10 +200,8 @@ Required logical schema:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "kiosk_uid": 991,
-  "child_uid": 1001,
-  "child_label": "Child account",
   "app_filter": {
     "hard_blocked_targets": ["org.example.Game"],
     "soft_blocked_targets": ["/usr/bin/example-game"]
@@ -208,9 +210,9 @@ Required logical schema:
 }
 ```
 
-UIDs above are examples, not defaults. Provisioning must resolve and write the
-real numeric UIDs. Numeric UIDs are authoritative after installation so account
-renaming cannot retarget the broker.
+The UID above is an example, not a default. Provisioning resolves only the
+kiosk account. Managed accounts are discovered at runtime and are never stored
+in installation configuration.
 
 The broker always derives a complete blocklist from this root-owned policy.
 Hard-blocked targets are always included; soft-blocked targets are omitted only
@@ -239,11 +241,12 @@ Interface:  com.puffyslippers.OhNoParentControl1
 Keep the public surface minimal:
 
 ```text
-GetRequestOptions() -> (
-    child_label: s
+ListManagedUsers() -> (
+    users: a(us)
 )
 
 RequestAccess(
+    target_uid: u,
     duration_seconds: u,
     allow_soft_blocked_apps: b
 ) -> (
@@ -259,9 +262,13 @@ D-Bus error names for invalid requests and service failures.
 
 Do not return authentication secrets or detailed internal policy state.
 
-`GetRequestOptions` returns only the configured target label. `RequestAccess`
-must validate its duration and boolean, then use the broker's freshly loaded
-policy; it must never accept app targets from the client.
+`ListManagedUsers` freshly enumerates NSS account candidates, then returns only
+eligible UIDs and display labels whose metadata is validated through
+AccountsService. Do not use `AccountsService.ListCachedUsers`, which is
+intentionally non-exhaustive and may omit a newly created account before its
+first login. `RequestAccess` must re-resolve and revalidate its selected UID,
+duration, and boolean, then use the broker's freshly loaded policy; it must
+never accept app targets or account metadata from the client.
 
 The system-bus policy should allow only the configured request-station account
 to call the methods. The broker must still verify the sender credentials at
@@ -293,20 +300,23 @@ path. A failed request returns to the UI and requires a new explicit click.
 
 After the single successful authorization:
 
-1. Resolve the configured child UID to its AccountsService object.
+1. Re-resolve the selected UID and confirm it is the same eligible local
+   standard account shown before authorization.
 2. Read and validate the current values needed for rollback.
-3. Derive and write the complete hard/soft blocklist as
+3. Set `DailyLimit` to zero; if `LimitType` is zero, enable its daily-limit
+   flag. This establishes the product's grant-only model.
+4. Derive and write the complete hard/soft blocklist as
    `AppFilter = (false, targets)`.
-4. Write `ActiveExtension = (approval_time, duration_seconds)` last.
-5. Read both changed values back and verify exact equality.
-6. Return success only after verification.
+5. Write `ActiveExtension = (approval_time, duration_seconds)` last.
+6. Read all changed values back and verify exact equality.
+7. Return success only after verification.
 
 Writing `ActiveExtension` last prevents granting time when the requested filter
 could not be applied. If the filter write succeeds but a later step fails,
 restore its previous value and verify the restoration. Report a distinct
 high-severity error if rollback cannot be verified.
 
-The two AccountsService properties do not provide a cross-property transaction.
+The AccountsService properties do not provide a cross-property transaction.
 The implementation supplies best-effort transactional behavior through
 ordering, read-back verification, and rollback. Document this limitation in
 operator-facing diagnostics without exposing it as a second authorization
@@ -320,7 +330,8 @@ run inside GNOME Shell.
 
 The application has two views:
 
-1. **Request:** the shared duration choices, soft-block toggle, and Cancel/Request buttons.
+1. **Request:** an eligible-account selector with refresh, the shared duration
+   choices, soft-block toggle, and Cancel/Request buttons.
 2. **Result:** approved, denied/cancelled, or unavailable, plus Return to Login.
 
 Required behavior:
@@ -491,11 +502,11 @@ supported mechanisms.
 ### Phase 2 — Define packaging and configuration
 
 - Add the configuration schema and strict validator.
-- Add provisioning logic for separate kiosk and child UIDs.
+- Add provisioning logic for the kiosk UID only.
 - Ensure the kiosk account has `SessionLimits.LimitType = 0`.
 - Add root-owned installation paths, ownership, and modes.
 - Add clean-install and uninstall behavior. Uninstall must not delete system
-  accounts or child policy unless the administrator explicitly requests that
+  accounts or managed-account policy unless the administrator explicitly requests that
   separate destructive action.
 
 Deliverable: install into a disposable prefix/image and verify permissions.
@@ -506,7 +517,7 @@ Deliverable: install into a disposable prefix/image and verify permissions.
 - Verify D-Bus sender UID on every call.
 - Implement request serialization and rate limiting.
 - Implement one interactive Polkit check for the real sender.
-- Resolve only the configured child AccountsService object.
+- Enumerate and revalidate only eligible AccountsService user objects.
 - Implement filter-first and extension-last writes.
 - Add read-back verification and filter rollback.
 - Add structured, redacted logging and stable error names.
@@ -568,7 +579,7 @@ At minimum, cover:
 
 - strict configuration validation and secure-file checks;
 - caller UID mismatch;
-- kiosk UID equal to child UID;
+- kiosk, root, administrator, system, remote, and low-UID target rejection;
 - root/admin/system target rejection;
 - out-of-range durations and malformed boolean values;
 - local-midnight boundary, DST transition, and clock edge cases;
@@ -628,7 +639,7 @@ Log:
 
 - correlation ID;
 - caller UID;
-- configured target UID;
+- selected target UID;
 - duration seconds and soft-app choice;
 - authorization outcome;
 - each property-write and verification stage;
@@ -648,14 +659,15 @@ Never log:
 
 The replacement is complete only when:
 
-- [ ] The kiosk and child accounts are different unprivileged UIDs.
+- [ ] Deployment succeeds without any managed account present.
 - [ ] The kiosk account is not subject to a session time limit.
 - [ ] The kiosk account cannot enter a normal desktop session.
 - [ ] GNOME Kiosk shows only the request application.
 - [ ] A supported maintained Polkit agent serves the kiosk session.
 - [ ] The broker authenticates the real D-Bus caller exactly once.
 - [ ] The child cannot approve a request without administrator credentials.
-- [ ] The broker can target only the root-configured child UID.
+- [ ] The broker can target only a currently eligible local standard account.
+- [ ] Accounts created after deployment appear after refreshing the selector.
 - [ ] Time-only requests leave the app filter unchanged.
 - [ ] Combined requests replace the configured filter and extension correctly.
 - [ ] Failures cannot grant time without the selected filter.

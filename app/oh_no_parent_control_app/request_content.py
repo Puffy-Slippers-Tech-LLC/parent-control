@@ -35,7 +35,7 @@ NUMBER_RE = re.compile(r"^(?:\d+(?:\.\d+)?|\.\d+)$")
 class RequestContent(Gtk.Box):
     """Reusable request-time form used as the kiosk's primary content."""
 
-    def __init__(self, on_request, on_cancel):
+    def __init__(self, on_request, on_cancel, on_refresh):
         super().__init__(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=16,
@@ -45,12 +45,25 @@ class RequestContent(Gtk.Box):
         self.add_css_class("oh-no-parent-control-content")
         self.add_css_class("oh-no-parent-control-dialog")
         self._duration_buttons = []
+        self._account_uids = []
+        self._account_labels = []
         self._ready = False
 
         self.append(self._header())
         self._status = Gtk.Label(label="Loading request details…", wrap=True)
         self._status.add_css_class("oh-no-parent-control-status")
         self.append(self._status)
+
+        account_row = Gtk.Box(spacing=8)
+        account_row.add_css_class("oh-no-parent-control-account-row")
+        account_row.append(Gtk.Label(label="Account", xalign=0, hexpand=True))
+        self._accounts = Gtk.DropDown(model=Gtk.StringList.new([]))
+        self._accounts.set_hexpand(True)
+        account_row.append(self._accounts)
+        self._refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Refresh accounts")
+        self._refresh.connect("clicked", on_refresh)
+        account_row.append(self._refresh)
+        self.append(account_row)
 
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._choices.add_css_class("oh-no-parent-control-choices")
@@ -133,13 +146,28 @@ class RequestContent(Gtk.Box):
             if seconds == DEFAULT_DURATION_SECONDS:
                 button.set_active(True)
 
-    def set_child_label(self, child_label):
-        """Enable the trusted form after the broker identifies its target."""
-        if not isinstance(child_label, str) or not child_label.strip():
-            raise ValueError("broker returned an invalid child label")
-        self._ready = True
-        self._status.set_text(f"Request access for {child_label}")
-        self._request.set_sensitive(True)
+    def set_loading(self):
+        self._ready = False
+        self._request.set_sensitive(False)
+        self._status.set_text("Loading accounts…")
+
+    def set_accounts(self, users):
+        """Replace the selector with the broker's current eligible accounts."""
+        parsed = []
+        for uid, label in users:
+            if type(uid) is not int or not isinstance(label, str) or not label.strip():
+                raise ValueError("broker returned an invalid account")
+            parsed.append((uid, label.strip()))
+        self._account_uids = [uid for uid, _label in parsed]
+        self._account_labels = [label for _uid, label in parsed]
+        self._accounts.set_model(Gtk.StringList.new(self._account_labels))
+        self._ready = bool(parsed)
+        if parsed:
+            self._accounts.set_selected(0)
+            self._status.set_text("Choose the account to manage")
+        else:
+            self._status.set_text("No local standard accounts are available. Create one, then refresh.")
+        self._request.set_sensitive(self._ready)
 
     def _duration_clicked(self, button):
         if not button.get_active():
@@ -152,6 +180,9 @@ class RequestContent(Gtk.Box):
             self._custom_entry.select_region(0, -1)
 
     def selected(self):
+        account_index = self._accounts.get_selected()
+        if not self._ready or account_index >= len(self._account_uids):
+            raise ValueError("Select an account to manage")
         selected = next(
             (button for button in self._duration_buttons if button.get_active()), None
         )
@@ -167,7 +198,10 @@ class RequestContent(Gtk.Box):
                     f"{MAX_CUSTOM_MINUTES} minutes."
                 )
             seconds = round(minutes * 60)
-        return seconds, self._allow_soft.get_active()
+        return (
+            self._account_uids[account_index], self._account_labels[account_index],
+            seconds, self._allow_soft.get_active(),
+        )
 
     def show_validation_error(self, message):
         self._status.set_text(message)
@@ -179,5 +213,7 @@ class RequestContent(Gtk.Box):
         self._cancel.set_sensitive(enabled)
         self._custom_entry.set_sensitive(enabled)
         self._allow_soft.set_sensitive(enabled)
+        self._accounts.set_sensitive(enabled)
+        self._refresh.set_sensitive(enabled)
         for button in self._duration_buttons:
             button.set_sensitive(enabled)

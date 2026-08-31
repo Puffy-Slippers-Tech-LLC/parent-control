@@ -16,7 +16,7 @@ FLATPAK_ID_RE = re.compile(
     r"^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+$"
 )
 TOP_KEYS = {
-    "version", "kiosk_uid", "child_uid", "child_label", "app_filter",
+    "version", "kiosk_uid", "app_filter",
     "minimum_request_interval_seconds",
 }
 APP_FILTER_KEYS = {"hard_blocked_targets", "soft_blocked_targets"}
@@ -35,8 +35,6 @@ class AppFilter:
 @dataclass(frozen=True)
 class Configuration:
     kiosk_uid: int
-    child_uid: int
-    child_label: str
     app_filter: AppFilter
     minimum_request_interval_seconds: int
 
@@ -61,12 +59,6 @@ def _exact_keys(value, expected, where):
         raise ConfigurationError(f"missing {where} key: {sorted(missing)[0]}")
 
 
-def _label(value, where):
-    if not isinstance(value, str) or not value.strip() or len(value) > 120:
-        raise ConfigurationError(f"{where} must be a non-empty label")
-    return value.strip()
-
-
 def validate_target(target: object) -> str:
     if not isinstance(target, str) or not target or "\x00" in target:
         raise ConfigurationError("app-filter targets must be non-empty strings")
@@ -79,18 +71,13 @@ def validate_target(target: object) -> str:
     return target
 
 
-def validate(raw: object, *, uid_min: int = 1000) -> Configuration:
+def validate(raw: object) -> Configuration:
     _exact_keys(raw, TOP_KEYS, "top-level")
-    if type(raw["version"]) is not int or raw["version"] != 1:
-        raise ConfigurationError("version must be 1")
+    if type(raw["version"]) is not int or raw["version"] != 2:
+        raise ConfigurationError("version must be 2")
     kiosk_uid = raw["kiosk_uid"]
-    child_uid = raw["child_uid"]
     if type(kiosk_uid) is not int or kiosk_uid <= 0 or kiosk_uid > UINT32_MAX:
         raise ConfigurationError("kiosk_uid must be a nonzero numeric UID")
-    if type(child_uid) is not int or child_uid < uid_min or child_uid > UINT32_MAX:
-        raise ConfigurationError("child_uid must identify a non-system user")
-    if kiosk_uid == child_uid:
-        raise ConfigurationError("kiosk_uid and child_uid must differ")
 
     filter_raw = raw["app_filter"]
     _exact_keys(filter_raw, APP_FILTER_KEYS, "app_filter")
@@ -114,8 +101,6 @@ def validate(raw: object, *, uid_min: int = 1000) -> Configuration:
         raise ConfigurationError("minimum request interval is out of range")
     return Configuration(
         kiosk_uid=kiosk_uid,
-        child_uid=child_uid,
-        child_label=_label(raw["child_label"], "child_label"),
         app_filter=AppFilter(hard_targets, soft_targets),
         minimum_request_interval_seconds=interval,
     )

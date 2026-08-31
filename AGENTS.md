@@ -1,3 +1,4 @@
-Whenever needing to understand system architecture, refer to @docs/System-Design.md
-Never use outdated / legacy / internal / private / hacky code
-For troubleshooting logs, look in /var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log.
+- Whenever needing to understand system architecture, refer to @docs/System-Design.md
+- Never use outdated / legacy / internal / private / hacky code
+- For troubleshooting logs, look in /var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log. If sandbox restrictions prevent reading them, immediately request sandbox  escalation for the minimum necessary read-only command. Never modify or delete logs.
+- Fix the root cause in code, so it's repoducible on a clean computer. Unless specified otherwise, treat this as a new app, no existing installations.

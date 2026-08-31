@@ -52,7 +52,9 @@ class ParentWindow(Adw.ApplicationWindow):
         accounts = Adw.PreferencesGroup(title="Child account")
         account_row = Adw.ActionRow(title="Account")
         self._account = Gtk.DropDown(model=Gtk.StringList.new([]), hexpand=True)
-        self._account.connect("notify::selected", self._account_changed)
+        self._account_changed_handler = self._account.connect(
+            "notify::selected", self._account_changed
+        )
         account_row.add_suffix(self._account)
         accounts.add(account_row)
         control_row = Adw.ActionRow(
@@ -141,9 +143,17 @@ class ParentWindow(Adw.ApplicationWindow):
     def _users_loaded(self, users):
         self._users = list(users)
         LOG.info("managed-user discovery completed count=%d", len(self._users))
-        self._account.set_model(Gtk.StringList.new([label for _uid, label in self._users]))
+        self._account.handler_block(self._account_changed_handler)
+        try:
+            self._account.set_model(Gtk.StringList.new(
+                [label for _uid, label in self._users]
+            ))
+            if self._users:
+                self._account.set_selected(0)
+        finally:
+            self._account.handler_unblock(self._account_changed_handler)
+
         if self._users:
-            self._account.set_selected(0)
             self._load_selected()
         else:
             self._toast("No interactive non-admin users were found")

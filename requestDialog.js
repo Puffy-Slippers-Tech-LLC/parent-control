@@ -9,11 +9,15 @@ import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {
+    MAX_CUSTOM_MINUTES,
+    MIN_CUSTOM_MINUTES,
+    loadAllowSoftBlockedApps,
     loadLastCustomMinutes,
     loadLastSelectedDuration,
+    saveAllowSoftBlockedApps,
     saveLastCustomMinutes,
     saveLastSelectedDuration,
-} from './customDurationStore.js';
+} from './requestPreferencesStore.js';
 
 export const DURATIONS = Object.freeze([
     {label: '5 minutes', seconds: 5 * 60},
@@ -128,6 +132,8 @@ class RequestForm {
         this._customEntry.clutter_text.set_selectable(true);
         this._customEntry.clutter_text.set_input_purpose(
             Clutter.InputContentPurpose.DIGITS);
+        this._customEntry.clutter_text.set_max_length(
+            String(MAX_CUSTOM_MINUTES).length);
         this._customEntry.clutter_text.connect('key-press-event', (_actor, event) => {
             const key = event.get_key_symbol();
             if (key === Clutter.KEY_Return || key === Clutter.KEY_KP_Enter) {
@@ -185,7 +191,9 @@ class RequestForm {
         });
         this._appFilterToggle.accessible_name =
             'Allow soft blocked apps';
-        this._appFilterToggle.set_checked(false);
+        this._appFilterToggle.set_checked(loadAllowSoftBlockedApps());
+        this._appFilterToggle.connect('notify::checked', toggle =>
+            saveAllowSoftBlockedApps(toggle.checked));
         appFilterControls.add_child(this._appFilterToggle);
 
         this._preferencesButton = new St.Button({
@@ -305,8 +313,9 @@ class RequestForm {
             const text = this._customEntry.get_text().trim();
             const minutes = Number(text);
             if (!/^\d+$/.test(text) || !Number.isSafeInteger(minutes) ||
-                minutes <= 0 || !Number.isSafeInteger(minutes * 60)) {
-                this._showError('Enter a positive whole number of minutes.');
+                minutes < MIN_CUSTOM_MINUTES || minutes > MAX_CUSTOM_MINUTES) {
+                this._showError(
+                    `Enter a whole number from ${MIN_CUSTOM_MINUTES} to ${MAX_CUSTOM_MINUTES} minutes.`);
                 return;
             }
             this._lastCustomMinutes = minutes;

@@ -4,6 +4,10 @@ import GLib from 'gi://GLib';
 const DIRECTORY_NAME = 'oh-no-parent-control';
 const CUSTOM_MINUTES_FILE_NAME = 'last-custom-minutes';
 const SELECTED_DURATION_FILE_NAME = 'last-selected-duration';
+const ALLOW_SOFT_BLOCKED_APPS_FILE_NAME = 'allow-soft-blocked-apps';
+
+export const MIN_CUSTOM_MINUTES = 1;
+export const MAX_CUSTOM_MINUTES = 24 * 60;
 
 function getStoreFile(fileName) {
     const directory = GLib.build_filenamev([
@@ -41,11 +45,15 @@ function save(fileName, value) {
 
 export function loadLastCustomMinutes() {
     const minutes = Number(load(CUSTOM_MINUTES_FILE_NAME));
-    return Number.isSafeInteger(minutes) && minutes > 0 ? minutes : 1;
+    return Number.isSafeInteger(minutes) &&
+        minutes >= MIN_CUSTOM_MINUTES && minutes <= MAX_CUSTOM_MINUTES
+        ? minutes
+        : MIN_CUSTOM_MINUTES;
 }
 
 export function saveLastCustomMinutes(minutes) {
-    if (!Number.isSafeInteger(minutes) || minutes <= 0)
+    if (!Number.isSafeInteger(minutes) ||
+        minutes < MIN_CUSTOM_MINUTES || minutes > MAX_CUSTOM_MINUTES)
         return;
 
     save(CUSTOM_MINUTES_FILE_NAME, String(minutes));
@@ -61,4 +69,12 @@ export function saveLastSelectedDuration(seconds) {
         return;
 
     save(SELECTED_DURATION_FILE_NAME, seconds === null ? 'custom' : String(seconds));
+}
+
+export function loadAllowSoftBlockedApps() {
+    return load(ALLOW_SOFT_BLOCKED_APPS_FILE_NAME) === 'true';
+}
+
+export function saveAllowSoftBlockedApps(allow) {
+    save(ALLOW_SOFT_BLOCKED_APPS_FILE_NAME, allow ? 'true' : 'false');
 }

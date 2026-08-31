@@ -11,12 +11,13 @@
   border-radius: 4px;
 }
 
-.screen-time-remaining-label:flash {
+.screen-time-request-button-content:flash {
+  border-radius: 4px;
   box-shadow: 0 0 8px 2px rgba(255, 123, 99, 0.95);
 }
 
 .screen-time-request-button {
-  height: 28px;
+  min-height: 28px;
   padding: 3px 6px 3px 9px;
   border-radius: 99px;
   border: 1px solid rgba(255, 255, 255, 0.24);
@@ -29,6 +30,19 @@
 
 .screen-time-request-button-content {
   spacing: 7px;
+}
+
+.screen-time-request-button-vertical {
+  min-width: 26px;
+  padding: 7px 3px 5px;
+}
+
+.screen-time-request-button-content-vertical {
+  spacing: 3px;
+}
+
+.screen-time-remaining-label-vertical {
+  font-size: 0.85em;
 }
 
 .screen-time-request-button:hover,

@@ -85,10 +85,16 @@ const AppPolicyPage = GObject.registerClass(class AppPolicyPage extends Adw.Pref
                 valign: Gtk.Align.CENTER,
                 css_classes: ['policy-legend-column'],
             });
-            column.append(new Gtk.Image({
-                icon_name: item.icon,
-                pixel_size: 19,
-                css_classes: ['policy-legend-icon', item.css],
+            column.append(new Gtk.ToggleButton({
+                active: true,
+                can_focus: false,
+                can_target: false,
+                css_classes: ['policy-choice', 'policy-legend-icon', item.css],
+                child: new Gtk.Image({
+                    icon_name: item.icon,
+                    pixel_size: 19,
+                }),
+                valign: Gtk.Align.CENTER,
             }));
             const text = new Gtk.Box({
                 orientation: Gtk.Orientation.VERTICAL,

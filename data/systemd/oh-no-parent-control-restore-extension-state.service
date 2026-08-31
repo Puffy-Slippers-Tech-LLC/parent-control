@@ -1,0 +1,12 @@
+[Unit]
+Description=Restore GNOME extension state after Parent Control installation
+ConditionPathExists=/var/lib/oh-no-parent-control/extension-state-restore.json
+After=local-fs.target
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/oh-no-parent-control-preserve-extension-state --restore
+
+[Install]
+WantedBy=multi-user.target

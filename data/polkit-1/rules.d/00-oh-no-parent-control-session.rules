@@ -1,0 +1,5 @@
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.accounts.change-own-user-data" &&
+        subject.user == "oh-no-parent-control")
+        return polkit.Result.NO;
+});

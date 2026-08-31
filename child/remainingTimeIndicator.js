@@ -8,8 +8,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
 import {queryEstimatedTimes} from './timerQuery.js';
-
-const LOG_PREFIX = '[oh-no-parent-control]';
+import {logDebug, logInfo, logWarning} from './logger.js';
 const ROLE = 'screenTimeRemaining';
 const TIMER_BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const TIMER_OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
@@ -135,7 +134,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             try {
                 object.disconnect(id);
             } catch (error) {
-                console.debug(`${LOG_PREFIX} signal already disconnected: ${error.message}`);
+                logDebug(`signal already disconnected: ${error.message}`);
             }
         }
         this._signals = [];
@@ -214,13 +213,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
             const estimate = estimates[''];
             this._sessionEnd = estimate ? Number(estimate[2]) : 0;
-            console.log(`${LOG_PREFIX} timer estimate loaded; session end=${this._sessionEnd}`);
+            logInfo(`timer estimate loaded; session end=${this._sessionEnd}`);
         } catch (error) {
             if (!this._destroyed) {
                 // A transient daemon/database failure says nothing about the
                 // last successful estimate. Preserve it until a supported
                 // D-Bus query supplies a replacement.
-                console.warn(`${LOG_PREFIX} timer query failed; keeping previous estimate: ` +
+                logWarning('timer query failed; keeping previous estimate: ' +
                     error.message);
             }
         } finally {
@@ -281,7 +280,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
     _setShown(shown) {
         if (shown && !this.container.visible)
-            console.log(`${LOG_PREFIX} showing remaining time indicator`);
+            logInfo('showing remaining time indicator');
         this.container.visible = shown;
     }
 

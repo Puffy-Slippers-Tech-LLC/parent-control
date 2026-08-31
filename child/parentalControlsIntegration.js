@@ -11,8 +11,8 @@ import {
     loadApprovedGrantRemaining,
     saveApprovedGrant,
 } from './approvedGrantStore.js';
+import {logDebug, logInfo, logWarning} from './logger.js';
 
-const LOG_PREFIX = '[oh-no-parent-control]';
 const SESSION_LIMITS_EXTEND_ACTION =
     'org.freedesktop.Malcontent.SessionLimits.Extend';
 const COMBINED_APPROVAL_ACTION =
@@ -49,7 +49,7 @@ export class ParentalControlsIntegration {
         const persistedGrantRemaining = loadApprovedGrantRemaining();
         if (persistedGrantRemaining > 0) {
             this._setApprovedGrantRemaining(persistedGrantRemaining);
-            console.log(`${LOG_PREFIX} restored approved grant; ` +
+            logInfo('restored approved grant; ' +
                 `remaining=${persistedGrantRemaining}`);
         }
     }
@@ -121,7 +121,7 @@ export class ParentalControlsIntegration {
         this._clearNativeCookieCapture();
         this._nativeRequestDeadlineMonotonicSeconds = 0;
         if (!granted) {
-            console.log(`${LOG_PREFIX} native Ignore request rejected`);
+            logInfo('native Ignore request rejected');
             return 0;
         }
 
@@ -130,12 +130,12 @@ export class ParentalControlsIntegration {
             durationSeconds = durationSeconds.deepUnpack();
         durationSeconds = Number(durationSeconds);
         if (!Number.isSafeInteger(durationSeconds) || durationSeconds <= 0) {
-            console.warn(`${LOG_PREFIX} native Ignore approval omitted a valid duration`);
+            logWarning('native Ignore approval omitted a valid duration');
             return 0;
         }
 
         this.recordApprovedGrant(durationSeconds);
-        console.log(`${LOG_PREFIX} captured native Ignore approval; ` +
+        logInfo('captured native Ignore approval; ' +
             `duration=${durationSeconds}`);
         return durationSeconds;
     }
@@ -158,7 +158,7 @@ export class ParentalControlsIntegration {
             try {
                 object.disconnect(id);
             } catch (error) {
-                console.debug(`${LOG_PREFIX} signal already disconnected: ${error.message}`);
+                logDebug(`signal already disconnected: ${error.message}`);
             }
         }
         this._signals = [];
@@ -183,7 +183,7 @@ export class ParentalControlsIntegration {
             try {
                 this._polkitAgent?.disconnect(this._polkitInitiateHandlerId);
             } catch (error) {
-                console.debug(`${LOG_PREFIX} polkit initiate handler already disconnected: ${error.message}`);
+                logDebug(`polkit initiate handler already disconnected: ${error.message}`);
             }
             if (this._polkitAgent && this._polkitOriginalInitiate)
                 this._polkitAgent.connect(
@@ -240,7 +240,7 @@ export class ParentalControlsIntegration {
             this._shield = null;
         });
         shield.add_child(this._button);
-        console.log(`${LOG_PREFIX} showing request button`);
+        logInfo('showing request button');
     }
 
     _watchDialog() {
@@ -272,7 +272,7 @@ export class ParentalControlsIntegration {
             try {
                 this._watchedDialog?._promptBox?.disconnect(this._dialogSignalId);
             } catch (error) {
-                console.debug(`${LOG_PREFIX} prompt already disconnected: ${error.message}`);
+                logDebug(`prompt already disconnected: ${error.message}`);
             }
         }
         this._dialogSignalId = 0;
@@ -296,7 +296,7 @@ export class ParentalControlsIntegration {
                 GLib.get_monotonic_time() / GLib.USEC_PER_SEC +
                 NATIVE_REQUEST_TIMEOUT_SECONDS;
             this._scheduleNativeCookieCapture();
-            console.log(`${LOG_PREFIX} observing native Ignore request`);
+            logInfo('observing native Ignore request');
         });
     }
 
@@ -334,7 +334,7 @@ export class ParentalControlsIntegration {
             try {
                 this._nativeIgnoreButton?.disconnect(this._nativeIgnoreSignalId);
             } catch (error) {
-                console.debug(`${LOG_PREFIX} native Ignore button already disconnected: ` +
+                logDebug('native Ignore button already disconnected: ' +
                     error.message);
             }
         }
@@ -354,18 +354,18 @@ export class ParentalControlsIntegration {
         // state-transition dispatcher does not request another lock. Re-lock
         // when this Shell next observes the now-unlocked session.
         screenShield.lock(false);
-        console.log(`${LOG_PREFIX} re-locked session after exhausted-limit bypass`);
+        logInfo('re-locked session after exhausted-limit bypass');
     }
 
     _patchTimeLimitsManager() {
         const manager = Main.timeLimitsManager;
         const originalUpdateState = manager?._updateState;
         if (!manager || typeof originalUpdateState !== 'function') {
-            console.warn(`${LOG_PREFIX} time-limits manager cannot apply grant overlay`);
+            logWarning('time-limits manager cannot apply grant overlay');
             return false;
         }
         if (manager._ohNoParentControlGrantOverlay) {
-            console.warn(`${LOG_PREFIX} time-limits grant overlay is already installed`);
+            logWarning('time-limits grant overlay is already installed');
             return false;
         }
 
@@ -377,7 +377,7 @@ export class ParentalControlsIntegration {
         this._timeLimitsWrappedUpdateState = wrappedUpdateState;
         manager._updateState = wrappedUpdateState;
         manager._ohNoParentControlGrantOverlay = wrappedUpdateState;
-        console.log(`${LOG_PREFIX} installed authenticated grant overlay`);
+        logInfo('installed authenticated grant overlay');
         return true;
     }
 
@@ -408,7 +408,7 @@ export class ParentalControlsIntegration {
             const now = Math.floor(GLib.get_real_time() / GLib.USEC_PER_SEC);
             manager._estimatedTimes = [true, now, approvedEnd,
                 approvedEnd, approvedEnd];
-            console.debug(`${LOG_PREFIX} supplied timer estimate from approved grant; ` +
+            logDebug('supplied timer estimate from approved grant; ' +
                 `approved=${approvedEnd}`);
             return;
         }
@@ -418,7 +418,7 @@ export class ParentalControlsIntegration {
         manager._estimatedTimes = overlaidEstimates;
         const reportedEnd = Number(estimates[2]);
         if (reportedEnd !== approvedEnd) {
-            console.debug(`${LOG_PREFIX} replaced stale timer estimate; ` +
+            logDebug('replaced stale timer estimate; ' +
                 `reported=${reportedEnd}, approved=${approvedEnd}`);
         }
     }
@@ -431,7 +431,7 @@ export class ParentalControlsIntegration {
         try {
             manager._updateState();
         } catch (error) {
-            console.warn(`${LOG_PREFIX} could not recalculate time limits: ${error.message}`);
+            logWarning(`could not recalculate time limits: ${error.message}`);
         }
     }
 
@@ -441,7 +441,7 @@ export class ParentalControlsIntegration {
             return;
 
         Promise.resolve(refresh.call(Main.timeLimitsManager)).catch(error =>
-            console.warn(`${LOG_PREFIX} timer refresh after grant failed: ${error.message}`));
+            logWarning(`timer refresh after grant failed: ${error.message}`));
     }
 
     _hasActiveApprovedGrant() {
@@ -485,7 +485,7 @@ export class ParentalControlsIntegration {
                 if (this._hasActiveApprovedGrant()) {
                     this._scheduleGrantExpiry();
                 } else {
-                    console.log(`${LOG_PREFIX} approved time expired`);
+                    logInfo('approved time expired');
                     this._refreshTimeLimitsEstimate();
                     this._sync();
                 }
@@ -516,7 +516,7 @@ export class ParentalControlsIntegration {
     _patchPolkitAgent() {
         const agent = Main.componentManager?._allComponents?.polkitAgent;
         if (!agent) {
-            console.warn(`${LOG_PREFIX} polkit agent is not loaded yet; ` +
+            logWarning('polkit agent is not loaded yet; ' +
                 'lock-screen approval may be deferred until it appears');
             return false;
         }
@@ -525,7 +525,7 @@ export class ParentalControlsIntegration {
 
         const originalInitiate = agent._onInitiate;
         if (typeof originalInitiate !== 'function') {
-            console.warn(`${LOG_PREFIX} polkit agent has no _onInitiate method`);
+            logWarning('polkit agent has no _onInitiate method');
             return false;
         }
 
@@ -589,7 +589,7 @@ export class ParentalControlsIntegration {
         // a stale marker would otherwise suppress this lock-screen exception
         // and Polkit would defer the prompt until after unlock.
         agent._ohNoParentControlPolkitPatch = this;
-        console.log(`${LOG_PREFIX} patched polkit agent for lock-screen app approval`);
+        logInfo('patched polkit agent for lock-screen app approval');
         return true;
     }
 

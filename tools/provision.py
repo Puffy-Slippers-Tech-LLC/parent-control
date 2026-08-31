@@ -6,6 +6,7 @@ import grp
 import json
 import os
 import pwd
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -51,9 +52,22 @@ def atomic_write(path, contents, mode=0o644):
             os.unlink(temporary)
 
 
+def accounts_service_language(user):
+    result = subprocess.run([
+        "busctl", "--system", "get-property", "org.freedesktop.Accounts",
+        f"/org/freedesktop/Accounts/User{user.pw_uid}",
+        "org.freedesktop.Accounts.User", "Language",
+    ], check=True, stdout=subprocess.PIPE, text=True)
+    fields = shlex.split(result.stdout)
+    if len(fields) != 2 or fields[0] != "s":
+        fail(f"AccountsService returned an invalid language for {user.pw_name}")
+    return fields[1]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--kiosk-user", required=True)
+    parser.add_argument("--language-source-user")
     parser.add_argument("--prefix", default="/")
     args = parser.parse_args()
     if os.geteuid() != 0:
@@ -84,6 +98,20 @@ def main():
     atomic_write(policy_path, policy.replace("@KIOSK_USER@", kiosk.pw_name), 0o644)
 
     if prefix == Path("/"):
+        language = ""
+        if args.language_source_user:
+            try:
+                language_source = pwd.getpwnam(args.language_source_user)
+            except KeyError:
+                fail(f"language source account does not exist: {args.language_source_user}")
+            if language_source.pw_uid == 0:
+                fail("language source account must not be root")
+            language = accounts_service_language(language_source)
+        subprocess.run([
+            "busctl", "--system", "call", "org.freedesktop.Accounts",
+            f"/org/freedesktop/Accounts/User{kiosk.pw_uid}",
+            "org.freedesktop.Accounts.User", "SetLanguage", "s", language,
+        ], check=True)
         subprocess.run([
             "busctl", "--system", "set-property", "org.freedesktop.Accounts",
             f"/org/freedesktop/Accounts/User{kiosk.pw_uid}",

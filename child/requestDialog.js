@@ -20,6 +20,7 @@ import {
     MAX_CUSTOM_MINUTES,
     MIN_CUSTOM_MINUTES,
 } from './requestOptions.js';
+import {logError} from './logger.js';
 
 export {DURATIONS} from './requestOptions.js';
 
@@ -298,7 +299,7 @@ class RequestForm {
             }
             this._showError();
         } catch (error) {
-            console.error(`[oh-no-parent-control] ${error.message}`);
+            logError(error.message);
             this._showError();
         } finally {
             this._setWorking(false);

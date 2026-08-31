@@ -1,6 +1,7 @@
 """Small synchronous client used by the administrator UI."""
 
 import json
+import logging
 
 import gi
 
@@ -42,3 +43,36 @@ class BrokerClient:
             "SetParentControl", GLib.Variant("(ub)", (uid, enabled)), "(s)",
         )
         return json.loads(encoded)
+
+    def log_event(self, level, message):
+        self.connection.call(
+            BUS_NAME, OBJECT_PATH, INTERFACE, "LogEvent",
+            GLib.Variant("(sss)", ("parent", level, message)),
+            GLib.VariantType.new("()"), Gio.DBusCallFlags.NONE, 5_000, None, None,
+        )
+
+
+class BrokerLogHandler(logging.Handler):
+    """Forward parent-app records to the broker-owned daily log."""
+
+    def __init__(self):
+        super().__init__()
+        self._client = None
+
+    def emit(self, record):
+        try:
+            if self._client is None:
+                self._client = BrokerClient()
+            self._client.log_event(record.levelname, self.format(record))
+        except Exception:
+            # Logging must never prevent the management UI from opening.
+            self._client = None
+
+
+def configure_logging():
+    handler = BrokerLogHandler()
+    handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)

@@ -1,0 +1,9 @@
+#!/bin/sh
+if [ "${PAM_USER-}" != "oh-no-parent-control" ]; then
+    exit 0
+fi
+
+case "${PAM_SERVICE-}" in
+    gdm-password|systemd-user) exit 0 ;;
+    *) exit 1 ;;
+esac

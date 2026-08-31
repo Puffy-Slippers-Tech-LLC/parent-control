@@ -109,7 +109,13 @@ AccountsService updates with rollback.
 /usr/lib/oh-no-parent-control/parent/           parent Python package
 /usr/lib/oh-no-parent-control/child/extension/ immutable extension payload
 /var/lib/oh-no-parent-control/preferences/     authoritative child records
+/var/log/oh-no-parent-control/<component>/     daily logs (10-day retention)
 ```
+
+The broker is the sole log-file writer. Parent, child, and kiosk send log events
+over the public D-Bus interface; caller-role checks prevent components from
+writing into one another's folders. A component's first event each day creates
+`YYYY-MM-DD.log` and removes that component's logs beyond the newest 10 days.
 
 Enabling Parent Control copies the immutable payload to the child's local
 GNOME extension directory and enables its UUID. Disabling removes both.

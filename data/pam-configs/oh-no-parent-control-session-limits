@@ -1,0 +1,9 @@
+Name: Oh No Parent Control managed session limits
+Default: yes
+Priority: 1000
+Account-Type: Additional
+Account:
+ [success=3 default=ignore] pam_succeed_if.so quiet service = systemd-user
+ [success=2 default=ignore] pam_succeed_if.so quiet user = oh-no-parent-control
+ [success=1 default=ignore] pam_succeed_if.so quiet user ingroup sudo
+ required pam_malcontent.so

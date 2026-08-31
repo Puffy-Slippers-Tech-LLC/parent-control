@@ -1,7 +1,7 @@
 import Gio from 'gi://Gio';
 import Polkit from 'gi://Polkit';
 
-const LOG_PREFIX = '[oh-no-parent-control]';
+import {logError, logInfo, logWarning} from './logger.js';
 const APPROVAL_ACTION =
     'org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps';
 
@@ -11,7 +11,7 @@ export class ParentalApproval {
     }
 
     ensureAuthorization(actionId = APPROVAL_ACTION) {
-        console.log(`${LOG_PREFIX} requesting administrator authorization`);
+        logInfo('requesting administrator authorization');
         return new Promise((resolve, reject) => {
             let subject;
             try {
@@ -22,7 +22,7 @@ export class ParentalApproval {
                 // this exact system-bus subject.
                 subject = new Polkit.SystemBusName({name: busName});
             } catch (error) {
-                console.warn(`${LOG_PREFIX} polkit subject setup failed: ${error.message}`);
+                logWarning(`polkit subject setup failed: ${error.message}`);
                 reject(new Error(`Could not identify polkit subject: ${error.message}`));
                 return;
             }
@@ -45,8 +45,7 @@ export class ParentalApproval {
                                     'Combined authorization was not retained'));
                                 return;
                             }
-                            console.log(
-                                `${LOG_PREFIX} combined time/app approval authorized`);
+                            logInfo('combined time/app approval authorized');
                             resolve(temporaryAuthorizationId);
                             return;
                         }
@@ -56,7 +55,7 @@ export class ParentalApproval {
                                 ? 'Parent authentication was dismissed'
                                 : 'Parent did not authorize the request'));
                     } catch (error) {
-                        console.error(`${LOG_PREFIX} authorization failed: ${error.message}`);
+                        logError(`authorization failed: ${error.message}`);
                         reject(error);
                     }
                 });
@@ -85,13 +84,12 @@ export class ParentalApproval {
                 (authority, result) => {
                     try {
                         authority.revoke_temporary_authorization_by_id_finish(result);
-                        console.log(
-                            `${LOG_PREFIX} combined authorization released`);
+                        logInfo('combined authorization released');
                     } catch (error) {
                         // The grant is scoped to this process and Polkit will
                         // expire it even if an explicit cleanup races shutdown.
-                        console.warn(
-                            `${LOG_PREFIX} could not release combined authorization: ` +
+                        logWarning(
+                            'could not release combined authorization: ' +
                             error.message);
                     }
                     resolve();

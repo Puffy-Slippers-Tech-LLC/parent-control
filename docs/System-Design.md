@@ -105,6 +105,7 @@ AccountsService updates with rollback.
 /usr/bin/oh-no-parent-control                  kiosk launcher
 /usr/bin/oh-no-parent-control-parent           parent launcher
 /usr/libexec/oh-no-parent-control-broker       broker launcher
+/usr/libexec/oh-no-parent-control-preserve-extension-state
 /usr/lib/oh-no-parent-control/kiosk/            kiosk Python package
 /usr/lib/oh-no-parent-control/parent/           parent Python package
 /usr/lib/oh-no-parent-control/child/extension/ immutable extension payload
@@ -121,6 +122,12 @@ newest 10 days.
 
 Enabling Parent Control copies the immutable payload to the child's local
 GNOME extension directory and enables its UUID. Disabling removes both.
+
+The full-machine installer snapshots the invoking administrator's global GNOME
+extension switch. A boot-time one-shot restores that exact value before GDM
+starts, then deletes the snapshot. This prevents Ubuntu's Shell stop-timeout
+fallback during the required reboot from changing an administrator preference;
+an extension switch which was already off remains off.
 
 ## Design invariants
 

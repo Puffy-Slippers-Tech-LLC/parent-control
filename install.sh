@@ -164,6 +164,7 @@ install -o "$KIOSK_USER" -g "$kiosk_gid" -m 0644 /dev/null \
     "/home/$KIOSK_USER/.config/gnome-initial-setup/upgrade-26.04-done"
 systemctl daemon-reload
 systemctl reload dbus.service
+systemctl enable oh-no-parent-control-restore-extension-state.service
 systemctl restart accounts-daemon.service
 
 # Fail before completing if any essential installation invariant is missing.
@@ -173,11 +174,13 @@ test -x /usr/bin/oh-no-parent-control
 test -x /usr/bin/oh-no-parent-control-parent
 test -x /usr/libexec/oh-no-parent-control-broker
 test -x /usr/libexec/oh-no-parent-control-provision
+test -x /usr/libexec/oh-no-parent-control-preserve-extension-state
 test -s /etc/oh-no-parent-control/config.json
 test -s /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
 test -s /usr/share/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy
 test -s /usr/share/polkit-1/actions/com.puffyslippers.OhNoParentControl1.policy
 test -s /usr/lib/systemd/system/oh-no-parent-control-broker.service
+test -s /usr/lib/systemd/system/oh-no-parent-control-restore-extension-state.service
 test -s /usr/lib/systemd/user/oh-no-parent-control-app.service
 test -s /usr/lib/systemd/user/oh-no-parent-control-polkit-agent.service
 test -s /usr/lib/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf
@@ -222,8 +225,18 @@ if [[ -n "$INSTALLER_USER" ]]; then
 fi
 systemctl is-enabled --quiet malcontent-timerd.service
 systemctl is-enabled --quiet malcontent-timer-extension-agent.service
+systemctl is-enabled --quiet oh-no-parent-control-restore-extension-state.service
 systemctl is-active --quiet malcontent-timerd.service
 systemctl is-active --quiet malcontent-timer-extension-agent.service
+
+# Ubuntu treats a Shell stop timeout during reboot as an extension crash and
+# persists disable-user-extensions=true. Preserve the invoking account's exact
+# pre-reboot value and restore it once, before GDM starts after this required
+# reboot. This never turns extensions on when the user had disabled them.
+if [[ -n "$INSTALLER_USER" ]]; then
+    /usr/libexec/oh-no-parent-control-preserve-extension-state \
+        --schedule-uid "$(id -u "$INSTALLER_USER")"
+fi
 
 # Integrate with Ubuntu's standard pending-reboot indicator. Preserve package
 # names recorded by apt while adding this product only once across reruns.

@@ -15,6 +15,10 @@ automatically and is safe to run again on an already installed computer.
 The kiosk inherits the invoking administrator's desktop language, and GNOME's
 first-login setup is completed during installation so the kiosk app opens
 directly without language or diagnostics questions.
+The required reboot also preserves the invoking administrator's GNOME extension
+switch. Ubuntu can classify a slow Shell shutdown as a crash and disable all
+extensions; the installer restores the exact pre-reboot switch value once,
+before the login screen starts.
 
 No managed account is needed before or during installation. After the reboot,
 select **Oh No! Parent Control** at the GDM login screen; it signs in without a

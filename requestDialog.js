@@ -130,9 +130,7 @@ class RequestForm {
         this._customEntry.clutter_text.set_editable(true);
         this._customEntry.clutter_text.set_selectable(true);
         this._customEntry.clutter_text.set_input_purpose(
-            Clutter.InputContentPurpose.DIGITS);
-        this._customEntry.clutter_text.set_max_length(
-            String(MAX_CUSTOM_MINUTES).length);
+            Clutter.InputContentPurpose.NUMBER);
         this._customEntry.clutter_text.connect('key-press-event', (_actor, event) => {
             const key = event.get_key_symbol();
             if (key === Clutter.KEY_Return || key === Clutter.KEY_KP_Enter) {
@@ -311,14 +309,17 @@ class RequestForm {
         if (seconds === null) {
             const text = this._customEntry.get_text().trim();
             const minutes = Number(text);
-            if (!/^\d+$/.test(text) || !Number.isSafeInteger(minutes) ||
+            if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(text) ||
+                !Number.isFinite(minutes) ||
                 minutes < MIN_CUSTOM_MINUTES || minutes > MAX_CUSTOM_MINUTES) {
                 this._showError(
-                    `Enter a whole number from ${MIN_CUSTOM_MINUTES} to ${MAX_CUSTOM_MINUTES} minutes.`);
+                    `Enter a number from ${MIN_CUSTOM_MINUTES} to ${MAX_CUSTOM_MINUTES} minutes.`);
                 return;
             }
             this._lastCustomMinutes = minutes;
-            seconds = minutes * 60;
+            // ActiveExtension stores whole seconds, so decimal-minute values
+            // are rounded to the nearest representable duration.
+            seconds = Math.round(minutes * 60);
         }
 
         if (seconds === 0)

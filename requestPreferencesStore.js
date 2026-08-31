@@ -6,7 +6,7 @@ const CUSTOM_MINUTES_FILE_NAME = 'last-custom-minutes';
 const SELECTED_DURATION_FILE_NAME = 'last-selected-duration';
 const ALLOW_SOFT_BLOCKED_APPS_FILE_NAME = 'allow-soft-blocked-apps';
 
-export const MIN_CUSTOM_MINUTES = 1;
+export const MIN_CUSTOM_MINUTES = 0.1;
 export const MAX_CUSTOM_MINUTES = 24 * 60;
 
 function getStoreFile(fileName) {
@@ -45,14 +45,14 @@ function save(fileName, value) {
 
 export function loadLastCustomMinutes() {
     const minutes = Number(load(CUSTOM_MINUTES_FILE_NAME));
-    return Number.isSafeInteger(minutes) &&
+    return Number.isFinite(minutes) &&
         minutes >= MIN_CUSTOM_MINUTES && minutes <= MAX_CUSTOM_MINUTES
         ? minutes
         : MIN_CUSTOM_MINUTES;
 }
 
 export function saveLastCustomMinutes(minutes) {
-    if (!Number.isSafeInteger(minutes) ||
+    if (!Number.isFinite(minutes) ||
         minutes < MIN_CUSTOM_MINUTES || minutes > MAX_CUSTOM_MINUTES)
         return;
 

@@ -1,37 +1,57 @@
 # Oh No! Parent Control
 
-GNOME Shell 50 extension which adds requested-duration choices to GNOME's
-native parental-controls screen-time shield. It delegates approval and the
-temporary grant to Malcontent and Polkit.
+Oh No! Parent Control is a dedicated GNOME Kiosk request station for granting
+additional session time to a separate, Malcontent-restricted child account. A
+root-owned broker validates administrator-configured choices, performs one
+interactive Polkit check for the real kiosk caller, and updates the supported
+AccountsService parental-control properties.
 
-Run `make install` to install the extension for the current user, then enable
-it with `gnome-extensions enable oh-no-parent-control@tech.puffyslippers.com`. A Shell
-restart/log-out is normally required on Wayland. Installation uses only the
-files in this folder and does not require it to be a Git repository.
+The child’s in-session GNOME Shell extension remains a supported companion
+path. The kiosk application is a normal GTK 4/libadwaita program and never
+imports Shell APIs or handles passwords. The two paths intentionally keep their
+authorization and policy stores separate.
 
-Install Ubuntu's supported PAM account integration as a system prerequisite:
+## Development
 
-    sudo apt install libpam-malcontent
+Run the complete host-safe test suite without installing anything:
 
-Without that package, GDM does not ask Malcontent whether a login is allowed,
-so login-session extensions and enforcement can become inconsistent when a
-restricted session is entered through the greeter.
+```sh
+make check
+```
 
-The extension also uses one system-level Polkit policy for its single combined
-screen-time/app-approval prompt. Install (or reinstall) it after updating the
-extension with:
+Exercise packaging in a disposable directory:
 
-    sudo make install-policy
+```sh
+stage="$(mktemp -d)"
+make install DESTDIR="$stage"
+find "$stage" -type f -print
+make uninstall DESTDIR="$stage"
+```
 
-The policy file is installed to `/usr/share/polkit-1/actions/` and must be
-present before a combined time-and-app request can be approved. Open the
-app-access page from the extension manager's standard gear button to configure
-Always Allowed, Hard Blocked, and Soft Blocked choices.
+Unit tests use mocked Polkit and AccountsService adapters and never modify real
+users. Installation, account provisioning, confinement, and end-to-end tests
+belong in a disposable Ubuntu 26.04 VM.
 
-Run `make check` for static JavaScript/patch checks and `make pack` to create a
-complete installable extension archive.
+The existing child-session extension remains independently buildable:
 
-See [the GNOME integration note](docs/gnome50-integration.md) and
-[the Malcontent integration note](docs/malcontent014-integration.md) for the
-locally verified interfaces and limitations. End-to-end approval must be
-tested in a booted Ubuntu 26.04 GNOME/GDM VM with a working system bus.
+```sh
+make pack-extension
+make install-extension
+sudo make install-extension-policy
+```
+
+## Deployment
+
+Follow [docs/Deployment.md](docs/Deployment.md). Deployment is intentionally
+fail-closed: provisioning requires the operator to complete the mandatory GDM
+session-confinement gate first, then explicitly pass:
+
+```sh
+sudo make provision KIOSK_USER=oh-no-request CHILD_USER=child \
+  KIOSK_CONFINEMENT_VERIFIED=1
+```
+
+The flag records an operator assertion; it does not turn the GDM default
+session into an access-control mechanism. If the target distribution cannot
+prevent the kiosk UID from choosing a normal desktop, deployment remains
+blocked as required by [docs/System-Design.md](docs/System-Design.md).

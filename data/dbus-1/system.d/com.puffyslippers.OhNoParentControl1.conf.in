@@ -1,0 +1,16 @@
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <policy user="root">
+    <allow own="com.puffyslippers.OhNoParentControl1"/>
+  </policy>
+  <policy user="@KIOSK_USER@">
+    <allow send_destination="com.puffyslippers.OhNoParentControl1"
+           send_interface="com.puffyslippers.OhNoParentControl1"/>
+  </policy>
+  <policy context="default">
+    <deny own="com.puffyslippers.OhNoParentControl1"/>
+    <deny send_destination="com.puffyslippers.OhNoParentControl1"
+          send_interface="com.puffyslippers.OhNoParentControl1"/>
+  </policy>
+</busconfig>

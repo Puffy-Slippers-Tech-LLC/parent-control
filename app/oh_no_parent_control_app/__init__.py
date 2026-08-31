@@ -1,0 +1,1 @@
+"""GTK kiosk request application."""

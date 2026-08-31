@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Oh No! Parent Control
+Comment=Request additional child access in a restricted kiosk session
+Exec=gnome-session --session oh-no-parent-control
+TryExec=gnome-session
+Type=Application
+DesktopNames=GNOME-Kiosk;GNOME;
+X-GDM-SessionRegisters=false
+X-GDM-CanRunHeadless=true

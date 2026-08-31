@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=com.puffyslippers.OhNoParentControl1
+Exec=/usr/libexec/oh-no-parent-control-broker
+User=root
+SystemdService=oh-no-parent-control-broker.service

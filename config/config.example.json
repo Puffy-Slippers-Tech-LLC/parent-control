@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kiosk_uid": 991,
+  "child_uid": 1001,
+  "child_label": "Child account",
+  "durations": {
+    "15-minutes": {"label": "15 minutes", "seconds": 900},
+    "30-minutes": {"label": "30 minutes", "seconds": 1800},
+    "60-minutes": {"label": "60 minutes", "seconds": 3600},
+    "rest-of-day": {"label": "Rest of today", "seconds": "local-midnight"}
+  },
+  "app_filter_profiles": {
+    "school": {
+      "label": "School apps only",
+      "blocked_targets": ["org.example.Game", "/usr/bin/example-game"]
+    }
+  },
+  "minimum_request_interval_seconds": 5
+}

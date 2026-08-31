@@ -1,1039 +1,708 @@
-# Design & Implementation Spec: “Oh No! Parent Control” GNOME Shell Extension
+# Oh No! Parent Control — Kiosk Request Station Execution Plan
 
-## 1. Objective
+## 1. Purpose
 
-Build a GNOME Shell extension for Ubuntu 26.04 / GNOME 50 that adds an **“Oh No! Parent Control”** button to the existing GNOME parental-controls lock-screen UI.
+Add a dedicated, unrestricted GNOME Kiosk session in which a child can request
+additional time and optionally apply an app-filter profile to their restricted
+account. The child account's in-session GNOME Shell extension remains a
+separate supported request path.
 
-The button must appear **only when the child’s screen-time limit has actually been exhausted**, i.e. in the same lock-screen state where GNOME’s built-in **“Ignore”** button appears.
+The finished request flow must show exactly one administrator authentication
+dialog. It must use supported GNOME, Polkit, D-Bus, AccountsService, and
+Malcontent interfaces. It must not patch or inspect private GNOME Shell objects.
 
-The extension must:
+This document is the standalone implementation plan. A coding agent starting
+with only this repository and this document should be able to implement and
+validate the kiosk design.
 
-1. Run in GNOME Shell's `unlock-dialog` session mode.
-2. Detect the parental-controls time-limit-exhausted state reliably.
-3. Add an **Oh No! Parent Control** button to the existing parental-controls lock-screen UI.
-4. Leave GNOME's native **Ignore** button untouched initially.
-5. Open a custom Shell-native dialog when the new button is clicked.
-6. Let the child select a requested duration.
-7. Integrate with Malcontent's existing temporary-extension mechanism if possible.
-8. Never bypass or weaken GNOME/Malcontent enforcement.
-9. Never replace or intercept the Polkit authentication mechanism.
-10. Cleanly remove all UI and signal handlers when the extension is disabled/destroyed.
+The product is still under development and has no deployed users. Do not build
+data converters, account migrations, or upgrade paths. Keep kiosk and
+in-session extension policy/authorization boundaries explicit rather than
+silently coupling their stores.
 
-The initial implementation should NOT modify/fork GNOME Shell or Malcontent.
+## 2. Target and verified platform contracts
 
----
+Target platform:
 
-# 2. Target environment
+- Ubuntu 26.04;
+- GNOME 50;
+- Wayland;
+- GNOME Kiosk 50;
+- Polkit 127; and
+- Malcontent 0.14.
 
-Primary target:
+The target installation exposes these supported AccountsService vendor
+extensions:
 
-- Ubuntu 26.04
-- GNOME Shell 50
-- Wayland
-- Malcontent 0.14.x
+- `com.endlessm.ParentalControls.SessionLimits`;
+- `com.endlessm.ParentalControls.SessionLimits.ActiveExtension`, type `(tu)`;
+- `com.endlessm.ParentalControls.AppFilter`;
+- `com.endlessm.ParentalControls.AppFilter.AppFilter`, type `(bas)`.
 
-The implementation must target the actual Ubuntu 26.04 versions installed on the development machine.
+`ActiveExtension` is `(grant_time, duration_seconds)`. Its effective end is the
+sum of those values. A new value replaces the previous extension; it does not
+add to the remaining time.
 
-Do NOT assume APIs based solely on online documentation.
+`AppFilter` is `(allowlist, targets)`. This product uses a blocklist, so
+`allowlist` must be `false` and `targets` must contain the configured Flatpak
+application IDs and absolute executable paths.
 
-Before implementing anything, inspect the locally installed/source-available GNOME Shell and Malcontent implementation.
+GNOME Kiosk is the supported fixed-purpose compositor/session. It runs one
+application full-screen without the GNOME desktop shell, panel, overview, dash,
+or lock-screen internals.
 
----
+Before coding, verify these contracts against the installed target packages and
+installed D-Bus introspection XML. If a target package differs from the versions
+above, record the difference and stop before silently adapting the design to an
+unverified interface.
 
-# 3. Important architectural decision
+## 3. User-visible workflow
 
-Use a GNOME Shell extension.
+The device has two distinct unprivileged accounts:
 
-Do NOT:
+1. The **child account** is the normal desktop account. Malcontent session
+   limits and app filters apply to this account.
+2. The **request-station account** runs only the GNOME Kiosk request
+   application. It has no Malcontent time limit.
 
-- modify GDM;
-- create a GDM extension;
-- patch GNOME Shell;
-- fork Malcontent;
-- create a separate fullscreen GTK application;
-- replace Polkit;
-- implement an independent screen-time enforcement daemon.
-
-The intended architecture is:
-
-```text
-GNOME Shell
-    |
-    | child reaches time limit
-    v
-ParentalControlsShield
-    |
-    +-- Ignore                    <-- native GNOME behavior
-    |
-    +-- Oh No! Parent Control         <-- this extension
-             |
-             v
-      Custom Shell dialog
-             |
-             v
-      Malcontent extension
-      /authorization mechanism
-```
-
----
-
-# 4. Critical functional requirement
-
-The extension MUST NOT display “Oh No! Parent Control” merely because the screen is locked.
-
-For example:
+Expected flow:
 
 ```text
-Child manually locks screen
-    -> NO Oh No! Parent Control
-
-Parent locks screen
-    -> NO Oh No! Parent Control
-
-Normal unlock dialog
-    -> NO Oh No! Parent Control
-
-Child still has screen time remaining
-    -> NO Oh No! Parent Control
-
-Child has exhausted parental-control screen time
-    -> YES Oh No! Parent Control
+Child account reaches its time limit
+    -> GNOME locks or denies the child session normally
+    -> child switches to the request-station account
+    -> GNOME Kiosk shows only Oh No! Parent Control
+    -> child selects a duration
+    -> child optionally selects an app-filter profile
+    -> parent reviews the request on screen
+    -> parent presses Authorize
+    -> one standard Polkit administrator dialog appears
+    -> parent authenticates once
+    -> broker updates the child account
+    -> kiosk application reports success and exits
+    -> GDM is shown
+    -> child returns to the normal child account
 ```
 
-The button must appear only in the same state as GNOME's parental-control **Ignore** button.
+The request-station login may use a child-known password. That login is not an
+administrator authorization and is not counted as the request's Polkit dialog.
+Do not weaken the child account's authentication or the administrator account's
+authentication to simplify this flow.
 
----
-
-# 5. First task: inspect the real GNOME Shell implementation
-
-Before writing implementation code, inspect the actual GNOME Shell 50 source on the development system.
-
-Locate and inspect, at minimum:
+## 4. Required architecture
 
 ```text
-js/gdm/authPrompt.js
-js/misc/timeLimitsManager.js
-js/ui/unlockDialog.js
-js/ui/screenShield.js
+Request-station account (unprivileged, unlimited)
+  GNOME Kiosk 50
+    Oh No! Parent Control GTK application
+      |
+      | system D-Bus: RequestAccess(duration_id, filter_profile_id)
+      v
+Root-owned request broker
+      |
+      | one interactive CheckAuthorization
+      v
+Polkit + the kiosk session's standard authentication agent
+      |
+      | approved once
+      v
+AccountsService user object for the configured child UID
+      +-- AppFilter.AppFilter (optional)
+      +-- SessionLimits.ActiveExtension
 ```
 
-Also search the entire GNOME Shell source tree for:
+Use a privileged broker rather than granting the kiosk application temporary
+`ChangeAny` permissions. The broker exposes only the product operation, binds
+it to one configured child UID, validates all choices against root-owned
+configuration, performs exactly one Polkit check, and then carries out both
+writes as root.
+
+This is a normal supported Polkit service design. The broker must not replace
+Polkit, implement password entry, inspect authentication secrets, or draw its
+own authentication dialog.
+
+## 5. Explicit non-goals and forbidden techniques
+
+The kiosk implementation must not implement or retain any of the following:
+
+- `unlock-dialog` extension code;
+- a custom button inside `ParentalControlsShield`;
+- access to `AuthPrompt`, `UnlockDialog`, `Main.screenShield`, or private Shell
+  fields;
+- patches to GNOME Shell's Polkit agent;
+- patches to `TimeLimitsManager` or `_estimatedTimes`;
+- synthetic lock-screen dialogs;
+- Malcontent database or policy-file edits;
+- AccountsService database edits;
+- PAM bypasses;
+- a custom password or administrator-authentication system;
+- an unrestricted privileged method which accepts an arbitrary UID, arbitrary
+  property name, or arbitrary D-Bus payload; or
+- a normal desktop session for the request-station account.
+
+The normal child account remains governed by stock GNOME and Malcontent. The
+new software only submits an authenticated extension/filter operation from a
+separate active session.
+
+## 6. Security and trust boundaries
+
+Treat the child and request-station accounts as untrusted. Treat these as the
+trusted computing base:
+
+- root-owned broker executable and service definition;
+- root-owned Polkit action;
+- root-owned D-Bus policy;
+- root-owned product configuration and app-filter profiles;
+- stock Polkit authentication agent; and
+- stock AccountsService and Malcontent components.
+
+The button is not an authorization boundary. The broker must remain safe if an
+untrusted process calls its D-Bus method directly.
+
+The broker must therefore enforce all of the following independently of the
+UI:
+
+- the D-Bus caller is the configured request-station UID;
+- the target is exactly the configured child UID;
+- the target and kiosk UIDs differ;
+- neither target nor kiosk UID is `0`;
+- the duration is one of the root-configured choices;
+- the filter profile is empty or one of the root-configured profiles;
+- every app-filter target has the expected Flatpak-ID or absolute-path form;
+- only one request is processed at a time;
+- a bounded rate limit prevents authentication-dialog flooding;
+- cancellation and denial cause no writes;
+- authorization is checked for the real D-Bus sender, not for the root broker;
+  and
+- the broker never accepts caller-supplied Polkit action IDs or target object
+  paths.
+
+The Polkit action defaults must require an administrator for active, inactive,
+and other callers. Do not use `yes`, `allow`, `auth_self`, or a rule that grants
+the action merely because the request-station session is active.
+
+The request-station account must not be a sudoer or administrator and must not
+own or modify installed application, service, policy, session, or configuration
+files.
+
+## 7. System identities and configuration
+
+Install a root-owned configuration file, for example:
 
 ```text
-ParentalControlsShield
-shouldLockSession
-timeLimitsManager
-Ignore
-parental-controls
-session-limits
-setAuthBlocked
+/etc/oh-no-parent-control/config.json
 ```
 
-Determine exactly:
-
-1. Where `ParentalControlsShield` is defined.
-2. How the native Ignore button is created.
-3. What container the Ignore button belongs to.
-4. How `ParentalControlsShield` is inserted into `AuthPrompt`.
-5. When it is destroyed.
-6. How `Main.timeLimitsManager.shouldLockSession` is exposed.
-7. Which GObject signals/properties indicate changes to `shouldLockSession`.
-8. Whether the shield has an identifiable public or semi-public actor/container that an extension can safely augment.
-9. Whether there is a cleaner extension integration point than directly manipulating `_parentalControlsShield`.
-
-Do not guess property names or signal names.
-
-Document the findings in a developer note before proceeding.
-
----
-
-# 6. Time-limit detection
-
-GNOME Shell 50 has:
-
-```js
-Main.timeLimitsManager
-```
-
-and the relevant state is expected to involve:
-
-```js
-Main.timeLimitsManager.shouldLockSession
-```
-
-Verify this against the actual installed GNOME Shell 50 source.
-
-The expected condition is conceptually:
-
-```js
-const exhausted =
-    Main.timeLimitsManager.shouldLockSession;
-```
-
-However, verify:
-
-- exact property name;
-- exact semantics;
-- whether it is true for all parental-control restrictions or specifically screen-time exhaustion;
-- whether it also becomes true for bedtime restrictions;
-- exact change signal.
-
-Do not use polling unless there is no reliable event/property notification mechanism.
-
-Preferred implementation:
-
-```text
-TimeLimitsManager state change
-        |
-        v
-update button visibility
-```
-
-rather than:
-
-```text
-setInterval(...)
-```
-
----
-
-# 7. Distinguish daily exhaustion from other restrictions
-
-The desired feature is specifically:
-
-> Child has exhausted the daily screen-time allowance.
-
-Investigate whether:
-
-```text
-shouldLockSession
-```
-
-also represents:
-
-- bedtime restrictions;
-- other parental-control restrictions;
-- manually locked sessions;
-- other screen-time states.
-
-If the existing Malcontent/GNOME APIs expose enough information to distinguish daily-limit exhaustion from bedtime, use that information.
-
-If they do not, document the ambiguity and choose the safest behavior.
-
-Do NOT assume that `shouldLockSession == true` automatically means "daily allowance exhausted" without checking the GNOME 50 source.
-
----
-
-# 8. Extension metadata
-
-Create:
-
-```text
-metadata.json
-```
-
-with GNOME Shell 50 support and:
+Required logical schema:
 
 ```json
-"session-modes": [
-    "user",
-    "unlock-dialog"
-]
+{
+  "version": 1,
+  "kiosk_uid": 991,
+  "child_uid": 1001,
+  "child_label": "Child account",
+  "durations": {
+    "15-minutes": {"label": "15 minutes", "seconds": 900},
+    "30-minutes": {"label": "30 minutes", "seconds": 1800},
+    "60-minutes": {"label": "60 minutes", "seconds": 3600},
+    "rest-of-day": {"label": "Rest of today", "seconds": "local-midnight"}
+  },
+  "app_filter_profiles": {
+    "school": {
+      "label": "School apps only",
+      "blocked_targets": ["org.example.Game", "/usr/bin/example-game"]
+    }
+  },
+  "minimum_request_interval_seconds": 5
+}
 ```
 
-The extension must be able to run while the lock/unlock dialog is displayed.
+UIDs above are examples, not defaults. Provisioning must resolve and write the
+real numeric UIDs. Numeric UIDs are authoritative after installation so account
+renaming cannot retarget the broker.
 
-Use a proper UUID, e.g.:
+An empty filter profile ID means “leave the current app filter unchanged.” Do
+not derive a requested filter from the child's live filter. Named profiles are
+complete, root-owned desired blocklists.
+
+For `local-midnight`, calculate the positive number of seconds from the approval
+time to the next local midnight. Perform this calculation in the broker after
+authorization so time spent in the dialog is not subtracted from the grant.
+Reject a zero, negative, overflowed, or unexpectedly long result.
+
+The configuration parser must reject unknown keys where ambiguity would be
+unsafe, malformed types, duplicate logical choices, invalid UIDs, invalid
+targets, and insecure ownership or permissions. Fail closed and log the reason.
+
+## 8. Broker service contract
+
+Create a root-owned, system-bus-activated service with a stable product-owned
+name, such as:
 
 ```text
-oh-no-parent-control@tech.puffyslippers.com
+Bus name:   com.puffyslippers.OhNoParentControl1
+Path:       /com/puffyslippers/OhNoParentControl1
+Interface:  com.puffyslippers.OhNoParentControl1
 ```
 
-unless the project already has an established UUID.
-
----
-
-# 9. Initial UI strategy
-
-Do NOT replace GNOME's native Ignore button.
-
-Initially the UI should be:
+Keep the public surface minimal:
 
 ```text
-+--------------------------------------+
-|                                      |
-|       Screen time limit reached      |
-|                                      |
-|       [ Ignore ]                     |
-|       [ Oh No! Parent Control ]          |
-|                                      |
-+--------------------------------------+
+GetRequestOptions() -> (
+    child_label: s,
+    durations: a(ss),
+    filter_profiles: a(ss)
+)
+
+RequestAccess(
+    duration_id: s,
+    filter_profile_id: s
+) -> (
+    correlation_id: s,
+    result_code: s
+)
 ```
 
-The native Ignore button must continue to behave exactly as GNOME intended.
+Each `(ss)` option is `(stable_id, display_label)`. Include an empty filter ID
+with a “No filter change” label in `GetRequestOptions`. Define a small stable
+set of result codes, including `approved`, `denied`, and `cancelled`; use stable
+D-Bus error names for invalid requests and service failures.
 
-The extension owns only:
+Do not return authentication secrets or detailed internal policy state.
+
+`GetRequestOptions` returns only the configured safe choices. `RequestAccess`
+must use the values in the broker's freshly loaded and validated configuration;
+it must not trust data previously returned to the client.
+
+The system-bus policy should allow only the configured request-station account
+to call the methods. The broker must still verify the sender credentials at
+runtime because bus policy is defense in depth, not application validation.
+
+### 8.1 Polkit action
+
+Define one action, for example:
 
 ```text
-Oh No! Parent Control
+com.puffyslippers.OhNoParentControl1.request-access
 ```
 
-This provides a safe fallback and makes debugging easier.
+Its message should clearly say that an administrator is authorizing additional
+time and, when selected, replacement of the child's app restrictions. Set all
+three defaults to `auth_admin`. Do not use `auth_admin_keep`: no authorization
+must survive this single broker check. No implied permissions are necessary
+because the authorized broker performs the AccountsService writes as root.
 
----
+Call `CheckAuthorization` once with interactive authorization allowed and with
+a subject derived from the request's unique system-bus sender. Never authorize
+the broker's PID or UID as the subject. Treat challenge cancellation, denial,
+agent disappearance, caller disconnect, and timeout as denial.
 
-# 10. Adding the button
+Do not perform a second interactive authorization under any error or retry
+path. A failed request returns to the UI and requires a new explicit click.
 
-Preferred approach:
+### 8.2 Applying the requested change
 
-1. Locate the existing `ParentalControlsShield`.
-2. Locate its existing action/button container.
-3. Add the new button to the same UI hierarchy if possible.
-4. Do not replace the existing actor.
-5. Do not monkey-patch GNOME Shell methods unless absolutely necessary.
-6. Keep references to all actors created by the extension.
-7. Remove them during extension disable/destroy.
+After the single successful authorization:
 
-Because `ParentalControlsShield` may be an internal Shell implementation rather than a stable public extension API, isolate all GNOME-Shell-internal access in one small module.
+1. Resolve the configured child UID to its AccountsService object.
+2. Read and validate the current values needed for rollback.
+3. If a filter profile was selected, write the complete blocklist as
+   `AppFilter = (false, targets)`.
+4. Write `ActiveExtension = (approval_time, duration_seconds)` last.
+5. Read both changed values back and verify exact equality.
+6. Return success only after verification.
 
-For example:
+Writing `ActiveExtension` last prevents granting time when the requested filter
+could not be applied. If the filter write succeeds but a later step fails,
+restore its previous value and verify the restoration. Report a distinct
+high-severity error if rollback cannot be verified.
+
+If no filter profile was selected, do not write `AppFilter` and do not replace
+its current value.
+
+The two AccountsService properties do not provide a cross-property transaction.
+The implementation supplies best-effort transactional behavior through
+ordering, read-back verification, and rollback. Document this limitation in
+operator-facing diagnostics without exposing it as a second authorization
+prompt.
+
+## 9. Kiosk application
+
+Implement a normal GTK 4/libadwaita application suitable for GNOME Kiosk. It
+must not import `resource:///org/gnome/shell/...`, use Shell extension APIs, or
+run inside GNOME Shell.
+
+The application has three views:
+
+1. **Request:** duration choice, optional filter profile, and Continue.
+2. **Review:** explicit summary for the parent and Cancel/Authorize buttons.
+3. **Result:** approved, denied/cancelled, or unavailable, plus Return to Login.
+
+Required behavior:
+
+- populate choices from `GetRequestOptions`;
+- default to the shortest configured duration and no filter change;
+- show the exact target account's administrator-configured display label;
+- disable controls while a request is in flight;
+- issue only one `RequestAccess` call per Authorize click;
+- never retry automatically after a Polkit denial or D-Bus failure;
+- never draw password fields or collect authentication input;
+- redact low-level D-Bus details from the child-facing error view;
+- log a request correlation ID, selected choice IDs, and outcome, but no
+  password, token, or authentication-agent data; and
+- quit cleanly when Return to Login is selected.
+
+The parent reviews the requested duration and filter profile in the application
+before invoking the standard Polkit dialog. The Polkit dialog establishes
+administrator identity; it is not responsible for presenting the full request.
+
+## 10. Kiosk session and authentication agent
+
+Use the distribution's GNOME Kiosk package and its documented session-launch
+mechanism. Install a root-owned kiosk session definition which starts:
+
+1. a maintained distribution Polkit authentication agent; and
+2. the Oh No! Parent Control application.
+
+The authentication agent must register for the active kiosk session and render
+the one administrator dialog produced by the broker's Polkit check. Do not
+embed a Polkit agent in the application unless the distribution provides no
+maintained agent; if that fallback appears necessary, stop and revise this
+design before implementing authentication UI.
+
+Exiting the application must end the kiosk session through the supported kiosk
+session lifecycle and return to GDM. Do not invoke private GDM or GNOME Shell
+methods.
+
+### 10.1 Mandatory session-escape gate
+
+The request-station account is unrestricted by time limits, so it must never be
+able to start a normal GNOME desktop session. Before considering the design
+deployable, prove on the target image that system configuration can restrict
+that account to the kiosk session using supported display-manager/session
+mechanisms.
+
+Test at minimum:
+
+- initial login;
+- logout and login again;
+- reboot;
+- switch-user from the child session;
+- session chooser/gear menu;
+- recovery from application crash;
+- common keyboard shortcuts;
+- virtual-terminal switching;
+- file chooser and URI handling;
+- accessibility shortcuts;
+- D-Bus activation; and
+- attempts to launch a terminal or another desktop application.
+
+If GDM allows the request-station account to select a normal desktop and no
+supported per-account restriction exists, this is a release blocker. Do not
+paper over it with private Shell patches. Choose a supported dedicated
+seat/virtual-terminal kiosk deployment, or require an upstream/distro session
+restriction mechanism, and update this plan before proceeding.
+
+Kiosk UI minimalism alone is not proof of confinement.
+
+## 11. Child-session refresh behavior
+
+After `ActiveExtension` changes, supported Malcontent behavior should publish
+the updated estimate and GNOME should leave its limit-reached state. Do not
+restore the old private `_estimatedTimes` overlay or call private manager
+methods.
+
+Validate all of the following in a booted GNOME/GDM VM with a working system
+bus:
+
+- the supported change notification is emitted promptly;
+- a child session left running while switching to the kiosk observes the new
+  extension when switching back;
+- a fresh child login observes the extension;
+- a shorter grant replaces a longer grant;
+- expiry returns the account to the exhausted state; and
+- Shell or session restart does not extend or shorten the approved duration.
+
+If the existing child session does not refresh through supported signals, the
+supported product behavior must require ending that child session and logging
+in fresh. A private Shell cache patch is not an acceptable fallback.
+
+## 12. App-filter semantics and limitations
+
+Selecting a profile replaces the complete configured `AppFilter` blocklist for
+the child. It is not a delta and must not be merged with the live value.
+
+The UI must say that the chosen profile becomes the child's active restriction
+profile. “No filter change” must be a separate explicit choice.
+
+Do not promise that changing an app filter terminates an application which is
+already running in the suspended child session. Validate actual enforcement on
+return to the child account. If already-running blocked applications remain
+usable, either require a fresh child login for filter-changing requests or
+state and test the narrower supported behavior.
+
+## 13. Repository layout and shared behavior
+
+The repository ships two intentional request paths: the existing in-session
+GNOME Shell extension for the child account, and the kiosk product. Preserve
+the extension's build/install artifacts and its existing policy. The kiosk path
+must remain independent of private Shell objects and use its own broker action.
+
+Reuse only neutral presentation and request-choice logic where practical. Do
+not reuse the extension's user-writable policy/preferences, temporary grants,
+or combined `ChangeOwn` authorization in the kiosk broker; root-owned kiosk
+configuration and the single broker Polkit check are separate security
+boundaries.
+
+Suggested new layout:
 
 ```text
-src/
-    extension.js
-    parentalControlsIntegration.js
-    requestDialog.js
-    malcontentClient.js
+app/                         unprivileged GTK kiosk application
+broker/                      root system-bus service
+config/                      schema and example product configuration
+data/
+  dbus-1/system.d/           broker call policy
+  dbus-1/system-services/    D-Bus activation
+  polkit-1/actions/          single request-access action
+  systemd/                   broker/session units if required
+  wayland-sessions/          GNOME Kiosk session definition if required
+tests/
+  unit/
+  integration/
+docs/
+  System-Design.md           this execution plan
 ```
 
-`parentalControlsIntegration.js` should contain all GNOME Shell implementation-specific code.
+Use distribution-supported runtime libraries. Keep the dependency set small
+and make all installed paths explicit in the build/install tooling.
+
+## 14. Execution phases
 
-This makes future GNOME upgrades easier.
+Complete the phases in order. Do not begin private-API work if a supported
+contract fails; report the failed gate instead.
 
----
+### Phase 0 — Record baseline and protect repository work
 
-# 11. Button lifecycle
+- Inspect `git status` and preserve unrelated changes.
+- Run the existing checks and record their result.
+- Identify any reusable policy parsing, app catalog, D-Bus serialization, and
+  tests separately from Shell-specific code. Reuse is optional and must not
+  constrain the new architecture.
+- Record installed target package versions.
 
-The button must be created only when:
-
-```text
-unlock-dialog is active
-AND
-parental-control time limit is exhausted
-AND
-the parental-controls shield exists
-```
-
-If any of these become false:
-
-```text
-remove/hide the button
-```
-
-Examples:
-
-```text
-Child clicks Oh No! Parent Control
-    -> dialog opens
-
-Child cancels dialog
-    -> button remains
-
-Parent approves request
-    -> button should disappear when the session becomes usable
-
-Child unlocks normally
-    -> button removed
-
-Lock screen destroyed
-    -> button destroyed
-
-Extension disabled
-    -> button destroyed
-```
-
-Do not leave stale Shell actors behind.
-
----
-
-# 12. Custom dialog
-
-Use GNOME Shell's native modal-dialog infrastructure.
-
-Do NOT launch a separate GTK process/application.
-
-Expected UI:
-
-```text
-+--------------------------------------+
-|        Oh No! Parent Control             |
-|                                      |
-|  How much additional time?           |
-|                                      |
-|  ( ) 15 minutes                      |
-|  ( ) 30 minutes                      |
-|  ( ) 1 hour                          |
-|  ( ) Until end of day                |
-|                                      |
-|                    [Cancel] [Request]|
-+--------------------------------------+
-```
-
-The exact visual design can follow GNOME HIG conventions.
-
-Use Shell-native components such as:
-
-```js
-St
-ModalDialog
-Clutter
-```
-
-as appropriate.
-
-The dialog must work correctly in `unlock-dialog`.
-
----
-
-# 13. Duration choices
-
-Initial choices:
-
-```text
-15 minutes
-30 minutes
-60 minutes
-Until end of day
-```
-
-Represent them internally as durations, not strings.
-
-Example:
-
-```js
-const durations = {
-    FIFTEEN_MINUTES: 15 * 60,
-    THIRTY_MINUTES: 30 * 60,
-    ONE_HOUR: 60 * 60,
-    END_OF_DAY: ...
-};
-```
-
-Do not hard-code the "end of day" calculation incorrectly.
-
-Use the local timezone and current date.
-
----
-
-# 14. Malcontent integration research
-
-Before implementing the request action, inspect the actual Malcontent 0.14 source/API.
-
-Search for:
-
-```text
-request-extension
-extension
-malcontent-timer-extension-agent
-malcontent-timerd
-D-Bus
-temporary
-```
-
-Inspect:
-
-```text
-malcontent-client
-malcontent-timer-extension-agent
-malcontent-timerd
-libmalcontent
-```
-
-Determine:
-
-1. Exact D-Bus interface.
-2. Exact object path.
-3. Exact method name.
-4. Exact method parameters.
-5. Exact duration semantics.
-6. Whether arbitrary durations such as 15/30/60 minutes are supported.
-7. Whether duration `0` means "until end of day".
-8. How authorization is performed.
-9. Whether the existing `malcontent-timer-extension-agent` can be reused.
-10. Whether the request must originate from the child user's session.
-11. Whether a request can safely originate from GNOME Shell.
-
-Do not invent D-Bus interfaces.
-
-Use introspection where possible:
-
-```bash
-busctl introspect ...
-```
-
-and/or:
-
-```bash
-gdbus introspect ...
-```
-
-and inspect installed source/header files.
-
----
-
-# 15. Security model
-
-The extension MUST NOT grant time directly.
-
-Bad:
-
-```text
-child clicks Request
-    -> extension grants 30 minutes
-```
-
-Correct:
-
-```text
-child clicks Request
-    -> extension submits request
-    -> privileged authorization occurs
-    -> parent approves
-    -> Malcontent grants extension
-```
-
-The extension must not:
-
-- run as root;
-- modify AccountsService database directly;
-- modify Malcontent policy files directly;
-- bypass Polkit;
-- disable Malcontent;
-- alter PAM configuration;
-- manipulate system clocks;
-- fake usage records.
-
----
-
-# 16. Parent authorization
-
-Investigate whether the existing:
-
-```text
-malcontent-timer-extension-agent
-```
-
-can be used.
-
-If it can:
-
-```text
-Oh No! Parent Control
-       |
-       v
-Malcontent request-extension
-       |
-       v
-Existing extension agent
-       |
-       v
-Polkit
-       |
-       v
-Parent authentication
-       |
-       v
-Temporary extension
-```
-
-Prefer reusing this infrastructure.
-
-Do not implement a second authorization system unless the existing API fundamentally cannot support the required behavior.
-
----
-
-# 17. Important distinction: child UI vs parent authorization
-
-The custom dialog is a **child-facing request UI**.
-
-It is not itself authorization.
-
-Therefore:
-
-```text
-Child:
-    Oh No! Parent Control
-    -> selects 30 minutes
-    -> clicks Request
-
-Parent:
-    receives appropriate authorization prompt
-    -> authenticates
-```
-
-The child must never be able to approve their own request.
-
----
-
-# 18. Error handling
-
-Handle at least:
-
-```text
-Request rejected
-Parent cancels
-Authentication failure
-Malcontent unavailable
-D-Bus failure
-Invalid duration
-Session no longer locked
-Time limit state disappeared
-Extension disabled
-```
-
-The child should receive a simple failure message, for example:
-
-```text
-Your request could not be approved.
-```
-
-Do not expose internal D-Bus or Polkit errors to the child unless useful.
-
-Log detailed errors to GNOME Shell's extension logging.
-
----
-
-# 19. Lock-screen constraints
-
-Because the extension runs in:
-
-```text
-unlock-dialog
-```
-
-follow GNOME Shell extension review/security requirements for that mode.
-
-In particular:
-
-- do not install unnecessary keyboard event handlers;
-- if any keyboard event handlers are used, ensure they are disabled/disconnected in `unlock-dialog`;
-- do not collect sensitive information;
-- do not log passwords;
-- do not interfere with the normal unlock flow.
-
-The extension should use buttons and Shell UI controls rather than attempting to intercept authentication.
-
----
-
-# 20. Parent identity / child identity
-
-The extension must operate on the currently restricted child session.
-
-Do not assume:
-
-```text current Shell user == administrator
-```
-
-The relevant identity is the child whose session has been restricted.
-
-Determine how GNOME/Malcontent identifies the current restricted session.
-
-Prefer existing GNOME Shell/Malcontent session identity APIs.
-
-Do not hard-code a username.
-
----
-
-# 21. Testing strategy
-
-Implement automated/unit tests where practical, plus manual integration tests.
-
-## Test A — normal desktop
-
-Expected:
-
-```text
-No Oh No! Parent Control button.
-```
-
-## Test B — manually lock child session
-
-Expected:
-
-```text
-No Oh No! Parent Control button.
-```
-
-## Test C — child has time remaining
-
-Expected:
-
-```text
-No Oh No! Parent Control button.
-```
-
-## Test D — daily limit exhausted
-
-Expected:
-
-```text
-GNOME parental-controls shield appears.
-Ignore appears.
-Oh No! Parent Control appears.
-```
-
-## Test E — click Oh No! Parent Control
-
-Expected:
-
-```text
-Custom duration dialog appears.
-```
-
-## Test F — cancel
-
-Expected:
-
-```text
-Dialog closes.
-Child remains restricted.
-```
-
-## Test G — request 30 minutes
-
-Expected:
-
-```text
-Parent authorization is requested.
-```
-
-## Test H — parent rejects
-
-Expected:
-
-```text
-Child remains restricted.
-```
-
-## Test I — parent approves
-
-Expected:
-
-```text
-Child can continue using session.
-```
-
-## Test J — extension disabled
-
-Expected:
-
-```text
-No custom UI remains.
-GNOME's native Ignore behavior remains intact.
-```
-
-## Test K — next day
-
-Expected:
-
-```text
-Temporary extension does not permanently alter the daily policy.
-Normal daily limit applies again.
-```
-
----
-
-# 22. Development phases
-
-Implement in this exact order.
-
-## Phase 1 — Source investigation
-
-Do not modify UI.
-
-Deliver:
-
-```text
-docs/gnome50-integration.md
-docs/malcontent014-integration.md
-```
-
-Document:
-
-- relevant GNOME Shell classes;
-- relevant properties/signals;
-- parental-controls shield lifecycle;
-- exact button container;
-- exact exhausted-time state;
-- Malcontent D-Bus API;
-- extension-agent behavior.
-
-Stop if the APIs cannot be determined reliably.
-
----
-
-## Phase 2 — Detection prototype
-
-Implement:
-
-```text
-Main.timeLimitsManager
-        +
-unlock-dialog
-        +
-exhausted-time detection
-```
-
-Log state transitions.
-
-Do not add UI yet.
-
-Acceptance criterion:
-
-The extension logs the exhausted-time state only when the native Ignore UI is expected.
-
----
-
-## Phase 3 — Button
-
-Add:
-
-```text
-Oh No! Parent Control
-```
-
-without changing native Ignore.
-
-Acceptance criterion:
-
-The button appears exactly alongside Ignore when the parental-control limit is exhausted.
-
----
-
-## Phase 4 — Dialog
-
-Implement the Shell-native custom duration dialog.
-
-Acceptance criterion:
-
-The child can select:
-
-- 15 min
-- 30 min
-- 60 min
-- end of day
-
-and cancel safely.
-
-No actual time granting yet.
-
----
-
-## Phase 5 — Malcontent request
-
-Connect the Request button to the real Malcontent extension mechanism.
-
-Acceptance criterion:
-
-The request reaches the existing Malcontent authorization infrastructure.
-
----
-
-## Phase 6 — End-to-end approval
-
-Verify:
-
-```text
-Child
-  -> Oh No! Parent Control
-  -> selects 30 minutes
-  -> Request
-  -> parent authorization
-  -> parent approves
-  -> 30 minutes granted
-  -> child session becomes usable
-```
-
-Also test rejection.
-
----
-
-# 23. Compatibility strategy
-
-The first release targets:
-
-```text
-GNOME Shell 50 / Ubuntu 26.04
-```
-
-Do not add Ubuntu 24.04 compatibility initially.
-
-The code should nevertheless isolate GNOME Shell internals so future compatibility can be added without rewriting the entire extension.
-
-Example:
-
-```text
-parentalControlsIntegration.js
-```
-
-should be the only module that knows about:
-
-```text
-ParentalControlsShield
-AuthPrompt
-_private Shell actors
-```
-
----
-
-# 24. Logging
-
-Use a consistent prefix:
+Deliverable: a short reuse/removal inventory and reproducible baseline command.
+
+### Phase 1 — Prove platform prerequisites
+
+- Install or inspect GNOME Kiosk and its packaged session launch files.
+- Identify the maintained Polkit authentication agent available on Ubuntu.
+- Inspect installed AccountsService/Malcontent introspection XML.
+- Build a throwaway kiosk session which displays one harmless GTK window.
+- Confirm a test Polkit action opens exactly one dialog in that session.
+- Prove the mandatory session-escape gate in section 10.1.
+
+Deliverable: evidence for kiosk confinement, Polkit-agent operation, and exact
+installed interface signatures. Stop if confinement cannot be achieved using
+supported mechanisms.
+
+### Phase 2 — Define packaging and configuration
+
+- Add the configuration schema and strict validator.
+- Add provisioning logic for separate kiosk and child UIDs.
+- Ensure the kiosk account has `SessionLimits.LimitType = 0`.
+- Add root-owned installation paths, ownership, and modes.
+- Add clean-install and uninstall behavior. Uninstall must not delete system
+  accounts or child policy unless the administrator explicitly requests that
+  separate destructive action.
+
+Deliverable: install into a disposable prefix/image and verify permissions.
+
+### Phase 3 — Implement the broker
+
+- Export the minimal D-Bus interface.
+- Verify D-Bus sender UID on every call.
+- Implement request serialization and rate limiting.
+- Implement one interactive Polkit check for the real sender.
+- Resolve only the configured child AccountsService object.
+- Implement filter-first and extension-last writes.
+- Add read-back verification and filter rollback.
+- Add structured, redacted logging and stable error names.
+
+Deliverable: broker unit tests with mocked Polkit and AccountsService plus
+system-bus integration tests in a disposable VM.
+
+### Phase 4 — Implement the kiosk application
+
+- Build the Request, Review, and Result views.
+- Load options only from the broker.
+- Make request submission single-flight.
+- Handle cancellation, denial, timeout, broker restart, and malformed replies.
+- Ensure Return to Login ends the kiosk session cleanly.
+
+Deliverable: application tests and a working full-screen kiosk session without
+privileged writes.
+
+### Phase 5 — End-to-end authorization
+
+- Connect the application to the real broker and Polkit agent.
+- Count visible authentication dialogs for approval, denial, cancellation, and
+  backend failure paths.
+- Verify the app never handles secrets.
+- Verify both writes use the supported AccountsService interfaces.
+
+Deliverable: video or timestamped logs demonstrating exactly one Polkit dialog
+for a combined approved request.
+
+### Phase 6 — Child-session and enforcement validation
+
+- Test time-only requests.
+- Test time plus every filter profile.
+- Test “no filter change.”
+- Test shorter-over-longer replacement.
+- Test expiration and next-day behavior.
+- Test switch-back to an existing child session and fresh login.
+- Test already-running blocked applications.
+- Test crash and power-loss points between the two writes.
+
+Deliverable: completed integration matrix and documented supported recovery
+behavior.
+
+### Phase 7 — Release both supported request paths
+
+- Keep the GNOME Shell extension in build and release artifacts.
+- Keep private Shell adapters strictly confined to that extension; verify the
+  kiosk app and broker contain no private Shell imports or references.
+- Update README and operator documentation for the extension plus kiosk
+  provisioning, entry, recovery, and uninstall.
+- Do not add migration scripts, configuration readers, or authorization
+  compatibility modes between the two paths.
+
+Deliverable: a package containing the independently tested extension and kiosk
+architectures.
+
+## 15. Required automated tests
+
+At minimum, cover:
+
+- strict configuration validation and secure-file checks;
+- caller UID mismatch;
+- kiosk UID equal to child UID;
+- root/admin/system target rejection;
+- unknown duration and profile IDs;
+- local-midnight boundary, DST transition, and clock edge cases;
+- invalid Flatpak IDs and executable paths;
+- concurrent request rejection;
+- request rate limiting;
+- Polkit approval, denial, cancellation, timeout, and agent loss;
+- caller disconnect during authorization;
+- confirmation that each click invokes `CheckAuthorization` once;
+- no property writes before approval;
+- filter omitted;
+- filter written before extension;
+- extension failure followed by successful filter rollback;
+- rollback failure escalation;
+- exact read-back verification;
+- broker restart and malformed D-Bus calls; and
+- UI single-flight and error redaction.
+
+Tests must never modify the developer's real AccountsService user objects.
+Integration tests require disposable users in a VM or disposable system image.
+
+## 16. Manual acceptance matrix
+
+The release candidate must pass all of these on the target image:
+
+| Scenario | Expected result |
+| --- | --- |
+| Kiosk account starts | Only the request application is usable |
+| Kiosk account time state | No Malcontent time limit applies |
+| Alternative session attempt | Normal desktop cannot be started for kiosk UID |
+| Cancel before authorization | No Polkit dialog and no writes |
+| Parent cancels Polkit | One dialog, no writes |
+| Wrong administrator password | Same standard dialog handles retry; app creates no second request |
+| Time-only approval | One dialog; only `ActiveExtension` changes |
+| Time plus filter approval | One dialog; exact filter and extension change |
+| App-filter write failure | No extension is granted |
+| Extension write failure | Prior filter is restored and verified |
+| Repeated Authorize clicks | One in-flight request and one dialog |
+| Switch back to child | Approved duration is recognized |
+| Grant expires | Stock Malcontent enforcement resumes |
+| Broker unavailable | Redacted error; kiosk remains confined |
+| App crashes | Session exits or safely restarts into the same kiosk app |
+| Reboot | Identities, confinement, configuration, and enforcement persist |
+
+Count a Polkit agent's internal wrong-password retry as part of the same dialog,
+not as a second application authorization request.
+
+## 17. Observability and privacy
+
+Use a consistent prefix or structured journal identifier:
 
 ```text
 [oh-no-parent-control]
 ```
 
-Example:
+Log:
 
-```text
-[oh-no-parent-control] extension enabled
-[oh-no-parent-control] entered unlock-dialog
-[oh-no-parent-control] parental control limit exhausted
-[oh-no-parent-control] showing request button
-[oh-no-parent-control] request dialog opened
-[oh-no-parent-control] requesting 1800 seconds
-[oh-no-parent-control] request submitted
-[oh-no-parent-control] request approved
-[oh-no-parent-control] request rejected
-```
+- correlation ID;
+- caller UID;
+- configured target UID;
+- duration/profile identifiers;
+- authorization outcome;
+- each property-write and verification stage;
+- rollback attempt and outcome; and
+- final stable result code.
 
 Never log:
 
 - passwords;
-- authentication secrets;
-- sensitive Polkit details;
-- unnecessary personal information.
+- authentication-agent responses;
+- Polkit temporary authorization data;
+- full user-provided D-Bus payloads;
+- unrelated account information; or
+- more personal information than numeric UIDs required for diagnosis.
 
----
+## 18. Definition of done
 
-# 25. Code quality requirements
+The replacement is complete only when:
 
-The implementation must:
+- [ ] The kiosk and child accounts are different unprivileged UIDs.
+- [ ] The kiosk account is not subject to a session time limit.
+- [ ] The kiosk account cannot enter a normal desktop session.
+- [ ] GNOME Kiosk shows only the request application.
+- [ ] A supported maintained Polkit agent serves the kiosk session.
+- [ ] The broker authenticates the real D-Bus caller exactly once.
+- [ ] The child cannot approve a request without administrator credentials.
+- [ ] The broker can target only the root-configured child UID.
+- [ ] Time-only requests leave the app filter unchanged.
+- [ ] Combined requests replace the configured filter and extension correctly.
+- [ ] Failures cannot grant time without the selected filter.
+- [ ] Read-back and rollback behavior are tested.
+- [ ] Existing and fresh child sessions observe the extension through supported
+      behavior.
+- [ ] Expiry restores stock Malcontent enforcement.
+- [ ] The kiosk application and broker import, patch, and inspect no private
+      GNOME Shell API.
+- [ ] The child in-session extension remains shipped and independently tested.
+- [ ] No custom authentication dialog or secret handling exists.
+- [ ] Automated tests and the manual acceptance matrix pass on Ubuntu 26.04.
+- [ ] Installation, provisioning, recovery, logging, and uninstall are
+      documented for an operator starting from a clean machine.
 
-- use modern GNOME Shell 50 JavaScript imports;
-- avoid deprecated GNOME Shell APIs where alternatives exist;
-- avoid monkey-patching unless absolutely necessary;
-- keep GNOME-internal integration isolated;
-- clean up all signals;
-- clean up all actors;
-- clean up dialogs;
-- avoid timers/polling unless required;
-- avoid root privileges;
-- avoid external dependencies;
-- avoid modifying system files.
+## 19. Stop conditions
 
-Follow GNOME Shell extension conventions.
+Stop implementation and report the blocker rather than weakening the design if:
 
----
+- the kiosk UID can select or escape into a normal desktop session;
+- no maintained authentication agent works in GNOME Kiosk;
+- Polkit cannot authenticate the actual kiosk D-Bus sender;
+- the target AccountsService properties differ from the verified signatures;
+- the child session cannot recognize a supported `ActiveExtension` update even
+  after a fresh login;
+- app-filter enforcement is materially weaker than the UI promise; or
+- exactly one authentication dialog cannot be demonstrated.
 
-# 26. Do not make these assumptions
-
-The coding agent MUST NOT assume any of the following without source verification:
-
-```text
-ParentalControlsShield is public API.
-AuthPrompt._parentalControlsShield is stable API.
-shouldLockSession means only daily-limit exhaustion.
-request-extension accepts arbitrary durations.
-duration=0 means end-of-day in every context.
-malcontent-timer-extension-agent automatically handles requests from any client.
-the child username can be obtained from the Shell global.
-the native Ignore button's actor hierarchy will remain unchanged.
-```
-
-Verify each against GNOME Shell 50 / Malcontent 0.14 source or D-Bus introspection.
-
----
-
-# 27. Definition of done
-
-The implementation is complete when all of the following are true:
-
-### UI
-
-- [ ] Extension loads on GNOME Shell 50.
-- [ ] Extension runs in `unlock-dialog`.
-- [ ] Oh No! Parent Control is invisible during normal use.
-- [ ] Oh No! Parent Control is invisible during ordinary manual lock.
-- [ ] Oh No! Parent Control appears when the native parental-control Ignore button appears.
-- [ ] Native Ignore button remains unchanged.
-- [ ] Custom duration dialog works on the lock screen.
-
-### Backend
-
-- [ ] Existing Malcontent extension mechanism is used where possible.
-- [ ] No independent time-enforcement system is implemented.
-- [ ] Parent authorization is required.
-- [ ] Child cannot authorize their own request.
-- [ ] Exact requested duration is passed correctly.
-- [ ] Rejection works.
-- [ ] Approval works.
-- [ ] Temporary extension does not permanently modify the daily policy.
-
-### Reliability
-
-- [ ] No polling unless unavoidable.
-- [ ] All signal handlers are disconnected.
-- [ ] All Shell actors are removed on disable.
-- [ ] Dialogs are destroyed correctly.
-- [ ] No stale UI remains after unlocking.
-- [ ] No errors during extension disable/re-enable.
-
-### Security
-
-- [ ] No root daemon.
-- [ ] No direct policy-file modification.
-- [ ] No AccountsService database manipulation.
-- [ ] No Polkit bypass.
-- [ ] No authentication interception.
-- [ ] No password handling.
-
----
-
-# 28. Final implementation principle
-
-The extension should be a **thin UI layer** over GNOME/Malcontent:
-
-```text
-                GNOME Shell
-                    |
-             TimeLimitsManager
-                    |
-             limit exhausted?
-                    |
-                   YES
-                    |
-                    v
-          ParentalControlsShield
-                    |
-          +---------+---------+
-          |                   |
-       Ignore        Oh No! Parent Control
-          |                   |
-      GNOME native        Custom dialog
-          |                   |
-       Polkit              Malcontent
-          |                   |
-       End-of-day       Requested duration
-       override              |
-                              v
-                         Parent auth
-                              |
-                              v
-                       Temporary access
-```
-
-The extension should **not become a replacement parental-control system**.
-
-Its job is simply to provide the missing child-facing UX while delegating enforcement and authorization to the existing GNOME/Malcontent infrastructure.
+The acceptable response to a stop condition is a supported distro/upstream
+integration change or a documented product requirement change. Do not
+introduce private GNOME Shell integration into the kiosk path as a fallback;
+the existing in-session extension remains separately scoped.

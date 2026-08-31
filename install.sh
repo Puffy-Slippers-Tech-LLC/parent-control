@@ -151,13 +151,17 @@ fi
 /usr/libexec/oh-no-parent-control-provision "${provision_args[@]}"
 
 # GNOME Initial Setup otherwise runs on the account's first session and asks
-# for language and diagnostics choices. The kiosk is fully provisioned here,
-# so record completion before it can log in.
+# for language and diagnostics choices. Ubuntu 26.04 also starts its upgrade
+# flow unless the release-specific completion marker exists. The kiosk is
+# fully provisioned here, so record both as complete before it can log in.
 kiosk_gid="$(id -g "$KIOSK_USER")"
 install -d -o "$KIOSK_USER" -g "$kiosk_gid" -m 0700 \
-    "/home/$KIOSK_USER/.config"
+    "/home/$KIOSK_USER/.config" \
+    "/home/$KIOSK_USER/.config/gnome-initial-setup"
 install -o "$KIOSK_USER" -g "$kiosk_gid" -m 0644 /dev/null \
     "/home/$KIOSK_USER/.config/gnome-initial-setup-done"
+install -o "$KIOSK_USER" -g "$kiosk_gid" -m 0644 /dev/null \
+    "/home/$KIOSK_USER/.config/gnome-initial-setup/upgrade-26.04-done"
 systemctl daemon-reload
 systemctl reload dbus.service
 systemctl restart accounts-daemon.service
@@ -182,6 +186,10 @@ test -s /usr/share/wayland-sessions/oh-no-parent-control.desktop
 test -f "/home/$KIOSK_USER/.config/gnome-initial-setup-done"
 test "$(stat -c %U "/home/$KIOSK_USER/.config/gnome-initial-setup-done")" = \
     "$KIOSK_USER"
+test -f "/home/$KIOSK_USER/.config/gnome-initial-setup/upgrade-26.04-done"
+test "$(stat -c %U \
+    "/home/$KIOSK_USER/.config/gnome-initial-setup/upgrade-26.04-done")" = \
+    "$KIOSK_USER"
 grep -Fq "\"kiosk_uid\": $kiosk_uid" /etc/oh-no-parent-control/config.json
 grep -Fq '<allow send_destination="com.puffyslippers.OhNoParentControl1"' \
     /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
@@ -190,6 +198,7 @@ grep -Fq "pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-check" \
 grep -Fq "pam_malcontent.so" /etc/pam.d/common-account
 grep -Fq "pam_succeed_if.so quiet user ingroup sudo" \
     /etc/pam.d/common-account
+grep -Fq "Group=sudo" /usr/lib/systemd/system/oh-no-parent-control-broker.service
 grep -Fq "AutomaticLoginEnable=false" /etc/gdm3/custom.conf
 grep -Fq "TimedLoginEnable=false" /etc/gdm3/custom.conf
 test "$(busctl --system get-property \

@@ -7,7 +7,12 @@ Type=dbus
 BusName=com.puffyslippers.OhNoParentControl1
 ExecStart=/usr/libexec/oh-no-parent-control-broker
 User=root
-Group=root
+Group=sudo
+# ExtensionManager deliberately enters the selected child's identity before
+# accessing that child's dconf database. Keep only the capabilities required
+# for that transition and for installing child-owned extension files.
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUID
+AmbientCapabilities=CAP_SETGID CAP_SETUID
 NoNewPrivileges=yes
 PrivateDevices=yes
 PrivateTmp=yes

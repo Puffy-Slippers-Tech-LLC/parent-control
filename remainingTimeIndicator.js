@@ -49,31 +49,24 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             y_align: Clutter.ActorAlign.START,
         }));
 
-        const buttonContent = new St.BoxLayout({
+        this._buttonContent = new St.BoxLayout({
             style_class: 'screen-time-request-button-content',
+            x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        buttonContent.add_child(this._label);
-        buttonContent.add_child(this._requestIcon);
+        this._buttonContent.add_child(this._label);
+        this._buttonContent.add_child(this._requestIcon);
 
         this._requestButton = new St.Button({
             style_class: 'screen-time-request-button',
-            child: buttonContent,
+            child: this._buttonContent,
             can_focus: true,
             reactive: true,
             track_hover: true,
             accessible_name: 'Oh No! Parent Control',
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this._requestTooltip = new St.Label({
-            style_class: 'dash-label',
-            text: 'Request time',
-            visible: false,
-        });
-        Main.uiGroup.add_child(this._requestTooltip);
-        this._requestButton.connect('notify::hover', () => this._syncRequestTooltip());
         this._requestButton.connect('clicked', () => {
-            this._requestTooltip.hide();
             this.setRequestActive(true);
             this._onRequest?.(this);
         });
@@ -86,6 +79,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._signals = [];
         this._timeoutId = 0;
+        this._layoutSyncId = 0;
+        this._startupLayoutSyncId = 0;
         this._flashTimeoutId = 0;
         this._destroyed = false;
         this._grantedUntil = approvedGrantRemaining > 0
@@ -93,6 +88,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             : 0;
         this._sessionEnd = 0;
         this._refreshPending = false;
+        this._vertical = null;
         this._timerSignalId = Gio.DBus.system.signal_subscribe(
             TIMER_BUS_NAME, TIMER_INTERFACE, 'EstimatedTimesChanged',
             TIMER_OBJECT_PATH, null, Gio.DBusSignalFlags.NONE,
@@ -109,34 +105,22 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-time', () => this._sync());
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-enabled', () => this._sync());
         this._connect(Main.sessionMode, 'updated', () => this._sync());
-        this._connect(Main.panel, 'notify::width', () => this._sync());
-        this._connect(Main.panel, 'notify::height', () => this._sync());
+        this._connect(Main.panel, 'notify::width', () => this._queueLayoutSync());
+        this._connect(Main.panel, 'notify::height', () => this._queueLayoutSync());
+        // Dash to Panel recursively rewrites nested BoxLayout orientations
+        // while rebuilding a vertical panel. Reconcile our layout after it
+        // has finished instead of relying only on panel size notifications.
+        this._connect(this._buttonContent, 'notify::vertical',
+            () => this._queueLayoutSync());
 
         this._sync();
+        this._queueLayoutSync();
+        this._startLayoutSync();
         this._refreshEstimate();
     }
 
     setRequestActive(active) {
         this._requestButton?.set_checked(active);
-    }
-
-    _syncRequestTooltip() {
-        if (!this._requestButton.hover) {
-            this._requestTooltip.hide();
-            return;
-        }
-
-        const [buttonX, buttonY] = this._requestButton.get_transformed_position();
-        const [buttonWidth, buttonHeight] = this._requestButton.get_transformed_size();
-        const [tooltipWidth] = this._requestTooltip.get_preferred_size();
-        const monitor = Main.layoutManager.findMonitorForActor(this._requestButton);
-        const tooltipX = Math.clamp(
-            Math.floor(buttonX + (buttonWidth - tooltipWidth) / 2),
-            monitor.x,
-            monitor.x + monitor.width - tooltipWidth);
-
-        this._requestTooltip.set_position(tooltipX, buttonY + buttonHeight + 6);
-        this._requestTooltip.show();
     }
 
     _connect(object, signal, callback) {
@@ -146,8 +130,6 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     destroy() {
         this._destroyed = true;
         this._onRequest = null;
-        this._requestTooltip?.destroy();
-        this._requestTooltip = null;
 
         for (const [object, id] of this._signals) {
             if (!id)
@@ -161,6 +143,14 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._signals = [];
 
         this._clearTimeout();
+        if (this._layoutSyncId) {
+            GLib.source_remove(this._layoutSyncId);
+            this._layoutSyncId = 0;
+        }
+        if (this._startupLayoutSyncId) {
+            GLib.source_remove(this._startupLayoutSyncId);
+            this._startupLayoutSyncId = 0;
+        }
         this._clearFlash();
 
         if (this._timerSignalId)
@@ -177,12 +167,43 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         }
     }
 
+    _queueLayoutSync() {
+        if (this._destroyed || this._layoutSyncId)
+            return;
+
+        this._layoutSyncId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._layoutSyncId = 0;
+            if (!this._destroyed)
+                this._sync();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _startLayoutSync() {
+        let attempts = 0;
+        this._startupLayoutSyncId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT, 250, () => {
+                if (this._destroyed) {
+                    this._startupLayoutSyncId = 0;
+                    return GLib.SOURCE_REMOVE;
+                }
+
+                this._sync();
+                attempts++;
+                if (attempts >= 20) {
+                    this._startupLayoutSyncId = 0;
+                    return GLib.SOURCE_REMOVE;
+                }
+                return GLib.SOURCE_CONTINUE;
+            });
+    }
+
     _clearFlash() {
         if (this._flashTimeoutId) {
             GLib.source_remove(this._flashTimeoutId);
             this._flashTimeoutId = 0;
         }
-        this._label?.remove_style_pseudo_class('flash');
+        this._buttonContent?.remove_style_pseudo_class('flash');
     }
 
     _clearCountdownWarning() {
@@ -314,32 +335,63 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _compactLabel() {
+        // Dash to Panel exposes the orientation it used for the current panel
+        // allocation. This is available before Main.panel's dimensions have
+        // necessarily caught up during extension startup.
+        const panelVertical = Main.panel._delegate?.geom?.vertical;
+        if (typeof panelVertical === 'boolean')
+            return panelVertical;
+
         // Use the panel's rendered orientation, not a particular dock
         // extension's setting. That setting can remain LEFT while another
         // extension places the visible panel along the top or bottom.
-        return Main.panel.height > Main.panel.width;
+        const [width, height] = Main.panel.get_transformed_size();
+        return height > width;
+    }
+
+    _syncOrientation() {
+        const vertical = this._compactLabel();
+        // Another panel extension can mutate the BoxLayout after our cached
+        // orientation was set, so always compare against the actor too.
+        if (this._buttonContent.vertical !== vertical)
+            this._buttonContent.vertical = vertical;
+
+        if (this._vertical !== vertical) {
+            this._vertical = vertical;
+            const method = vertical
+                ? 'add_style_class_name'
+                : 'remove_style_class_name';
+            this._requestButton[method]('screen-time-request-button-vertical');
+            this._buttonContent[method]('screen-time-request-button-content-vertical');
+            this._label[method]('screen-time-remaining-label-vertical');
+        }
+
+        return vertical;
     }
 
     _updateLabel(remainingSecs) {
         if (remainingSecs >= 60)
             this._clearCountdownWarning();
 
-        const compact = this._compactLabel();
-        if (remainingSecs > 60) {
+        const compact = this._syncOrientation();
+        if (remainingSecs < 10) {
+            this._label.text = `${remainingSecs}`;
+        } else if (remainingSecs > 60) {
             const totalMinutes = Math.floor(remainingSecs / 60);
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;
             const time = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-            this._label.text = compact ? time : `${time} left`;
-        } else if (remainingSecs === 1) {
-            this._label.text = compact ? '1' : '1 left';
+            if (compact)
+                this._label.text = hours > 0 ? `${hours}h` : `${minutes}m`;
+            else
+                this._label.text = `${time} left`;
         } else {
             this._label.text = compact ? `${remainingSecs}` : `${remainingSecs} left`;
         }
 
         if (remainingSecs < 60) {
             this._label.add_style_pseudo_class('countdown');
-            this._flashLabel();
+            this._flashContent();
         }
 
         this._updateRequestIcon(remainingSecs);
@@ -365,13 +417,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         });
     }
 
-    _flashLabel() {
+    _flashContent() {
         this._clearFlash();
-        this._label.add_style_pseudo_class('flash');
+        this._buttonContent.add_style_pseudo_class('flash');
         this._flashTimeoutId = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT, 350, () => {
                 this._flashTimeoutId = 0;
-                this._label?.remove_style_pseudo_class('flash');
+                this._buttonContent?.remove_style_pseudo_class('flash');
                 return GLib.SOURCE_REMOVE;
             });
     }

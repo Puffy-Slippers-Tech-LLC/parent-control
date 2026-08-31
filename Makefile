@@ -1,5 +1,5 @@
 UUID := oh-no-parent-control@tech.puffyslippers.com
-SOURCES := appCatalog.js appFilterClient.js appPolicyStore.js approvedGrantStore.js customDurationStore.js malcontentClient.js parentalApproval.js parentalControlsIntegration.js remainingTimeIndicator.js requestDialog.js sessionLimitsClient.js timerQuery.js
+SOURCES := appCatalog.js appFilterClient.js appPolicyStore.js approvedGrantStore.js malcontentClient.js parentalApproval.js parentalControlsIntegration.js remainingTimeIndicator.js requestDialog.js requestPreferencesStore.js sessionLimitsClient.js timerQuery.js
 # Shell extensions belong to the host user's data directory. In particular,
 # terminals launched by a confined IDE can export a sandbox-specific
 # XDG_DATA_HOME which GNOME Shell never searches.

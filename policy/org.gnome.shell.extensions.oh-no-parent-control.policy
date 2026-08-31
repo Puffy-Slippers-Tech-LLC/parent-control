@@ -21,15 +21,4 @@
          line also avoids leading XML whitespace being loaded as the value. -->
     <annotate key="org.freedesktop.policykit.imply">com.endlessm.ParentalControls.SessionLimits.ChangeOwn com.endlessm.ParentalControls.AppFilter.ChangeOwn</annotate>
   </action>
-
-  <action id="org.gnome.shell.extensions.oh-no-parent-control.ConfigureApps">
-    <description>Configure parental app restrictions</description>
-    <message>Administrator authentication is required to change app restrictions.</message>
-    <defaults>
-      <allow_any>auth_admin</allow_any>
-      <allow_inactive>auth_admin</allow_inactive>
-      <allow_active>auth_admin</allow_active>
-    </defaults>
-    <annotate key="org.freedesktop.policykit.imply">com.endlessm.ParentalControls.AppFilter.ChangeOwn</annotate>
-  </action>
 </policyconfig>

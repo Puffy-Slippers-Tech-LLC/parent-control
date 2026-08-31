@@ -75,7 +75,7 @@ Install and configure the application:
     malcontent-timer-extension-agent.service
 
   sudo env DEBIAN_FRONTEND=noninteractive pam-auth-update --disable malcontent
-  sudo malcontent-client set-session-limits child daily-limit --daily-limit 14400
+  sudo malcontent-client set-session-limits child daily-limit --daily-limit 0
 
   sudo install -o root -g root -m 0644 /dev/stdin \
     /usr/share/pam-configs/oh-no-parent-control-child-limits <<'CHILD_PAM'

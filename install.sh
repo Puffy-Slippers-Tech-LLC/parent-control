@@ -171,6 +171,7 @@ systemctl restart accounts-daemon.service
 kiosk_uid="$(id -u "$KIOSK_USER")"
 test "$kiosk_uid" -ne 0
 test -x /usr/bin/oh-no-parent-control
+test -x /usr/bin/oh-no-parent-control-parent
 test -x /usr/libexec/oh-no-parent-control-broker
 test -x /usr/libexec/oh-no-parent-control-provision
 test -s /etc/oh-no-parent-control/config.json
@@ -184,7 +185,7 @@ test -s /usr/lib/systemd/user/gnome-session@oh-no-parent-control.target.d/sessio
 test -s /usr/share/gnome-session/sessions/oh-no-parent-control.session
 test -s /usr/share/wayland-sessions/oh-no-parent-control.desktop
 grep -Fq "\"kiosk_uid\": $kiosk_uid" /etc/oh-no-parent-control/config.json
-grep -Fq "<policy user=\"$KIOSK_USER\">" \
+grep -Fq '<allow send_destination="com.puffyslippers.OhNoParentControl1"' \
     /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
 grep -Fq "pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-check" \
     /etc/pam.d/common-account

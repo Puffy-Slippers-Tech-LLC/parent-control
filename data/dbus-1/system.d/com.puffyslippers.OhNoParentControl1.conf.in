@@ -4,13 +4,9 @@
   <policy user="root">
     <allow own="com.puffyslippers.OhNoParentControl1"/>
   </policy>
-  <policy user="@KIOSK_USER@">
+  <policy context="default">
     <allow send_destination="com.puffyslippers.OhNoParentControl1"
            send_interface="com.puffyslippers.OhNoParentControl1"/>
-  </policy>
-  <policy context="default">
     <deny own="com.puffyslippers.OhNoParentControl1"/>
-    <deny send_destination="com.puffyslippers.OhNoParentControl1"
-          send_interface="com.puffyslippers.OhNoParentControl1"/>
   </policy>
 </busconfig>

@@ -36,7 +36,7 @@ extracting the JavaScript resources embedded in `/usr/lib/gnome-shell/libshell-1
   `org.freedesktop.Malcontent.SessionLimits.Extend`. The combined time/app
   approval action needs the same exception. Since `polkitAgent.js` is embedded
   in the Shell binary rather than part of this extension,
-  `parentalControlsIntegration.js` applies a narrow runtime patch to the loaded
+  `child/parentalControlsIntegration.js` applies a narrow runtime patch to the loaded
   `polkitAgent` component: it adds the extension's
   `org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps` action to
   that one allowlist. The patch restores the original method on disable and
@@ -49,7 +49,7 @@ both through the same native shield and does not expose a separate public
 reason enum. Matching the native shield is therefore the safest exact rule.
 
 There is no public extension hook for augmenting `ParentalControlsShield`.
-`parentalControlsIntegration.js` contains the only private access, verifies the
+`child/parentalControlsIntegration.js` contains the only private access, verifies the
 shield's style class and that it is currently parented, and appends rather than
 replaces the native button. It resynchronizes on time-limit state, session-mode,
 and screen-shield activity changes and destroys its actor on every exit path.

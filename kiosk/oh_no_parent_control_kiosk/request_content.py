@@ -15,7 +15,7 @@ from gi.repository import Gtk
 
 def _load_options():
     adjacent = Path(__file__).with_name("request-options.json")
-    path = adjacent if adjacent.exists() else Path(__file__).parents[2] / "request-options.json"
+    path = adjacent if adjacent.exists() else Path(__file__).parents[2] / "child" / "request-options.json"
     options = json.loads(
         path.read_text(encoding="utf-8")
     )
@@ -35,7 +35,7 @@ NUMBER_RE = re.compile(r"^(?:\d+(?:\.\d+)?|\.\d+)$")
 class RequestContent(Gtk.Box):
     """Reusable request-time form used as the kiosk's primary content."""
 
-    def __init__(self, on_request, on_cancel, on_refresh):
+    def __init__(self, on_request, on_cancel, on_refresh, on_account_selected=None):
         super().__init__(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=16,
@@ -48,6 +48,7 @@ class RequestContent(Gtk.Box):
         self._account_uids = []
         self._account_labels = []
         self._ready = False
+        self._on_account_selected = on_account_selected
 
         self.append(self._header())
         self._status = Gtk.Label(label="Loading request details…", wrap=True)
@@ -59,6 +60,7 @@ class RequestContent(Gtk.Box):
         account_row.append(Gtk.Label(label="Account", xalign=0, hexpand=True))
         self._accounts = Gtk.DropDown(model=Gtk.StringList.new([]))
         self._accounts.set_hexpand(True)
+        self._accounts.connect("notify::selected", self._account_changed)
         account_row.append(self._accounts)
         self._refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Refresh accounts")
         self._refresh.connect("clicked", on_refresh)
@@ -168,6 +170,31 @@ class RequestContent(Gtk.Box):
         else:
             self._status.set_text("No local standard accounts are available. Create one, then refresh.")
         self._request.set_sensitive(self._ready)
+        if parsed:
+            self._account_changed()
+
+    def _account_changed(self, *_args):
+        index = self._accounts.get_selected()
+        if (self._ready and index < len(self._account_uids) and
+                self._on_account_selected is not None):
+            self._on_account_selected(self._account_uids[index])
+
+    def set_preferences(self, preferences):
+        request = preferences.get("request", {})
+        selected_value = request.get("last_selected_duration", str(DEFAULT_DURATION_SECONDS))
+        selected_seconds = None if selected_value == "custom" else int(selected_value)
+        selected = next(
+            (button for button in self._duration_buttons
+             if button.duration_seconds == selected_seconds), None,
+        )
+        if selected is None:
+            selected = next(button for button in self._duration_buttons
+                            if button.duration_seconds == DEFAULT_DURATION_SECONDS)
+        selected.set_active(True)
+        self._custom_row.set_visible(selected.duration_seconds is None)
+        custom = request.get("last_custom_minutes", MIN_CUSTOM_MINUTES)
+        self._custom_entry.set_text(str(custom))
+        self._allow_soft.set_active(bool(request.get("allow_soft_blocked_apps", False)))
 
     def _duration_clicked(self, button):
         if not button.get_active():
@@ -202,6 +229,19 @@ class RequestContent(Gtk.Box):
             self._account_uids[account_index], self._account_labels[account_index],
             seconds, self._allow_soft.get_active(),
         )
+
+    def selected_preferences(self):
+        selected = next(
+            (button for button in self._duration_buttons if button.get_active()), None
+        )
+        if selected is None:
+            raise ValueError("no duration selected")
+        selected_value = "custom" if selected.duration_seconds is None else str(
+            selected.duration_seconds
+        )
+        text = self._custom_entry.get_text().strip()
+        custom = float(text) if NUMBER_RE.fullmatch(text) else MIN_CUSTOM_MINUTES
+        return selected_value, custom, self._allow_soft.get_active()
 
     def show_validation_error(self, message):
         self._status.set_text(message)

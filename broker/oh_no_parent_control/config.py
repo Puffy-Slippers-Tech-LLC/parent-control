@@ -15,11 +15,10 @@ MAX_REQUEST_INTERVAL = 3600
 FLATPAK_ID_RE = re.compile(
     r"^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+$"
 )
+FLATPAK_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 TOP_KEYS = {
-    "version", "kiosk_uid", "app_filter",
-    "minimum_request_interval_seconds",
+    "version", "kiosk_uid", "minimum_request_interval_seconds",
 }
-APP_FILTER_KEYS = {"hard_blocked_targets", "soft_blocked_targets"}
 
 
 class ConfigurationError(ValueError):
@@ -27,15 +26,8 @@ class ConfigurationError(ValueError):
 
 
 @dataclass(frozen=True)
-class AppFilter:
-    hard_blocked_targets: tuple[str, ...]
-    soft_blocked_targets: tuple[str, ...]
-
-
-@dataclass(frozen=True)
 class Configuration:
     kiosk_uid: int
-    app_filter: AppFilter
     minimum_request_interval_seconds: int
 
 
@@ -66,42 +58,29 @@ def validate_target(target: object) -> str:
         if target != os.path.normpath(target) or target == "/":
             raise ConfigurationError(f"invalid executable path: {target}")
         return target
+    parts = target.split("/")
+    if (len(parts) == 4 and parts[0] == "app" and
+            FLATPAK_ID_RE.fullmatch(parts[1]) and
+            all(FLATPAK_COMPONENT_RE.fullmatch(part) for part in parts[2:])):
+        return target
     if not FLATPAK_ID_RE.fullmatch(target):
-        raise ConfigurationError(f"invalid Flatpak application ID: {target}")
+        raise ConfigurationError(f"invalid Flatpak application target: {target}")
     return target
 
 
 def validate(raw: object) -> Configuration:
     _exact_keys(raw, TOP_KEYS, "top-level")
-    if type(raw["version"]) is not int or raw["version"] != 2:
-        raise ConfigurationError("version must be 2")
+    if type(raw["version"]) is not int or raw["version"] != 3:
+        raise ConfigurationError("version must be 3")
     kiosk_uid = raw["kiosk_uid"]
     if type(kiosk_uid) is not int or kiosk_uid <= 0 or kiosk_uid > UINT32_MAX:
         raise ConfigurationError("kiosk_uid must be a nonzero numeric UID")
-
-    filter_raw = raw["app_filter"]
-    _exact_keys(filter_raw, APP_FILTER_KEYS, "app_filter")
-
-    def targets(key):
-        targets_raw = filter_raw[key]
-        if not isinstance(targets_raw, list):
-            raise ConfigurationError(f"{key} must be an array")
-        validated = tuple(validate_target(value) for value in targets_raw)
-        if len(validated) != len(set(validated)):
-            raise ConfigurationError("duplicate blocked target")
-        return validated
-
-    hard_targets = targets("hard_blocked_targets")
-    soft_targets = targets("soft_blocked_targets")
-    if set(hard_targets) & set(soft_targets):
-        raise ConfigurationError("hard and soft blocked targets must be disjoint")
 
     interval = raw["minimum_request_interval_seconds"]
     if type(interval) is not int or not 1 <= interval <= MAX_REQUEST_INTERVAL:
         raise ConfigurationError("minimum request interval is out of range")
     return Configuration(
         kiosk_uid=kiosk_uid,
-        app_filter=AppFilter(hard_targets, soft_targets),
         minimum_request_interval_seconds=interval,
     )
 

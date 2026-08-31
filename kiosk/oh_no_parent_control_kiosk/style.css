@@ -1,4 +1,4 @@
-/* GTK counterpart to the supported St styles in ../../../stylesheet.css.
+/* GTK counterpart to the supported St styles in ../../child/stylesheet.css.
  * Keep the shared class names and visual values aligned.  Shell widgets are
  * intentionally not imported: a kiosk application is a separate GTK client. */
 

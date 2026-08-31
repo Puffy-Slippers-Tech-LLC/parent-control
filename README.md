@@ -1,18 +1,31 @@
 # Oh No! Parent Control
 
-Oh No! Parent Control is a dedicated GNOME Kiosk request station for granting
-additional session time to a selected local standard account. Eligible
-accounts are discovered at runtime, including accounts created after installation. A
-root-owned broker validates the shared duration and hard/soft app policy, performs one
-interactive Polkit check for the real kiosk caller, and updates the supported
-AccountsService parental-control properties.
+Oh No! Parent Control has three cooperating applications: an administrator
+Parent App, a child-session GNOME Shell extension, and a GNOME Kiosk request
+station for requesting additional time. Eligible child accounts are discovered
+at runtime, including accounts created after installation.
 
-The child’s in-session GNOME Shell extension remains a supported companion
-path. The kiosk application is a normal GTK 4/libadwaita program and never
-imports Shell APIs or handles passwords. The two paths intentionally keep their
-authorization and policy stores separate.
+The Parent App lists interactive non-admin users and controls whether the child
+extension is installed and enabled for each one. App-filter states and the last
+request-menu selection/custom value live in one root-owned per-child record.
+The Parent App, extension, and kiosk all access that record through the broker;
+there are no separate user-home preference files.
+
+Install the Debian package with:
+
+```sh
+sudo apt install oh-no-parent-control
+```
 
 ## Development
+
+The repository is organized by runtime component:
+
+- `parent/` contains the administrator application.
+- `child/` contains the GNOME Shell extension and its extension-specific policy.
+- `kiosk/` contains the request-time kiosk application.
+- `broker/` contains the privileged shared-preferences and access broker.
+- `data/`, `config/`, and `tools/` contain system-wide integration and deployment files.
 
 Run the complete host-safe test suite without installing anything:
 
@@ -33,7 +46,7 @@ Unit tests use mocked Polkit and AccountsService adapters and never modify real
 users. Installation, account provisioning, confinement, and end-to-end tests
 belong in a disposable Ubuntu 26.04 VM.
 
-The existing child-session extension remains independently buildable:
+The child-session extension remains independently buildable for development:
 
 ```sh
 make pack-extension

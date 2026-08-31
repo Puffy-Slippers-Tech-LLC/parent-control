@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Callable, Protocol
 
 from .config import Configuration, ConfigurationError, UINT32_MAX
+from .preferences import PreferencesError, blocked_targets, validate_preferences
 
 LOG = logging.getLogger("oh-no-parent-control")
 MAX_LOCAL_MIDNIGHT_SECONDS = 26 * 60 * 60
@@ -75,6 +76,17 @@ class Accounts(Protocol):
     def set_daily_limit(self, target_uid: int, value: int) -> None: ...
 
 
+class Preferences(Protocol):
+    def load(self, uid: int) -> dict: ...
+    def save(self, uid: int, preferences: object) -> dict: ...
+    def update_request(self, uid: int, selected: str, custom: float,
+                       allow_soft: bool) -> dict: ...
+
+
+class Extensions(Protocol):
+    def set_enabled(self, uid: int, enabled: bool) -> None: ...
+
+
 def seconds_until_local_midnight(now: datetime) -> int:
     if now.tzinfo is None:
         raise ValueError("approval time must be timezone-aware")
@@ -88,11 +100,14 @@ def seconds_until_local_midnight(now: datetime) -> int:
 
 class Broker:
     def __init__(self, config_loader: Callable[[], Configuration], authorizer: Authorizer,
-                 accounts: Accounts, *, monotonic=time.monotonic,
+                 accounts: Accounts, preferences: Preferences | None = None,
+                 extensions: Extensions | None = None, *, monotonic=time.monotonic,
                  now=lambda: datetime.now().astimezone(), caller_alive=lambda _sender: True):
         self._config_loader = config_loader
         self._authorizer = authorizer
         self._accounts = accounts
+        self._preferences = preferences
+        self._extensions = extensions
         self._monotonic = monotonic
         self._now = now
         self._caller_alive = caller_alive
@@ -113,9 +128,21 @@ class Broker:
             user.is_local and not user.is_system and not user.is_admin
         )
 
+    def _is_admin(self, caller_uid: int) -> bool:
+        if caller_uid == 0:
+            return True
+        try:
+            return self._accounts.get_user(caller_uid).is_admin
+        except Exception:
+            return False
+
+    def _can_manage_or_kiosk(self, config: Configuration, caller_uid: int) -> bool:
+        return caller_uid == config.kiosk_uid or self._is_admin(caller_uid)
+
     def list_managed_users(self, caller_uid: int) -> tuple[UserAccount, ...]:
         config = self._load_config()
-        self._check_caller(config, caller_uid)
+        if not self._can_manage_or_kiosk(config, caller_uid):
+            raise AccessDenied("caller is not an administrator or request station")
         users = (user for user in self._accounts.list_users() if self._eligible(config, user))
         return tuple(sorted(users, key=lambda user: (user.label.casefold(), user.uid)))
 
@@ -129,6 +156,78 @@ class Broker:
         if not self._eligible(config, user):
             raise AccessDenied("selected account is not an eligible standard account")
         return user
+
+    def get_preferences(self, caller_uid: int, target_uid: int) -> dict:
+        config = self._load_config()
+        target = self._target(config, target_uid)
+        if caller_uid != target.uid and not self._can_manage_or_kiosk(config, caller_uid):
+            raise AccessDenied("caller cannot read this account")
+        if self._preferences is None:
+            raise BackendFailure("preference store is unavailable")
+        try:
+            return self._preferences.load(target.uid)
+        except PreferencesError as error:
+            raise BackendFailure("preferences are unavailable") from error
+
+    def set_preferences(self, caller_uid: int, target_uid: int, value: object) -> dict:
+        config = self._load_config()
+        if not self._is_admin(caller_uid):
+            raise AccessDenied("administrator access is required")
+        target = self._target(config, target_uid)
+        if self._preferences is None:
+            raise BackendFailure("preference store is unavailable")
+        try:
+            current = self._preferences.load(target.uid)
+        except PreferencesError as error:
+            raise BackendFailure("preferences are unavailable") from error
+        try:
+            requested = validate_preferences(value)
+        except PreferencesError as error:
+            raise InvalidRequest(str(error)) from error
+        # The dedicated toggle operation owns installation state.
+        requested["parent_control_enabled"] = current["parent_control_enabled"]
+        try:
+            return self._preferences.save(target.uid, requested)
+        except PreferencesError as error:
+            raise BackendFailure("preferences could not be saved") from error
+
+    def update_request_preferences(self, caller_uid: int, target_uid: int,
+                                   selected: str, custom: float,
+                                   allow_soft: bool) -> dict:
+        config = self._load_config()
+        target = self._target(config, target_uid)
+        if caller_uid != target.uid and not self._can_manage_or_kiosk(config, caller_uid):
+            raise AccessDenied("caller cannot update this account")
+        if self._preferences is None:
+            raise BackendFailure("preference store is unavailable")
+        try:
+            return self._preferences.update_request(
+                target.uid, selected, custom, allow_soft,
+            )
+        except PreferencesError as error:
+            raise InvalidRequest(str(error)) from error
+
+    def set_parent_control(self, caller_uid: int, target_uid: int, enabled: bool) -> dict:
+        config = self._load_config()
+        if not self._is_admin(caller_uid):
+            raise AccessDenied("administrator access is required")
+        if type(enabled) is not bool:
+            raise InvalidRequest("enabled state must be boolean")
+        target = self._target(config, target_uid)
+        if self._preferences is None or self._extensions is None:
+            raise BackendFailure("extension management is unavailable")
+        try:
+            current = self._preferences.load(target.uid)
+            previous = current["parent_control_enabled"]
+            self._extensions.set_enabled(target.uid, enabled)
+            current["parent_control_enabled"] = enabled
+            try:
+                return self._preferences.save(target.uid, current)
+            except Exception:
+                self._extensions.set_enabled(target.uid, previous)
+                raise
+        except (OSError, RuntimeError, PreferencesError) as error:
+            raise BackendFailure("could not change parent-control state") from error
 
     def request_access(self, caller_uid: int, sender: str, target_uid: int,
                        duration_seconds: int,
@@ -202,10 +301,15 @@ class Broker:
         old_daily_limit = self._accounts.get_daily_limit(target_uid)
         old_filter = self._accounts.get_filter(target_uid)
         old_extension = self._accounts.get_extension(target_uid)
-        targets = list(config.app_filter.hard_blocked_targets)
-        if not allow_soft_blocked_apps:
-            targets.extend(config.app_filter.soft_blocked_targets)
-        desired_filter = (False, tuple(sorted(set(targets))))
+        if self._preferences is None:
+            raise BackendFailure("preference store is unavailable")
+        try:
+            targets = blocked_targets(
+                self._preferences.load(target_uid), allow_soft_blocked_apps,
+            )
+        except PreferencesError as error:
+            raise BackendFailure("preferences are unavailable") from error
+        desired_filter = (False, targets)
         try:
             if old_limit_type == 0 or old_daily_limit != 0:
                 LOG.info("request=%s stage=limit-initialize", correlation_id)

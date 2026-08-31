@@ -14,6 +14,8 @@ from .config import Configuration, ConfigurationError, UINT32_MAX
 
 LOG = logging.getLogger("oh-no-parent-control")
 MAX_LOCAL_MIDNIGHT_SECONDS = 26 * 60 * 60
+MIN_REQUEST_SECONDS = 6
+MAX_REQUEST_SECONDS = 24 * 60 * 60
 
 
 class BrokerError(RuntimeError):
@@ -58,8 +60,6 @@ class Accounts(Protocol):
 @dataclass(frozen=True)
 class RequestOptions:
     child_label: str
-    durations: tuple[tuple[str, str], ...]
-    filter_profiles: tuple[tuple[str, str], ...]
 
 
 def seconds_until_local_midnight(now: datetime) -> int:
@@ -95,39 +95,27 @@ class Broker:
     def get_options(self, caller_uid: int) -> RequestOptions:
         config = self._load_config()
         self._check_caller(config, caller_uid)
-        def duration_order(item):
-            seconds = item[1].seconds
-            if seconds == "local-midnight":
-                try:
-                    seconds = seconds_until_local_midnight(self._now())
-                except (ValueError, BrokerError):
-                    seconds = UINT32_MAX
-            return seconds, item[0]
-        return RequestOptions(
-            config.child_label,
-            tuple((key, value.label) for key, value in
-                  sorted(config.durations.items(), key=duration_order)),
-            (("", "No filter change"),) + tuple(
-                (key, value.label) for key, value in config.app_filter_profiles.items()
-            ),
-        )
+        return RequestOptions(config.child_label)
 
-    def request_access(self, caller_uid: int, sender: str, duration_id: str,
-                       profile_id: str) -> tuple[str, str]:
+    def request_access(self, caller_uid: int, sender: str, duration_seconds: int,
+                       allow_soft_blocked_apps: bool) -> tuple[str, str]:
         correlation_id = str(uuid.uuid4())
         if not self._request_lock.acquire(blocking=False):
             raise Busy("another request is already in progress")
         try:
             config = self._load_config()
             self._check_caller(config, caller_uid)
-            if duration_id not in config.durations:
-                raise InvalidRequest("unknown duration ID")
-            if profile_id and profile_id not in config.app_filter_profiles:
-                raise InvalidRequest("unknown filter profile ID")
+            if type(duration_seconds) is not int or not (
+                duration_seconds == 0 or
+                MIN_REQUEST_SECONDS <= duration_seconds <= MAX_REQUEST_SECONDS
+            ):
+                raise InvalidRequest("duration is outside the supported range")
+            if type(allow_soft_blocked_apps) is not bool:
+                raise InvalidRequest("allow-soft value must be boolean")
             self._apply_rate_limit(caller_uid, config.minimum_request_interval_seconds)
-            LOG.info("request=%s caller_uid=%d child_uid=%d duration=%s profile=%s stage=authorize",
-                     correlation_id, caller_uid, config.child_uid, duration_id,
-                     profile_id or "none")
+            LOG.info("request=%s caller_uid=%d child_uid=%d duration_seconds=%d "
+                     "allow_soft=%s stage=authorize", correlation_id, caller_uid,
+                     config.child_uid, duration_seconds, allow_soft_blocked_apps)
 
             outcome = self._authorizer.check(sender, correlation_id)
             if outcome not in {"approved", "denied", "cancelled"}:
@@ -140,13 +128,13 @@ class Broker:
                 return correlation_id, "denied"
 
             approved_at = self._now()
-            duration = config.durations[duration_id].seconds
-            if duration == "local-midnight":
-                duration = seconds_until_local_midnight(approved_at)
+            duration = duration_seconds or seconds_until_local_midnight(approved_at)
             issued_at = int(approved_at.timestamp())
             if issued_at <= 0 or issued_at > (1 << 64) - 1 or not 0 < duration <= UINT32_MAX:
                 raise BackendFailure("calculated extension is outside the supported range")
-            self._apply(config, profile_id, (issued_at, duration), correlation_id)
+            self._apply(
+                config, allow_soft_blocked_apps, (issued_at, duration), correlation_id
+            )
             LOG.info("request=%s outcome=approved", correlation_id)
             return correlation_id, "approved"
         finally:
@@ -167,33 +155,31 @@ class Broker:
                 raise RateLimited("requests are being made too quickly")
             self._last_request[caller_uid] = current
 
-    def _apply(self, config: Configuration, profile_id: str,
+    def _apply(self, config: Configuration, allow_soft_blocked_apps: bool,
                extension: tuple[int, int], correlation_id: str) -> None:
         child_uid = config.child_uid
-        old_filter = None
-        filter_changed = False
-        if profile_id:
-            old_filter = self._accounts.get_filter(child_uid)
-            desired_filter = (False, config.app_filter_profiles[profile_id].blocked_targets)
-            try:
-                LOG.info("request=%s stage=filter-write", correlation_id)
-                self._accounts.set_filter(child_uid, desired_filter)
-                filter_changed = True
-                if self._accounts.get_filter(child_uid) != desired_filter:
-                    raise BackendFailure("app-filter verification failed")
-            except Exception as error:
-                self._restore_filter(child_uid, old_filter, correlation_id)
-                if isinstance(error, BrokerError):
-                    raise
-                raise BackendFailure("app-filter update failed") from error
+        old_filter = self._accounts.get_filter(child_uid)
+        targets = list(config.app_filter.hard_blocked_targets)
+        if not allow_soft_blocked_apps:
+            targets.extend(config.app_filter.soft_blocked_targets)
+        desired_filter = (False, tuple(sorted(set(targets))))
+        try:
+            LOG.info("request=%s stage=filter-write", correlation_id)
+            self._accounts.set_filter(child_uid, desired_filter)
+            if self._accounts.get_filter(child_uid) != desired_filter:
+                raise BackendFailure("app-filter verification failed")
+        except Exception as error:
+            self._restore_filter(child_uid, old_filter, correlation_id)
+            if isinstance(error, BrokerError):
+                raise
+            raise BackendFailure("app-filter update failed") from error
         try:
             LOG.info("request=%s stage=extension-write", correlation_id)
             self._accounts.set_extension(child_uid, extension)
             if self._accounts.get_extension(child_uid) != extension:
                 raise BackendFailure("extension verification failed")
         except Exception as error:
-            if filter_changed:
-                self._restore_filter(child_uid, old_filter, correlation_id)
+            self._restore_filter(child_uid, old_filter, correlation_id)
             if isinstance(error, BrokerError):
                 raise
             raise BackendFailure("extension update failed") from error

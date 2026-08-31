@@ -1,0 +1,187 @@
+/* GTK counterpart to the supported St styles in ../../../stylesheet.css.
+ * Keep the shared class names and visual values aligned.  Shell widgets are
+ * intentionally not imported: a kiosk application is a separate GTK client. */
+
+window.oh-no-parent-control-window {
+  color: rgba(255, 255, 255, 0.90);
+  background-color: #202630;
+  background-image: linear-gradient(to bottom, #4a5667, #232a35);
+}
+
+.oh-no-parent-control-dialog {
+  min-width: 350px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 24px;
+  color: rgba(255, 255, 255, 0.90);
+  background-color: #303946;
+  background-image: linear-gradient(to bottom, rgba(74, 86, 103, 0.98), rgba(35, 42, 53, 0.99));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.20);
+}
+
+.oh-no-parent-control-header {
+  margin: 4px 2px 2px;
+}
+
+.oh-no-parent-control-header-icon {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 10px;
+  border: 1px solid rgba(115, 230, 167, 0.62);
+  border-radius: 15px;
+  color: white;
+  background-color: rgba(36, 182, 111, 0.30);
+  background-image: linear-gradient(to bottom, rgba(115, 230, 167, 0.40), rgba(36, 182, 111, 0.30));
+  box-shadow: 0 0 18px rgba(69, 223, 141, 0.48), inset 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.oh-no-parent-control-title {
+  color: rgba(255, 255, 255, 0.98);
+  font-size: 1.45em;
+  font-weight: 700;
+}
+
+.oh-no-parent-control-subtitle,
+.oh-no-parent-control-status {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.92em;
+}
+
+.oh-no-parent-control-choices {
+  min-width: 336px;
+  padding: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background-color: rgba(185, 203, 224, 0.07);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.12);
+}
+
+button.oh-no-parent-control-choice {
+  min-height: 20px;
+  padding: 10px 13px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  background: transparent;
+  box-shadow: none;
+  text-shadow: none;
+  transition: 150ms ease;
+}
+
+button.oh-no-parent-control-choice:hover,
+button.oh-no-parent-control-choice:focus-visible {
+  color: white;
+  border-color: rgba(255, 255, 255, 0.18);
+  background-color: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+button.oh-no-parent-control-choice:checked {
+  color: white;
+  border-color: rgba(115, 230, 167, 0.72);
+  background-color: rgba(36, 182, 111, 0.72);
+  background-image: linear-gradient(to right, rgba(75, 199, 131, 0.90), rgba(36, 182, 111, 0.78));
+  box-shadow: 0 0 16px rgba(69, 223, 141, 0.42), inset 0 1px rgba(255, 255, 255, 0.28);
+}
+
+button.oh-no-parent-control-choice:checked:hover {
+  border-color: rgba(168, 245, 199, 0.92);
+  background-image: linear-gradient(to right, rgba(92, 214, 148, 0.94), rgba(43, 194, 120, 0.88));
+}
+
+.oh-no-parent-control-app-filter-toggle {
+  min-width: 350px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.oh-no-parent-control-app-filter-label {
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 600;
+}
+
+.oh-no-parent-control-app-filter-toggle switch:checked {
+  color: white;
+  border-color: rgba(115, 230, 167, 0.72);
+  background-color: rgba(36, 182, 111, 0.82);
+}
+
+.oh-no-parent-control-custom-row {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+entry.oh-no-parent-control-custom-entry {
+  min-height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  color: white;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.oh-no-parent-control-actions {
+  min-width: 350px;
+}
+
+button.oh-no-parent-control-cancel-button {
+  min-height: 42px;
+  margin-top: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.90);
+  font-weight: 700;
+  background-color: rgba(255, 255, 255, 0.08);
+  background-image: none;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.12);
+  text-shadow: none;
+}
+
+button.oh-no-parent-control-cancel-button:hover,
+button.oh-no-parent-control-cancel-button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.30);
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+button.oh-no-parent-control-request-button,
+.oh-no-parent-control-secondary-page button.suggested-action {
+  min-height: 42px;
+  margin-top: 4px;
+  border: 1px solid rgba(115, 230, 167, 0.64);
+  border-radius: 14px;
+  color: white;
+  font-weight: 700;
+  background-color: rgba(36, 182, 111, 0.70);
+  background-image: linear-gradient(to bottom, rgba(75, 199, 131, 0.84), rgba(36, 182, 111, 0.68));
+  box-shadow: 0 0 14px rgba(69, 223, 141, 0.30), inset 0 1px rgba(255, 255, 255, 0.24);
+  text-shadow: none;
+}
+
+button.oh-no-parent-control-request-button:hover,
+button.oh-no-parent-control-request-button:focus-visible,
+.oh-no-parent-control-secondary-page button.suggested-action:hover,
+.oh-no-parent-control-secondary-page button.suggested-action:focus-visible {
+  border-color: rgba(168, 245, 199, 0.88);
+  background-color: rgba(43, 194, 120, 0.82);
+  background-image: linear-gradient(to bottom, rgba(92, 214, 148, 0.92), rgba(43, 194, 120, 0.78));
+  box-shadow: 0 0 18px rgba(69, 223, 141, 0.42), inset 0 1px rgba(255, 255, 255, 0.30);
+}
+
+button.oh-no-parent-control-request-button:disabled {
+  color: rgba(255, 255, 255, 0.42);
+  border-color: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: none;
+}
+
+.oh-no-parent-control-secondary-page {
+  min-height: 240px;
+}
+
+.oh-no-parent-control-page-title {
+  color: rgba(255, 255, 255, 0.98);
+  font-size: 1.45em;
+  font-weight: 700;
+}

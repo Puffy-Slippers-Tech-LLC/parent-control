@@ -2,7 +2,7 @@
 
 Oh No! Parent Control is a dedicated GNOME Kiosk request station for granting
 additional session time to a separate, Malcontent-restricted child account. A
-root-owned broker validates administrator-configured choices, performs one
+root-owned broker validates the shared duration and hard/soft app policy, performs one
 interactive Polkit check for the real kiosk caller, and updates the supported
 AccountsService parental-control properties.
 

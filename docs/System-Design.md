@@ -3,7 +3,7 @@
 ## 1. Purpose
 
 Add a dedicated, unrestricted GNOME Kiosk session in which a child can request
-additional time and optionally apply an app-filter profile to their restricted
+additional time and choose whether soft-blocked apps remain available on their restricted
 account. The child account's in-session GNOME Shell extension remains a
 separate supported request path.
 
@@ -73,9 +73,8 @@ Child account reaches its time limit
     -> child switches to the request-station account
     -> GNOME Kiosk shows only Oh No! Parent Control
     -> child selects a duration
-    -> child optionally selects an app-filter profile
-    -> parent reviews the request on screen
-    -> parent presses Authorize
+    -> child chooses whether soft-blocked apps are allowed
+    -> child presses Request
     -> one standard Polkit administrator dialog appears
     -> parent authenticates once
     -> broker updates the child account
@@ -96,7 +95,7 @@ Request-station account (unprivileged, unlimited)
   GNOME Kiosk 50
     Oh No! Parent Control GTK application
       |
-      | system D-Bus: RequestAccess(duration_id, filter_profile_id)
+      | system D-Bus: RequestAccess(duration_seconds, allow_soft_blocked_apps)
       v
 Root-owned request broker
       |
@@ -107,13 +106,13 @@ Polkit + the kiosk session's standard authentication agent
       | approved once
       v
 AccountsService user object for the configured child UID
-      +-- AppFilter.AppFilter (optional)
+      +-- AppFilter.AppFilter
       +-- SessionLimits.ActiveExtension
 ```
 
 Use a privileged broker rather than granting the kiosk application temporary
 `ChangeAny` permissions. The broker exposes only the product operation, binds
-it to one configured child UID, validates all choices against root-owned
+it to one configured child UID, validates the duration and root-owned policy,
 configuration, performs exactly one Polkit check, and then carries out both
 writes as root.
 
@@ -152,7 +151,7 @@ trusted computing base:
 - root-owned broker executable and service definition;
 - root-owned Polkit action;
 - root-owned D-Bus policy;
-- root-owned product configuration and app-filter profiles;
+- root-owned product configuration and hard/soft app policy;
 - stock Polkit authentication agent; and
 - stock AccountsService and Malcontent components.
 
@@ -166,8 +165,8 @@ UI:
 - the target is exactly the configured child UID;
 - the target and kiosk UIDs differ;
 - neither target nor kiosk UID is `0`;
-- the duration is one of the root-configured choices;
-- the filter profile is empty or one of the root-configured profiles;
+- the duration is either the rest-of-day sentinel or within the supported custom range;
+- the app-access choice is a boolean and never supplies filter targets;
 - every app-filter target has the expected Flatpak-ID or absolute-path form;
 - only one request is processed at a time;
 - a bounded rate limit prevents authentication-dialog flooding;
@@ -201,17 +200,9 @@ Required logical schema:
   "kiosk_uid": 991,
   "child_uid": 1001,
   "child_label": "Child account",
-  "durations": {
-    "15-minutes": {"label": "15 minutes", "seconds": 900},
-    "30-minutes": {"label": "30 minutes", "seconds": 1800},
-    "60-minutes": {"label": "60 minutes", "seconds": 3600},
-    "rest-of-day": {"label": "Rest of today", "seconds": "local-midnight"}
-  },
-  "app_filter_profiles": {
-    "school": {
-      "label": "School apps only",
-      "blocked_targets": ["org.example.Game", "/usr/bin/example-game"]
-    }
+  "app_filter": {
+    "hard_blocked_targets": ["org.example.Game"],
+    "soft_blocked_targets": ["/usr/bin/example-game"]
   },
   "minimum_request_interval_seconds": 5
 }
@@ -221,11 +212,11 @@ UIDs above are examples, not defaults. Provisioning must resolve and write the
 real numeric UIDs. Numeric UIDs are authoritative after installation so account
 renaming cannot retarget the broker.
 
-An empty filter profile ID means “leave the current app filter unchanged.” Do
-not derive a requested filter from the child's live filter. Named profiles are
-complete, root-owned desired blocklists.
+The broker always derives a complete blocklist from this root-owned policy.
+Hard-blocked targets are always included; soft-blocked targets are omitted only
+when the request's `allow_soft_blocked_apps` value is true.
 
-For `local-midnight`, calculate the positive number of seconds from the approval
+For the zero rest-of-day sentinel, calculate the positive number of seconds from the approval
 time to the next local midnight. Perform this calculation in the broker after
 authorization so time spent in the dialog is not subtracted from the grant.
 Reject a zero, negative, overflowed, or unexpectedly long result.
@@ -249,30 +240,28 @@ Keep the public surface minimal:
 
 ```text
 GetRequestOptions() -> (
-    child_label: s,
-    durations: a(ss),
-    filter_profiles: a(ss)
+    child_label: s
 )
 
 RequestAccess(
-    duration_id: s,
-    filter_profile_id: s
+    duration_seconds: u,
+    allow_soft_blocked_apps: b
 ) -> (
     correlation_id: s,
     result_code: s
 )
 ```
 
-Each `(ss)` option is `(stable_id, display_label)`. Include an empty filter ID
-with a “No filter change” label in `GetRequestOptions`. Define a small stable
-set of result codes, including `approved`, `denied`, and `cancelled`; use stable
+The duration list is a shared application asset also consumed by the in-session
+dialog. Define a small stable set of result codes, including `approved`,
+`denied`, and `cancelled`; use stable
 D-Bus error names for invalid requests and service failures.
 
 Do not return authentication secrets or detailed internal policy state.
 
-`GetRequestOptions` returns only the configured safe choices. `RequestAccess`
-must use the values in the broker's freshly loaded and validated configuration;
-it must not trust data previously returned to the client.
+`GetRequestOptions` returns only the configured target label. `RequestAccess`
+must validate its duration and boolean, then use the broker's freshly loaded
+policy; it must never accept app targets from the client.
 
 The system-bus policy should allow only the configured request-station account
 to call the methods. The broker must still verify the sender credentials at
@@ -306,7 +295,7 @@ After the single successful authorization:
 
 1. Resolve the configured child UID to its AccountsService object.
 2. Read and validate the current values needed for rollback.
-3. If a filter profile was selected, write the complete blocklist as
+3. Derive and write the complete hard/soft blocklist as
    `AppFilter = (false, targets)`.
 4. Write `ActiveExtension = (approval_time, duration_seconds)` last.
 5. Read both changed values back and verify exact equality.
@@ -316,9 +305,6 @@ Writing `ActiveExtension` last prevents granting time when the requested filter
 could not be applied. If the filter write succeeds but a later step fails,
 restore its previous value and verify the restoration. Report a distinct
 high-severity error if rollback cannot be verified.
-
-If no filter profile was selected, do not write `AppFilter` and do not replace
-its current value.
 
 The two AccountsService properties do not provide a cross-property transaction.
 The implementation supplies best-effort transactional behavior through
@@ -332,29 +318,27 @@ Implement a normal GTK 4/libadwaita application suitable for GNOME Kiosk. It
 must not import `resource:///org/gnome/shell/...`, use Shell extension APIs, or
 run inside GNOME Shell.
 
-The application has three views:
+The application has two views:
 
-1. **Request:** duration choice, optional filter profile, and Continue.
-2. **Review:** explicit summary for the parent and Cancel/Authorize buttons.
-3. **Result:** approved, denied/cancelled, or unavailable, plus Return to Login.
+1. **Request:** the shared duration choices, soft-block toggle, and Cancel/Request buttons.
+2. **Result:** approved, denied/cancelled, or unavailable, plus Return to Login.
 
 Required behavior:
 
-- populate choices from `GetRequestOptions`;
-- default to the shortest configured duration and no filter change;
+- load duration choices from the same installed asset as the Shell dialog;
+- default to 30 minutes and disallow soft-blocked apps;
 - show the exact target account's administrator-configured display label;
 - disable controls while a request is in flight;
-- issue only one `RequestAccess` call per Authorize click;
+- issue only one `RequestAccess` call per Request click;
 - never retry automatically after a Polkit denial or D-Bus failure;
 - never draw password fields or collect authentication input;
 - redact low-level D-Bus details from the child-facing error view;
-- log a request correlation ID, selected choice IDs, and outcome, but no
+- log a request correlation ID, duration, soft-app choice, and outcome, but no
   password, token, or authentication-agent data; and
-- quit cleanly when Return to Login is selected.
+- quit cleanly when Cancel or Return to Login is selected.
 
-The parent reviews the requested duration and filter profile in the application
-before invoking the standard Polkit dialog. The Polkit dialog establishes
-administrator identity; it is not responsible for presenting the full request.
+Request invokes the standard Polkit dialog directly. The Polkit dialog
+establishes administrator identity and the kiosk never renders password fields.
 
 ## 10. Kiosk session and authentication agent
 
@@ -429,11 +413,10 @@ in fresh. A private Shell cache patch is not an acceptable fallback.
 
 ## 12. App-filter semantics and limitations
 
-Selecting a profile replaces the complete configured `AppFilter` blocklist for
-the child. It is not a delta and must not be merged with the live value.
-
-The UI must say that the chosen profile becomes the child's active restriction
-profile. “No filter change” must be a separate explicit choice.
+Every approved request replaces the complete configured `AppFilter` blocklist
+for the child. It is not a delta and must not be merged with the live value.
+Hard-blocked targets always remain blocked. The toggle controls only whether
+soft-blocked targets are included.
 
 Do not promise that changing an app filter terminates an application which is
 already running in the suspended child session. Validate actual enforcement on
@@ -555,9 +538,8 @@ for a combined approved request.
 
 ### Phase 6 — Child-session and enforcement validation
 
-- Test time-only requests.
-- Test time plus every filter profile.
-- Test “no filter change.”
+- Test requests with soft-blocked apps disallowed.
+- Test requests with soft-blocked apps allowed.
 - Test shorter-over-longer replacement.
 - Test expiration and next-day behavior.
 - Test switch-back to an existing child session and fresh login.
@@ -588,7 +570,7 @@ At minimum, cover:
 - caller UID mismatch;
 - kiosk UID equal to child UID;
 - root/admin/system target rejection;
-- unknown duration and profile IDs;
+- out-of-range durations and malformed boolean values;
 - local-midnight boundary, DST transition, and clock edge cases;
 - invalid Flatpak IDs and executable paths;
 - concurrent request rejection;
@@ -620,11 +602,11 @@ The release candidate must pass all of these on the target image:
 | Cancel before authorization | No Polkit dialog and no writes |
 | Parent cancels Polkit | One dialog, no writes |
 | Wrong administrator password | Same standard dialog handles retry; app creates no second request |
-| Time-only approval | One dialog; only `ActiveExtension` changes |
-| Time plus filter approval | One dialog; exact filter and extension change |
+| Soft apps disallowed | One dialog; hard and soft targets are blocked |
+| Soft apps allowed | One dialog; only hard targets are blocked |
 | App-filter write failure | No extension is granted |
 | Extension write failure | Prior filter is restored and verified |
-| Repeated Authorize clicks | One in-flight request and one dialog |
+| Repeated Request clicks | One in-flight request and one dialog |
 | Switch back to child | Approved duration is recognized |
 | Grant expires | Stock Malcontent enforcement resumes |
 | Broker unavailable | Redacted error; kiosk remains confined |
@@ -647,7 +629,7 @@ Log:
 - correlation ID;
 - caller UID;
 - configured target UID;
-- duration/profile identifiers;
+- duration seconds and soft-app choice;
 - authorization outcome;
 - each property-write and verification stage;
 - rollback attempt and outcome; and

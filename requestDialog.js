@@ -9,8 +9,6 @@ import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {
-    MAX_CUSTOM_MINUTES,
-    MIN_CUSTOM_MINUTES,
     loadAllowSoftBlockedApps,
     loadLastCustomMinutes,
     loadLastSelectedDuration,
@@ -18,19 +16,14 @@ import {
     saveLastCustomMinutes,
     saveLastSelectedDuration,
 } from './requestPreferencesStore.js';
+import {
+    DEFAULT_DURATION_SECONDS,
+    DURATIONS,
+    MAX_CUSTOM_MINUTES,
+    MIN_CUSTOM_MINUTES,
+} from './requestOptions.js';
 
-export const DURATIONS = Object.freeze([
-    {label: '5 minutes', seconds: 5 * 60},
-    {label: '15 minutes', seconds: 15 * 60},
-    {label: '30 minutes', seconds: 30 * 60},
-    {label: '1 hour', seconds: 60 * 60},
-    {label: '2 hours', seconds: 2 * 60 * 60},
-    {label: '4 hours', seconds: 4 * 60 * 60},
-    {label: 'Rest of the day', seconds: 0},
-    {label: 'Custom value', seconds: null},
-]);
-
-const DEFAULT_DURATION_SECONDS = 30 * 60;
+export {DURATIONS} from './requestOptions.js';
 
 // Zero is only the UI sentinel for this choice. The ActiveExtension backend
 // write requires a positive duration, so calculate the interval explicitly.

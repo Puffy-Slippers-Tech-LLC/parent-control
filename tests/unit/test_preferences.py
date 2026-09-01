@@ -35,6 +35,37 @@ class PreferenceTests(unittest.TestCase):
         with self.assertRaises(PreferencesError):
             validate_preferences(value)
 
+    def test_daily_time_limit_is_an_integer_from_zero_to_one_day(self):
+        for minutes in (0, 1, 24 * 60):
+            with self.subTest(minutes=minutes):
+                value = default_preferences()
+                value["daily_time_limit_minutes"] = minutes
+                self.assertEqual(
+                    validate_preferences(value)["daily_time_limit_minutes"], minutes,
+                )
+
+        for minutes in (-1, 1441, 1.5, True):
+            with self.subTest(minutes=minutes):
+                value = default_preferences()
+                value["daily_time_limit_minutes"] = minutes
+                with self.assertRaises(PreferencesError):
+                    validate_preferences(value)
+
+    def test_current_format_without_daily_limit_uses_grant_only_default(self):
+        value = default_preferences()
+        del value["daily_time_limit_minutes"]
+
+        normalized = validate_preferences(value)
+
+        self.assertEqual(normalized["daily_time_limit_minutes"], 0)
+
+    def test_unknown_preference_key_is_rejected(self):
+        value = default_preferences()
+        value["unexpected"] = True
+
+        with self.assertRaises(PreferencesError):
+            validate_preferences(value)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,7 +11,10 @@ from datetime import datetime, timedelta
 from typing import Callable, Protocol
 
 from .config import Configuration, ConfigurationError, UINT32_MAX
-from .preferences import PreferencesError, blocked_targets, validate_preferences
+from .preferences import (
+    MAX_DAILY_LIMIT_MINUTES, MIN_DAILY_LIMIT_MINUTES, PreferencesError,
+    blocked_targets, validate_preferences,
+)
 
 LOG = logging.getLogger("oh-no-parent-control")
 MAX_LOCAL_MIDNIGHT_SECONDS = 26 * 60 * 60
@@ -223,26 +226,77 @@ class Broker:
         except PreferencesError as error:
             raise InvalidRequest(str(error)) from error
 
-    def set_parent_control(self, caller_uid: int, target_uid: int, enabled: bool) -> dict:
+    def set_parent_control(self, caller_uid: int, target_uid: int, enabled: bool,
+                           daily_limit_minutes: int) -> dict:
         config = self._load_config()
         if not self._is_admin(caller_uid):
             raise AccessDenied("administrator access is required")
         if type(enabled) is not bool:
             raise InvalidRequest("enabled state must be boolean")
+        if (type(daily_limit_minutes) is not int or not
+                MIN_DAILY_LIMIT_MINUTES <= daily_limit_minutes <= MAX_DAILY_LIMIT_MINUTES):
+            raise InvalidRequest(
+                "daily time limit must be an integer from 0 to 1440 minutes"
+            )
         target = self._target(config, target_uid)
         if self._preferences is None or self._extensions is None:
             raise BackendFailure("extension management is unavailable")
         try:
             current = self._preferences.load(target.uid)
             previous = current["parent_control_enabled"]
-            self._extensions.set_enabled(target.uid, enabled)
-            current["parent_control_enabled"] = enabled
+            old_limit_type = self._accounts.get_limit_type(target.uid)
+            old_daily_limit = self._accounts.get_daily_limit(target.uid)
+            old_filter = self._accounts.get_filter(target.uid)
+            old_extension = self._accounts.get_extension(target.uid)
+            extension_changed = enabled != previous
+            if extension_changed:
+                self._extensions.set_enabled(target.uid, enabled)
             try:
+                desired_limit_type = DAILY_LIMIT_FLAG if enabled else 0
+                desired_daily_limit = daily_limit_minutes * 60 if enabled else 0
+
+                if not enabled:
+                    self._accounts.set_limit_type(target.uid, desired_limit_type)
+                self._accounts.set_daily_limit(target.uid, desired_daily_limit)
+                if extension_changed:
+                    self._accounts.set_filter(target.uid, (False, ()))
+                    self._accounts.set_extension(target.uid, (0, 0))
+                if enabled:
+                    self._accounts.set_limit_type(target.uid, desired_limit_type)
+
+                if (self._accounts.get_limit_type(target.uid) != desired_limit_type or
+                        self._accounts.get_daily_limit(target.uid) != desired_daily_limit):
+                    raise BackendFailure("parent-control account verification failed")
+                if extension_changed and (
+                        self._accounts.get_filter(target.uid) != (False, ()) or
+                        self._accounts.get_extension(target.uid) != (0, 0)):
+                    raise BackendFailure("parent-control account verification failed")
+
+                current["parent_control_enabled"] = enabled
+                current["daily_time_limit_minutes"] = daily_limit_minutes
                 return self._preferences.save(target.uid, current)
-            except Exception:
-                self._extensions.set_enabled(target.uid, previous)
-                raise
+            except Exception as error:
+                rollback_error = None
+                try:
+                    self._restore(
+                        target.uid, old_limit_type, old_daily_limit, old_filter,
+                        old_extension, "parent-control",
+                    )
+                except Exception as caught:
+                    rollback_error = caught
+                try:
+                    if extension_changed:
+                        self._extensions.set_enabled(target.uid, previous)
+                except Exception as caught:
+                    rollback_error = rollback_error or caught
+                if rollback_error is not None:
+                    raise RollbackFailure(
+                        "parent-control rollback could not be verified"
+                    ) from rollback_error
+                raise error
         except (OSError, RuntimeError, PreferencesError) as error:
+            if isinstance(error, RollbackFailure):
+                raise
             raise BackendFailure("could not change parent-control state") from error
 
     def request_access(self, caller_uid: int, sender: str, target_uid: int,
@@ -320,18 +374,18 @@ class Broker:
         if self._preferences is None:
             raise BackendFailure("preference store is unavailable")
         try:
-            targets = blocked_targets(
-                self._preferences.load(target_uid), allow_soft_blocked_apps,
-            )
+            preferences = self._preferences.load(target_uid)
+            targets = blocked_targets(preferences, allow_soft_blocked_apps)
         except PreferencesError as error:
             raise BackendFailure("preferences are unavailable") from error
         desired_filter = (False, targets)
         try:
-            if old_limit_type == 0 or old_daily_limit != 0:
+            desired_daily_limit = preferences["daily_time_limit_minutes"] * 60
+            if old_limit_type == 0 or old_daily_limit != desired_daily_limit:
                 LOG.info("request=%s stage=limit-initialize", correlation_id)
-                if old_daily_limit != 0:
-                    self._accounts.set_daily_limit(target_uid, 0)
-                    if self._accounts.get_daily_limit(target_uid) != 0:
+                if old_daily_limit != desired_daily_limit:
+                    self._accounts.set_daily_limit(target_uid, desired_daily_limit)
+                    if self._accounts.get_daily_limit(target_uid) != desired_daily_limit:
                         raise BackendFailure("daily-limit verification failed")
                 if old_limit_type == 0:
                     self._accounts.set_limit_type(target_uid, DAILY_LIMIT_FLAG)

@@ -14,6 +14,8 @@ from .config import UINT32_MAX, validate_target
 
 FORMAT_VERSION = 1
 VALID_APP_STATES = {"allowed", "permanent", "conditional"}
+MIN_DAILY_LIMIT_MINUTES = 0
+MAX_DAILY_LIMIT_MINUTES = 24 * 60
 MIN_CUSTOM_MINUTES = 0.1
 MAX_CUSTOM_MINUTES = 1440
 VALID_DURATIONS = {"custom", "0", "300", "900", "1800", "3600", "7200", "14400"}
@@ -28,6 +30,7 @@ def default_preferences() -> dict:
     return {
         "version": FORMAT_VERSION,
         "parent_control_enabled": False,
+        "daily_time_limit_minutes": MIN_DAILY_LIMIT_MINUTES,
         "apps": {},
         "request": {
             "last_selected_duration": "1800",
@@ -38,14 +41,24 @@ def default_preferences() -> dict:
 
 
 def validate_preferences(raw: object) -> dict:
-    if not isinstance(raw, dict) or set(raw) != {
+    if not isinstance(raw, dict) or set(raw) not in ({
         "version", "parent_control_enabled", "apps", "request",
-    }:
+    }, {
+        "version", "parent_control_enabled", "daily_time_limit_minutes",
+        "apps", "request",
+    }):
         raise PreferencesError("preference record has invalid keys")
     if raw["version"] != FORMAT_VERSION or type(raw["version"]) is not int:
         raise PreferencesError("unsupported preference version")
     if type(raw["parent_control_enabled"]) is not bool:
         raise PreferencesError("parent-control state must be boolean")
+    # This field was added without changing FORMAT_VERSION. Records carrying
+    # that same current version must therefore normalize its omission to the
+    # grant-only default instead of becoming unreadable.
+    daily_limit = raw.get("daily_time_limit_minutes", MIN_DAILY_LIMIT_MINUTES)
+    if (type(daily_limit) is not int or not
+            MIN_DAILY_LIMIT_MINUTES <= daily_limit <= MAX_DAILY_LIMIT_MINUTES):
+        raise PreferencesError("daily time limit must be an integer from 0 to 1440 minutes")
     if not isinstance(raw["apps"], dict):
         raise PreferencesError("apps must be an object")
 
@@ -84,6 +97,7 @@ def validate_preferences(raw: object) -> dict:
     return {
         "version": FORMAT_VERSION,
         "parent_control_enabled": raw["parent_control_enabled"],
+        "daily_time_limit_minutes": daily_limit,
         "apps": apps,
         "request": {
             "last_selected_duration": selected,

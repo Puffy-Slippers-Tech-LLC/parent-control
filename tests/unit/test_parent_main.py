@@ -1,6 +1,6 @@
 import unittest
 
-from parent.oh_no_parent_control_parent.main import ParentWindow
+from parent.oh_no_parent_control_parent.main import STATES, ParentWindow, _minutes_label
 
 
 class FakeDropDown:
@@ -42,6 +42,21 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def test_app_policy_states_keep_the_original_three_state_visuals(self):
+        self.assertEqual(
+            [(state["id"], state["icon"], state["css"]) for state in STATES],
+            [
+                ("allowed", "emblem-ok-symbolic", "policy-allowed"),
+                ("permanent", "window-close-symbolic", "policy-hard-blocked"),
+                ("conditional", "dialog-warning-symbolic", "policy-soft-blocked"),
+            ],
+        )
+
+    def test_daily_limit_labels_use_singular_only_for_one_minute(self):
+        self.assertEqual(_minutes_label(0), "0 minutes")
+        self.assertEqual(_minutes_label(1), "1 minute")
+        self.assertEqual(_minutes_label(1440), "1440 minutes")
+
     def test_loading_users_loads_initial_selection_once(self):
         window = ParentWindowHarness()
 

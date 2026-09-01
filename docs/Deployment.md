@@ -37,9 +37,10 @@ and kiosk accounts are never offered. The PAM session-limit check likewise
 excludes members of Ubuntu's `sudo` administrator group, so administrators
 remain unlimited at login and when using `sudo`.
 
-The first approved request for an unrestricted standard account enables a
-zero-second daily Malcontent limit and grants the requested extension. For the
-product's grant-only model, an existing daily allowance is also changed to
-zero on its first approved request. Limit initialization, application
-filtering, and the time grant all happen after the same single administrator
-authentication dialog.
+Enabling an account in the Parent App applies its configured daily Malcontent
+limit. The limit is an integer from 0 through 1440 minutes; zero uses the
+product's grant-only model. An approved request preserves that daily allowance,
+applies application filtering, and grants the requested extension after the
+same single administrator authentication dialog. Disabling the account makes
+it unrestricted and clears the active grant and applied filter while retaining
+the selected daily limit for a later re-enable.

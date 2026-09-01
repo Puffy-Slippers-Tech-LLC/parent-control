@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
+import copy
 import logging
+import os
 import sys
 import threading
 from pathlib import Path
@@ -38,6 +41,55 @@ STATES = (
     },
 )
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
+PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
+PREVIEW_PREFERENCES = {
+    1001: {
+        "parent_control_enabled": True,
+        "daily_time_limit_minutes": 90,
+        "apps": {
+            "org.gnome.Software.desktop": {"state": "conditional", "targets": []},
+            "org.gnome.Calculator.desktop": {"state": "permanent", "targets": []},
+        },
+        "request": {},
+    },
+    1002: {
+        "parent_control_enabled": False,
+        "daily_time_limit_minutes": 60,
+        "apps": {},
+        "request": {},
+    },
+}
+
+
+class PreviewBrokerClient:
+    """In-memory representative data for GUI work without system services."""
+
+    def __init__(self):
+        self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
+
+    def list_users(self):
+        return PREVIEW_USERS
+
+    def get_preferences(self, uid):
+        return copy.deepcopy(self._preferences[uid])
+
+    def get_time_status(self, _uid):
+        return {
+            "daily_allowance_remaining_seconds": 47 * 60,
+            "one_time_grant_remaining_seconds": 15 * 60,
+            "additional_one_time_grant_seconds": 0,
+            "calculated_active_extension_seconds": 47 * 60,
+        }
+
+    def set_preferences(self, uid, value):
+        self._preferences[uid] = copy.deepcopy(value)
+        return self.get_preferences(uid)
+
+    def set_parent_control(self, uid, enabled, daily_limit_minutes):
+        preferences = self._preferences[uid]
+        preferences["parent_control_enabled"] = enabled
+        preferences["daily_time_limit_minutes"] = daily_limit_minutes
+        return self.get_preferences(uid)
 
 
 def _minutes_label(minutes):
@@ -67,10 +119,10 @@ def _time_status_subtitle(status):
 
 
 class ParentWindow(Adw.ApplicationWindow):
-    def __init__(self, application):
+    def __init__(self, application, *, client_factory=BrokerClient):
         super().__init__(application=application, title="Oh No! Parent Control")
         self.set_default_size(920, 760)
-        self._client = BrokerClient()
+        self._client = client_factory()
         self._users = []
         self._preferences = None
         self._rows = []
@@ -112,14 +164,14 @@ class ParentWindow(Adw.ApplicationWindow):
         screen_limits = Adw.PreferencesGroup(title="Screen Limits")
         control_row = Adw.ActionRow(
             title="Screen Time Limit",
-            subtitle="Reminders and other hints when the daily time limit is reached",
+            subtitle="Turn on / off screen time limit",
         )
         self._enabled = Gtk.Switch(valign=Gtk.Align.CENTER, sensitive=False)
         self._enabled.connect("notify::active", self._enabled_changed)
         control_row.add_suffix(self._enabled)
         screen_limits.add(control_row)
         self._daily_limit = Adw.ComboRow(
-            title="Daily Time Limit",
+            title="Daily Time Allowance",
             model=Gtk.StringList.new([
                 _minutes_label(minutes)
                 for minutes in range(MAX_DAILY_LIMIT_MINUTES + 1)
@@ -513,19 +565,75 @@ class ParentWindow(Adw.ApplicationWindow):
 
 
 class Application(Adw.Application):
-    def __init__(self):
+    def __init__(self, *, preview=False):
         super().__init__(application_id="com.puffyslippers.OhNoParentControl.Parent")
+        self._preview = preview
         self._css_provider = None
+        self._preview_monitor = None
+        self._preview_reload_source_id = None
+        self._preview_changed_paths = set()
+
+    @staticmethod
+    def _asset_path(name):
+        return Path(__file__).with_name(name)
+
+    def _load_stylesheet(self):
+        self._css_provider.load_from_path(str(self._asset_path("style.css")))
+
+    def _watch_preview_files(self):
+        if self._preview_monitor is not None:
+            return
+        directory = Gio.File.new_for_path(str(Path(__file__).parent))
+        self._preview_monitor = directory.monitor_directory(
+            Gio.FileMonitorFlags.WATCH_MOVES, None,
+        )
+        self._preview_monitor.connect("changed", self._preview_file_changed)
+
+    def _preview_file_changed(self, _monitor, file, other_file, event_type):
+        if event_type not in {
+            Gio.FileMonitorEvent.CHANGED,
+            Gio.FileMonitorEvent.CREATED,
+            Gio.FileMonitorEvent.MOVED_IN,
+        }:
+            return
+        changed = {Path(file.get_path() or "")}
+        if other_file is not None:
+            changed.add(Path(other_file.get_path() or ""))
+        relevant = {
+            path for path in changed
+            if path.name == "style.css" or path.suffix == ".py"
+        }
+        if not relevant:
+            return
+        self._preview_changed_paths.update(relevant)
+        if self._preview_reload_source_id is None:
+            self._preview_reload_source_id = GLib.timeout_add(150, self._reload_preview)
+
+    def _reload_preview(self):
+        self._preview_reload_source_id = None
+        changed_paths = self._preview_changed_paths
+        self._preview_changed_paths = set()
+        if any(path.name == "style.css" for path in changed_paths):
+            self._load_stylesheet()
+            LOG.info("preview stylesheet reloaded")
+        if any(path.suffix == ".py" for path in changed_paths):
+            LOG.info("preview source changed; relaunching")
+            os.execv(sys.executable, sys.orig_argv)
+        return GLib.SOURCE_REMOVE
 
     def do_activate(self):
-        window = self.get_active_window() or ParentWindow(self)
+        window = self.get_active_window() or ParentWindow(
+            self, client_factory=PreviewBrokerClient if self._preview else BrokerClient,
+        )
         if self._css_provider is None:
             self._css_provider = Gtk.CssProvider()
-            self._css_provider.load_from_path(str(Path(__file__).with_name("style.css")))
+            self._load_stylesheet()
             Gtk.StyleContext.add_provider_for_display(
                 window.get_display(), self._css_provider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
             )
+        if self._preview:
+            self._watch_preview_files()
         window.present()
 
 
@@ -541,10 +649,23 @@ def _can_start(client_factory=BrokerClient):
     return True
 
 
-def main():
-    configure_logging()
-    if not _can_start():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--preview", action="store_true",
+        help="render the parent UI with fixture data and no privileged services",
+    )
+    args = parser.parse_args(argv)
+    if not args.preview:
+        configure_logging()
+    else:
+        logging.basicConfig(level=logging.INFO)
+    if not args.preview and not _can_start():
         LOG.warning("parent app launch denied or broker unavailable")
         return 1
     LOG.info("parent app starting")
-    return Application().run(sys.argv)
+    return Application(preview=args.preview).run([sys.argv[0]])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

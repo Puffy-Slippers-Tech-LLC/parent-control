@@ -8,12 +8,12 @@ SYSTEMD_USER_DIR ?= $(PREFIX)/lib/systemd/user
 PRODUCT_LIBDIR ?= $(PREFIX)/lib/oh-no-parent-control
 UUID := oh-no-parent-control@tech.puffyslippers.com
 CHILD_DIR := child
-EXTENSION_SOURCES := appFilterClient.js appPolicyStore.js approvedGrantStore.js logger.js malcontentClient.js parentalApproval.js parentalControlsIntegration.js remainingTimeIndicator.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js timeCalculationClient.js timerQuery.js
+EXTENSION_SOURCES := appFilterClient.js appPolicyStore.js approvedGrantStore.js logger.js malcontentClient.js parentalApproval.js parentalControlsIntegration.js previewMode.js remainingTimeIndicator.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js timeCalculationClient.js timerQuery.js
 EXTENSION_ASSETS := request-options.json
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 
-.PHONY: check _install-product-files uninstall pack-extension install-extension preview-kiosk
+.PHONY: check _install-product-files uninstall pack-extension install-extension preview-kiosk preview-parent preview-child
 
 check:
 	@bash -n install.sh
@@ -25,7 +25,16 @@ check:
 	@! grep -REn 'resource:///org/gnome/shell|AuthPrompt|UnlockDialog|Main\.screenShield|_estimatedTimes' kiosk broker data config tools README.md
 
 preview-kiosk:
+	# The preview watches kiosk assets and source files; no manual relaunch is needed.
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview
+
+preview-parent:
+	# The preview watches parent source and CSS files; no backend or installation is needed.
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=parent $(PYTHON) -m oh_no_parent_control_parent.main --preview
+
+preview-child:
+	# A nested Shell loads the checkout by temporary symlink; host settings stay untouched.
+	$(CHILD_DIR)/preview
 
 pack-extension:
 	gnome-extensions pack "$(CHILD_DIR)" --force --out-dir=. $(EXTENSION_SOURCES:%=--extra-source=%) $(EXTENSION_ASSETS:%=--extra-source=%)

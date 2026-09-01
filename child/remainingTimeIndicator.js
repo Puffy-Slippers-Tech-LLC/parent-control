@@ -17,10 +17,11 @@ const TIMER_INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
 
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
-    _init(onRequest, approvedGrantRemaining = 0) {
+    _init(onRequest, approvedGrantRemaining = 0, preview = false) {
         super._init(0.0, 'Screen Time Remaining', true);
 
         this._onRequest = onRequest;
+        this._preview = preview;
 
         const content = new St.BoxLayout({
             style_class: 'screen-time-remaining-content',
@@ -89,7 +90,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._calculatedEnd = this._activeExtensionEnd;
         this._refreshPending = false;
         this._vertical = null;
-        this._timerSignalId = Gio.DBus.system.signal_subscribe(
+        this._timerSignalId = this._preview ? 0 : Gio.DBus.system.signal_subscribe(
             TIMER_BUS_NAME, TIMER_INTERFACE, 'EstimatedTimesChanged',
             TIMER_OBJECT_PATH, null, Gio.DBusSignalFlags.NONE,
             () => this._refreshEstimate());
@@ -117,7 +118,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._sync();
         this._queueLayoutSync();
-        this._refreshEstimate();
+        if (!this._preview)
+            this._refreshEstimate();
     }
 
     setRequestActive(active) {
@@ -388,7 +390,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, delay, () => {
             this._timeoutId = 0;
-            this._refreshEstimate();
+            if (!this._preview)
+                this._refreshEstimate();
             this._sync();
             return GLib.SOURCE_REMOVE;
         });

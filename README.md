@@ -41,7 +41,34 @@ make preview-kiosk
 ```
 
 The preview uses the production GTK window, CSS, artwork, and animation. It is
-resizable and intentionally does not enter the production fullscreen session.
+resizable, draggable from its content, and intentionally does not enter the
+production fullscreen session.
+While it is open, saving the kiosk stylesheet or background artwork updates the
+window in place; saving kiosk Python source automatically relaunches the preview.
+
+Preview the Parent App with in-memory fixture accounts and preferences. This
+does not need the broker, system D-Bus, Polkit, an installed package, or any
+account changes:
+
+```sh
+make preview-parent
+```
+
+The parent preview is resizable. Saving its stylesheet updates the window in
+place; saving parent Python source automatically relaunches it.
+
+Preview the child extension in a nested GNOME Shell. It loads the checkout
+directly with fixture preferences and time remaining—without installation,
+broker, system D-Bus writes, Polkit, or account changes:
+
+```sh
+make preview-child
+```
+
+The request dialog opens automatically. Selecting a duration and requesting it
+updates the indicator locally; it never grants real time or changes an app
+filter. Saving child JavaScript, CSS, or request-option data restarts only the
+nested preview session.
 
 Exercise packaging in a disposable directory:
 

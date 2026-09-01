@@ -1,6 +1,8 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
+import {isPreview} from './previewMode.js';
+
 const BUS_NAME = 'com.puffyslippers.OhNoParentControl1';
 const OBJECT_PATH = '/com/puffyslippers/OhNoParentControl1';
 const INTERFACE = BUS_NAME;
@@ -56,6 +58,8 @@ export function getSharedPreferences() {
 }
 
 export async function refreshSharedPreferences() {
+    if (isPreview())
+        return cache;
     const targetUid = await ownUid();
     const reply = await call(
         BUS_NAME, OBJECT_PATH, INTERFACE, 'GetPreferences',
@@ -65,6 +69,17 @@ export async function refreshSharedPreferences() {
 }
 
 export async function updateSharedRequestPreferences(selected, custom, allowSoft) {
+    if (isPreview()) {
+        cache = {
+            ...cache,
+            request: {
+                last_selected_duration: selected,
+                last_custom_minutes: custom,
+                allow_soft_blocked_apps: allowSoft,
+            },
+        };
+        return cache;
+    }
     const targetUid = await ownUid();
     const reply = await call(
         BUS_NAME, OBJECT_PATH, INTERFACE, 'UpdateRequestPreferences',

@@ -18,12 +18,45 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("PREVIEW_DEFAULT_WIDTH = 1918", source)
         self.assertIn("PREVIEW_DEFAULT_HEIGHT = 1443", source)
 
+    def test_preview_watches_its_assets_and_source(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+
+        self.assertIn("directory.monitor_directory(", source)
+        self.assertIn('path.name in {"style.css", "kiosk-background.jpeg"}', source)
+        self.assertIn("self._load_stylesheet()", source)
+        self.assertIn("window._background.reload_texture()", source)
+        self.assertIn("os.execv(sys.executable, sys.orig_argv)", source)
+
+    def test_preview_content_is_a_window_drag_handle(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+
+        self.assertIn("if self._preview:\n            # The production kiosk", source)
+        self.assertIn("drag_handle = Gtk.WindowHandle()", source)
+        self.assertIn("drag_handle.set_child(layout)", source)
+        self.assertIn("self.set_content(drag_handle)", source)
+
     def test_gateway_texture_uses_gtk_snapshot_api(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertIn("class GatewayBackground(Gtk.Widget):", source)
+        self.assertIn("GATEWAY_CENTERING_OFFSET = 0.03125", source)
+        self.assertIn("rendered_width * GATEWAY_CENTERING_OFFSET", source)
         self.assertIn("snapshot.append_texture(self._texture, image_bounds)", source)
         self.assertNotIn("Gdk.cairo_set_source_texture", source)
+
+    def test_request_form_matches_the_gateway_perspective(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+
+        self.assertIn("class GatewayAlignedRequest(Gtk.Widget):", source)
+        self.assertIn("GATEWAY_FORM_YAW_DEGREES = 10.0", source)
+        self.assertIn("GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0", source)
+        self.assertIn(".perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH)", source)
+        self.assertIn(".rotate_3d(", source)
+        self.assertIn("self._child.allocate(child_width, child_height, baseline, transform)", source)
+        self.assertIn("self.snapshot_child(self._child, snapshot)", source)
+        self.assertIn("self._request_surface = GatewayAlignedRequest(self._request_content)", source)
+        self.assertIn('self._stack.add_named(self._request_surface, "request")', source)
+        self.assertNotIn(".skew(", source)
 
     def test_gateway_artwork_is_static_with_animated_gateway_energy(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")

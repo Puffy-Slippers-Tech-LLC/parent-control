@@ -6,6 +6,7 @@ import argparse
 import logging
 import json
 import math
+import os
 import random
 import sys
 from pathlib import Path
@@ -15,8 +16,9 @@ import gi
 gi.require_version("Adw", "1")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Graphene", "1.0")
+gi.require_version("Gsk", "4.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk
 
 from .model import RequestState, public_error
 from .request_content import RequestContent
@@ -30,6 +32,15 @@ REQUEST_TIMEOUT_MS = GLib.MAXINT
 # Keep the confirmation visible briefly before returning to GDM.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
 GATEWAY_EFFECT_FRAME_MS = 33
+# The form is centered in the window while the gateway in the artwork is
+# slightly left of the image centre.  Shift the composed artwork just enough
+# to centre the form within the gateway at every resolution.
+GATEWAY_CENTERING_OFFSET = 0.03125
+# Project the complete form as the flat surface mounted inside the gateway.
+# The gateway's horizon crosses the middle of the form, so its upper edges
+# descend to the right while its lower edges rise to the right.
+GATEWAY_FORM_YAW_DEGREES = 10.0
+GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0
 PREVIEW_DEFAULT_WIDTH = 1918
 PREVIEW_DEFAULT_HEIGHT = 1443
 PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
@@ -89,6 +100,11 @@ class GatewayBackground(Gtk.Widget):
             LOG.warning("kiosk background unavailable error_type=%s", type(error).__name__)
             return None
 
+    def reload_texture(self):
+        """Refresh the preview artwork without rebuilding the window."""
+        self._texture = self._load_texture()
+        self.queue_draw()
+
     def _next_frame(self):
         self.queue_draw()
         return GLib.SOURCE_CONTINUE
@@ -116,7 +132,8 @@ class GatewayBackground(Gtk.Widget):
         rendered_width = image_width * scale
         rendered_height = image_height * scale
         image_bounds = Graphene.Rect().init(
-            (width - rendered_width) / 2,
+            (width - rendered_width) / 2
+            + rendered_width * GATEWAY_CENTERING_OFFSET,
             (height - rendered_height) / 2,
             rendered_width,
             rendered_height,
@@ -346,6 +363,62 @@ class GatewayBackground(Gtk.Widget):
                 context.stroke()
 
 
+def _gateway_form_projection(width, height):
+    """Return the gateway's perspective transform around the form's centre."""
+    return (
+        Gsk.Transform.new()
+        .translate(Graphene.Point().init(width / 2, height / 2))
+        .perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH)
+        .rotate_3d(
+            GATEWAY_FORM_YAW_DEGREES,
+            Graphene.Vec3().init(0, 1, 0),
+        )
+        .translate(Graphene.Point().init(-width / 2, -height / 2))
+    )
+
+
+class GatewayAlignedRequest(Gtk.Widget):
+    """Container that mounts the complete request form in the gateway plane."""
+
+    def __init__(self, child):
+        super().__init__(hexpand=True, vexpand=True)
+        self._child = child
+        child.set_parent(self)
+
+    def do_measure(self, orientation, for_size):
+        return self._child.measure(orientation, for_size)
+
+    def do_size_allocate(self, width, height, baseline):
+        _minimum_width, natural_width, _minimum_baseline, _natural_baseline = (
+            self._child.measure(Gtk.Orientation.HORIZONTAL, -1)
+        )
+        child_width = min(width, natural_width)
+        _minimum_height, natural_height, _minimum_baseline, _natural_baseline = (
+            self._child.measure(Gtk.Orientation.VERTICAL, child_width)
+        )
+        child_height = min(height, natural_height)
+
+        projection = _gateway_form_projection(child_width, child_height)
+        projected_bounds = projection.transform_bounds(
+            Graphene.Rect().init(0, 0, child_width, child_height),
+        )
+        placement = Graphene.Point().init(
+            (width - projected_bounds.get_width()) / 2 - projected_bounds.get_x(),
+            (height - projected_bounds.get_height()) / 2 - projected_bounds.get_y(),
+        )
+        transform = Gsk.Transform.new().translate(placement).transform(projection)
+        self._child.allocate(child_width, child_height, baseline, transform)
+
+    def do_snapshot(self, snapshot):
+        self.snapshot_child(self._child, snapshot)
+
+    def do_dispose(self):
+        if self._child is not None:
+            self._child.unparent()
+            self._child = None
+        Gtk.Widget.do_dispose(self)
+
+
 def configure_logging(preview=False):
     """Use local logging for preview; production records belong to the broker."""
     handler = logging.StreamHandler() if preview else BrokerLogHandler()
@@ -376,17 +449,25 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _build(self):
         self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
-        backdrop = GatewayBackground()
-        backdrop.add_css_class("oh-no-parent-control-gateway-background")
-        backdrop.set_can_target(False)
+        self._background = GatewayBackground()
+        self._background.add_css_class("oh-no-parent-control-gateway-background")
+        self._background.set_can_target(False)
         layout = Gtk.Overlay()
-        layout.set_child(backdrop)
+        layout.set_child(self._background)
         layout.add_overlay(self._stack)
-        self.set_content(layout)
+        if self._preview:
+            # The production kiosk is fullscreen, but its frameless preview
+            # still needs a compositor-supported surface for moving it.
+            drag_handle = Gtk.WindowHandle()
+            drag_handle.set_child(layout)
+            self.set_content(drag_handle)
+        else:
+            self.set_content(layout)
         self._request_content = RequestContent(
             self._request_access, self._logout, self._load_preferences,
         )
-        self._stack.add_named(self._request_content, "request")
+        self._request_surface = GatewayAlignedRequest(self._request_content)
+        self._stack.add_named(self._request_surface, "request")
 
         self._result_view = self._page("Request result")
         self._result_title = Gtk.Label(css_classes=["oh-no-parent-control-page-title"])
@@ -596,16 +677,75 @@ class Application(Adw.Application):
         self._preview = preview
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
         self._css_provider = None
+        self._preview_monitor = None
+        self._preview_reload_source_id = None
+        self._preview_changed_paths = set()
+
+    @staticmethod
+    def _asset_path(name):
+        return Path(__file__).with_name(name)
+
+    def _load_stylesheet(self):
+        self._css_provider.load_from_path(str(self._asset_path("style.css")))
+
+    def _watch_preview_files(self):
+        """Reload preview assets immediately and relaunch safely for Python edits."""
+        if self._preview_monitor is not None:
+            return
+        directory = Gio.File.new_for_path(str(Path(__file__).parent))
+        self._preview_monitor = directory.monitor_directory(
+            Gio.FileMonitorFlags.WATCH_MOVES, None,
+        )
+        self._preview_monitor.connect("changed", self._preview_file_changed)
+
+    def _preview_file_changed(self, _monitor, file, other_file, event_type):
+        if event_type not in {
+            Gio.FileMonitorEvent.CHANGED,
+            Gio.FileMonitorEvent.CREATED,
+            Gio.FileMonitorEvent.MOVED_IN,
+        }:
+            return
+        changed = {Path(file.get_path() or "")}
+        if other_file is not None:
+            changed.add(Path(other_file.get_path() or ""))
+        relevant = {
+            path for path in changed
+            if path.name in {"style.css", "kiosk-background.jpeg"} or path.suffix == ".py"
+        }
+        if not relevant:
+            return
+        self._preview_changed_paths.update(relevant)
+        if self._preview_reload_source_id is None:
+            self._preview_reload_source_id = GLib.timeout_add(150, self._reload_preview)
+
+    def _reload_preview(self):
+        self._preview_reload_source_id = None
+        changed_paths = self._preview_changed_paths
+        self._preview_changed_paths = set()
+        names = {path.name for path in changed_paths}
+        if "style.css" in names:
+            self._load_stylesheet()
+            LOG.info("preview stylesheet reloaded")
+        window = self.get_active_window()
+        if "kiosk-background.jpeg" in names and window is not None:
+            window._background.reload_texture()
+            LOG.info("preview artwork reloaded")
+        if any(path.suffix == ".py" for path in changed_paths):
+            LOG.info("preview source changed; relaunching")
+            os.execv(sys.executable, sys.orig_argv)
+        return GLib.SOURCE_REMOVE
 
     def do_activate(self):
         window = self.get_active_window() or RequestWindow(self, preview=self._preview)
         if self._css_provider is None:
             self._css_provider = Gtk.CssProvider()
-            self._css_provider.load_from_path(str(Path(__file__).with_name("style.css")))
+            self._load_stylesheet()
             Gtk.StyleContext.add_provider_for_display(
                 window.get_display(), self._css_provider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
             )
+        if self._preview:
+            self._watch_preview_files()
         window.present()
 
 

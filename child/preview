@@ -59,6 +59,9 @@ export XDG_CONFIG_HOME="$preview_root/config"
 export GSETTINGS_BACKEND=keyfile
 export GSETTINGS_SCHEMA_DIR="$schema_dir"
 export OH_NO_PARENT_CONTROL_PREVIEW=1
+# IDE sandboxes can export GDK_BACKEND=x11.  Let Mutter Devkit select the
+# active Wayland display instead of attempting to open a host Xwayland socket.
+unset GDK_BACKEND
 gsettings set org.gnome.shell enabled-extensions "['$uuid']"
 
 echo 'Starting child preview in a nested GNOME Shell. Edit child files to reload.'

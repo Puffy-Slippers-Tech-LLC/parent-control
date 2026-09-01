@@ -50,6 +50,8 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("class GatewayAlignedRequest(Gtk.Widget):", source)
         self.assertIn("GATEWAY_FORM_YAW_DEGREES = 10.0", source)
         self.assertIn("GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0", source)
+        self.assertIn("GATEWAY_FORM_CENTERING_OFFSET = 0.019", source)
+        self.assertIn("width * GATEWAY_FORM_CENTERING_OFFSET", source)
         self.assertIn(".perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH)", source)
         self.assertIn(".rotate_3d(", source)
         self.assertIn("self._child.allocate(child_width, child_height, baseline, transform)", source)

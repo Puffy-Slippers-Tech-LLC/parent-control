@@ -5,7 +5,7 @@ polkit.addRule(function(action, subject) {
 });
 
 polkit.addAdminRule(function(action, subject) {
-    if (action.id != "com.puffyslippers.OhNoParentControl1.request-access")
+    if (action.id != "tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access")
         return null;
 
     var approver = action.lookup("approver-user");

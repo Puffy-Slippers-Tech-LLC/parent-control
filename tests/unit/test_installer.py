@@ -1,5 +1,9 @@
+import json
 import unittest
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
+
+from tools.render_polkit_policy import render
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +25,19 @@ class InstallerTests(unittest.TestCase):
         self.assertIn(
             "parent/oh_no_parent_control_parent/style.css", makefile,
         )
+
+    def test_polkit_vendor_metadata_uses_shared_branding(self):
+        policy = ROOT / "data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in"
+        branding = ROOT / "data/brand.json"
+
+        rendered = render(policy, branding)
+        root = ElementTree.fromstring(rendered)
+        values = json.loads(branding.read_text(encoding="utf-8"))
+
+        self.assertEqual(root.findtext("vendor"), values["vendor_name"])
+        self.assertIsNone(root.find("vendor_url"))
+        self.assertTrue(values["vendor_url"])
+        self.assertNotIn(values["vendor_name"], policy.read_text(encoding="utf-8"))
 
     def test_identity_scoped_usage_helper_is_installed(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")

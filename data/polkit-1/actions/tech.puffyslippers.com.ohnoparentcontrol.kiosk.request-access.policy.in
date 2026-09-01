@@ -2,9 +2,8 @@
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
-  <vendor>Puffy Slippers</vendor>
-  <vendor_url>https://puffyslippers.com/</vendor_url>
-  <action id="com.puffyslippers.OhNoParentControl1.request-access">
+  <vendor>@VENDOR_NAME@</vendor>
+  <action id="tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access">
     <description>Authorize additional time and app access for a selected account</description>
     <message>Grant $(target-account) $(requested-duration)$(soft-blocked-apps)?</message>
     <defaults>

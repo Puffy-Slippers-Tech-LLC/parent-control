@@ -192,7 +192,7 @@ test -x /usr/libexec/oh-no-parent-control-preserve-extension-state
 test -s /etc/oh-no-parent-control/config.json
 test -s /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
 test -s /usr/share/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy
-test -s /usr/share/polkit-1/actions/com.puffyslippers.OhNoParentControl1.policy
+test -s /usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy
 test -s /usr/lib/systemd/system/oh-no-parent-control-broker.service
 test -s /usr/lib/systemd/system/oh-no-parent-control-restore-extension-state.service
 test -s /usr/lib/systemd/user/oh-no-parent-control-app.service

@@ -18,10 +18,30 @@ from .client import BrokerClient, configure_logging
 
 LOG = logging.getLogger("oh-no-parent-control-parent")
 STATES = (
-    ("allowed", "Always Allowed"),
-    ("permanent", "Hard Blocked"),
-    ("conditional", "Soft Blocked"),
+    {
+        "id": "allowed",
+        "label": "Always Allowed",
+        "icon": "emblem-ok-symbolic",
+        "css": "policy-allowed",
+    },
+    {
+        "id": "permanent",
+        "label": "Hard Blocked",
+        "icon": "window-close-symbolic",
+        "css": "policy-hard-blocked",
+    },
+    {
+        "id": "conditional",
+        "label": "Soft Blocked",
+        "icon": "dialog-warning-symbolic",
+        "css": "policy-soft-blocked",
+    },
 )
+MAX_DAILY_LIMIT_MINUTES = 24 * 60
+
+
+def _minutes_label(minutes):
+    return f"{minutes} minute" if minutes == 1 else f"{minutes} minutes"
 
 
 class ParentWindow(Adw.ApplicationWindow):
@@ -41,10 +61,10 @@ class ParentWindow(Adw.ApplicationWindow):
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar()
         header.set_title_widget(Adw.WindowTitle(
-            title="Oh No! Parent Control", subtitle="Manage a child account",
+            title="Oh No! Parent Control",
         ))
         toolbar.add_top_bar(header)
-        page = Adw.PreferencesPage()
+        page = Adw.PreferencesPage(css_classes=["preferences-page"])
         toolbar.set_content(page)
         self._toasts = Adw.ToastOverlay(child=toolbar)
         self.set_content(self._toasts)
@@ -57,48 +77,128 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         account_row.add_suffix(self._account)
         accounts.add(account_row)
+        page.add(accounts)
+
+        screen_limits = Adw.PreferencesGroup(title="Screen Limits")
         control_row = Adw.ActionRow(
-            title="Parent Control",
-            subtitle="Install and enable the child extension for this account",
+            title="Screen Time Limit",
+            subtitle="Reminders and other hints when the daily time limit is reached",
         )
         self._enabled = Gtk.Switch(valign=Gtk.Align.CENTER, sensitive=False)
         self._enabled.connect("notify::active", self._enabled_changed)
         control_row.add_suffix(self._enabled)
-        accounts.add(control_row)
-        page.add(accounts)
-
-        apps = Adw.PreferencesGroup(
-            title="App access",
-            description="Always allowed, hard blocked, or soft blocked for extra-time requests.",
+        screen_limits.add(control_row)
+        self._daily_limit = Adw.ComboRow(
+            title="Daily Time Limit",
+            model=Gtk.StringList.new([
+                _minutes_label(minutes)
+                for minutes in range(MAX_DAILY_LIMIT_MINUTES + 1)
+            ]),
+            sensitive=False,
         )
+        self._daily_limit.connect("notify::selected", self._daily_limit_changed)
+        screen_limits.add(self._daily_limit)
+        page.add(screen_limits)
+
+        legend = Adw.PreferencesGroup(
+            title="App access legend", css_classes=["policy-legend"],
+        )
+        legend_row = Gtk.Grid(
+            column_homogeneous=True, column_spacing=12,
+            css_classes=["policy-legend-row"],
+        )
+        legend_items = (
+            (STATES[0], None),
+            (STATES[1], "Can only be unblocked by admins"),
+            (STATES[2], "Can be toggled in one-off extensions"),
+        )
+        for index, (state, subtitle) in enumerate(legend_items):
+            column = Gtk.Box(
+                orientation=Gtk.Orientation.HORIZONTAL, spacing=8,
+                hexpand=True, valign=Gtk.Align.CENTER,
+                css_classes=["policy-legend-column"],
+            )
+            column.append(Gtk.ToggleButton(
+                active=True, can_focus=False, can_target=False,
+                css_classes=[
+                    "policy-choice", "policy-legend-icon", state["css"],
+                ],
+                child=Gtk.Image(icon_name=state["icon"], pixel_size=19),
+                valign=Gtk.Align.CENTER,
+            ))
+            text = Gtk.Box(
+                orientation=Gtk.Orientation.VERTICAL,
+                hexpand=True, valign=Gtk.Align.CENTER,
+            )
+            text.append(Gtk.Label(
+                label=state["label"], xalign=0,
+                css_classes=["policy-legend-title"],
+            ))
+            if subtitle:
+                text.append(Gtk.Label(
+                    label=subtitle, xalign=0, wrap=True,
+                    css_classes=["policy-legend-description"],
+                ))
+            column.append(text)
+            legend_row.attach(column, index, 0, 1, 1)
+        legend.add(legend_row)
+        page.add(legend)
+
+        apps = Adw.PreferencesGroup(css_classes=["apps-panel"])
         self._apps_group = apps
-        search_row = Adw.ActionRow(title="Installed apps")
-        self._search = Gtk.SearchEntry(placeholder_text="Search apps", width_chars=24)
+        search_row = Adw.ActionRow(
+            title="Installed apps",
+            subtitle="Desktop, AppImage, Flatpak, Snap, and system launchers",
+            css_classes=["apps-panel-header"],
+        )
+        self._search = Gtk.SearchEntry(
+            placeholder_text="Search installed apps", valign=Gtk.Align.CENTER,
+            width_chars=25, css_classes=["apps-search"],
+        )
         self._search.connect("search-changed", self._filter)
         search_row.add_suffix(self._search)
         apps.add(search_row)
         for app in list_apps():
-            row = Adw.ActionRow(title=app["name"], subtitle=app["description"])
+            row = Adw.ActionRow(
+                title=app["name"], subtitle=app["description"] or app["id"],
+                css_classes=["app-policy-row"],
+            )
             row.app = app
             row.search_text = f'{app["name"]} {app["description"]} {app["id"]}'.casefold()
             if app["icon"]:
                 row.add_prefix(Gtk.Image(gicon=app["icon"], pixel_size=32))
-            row.selector = Gtk.DropDown(model=Gtk.StringList.new(
-                [label for _state, label in STATES]
-            ))
-            row.selector.connect("notify::selected", self._policy_changed)
-            row.add_suffix(row.selector)
+            row.policy_buttons = {}
+            selector = Gtk.Box(
+                orientation=Gtk.Orientation.HORIZONTAL, spacing=3,
+                valign=Gtk.Align.CENTER, css_classes=["policy-selector"],
+            )
+            first_button = None
+            for state in STATES:
+                button = Gtk.ToggleButton(
+                    tooltip_text=state["label"],
+                    css_classes=["policy-choice", state["css"]],
+                    child=Gtk.Image(icon_name=state["icon"], pixel_size=19),
+                    valign=Gtk.Align.CENTER,
+                )
+                if first_button is None:
+                    first_button = button
+                else:
+                    button.set_group(first_button)
+                button.connect("toggled", self._policy_changed)
+                row.policy_buttons[state["id"]] = button
+                selector.append(button)
+            row.add_suffix(selector)
             apps.add(row)
             self._rows.append(row)
         page.add(apps)
 
         actions = Adw.PreferencesGroup()
         save_row = Adw.ActionRow(
-            title="Save app access",
-            subtitle="Changes apply to the selected child’s shared preferences.",
+            title="Administrator approval required",
+            subtitle="Saving replaces the current app policy for the selected child account.",
         )
         self._save = Gtk.Button(
-            label="Save Changes", css_classes=["suggested-action"],
+            label="Save Changes", css_classes=["suggested-action", "policy-save"],
             valign=Gtk.Align.CENTER, sensitive=False,
         )
         self._save.connect("clicked", self._save_clicked)
@@ -120,6 +220,9 @@ class ParentWindow(Adw.ApplicationWindow):
                     self._enabled.set_active(bool(
                         self._preferences.get("parent_control_enabled")
                     ))
+                    self._daily_limit.set_selected(
+                        self._preferences.get("daily_time_limit_minutes", 0)
+                    )
                 self._loading = False
                 self._set_apps_sensitive(bool(
                     self._preferences and
@@ -184,11 +287,10 @@ class ParentWindow(Adw.ApplicationWindow):
     def _preferences_loaded(self, preferences):
         self._preferences = preferences
         self._enabled.set_active(preferences["parent_control_enabled"])
+        self._daily_limit.set_selected(preferences["daily_time_limit_minutes"])
         for row in self._rows:
             state = preferences["apps"].get(row.app["id"], {}).get("state", "allowed")
-            row.selector.set_selected(next(
-                index for index, (value, _label) in enumerate(STATES) if value == state
-            ))
+            row.policy_buttons[state].set_active(True)
         self._loading = False
         self._set_apps_sensitive(preferences["parent_control_enabled"])
         self._save.set_sensitive(False)
@@ -199,20 +301,40 @@ class ParentWindow(Adw.ApplicationWindow):
     def _set_apps_sensitive(self, sensitive):
         self._account.set_sensitive(not self._loading)
         self._enabled.set_sensitive(not self._loading and self._selected_uid() is not None)
+        self._daily_limit.set_sensitive(
+            not self._loading and self._selected_uid() is not None and
+            self._enabled.get_active()
+        )
         self._apps_group.set_sensitive(sensitive)
 
     def _enabled_changed(self, switch, _param):
         if self._loading or self._selected_uid() is None:
             return
-        enabled, uid = switch.get_active(), self._selected_uid()
-        LOG.info("parent-control change started target_uid=%d enabled=%s", uid, enabled)
+        self._save_parent_control(switch.get_active())
+
+    def _daily_limit_changed(self, row, _param):
+        if self._loading or self._selected_uid() is None:
+            return
+        self._save_parent_control(self._enabled.get_active())
+
+    def _save_parent_control(self, enabled):
+        uid = self._selected_uid()
+        daily_limit_minutes = self._daily_limit.get_selected()
+        LOG.info(
+            "parent-control change started target_uid=%d enabled=%s daily_limit_minutes=%d",
+            uid, enabled, daily_limit_minutes,
+        )
         self._loading = True
         self._set_apps_sensitive(False)
-        self._run(lambda: self._client.set_parent_control(uid, enabled),
-                  self._preferences_loaded)
+        self._run(
+            lambda: self._client.set_parent_control(
+                uid, enabled, daily_limit_minutes,
+            ),
+            self._preferences_loaded,
+        )
 
-    def _policy_changed(self, *_args):
-        if not self._loading:
+    def _policy_changed(self, button):
+        if button.get_active() and not self._loading:
             self._save.set_sensitive(True)
 
     def _save_clicked(self, *_args):
@@ -221,7 +343,10 @@ class ParentWindow(Adw.ApplicationWindow):
         value = dict(self._preferences)
         value["apps"] = {}
         for row in self._rows:
-            state = STATES[row.selector.get_selected()][0]
+            state = next(
+                state["id"] for state in STATES
+                if row.policy_buttons[state["id"]].get_active()
+            )
             if state != "allowed":
                 value["apps"][row.app["id"]] = {
                     "state": state, "targets": row.app["targets"],
@@ -250,9 +375,18 @@ class ParentWindow(Adw.ApplicationWindow):
 class Application(Adw.Application):
     def __init__(self):
         super().__init__(application_id="com.puffyslippers.OhNoParentControl.Parent")
+        self._css_provider = None
 
     def do_activate(self):
-        (self.get_active_window() or ParentWindow(self)).present()
+        window = self.get_active_window() or ParentWindow(self)
+        if self._css_provider is None:
+            self._css_provider = Gtk.CssProvider()
+            self._css_provider.load_from_path(str(Path(__file__).with_name("style.css")))
+            Gtk.StyleContext.add_provider_for_display(
+                window.get_display(), self._css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+            )
+        window.present()
 
 
 def main():

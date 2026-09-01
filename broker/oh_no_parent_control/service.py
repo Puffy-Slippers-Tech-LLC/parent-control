@@ -58,6 +58,7 @@ INTROSPECTION_XML = f"""
     <method name="SetParentControl">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="enabled" type="b" direction="in"/>
+      <arg name="daily_limit_minutes" type="u" direction="in"/>
       <arg name="saved_json" type="s" direction="out"/>
     </method>
     <method name="LogEvent">
@@ -125,8 +126,10 @@ class Service:
                 )
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
             elif method == "SetParentControl":
-                target_uid, enabled = parameters.unpack()
-                saved = self.broker.set_parent_control(caller_uid, target_uid, enabled)
+                target_uid, enabled, daily_limit_minutes = parameters.unpack()
+                saved = self.broker.set_parent_control(
+                    caller_uid, target_uid, enabled, daily_limit_minutes,
+                )
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
             elif method == "LogEvent":
                 component, level, message = parameters.unpack()

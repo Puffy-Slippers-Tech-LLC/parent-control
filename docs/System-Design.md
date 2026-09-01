@@ -59,6 +59,7 @@ The root-owned, mode `0600`, atomically replaced record contains:
 ```text
 version
 parent_control_enabled
+daily_time_limit_minutes
 apps[desktop-id] = { state, targets[] }
 request = { last_selected_duration, last_custom_minutes,
             allow_soft_blocked_apps }
@@ -85,15 +86,20 @@ Eligible children are local, interactive, non-system, non-admin accounts with
 UID >= 1000, excluding the kiosk account.
 
 `SetPreferences` cannot alter `parent_control_enabled`; only
-`SetParentControl` owns extension lifecycle state. `RequestAccess` additionally
-requires interactive Polkit approval and performs transactional
-AccountsService updates with rollback.
+`SetParentControl` owns extension lifecycle and the account's Malcontent daily
+limit. Enabling applies the saved integer limit of 0–1440 minutes; zero supports
+the product's grant-only mode. Disabling makes the account unrestricted while
+retaining the selected limit for a later re-enable, and clears product-applied
+grants and filters.
+`RequestAccess` additionally requires interactive Polkit approval and performs
+transactional AccountsService updates with rollback.
 
 ## Main flows
 
 1. **Manage:** Parent selects child -> reads preferences -> saves app policy or
-   calls `SetParentControl`. Extension lifecycle succeeds before its flag is
-   committed; commit failure triggers rollback.
+   calls `SetParentControl` with the enabled state and daily limit. Extension
+   lifecycle and Malcontent account state succeed before preferences are
+   committed; any failure restores all three.
 2. **Child request:** Extension refreshes its own record -> uses saved request
    values and derived targets -> follows its existing in-session approval path.
 3. **Kiosk request:** Kiosk loads/updates the selected child's request values ->

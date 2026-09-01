@@ -3,6 +3,7 @@ set -euo pipefail
 
 readonly KIOSK_USER="oh-no-parent-control"
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly APT_LOCK_TIMEOUT_SECONDS=300
 INSTALLER_USER="${SUDO_USER-}"
 
 usage() {
@@ -47,15 +48,17 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 
 # A previous package operation may have unpacked packages without completing
-# their configuration. APT refuses all subsequent installs in that state, so
-# finish the standard DPKG recovery step before asking APT to do more work.
-dpkg --configure -a
+# their configuration. Recover through APT so its supported lock timeout also
+# handles package services which are still finishing during a clean install.
+# Do not bypass DPKG locking: the other package operation must finish first.
+apt_get=(apt-get -o "DPkg::Lock::Timeout=$APT_LOCK_TIMEOUT_SECONDS")
+"${apt_get[@]}" --fix-broken install -y
 
-apt-get update
-apt-get install -y software-properties-common
+"${apt_get[@]}" update
+"${apt_get[@]}" install -y software-properties-common
 add-apt-repository -y universe
-apt-get update
-apt-get install -y \
+"${apt_get[@]}" update
+"${apt_get[@]}" install -y \
     accountsservice \
     dbus-user-session \
     gdm3 \
@@ -166,6 +169,10 @@ systemctl daemon-reload
 systemctl reload dbus.service
 systemctl enable oh-no-parent-control-restore-extension-state.service
 systemctl restart accounts-daemon.service
+# Product files may have replaced an already running D-Bus broker. Restart it
+# after provisioning has written its configuration so the parent, kiosk, and
+# broker always use the same installed interface and preference schema.
+systemctl restart oh-no-parent-control-broker.service
 
 # Fail before completing if any essential installation invariant is missing.
 kiosk_uid="$(id -u "$KIOSK_USER")"
@@ -228,6 +235,7 @@ systemctl is-enabled --quiet malcontent-timer-extension-agent.service
 systemctl is-enabled --quiet oh-no-parent-control-restore-extension-state.service
 systemctl is-active --quiet malcontent-timerd.service
 systemctl is-active --quiet malcontent-timer-extension-agent.service
+systemctl is-active --quiet oh-no-parent-control-broker.service
 
 # Ubuntu treats a Shell stop timeout during reboot as an extension crash and
 # persists disable-user-extensions=true. Preserve the invoking account's exact

@@ -38,9 +38,10 @@ class BrokerClient:
         )
         return json.loads(encoded)
 
-    def set_parent_control(self, uid, enabled):
+    def set_parent_control(self, uid, enabled, daily_limit_minutes):
         encoded, = self._call(
-            "SetParentControl", GLib.Variant("(ub)", (uid, enabled)), "(s)",
+            "SetParentControl",
+            GLib.Variant("(ubu)", (uid, enabled, daily_limit_minutes)), "(s)",
         )
         return json.loads(encoded)
 

@@ -29,6 +29,7 @@
     <method name="SetParentControl">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="enabled" type="b" direction="in"/>
+      <arg name="daily_limit_minutes" type="u" direction="in"/>
       <arg name="saved_json" type="s" direction="out"/>
     </method>
     <method name="LogEvent">

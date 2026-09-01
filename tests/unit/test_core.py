@@ -42,6 +42,7 @@ class Accounts:
         self.events = []
         self.fail_extension = False
         self.fail_rollback = False
+        self.fail_limit_type = False
 
     def list_users(self):
         return tuple(self.users.values())
@@ -75,6 +76,8 @@ class Accounts:
 
     def set_limit_type(self, uid, value):
         self.events.append(("set_limit_type", uid, value))
+        if self.fail_limit_type and value != self.limit_type:
+            raise RuntimeError("failed")
         self.limit_type = value
 
     def get_daily_limit(self, uid):
@@ -172,10 +175,84 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(AccessDenied):
             broker.set_preferences(1001, 1001, value)
         with self.assertRaises(AccessDenied):
-            broker.set_parent_control(1001, 1001, True)
-        saved = broker.set_parent_control(1003, 1001, True)
+            broker.set_parent_control(1001, 1001, True, 60)
+        saved = broker.set_parent_control(1003, 1001, True, 60)
         self.assertTrue(saved["parent_control_enabled"])
+        self.assertEqual(saved["daily_time_limit_minutes"], 60)
         self.assertEqual(extensions.calls, [(1001, True)])
+
+    def test_enabling_parent_control_initializes_exhausted_account(self):
+        accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
+        accounts.limit_type = 0
+        accounts.daily_limit = 7200
+
+        make_broker(
+            accounts=accounts, preferences=preferences, extensions=extensions,
+        ).set_parent_control(1003, 1001, True, 120)
+
+        self.assertEqual(accounts.limit_type, 2)
+        self.assertEqual(accounts.daily_limit, 7200)
+        self.assertEqual(accounts.filter, (False, ()))
+        self.assertEqual(accounts.extension, (0, 0))
+
+    def test_disabling_parent_control_removes_account_restrictions(self):
+        accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
+        preferences.values[1001]["parent_control_enabled"] = True
+
+        saved = make_broker(
+            accounts=accounts, preferences=preferences, extensions=extensions,
+        ).set_parent_control(1003, 1001, False, 90)
+
+        self.assertFalse(saved["parent_control_enabled"])
+        self.assertEqual(saved["daily_time_limit_minutes"], 90)
+        self.assertEqual(accounts.limit_type, 0)
+        self.assertEqual(accounts.daily_limit, 0)
+        self.assertEqual(accounts.filter, (False, ()))
+        self.assertEqual(accounts.extension, (0, 0))
+        self.assertEqual(extensions.calls, [(1001, False)])
+
+    def test_parent_control_failure_restores_account_and_extension(self):
+        accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
+        accounts.limit_type = 0
+        accounts.fail_limit_type = True
+
+        with self.assertRaises(BackendFailure):
+            make_broker(
+                accounts=accounts, preferences=preferences, extensions=extensions,
+            ).set_parent_control(1003, 1001, True, 60)
+
+        self.assertFalse(preferences.load(1001)["parent_control_enabled"])
+        self.assertEqual(accounts.limit_type, 0)
+        self.assertEqual(accounts.daily_limit, 3600)
+        self.assertEqual(accounts.filter, (False, ("old.App",)))
+        self.assertEqual(accounts.extension, (1, 2))
+        self.assertEqual(extensions.calls, [(1001, True), (1001, False)])
+
+    def test_daily_limit_requires_integer_in_range_before_writes(self):
+        accounts, extensions = Accounts(), Extensions()
+        broker = make_broker(accounts=accounts, extensions=extensions)
+
+        for value in (-1, 1441, 1.5, True):
+            with self.subTest(value=value):
+                with self.assertRaises(InvalidRequest):
+                    broker.set_parent_control(1003, 1001, True, value)
+
+        self.assertEqual(accounts.events, [])
+        self.assertEqual(extensions.calls, [])
+
+    def test_changing_daily_limit_preserves_active_grant_and_filter(self):
+        accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
+        preferences.values[1001]["parent_control_enabled"] = True
+
+        saved = make_broker(
+            accounts=accounts, preferences=preferences, extensions=extensions,
+        ).set_parent_control(1003, 1001, True, 1440)
+
+        self.assertEqual(saved["daily_time_limit_minutes"], 1440)
+        self.assertEqual(accounts.daily_limit, 24 * 60 * 60)
+        self.assertEqual(accounts.filter, (False, ("old.App",)))
+        self.assertEqual(accounts.extension, (1, 2))
+        self.assertEqual(extensions.calls, [])
 
     def test_child_and_kiosk_share_request_menu_values(self):
         preferences = Preferences()
@@ -267,16 +344,20 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(accounts.filter, (False, ("/usr/bin/game", "org.example.Game")))
         self.assertEqual(accounts.extension[1], 900)
 
-    def test_existing_four_hour_allowance_is_migrated_to_zero(self):
+    def test_request_restores_configured_daily_allowance(self):
         accounts = Accounts()
         accounts.limit_type = 2
         accounts.daily_limit = 4 * 60 * 60
+        preferences = Preferences()
+        preferences.values[1001]["daily_time_limit_minutes"] = 120
 
-        make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, False)
+        make_broker(accounts=accounts, preferences=preferences).request_access(
+            991, ":1.2", 1001, 900, False,
+        )
 
         self.assertEqual(accounts.limit_type, 2)
-        self.assertEqual(accounts.daily_limit, 0)
-        self.assertIn(("set_daily_limit", 1001, 0), accounts.events)
+        self.assertEqual(accounts.daily_limit, 2 * 60 * 60)
+        self.assertIn(("set_daily_limit", 1001, 2 * 60 * 60), accounts.events)
 
     def test_extension_failure_rolls_filter_back(self):
         accounts = Accounts()

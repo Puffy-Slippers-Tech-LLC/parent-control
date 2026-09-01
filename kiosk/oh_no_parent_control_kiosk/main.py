@@ -19,7 +19,9 @@ from .request_content import RequestContent
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
 OBJECT_PATH = "/com/puffyslippers/OhNoParentControl1"
 INTERFACE = BUS_NAME
-REQUEST_TIMEOUT_MS = 190_000
+# An authorization prompt remains open until the administrator responds.
+# G_MAXINT is GIO's supported no-timeout value.
+REQUEST_TIMEOUT_MS = GLib.MAXINT
 LOG = logging.getLogger("oh-no-parent-control")
 
 
@@ -201,9 +203,17 @@ class RequestWindow(Adw.ApplicationWindow):
                     "Request approved", f"The requested access is ready for {self._requested_label}."
                 )
             elif outcome == "cancelled":
-                self._show_result("Authorization cancelled", "No changes were made.")
+                # Cancellation is not an error or a session transition.  The
+                # administrator returns to the same kiosk request form without
+                # an additional message.
+                self._request_content.clear_validation_error()
+                self._stack.set_visible_child_name("request")
             else:
-                self._show_result("Request denied", "No changes were made.")
+                # A completed authorization attempt that was not approved
+                # (for example, an incorrect password) is actionable, so keep
+                # the request choices visible and show the error in place.
+                self._request_content.show_validation_error("Request denied")
+                self._stack.set_visible_child_name("request")
         except Exception as error:
             self._request_failed(error)
         finally:

@@ -32,7 +32,10 @@ TIMER_NAME = "org.freedesktop.MalcontentTimer1"
 TIMER_PATH = "/org/freedesktop/MalcontentTimer1"
 TIMER_PARENT_INTERFACE = "org.freedesktop.MalcontentTimer1.Parent"
 CALL_TIMEOUT_MS = 30_000
-AUTH_TIMEOUT_MS = 180_000
+# Authorization is user-driven.  Keep the Polkit prompt pending until the
+# administrator accepts or cancels it rather than treating inactivity as a
+# denial.  G_MAXINT is GIO's supported no-timeout value.
+AUTH_TIMEOUT_MS = GLib.MAXINT
 USAGE_HELPER = "/usr/libexec/oh-no-parent-control-query-usage"
 MAX_USAGE_HELPER_OUTPUT_BYTES = 8 * 1024 * 1024
 
@@ -106,7 +109,8 @@ class PolkitAuthorizer:
                 "((bba{ss}))", AUTH_TIMEOUT_MS,
             )
         except GLib.Error:
-            # Cancellation, timeout, and authority/agent loss all fail closed.
+            # Agent loss and authority errors fail closed.  This call itself
+            # has no timeout; a user cancellation is returned by Polkit below.
             return "denied"
         authorized, challenge, _details = reply.unpack()[0]
         if authorized:

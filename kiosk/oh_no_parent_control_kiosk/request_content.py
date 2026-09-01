@@ -299,6 +299,11 @@ class RequestContent(Gtk.Box):
         self._status.add_css_class("oh-no-parent-control-error")
         self._status.set_visible(True)
 
+    def clear_validation_error(self):
+        """Restore the normal request-form status after a silent cancellation."""
+        self._status.remove_css_class("oh-no-parent-control-error")
+        self._update_ready()
+
     def set_controls_sensitive(self, enabled):
         self._request.set_sensitive(enabled and self._ready)
         self._cancel.set_sensitive(enabled)

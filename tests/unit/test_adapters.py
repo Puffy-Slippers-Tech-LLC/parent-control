@@ -19,8 +19,8 @@ class PolkitAdapterTests(unittest.TestCase):
 
         return run
 
-    def test_timeout_or_agent_loss_denies(self):
-        error = GLib.Error.new_literal(Gio.io_error_quark(), "timed out", Gio.IOErrorEnum.TIMED_OUT)
+    def test_agent_loss_denies(self):
+        error = GLib.Error.new_literal(Gio.io_error_quark(), "agent lost", Gio.IOErrorEnum.CLOSED)
         with mock.patch("oh_no_parent_control.adapters._call", side_effect=error):
             self.assertEqual(
                 PolkitAuthorizer(object()).check(
@@ -38,6 +38,7 @@ class PolkitAdapterTests(unittest.TestCase):
             )
 
         self.assertEqual(outcome, "approved")
+        self.assertEqual(call.call_args.args[7], GLib.MAXINT)
         parameters = call.call_args.args[5].unpack()
         self.assertEqual(parameters[2]["approver-user"], "parent")
         self.assertEqual(parameters[2]["target-account"], "Child")

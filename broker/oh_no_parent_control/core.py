@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 import uuid
@@ -22,6 +23,7 @@ MIN_REQUEST_SECONDS = 6
 MAX_REQUEST_SECONDS = 24 * 60 * 60
 MIN_MANAGED_UID = 1000
 DAILY_LIMIT_FLAG = 1 << 1
+APPROVER_USERNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*[$]?$")
 
 
 class BrokerError(RuntimeError):
@@ -60,6 +62,7 @@ class UserAccount:
     is_admin: bool
     is_system: bool
     is_local: bool
+    is_locked: bool = False
 
 
 @dataclass(frozen=True)
@@ -71,7 +74,8 @@ class TimeStatus:
 
 
 class Authorizer(Protocol):
-    def check(self, sender: str, correlation_id: str, target_label: str) -> str: ...
+    def check(self, sender: str, correlation_id: str, target_label: str,
+              approver_username: str) -> str: ...
 
 
 class Accounts(Protocol):
@@ -250,6 +254,26 @@ class Broker:
         users = (user for user in self._accounts.list_users() if self._eligible(config, user))
         return tuple(sorted(users, key=lambda user: (user.label.casefold(), user.uid)))
 
+    @staticmethod
+    def _eligible_approver(config: Configuration, user: UserAccount) -> bool:
+        return (
+            MIN_MANAGED_UID <= user.uid <= UINT32_MAX and
+            user.uid != config.kiosk_uid and
+            user.is_local and not user.is_system and not user.is_locked and
+            user.is_admin and
+            bool(APPROVER_USERNAME_RE.fullmatch(user.username))
+        )
+
+    def list_approvers(self, caller_uid: int) -> tuple[UserAccount, ...]:
+        config = self._load_config()
+        if not self._can_manage_or_kiosk(config, caller_uid):
+            raise AccessDenied("caller is not an administrator or request station")
+        users = (
+            user for user in self._accounts.list_users()
+            if self._eligible_approver(config, user)
+        )
+        return tuple(sorted(users, key=lambda user: (user.label.casefold(), user.uid)))
+
     def authorize_log_component(self, caller_uid: int, component: str) -> None:
         """Ensure a front end can write only to its own component log."""
         config = self._load_config()
@@ -275,6 +299,17 @@ class Broker:
             raise InvalidRequest("selected account is unavailable") from error
         if not self._eligible(config, user):
             raise AccessDenied("selected account is not an eligible standard account")
+        return user
+
+    def _approver(self, config: Configuration, approver_uid: int) -> UserAccount:
+        if type(approver_uid) is not int or not 0 <= approver_uid <= UINT32_MAX:
+            raise InvalidRequest("approver UID is invalid")
+        try:
+            user = self._accounts.get_user(approver_uid)
+        except Exception as error:
+            raise InvalidRequest("selected approver is unavailable") from error
+        if not self._eligible_approver(config, user):
+            raise AccessDenied("selected approver is not an eligible administrator")
         return user
 
     def get_preferences(self, caller_uid: int, target_uid: int) -> dict:
@@ -307,9 +342,30 @@ class Broker:
         # The dedicated toggle operation owns installation state.
         requested["parent_control_enabled"] = current["parent_control_enabled"]
         try:
-            return self._preferences.save(target.uid, requested)
-        except PreferencesError as error:
-            raise BackendFailure("preferences could not be saved") from error
+            old_filter = self._accounts.get_filter(target.uid)
+        except Exception as error:
+            raise BackendFailure("app filter is unavailable") from error
+        desired_filter = (False, blocked_targets(requested, False))
+        try:
+            self._accounts.set_filter(target.uid, desired_filter)
+            if self._accounts.get_filter(target.uid) != desired_filter:
+                raise BackendFailure("app-filter verification failed")
+            try:
+                return self._preferences.save(target.uid, requested)
+            except PreferencesError as error:
+                raise BackendFailure("preferences could not be saved") from error
+        except Exception as error:
+            try:
+                self._accounts.set_filter(target.uid, old_filter)
+                if self._accounts.get_filter(target.uid) != old_filter:
+                    raise RuntimeError("app-filter rollback read-back mismatch")
+            except Exception as rollback_error:
+                raise RollbackFailure(
+                    "app-filter rollback could not be verified"
+                ) from rollback_error
+            if isinstance(error, BrokerError):
+                raise
+            raise BackendFailure("app filter could not be applied") from error
 
     def update_request_preferences(self, caller_uid: int, target_uid: int,
                                    selected: str, custom: float,
@@ -360,7 +416,6 @@ class Broker:
                     self._accounts.set_limit_type(target.uid, desired_limit_type)
                 self._accounts.set_daily_limit(target.uid, desired_daily_limit)
                 if extension_changed:
-                    self._accounts.set_filter(target.uid, (False, ()))
                     self._accounts.set_extension(target.uid, (0, 0))
                 if enabled:
                     self._accounts.set_limit_type(target.uid, desired_limit_type)
@@ -368,8 +423,7 @@ class Broker:
                 if (self._accounts.get_limit_type(target.uid) != desired_limit_type or
                         self._accounts.get_daily_limit(target.uid) != desired_daily_limit):
                     raise BackendFailure("parent-control account verification failed")
-                if extension_changed and (
-                        self._accounts.get_filter(target.uid) != (False, ()) or
+                if (extension_changed and
                         self._accounts.get_extension(target.uid) != (0, 0)):
                     raise BackendFailure("parent-control account verification failed")
 
@@ -401,7 +455,7 @@ class Broker:
             raise BackendFailure("could not change parent-control state") from error
 
     def request_access(self, caller_uid: int, sender: str, target_uid: int,
-                       duration_seconds: int,
+                       approver_uid: int, duration_seconds: int,
                        allow_soft_blocked_apps: bool) -> tuple[str, str]:
         correlation_id = str(uuid.uuid4())
         if not self._request_lock.acquire(blocking=False):
@@ -417,12 +471,16 @@ class Broker:
             if type(allow_soft_blocked_apps) is not bool:
                 raise InvalidRequest("allow-soft value must be boolean")
             target = self._target(config, target_uid)
+            approver = self._approver(config, approver_uid)
             self._apply_rate_limit(caller_uid, config.minimum_request_interval_seconds)
-            LOG.info("request=%s caller_uid=%d target_uid=%d duration_seconds=%d "
-                     "allow_soft=%s stage=authorize", correlation_id, caller_uid,
-                     target.uid, duration_seconds, allow_soft_blocked_apps)
+            LOG.info("request=%s caller_uid=%d target_uid=%d approver_uid=%d "
+                     "duration_seconds=%d allow_soft=%s stage=authorize",
+                     correlation_id, caller_uid, target.uid, approver.uid,
+                     duration_seconds, allow_soft_blocked_apps)
 
-            outcome = self._authorizer.check(sender, correlation_id, target.label)
+            outcome = self._authorizer.check(
+                sender, correlation_id, target.label, approver.username,
+            )
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise BackendFailure("authorizer returned an invalid outcome")
             if outcome != "approved":
@@ -432,9 +490,12 @@ class Broker:
                 LOG.warning("request=%s outcome=denied reason=caller-disconnected", correlation_id)
                 return correlation_id, "denied"
             # Fail closed if the selected account changed while the parent was
-            # authenticating (including an AccountType promotion to admin).
+            # authenticating (including an AccountType promotion to admin), or
+            # if the selected approver is no longer an eligible administrator.
             if self._target(config, target_uid) != target:
                 raise AccessDenied("selected account changed during authorization")
+            if self._approver(config, approver_uid) != approver:
+                raise AccessDenied("selected approver changed during authorization")
 
             approved_at = self._now()
             duration = (

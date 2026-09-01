@@ -47,6 +47,10 @@ class RequestContent(Gtk.Box):
         self._duration_buttons = []
         self._account_uids = []
         self._account_labels = []
+        self._approver_uids = []
+        self._approver_labels = []
+        self._accounts_loaded = False
+        self._approvers_loaded = False
         self._ready = False
         self._on_account_selected = on_account_selected
 
@@ -55,17 +59,27 @@ class RequestContent(Gtk.Box):
         self._status.add_css_class("oh-no-parent-control-status")
         self.append(self._status)
 
-        account_row = Gtk.Box(spacing=8)
-        account_row.add_css_class("oh-no-parent-control-account-row")
-        account_row.append(Gtk.Label(label="Account", xalign=0, hexpand=True))
+        account_selectors = Gtk.Grid(column_spacing=8, row_spacing=16)
+        account_selectors.add_css_class("oh-no-parent-control-account-row")
+        account_selectors.attach(Gtk.Label(label="Child", xalign=0), 0, 0, 1, 1)
         self._accounts = Gtk.DropDown(model=Gtk.StringList.new([]))
         self._accounts.set_hexpand(True)
         self._accounts.connect("notify::selected", self._account_changed)
-        account_row.append(self._accounts)
+        account_selectors.attach(self._accounts, 1, 0, 1, 1)
         self._refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Refresh accounts")
         self._refresh.connect("clicked", on_refresh)
-        account_row.append(self._refresh)
-        self.append(account_row)
+        account_selectors.attach(self._refresh, 2, 0, 1, 1)
+
+        account_selectors.attach(Gtk.Label(label="Approver", xalign=0), 0, 1, 1, 1)
+        self._approvers = Gtk.DropDown(model=Gtk.StringList.new([]))
+        self._approvers.set_hexpand(True)
+        account_selectors.attach(self._approvers, 1, 1, 1, 1)
+        self._approver_refresh = Gtk.Button(
+            icon_name="view-refresh-symbolic", tooltip_text="Refresh approvers"
+        )
+        self._approver_refresh.connect("clicked", on_refresh)
+        account_selectors.attach(self._approver_refresh, 2, 1, 1, 1)
+        self.append(account_selectors)
 
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._choices.add_css_class("oh-no-parent-control-choices")
@@ -149,6 +163,8 @@ class RequestContent(Gtk.Box):
                 button.set_active(True)
 
     def set_loading(self):
+        self._accounts_loaded = False
+        self._approvers_loaded = False
         self._ready = False
         self._request.set_sensitive(False)
         self._status.set_text("Loading accounts…")
@@ -163,19 +179,50 @@ class RequestContent(Gtk.Box):
         self._account_uids = [uid for uid, _label in parsed]
         self._account_labels = [label for _uid, label in parsed]
         self._accounts.set_model(Gtk.StringList.new(self._account_labels))
-        self._ready = bool(parsed)
+        self._accounts_loaded = True
         if parsed:
             self._accounts.set_selected(0)
-            self._status.set_text("Choose the account to manage")
-        else:
-            self._status.set_text("No local standard accounts are available. Create one, then refresh.")
-        self._request.set_sensitive(self._ready)
+        self._update_ready()
         if parsed:
             self._account_changed()
 
+    def set_approvers(self, users):
+        """Replace the selector with current local interactive administrators."""
+        parsed = []
+        for uid, label in users:
+            if type(uid) is not int or not isinstance(label, str) or not label.strip():
+                raise ValueError("broker returned an invalid approver")
+            parsed.append((uid, label.strip()))
+        self._approver_uids = [uid for uid, _label in parsed]
+        self._approver_labels = [label for _uid, label in parsed]
+        self._approvers.set_model(Gtk.StringList.new(self._approver_labels))
+        self._approvers_loaded = True
+        if parsed:
+            self._approvers.set_selected(0)
+        self._update_ready()
+
+    def _update_ready(self):
+        self._ready = (
+            self._accounts_loaded and self._approvers_loaded and
+            bool(self._account_uids) and bool(self._approver_uids)
+        )
+        if not self._accounts_loaded or not self._approvers_loaded:
+            self._status.set_text("Loading accounts…")
+        elif not self._account_uids:
+            self._status.set_text(
+                "No local standard accounts are available. Create one, then refresh."
+            )
+        elif not self._approver_uids:
+            self._status.set_text(
+                "No local interactive administrator accounts are available."
+            )
+        else:
+            self._status.set_text("Choose the account and approving administrator")
+        self._request.set_sensitive(self._ready)
+
     def _account_changed(self, *_args):
         index = self._accounts.get_selected()
-        if (self._ready and index < len(self._account_uids) and
+        if (self._accounts_loaded and index < len(self._account_uids) and
                 self._on_account_selected is not None):
             self._on_account_selected(self._account_uids[index])
 
@@ -210,6 +257,9 @@ class RequestContent(Gtk.Box):
         account_index = self._accounts.get_selected()
         if not self._ready or account_index >= len(self._account_uids):
             raise ValueError("Select an account to manage")
+        approver_index = self._approvers.get_selected()
+        if approver_index >= len(self._approver_uids):
+            raise ValueError("Select an approving administrator")
         selected = next(
             (button for button in self._duration_buttons if button.get_active()), None
         )
@@ -227,7 +277,8 @@ class RequestContent(Gtk.Box):
             seconds = round(minutes * 60)
         return (
             self._account_uids[account_index], self._account_labels[account_index],
-            seconds, self._allow_soft.get_active(),
+            self._approver_uids[approver_index], seconds,
+            self._allow_soft.get_active(),
         )
 
     def selected_preferences(self):
@@ -254,6 +305,8 @@ class RequestContent(Gtk.Box):
         self._custom_entry.set_sensitive(enabled)
         self._allow_soft.set_sensitive(enabled)
         self._accounts.set_sensitive(enabled)
+        self._approvers.set_sensitive(enabled)
         self._refresh.set_sensitive(enabled)
+        self._approver_refresh.set_sensitive(enabled)
         for button in self._duration_buttons:
             button.set_sensitive(enabled)

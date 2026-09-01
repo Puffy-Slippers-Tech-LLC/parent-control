@@ -67,5 +67,4 @@ sudo ./install.sh
 It installs dependencies and product files, creates and confines the kiosk
 account, provisions the broker, and validates the installation. It marks the
 system as requiring a reboot but does not reboot automatically. No managed
-account is required. See [docs/Deployment.md](docs/Deployment.md) for the
-deployment and runtime account-discovery details.
+account is required.

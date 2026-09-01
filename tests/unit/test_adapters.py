@@ -11,7 +11,23 @@ class PolkitAdapterTests(unittest.TestCase):
     def test_timeout_or_agent_loss_denies(self):
         error = GLib.Error.new_literal(Gio.io_error_quark(), "timed out", Gio.IOErrorEnum.TIMED_OUT)
         with mock.patch("oh_no_parent_control.adapters._call", side_effect=error):
-            self.assertEqual(PolkitAuthorizer(object()).check(":1.2", "id", "Child"), "denied")
+            self.assertEqual(
+                PolkitAuthorizer(object()).check(":1.2", "id", "Child", "admin"),
+                "denied",
+            )
+
+    def test_selected_approver_is_passed_as_an_action_detail(self):
+        reply = mock.Mock()
+        reply.unpack.return_value = ((True, False, {}),)
+        with mock.patch("oh_no_parent_control.adapters._call", return_value=reply) as call:
+            outcome = PolkitAuthorizer(object()).check(
+                ":1.2", "id", "Child", "parent",
+            )
+
+        self.assertEqual(outcome, "approved")
+        parameters = call.call_args.args[5].unpack()
+        self.assertEqual(parameters[2]["approver-user"], "parent")
+        self.assertEqual(parameters[2]["target-account"], "Child")
 
     def test_user_listing_uses_fresh_nss_candidates(self):
         accounts = AccountsService(object())

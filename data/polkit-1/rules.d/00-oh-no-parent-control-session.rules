@@ -3,3 +3,16 @@ polkit.addRule(function(action, subject) {
         subject.user == "oh-no-parent-control")
         return polkit.Result.NO;
 });
+
+polkit.addAdminRule(function(action, subject) {
+    if (action.id != "com.puffyslippers.OhNoParentControl1.request-access")
+        return null;
+
+    var approver = action.lookup("approver-user");
+    if (approver && /^[A-Za-z_][A-Za-z0-9_.-]*[$]?$/.test(approver))
+        return ["unix-user:" + approver];
+
+    // This action must never fall through to the machine-wide administrator
+    // list: the broker supplies a validated approver for every request.
+    return [];
+});

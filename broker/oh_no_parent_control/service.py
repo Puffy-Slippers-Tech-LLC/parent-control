@@ -32,8 +32,12 @@ INTROSPECTION_XML = f"""
     <method name="ListManagedUsers">
       <arg name="users" type="a(us)" direction="out"/>
     </method>
+    <method name="ListApprovers">
+      <arg name="users" type="a(us)" direction="out"/>
+    </method>
     <method name="RequestAccess">
       <arg name="target_uid" type="u" direction="in"/>
+      <arg name="approver_uid" type="u" direction="in"/>
       <arg name="duration_seconds" type="u" direction="in"/>
       <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
       <arg name="correlation_id" type="s" direction="out"/>
@@ -115,12 +119,17 @@ class Service:
                 invocation.return_value(GLib.Variant(
                     "(a(us))", ([(user.uid, user.label) for user in users],),
                 ))
+            elif method == "ListApprovers":
+                users = self.broker.list_approvers(caller_uid)
+                invocation.return_value(GLib.Variant(
+                    "(a(us))", ([(user.uid, user.label) for user in users],),
+                ))
             elif method == "RequestAccess":
-                target_uid, duration_seconds, allow_soft = parameters.unpack()
+                target_uid, approver_uid, duration_seconds, allow_soft = parameters.unpack()
                 threading.Thread(
                     target=self._request_worker,
                     args=(invocation, caller_uid, sender, target_uid,
-                          duration_seconds, allow_soft),
+                          approver_uid, duration_seconds, allow_soft),
                     daemon=True,
                 ).start()
             elif method == "GetPreferences":
@@ -187,10 +196,10 @@ class Service:
             invocation.return_dbus_error(f"{BUS_NAME}.Error.Failed", "service failure")
 
     def _request_worker(self, invocation, caller_uid, sender, target_uid,
-                        duration_seconds, allow_soft):
+                        approver_uid, duration_seconds, allow_soft):
         try:
             result = self.broker.request_access(
-                caller_uid, sender, target_uid, duration_seconds, allow_soft
+                caller_uid, sender, target_uid, approver_uid, duration_seconds, allow_soft
             )
             GLib.idle_add(self._return_value, invocation, result)
         except BrokerError as error:

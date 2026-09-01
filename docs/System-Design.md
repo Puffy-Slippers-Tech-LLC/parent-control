@@ -76,6 +76,7 @@ the kiosk UID and request rate limit. It must not duplicate child preferences.
 | D-Bus method | Child | Kiosk | Admin |
 | --- | --- | --- | --- |
 | `ListManagedUsers` | — | yes | yes |
+| `ListApprovers` | — | yes | yes |
 | `GetPreferences` | own | selected child | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
@@ -89,12 +90,22 @@ UID >= 1000, excluding the kiosk account.
 
 `SetPreferences` cannot alter `parent_control_enabled`; only
 `SetParentControl` owns extension lifecycle and the account's Malcontent daily
-limit. Enabling applies the saved integer limit of 0–1440 minutes; zero supports
-the product's grant-only mode. Disabling makes the account unrestricted while
-retaining the selected limit for a later re-enable, and clears product-applied
-grants and filters.
+limit. Saving preferences immediately applies the configured app blocklist,
+independently of the daily-limit state. Enabling applies the saved integer limit
+of 0–1440 minutes; zero supports the product's grant-only mode. Disabling removes
+the daily restriction and clears product-applied grants while retaining both the
+selected limit and the applied app filter.
 `RequestAccess` additionally requires interactive Polkit approval and performs
 transactional AccountsService updates with rollback.
+The kiosk selects a local interactive administrator returned by `ListApprovers`.
+The broker revalidates that account, passes its username as an action detail,
+and an action-specific Polkit administrator rule limits authentication to that
+one identity. The standard authentication agent therefore shows a password
+dialog without a second identity-selection page. This remains one authorization
+for both the app-filter and ActiveExtension writes.
+The kiosk session runs the maintained LXQt Polkit agent as a restartable user
+service. Authentication-agent failure denies the in-flight request but does not
+end the kiosk session; systemd restarts the agent for a later request.
 
 The broker is the single source of truth for the backend-compatible grant
 formula:
@@ -104,22 +115,28 @@ ActiveExtension = max(Daily allowance remaining, One-time grant remaining)
                   + Additional one-time grant
 ```
 
-`GetTimeStatus` derives the selected child's unused daily allowance from
-Malcontent's public parent usage API and the current one-time grant from
-AccountsService. The parent app displays all three operands and the result.
-The child passes its live Malcontent estimate through `CalculateRemainingTime`
-before writing a grant or displaying the notification countdown.
+Malcontent authorizes its public parent usage API against the actual D-Bus
+caller, so the parent app queries that API using the signed-in administrator's
+connection. It reads the current one-time grant from AccountsService, derives
+the unused daily allowance, and passes all three operands to
+`CalculateRemainingTime`. The broker therefore remains the single source for
+the formula, while Malcontent sees the real parent identity instead of the root
+broker identity. The child likewise passes its live Malcontent estimate through
+`CalculateRemainingTime` before writing a grant or displaying the notification
+countdown.
 
 ## Main flows
 
-1. **Manage:** Parent selects child -> reads preferences -> saves app policy or
-   calls `SetParentControl` with the enabled state and daily limit. Extension
-   lifecycle and Malcontent account state succeed before preferences are
-   committed; any failure restores all three.
+1. **Manage:** Parent selects child -> reads preferences -> edits app policy at
+   any time or calls `SetParentControl` with the daily-limit state and value.
+   Saving app policy applies its blocklist immediately. Extension lifecycle and
+   Malcontent account state succeed before preferences are committed; any
+   failure restores the affected state.
 2. **Child request:** Extension refreshes its own record -> uses saved request
    values and derived targets -> follows its existing in-session approval path.
-3. **Kiosk request:** Kiosk loads/updates the selected child's request values ->
-   calls `RequestAccess` -> broker authorizes and updates AccountsService.
+3. **Kiosk request:** Kiosk selects a child and approving administrator, then
+   loads/updates the child's request values -> calls `RequestAccess` -> broker
+   authorizes the selected administrator and updates AccountsService.
 
 ## Installed layout
 

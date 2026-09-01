@@ -9,7 +9,9 @@ from oh_no_parent_control.core import (
     UserAccount, calculate_active_extension_seconds, seconds_until_local_midnight,
 )
 from test_config import valid_config
-from oh_no_parent_control.preferences import default_preferences, validate_preferences
+from oh_no_parent_control.preferences import (
+    PreferencesError, default_preferences, validate_preferences,
+)
 
 
 class Authorizer:
@@ -18,8 +20,8 @@ class Authorizer:
         self.calls = []
         self.callback = callback
 
-    def check(self, sender, correlation_id, target_label):
-        self.calls.append((sender, correlation_id, target_label))
+    def check(self, sender, correlation_id, target_label, approver_username):
+        self.calls.append((sender, correlation_id, target_label, approver_username))
         if self.callback:
             self.callback()
         return self.outcome
@@ -178,6 +180,20 @@ class CoreTests(unittest.TestCase):
             (1001, "Child"), (1002, "Other"),
         ])
 
+    def test_list_approvers_exposes_only_local_interactive_administrators(self):
+        accounts = Accounts()
+        accounts.users[1004] = UserAccount(
+            1004, "system-admin", "System Admin", True, True, True,
+        )
+        accounts.users[1005] = UserAccount(
+            1005, "remote-admin", "Remote Admin", True, False, False,
+        )
+        accounts.users[1006] = UserAccount(
+            1006, "locked-admin", "Locked Admin", True, False, True, True,
+        )
+        users = make_broker(accounts=accounts).list_approvers(991)
+        self.assertEqual([(user.uid, user.label) for user in users], [(1003, "Admin")])
+
     def test_wrong_caller_denied(self):
         with self.assertRaises(AccessDenied):
             make_broker().list_managed_users(1001)
@@ -229,10 +245,10 @@ class CoreTests(unittest.TestCase):
 
         self.assertEqual(accounts.limit_type, 2)
         self.assertEqual(accounts.daily_limit, 7200)
-        self.assertEqual(accounts.filter, (False, ()))
+        self.assertEqual(accounts.filter, (False, ("old.App",)))
         self.assertEqual(accounts.extension, (0, 0))
 
-    def test_disabling_parent_control_removes_account_restrictions(self):
+    def test_disabling_daily_limit_removes_only_time_restrictions(self):
         accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
         preferences.values[1001]["parent_control_enabled"] = True
 
@@ -244,7 +260,7 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(saved["daily_time_limit_minutes"], 90)
         self.assertEqual(accounts.limit_type, 0)
         self.assertEqual(accounts.daily_limit, 0)
-        self.assertEqual(accounts.filter, (False, ()))
+        self.assertEqual(accounts.filter, (False, ("old.App",)))
         self.assertEqual(accounts.extension, (0, 0))
         self.assertEqual(extensions.calls, [(1001, False)])
 
@@ -291,6 +307,48 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(accounts.extension, (1, 2))
         self.assertEqual(extensions.calls, [])
 
+    def test_saving_app_policy_applies_filter_when_daily_limit_is_disabled(self):
+        accounts, preferences = Accounts(), Preferences()
+        value = preferences.load(1001)
+        self.assertFalse(value["parent_control_enabled"])
+
+        saved = make_broker(
+            accounts=accounts, preferences=preferences,
+        ).set_preferences(1003, 1001, value)
+
+        self.assertFalse(saved["parent_control_enabled"])
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
+
+    def test_app_policy_save_failure_restores_live_filter(self):
+        class FailingPreferences(Preferences):
+            def save(self, uid, value):
+                raise PreferencesError("failed")
+
+        accounts = Accounts()
+        preferences = FailingPreferences()
+
+        with self.assertRaises(BackendFailure):
+            make_broker(
+                accounts=accounts, preferences=preferences,
+            ).set_preferences(1003, 1001, preferences.load(1001))
+
+        self.assertEqual(accounts.filter, (False, ("old.App",)))
+
+    def test_toggling_daily_limit_does_not_replace_applied_app_filter(self):
+        accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
+        accounts.filter = (False, ("org.example.Game",))
+        broker = make_broker(
+            accounts=accounts, preferences=preferences, extensions=extensions,
+        )
+
+        broker.set_parent_control(1003, 1001, True, 60)
+        broker.set_parent_control(1003, 1001, False, 60)
+
+        self.assertEqual(accounts.filter, (False, ("org.example.Game",)))
+
     def test_child_and_kiosk_share_request_menu_values(self):
         preferences = Preferences()
         broker = make_broker(preferences=preferences)
@@ -303,7 +361,9 @@ class CoreTests(unittest.TestCase):
     def test_admin_target_is_rejected_without_authorization(self):
         auth, accounts = Authorizer(), Accounts()
         with self.assertRaises(AccessDenied):
-            make_broker(auth, accounts).request_access(991, ":1.2", 1003, 900, False)
+            make_broker(auth, accounts).request_access(
+                991, ":1.2", 1003, 1003, 900, False,
+            )
         self.assertEqual(auth.calls, [])
 
     def test_account_created_after_broker_start_is_discovered(self):
@@ -318,7 +378,7 @@ class CoreTests(unittest.TestCase):
         auth, accounts = Authorizer(), Accounts()
         accounts.limit_type = 0
         accounts.daily_limit = 7200
-        make_broker(auth, accounts).request_access(991, ":1.2", 1001, 900, False)
+        make_broker(auth, accounts).request_access(991, ":1.2", 1001, 1003, 900, False)
         self.assertEqual(len(auth.calls), 1)
         self.assertEqual(accounts.limit_type, 2)
         self.assertEqual(accounts.daily_limit, 0)
@@ -334,8 +394,32 @@ class CoreTests(unittest.TestCase):
 
         with self.assertRaises(AccessDenied):
             make_broker(Authorizer(callback=promote), accounts).request_access(
-                991, ":1.2", 1001, 900, False,
+                991, ":1.2", 1001, 1003, 900, False,
             )
+        self.assertEqual(accounts.events, [])
+
+    def test_approver_change_during_authorization_causes_no_writes(self):
+        accounts = Accounts()
+
+        def demote():
+            old = accounts.users[1003]
+            accounts.users[1003] = UserAccount(
+                old.uid, old.username, old.label, False, old.is_system, old.is_local,
+            )
+
+        with self.assertRaises(AccessDenied):
+            make_broker(Authorizer(callback=demote), accounts).request_access(
+                991, ":1.2", 1001, 1003, 900, False,
+            )
+        self.assertEqual(accounts.events, [])
+
+    def test_non_admin_approver_is_rejected_without_authorization(self):
+        auth, accounts = Authorizer(), Accounts()
+        with self.assertRaises(AccessDenied):
+            make_broker(auth, accounts).request_access(
+                991, ":1.2", 1001, 1002, 900, False,
+            )
+        self.assertEqual(auth.calls, [])
         self.assertEqual(accounts.events, [])
 
     def test_duration_and_toggle_are_validated_before_authorization(self):
@@ -343,18 +427,20 @@ class CoreTests(unittest.TestCase):
         broker = make_broker(auth, accounts)
         for duration, allow_soft in ((5, False), (86401, False), (900, 1)):
             with self.assertRaises(InvalidRequest):
-                broker.request_access(991, ":1.2", 1001, duration, allow_soft)
+                broker.request_access(991, ":1.2", 1001, 1003, duration, allow_soft)
         self.assertEqual(auth.calls, [])
         self.assertEqual(accounts.events, [])
 
     def test_rest_of_day_is_calculated_after_approval(self):
         accounts = Accounts()
-        make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 0, False)
+        make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 1003, 0, False)
         self.assertEqual(accounts.extension[1], 14 * 60 * 60)
 
     def test_denial_makes_no_writes_and_one_check(self):
         auth, accounts = Authorizer("denied"), Accounts()
-        result = make_broker(auth, accounts).request_access(991, ":1.2", 1001, 900, False)
+        result = make_broker(auth, accounts).request_access(
+            991, ":1.2", 1001, 1003, 900, False,
+        )
         self.assertEqual(result[1], "denied")
         self.assertEqual(len(auth.calls), 1)
         self.assertEqual(accounts.events, [])
@@ -362,20 +448,24 @@ class CoreTests(unittest.TestCase):
     def test_disconnected_caller_makes_no_writes(self):
         accounts = Accounts()
         result = make_broker(accounts=accounts, alive=lambda _s: False).request_access(
-            991, ":1.2", 1001, 900, False
+            991, ":1.2", 1001, 1003, 900, False
         )
         self.assertEqual(result[1], "denied")
         self.assertEqual(accounts.events, [])
 
     def test_allow_soft_omits_only_soft_targets(self):
         accounts = Accounts()
-        result = make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, True)
+        result = make_broker(accounts=accounts).request_access(
+            991, ":1.2", 1001, 1003, 900, True,
+        )
         self.assertEqual(result[1], "approved")
         self.assertEqual(accounts.filter, (False, ("org.example.Game",)))
 
     def test_filter_precedes_extension_and_readback(self):
         accounts = Accounts()
-        make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, False)
+        make_broker(accounts=accounts).request_access(
+            991, ":1.2", 1001, 1003, 900, False,
+        )
         names = [event[0] for event in accounts.events]
         self.assertLess(names.index("set_filter"), names.index("set_extension"))
         self.assertEqual(accounts.filter, (False, ("/usr/bin/game", "org.example.Game")))
@@ -393,7 +483,7 @@ class CoreTests(unittest.TestCase):
             accounts=accounts,
             preferences=preferences,
             timer_usage=TimerUsage(((start, start + 60),)),
-        ).request_access(991, ":1.2", 1001, 5 * 60, False)
+        ).request_access(991, ":1.2", 1001, 1003, 5 * 60, False)
 
         self.assertEqual(accounts.extension[1], 36 * 60)
 
@@ -405,7 +495,7 @@ class CoreTests(unittest.TestCase):
         preferences.values[1001]["daily_time_limit_minutes"] = 120
 
         make_broker(accounts=accounts, preferences=preferences).request_access(
-            991, ":1.2", 1001, 900, False,
+            991, ":1.2", 1001, 1003, 900, False,
         )
 
         self.assertEqual(accounts.limit_type, 2)
@@ -416,32 +506,38 @@ class CoreTests(unittest.TestCase):
         accounts = Accounts()
         accounts.fail_extension = True
         with self.assertRaises(BackendFailure):
-            make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, False)
+            make_broker(accounts=accounts).request_access(
+                991, ":1.2", 1001, 1003, 900, False,
+            )
         self.assertEqual(accounts.filter, (False, ("old.App",)))
 
     def test_rollback_failure_is_escalated(self):
         accounts = Accounts()
         accounts.fail_extension = accounts.fail_rollback = True
         with self.assertRaises(RollbackFailure):
-            make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 900, False)
+            make_broker(accounts=accounts).request_access(
+                991, ":1.2", 1001, 1003, 900, False,
+            )
 
     def test_rate_limit(self):
         broker = make_broker(clock=lambda: 100)
-        broker.request_access(991, ":1.2", 1001, 900, False)
+        broker.request_access(991, ":1.2", 1001, 1003, 900, False)
         with self.assertRaises(RateLimited):
-            broker.request_access(991, ":1.3", 1001, 900, False)
+            broker.request_access(991, ":1.3", 1001, 1003, 900, False)
 
     def test_concurrent_request_is_busy(self):
         entered, release = threading.Event(), threading.Event()
         auth = Authorizer(callback=lambda: (entered.set(), release.wait(2)))
         broker = make_broker(authorizer=auth)
         thread = threading.Thread(
-            target=lambda: broker.request_access(991, ":1.2", 1001, 900, False)
+            target=lambda: broker.request_access(
+                991, ":1.2", 1001, 1003, 900, False,
+            )
         )
         thread.start()
         self.assertTrue(entered.wait(1))
         with self.assertRaises(Busy):
-            broker.request_access(991, ":1.3", 1001, 900, False)
+            broker.request_access(991, ":1.3", 1001, 1003, 900, False)
         release.set()
         thread.join()
 

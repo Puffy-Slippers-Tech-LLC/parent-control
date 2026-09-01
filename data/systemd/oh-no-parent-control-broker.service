@@ -1,6 +1,5 @@
 [Unit]
 Description=Oh No! Parent Control request broker
-Documentation=file:/usr/share/doc/oh-no-parent-control/Deployment.md
 
 [Service]
 Type=dbus

@@ -64,7 +64,9 @@ _install-product-files:
 	install -m 0644 data/gnome-session/sessions/oh-no-parent-control.session "$(DESTDIR)$(DATADIR)/gnome-session/sessions/"
 	install -m 0644 data/wayland-sessions/oh-no-parent-control.desktop "$(DESTDIR)$(DATADIR)/wayland-sessions/"
 	install -m 0644 data/applications/com.puffyslippers.OhNoParentControl.desktop "$(DESTDIR)$(DATADIR)/applications/"
-	install -m 0644 data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop "$(DESTDIR)$(DATADIR)/applications/"
+	# GNOME only indexes desktop entries the signed-in user can read.  The
+	# installer/package assigns this file to Ubuntu's administrator group.
+	install -m 0640 data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	install -d "$(DESTDIR)$(DATADIR)/oh-no-parent-control" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control"
 	install -m 0644 config/config.example.json "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf.in "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"

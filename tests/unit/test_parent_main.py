@@ -1,7 +1,8 @@
 import unittest
 
 from parent.oh_no_parent_control_parent.main import (
-    STATES, ParentWindow, _duration_label, _minutes_label, _time_status_subtitle,
+    STATES, ParentWindow, _can_start, _duration_label, _minutes_label,
+    _time_status_subtitle,
 )
 
 
@@ -56,6 +57,18 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def test_parent_app_only_starts_when_broker_authorizes_its_caller(self):
+        class AuthorizedClient:
+            def list_users(self):
+                return []
+
+        class DeniedClient:
+            def list_users(self):
+                raise RuntimeError("administrator access is required")
+
+        self.assertTrue(_can_start(AuthorizedClient))
+        self.assertFalse(_can_start(DeniedClient))
+
     def test_app_policy_states_keep_the_original_three_state_visuals(self):
         self.assertEqual(
             [(state["id"], state["icon"], state["css"]) for state in STATES],

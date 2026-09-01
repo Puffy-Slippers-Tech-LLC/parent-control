@@ -170,6 +170,11 @@ newest 10 days.
 Enabling Parent Control copies the immutable payload to the child's local
 GNOME extension directory and enables its UUID. Disabling removes both.
 
+The Parent App desktop entry is `root:sudo`, mode `0640`.  GNOME therefore
+indexes it only for Ubuntu administrator accounts; the launcher also verifies
+broker administrator access before creating a window.  The broker remains the
+authorization authority and rechecks the AccountsService role for every call.
+
 The full-machine installer snapshots the invoking administrator's global GNOME
 extension switch. A boot-time one-shot restores that exact value before GDM
 starts, then deletes the snapshot. This prevents Ubuntu's Shell stop-timeout

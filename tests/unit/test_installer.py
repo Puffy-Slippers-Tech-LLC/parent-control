@@ -26,6 +26,21 @@ class InstallerTests(unittest.TestCase):
             "parent/oh_no_parent_control_parent/style.css", makefile,
         )
 
+    def test_parent_launcher_is_only_readable_by_administrators(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        script = INSTALLER.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "install -m 0640 data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop",
+            makefile,
+        )
+        self.assertIn(
+            "chown root:sudo /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop",
+            script,
+        )
+        self.assertIn('"root:sudo"', script)
+        self.assertIn('"640"', script)
+
     def test_polkit_vendor_metadata_uses_shared_branding(self):
         policy = ROOT / "data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in"
         branding = ROOT / "data/brand.json"

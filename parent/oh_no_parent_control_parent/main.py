@@ -481,7 +481,22 @@ class Application(Adw.Application):
         window.present()
 
 
+def _can_start(client_factory=BrokerClient):
+    # Do this before creating a GTK window so manually invoking the launcher
+    # does not expose the Parent App to a standard account.  ListManagedUsers
+    # is deliberately broker-authorized and therefore uses the same
+    # AccountsService role source as all management operations.
+    try:
+        client_factory().list_users()
+    except Exception:
+        return False
+    return True
+
+
 def main():
     configure_logging()
+    if not _can_start():
+        LOG.warning("parent app launch denied or broker unavailable")
+        return 1
     LOG.info("parent app starting")
     return Application().run(sys.argv)

@@ -2,13 +2,13 @@ Source: oh-no-parent-control
 Section: admin
 Priority: optional
 Maintainer: Puffy Slippers <support@puffyslippers.com>
-Build-Depends: debhelper-compat (= 13), dh-python, python3
+Build-Depends: debhelper-compat (= 13), dh-python, python3, sudo
 Standards-Version: 4.6.2
 Rules-Requires-Root: no
 
 Package: oh-no-parent-control
 Architecture: all
-Depends: ${misc:Depends}, ${python3:Depends}, accountsservice, dbus-user-session, gir1.2-adw-1, gir1.2-gtk-4.0, gnome-shell, libglib2.0-bin, malcontent, mate-polkit-bin, polkitd, python3, python3-gi, util-linux
+Depends: ${misc:Depends}, ${python3:Depends}, accountsservice, dbus-user-session, gir1.2-adw-1, gir1.2-gtk-4.0, gnome-shell, libglib2.0-bin, malcontent, mate-polkit-bin, polkitd, python3, python3-gi, sudo, util-linux
 Description: parent controls and extra-time requests for GNOME
  Oh No! Parent Control provides an administrator app, a per-child GNOME Shell
  extension, and a kiosk request station backed by shared per-account settings.

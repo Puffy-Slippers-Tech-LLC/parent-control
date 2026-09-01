@@ -107,6 +107,12 @@ env -u MAKEFLAGS -u MFLAGS \
     SYSTEMD_USER_DIR=/usr/lib/systemd/user \
     PRODUCT_LIBDIR=/usr/lib/oh-no-parent-control
 
+# Keep the management launcher out of standard users' GNOME application
+# listings.  Ubuntu grants administrative accounts membership in `sudo`; the
+# broker independently rechecks AccountsService's administrator role for every
+# management operation.
+chown root:sudo /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
+
 systemd-sysusers
 systemctl daemon-reload
 systemctl reload dbus.service
@@ -200,6 +206,8 @@ test -s /usr/lib/systemd/user/oh-no-parent-control-polkit-agent.service
 test -s /usr/lib/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf
 test -s /usr/share/gnome-session/sessions/oh-no-parent-control.session
 test -s /usr/share/wayland-sessions/oh-no-parent-control.desktop
+test "$(stat -c %U:%G /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop)" = "root:sudo"
+test "$(stat -c %a /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop)" = "640"
 test -f "/home/$KIOSK_USER/.config/gnome-initial-setup-done"
 test "$(stat -c %U "/home/$KIOSK_USER/.config/gnome-initial-setup-done")" = \
     "$KIOSK_USER"

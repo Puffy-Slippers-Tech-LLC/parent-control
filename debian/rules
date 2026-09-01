@@ -10,3 +10,8 @@ override_dh_auto_test:
 
 override_dh_auto_install:
 	$(MAKE) _install-product-files DESTDIR=$(CURDIR)/debian/oh-no-parent-control PREFIX=/usr SYSCONFDIR=/etc
+
+override_dh_fixperms:
+	dh_fixperms
+	chown root:sudo debian/oh-no-parent-control/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
+	chmod 0640 debian/oh-no-parent-control/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop

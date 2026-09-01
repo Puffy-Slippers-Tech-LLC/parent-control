@@ -29,3 +29,23 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn('this._preview ? 45 * 60', extension)
         self.assertIn('if (this._preview) {', extension)
         self.assertIn('if (isPreview())', preferences)
+
+    def test_preview_lists_two_mock_approvers(self):
+        source = (ROOT / "child" / "approverClient.js").read_text()
+
+        self.assertIn("if (isPreview())", source)
+        self.assertIn("[1001, 'Daddy']", source)
+        self.assertIn("[1002, 'Mommy']", source)
+
+    def test_request_dialog_owns_the_help_and_about_menu(self):
+        indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
+        request_dialog = (ROOT / "child" / "requestDialog.js").read_text()
+
+        self.assertIn("super._init(0.0, 'Screen Time Remaining');", indicator)
+        self.assertNotIn("super._init(0.0, 'Screen Time Remaining', true);", indicator)
+        self.assertNotIn('view-more-symbolic', indicator)
+        self.assertIn("icon_name: 'view-more-symbolic'", request_dialog)
+        self.assertIn('style_class: \'oh-no-parent-control-header-menu-button\'',
+                      request_dialog)
+        self.assertIn("[['Help', 'help'], ['About', 'about']]", request_dialog)
+        self.assertIn("this._onMenu?.(action);", request_dialog)

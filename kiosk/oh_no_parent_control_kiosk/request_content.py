@@ -12,6 +12,8 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk
 
+from common.oh_no_parent_control_ui.about import app_name
+
 
 def _load_options():
     adjacent = Path(__file__).with_name("request-options.json")
@@ -30,6 +32,70 @@ DEFAULT_DURATION_SECONDS = OPTIONS["default_duration_seconds"]
 MIN_CUSTOM_MINUTES = OPTIONS["minimum_custom_minutes"]
 MAX_CUSTOM_MINUTES = OPTIONS["maximum_custom_minutes"]
 NUMBER_RE = re.compile(r"^(?:\d+(?:\.\d+)?|\.\d+)$")
+
+
+class GatewayDropDown(Gtk.Box):
+    """An in-form account selector that remains on the gateway plane.
+
+    GTK's stock drop-down presents its choices in a popover surface.  That surface is
+    outside the request form's snapshot, so it cannot inherit the form's 3D
+    gateway transform.  Keeping the choice list here makes both the trigger
+    and its expanded content descendants of the transformed form.
+    """
+
+    def __init__(self, on_selected=None):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._on_selected = on_selected
+        self._selected = Gtk.INVALID_LIST_POSITION
+        self._labels = ()
+
+        self._trigger = Gtk.Button()
+        self._trigger.add_css_class("oh-no-parent-control-account-selector")
+        trigger_content = Gtk.Box(spacing=8)
+        self._selected_label = Gtk.Label(xalign=0, hexpand=True)
+        trigger_content.append(self._selected_label)
+        trigger_content.append(Gtk.Image.new_from_icon_name("pan-down-symbolic"))
+        self._trigger.set_child(trigger_content)
+        self._trigger.connect("clicked", self._toggle_choices)
+        self.append(self._trigger)
+
+        self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self._choices.add_css_class("oh-no-parent-control-account-choices")
+        self._choices.set_visible(False)
+        self.append(self._choices)
+
+    def set_items(self, labels):
+        self._labels = tuple(labels)
+        self._selected = Gtk.INVALID_LIST_POSITION
+        self._selected_label.set_text("")
+        while child := self._choices.get_first_child():
+            self._choices.remove(child)
+        for index, label in enumerate(self._labels):
+            choice = Gtk.Button(label=label, halign=Gtk.Align.FILL)
+            choice.add_css_class("oh-no-parent-control-account-choice")
+            choice.connect("clicked", self._choose, index)
+            self._choices.append(choice)
+        self._choices.set_visible(False)
+
+    def set_selected(self, index):
+        if index >= len(self._labels):
+            raise ValueError("selector index is out of range")
+        if index == self._selected:
+            return
+        self._selected = index
+        self._selected_label.set_text(self._labels[index])
+        if self._on_selected is not None:
+            self._on_selected()
+
+    def get_selected(self):
+        return self._selected
+
+    def _toggle_choices(self, *_args):
+        self._choices.set_visible(not self._choices.get_visible())
+
+    def _choose(self, _button, index):
+        self.set_selected(index)
+        self._choices.set_visible(False)
 
 
 class RequestContent(Gtk.Box):
@@ -63,13 +129,12 @@ class RequestContent(Gtk.Box):
         account_selectors = Gtk.Grid(column_spacing=8, row_spacing=16)
         account_selectors.add_css_class("oh-no-parent-control-account-row")
         account_selectors.attach(Gtk.Label(label="Child", xalign=0), 0, 0, 1, 1)
-        self._accounts = Gtk.DropDown(model=Gtk.StringList.new([]))
+        self._accounts = GatewayDropDown(self._account_changed)
         self._accounts.set_hexpand(True)
-        self._accounts.connect("notify::selected", self._account_changed)
         account_selectors.attach(self._accounts, 1, 0, 1, 1)
 
         account_selectors.attach(Gtk.Label(label="Approver", xalign=0), 0, 1, 1, 1)
-        self._approvers = Gtk.DropDown(model=Gtk.StringList.new([]))
+        self._approvers = GatewayDropDown()
         self._approvers.set_hexpand(True)
         account_selectors.attach(self._approvers, 1, 1, 1, 1)
         self.append(account_selectors)
@@ -131,7 +196,7 @@ class RequestContent(Gtk.Box):
             orientation=Gtk.Orientation.VERTICAL, spacing=3,
             valign=Gtk.Align.CENTER,
         )
-        title = Gtk.Label(label="Oh No! Parent Control", xalign=0)
+        title = Gtk.Label(label=app_name(), xalign=0)
         title.add_css_class("oh-no-parent-control-title")
         copy.append(title)
         subtitle = Gtk.Label(label="Choose how much extra time you need", xalign=0)
@@ -174,13 +239,11 @@ class RequestContent(Gtk.Box):
             parsed.append((uid, label.strip()))
         self._account_uids = [uid for uid, _label in parsed]
         self._account_labels = [label for _uid, label in parsed]
-        self._accounts.set_model(Gtk.StringList.new(self._account_labels))
+        self._accounts.set_items(self._account_labels)
         self._accounts_loaded = True
         if parsed:
             self._accounts.set_selected(0)
         self._update_ready()
-        if parsed:
-            self._account_changed()
 
     def set_approvers(self, users):
         """Replace the selector with current local interactive administrators."""
@@ -191,7 +254,7 @@ class RequestContent(Gtk.Box):
             parsed.append((uid, label.strip()))
         self._approver_uids = [uid for uid, _label in parsed]
         self._approver_labels = [label for _uid, label in parsed]
-        self._approvers.set_model(Gtk.StringList.new(self._approver_labels))
+        self._approvers.set_items(self._approver_labels)
         self._approvers_loaded = True
         if parsed:
             self._approvers.set_selected(0)

@@ -76,7 +76,7 @@ the kiosk UID and request rate limit. It must not duplicate child preferences.
 | D-Bus method | Child | Kiosk | Admin |
 | --- | --- | --- | --- |
 | `ListManagedUsers` | — | yes | yes |
-| `ListApprovers` | — | yes | yes |
+| `ListApprovers` | yes | yes | yes |
 | `GetPreferences` | own | selected child | selected child |
 | `ListApplications` | — | — | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
@@ -145,8 +145,10 @@ countdown.
    Extension lifecycle and
    Malcontent account state succeed before preferences are committed; any
    failure restores the affected state.
-2. **Child request:** Extension refreshes its own record -> uses saved request
-   values and derived targets -> follows its existing in-session approval path.
+2. **Child request:** Extension refreshes its own record -> selects a local
+   interactive administrator returned by `ListApprovers` -> follows its
+   in-session approval path. Its Polkit action detail and action-specific
+   administrator rule limit the authentication dialog to that identity.
 3. **Kiosk request:** Kiosk selects a child and approving administrator, then
    loads/updates the child's request values -> calls `RequestAccess` -> broker
    authorizes the selected administrator and updates AccountsService.
@@ -158,6 +160,8 @@ countdown.
 /usr/bin/oh-no-parent-control-parent           parent launcher
 /usr/libexec/oh-no-parent-control-broker       broker launcher
 /usr/libexec/oh-no-parent-control-query-usage  identity-scoped read-only helper
+/usr/libexec/oh-no-parent-control-session-limit-check  PAM limit-state gate
+/usr/libexec/oh-no-parent-control-migrate-state saved-data migration runner
 /usr/libexec/oh-no-parent-control-preserve-extension-state
 /usr/lib/oh-no-parent-control/kiosk/            kiosk Python package
 /usr/lib/oh-no-parent-control/parent/           parent Python package
@@ -165,6 +169,11 @@ countdown.
 /var/lib/oh-no-parent-control/preferences/     authoritative child records
 /var/log/oh-no-parent-control/<component>/     daily logs (10-day retention)
 ```
+
+APT and the full-machine installer stop the broker and run the packaged,
+version-stepped migration framework before newly installed code can access
+saved preferences. See `Data-Migration.md` for the schema contract and failure
+recovery behavior.
 
 The broker is the sole log-file writer. Logs are owned by `root:sudo`: Ubuntu
 administrators can read them, while other users cannot. Parent, child, and kiosk
@@ -175,6 +184,11 @@ newest 10 days.
 
 Enabling Parent Control copies the immutable payload to the child's local
 GNOME extension directory and enables its UUID. Disabling removes both.
+The PAM account stack exempts systemd, kiosk, and administrator accounts, then
+uses the public AccountsService `LimitType` property to skip `pam_malcontent`
+only when the account is confirmed unrestricted. Unknown or malformed state
+continues through `pam_malcontent`; enabled zero-minute grant-only mode remains
+enforced without showing the module's unrestricted-account message.
 
 The Parent App desktop entry is `root:sudo`, mode `0640`.  GNOME therefore
 indexes it only for Ubuntu administrator accounts; the launcher also verifies

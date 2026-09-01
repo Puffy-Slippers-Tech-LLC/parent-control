@@ -17,8 +17,9 @@ const TIMER_INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
 
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
-    _init(onRequest, approvedGrantRemaining = 0, preview = false) {
-        super._init(0.0, 'Screen Time Remaining', true);
+    _init(onRequest, approvedGrantRemaining = 0, preview = false,
+        appName = 'Parent Control') {
+        super._init(0.0, 'Screen Time Remaining');
 
         this._onRequest = onRequest;
         this._preview = preview;
@@ -57,14 +58,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         });
         this._buttonContent.add_child(this._label);
         this._buttonContent.add_child(this._requestIcon);
-
         this._requestButton = new St.Button({
             style_class: 'screen-time-request-button',
             child: this._buttonContent,
             can_focus: true,
             reactive: true,
             track_hover: true,
-            accessible_name: 'Oh No! Parent Control',
+            accessible_name: appName,
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._requestButton.connect('clicked', () => {
@@ -73,7 +73,6 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         });
         content.add_child(this._requestButton);
         this.add_child(content);
-
         this.reactive = false;
         this.can_focus = false;
         this.track_hover = false;

@@ -45,6 +45,20 @@ if [[ ! -f "$SCRIPT_DIR/Makefile" || ! -f "$SCRIPT_DIR/tools/provision.py" ]]; t
     exit 1
 fi
 
+# Compare the payload being installed with the last installed payload. A
+# missing baseline is a first installation and deliberately requires reboot.
+previous_activation_manifest="$(mktemp)"
+if [[ -f /usr/share/oh-no-parent-control/package-activation.json ]]; then
+    cp /usr/share/oh-no-parent-control/package-activation.json \
+        "$previous_activation_manifest"
+else
+    # mktemp creates the path, while changed-impacts deliberately recognizes a
+    # first installation by an absent old manifest. Do not pass it an empty
+    # file, which is neither a valid manifest nor a missing baseline.
+    rm -f "$previous_activation_manifest"
+fi
+trap 'rm -f "$previous_activation_manifest"' EXIT
+
 export DEBIAN_FRONTEND=noninteractive
 
 # A previous package operation may have left dpkg's update state incomplete.
@@ -88,6 +102,15 @@ if ! id -u "$KIOSK_USER" >/dev/null 2>&1; then
         "$KIOSK_USER"
 fi
 
+# Exclude the broker while a newly installed payload examines and, when
+# required, rewrites its application-owned saved data. Leave the marker behind
+# on failure so D-Bus activation cannot start incompatible code.
+install -d -o root -g root -m 0700 /var/lib/oh-no-parent-control
+touch /var/lib/oh-no-parent-control/migration-in-progress
+if systemctl is-active --quiet oh-no-parent-control-broker.service; then
+    systemctl stop oh-no-parent-control-broker.service
+fi
+
 usermod \
     --comment "Oh No! Parent Control" \
     --home "/home/$KIOSK_USER" \
@@ -106,7 +129,11 @@ env -u MAKEFLAGS -u MFLAGS \
     DATADIR=/usr/share \
     SYSTEMD_SYSTEM_DIR=/usr/lib/systemd/system \
     SYSTEMD_USER_DIR=/usr/lib/systemd/user \
-    PRODUCT_LIBDIR=/usr/lib/oh-no-parent-control
+    PRODUCT_LIBDIR=/usr/lib/oh-no-parent-control \
+    GENERATE_ACTIVATION_MANIFEST=0
+
+/usr/libexec/oh-no-parent-control-migrate-state
+rm -f /var/lib/oh-no-parent-control/migration-in-progress
 
 # Keep the management launcher out of standard users' GNOME application
 # listings.  Ubuntu grants administrative accounts membership in `sudo`; the
@@ -124,7 +151,8 @@ systemctl enable --now \
 pam-auth-update --disable malcontent
 
 # Keep the per-user systemd manager outside the timed login session. Apply
-# Malcontent only to accounts which can be managed children: the dedicated
+# Malcontent only to accounts which can be managed children and whose public
+# AccountsService state confirms that a session limit is enabled. The dedicated
 # request-station account and members of Ubuntu's administrator group are
 # intentionally unlimited.
 install -o root -g root -m 0644 \
@@ -158,6 +186,20 @@ sed -i -E \
 sed -i \
     '/^[[:space:]]*\[daemon\][[:space:]]*$/a AutomaticLoginEnable=false\nTimedLoginEnable=false' \
     /etc/gdm3/custom.conf
+
+# PAM and GDM integration is installed above, after the general product files.
+# Generate its manifest only now so direct-installer updates compare the final
+# installed integration rather than the previous version of those files.
+env -u MAKEFLAGS -u MFLAGS \
+    make --no-print-directory -C "$SCRIPT_DIR" _generate-package-activation-manifest \
+    DESTDIR= \
+    PREFIX=/usr \
+    SYSCONFDIR=/etc \
+    LIBEXECDIR=/usr/libexec \
+    DATADIR=/usr/share \
+    SYSTEMD_SYSTEM_DIR=/usr/lib/systemd/system \
+    SYSTEMD_USER_DIR=/usr/lib/systemd/user \
+    PRODUCT_LIBDIR=/usr/lib/oh-no-parent-control
 
 provision_args=(--kiosk-user "$KIOSK_USER")
 if [[ -n "$INSTALLER_USER" ]]; then
@@ -193,9 +235,11 @@ test -x /usr/bin/oh-no-parent-control
 test -x /usr/bin/oh-no-parent-control-parent
 test -x /usr/bin/mate-polkit
 test -x /usr/libexec/oh-no-parent-control-broker
+test -x /usr/libexec/oh-no-parent-control-migrate-state
 test -x /usr/libexec/oh-no-parent-control-query-usage
 test -x /usr/libexec/oh-no-parent-control-provision
 test -x /usr/libexec/oh-no-parent-control-preserve-extension-state
+test -x /usr/libexec/oh-no-parent-control-session-limit-check
 test -s /etc/oh-no-parent-control/config.json
 test -s /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
 test -s /usr/share/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy
@@ -222,6 +266,8 @@ grep -Fq '<allow send_destination="com.puffyslippers.OhNoParentControl1"' \
 grep -Fq "pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-check" \
     /etc/pam.d/common-account
 grep -Fq "pam_malcontent.so" /etc/pam.d/common-account
+grep -Fq "pam_exec.so quiet quiet_log /usr/libexec/oh-no-parent-control-session-limit-check" \
+    /etc/pam.d/common-account
 grep -Fq "pam_succeed_if.so quiet user ingroup sudo" \
     /etc/pam.d/common-account
 grep -Fq "Group=sudo" /usr/lib/systemd/system/oh-no-parent-control-broker.service
@@ -253,28 +299,38 @@ systemctl is-active --quiet malcontent-timerd.service
 systemctl is-active --quiet malcontent-timer-extension-agent.service
 systemctl is-active --quiet oh-no-parent-control-broker.service
 
-# Ubuntu treats a Shell stop timeout during reboot as an extension crash and
-# persists disable-user-extensions=true. Preserve the invoking account's exact
-# pre-reboot value and restore it once, before GDM starts after this required
-# reboot. This never turns extensions on when the user had disabled them.
-if [[ -n "$INSTALLER_USER" ]]; then
-    /usr/libexec/oh-no-parent-control-preserve-extension-state \
-        --schedule-uid "$(id -u "$INSTALLER_USER")"
+activation_impacts="$(/usr/libexec/oh-no-parent-control-package-activation \
+    changed-impacts --old "$previous_activation_manifest" \
+    --new /usr/share/oh-no-parent-control/package-activation.json)"
+if [[ "$activation_impacts" == *process-restart* ]]; then
+    systemctl restart oh-no-parent-control-broker.service
 fi
-
-# Integrate with Ubuntu's standard pending-reboot indicator. Preserve package
-# names recorded by apt while adding this product only once across reruns.
-printf '%s\n' '*** System restart required ***' > /run/reboot-required
-touch /run/reboot-required.pkgs
-if ! grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs; then
-    printf '%s\n' 'oh-no-parent-control' >> /run/reboot-required.pkgs
-fi
-chmod 0644 /run/reboot-required /run/reboot-required.pkgs
 
 echo "Oh No! Parent Control installation completed successfully."
-reboot_warning='*** REBOOT REQUIRED: run "sudo systemctl reboot" before using the kiosk session. ***'
-if [[ -t 1 ]]; then
-    printf '\n\033[1;33m%s\033[0m\n' "$reboot_warning"
+if [[ "$activation_impacts" == *reboot* ]]; then
+    # Ubuntu treats a Shell stop timeout during reboot as an extension crash and
+    # persists disable-user-extensions=true. Preserve the invoking account's
+    # exact pre-reboot value and restore it before GDM starts after this reboot.
+    if [[ -n "$INSTALLER_USER" ]]; then
+        /usr/libexec/oh-no-parent-control-preserve-extension-state \
+            --schedule-uid "$(id -u "$INSTALLER_USER")"
+    fi
+
+    # Preserve reboot requirements written by Ubuntu or another package.
+    if [[ ! -e /run/reboot-required ]]; then
+        printf '%s\n' '*** System restart required ***' > /run/reboot-required
+    fi
+    touch /run/reboot-required.pkgs
+    if ! grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs; then
+        printf '%s\n' 'oh-no-parent-control' >> /run/reboot-required.pkgs
+    fi
+    chmod 0644 /run/reboot-required /run/reboot-required.pkgs
+    reboot_warning='*** REBOOT REQUIRED: run "sudo systemctl reboot" before using the kiosk session. ***'
+    if [[ -t 1 ]]; then
+        printf '\n\033[1;33m%s\033[0m\n' "$reboot_warning"
+    else
+        printf '\n%s\n' "$reboot_warning"
+    fi
 else
-    printf '\n%s\n' "$reboot_warning"
+    printf 'No reboot is required for this update.\n'
 fi

@@ -2,3 +2,5 @@
 - Never use outdated / legacy / internal / private / hacky code
 - For troubleshooting logs, look in /var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log. If sandbox restrictions prevent reading them, immediately request sandbox  escalation for the minimum necessary read-only command. Never modify or delete logs.
 - Fix the root cause in code, so it's repoducible on a clean computer. Unless specified otherwise, treat this as a new app, no existing installations.
+- When adding system integration, classify its update activation; see @docs/Package-Update.md.
+- When a change breaks compatibility with saved application data, follow @docs/Data-Migration.md and ship its migration before changing readers or writers.

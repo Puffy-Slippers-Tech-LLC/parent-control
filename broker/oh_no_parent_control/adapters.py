@@ -24,6 +24,9 @@ ACCOUNTS_INTERFACE = "org.freedesktop.Accounts"
 PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 SESSION_LIMITS_INTERFACE = "com.endlessm.ParentalControls.SessionLimits"
 APP_FILTER_INTERFACE = "com.endlessm.ParentalControls.AppFilter"
+TIMER_NAME = "org.freedesktop.MalcontentTimer1"
+TIMER_PATH = "/org/freedesktop/MalcontentTimer1"
+TIMER_PARENT_INTERFACE = "org.freedesktop.MalcontentTimer1.Parent"
 CALL_TIMEOUT_MS = 30_000
 AUTH_TIMEOUT_MS = 180_000
 
@@ -188,3 +191,16 @@ class AccountsService:
 
     def set_daily_limit(self, uid: int, value: int) -> None:
         self._set(uid, SESSION_LIMITS_INTERFACE, "DailyLimit", GLib.Variant("u", value))
+
+
+class TimerUsage:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def query_usage(self, uid: int) -> tuple[tuple[int, int], ...]:
+        reply = _call(
+            self.connection, TIMER_NAME, TIMER_PATH, TIMER_PARENT_INTERFACE,
+            "QueryUsage", GLib.Variant("(uss)", (uid, "login-session", "")),
+            "(a(tt))",
+        )
+        return tuple(tuple(interval) for interval in reply.unpack()[0])

@@ -77,6 +77,8 @@ the kiosk UID and request rate limit. It must not duplicate child preferences.
 | --- | --- | --- | --- |
 | `ListManagedUsers` | — | yes | yes |
 | `GetPreferences` | own | selected child | selected child |
+| `GetTimeStatus` | own | selected child | selected child |
+| `CalculateRemainingTime` | own | selected child | selected child |
 | `UpdateRequestPreferences` | own | selected child | selected child |
 | `SetPreferences` | — | — | selected child |
 | `SetParentControl` | — | — | selected child |
@@ -93,6 +95,20 @@ retaining the selected limit for a later re-enable, and clears product-applied
 grants and filters.
 `RequestAccess` additionally requires interactive Polkit approval and performs
 transactional AccountsService updates with rollback.
+
+The broker is the single source of truth for the backend-compatible grant
+formula:
+
+```text
+ActiveExtension = max(Daily allowance remaining, One-time grant remaining)
+                  + Additional one-time grant
+```
+
+`GetTimeStatus` derives the selected child's unused daily allowance from
+Malcontent's public parent usage API and the current one-time grant from
+AccountsService. The parent app displays all three operands and the result.
+The child passes its live Malcontent estimate through `CalculateRemainingTime`
+before writing a grant or displaying the notification countdown.
 
 ## Main flows
 

@@ -1,6 +1,8 @@
 import unittest
 
-from parent.oh_no_parent_control_parent.main import STATES, ParentWindow, _minutes_label
+from parent.oh_no_parent_control_parent.main import (
+    STATES, ParentWindow, _duration_label, _minutes_label, _time_status_subtitle,
+)
 
 
 class FakeDropDown:
@@ -56,6 +58,20 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(_minutes_label(0), "0 minutes")
         self.assertEqual(_minutes_label(1), "1 minute")
         self.assertEqual(_minutes_label(1440), "1440 minutes")
+
+    def test_time_status_explicitly_shows_formula_operands_and_result(self):
+        subtitle = _time_status_subtitle({
+            "daily_allowance_remaining_seconds": 31 * 60,
+            "one_time_grant_remaining_seconds": 10 * 60,
+            "additional_one_time_grant_seconds": 5 * 60,
+            "calculated_active_extension_seconds": 36 * 60,
+        })
+
+        self.assertIn("Daily allowance remaining: 31m", subtitle)
+        self.assertIn("One-time grant remaining: 10m", subtitle)
+        self.assertIn("Additional one-time grant: 5m", subtitle)
+        self.assertIn("max(31m, 10m) + 5m = 36m", subtitle)
+        self.assertEqual(_duration_label(65), "1m 5s")
 
     def test_loading_users_loads_initial_selection_once(self):
         window = ParentWindowHarness()

@@ -47,10 +47,16 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 
-# A previous package operation may have unpacked packages without completing
-# their configuration. Recover through APT so its supported lock timeout also
-# handles package services which are still finishing during a clean install.
-# Do not bypass DPKG locking: the other package operation must finish first.
+# A previous package operation may have left dpkg's update state incomplete.
+# APT refuses to run in that state and explicitly requires pending package
+# configuration to finish first. If configuration exposes a missing dependency,
+# continue to APT's supported repair operation, which retries configuration
+# after installing the dependency.
+if ! dpkg --configure --pending; then
+    echo "install: pending package configuration failed; asking APT to repair dependencies" >&2
+fi
+
+# Do not bypass DPKG locking: another package operation must finish first.
 apt_get=(apt-get -o "DPkg::Lock::Timeout=$APT_LOCK_TIMEOUT_SECONDS")
 "${apt_get[@]}" --fix-broken install -y
 

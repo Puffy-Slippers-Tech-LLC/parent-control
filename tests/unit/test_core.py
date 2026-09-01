@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from oh_no_parent_control.config import validate
 from oh_no_parent_control.core import (
     AccessDenied, BackendFailure, Broker, Busy, InvalidRequest, RateLimited, RollbackFailure,
-    UserAccount, seconds_until_local_midnight,
+    UserAccount, calculate_active_extension_seconds, seconds_until_local_midnight,
 )
 from test_config import valid_config
 from oh_no_parent_control.preferences import default_preferences, validate_preferences
@@ -124,17 +124,54 @@ class Extensions:
         self.calls.append((uid, enabled))
 
 
+class TimerUsage:
+    def __init__(self, entries=()):
+        self.entries = tuple(entries)
+        self.calls = []
+
+    def query_usage(self, uid):
+        self.calls.append(uid)
+        return self.entries
+
+
 def make_broker(authorizer=None, accounts=None, preferences=None, extensions=None,
-                clock=None, alive=lambda _s: True):
+                clock=None, alive=lambda _s: True, timer_usage=None):
     config = validate(valid_config())
     return Broker(lambda: config, authorizer or Authorizer(), accounts or Accounts(),
-                  preferences or Preferences(), extensions,
+                  preferences or Preferences(), extensions, timer_usage or TimerUsage(),
                   monotonic=clock or (lambda: 100),
                   now=lambda: datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles")),
                   caller_alive=alive)
 
 
 class CoreTests(unittest.TestCase):
+    def test_remaining_time_formula_uses_later_backend_expiry_then_adds_grant(self):
+        self.assertEqual(calculate_active_extension_seconds(31 * 60, 10 * 60, 5 * 60),
+                         36 * 60)
+        self.assertEqual(calculate_active_extension_seconds(10 * 60, 31 * 60, 5 * 60),
+                         36 * 60)
+
+    def test_time_status_reports_formula_operands_and_calculated_extension(self):
+        now = datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles"))
+        start_of_day = datetime(2026, 8, 30, tzinfo=now.tzinfo)
+        accounts, preferences = Accounts(), Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+        preferences.values[1001]["daily_time_limit_minutes"] = 32
+        accounts.extension = (int(now.timestamp()), 10 * 60)
+        timer_usage = TimerUsage((
+            (int(start_of_day.timestamp()) - 60, int(start_of_day.timestamp()) + 30),
+            (int(start_of_day.timestamp()) + 60, int(start_of_day.timestamp()) + 90),
+        ))
+
+        status = make_broker(
+            accounts=accounts, preferences=preferences, timer_usage=timer_usage,
+        ).get_time_status(1003, 1001, 5 * 60)
+
+        self.assertEqual(status.daily_allowance_remaining_seconds, 31 * 60)
+        self.assertEqual(status.one_time_grant_remaining_seconds, 10 * 60)
+        self.assertEqual(status.additional_one_time_grant_seconds, 5 * 60)
+        self.assertEqual(status.calculated_active_extension_seconds, 36 * 60)
+
     def test_list_exposes_only_local_standard_accounts(self):
         users = make_broker().list_managed_users(991)
         self.assertEqual([(user.uid, user.label) for user in users], [
@@ -343,6 +380,22 @@ class CoreTests(unittest.TestCase):
         self.assertLess(names.index("set_filter"), names.index("set_extension"))
         self.assertEqual(accounts.filter, (False, ("/usr/bin/game", "org.example.Game")))
         self.assertEqual(accounts.extension[1], 900)
+
+    def test_kiosk_grant_uses_shared_accumulative_formula(self):
+        now = datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles"))
+        accounts, preferences = Accounts(), Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+        preferences.values[1001]["daily_time_limit_minutes"] = 32
+        accounts.extension = (int(now.timestamp()), 10 * 60)
+        start = int(datetime(2026, 8, 30, tzinfo=now.tzinfo).timestamp())
+
+        make_broker(
+            accounts=accounts,
+            preferences=preferences,
+            timer_usage=TimerUsage(((start, start + 60),)),
+        ).request_access(991, ":1.2", 1001, 5 * 60, False)
+
+        self.assertEqual(accounts.extension[1], 36 * 60)
 
     def test_request_restores_configured_daily_allowance(self):
         accounts = Accounts()

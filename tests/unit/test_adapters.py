@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from gi.repository import Gio, GLib
 
-from oh_no_parent_control.adapters import AccountsService, PolkitAuthorizer
+from oh_no_parent_control.adapters import AccountsService, PolkitAuthorizer, TimerUsage
 
 
 class PolkitAdapterTests(unittest.TestCase):
@@ -26,6 +26,14 @@ class PolkitAdapterTests(unittest.TestCase):
         with mock.patch("oh_no_parent_control.adapters.pwd.getpwall", return_value=entries), \
                 mock.patch.object(accounts, "get_user", side_effect=lambda uid: uid):
             self.assertEqual(accounts.list_users(), (1001, 1002))
+
+    def test_timer_usage_queries_selected_child_through_parent_interface(self):
+        reply = mock.Mock()
+        reply.unpack.return_value = ([(10, 20), (30, 40)],)
+        with mock.patch("oh_no_parent_control.adapters._call", return_value=reply) as call:
+            self.assertEqual(TimerUsage(object()).query_usage(1001), ((10, 20), (30, 40)))
+        self.assertEqual(call.call_args.args[4], "QueryUsage")
+        self.assertEqual(call.call_args.args[5].unpack(), (1001, "login-session", ""))
 
 
 if __name__ == "__main__":

@@ -14,6 +14,21 @@
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="out"/>
     </method>
+    <method name="GetTimeStatus">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="additional_one_time_grant_seconds" type="u" direction="in"/>
+      <arg name="daily_allowance_remaining_seconds" type="u" direction="out"/>
+      <arg name="one_time_grant_remaining_seconds" type="u" direction="out"/>
+      <arg name="additional_grant_seconds" type="u" direction="out"/>
+      <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
+    </method>
+    <method name="CalculateRemainingTime">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="daily_allowance_remaining_seconds" type="u" direction="in"/>
+      <arg name="one_time_grant_remaining_seconds" type="u" direction="in"/>
+      <arg name="additional_one_time_grant_seconds" type="u" direction="in"/>
+      <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
+    </method>
     <method name="SetPreferences">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="in"/>

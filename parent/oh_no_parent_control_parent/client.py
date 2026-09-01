@@ -32,6 +32,19 @@ class BrokerClient:
         encoded, = self._call("GetPreferences", GLib.Variant("(u)", (uid,)), "(s)")
         return json.loads(encoded)
 
+    def get_time_status(self, uid, additional_seconds=0):
+        daily, grant, additional, calculated = self._call(
+            "GetTimeStatus",
+            GLib.Variant("(uu)", (uid, additional_seconds)),
+            "(uuuu)",
+        )
+        return {
+            "daily_allowance_remaining_seconds": daily,
+            "one_time_grant_remaining_seconds": grant,
+            "additional_one_time_grant_seconds": additional,
+            "calculated_active_extension_seconds": calculated,
+        }
+
     def set_preferences(self, uid, value):
         encoded, = self._call(
             "SetPreferences", GLib.Variant("(us)", (uid, json.dumps(value))), "(s)",

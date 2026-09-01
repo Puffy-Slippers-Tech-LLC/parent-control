@@ -63,27 +63,36 @@ export default class OhNoParentControlExtension extends Extension {
             return;
 
         logInfo('request dialog opened');
-        const request = async (durationSeconds, allowSoftBlockedApps) => {
+        const request = async (
+            durationSeconds, allowSoftBlockedApps, untilEndOfDay = false) => {
             // The panel entry point is available while time remains, so let
             // the timer service decide whether a proactive request is valid.
             if (!sourceActor && !this._integration?.isExhausted())
                 throw new Error('Screen-time limit is no longer active');
 
-            logInfo(`requesting ${durationSeconds} seconds ` +
-                'as the new total remaining time');
+            logInfo(`requesting ${durationSeconds} seconds of ` +
+                (untilEndOfDay ? 'remaining time' : 'additional time'));
 
             // Both privileged writes go through AccountsService for the same
             // system-bus subject, so the combined meta-action can authorize
             // them with one dialog.
             this._integration?.ensurePolkitAgentPatched();
             const granted = await this._approval.withAuthorization(async () => {
-                await this._sessionLimits.replaceActiveExtension(
-                    durationSeconds);
+                let grantedDurationSeconds;
+                if (untilEndOfDay) {
+                    await this._sessionLimits.replaceActiveExtension(
+                        durationSeconds);
+                    grantedDurationSeconds = durationSeconds;
+                } else {
+                    grantedDurationSeconds =
+                        await this._sessionLimits.addActiveExtension(
+                            durationSeconds);
+                }
 
                 // Record the authenticated backend write before any optional
                 // follow-up work can yield back to the lock screen.
-                this._integration?.recordApprovedGrant(durationSeconds);
-                this._indicator?.showGrantedTime(durationSeconds);
+                this._integration?.recordApprovedGrant(grantedDurationSeconds);
+                this._indicator?.showGrantedTime(grantedDurationSeconds);
 
                 try {
                     const policy = loadAppPolicy();

@@ -238,6 +238,10 @@ class CoreTests(unittest.TestCase):
         users = make_broker(accounts=accounts).list_approvers(991)
         self.assertEqual([(user.uid, user.label) for user in users], [(1003, "Admin")])
 
+    def test_managed_child_can_list_approvers_for_its_own_request(self):
+        users = make_broker().list_approvers(1001)
+        self.assertEqual([(user.uid, user.label) for user in users], [(1003, "Admin")])
+
     def test_wrong_caller_denied(self):
         with self.assertRaises(AccessDenied):
             make_broker().list_managed_users(1001)

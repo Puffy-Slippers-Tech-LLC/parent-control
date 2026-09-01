@@ -1,11 +1,9 @@
 import Clutter from 'gi://Clutter';
-import GObject from 'gi://GObject';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 
 import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {
@@ -37,17 +35,25 @@ export function secondsUntilEndOfLocalDay(now = GLib.DateTime.new_now_local()) {
     return Math.max(1, startOfTomorrow.to_unix() - now.to_unix());
 }
 
-// Both the login modal and panel popup use this form.
+// The in-session panel popup uses this form.
 class RequestForm {
-    constructor(onRequest, onClose) {
+    constructor(onRequest, onClose, onMenu, onMenuToggle,
+        appName = 'Parent Control') {
         this._onRequest = onRequest;
         this._onClose = onClose;
+        this._onMenu = onMenu;
+        this._onMenuToggle = onMenuToggle;
         this._destroyed = false;
         this._working = false;
         this._selected = this._loadSelectedDuration();
         this._choiceButtons = [];
         this._lastCustomMinutes = loadLastCustomMinutes();
         this._appFilterToggle = null;
+        this._approvers = [];
+        this._selectedApprover = null;
+        this._approverButton = null;
+        this._approverChoices = null;
+        this._approverChoiceButtons = [];
 
         this.actor = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
@@ -66,18 +72,55 @@ class RequestForm {
         const headerCopy = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
             style_class: 'oh-no-parent-control-header-copy',
+            x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
         headerCopy.add_child(new St.Label({
             style_class: 'oh-no-parent-control-title',
-            text: 'Oh No! Parent Control',
+            text: appName,
         }));
         headerCopy.add_child(new St.Label({
             style_class: 'oh-no-parent-control-subtitle',
             text: 'Choose how much extra time you need',
         }));
         header.add_child(headerCopy);
+        this._menuButton = new St.Button({
+            child: new St.Icon({icon_name: 'view-more-symbolic', icon_size: 16}),
+            style_class: 'oh-no-parent-control-header-menu-button',
+            can_focus: true,
+            reactive: true,
+            track_hover: true,
+            accessible_name: 'Menu',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._menuButton.connect('clicked', () => this._onMenuToggle?.());
+        header.add_child(this._menuButton);
         this.actor.add_child(header);
+
+        this._overflowMenu = new St.BoxLayout({
+            vertical: true,
+            style_class: 'oh-no-parent-control-overflow-menu',
+            x_align: Clutter.ActorAlign.END,
+            visible: false,
+        });
+        for (const [label, action] of [['Help', 'help'], ['About', 'about']]) {
+            const button = new St.Button({
+                label,
+                style_class: 'oh-no-parent-control-overflow-menu-item',
+                can_focus: true,
+                reactive: true,
+                track_hover: true,
+                x_align: Clutter.ActorAlign.FILL,
+            });
+            button.connect('clicked', () => {
+                this._overflowMenu.hide();
+                this._onMenu?.(action);
+            });
+            this._overflowMenu.add_child(button);
+        }
+        this.actor.add_child(this._overflowMenu);
+
+        this._buildApproverSelector();
 
         const choices = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
@@ -180,6 +223,105 @@ class RequestForm {
         this._select(this._selected);
     }
 
+    _buildApproverSelector() {
+        const selector = new St.BoxLayout({
+            orientation: Clutter.Orientation.VERTICAL,
+            style_class: 'oh-no-parent-control-approver-selector',
+            x_expand: true,
+        });
+        const row = new St.BoxLayout({
+            style_class: 'oh-no-parent-control-approver-row',
+            x_expand: true,
+        });
+        row.add_child(new St.Label({
+            style_class: 'oh-no-parent-control-approver-label',
+            text: 'Approver',
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        const buttonContent = new St.BoxLayout({
+            style_class: 'oh-no-parent-control-account-selector-content',
+            x_expand: true,
+        });
+        this._approverLabel = new St.Label({
+            text: 'Loading approving administrators…',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        buttonContent.add_child(this._approverLabel);
+        buttonContent.add_child(new St.Icon({
+            icon_name: 'pan-down-symbolic',
+            style_class: 'oh-no-parent-control-account-selector-arrow',
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        this._approverButton = new St.Button({
+            style_class: 'oh-no-parent-control-account-selector',
+            child: buttonContent,
+            can_focus: true,
+            reactive: false,
+            x_expand: true,
+            x_align: Clutter.ActorAlign.FILL,
+        });
+        this._approverButton.connect('clicked', () =>
+            this._approverChoices.visible = !this._approverChoices.visible);
+        row.add_child(this._approverButton);
+        selector.add_child(row);
+        this._approverChoices = new St.BoxLayout({
+            orientation: Clutter.Orientation.VERTICAL,
+            style_class: 'oh-no-parent-control-account-choices',
+            x_expand: true,
+            visible: false,
+        });
+        selector.add_child(this._approverChoices);
+        this.actor.add_child(selector);
+    }
+
+    setApprovers(approvers) {
+        if (!Array.isArray(approvers) || approvers.some(([uid, label]) =>
+            !Number.isSafeInteger(uid) || uid < 0 || typeof label !== 'string' || !label))
+            throw new Error('Invalid approving administrators');
+        this._approvers = approvers;
+        this._selectedApprover = approvers[0]?.[0] ?? null;
+        this._approverChoiceButtons = [];
+        while (this._approverChoices.get_first_child())
+            this._approverChoices.get_first_child().destroy();
+        for (const [uid, label] of approvers) {
+            const choice = new St.Button({
+                style_class: 'oh-no-parent-control-account-choice',
+                label,
+                can_focus: true,
+                reactive: true,
+                toggle_mode: true,
+                x_expand: true,
+                x_align: Clutter.ActorAlign.FILL,
+            });
+            choice.connect('clicked', () => this._selectApprover(uid));
+            this._approverChoices.add_child(choice);
+            this._approverChoiceButtons.push([uid, choice]);
+        }
+        this._approverButton.reactive = approvers.length > 0;
+        if (approvers.length > 0)
+            this._selectApprover(approvers[0][0]);
+        else
+            this._approverLabel.text = 'No approving administrators are available';
+        this._approverChoices.visible = false;
+    }
+
+    _selectApprover(uid) {
+        const approver = this._approvers.find(([candidate]) => candidate === uid);
+        if (!approver)
+            return;
+        this._selectedApprover = uid;
+        for (const [candidate, choice] of this._approverChoiceButtons)
+            choice.set_checked(candidate === uid);
+        this._approverLabel.text = approver[1];
+        this._approverChoices.visible = false;
+    }
+
+    selectedApprover() {
+        return this._approvers.find(([uid]) => uid === this._selectedApprover) ?? null;
+    }
+
     _loadSelectedDuration() {
         const savedDuration = loadLastSelectedDuration();
         if (savedDuration === null)
@@ -250,6 +392,10 @@ class RequestForm {
         this.actor.add_child(actions);
     }
 
+    toggleOverflowMenu() {
+        this._overflowMenu.visible = !this._overflowMenu.visible;
+    }
+
     _select(seconds) {
         this._selected = seconds;
         for (const [button, value] of this._choiceButtons)
@@ -286,13 +432,19 @@ class RequestForm {
             seconds = secondsUntilEndOfLocalDay();
 
         const allowSoftBlockedApps = this._appFilterToggle.checked;
+        const approver = this.selectedApprover();
+        if (!approver) {
+            this._showError('Choose an approving administrator.');
+            return;
+        }
         this._errorLabel?.hide();
         this._setWorking(true);
         try {
             const granted = await this._onRequest(
                 seconds,
                 allowSoftBlockedApps,
-                untilEndOfDay);
+                untilEndOfDay,
+                approver[1]);
             if (granted) {
                 saveRequestPreferences(
                     this._selected, this._lastCustomMinutes,
@@ -333,60 +485,28 @@ class RequestForm {
             button.reactive = !working;
         this._customEntry.reactive = !working;
         this._appFilterToggle.reactive = !working;
+        this._approverButton.reactive = !working && this._approvers.length > 0;
     }
 
     destroy() {
         this._destroyed = true;
         this._onRequest = null;
         this._onClose = null;
+        this._onMenu = null;
+        this._onMenuToggle = null;
+        this._menuButton = null;
+        this._overflowMenu = null;
         this._appFilterToggle = null;
+        this._approverButton = null;
+        this._approverLabel = null;
+        this._approverChoices = null;
+        this._approvers = [];
+        this._approverChoiceButtons = [];
     }
 }
 
-export const RequestDialog = GObject.registerClass(
-class RequestDialog extends ModalDialog.ModalDialog {
-    _init(onRequest) {
-        super._init({styleClass: 'oh-no-parent-control-dialog'});
-        Main.sessionMode.connectObject('updated', () => this._syncParent(), this);
-        this._syncParent();
-        this._form = new RequestForm(
-            onRequest, () => this.close());
-        this.contentLayout.add_child(this._form.actor);
-        this.setButtons([
-            {label: 'Cancel', action: () => this.close(), key: Clutter.KEY_Escape},
-            {
-                label: 'Request',
-                default: true,
-                action: () => this._form.request(),
-                key: Clutter.KEY_Return,
-            },
-        ]);
-        this.setInitialKeyFocus(this._form.getSelectedChoice()?.[0]);
-    }
-
-    _syncParent() {
-        const lockDialogGroup = Main.screenShield?._lockDialogGroup;
-        const wantedParent = Main.sessionMode.isLocked && lockDialogGroup
-            ? lockDialogGroup
-            : Main.layoutManager.modalDialogGroup;
-        const currentParent = this.get_parent();
-        if (!wantedParent || currentParent === wantedParent)
-            return;
-
-        currentParent?.remove_child(this);
-        wantedParent.add_child(this);
-    }
-
-    destroy() {
-        Main.sessionMode.disconnectObject(this);
-        this._form?.destroy();
-        this._form = null;
-        super.destroy();
-    }
-});
-
 export class RequestPopover extends PopupMenu.PopupMenu {
-    constructor(onRequest, sourceActor) {
+    constructor(onRequest, sourceActor, onMenu, appName) {
         super(sourceActor, 0.5, St.Side.TOP);
 
         const item = new PopupMenu.PopupBaseMenuItem({
@@ -396,20 +516,46 @@ export class RequestPopover extends PopupMenu.PopupMenu {
         });
         this._form = new RequestForm(
             onRequest,
-            () => this.close(BoxPointer.PopupAnimation.FULL));
+            () => this.close(BoxPointer.PopupAnimation.FULL),
+            onMenu,
+            () => this._toggleOverflowMenu(),
+            appName);
         this._form.addPopupActions();
         item.add_child(this._form.actor);
         this.addMenuItem(item);
 
         Main.uiGroup.add_child(this.actor);
         Main.panel.menuManager.addMenu(this);
-        this.connect('menu-closed', () => this.destroy());
+        this.connect('menu-closed', () => {
+            if (!this._keepOpen) {
+                this.destroy();
+                return;
+            }
+            this._keepOpen = false;
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                if (this._form)
+                    this.open();
+                return GLib.SOURCE_REMOVE;
+            });
+        });
+    }
+
+    _toggleOverflowMenu() {
+        // PopupMenu closes when a header button is clicked. Reopen after its
+        // click handling completes so this in-dialog control is not mistaken
+        // for a request-popover dismissal.
+        this._keepOpen = true;
+        this._form.toggleOverflowMenu();
     }
 
     open() {
         super.open(BoxPointer.PopupAnimation.FULL);
         this._form.focusSelectedChoice();
         return this.isOpen;
+    }
+
+    setApprovers(approvers) {
+        this._form?.setApprovers(approvers);
     }
 
     destroy() {

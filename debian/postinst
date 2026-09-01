@@ -2,6 +2,9 @@
 set -e
 
 if [ "$1" = configure ]; then
+    /usr/libexec/oh-no-parent-control-migrate-state
+    rm -f /var/lib/oh-no-parent-control/migration-in-progress
+
     kiosk_user=oh-no-parent-control
     if ! getent passwd "$kiosk_user" >/dev/null; then
         adduser --disabled-password --gecos "Oh No! Parent Control" \
@@ -10,6 +13,33 @@ if [ "$1" = configure ]; then
     /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"
     systemctl daemon-reload >/dev/null || true
     systemctl reload dbus.service >/dev/null || true
+
+    pending=/var/lib/oh-no-parent-control/package-activation-pending
+    if [ -f "$pending" ]; then
+        previous=/var/lib/oh-no-parent-control/previous-package-activation.json
+        current=/usr/share/oh-no-parent-control/package-activation.json
+        impacts=$(/usr/libexec/oh-no-parent-control-package-activation \
+            changed-impacts --old "$previous" --new "$current")
+        rm -f "$previous" "$pending"
+
+        case "$impacts" in
+            *process-restart*)
+                systemctl restart oh-no-parent-control-broker.service >/dev/null || true
+                ;;
+        esac
+        case "$impacts" in
+            *reboot*)
+                if [ ! -e /run/reboot-required ]; then
+                    printf '%s\n' '*** System restart required ***' > /run/reboot-required
+                fi
+                touch /run/reboot-required.pkgs
+                if ! grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs; then
+                    printf '%s\n' 'oh-no-parent-control' >> /run/reboot-required.pkgs
+                fi
+                chmod 0644 /run/reboot-required /run/reboot-required.pkgs
+                ;;
+        esac
+    fi
 fi
 
 #DEBHELPER#

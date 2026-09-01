@@ -5,14 +5,15 @@ polkit.addRule(function(action, subject) {
 });
 
 polkit.addAdminRule(function(action, subject) {
-    if (action.id != "tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access")
+    if (action.id != "tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access" &&
+        action.id != "org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps")
         return null;
 
     var approver = action.lookup("approver-user");
     if (approver && /^[A-Za-z_][A-Za-z0-9_.-]*[$]?$/.test(approver))
         return ["unix-user:" + approver];
 
-    // This action must never fall through to the machine-wide administrator
-    // list: the broker supplies a validated approver for every request.
+    // These request actions must never fall through to the machine-wide
+    // administrator list: their selectors list broker-validated approvers.
     return [];
 });

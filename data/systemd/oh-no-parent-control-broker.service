@@ -1,5 +1,6 @@
 [Unit]
 Description=Oh No! Parent Control request broker
+ConditionPathExists=!/var/lib/oh-no-parent-control/migration-in-progress
 
 [Service]
 Type=dbus

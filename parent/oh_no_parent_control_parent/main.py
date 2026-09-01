@@ -16,6 +16,8 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gio, GLib, Gtk
 
+from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
+
 from .client import BrokerClient, configure_logging
 
 LOG = logging.getLogger("oh-no-parent-control-parent")
@@ -129,7 +131,7 @@ def _time_status_subtitle(status):
 
 class ParentWindow(Adw.ApplicationWindow):
     def __init__(self, application, *, client_factory=BrokerClient):
-        super().__init__(application=application, title="Oh No! Parent Control")
+        super().__init__(application=application, title=app_name())
         self.set_default_size(920, 760)
         self._client = client_factory()
         self._users = []
@@ -152,8 +154,28 @@ class ParentWindow(Adw.ApplicationWindow):
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar()
         header.set_title_widget(Adw.WindowTitle(
-            title="Oh No! Parent Control",
+            title=app_name(),
         ))
+        menu = Gio.Menu()
+        menu.append("Help", "win.help")
+        menu.append("About", "win.about")
+        action_group = Gio.SimpleActionGroup()
+        self.insert_action_group("win", action_group)
+        help_action = Gio.SimpleAction.new("help", None)
+        help_action.connect("activate", lambda *_args: open_help())
+        about_action = Gio.SimpleAction.new("about", None)
+        about_action.connect("activate", self._show_about)
+        action_group.add_action(help_action)
+        action_group.add_action(about_action)
+        # ``view-more-symbolic`` is the standard GNOME vertical-ellipsis icon.
+        # Keep the button on the window so it remains visible and is easy to
+        # exercise from UI tests.
+        self._menu_button = Gtk.MenuButton(
+            icon_name="view-more-symbolic",
+            menu_model=menu,
+            tooltip_text="Menu",
+        )
+        header.pack_end(self._menu_button)
         toolbar.add_top_bar(header)
         page = Adw.PreferencesPage(css_classes=["preferences-page"])
         toolbar.set_content(page)
@@ -260,6 +282,9 @@ class ParentWindow(Adw.ApplicationWindow):
         apps.add(search_row)
         self._app_rows = []
         page.add(apps)
+
+    def _show_about(self, *_args):
+        AboutDialog(self).present()
 
     def _set_catalog(self, applications):
         for row in self._app_rows:

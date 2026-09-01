@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 import sys
+from pathlib import Path
+
+if Path("/var/lib/oh-no-parent-control/migration-in-progress").exists():
+    raise SystemExit("oh-no-parent-control-broker: saved-data migration is incomplete")
 
 sys.path.insert(0, "/usr/lib/oh-no-parent-control/broker")
 

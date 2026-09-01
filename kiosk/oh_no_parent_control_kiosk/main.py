@@ -21,6 +21,8 @@ gi.require_version("Gsk", "4.0")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk
 
+from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
+
 from .model import RequestState, public_error
 from .request_content import RequestContent
 
@@ -707,7 +709,7 @@ def configure_logging(preview=False):
 
 class RequestWindow(Adw.ApplicationWindow):
     def __init__(self, application, *, preview=False):
-        super().__init__(application=application, title="Oh No! Parent Control")
+        super().__init__(application=application, title=app_name())
         self.add_css_class("oh-no-parent-control-window")
         self.set_default_size(
             PREVIEW_DEFAULT_WIDTH if preview else 800,
@@ -731,6 +733,24 @@ class RequestWindow(Adw.ApplicationWindow):
         layout = Gtk.Overlay()
         layout.set_child(self._background)
         layout.add_overlay(self._stack)
+        menu = Gio.Menu()
+        menu.append("Help", "win.help")
+        menu.append("About", "win.about")
+        actions = Gio.SimpleActionGroup()
+        self.insert_action_group("win", actions)
+        help_action = Gio.SimpleAction.new("help", None)
+        help_action.connect("activate", lambda *_args: open_help())
+        about_action = Gio.SimpleAction.new("about", None)
+        about_action.connect("activate", self._show_about)
+        actions.add_action(help_action)
+        actions.add_action(about_action)
+        menu_button = Gtk.MenuButton(
+            icon_name="open-menu-symbolic", menu_model=menu,
+            tooltip_text="Menu", halign=Gtk.Align.END, valign=Gtk.Align.START,
+            margin_top=20, margin_end=20,
+        )
+        menu_button.add_css_class("oh-no-parent-control-menu-button")
+        layout.add_overlay(menu_button)
         if self._preview:
             # The production kiosk is fullscreen, but its frameless preview
             # still needs a compositor-supported surface for moving it.
@@ -755,6 +775,9 @@ class RequestWindow(Adw.ApplicationWindow):
         return_button.connect("clicked", self._logout)
         self._result_view.append(return_button)
         self._stack.add_named(self._result_view, "result")
+
+    def _show_about(self, *_args):
+        AboutDialog(self, links_enabled=False).present()
 
     @staticmethod
     def _page(title):

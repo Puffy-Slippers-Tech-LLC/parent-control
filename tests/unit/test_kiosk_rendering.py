@@ -60,6 +60,17 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('self._stack.add_named(self._request_surface, "request")', source)
         self.assertNotIn(".skew(", source)
 
+    def test_account_selectors_stay_in_the_transformed_form(self):
+        source = (ROOT / "kiosk/oh_no_parent_control_kiosk/request_content.py").read_text(
+            encoding="utf-8",
+        )
+
+        self.assertIn("class GatewayDropDown(Gtk.Box):", source)
+        self.assertIn("outside the request form's snapshot", source)
+        self.assertIn("self._accounts = GatewayDropDown(self._account_changed)", source)
+        self.assertIn("self._approvers = GatewayDropDown()", source)
+        self.assertNotIn("Gtk.DropDown", source)
+
     def test_four_block_chains_connect_form_to_gateway_corners(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 

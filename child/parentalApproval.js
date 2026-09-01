@@ -10,7 +10,9 @@ export class ParentalApproval {
         this._authority = Polkit.Authority.get_sync(null);
     }
 
-    ensureAuthorization(actionId = APPROVAL_ACTION) {
+    ensureAuthorization(approverUsername, actionId = APPROVAL_ACTION) {
+        if (typeof approverUsername !== 'string' || !approverUsername)
+            return Promise.reject(new Error('Select an approving administrator'));
         logInfo('requesting administrator authorization');
         return new Promise((resolve, reject) => {
             let subject;
@@ -27,10 +29,12 @@ export class ParentalApproval {
                 return;
             }
 
+            const details = new Polkit.Details();
+            details.insert('approver-user', approverUsername);
             this._authority.check_authorization(
                 subject,
                 actionId,
-                new Polkit.Details(),
+                details,
                 Polkit.CheckAuthorizationFlags.ALLOW_USER_INTERACTION,
                 null,
                 (authority, result) => {
@@ -62,12 +66,12 @@ export class ParentalApproval {
         });
     }
 
-    async withAuthorization(callback, actionId = APPROVAL_ACTION) {
+    async withAuthorization(callback, approverUsername, actionId = APPROVAL_ACTION) {
         if (typeof callback !== 'function')
             throw new Error('Authorized operation must be a function');
 
         const temporaryAuthorizationId =
-            await this.ensureAuthorization(actionId);
+            await this.ensureAuthorization(approverUsername, actionId);
         try {
             return await callback();
         } finally {

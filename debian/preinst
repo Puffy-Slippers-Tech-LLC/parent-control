@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = install ] || [ "$1" = upgrade ]; then
+    install -d -o root -g root -m 0700 /var/lib/oh-no-parent-control
+    touch /var/lib/oh-no-parent-control/migration-in-progress
+    if systemctl is-active --quiet oh-no-parent-control-broker.service; then
+        systemctl stop oh-no-parent-control-broker.service
+    fi
+    touch /var/lib/oh-no-parent-control/package-activation-pending
+    if [ "$1" = upgrade ] && [ -f /usr/share/oh-no-parent-control/package-activation.json ]; then
+        install -o root -g root -m 0644 \
+            /usr/share/oh-no-parent-control/package-activation.json \
+            /var/lib/oh-no-parent-control/previous-package-activation.json
+    else
+        rm -f /var/lib/oh-no-parent-control/previous-package-activation.json
+    fi
+fi
+
+exit 0

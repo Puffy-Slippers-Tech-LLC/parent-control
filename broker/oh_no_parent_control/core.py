@@ -292,8 +292,19 @@ class Broker:
 
     def list_approvers(self, caller_uid: int) -> tuple[UserAccount, ...]:
         config = self._load_config()
-        if not self._can_manage_or_kiosk(config, caller_uid):
-            raise AccessDenied("caller is not an administrator or request station")
+        # A managed child may select the administrator who will be asked to
+        # approve its own request.  The Polkit rule still restricts the
+        # resulting challenge to that identity; this endpoint never grants
+        # authorization or exposes account-management operations.
+        caller_is_managed_child = False
+        try:
+            caller_is_managed_child = self._eligible(
+                config, self._accounts.get_user(caller_uid)
+            )
+        except Exception:
+            pass
+        if not (self._can_manage_or_kiosk(config, caller_uid) or caller_is_managed_child):
+            raise AccessDenied("caller cannot select an approving administrator")
         users = (
             user for user in self._accounts.list_users()
             if self._eligible_approver(config, user)

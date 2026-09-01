@@ -1,4 +1,7 @@
 {
+  "app_name": "Oh No! Parent Control",
   "vendor_name": "Puffy Slippers Tech LLC",
-  "vendor_url": "https://tech.puffyslippers.com"
+  "vendor_url": "https://tech.puffyslippers.com",
+  "app_url": "https://tech.puffyslippers.com/oh-no-parent-control",
+  "contact": "contact@tech.puffyslippers.com"
 }

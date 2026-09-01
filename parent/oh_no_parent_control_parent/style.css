@@ -2,6 +2,23 @@
   background: linear-gradient(135deg, alpha(@window_bg_color, 0.98), alpha(#96a7bd, 0.18));
 }
 
+.about-dialog {
+  background-color: #f6f7fb;
+  background-image: linear-gradient(135deg, #f6f7fb, #d7e2f0);
+}
+
+.about-detail-label {
+  color: alpha(@window_fg_color, 0.64);
+}
+
+.about-detail-value {
+  font-weight: 500;
+}
+
+.about-link {
+  color: @accent_color;
+}
+
 .apps-panel > box > box {
   border: 1px solid alpha(@window_fg_color, 0.10);
   border-radius: 22px;

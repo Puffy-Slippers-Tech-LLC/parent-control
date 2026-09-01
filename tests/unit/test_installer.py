@@ -11,6 +11,18 @@ INSTALLER = ROOT / "install.sh"
 
 
 class InstallerTests(unittest.TestCase):
+    def test_product_and_company_branding_assets_are_packaged(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+
+        self.assertTrue((ROOT / "data/app_logo.png").is_file())
+        self.assertTrue((ROOT / "data/company_logo.png").is_file())
+        self.assertIn(
+            "BRANDING_ASSETS := data/brand.json data/app.json "
+            "data/app_logo.png data/company_logo.png",
+            makefile,
+        )
+        self.assertNotIn("data/logo.png", makefile)
+
     def test_kiosk_cairo_bridge_is_a_runtime_dependency(self):
         script = INSTALLER.read_text(encoding="utf-8")
         control = (ROOT / "debian/control").read_text(encoding="utf-8")
@@ -88,6 +100,38 @@ class InstallerTests(unittest.TestCase):
             INSTALLER.read_text(encoding="utf-8"),
         )
 
+    def test_unrestricted_accounts_skip_the_no_limit_pam_message(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        pam_config = (
+            ROOT / "data/pam-configs/oh-no-parent-control-session-limits"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("tools/session_limit_check.py", makefile)
+        self.assertIn(
+            "[success=1 default=ignore] pam_exec.so quiet quiet_log "
+            "/usr/libexec/oh-no-parent-control-session-limit-check",
+            pam_config,
+        )
+        self.assertIn(
+            "[success=4 default=ignore] pam_succeed_if.so quiet "
+            "service = systemd-user",
+            pam_config,
+        )
+        self.assertIn(
+            "[success=3 default=ignore] pam_succeed_if.so quiet "
+            "user = oh-no-parent-control",
+            pam_config,
+        )
+        self.assertIn(
+            "[success=2 default=ignore] pam_succeed_if.so quiet "
+            "user ingroup sudo",
+            pam_config,
+        )
+        self.assertLess(
+            pam_config.index("oh-no-parent-control-session-limit-check"),
+            pam_config.index("pam_malcontent.so"),
+        )
+
     def test_selected_approver_polkit_rule_is_installed(self):
         script = INSTALLER.read_text(encoding="utf-8")
         rule = "data/polkit-1/rules.d/00-oh-no-parent-control-session.rules"
@@ -97,6 +141,10 @@ class InstallerTests(unittest.TestCase):
         self.assertIn("/etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules", script)
         self.assertIn('action.lookup("approver-user")', contents)
         self.assertIn('return ["unix-user:" + approver]', contents)
+        self.assertIn(
+            'org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps',
+            contents,
+        )
 
     def test_kiosk_uses_current_restartable_polkit_agent(self):
         script = INSTALLER.read_text(encoding="utf-8")
@@ -144,6 +192,65 @@ class InstallerTests(unittest.TestCase):
             "systemctl is-active --quiet oh-no-parent-control-broker.service",
             script,
         )
+
+    def test_activation_manifest_is_generated_after_direct_pam_and_gdm_setup(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+
+        pam_install = script.index(
+            "/usr/share/pam-configs/oh-no-parent-control-session-limits"
+        )
+        manifest = script.index("_generate-package-activation-manifest")
+
+        self.assertLess(pam_install, manifest)
+        self.assertIn("GENERATE_ACTIVATION_MANIFEST=0", script)
+
+    def test_clean_install_passes_a_missing_activation_baseline(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+
+        baseline_copy = script.index(
+            "cp /usr/share/oh-no-parent-control/package-activation.json"
+        )
+        missing_baseline = script.index(
+            'rm -f "$previous_activation_manifest"', baseline_copy
+        )
+        comparison = script.index(
+            'changed-impacts --old "$previous_activation_manifest"'
+        )
+
+        self.assertLess(baseline_copy, missing_baseline)
+        self.assertLess(missing_baseline, comparison)
+
+    def test_both_install_paths_migrate_saved_data_before_starting_broker(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+        preinst = (ROOT / "debian/preinst").read_text(encoding="utf-8")
+        postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+        launcher = (ROOT / "broker/oh-no-parent-control-broker").read_text(
+            encoding="utf-8",
+        )
+        service = (ROOT / "data/systemd/oh-no-parent-control-broker.service").read_text(
+            encoding="utf-8",
+        )
+
+        marker = "/var/lib/oh-no-parent-control/migration-in-progress"
+        command = "/usr/libexec/oh-no-parent-control-migrate-state"
+        self.assertIn(marker, preinst)
+        self.assertLess(
+            preinst.index(marker),
+            preinst.index("systemctl stop oh-no-parent-control-broker.service"),
+        )
+        self.assertLess(postinst.index(command), postinst.index(f"rm -f {marker}"))
+        self.assertLess(script.index(command), script.index(f"rm -f {marker}"))
+        self.assertLess(script.index(command), script.index(
+            "systemctl restart oh-no-parent-control-broker.service",
+        ))
+        self.assertIn(marker, launcher)
+        self.assertIn(f"ConditionPathExists=!{marker}", service)
+
+    def test_data_migration_runner_and_documentation_are_packaged(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+
+        self.assertIn("broker/oh-no-parent-control-migrate-state", makefile)
+        self.assertIn("docs/Data-Migration.md", makefile)
 
 
 if __name__ == "__main__":

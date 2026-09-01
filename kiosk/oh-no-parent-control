@@ -2,6 +2,7 @@
 import sys
 
 sys.path.insert(0, "/usr/lib/oh-no-parent-control/kiosk")
+sys.path.insert(0, "/usr/lib/oh-no-parent-control")
 
 from oh_no_parent_control_kiosk.main import main
 

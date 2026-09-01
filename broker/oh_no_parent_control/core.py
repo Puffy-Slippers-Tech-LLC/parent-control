@@ -62,6 +62,14 @@ class UserAccount:
     is_local: bool
 
 
+@dataclass(frozen=True)
+class TimeStatus:
+    daily_allowance_remaining_seconds: int
+    one_time_grant_remaining_seconds: int
+    additional_one_time_grant_seconds: int
+    calculated_active_extension_seconds: int
+
+
 class Authorizer(Protocol):
     def check(self, sender: str, correlation_id: str, target_label: str) -> str: ...
 
@@ -90,6 +98,28 @@ class Extensions(Protocol):
     def set_enabled(self, uid: int, enabled: bool) -> None: ...
 
 
+class TimerUsage(Protocol):
+    def query_usage(self, uid: int) -> tuple[tuple[int, int], ...]: ...
+
+
+def calculate_active_extension_seconds(
+        daily_allowance_remaining_seconds: int,
+        one_time_grant_remaining_seconds: int,
+        additional_one_time_grant_seconds: int) -> int:
+    values = (
+        daily_allowance_remaining_seconds,
+        one_time_grant_remaining_seconds,
+        additional_one_time_grant_seconds,
+    )
+    if any(type(value) is not int or not 0 <= value <= UINT32_MAX
+           for value in values):
+        raise InvalidRequest("remaining-time values must be unsigned 32-bit integers")
+    calculated = max(values[0], values[1]) + values[2]
+    if calculated > UINT32_MAX:
+        raise InvalidRequest("calculated ActiveExtension is too large")
+    return calculated
+
+
 def seconds_until_local_midnight(now: datetime) -> int:
     if now.tzinfo is None:
         raise ValueError("approval time must be timezone-aware")
@@ -104,19 +134,90 @@ def seconds_until_local_midnight(now: datetime) -> int:
 class Broker:
     def __init__(self, config_loader: Callable[[], Configuration], authorizer: Authorizer,
                  accounts: Accounts, preferences: Preferences | None = None,
-                 extensions: Extensions | None = None, *, monotonic=time.monotonic,
+                 extensions: Extensions | None = None, timer_usage: TimerUsage | None = None,
+                 *, monotonic=time.monotonic,
                  now=lambda: datetime.now().astimezone(), caller_alive=lambda _sender: True):
         self._config_loader = config_loader
         self._authorizer = authorizer
         self._accounts = accounts
         self._preferences = preferences
         self._extensions = extensions
+        self._timer_usage = timer_usage
         self._monotonic = monotonic
         self._now = now
         self._caller_alive = caller_alive
         self._request_lock = threading.Lock()
         self._rate_lock = threading.Lock()
         self._last_request = {}
+
+    def calculate_remaining_time(
+            self, caller_uid: int, target_uid: int,
+            daily_allowance_remaining_seconds: int,
+            one_time_grant_remaining_seconds: int,
+            additional_one_time_grant_seconds: int) -> int:
+        config = self._load_config()
+        target = self._target(config, target_uid)
+        if caller_uid != target.uid and not self._can_manage_or_kiosk(config, caller_uid):
+            raise AccessDenied("caller cannot calculate time for this account")
+        return calculate_active_extension_seconds(
+            daily_allowance_remaining_seconds,
+            one_time_grant_remaining_seconds,
+            additional_one_time_grant_seconds,
+        )
+
+    def get_time_status(self, caller_uid: int, target_uid: int,
+                        additional_seconds: int = 0) -> TimeStatus:
+        config = self._load_config()
+        target = self._target(config, target_uid)
+        if caller_uid != target.uid and not self._can_manage_or_kiosk(config, caller_uid):
+            raise AccessDenied("caller cannot inspect time for this account")
+        return self._time_status(target.uid, additional_seconds)
+
+    def _time_status(self, target_uid: int, additional_seconds: int) -> TimeStatus:
+        if self._preferences is None or self._timer_usage is None:
+            raise BackendFailure("remaining-time status is unavailable")
+        try:
+            preferences = self._preferences.load(target_uid)
+            usage_entries = self._timer_usage.query_usage(target_uid)
+            grant_time, grant_duration = self._accounts.get_extension(target_uid)
+        except Exception as error:
+            raise BackendFailure("remaining-time status is unavailable") from error
+
+        now = self._now()
+        now_seconds = int(now.timestamp())
+        daily_limit_seconds = (
+            preferences["daily_time_limit_minutes"] * 60
+            if preferences["parent_control_enabled"] else 0
+        )
+        start_of_today = datetime.combine(
+            now.date(), datetime.min.time(), tzinfo=now.tzinfo,
+        )
+        start_of_today_seconds = int(start_of_today.timestamp())
+        today_intervals = []
+        for start, end in usage_entries:
+            if (type(start) is not int or type(end) is not int or
+                    start < 0 or end < start):
+                raise BackendFailure("timer usage returned an invalid interval")
+            clipped_start = max(start, start_of_today_seconds)
+            clipped_end = min(end, now_seconds)
+            if clipped_end > clipped_start:
+                today_intervals.append((clipped_start, clipped_end))
+        used_today = 0
+        merged_end = 0
+        for start, end in sorted(today_intervals):
+            if start >= merged_end:
+                used_today += end - start
+            elif end > merged_end:
+                used_today += end - merged_end
+            merged_end = max(merged_end, end)
+        daily_remaining = max(0, daily_limit_seconds - used_today)
+        grant_remaining = max(0, grant_time + grant_duration - now_seconds)
+        calculated = calculate_active_extension_seconds(
+            daily_remaining, grant_remaining, additional_seconds,
+        )
+        return TimeStatus(
+            daily_remaining, grant_remaining, additional_seconds, calculated,
+        )
 
     @staticmethod
     def _check_caller(config: Configuration, caller_uid: int) -> None:
@@ -336,7 +437,12 @@ class Broker:
                 raise AccessDenied("selected account changed during authorization")
 
             approved_at = self._now()
-            duration = duration_seconds or seconds_until_local_midnight(approved_at)
+            duration = (
+                seconds_until_local_midnight(approved_at)
+                if duration_seconds == 0 else
+                self._time_status(target.uid, duration_seconds)
+                .calculated_active_extension_seconds
+            )
             issued_at = int(approved_at.timestamp())
             if issued_at <= 0 or issued_at > (1 << 64) - 1 or not 0 < duration <= UINT32_MAX:
                 raise BackendFailure("calculated extension is outside the supported range")

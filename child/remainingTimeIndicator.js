@@ -8,6 +8,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
 import {queryEstimatedTimes} from './timerQuery.js';
+import {calculateRemainingTime} from './timeCalculationClient.js';
 import {logDebug, logInfo, logWarning} from './logger.js';
 const ROLE = 'screenTimeRemaining';
 const TIMER_BUS_NAME = 'org.freedesktop.MalcontentTimer1';
@@ -81,10 +82,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._layoutSyncId = 0;
         this._flashTimeoutId = 0;
         this._destroyed = false;
-        this._grantedUntil = approvedGrantRemaining > 0
+        this._activeExtensionEnd = approvedGrantRemaining > 0
             ? Main.timeLimitsManager.getCurrentTime() + approvedGrantRemaining
             : 0;
         this._sessionEnd = 0;
+        this._calculatedEnd = this._activeExtensionEnd;
         this._refreshPending = false;
         this._vertical = null;
         this._timerSignalId = Gio.DBus.system.signal_subscribe(
@@ -100,8 +102,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this.container.hide();
 
         this._connect(Main.timeLimitsManager, 'notify::state', () => this._sync());
-        this._connect(Main.timeLimitsManager, 'notify::daily-limit-time', () => this._sync());
-        this._connect(Main.timeLimitsManager, 'notify::daily-limit-enabled', () => this._sync());
+        this._connect(Main.timeLimitsManager, 'notify::daily-limit-time',
+            () => this._refreshEstimate());
+        this._connect(Main.timeLimitsManager, 'notify::daily-limit-enabled',
+            () => this._refreshEstimate());
         this._connect(Main.sessionMode, 'updated', () => this._sync());
         this._connect(this.container, 'notify::width', () => this._queueLayoutSync());
         this._connect(this.container, 'notify::height', () => this._queueLayoutSync());
@@ -194,11 +198,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         }
     }
 
-    _remainingSeconds() {
-        const manager = Main.timeLimitsManager;
-        const managerLimit = Number(manager.dailyLimitTime ?? 0);
-        const limitTime = Math.max(managerLimit, this._sessionEnd);
-        return Math.ceil(limitTime - manager.getCurrentTime());
+    _remainingSeconds(currentTime) {
+        return Math.ceil(this._calculatedEnd - currentTime);
     }
 
     async _refreshEstimate() {
@@ -213,7 +214,20 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
             const estimate = estimates[''];
             this._sessionEnd = estimate ? Number(estimate[2]) : 0;
-            logInfo(`timer estimate loaded; session end=${this._sessionEnd}`);
+            const currentTime = Main.timeLimitsManager.getCurrentTime();
+            const managerLimit = Number(
+                Main.timeLimitsManager.dailyLimitTime ?? 0);
+            const effectiveAllowanceRemaining = Math.max(
+                0, Math.ceil(Math.max(managerLimit, this._sessionEnd) - currentTime));
+            const oneTimeGrantRemaining = Math.max(
+                0, Math.ceil(this._activeExtensionEnd - currentTime));
+            const calculated = await calculateRemainingTime(
+                effectiveAllowanceRemaining, oneTimeGrantRemaining, 0);
+            if (this._destroyed)
+                return;
+            this._calculatedEnd = currentTime + calculated;
+            logInfo('timer estimate loaded; ' +
+                `session end=${this._sessionEnd}; calculated remaining=${calculated}`);
         } catch (error) {
             if (!this._destroyed) {
                 // A transient daemon/database failure says nothing about the
@@ -232,14 +246,16 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     showGrantedTime(durationSeconds) {
         const now = Main.timeLimitsManager.getCurrentTime();
         if (durationSeconds > 0) {
-            this._grantedUntil = now + durationSeconds;
+            this._activeExtensionEnd = now + durationSeconds;
         } else {
             const tomorrow = GLib.DateTime.new_from_unix_local(now)
                 .add_days(1);
-            this._grantedUntil = GLib.DateTime.new_local(
+            this._activeExtensionEnd = GLib.DateTime.new_local(
                 tomorrow.get_year(), tomorrow.get_month(), tomorrow.get_day_of_month(),
                 0, 0, 0).to_unix();
         }
+        // The grant duration was produced by the broker-owned shared formula.
+        this._calculatedEnd = this._activeExtensionEnd;
         this._sync();
     }
 
@@ -248,23 +264,16 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             return;
 
         const manager = Main.timeLimitsManager;
-        const managerRemaining = this._remainingSeconds();
-        const grantedRemaining = Math.ceil(
-            this._grantedUntil - manager.getCurrentTime());
+        const currentTime = manager.getCurrentTime();
+        if (this._activeExtensionEnd <= currentTime)
+            this._activeExtensionEnd = 0;
+        const remainingSecs = this._remainingSeconds(currentTime);
         // Ubuntu uses a primary session mode named "ubuntu", while upstream
         // GNOME commonly uses "user".  Test the session semantics instead of
         // assuming the distribution-specific primary mode name.
         const visible = !Main.sessionMode.isLocked &&
             !Main.sessionMode.isGreeter &&
-            (managerRemaining > 0 || grantedRemaining > 0);
-        // An authenticated grant is the new total, not an amount to add to
-        // the daemon's previously reported remainder.
-        const remainingSecs = grantedRemaining > 0
-            ? grantedRemaining
-            : managerRemaining;
-
-        if (grantedRemaining <= 0)
-            this._grantedUntil = 0;
+            remainingSecs > 0;
 
         if (!visible || remainingSecs <= 0) {
             this._clearTimeout();

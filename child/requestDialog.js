@@ -281,19 +281,22 @@ class RequestForm {
             seconds = Math.round(minutes * 60);
         }
 
-        if (seconds === 0)
+        const untilEndOfDay = seconds === 0;
+        if (untilEndOfDay)
             seconds = secondsUntilEndOfLocalDay();
 
+        const allowSoftBlockedApps = this._appFilterToggle.checked;
         this._errorLabel?.hide();
         this._setWorking(true);
         try {
             const granted = await this._onRequest(
                 seconds,
-                this._appFilterToggle.checked);
+                allowSoftBlockedApps,
+                untilEndOfDay);
             if (granted) {
                 saveRequestPreferences(
                     this._selected, this._lastCustomMinutes,
-                    this._appFilterToggle.checked);
+                    allowSoftBlockedApps);
                 this._onClose?.();
                 return;
             }

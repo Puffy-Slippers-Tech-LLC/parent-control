@@ -44,6 +44,28 @@ def _minutes_label(minutes):
     return f"{minutes} minute" if minutes == 1 else f"{minutes} minutes"
 
 
+def _duration_label(seconds):
+    seconds = max(0, int(seconds))
+    minutes, remaining_seconds = divmod(seconds, 60)
+    if remaining_seconds:
+        return f"{minutes}m {remaining_seconds}s"
+    return f"{minutes}m"
+
+
+def _time_status_subtitle(status):
+    daily = _duration_label(status["daily_allowance_remaining_seconds"])
+    grant = _duration_label(status["one_time_grant_remaining_seconds"])
+    additional = _duration_label(status["additional_one_time_grant_seconds"])
+    calculated = _duration_label(status["calculated_active_extension_seconds"])
+    return (
+        "Formula: max(Daily allowance remaining, One-time grant remaining) "
+        "+ Additional one-time grant\n"
+        f"Daily allowance remaining: {daily}  •  One-time grant remaining: {grant}  •  "
+        f"Additional one-time grant: {additional}\n"
+        f"Calculated ActiveExtension: max({daily}, {grant}) + {additional} = {calculated}"
+    )
+
+
 class ParentWindow(Adw.ApplicationWindow):
     def __init__(self, application):
         super().__init__(application=application, title="Oh No! Parent Control")
@@ -53,7 +75,12 @@ class ParentWindow(Adw.ApplicationWindow):
         self._preferences = None
         self._rows = []
         self._loading = False
+        self._time_status_loading = False
         self._build()
+        self._time_status_refresh_id = GLib.timeout_add_seconds(
+            30, self._refresh_time_status,
+        )
+        self.connect("close-request", self._close_requested)
         LOG.info("window initialized app_count=%d", len(self._rows))
         GLib.idle_add(self._load_users)
 
@@ -98,6 +125,15 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         self._daily_limit.connect("notify::selected", self._daily_limit_changed)
         screen_limits.add(self._daily_limit)
+        self._time_status = Adw.ActionRow(
+            title="Today's Remaining Time",
+            subtitle_lines=3,
+            subtitle=(
+                "Formula: max(Daily allowance remaining, One-time grant remaining) "
+                "+ Additional one-time grant\nLoading today's values…"
+            ),
+        )
+        screen_limits.add(self._time_status)
         page.add(screen_limits)
 
         legend = Adw.PreferencesGroup(
@@ -206,13 +242,16 @@ class ParentWindow(Adw.ApplicationWindow):
         actions.add(save_row)
         page.add(actions)
 
-    def _run(self, operation, success):
+    def _run(self, operation, success, failure=None):
         def done(value=None, error=None):
             try:
                 if error is not None:
                     raise error
                 success(value)
             except Exception as caught:
+                if failure is not None:
+                    failure(caught)
+                    return
                 LOG.warning("broker operation failed: %s", caught)
                 self._toast(f"Could not complete the change: {caught}")
                 self._loading = True
@@ -274,6 +313,10 @@ class ParentWindow(Adw.ApplicationWindow):
         if uid is None:
             return
         self._loading = True
+        self._time_status.set_subtitle(
+            "Formula: max(Daily allowance remaining, One-time grant remaining) "
+            "+ Additional one-time grant\nLoading today's values…"
+        )
         LOG.info("preferences load started target_uid=%d", uid)
         self._set_apps_sensitive(False)
         self._run(lambda: self._client.get_preferences(uid),
@@ -297,6 +340,55 @@ class ParentWindow(Adw.ApplicationWindow):
         LOG.info("preferences loaded target_uid=%d enabled=%s policy_count=%d",
                  self._selected_uid(), preferences["parent_control_enabled"],
                  len(preferences["apps"]))
+        self._load_time_status()
+
+    def _load_time_status(self):
+        uid = self._selected_uid()
+        if uid is None or self._time_status_loading:
+            return
+        self._time_status_loading = True
+        self._run(
+            lambda: self._client.get_time_status(uid),
+            lambda value: self._time_status_loaded(uid, value),
+            lambda error: self._time_status_failed(uid, error),
+        )
+
+    def _time_status_loaded(self, uid, status):
+        self._time_status_loading = False
+        if uid != self._selected_uid():
+            self._load_time_status()
+            return
+        self._time_status.set_subtitle(_time_status_subtitle(status))
+        LOG.info(
+            "remaining time loaded target_uid=%d daily=%d grant=%d additional=%d calculated=%d",
+            uid,
+            status["daily_allowance_remaining_seconds"],
+            status["one_time_grant_remaining_seconds"],
+            status["additional_one_time_grant_seconds"],
+            status["calculated_active_extension_seconds"],
+        )
+
+    def _time_status_failed(self, uid, error):
+        self._time_status_loading = False
+        if uid != self._selected_uid():
+            self._load_time_status()
+            return
+        LOG.warning("remaining-time load failed target_uid=%d: %s", uid, error)
+        self._time_status.set_subtitle(
+            "Formula: max(Daily allowance remaining, One-time grant remaining) "
+            "+ Additional one-time grant\nToday's values are unavailable."
+        )
+
+    def _refresh_time_status(self):
+        if self._selected_uid() is not None:
+            self._load_time_status()
+        return GLib.SOURCE_CONTINUE
+
+    def _close_requested(self, *_args):
+        if self._time_status_refresh_id:
+            GLib.source_remove(self._time_status_refresh_id)
+            self._time_status_refresh_id = 0
+        return False
 
     def _set_apps_sensitive(self, sensitive):
         self._account.set_sensitive(not self._loading)

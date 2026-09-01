@@ -414,11 +414,14 @@ export class ParentalControlsIntegration {
         }
 
         const overlaidEstimates = estimates.slice();
-        overlaidEstimates[2] = approvedEnd;
+        // The approved ActiveExtension and unused daily allowance are
+        // alternative valid expiries. Never let the compatibility overlay
+        // shorten a later authoritative session end.
+        overlaidEstimates[2] = Math.max(Number(estimates[2]) || 0, approvedEnd);
         manager._estimatedTimes = overlaidEstimates;
         const reportedEnd = Number(estimates[2]);
-        if (reportedEnd !== approvedEnd) {
-            logDebug('replaced stale timer estimate; ' +
+        if (reportedEnd < approvedEnd) {
+            logDebug('extended stale timer estimate; ' +
                 `reported=${reportedEnd}, approved=${approvedEnd}`);
         }
     }

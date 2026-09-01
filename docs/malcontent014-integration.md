@@ -26,9 +26,24 @@ to the next local midnight for its “Rest of the day” choice and sends that
 positive value.
 
 An approved positive duration replaces the active extension beginning at the
-approval time. The selected value is therefore the new total remaining time,
-not an amount added to the previously reported remainder. “Rest of the day” is
+approval time; it does not add to a previous active extension. Unused daily
+allowance remains valid, so Malcontent permits access until the later of the
+daily-allowance expiry and the active-extension expiry. “Rest of the day” is
 sent as the already-calculated interval to local midnight.
+
+The product's minute choices are explicitly additional time. Before writing a
+new `ActiveExtension`, the child queries `GetEstimatedTimes` and sends the live
+remainder to the product broker's shared calculation:
+
+```text
+max(Daily allowance remaining, One-time grant remaining)
+    + Additional one-time grant
+```
+
+For example, a 5-minute request with 32 minutes of effective backend time
+remaining writes a 37-minute active extension. The parent status row and kiosk
+request flow use the same broker-owned function. This conversion is not applied
+to “Rest of the day”, which remains an absolute expiry choice.
 
 The request originates from the restricted user's system-bus connection. The
 daemon identifies the caller and forwards it to
@@ -61,11 +76,11 @@ it. Malcontent may also temporarily publish a stale estimate when concurrent
 clients encounter its per-user database lock. For the lifetime of an
 authenticated positive native `ExtensionResponse` or combined AccountsService
 write, the extension replaces GNOME Shell's cached `currentSessionEnd` with the
-approved expiry before its native state calculation runs. The approved value is
-authoritative in both directions, so choosing a shorter duration replaces a
-longer remainder instead of preserving it. This keeps the native manager
-`ACTIVE` without auto-unlocking a manually locked screen. At expiry, the overlay
-is removed and the authoritative estimate is refreshed.
+later of the reported and approved expiries before its native state calculation
+runs. A new extension replaces a previous extension, while GNOME's separate
+daily-limit time remains valid. This keeps the native manager `ACTIVE` without
+auto-unlocking a manually locked screen. At expiry, the overlay is removed and
+the authoritative estimate is refreshed.
 
 The native shield's Ignore button uses the same response signal. The extension
 observes a native click and accepts a response only when its cookie exactly

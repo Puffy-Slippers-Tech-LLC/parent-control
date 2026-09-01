@@ -15,7 +15,7 @@ gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
 from . import config
-from .adapters import AccountsService, CallerCredentials, PolkitAuthorizer
+from .adapters import AccountsService, CallerCredentials, PolkitAuthorizer, TimerUsage
 from .core import Broker, BrokerError, InvalidRequest
 from .extension_manager import ExtensionManager
 from .logs import DailyLogWriter, configure_broker_logging
@@ -42,6 +42,21 @@ INTROSPECTION_XML = f"""
     <method name="GetPreferences">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="out"/>
+    </method>
+    <method name="GetTimeStatus">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="additional_one_time_grant_seconds" type="u" direction="in"/>
+      <arg name="daily_allowance_remaining_seconds" type="u" direction="out"/>
+      <arg name="one_time_grant_remaining_seconds" type="u" direction="out"/>
+      <arg name="additional_grant_seconds" type="u" direction="out"/>
+      <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
+    </method>
+    <method name="CalculateRemainingTime">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="daily_allowance_remaining_seconds" type="u" direction="in"/>
+      <arg name="one_time_grant_remaining_seconds" type="u" direction="in"/>
+      <arg name="additional_one_time_grant_seconds" type="u" direction="in"/>
+      <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
     </method>
     <method name="SetPreferences">
       <arg name="target_uid" type="u" direction="in"/>
@@ -78,6 +93,7 @@ class Service:
         self.broker = Broker(
             lambda: config.load(CONFIG_PATH), PolkitAuthorizer(connection),
             AccountsService(connection), PreferenceStore(), ExtensionManager(),
+            TimerUsage(connection),
             caller_alive=self.credentials.alive,
         )
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
@@ -111,6 +127,23 @@ class Service:
                 target_uid, = parameters.unpack()
                 value = self.broker.get_preferences(caller_uid, target_uid)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(value),)))
+            elif method == "GetTimeStatus":
+                target_uid, additional = parameters.unpack()
+                status = self.broker.get_time_status(
+                    caller_uid, target_uid, additional,
+                )
+                invocation.return_value(GLib.Variant("(uuuu)", (
+                    status.daily_allowance_remaining_seconds,
+                    status.one_time_grant_remaining_seconds,
+                    status.additional_one_time_grant_seconds,
+                    status.calculated_active_extension_seconds,
+                )))
+            elif method == "CalculateRemainingTime":
+                target_uid, daily, grant, additional = parameters.unpack()
+                calculated = self.broker.calculate_remaining_time(
+                    caller_uid, target_uid, daily, grant, additional,
+                )
+                invocation.return_value(GLib.Variant("(u)", (calculated,)))
             elif method == "SetPreferences":
                 target_uid, encoded = parameters.unpack()
                 try:

@@ -7,6 +7,14 @@ INSTALLER = ROOT / "install.sh"
 
 
 class InstallerTests(unittest.TestCase):
+    def test_interrupted_dpkg_state_is_recovered_before_apt_runs(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+
+        configure = script.index("dpkg --configure --pending")
+        repair = script.index('"${apt_get[@]}" --fix-broken install -y')
+
+        self.assertLess(configure, repair)
+
     def test_parent_app_stylesheet_is_installed_with_its_package(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 

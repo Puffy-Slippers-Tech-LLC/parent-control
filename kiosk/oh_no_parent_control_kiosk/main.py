@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import json
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -27,7 +29,18 @@ INTERFACE = BUS_NAME
 REQUEST_TIMEOUT_MS = GLib.MAXINT
 # Keep the confirmation visible briefly before returning to GDM.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
-BACKGROUND_FRAME_MS = 33
+GATEWAY_EFFECT_FRAME_MS = 33
+PREVIEW_DEFAULT_WIDTH = 1918
+PREVIEW_DEFAULT_HEIGHT = 1443
+PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
+PREVIEW_APPROVERS = ((1000, "Taylor Morgan"),)
+PREVIEW_PREFERENCES = {
+    "request": {
+        "last_selected_duration": "1800",
+        "last_custom_minutes": 30,
+        "allow_soft_blocked_apps": False,
+    },
+}
 LOG = logging.getLogger("oh-no-parent-control")
 
 
@@ -52,13 +65,17 @@ class BrokerLogHandler(logging.Handler):
 
 
 class GatewayBackground(Gtk.Widget):
-    """The kiosk artwork with a gentle camera push toward its gateway."""
+    """Static kiosk artwork with animated energy travelling through its gateway."""
 
     def __init__(self):
         super().__init__(hexpand=True, vexpand=True)
         self._started_at = GLib.get_monotonic_time() / 1_000_000
         self._texture = self._load_texture()
-        self._frame_source_id = GLib.timeout_add(BACKGROUND_FRAME_MS, self._next_frame)
+        self._random = random.SystemRandom()
+        self._lightning_bolts = []
+        self._frame_source_id = GLib.timeout_add(
+            GATEWAY_EFFECT_FRAME_MS, self._next_frame,
+        )
         self.connect("destroy", self._stop_animation)
 
     @staticmethod
@@ -95,12 +112,7 @@ class GatewayBackground(Gtk.Widget):
         now = GLib.get_monotonic_time() / 1_000_000 - self._started_at
         image_width = self._texture.get_width()
         image_height = self._texture.get_height()
-        cover_scale = max(width / image_width, height / image_height)
-        # A long, shallow zoom cycle makes the gate and its inset form feel as
-        # though they are approaching the viewer, without distracting from the
-        # live request form laid over the image.
-        zoom = 1.02 + 0.045 * (math.sin(now * math.tau / 12) + 1) / 2
-        scale = cover_scale * zoom
+        scale = max(width / image_width, height / image_height)
         rendered_width = image_width * scale
         rendered_height = image_height * scale
         image_bounds = Graphene.Rect().init(
@@ -111,16 +123,232 @@ class GatewayBackground(Gtk.Widget):
         )
         snapshot.append_texture(self._texture, image_bounds)
 
-        # A low-opacity vignette preserves legibility at every point in the
-        # animation while allowing the supplied artwork to remain prominent.
+        # A low-opacity vignette preserves legibility while allowing the
+        # supplied artwork to remain prominent.
         snapshot.append_color(
             Gdk.RGBA(red=0.02, green=0.03, blue=0.09, alpha=0.24),
             bounds,
         )
+        self._append_gateway_energy(snapshot, width, height, now)
+
+    def _new_lightning_bolt(self, starts_at):
+        """Create one non-repeating bolt from the background into the gate."""
+        while True:
+            source_x = self._random.uniform(0.03, 0.97)
+            source_y = self._random.uniform(0.03, 0.97)
+            # Keep origins out of the gateway and its foreground form.
+            if abs(source_x - 0.5) > 0.27 or abs(source_y - 0.49) > 0.34:
+                break
+        return {
+            "starts_at": starts_at,
+            "duration": self._random.uniform(0.85, 1.35),
+            "source_x": source_x,
+            "source_y": source_y,
+            "target_x": self._random.uniform(0.44, 0.56),
+            "target_y": self._random.uniform(0.42, 0.56),
+            # Store a unique irregular path with the bolt so it stays stable
+            # while it travels, but no two strikes share a zig-zag pattern.
+            "path_offsets": self._new_winding_offsets(),
+            "detail_offsets": self._new_secondary_offsets(),
+            "winding": self._random.uniform(0.08, 0.16),
+            "jaggedness": self._random.uniform(8, 24),
+            # A few intense strikes create the bright, high-energy flashes
+            # while dimmer ones keep the scene from looking uniformly lit.
+            "brightness": self._random.uniform(0.28, 2.4),
+            "fade_rate": self._random.uniform(0.68, 1.35),
+            # A broad range keeps the scene from looking like duplicated
+            # effects: some bolts are hairline flashes while others dominate
+            # the background with a heavy strike.
+            "thickness": self._random.uniform(0.22, 6.6),
+            "branches": tuple(
+                (
+                    self._random.uniform(0.16, 0.82),
+                    self._random.uniform(0.06, 0.18),
+                    self._random.choice((-1, 1)),
+                    self._random.uniform(-1.0, 1.0),
+                    # Forks do not inherit identical brightness or decay.
+                    # This keeps a single strike from reading as a copied
+                    # bundle of lines as it approaches the gateway.
+                    self._random.uniform(0.20, 2.4),
+                    self._random.uniform(0.45, 1.7),
+                    self._random.uniform(0.35, 1.25),
+                )
+                # A strike may remain unbranched, or split into up to four
+                # independently lit offshoots.
+                for _branch in range(self._random.randint(0, 4))
+            ),
+        }
+
+    def _new_winding_offsets(self):
+        """Build gentle, irregular turns that resolve at the gateway."""
+        anchors = [0.0]
+        for _anchor in range(3):
+            anchors.append(self._random.uniform(-0.85, 0.85))
+        anchors.append(0.0)
+        return self._smooth_offsets(anchors)
+
+    def _new_secondary_offsets(self):
+        """Build smaller smooth bends that flicker within the broad route."""
+        anchors = [0.0]
+        for _anchor in range(8):
+            anchors.append(self._random.uniform(-0.9, 0.9))
+        anchors.append(0.0)
+        return self._smooth_offsets(anchors)
+
+    @staticmethod
+    def _smooth_offsets(anchors):
+        offsets = []
+        for point in range(22):
+            position = point / 21 * (len(anchors) - 1)
+            anchor_index = min(int(position), len(anchors) - 2)
+            fraction = position - anchor_index
+            # Cosine interpolation gives each broad turn a smooth entry and
+            # exit, rather than connecting random points with sharp corners.
+            smooth_fraction = (1 - math.cos(math.pi * fraction)) / 2
+            offsets.append(
+                anchors[anchor_index] * (1 - smooth_fraction)
+                + anchors[anchor_index + 1] * smooth_fraction
+            )
+        return tuple(offsets)
+
+    def _append_gateway_energy(self, snapshot, width, height, elapsed):
+        """Draw bright, randomly sourced lightning moving into the gateway."""
+        bounds = Graphene.Rect().init(0, 0, width, height)
+        context = snapshot.append_cairo(bounds)
+
+        if not self._lightning_bolts:
+            self._lightning_bolts = [
+                self._new_lightning_bolt(-index * 0.27)
+                for index in range(4)
+            ]
+
+        for index, bolt in enumerate(self._lightning_bolts):
+            if elapsed >= bolt["starts_at"] + bolt["duration"]:
+                self._lightning_bolts[index] = self._new_lightning_bolt(
+                    elapsed + self._random.uniform(0.08, 0.42),
+                )
+
+        for bolt in self._lightning_bolts:
+            progress = (elapsed - bolt["starts_at"]) / bolt["duration"]
+            if not 0 <= progress <= 1:
+                continue
+            source_x, source_y = bolt["source_x"] * width, bolt["source_y"] * height
+            target_x, target_y = bolt["target_x"] * width, bolt["target_y"] * height
+            vector_x, vector_y = target_x - source_x, target_y - source_y
+            vector_length = math.hypot(vector_x, vector_y)
+            perpendicular_x, perpendicular_y = -vector_y / vector_length, vector_x / vector_length
+            # A lightning flash is brightest at its origin, then loses energy
+            # while travelling into the gateway instead of staying uniformly
+            # bright for its whole journey.
+            opacity = min(
+                1.0,
+                0.98 * bolt["brightness"] * (1 - progress) ** bolt["fade_rate"],
+            )
+            # Energy collapses into a thin line near the gateway, matching
+            # the rapid fade rather than retaining a broad neon stroke.
+            thickness = bolt["thickness"] * (1 - progress) ** 1.35
+            bend_scale = vector_length * bolt["winding"]
+
+            points = []
+            for step, (path_offset, detail_offset) in enumerate(zip(
+                bolt["path_offsets"], bolt["detail_offsets"],
+            )):
+                point_progress = progress * step / (len(bolt["path_offsets"]) - 1)
+                jitter = (
+                    bend_scale * path_offset
+                    + bolt["jaggedness"] * detail_offset
+                )
+                points.append((
+                    source_x + vector_x * point_progress + perpendicular_x * jitter,
+                    source_y + vector_y * point_progress + perpendicular_y * jitter,
+                ))
+
+            context.move_to(*points[0])
+            for point in points[1:]:
+                context.line_to(*point)
+            context.set_source_rgba(0.29, 0.08, 1.0, opacity * 0.62)
+            context.set_line_width(20 * thickness)
+            context.stroke_preserve()
+            context.set_source_rgba(0.60, 0.40, 1.0, opacity * 0.88)
+            context.set_line_width(8 * thickness)
+            context.stroke_preserve()
+            context.set_source_rgba(0.98, 0.96, 1.0, opacity)
+            context.set_line_width(2.4 * thickness)
+            context.stroke()
+
+            # Each optional fork carries individual brightness and fade
+            # values, so it fades naturally instead of mirroring the trunk.
+            for (
+                branch_at,
+                branch_length,
+                branch_side,
+                branch_bend,
+                branch_lightness,
+                branch_fade_rate,
+                branch_taper_rate,
+            ) in bolt["branches"]:
+                if branch_at >= progress:
+                    continue
+                branch_x = source_x + vector_x * branch_at
+                branch_y = source_y + vector_y * branch_at
+                path_position = branch_at * (len(bolt["path_offsets"]) - 1)
+                path_index = int(path_position)
+                path_fraction = path_position - path_index
+                path_offset = (
+                    bolt["path_offsets"][path_index] * (1 - path_fraction)
+                    + bolt["path_offsets"][path_index + 1] * path_fraction
+                )
+                detail_offset = (
+                    bolt["detail_offsets"][path_index] * (1 - path_fraction)
+                    + bolt["detail_offsets"][path_index + 1] * path_fraction
+                )
+                jitter = bend_scale * path_offset + bolt["jaggedness"] * detail_offset
+                branch_x += perpendicular_x * jitter
+                branch_y += perpendicular_y * jitter
+                end_x = branch_x - vector_x * branch_length
+                end_y = branch_y - vector_y * branch_length
+                end_x += perpendicular_x * vector_length * branch_length * 0.85 * branch_side
+                end_y += perpendicular_y * vector_length * branch_length * 0.85 * branch_side
+                context.move_to(branch_x, branch_y)
+                context.line_to(
+                    (branch_x + end_x) / 2
+                    + perpendicular_x * vector_length * branch_length * branch_bend * 0.45,
+                    (branch_y + end_y) / 2
+                    + perpendicular_y * vector_length * branch_length * branch_bend * 0.45,
+                )
+                context.line_to(end_x, end_y)
+                branch_opacity = (
+                    0.98
+                    * branch_lightness
+                    * (1 - progress) ** branch_fade_rate
+                )
+                # Forks lose physical width as well as light.  Their taper
+                # rates are independent, so some disappear as hairlines
+                # while others keep a thicker glow a little longer.
+                branch_thickness = (
+                    thickness * (1 - progress) ** branch_taper_rate
+                )
+                context.set_source_rgba(
+                    0.38,
+                    0.12,
+                    1.0,
+                    branch_opacity * 0.44,
+                )
+                context.set_line_width(9 * branch_thickness)
+                context.stroke_preserve()
+                context.set_source_rgba(
+                    0.94,
+                    0.88,
+                    1.0,
+                    branch_opacity * 0.84,
+                )
+                context.set_line_width(1.7 * branch_thickness)
+                context.stroke()
 
 
-def configure_logging():
-    handler = BrokerLogHandler()
+def configure_logging(preview=False):
+    """Use local logging for preview; production records belong to the broker."""
+    handler = logging.StreamHandler() if preview else BrokerLogHandler()
     handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
     root = logging.getLogger()
     root.handlers.clear()
@@ -129,16 +357,21 @@ def configure_logging():
 
 
 class RequestWindow(Adw.ApplicationWindow):
-    def __init__(self, application):
+    def __init__(self, application, *, preview=False):
         super().__init__(application=application, title="Oh No! Parent Control")
         self.add_css_class("oh-no-parent-control-window")
-        self.set_default_size(800, 600)
+        self.set_default_size(
+            PREVIEW_DEFAULT_WIDTH if preview else 800,
+            PREVIEW_DEFAULT_HEIGHT if preview else 600,
+        )
+        self._preview = preview
         self._state = RequestState()
         self._success_logout_source_id = None
-        self._system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        self._system_bus = None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
         self._build()
         LOG.info("request station window initialized")
-        self.connect("map", lambda *_args: self.fullscreen())
+        if not preview:
+            self.connect("map", lambda *_args: self.fullscreen())
         self._load_users()
 
     def _build(self):
@@ -178,6 +411,9 @@ class RequestWindow(Adw.ApplicationWindow):
         return box
 
     def _logout(self, *_args):
+        if self._preview:
+            self._stack.set_visible_child_name("request")
+            return
         # OnSuccess=gnome-session-shutdown.target on the application unit turns
         # this clean exit into a supported kiosk-session logout back to GDM.
         LOG.info("return to login requested")
@@ -197,6 +433,8 @@ class RequestWindow(Adw.ApplicationWindow):
         )
 
     def _bus_call(self, method, parameters, reply_signature, callback, timeout=30_000):
+        if self._system_bus is None:
+            raise RuntimeError("the preview does not have a broker connection")
         self._system_bus.call(
             BUS_NAME, OBJECT_PATH, INTERFACE, method, parameters,
             GLib.VariantType.new(reply_signature), Gio.DBusCallFlags.NONE,
@@ -204,6 +442,11 @@ class RequestWindow(Adw.ApplicationWindow):
         )
 
     def _load_users(self, *_args):
+        if self._preview:
+            self._request_content.set_loading()
+            self._request_content.set_accounts(PREVIEW_USERS)
+            self._request_content.set_approvers(PREVIEW_APPROVERS)
+            return
         LOG.info("request-account discovery started")
         self._request_content.set_loading()
         self._bus_call("ListManagedUsers", None, "(a(us))", self._users_done)
@@ -228,6 +471,9 @@ class RequestWindow(Adw.ApplicationWindow):
             self._show_error(error)
 
     def _load_preferences(self, target_uid):
+        if self._preview:
+            self._request_content.set_preferences(PREVIEW_PREFERENCES)
+            return
         LOG.info("preferences load started target_uid=%d", target_uid)
         self._bus_call(
             "GetPreferences", GLib.Variant("(u)", (target_uid,)), "(s)",
@@ -243,6 +489,17 @@ class RequestWindow(Adw.ApplicationWindow):
             LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
 
     def _request_access(self, *_args):
+        if self._preview:
+            try:
+                self._request_content.selected()
+            except ValueError as error:
+                self._request_content.show_validation_error(str(error))
+                return
+            self._show_result(
+                "Preview request",
+                "This is a visual preview; no access was requested.",
+            )
+            return
         if not self._state.begin():
             return
         try:
@@ -334,13 +591,14 @@ class RequestWindow(Adw.ApplicationWindow):
 
 
 class Application(Adw.Application):
-    def __init__(self):
+    def __init__(self, *, preview=False):
         super().__init__(application_id="com.puffyslippers.OhNoParentControl")
+        self._preview = preview
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
         self._css_provider = None
 
     def do_activate(self):
-        window = self.get_active_window() or RequestWindow(self)
+        window = self.get_active_window() or RequestWindow(self, preview=self._preview)
         if self._css_provider is None:
             self._css_provider = Gtk.CssProvider()
             self._css_provider.load_from_path(str(Path(__file__).with_name("style.css")))
@@ -351,10 +609,16 @@ class Application(Adw.Application):
         window.present()
 
 
-def main():
-    configure_logging()
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--preview", action="store_true",
+        help="render the kiosk UI with fixture data and no privileged services",
+    )
+    args = parser.parse_args(argv)
+    configure_logging(preview=args.preview)
     LOG.info("kiosk app starting")
-    return Application().run(sys.argv)
+    return Application(preview=args.preview).run([sys.argv[0]])
 
 
 if __name__ == "__main__":

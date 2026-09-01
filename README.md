@@ -33,6 +33,16 @@ Run the complete host-safe test suite without installing anything:
 make check
 ```
 
+Preview the kiosk UI from the checkout, with representative fixture data and
+without a kiosk login, broker, D-Bus calls, Polkit, or account changes:
+
+```sh
+make preview-kiosk
+```
+
+The preview uses the production GTK window, CSS, artwork, and animation. It is
+resizable and intentionally does not enter the production fullscreen session.
+
 Exercise packaging in a disposable directory:
 
 ```sh

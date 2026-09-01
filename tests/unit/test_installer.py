@@ -38,6 +38,15 @@ class InstallerTests(unittest.TestCase):
             "parent/oh_no_parent_control_parent/style.css", makefile,
         )
 
+    def test_kiosk_gateway_background_is_packaged(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        background = ROOT / "kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg"
+
+        self.assertTrue(background.is_file())
+        self.assertIn(
+            "kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg", makefile,
+        )
+
     def test_parent_launcher_is_only_readable_by_administrators(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         script = INSTALLER.read_text(encoding="utf-8")

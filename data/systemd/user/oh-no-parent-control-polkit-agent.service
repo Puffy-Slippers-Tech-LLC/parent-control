@@ -1,11 +1,14 @@
 [Unit]
-Description=Polkit authentication agent for Oh No! Parent Control
+Description=MATE Polkit authentication agent for Oh No! Parent Control
 BindsTo=gnome-session.target
 After=gnome-session.target org.gnome.Kiosk@wayland.service
 Before=oh-no-parent-control-app.service
 
 [Service]
-Type=simple
-ExecStart=/usr/bin/lxqt-policykit-agent
+# The public mate-polkit launcher forks the authentication agent into the
+# background. Track that child as the service's main process so it remains in
+# the service lifecycle and can be restarted if it exits.
+Type=forking
+ExecStart=/usr/bin/mate-polkit
 Restart=on-failure
 RestartSec=1

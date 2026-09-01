@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
 import pwd
+import subprocess
+import tempfile
 
 import gi
 
@@ -29,6 +33,16 @@ TIMER_PATH = "/org/freedesktop/MalcontentTimer1"
 TIMER_PARENT_INTERFACE = "org.freedesktop.MalcontentTimer1.Parent"
 CALL_TIMEOUT_MS = 30_000
 AUTH_TIMEOUT_MS = 180_000
+USAGE_HELPER = "/usr/libexec/oh-no-parent-control-query-usage"
+MAX_USAGE_HELPER_OUTPUT_BYTES = 8 * 1024 * 1024
+
+
+class TimerUsageError(RuntimeError):
+    """A redacted failure from the identity-scoped usage query helper."""
+
+    def __init__(self, category: str):
+        super().__init__(f"timer usage query failed ({category})")
+        self.category = category
 
 
 def _call(connection, name, path, interface, method, parameters, reply_type,
@@ -66,7 +80,8 @@ class PolkitAuthorizer:
         self.connection = connection
 
     def check(self, sender: str, correlation_id: str, target_label: str,
-              approver_username: str) -> str:
+              approver_username: str, requested_duration: str,
+              allow_soft_blocked_apps: bool) -> str:
         subject = (
             "system-bus-name",
             {"name": GLib.Variant("s", sender)},
@@ -74,6 +89,10 @@ class PolkitAuthorizer:
         details = {
             "target-account": target_label,
             "approver-user": approver_username,
+            "requested-duration": requested_duration,
+            "soft-blocked-apps": (
+                " and allow soft blocked apps" if allow_soft_blocked_apps else ""
+            ),
         }
         try:
             reply = _call(
@@ -209,3 +228,65 @@ class TimerUsage:
             "(a(tt))",
         )
         return tuple(tuple(interval) for interval in reply.unpack()[0])
+
+    def query_usage_as(
+            self, uid: int,
+            approver: UserAccount) -> tuple[tuple[int, int], ...]:
+        """Query through a new bus connection owned by the authenticated approver."""
+        try:
+            identity = pwd.getpwuid(approver.uid)
+        except KeyError as error:
+            raise TimerUsageError("approver-unavailable") from error
+        if identity.pw_name != approver.username:
+            raise TimerUsageError("approver-identity-changed")
+
+        try:
+            with tempfile.TemporaryFile() as output:
+                result = subprocess.run(
+                    [USAGE_HELPER, str(uid)],
+                    stdin=subprocess.DEVNULL,
+                    stdout=output,
+                    stderr=subprocess.DEVNULL,
+                    timeout=CALL_TIMEOUT_MS / 1000,
+                    check=False,
+                    shell=False,
+                    close_fds=True,
+                    cwd="/",
+                    env={"LANG": "C.UTF-8"},
+                    user=approver.uid,
+                    group=identity.pw_gid,
+                    extra_groups=(),
+                    umask=0o077,
+                )
+                if result.returncode != 0:
+                    category = {
+                        64: "invalid-request",
+                        69: "backend-unavailable",
+                        70: "invalid-backend-reply",
+                    }.get(result.returncode, "helper-failed")
+                    raise TimerUsageError(category)
+                output.flush()
+                if os.fstat(output.fileno()).st_size > MAX_USAGE_HELPER_OUTPUT_BYTES:
+                    raise TimerUsageError("reply-too-large")
+                output.seek(0)
+                encoded = output.read(MAX_USAGE_HELPER_OUTPUT_BYTES + 1)
+        except subprocess.TimeoutExpired as error:
+            raise TimerUsageError("timeout") from error
+        except OSError as error:
+            raise TimerUsageError("helper-unavailable") from error
+
+        try:
+            raw = json.loads(encoded.decode("utf-8", errors="strict"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise TimerUsageError("invalid-helper-reply") from error
+        if not isinstance(raw, list):
+            raise TimerUsageError("invalid-helper-reply")
+
+        intervals = []
+        for interval in raw:
+            if (not isinstance(interval, list) or len(interval) != 2 or
+                    any(type(value) is not int or not 0 <= value <= (1 << 64) - 1
+                        for value in interval)):
+                raise TimerUsageError("invalid-helper-reply")
+            intervals.append(tuple(interval))
+        return tuple(intervals)

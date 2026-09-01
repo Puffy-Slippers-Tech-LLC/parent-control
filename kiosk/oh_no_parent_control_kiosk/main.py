@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -24,6 +25,7 @@ INTERFACE = BUS_NAME
 REQUEST_TIMEOUT_MS = GLib.MAXINT
 # Keep the confirmation visible briefly before returning to GDM.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
+BACKGROUND_FRAME_MS = 33
 LOG = logging.getLogger("oh-no-parent-control")
 
 
@@ -45,6 +47,70 @@ class BrokerLogHandler(logging.Handler):
             )
         except Exception:
             self._connection = None
+
+
+class CartoonBackground(Gtk.DrawingArea):
+    """A deliberately quiet, animated backdrop for the kiosk's request screen."""
+
+    def __init__(self):
+        super().__init__(hexpand=True, vexpand=True)
+        self._started_at = GLib.get_monotonic_time() / 1_000_000
+        self.set_draw_func(self._draw)
+        self._frame_source_id = GLib.timeout_add(BACKGROUND_FRAME_MS, self._next_frame)
+        self.connect("destroy", self._stop_animation)
+
+    def _next_frame(self):
+        self.queue_draw()
+        return GLib.SOURCE_CONTINUE
+
+    def _stop_animation(self, *_args):
+        if self._frame_source_id is not None:
+            GLib.source_remove(self._frame_source_id)
+            self._frame_source_id = None
+
+    @staticmethod
+    def _circle(context, x, y, radius, color):
+        context.set_source_rgba(*color)
+        context.arc(x, y, radius, 0, math.tau)
+        context.fill()
+
+    def _draw(self, _area, context, width, height):
+        now = GLib.get_monotonic_time() / 1_000_000 - self._started_at
+        context.set_source_rgb(0.10, 0.15, 0.23)
+        context.paint()
+
+        # Soft, drifting twilight bubbles make the empty fullscreen space feel
+        # welcoming while keeping contrast behind the request card predictable.
+        for index, (x_factor, y_factor, radius, speed) in enumerate((
+            (0.10, 0.22, 105, 0.18), (0.85, 0.15, 76, 0.25),
+            (0.76, 0.74, 130, 0.15), (0.17, 0.81, 88, 0.22),
+        )):
+            x = width * x_factor + math.sin(now * speed + index) * 22
+            y = height * y_factor + math.cos(now * speed + index) * 15
+            self._circle(context, x, y, radius, (0.16, 0.45, 0.47, 0.16))
+
+        # A tiny constellation of stars twinkles at individual intervals.
+        for index, (x_factor, y_factor) in enumerate(((.08, .12), (.25, .30), (.68, .18), (.91, .38), (.52, .10), (.38, .76))):
+            alpha = 0.20 + 0.22 * (math.sin(now * (0.9 + index * .13) + index) + 1) / 2
+            self._circle(context, width * x_factor, height * y_factor, 2.5, (0.78, 0.96, 0.83, alpha))
+
+        # Rounded hills and a friendly rising moon give the screen a playful,
+        # illustrated feel without depending on external image assets.
+        horizon = height * 0.78
+        context.set_source_rgba(0.06, 0.24, 0.27, 0.95)
+        context.move_to(0, horizon)
+        for step in range(9):
+            x = width * step / 8
+            y = horizon - 38 - math.sin(step * 1.35 + now * .22) * 26
+            context.line_to(x, y)
+        context.line_to(width, height)
+        context.line_to(0, height)
+        context.fill()
+
+        moon_y = height * 0.18 + math.sin(now * .7) * 7
+        self._circle(context, width * .79, moon_y, 42, (0.98, 0.78, 0.36, 0.95))
+        self._circle(context, width * .805, moon_y - 8, 7, (0.91, 0.63, 0.28, 0.40))
+        self._circle(context, width * .77, moon_y + 13, 5, (0.91, 0.63, 0.28, 0.32))
 
 
 def configure_logging():
@@ -71,10 +137,15 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _build(self):
         self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
-        self.set_content(self._stack)
+        backdrop = CartoonBackground()
+        backdrop.add_css_class("oh-no-parent-control-cartoon-background")
+        backdrop.set_can_target(False)
+        layout = Gtk.Overlay()
+        layout.set_child(backdrop)
+        layout.add_overlay(self._stack)
+        self.set_content(layout)
         self._request_content = RequestContent(
-            self._request_access, self._logout, self._load_users,
-            self._load_preferences,
+            self._request_access, self._logout, self._load_preferences,
         )
         self._stack.add_named(self._request_content, "request")
 

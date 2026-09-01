@@ -35,7 +35,7 @@ NUMBER_RE = re.compile(r"^(?:\d+(?:\.\d+)?|\.\d+)$")
 class RequestContent(Gtk.Box):
     """Reusable request-time form used as the kiosk's primary content."""
 
-    def __init__(self, on_request, on_cancel, on_refresh, on_account_selected=None):
+    def __init__(self, on_request, on_cancel, on_account_selected=None):
         super().__init__(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=16,
@@ -66,19 +66,11 @@ class RequestContent(Gtk.Box):
         self._accounts.set_hexpand(True)
         self._accounts.connect("notify::selected", self._account_changed)
         account_selectors.attach(self._accounts, 1, 0, 1, 1)
-        self._refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Refresh accounts")
-        self._refresh.connect("clicked", on_refresh)
-        account_selectors.attach(self._refresh, 2, 0, 1, 1)
 
         account_selectors.attach(Gtk.Label(label="Approver", xalign=0), 0, 1, 1, 1)
         self._approvers = Gtk.DropDown(model=Gtk.StringList.new([]))
         self._approvers.set_hexpand(True)
         account_selectors.attach(self._approvers, 1, 1, 1, 1)
-        self._approver_refresh = Gtk.Button(
-            icon_name="view-refresh-symbolic", tooltip_text="Refresh approvers"
-        )
-        self._approver_refresh.connect("clicked", on_refresh)
-        account_selectors.attach(self._approver_refresh, 2, 1, 1, 1)
         self.append(account_selectors)
 
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -210,7 +202,7 @@ class RequestContent(Gtk.Box):
             self._status.set_text("Loading accounts…")
         elif not self._account_uids:
             self._status.set_text(
-                "No local standard accounts are available. Create one, then refresh."
+                "No local standard accounts are available. Create one, then reopen this screen."
             )
         elif not self._approver_uids:
             self._status.set_text(
@@ -311,7 +303,5 @@ class RequestContent(Gtk.Box):
         self._allow_soft.set_sensitive(enabled)
         self._accounts.set_sensitive(enabled)
         self._approvers.set_sensitive(enabled)
-        self._refresh.set_sensitive(enabled)
-        self._approver_refresh.set_sensitive(enabled)
         for button in self._duration_buttons:
             button.set_sensitive(enabled)

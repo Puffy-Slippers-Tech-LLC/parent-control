@@ -8,6 +8,10 @@ window.oh-no-parent-control-window {
   background-image: linear-gradient(to bottom, #4a5667, #232a35);
 }
 
+.oh-no-parent-control-cartoon-background {
+  background: transparent;
+}
+
 .oh-no-parent-control-dialog {
   min-width: 350px;
   padding: 22px;

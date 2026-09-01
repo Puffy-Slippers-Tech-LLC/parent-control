@@ -75,6 +75,9 @@ class ParentWindow(Adw.ApplicationWindow):
         self._preferences = None
         self._rows = []
         self._loading = False
+        self._save_in_progress = False
+        self._pending_saves = []
+        self._restore_preferences_uid = None
         self._time_status_loading = False
         self._build()
         self._time_status_refresh_id = GLib.timeout_add_seconds(
@@ -228,20 +231,6 @@ class ParentWindow(Adw.ApplicationWindow):
             self._rows.append(row)
         page.add(apps)
 
-        actions = Adw.PreferencesGroup()
-        save_row = Adw.ActionRow(
-            title="Administrator approval required",
-            subtitle="Saving replaces the current app policy for the selected child account.",
-        )
-        self._save = Gtk.Button(
-            label="Save Changes", css_classes=["suggested-action", "policy-save"],
-            valign=Gtk.Align.CENTER, sensitive=False,
-        )
-        self._save.connect("clicked", self._save_clicked)
-        save_row.add_suffix(self._save)
-        actions.add(save_row)
-        page.add(actions)
-
     def _run(self, operation, success, failure=None):
         def done(value=None, error=None):
             try:
@@ -333,7 +322,6 @@ class ParentWindow(Adw.ApplicationWindow):
             row.policy_buttons[state].set_active(True)
         self._loading = False
         self._set_apps_sensitive(True)
-        self._save.set_sensitive(False)
         LOG.info("preferences loaded target_uid=%d enabled=%s policy_count=%d",
                  self._selected_uid(), preferences["parent_control_enabled"],
                  len(preferences["apps"]))
@@ -402,6 +390,7 @@ class ParentWindow(Adw.ApplicationWindow):
     def _enabled_changed(self, switch, _param):
         if self._loading or self._selected_uid() is None:
             return
+        self._daily_limit.set_sensitive(switch.get_active())
         self._save_parent_control(switch.get_active())
 
     def _daily_limit_changed(self, row, _param):
@@ -412,27 +401,33 @@ class ParentWindow(Adw.ApplicationWindow):
     def _save_parent_control(self, enabled):
         uid = self._selected_uid()
         daily_limit_minutes = self._daily_limit.get_selected()
+        self._queue_save("parent-control", uid, enabled, daily_limit_minutes)
+
+    def _start_parent_control_save(self, uid, enabled, daily_limit_minutes):
         LOG.info(
             "parent-control change started target_uid=%d enabled=%s daily_limit_minutes=%d",
             uid, enabled, daily_limit_minutes,
         )
-        self._loading = True
-        self._set_apps_sensitive(False)
         self._run(
             lambda: self._client.set_parent_control(
                 uid, enabled, daily_limit_minutes,
             ),
-            self._preferences_loaded,
+            lambda preferences: self._save_succeeded(
+                uid, preferences, refresh_time_status=True,
+            ),
+            lambda error: self._save_failed(uid, "screen-time settings", error),
         )
 
     def _policy_changed(self, button):
         if button.get_active() and not self._loading:
-            self._save.set_sensitive(True)
+            self._save_app_policy()
 
-    def _save_clicked(self, *_args):
-        if not self._preferences or self._selected_uid() is None:
-            return
+    def _app_policy_value(self):
         value = dict(self._preferences)
+        # SetPreferences retains the enabled state, but it persists the daily
+        # limit. Take it from the current control so queued policy changes do
+        # not reintroduce an earlier limit after a screen-time edit.
+        value["daily_time_limit_minutes"] = self._daily_limit.get_selected()
         value["apps"] = {}
         for row in self._rows:
             state = next(
@@ -443,17 +438,70 @@ class ParentWindow(Adw.ApplicationWindow):
                 value["apps"][row.app["id"]] = {
                     "state": state, "targets": row.app["targets"],
                 }
-        uid = self._selected_uid()
-        LOG.info("app-policy save started target_uid=%d policy_count=%d",
-                 uid, len(value["apps"]))
-        self._loading = True
-        self._save.set_sensitive(False)
-        self._run(lambda: self._client.set_preferences(uid, value), self._saved)
+        return value
 
-    def _saved(self, preferences):
-        self._preferences_loaded(preferences)
-        LOG.info("app-policy save completed target_uid=%d", self._selected_uid())
-        self._toast("App access saved")
+    def _save_app_policy(self):
+        if not self._preferences or self._selected_uid() is None:
+            return
+        value = self._app_policy_value()
+        uid = self._selected_uid()
+        self._queue_save("app-policy", uid, value)
+
+    def _start_app_policy_save(self, uid, value):
+        LOG.info("app-policy auto-save started target_uid=%d policy_count=%d",
+                 uid, len(value["apps"]))
+        self._run(
+            lambda: self._client.set_preferences(uid, value),
+            lambda preferences: self._save_succeeded(uid, preferences),
+            lambda error: self._save_failed(uid, "app access", error),
+        )
+
+    def _queue_save(self, kind, uid, *arguments):
+        save = (kind, uid, arguments)
+        if self._save_in_progress:
+            # Saves share one preference record. Run them in interaction order
+            # so a completed request can never overwrite a newer UI change.
+            self._pending_saves.append(save)
+            return
+        self._start_save(save)
+
+    def _start_save(self, save):
+        kind, uid, arguments = save
+        self._save_in_progress = True
+        if kind == "app-policy":
+            self._start_app_policy_save(uid, *arguments)
+        else:
+            self._start_parent_control_save(uid, *arguments)
+
+    def _save_succeeded(self, uid, preferences, *, refresh_time_status=False):
+        self._save_in_progress = False
+        if uid == self._selected_uid():
+            # The controls already show this policy. Updating them again makes
+            # every row animate, which is perceived as a flash.
+            self._preferences = preferences
+        LOG.info("preference auto-save completed target_uid=%d", uid)
+        if refresh_time_status:
+            self._load_time_status()
+        self._start_next_save()
+
+    def _save_failed(self, uid, setting, error):
+        self._save_in_progress = False
+        LOG.warning("preference auto-save failed target_uid=%d setting=%s: %s",
+                    uid, setting, error)
+        self._toast(f"Could not save {setting}: {error}")
+        if uid == self._selected_uid():
+            self._restore_preferences_uid = uid
+        self._start_next_save()
+
+    def _start_next_save(self):
+        if self._pending_saves:
+            self._start_save(self._pending_saves.pop(0))
+        elif self._restore_preferences_uid is not None:
+            restore_uid = self._restore_preferences_uid
+            self._restore_preferences_uid = None
+            if restore_uid == self._selected_uid() and self._preferences is not None:
+                self._loading = True
+                self._preferences_loaded(self._preferences)
 
     def _toast(self, title):
         self._toasts.add_toast(Adw.Toast(title=title))

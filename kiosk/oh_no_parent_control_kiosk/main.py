@@ -11,8 +11,10 @@ from pathlib import Path
 import gi
 
 gi.require_version("Adw", "1")
+gi.require_version("Gdk", "4.0")
+gi.require_version("Graphene", "1.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gio, GLib, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk
 
 from .model import RequestState, public_error
 from .request_content import RequestContent
@@ -49,15 +51,26 @@ class BrokerLogHandler(logging.Handler):
             self._connection = None
 
 
-class CartoonBackground(Gtk.DrawingArea):
-    """A deliberately quiet, animated backdrop for the kiosk's request screen."""
+class GatewayBackground(Gtk.Widget):
+    """The kiosk artwork with a gentle camera push toward its gateway."""
 
     def __init__(self):
         super().__init__(hexpand=True, vexpand=True)
         self._started_at = GLib.get_monotonic_time() / 1_000_000
-        self.set_draw_func(self._draw)
+        self._texture = self._load_texture()
         self._frame_source_id = GLib.timeout_add(BACKGROUND_FRAME_MS, self._next_frame)
         self.connect("destroy", self._stop_animation)
+
+    @staticmethod
+    def _load_texture():
+        try:
+            image_file = Gio.File.new_for_path(
+                str(Path(__file__).with_name("kiosk-background.jpeg")),
+            )
+            return Gdk.Texture.new_from_file(image_file)
+        except GLib.Error as error:
+            LOG.warning("kiosk background unavailable error_type=%s", type(error).__name__)
+            return None
 
     def _next_frame(self):
         self.queue_draw()
@@ -68,49 +81,42 @@ class CartoonBackground(Gtk.DrawingArea):
             GLib.source_remove(self._frame_source_id)
             self._frame_source_id = None
 
-    @staticmethod
-    def _circle(context, x, y, radius, color):
-        context.set_source_rgba(*color)
-        context.arc(x, y, radius, 0, math.tau)
-        context.fill()
+    def do_snapshot(self, snapshot):
+        width = self.get_width()
+        height = self.get_height()
+        bounds = Graphene.Rect().init(0, 0, width, height)
+        snapshot.append_color(
+            Gdk.RGBA(red=0.03, green=0.04, blue=0.09, alpha=1.0),
+            bounds,
+        )
+        if self._texture is None or width <= 0 or height <= 0:
+            return
 
-    def _draw(self, _area, context, width, height):
         now = GLib.get_monotonic_time() / 1_000_000 - self._started_at
-        context.set_source_rgb(0.10, 0.15, 0.23)
-        context.paint()
+        image_width = self._texture.get_width()
+        image_height = self._texture.get_height()
+        cover_scale = max(width / image_width, height / image_height)
+        # A long, shallow zoom cycle makes the gate and its inset form feel as
+        # though they are approaching the viewer, without distracting from the
+        # live request form laid over the image.
+        zoom = 1.02 + 0.045 * (math.sin(now * math.tau / 12) + 1) / 2
+        scale = cover_scale * zoom
+        rendered_width = image_width * scale
+        rendered_height = image_height * scale
+        image_bounds = Graphene.Rect().init(
+            (width - rendered_width) / 2,
+            (height - rendered_height) / 2,
+            rendered_width,
+            rendered_height,
+        )
+        snapshot.append_texture(self._texture, image_bounds)
 
-        # Soft, drifting twilight bubbles make the empty fullscreen space feel
-        # welcoming while keeping contrast behind the request card predictable.
-        for index, (x_factor, y_factor, radius, speed) in enumerate((
-            (0.10, 0.22, 105, 0.18), (0.85, 0.15, 76, 0.25),
-            (0.76, 0.74, 130, 0.15), (0.17, 0.81, 88, 0.22),
-        )):
-            x = width * x_factor + math.sin(now * speed + index) * 22
-            y = height * y_factor + math.cos(now * speed + index) * 15
-            self._circle(context, x, y, radius, (0.16, 0.45, 0.47, 0.16))
-
-        # A tiny constellation of stars twinkles at individual intervals.
-        for index, (x_factor, y_factor) in enumerate(((.08, .12), (.25, .30), (.68, .18), (.91, .38), (.52, .10), (.38, .76))):
-            alpha = 0.20 + 0.22 * (math.sin(now * (0.9 + index * .13) + index) + 1) / 2
-            self._circle(context, width * x_factor, height * y_factor, 2.5, (0.78, 0.96, 0.83, alpha))
-
-        # Rounded hills and a friendly rising moon give the screen a playful,
-        # illustrated feel without depending on external image assets.
-        horizon = height * 0.78
-        context.set_source_rgba(0.06, 0.24, 0.27, 0.95)
-        context.move_to(0, horizon)
-        for step in range(9):
-            x = width * step / 8
-            y = horizon - 38 - math.sin(step * 1.35 + now * .22) * 26
-            context.line_to(x, y)
-        context.line_to(width, height)
-        context.line_to(0, height)
-        context.fill()
-
-        moon_y = height * 0.18 + math.sin(now * .7) * 7
-        self._circle(context, width * .79, moon_y, 42, (0.98, 0.78, 0.36, 0.95))
-        self._circle(context, width * .805, moon_y - 8, 7, (0.91, 0.63, 0.28, 0.40))
-        self._circle(context, width * .77, moon_y + 13, 5, (0.91, 0.63, 0.28, 0.32))
+        # A low-opacity vignette preserves legibility at every point in the
+        # animation while allowing the supplied artwork to remain prominent.
+        snapshot.append_color(
+            Gdk.RGBA(red=0.02, green=0.03, blue=0.09, alpha=0.24),
+            bounds,
+        )
 
 
 def configure_logging():
@@ -137,8 +143,8 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _build(self):
         self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
-        backdrop = CartoonBackground()
-        backdrop.add_css_class("oh-no-parent-control-cartoon-background")
+        backdrop = GatewayBackground()
+        backdrop.add_css_class("oh-no-parent-control-gateway-background")
         backdrop.set_can_target(False)
         layout = Gtk.Overlay()
         layout.set_child(backdrop)

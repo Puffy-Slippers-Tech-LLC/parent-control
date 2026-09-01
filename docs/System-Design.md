@@ -103,7 +103,14 @@ and an action-specific Polkit administrator rule limits authentication to that
 one identity. The standard authentication agent therefore shows a password
 dialog without a second identity-selection page. This remains one authorization
 for both the app-filter and ActiveExtension writes.
-The kiosk session runs the maintained LXQt Polkit agent as a restartable user
+After approval, the broker launches a fixed-purpose, root-owned helper under the
+selected administrator's UID and primary GID. The helper makes only the public
+Malcontent parent usage query on a new system-bus connection and returns usage
+intervals to the broker. The broker validates those intervals, calculates the
+grant, revalidates both accounts and the kiosk connection, and owns all writes.
+This lets Malcontent see the authenticated parent as its actual D-Bus caller
+without delegating any privileged write to the helper.
+The kiosk session runs the maintained MATE Polkit agent as a restartable user
 service. Authentication-agent failure denies the in-flight request but does not
 end the kiosk session; systemd restarts the agent for a later request.
 
@@ -144,6 +151,7 @@ countdown.
 /usr/bin/oh-no-parent-control                  kiosk launcher
 /usr/bin/oh-no-parent-control-parent           parent launcher
 /usr/libexec/oh-no-parent-control-broker       broker launcher
+/usr/libexec/oh-no-parent-control-query-usage  identity-scoped read-only helper
 /usr/libexec/oh-no-parent-control-preserve-extension-state
 /usr/lib/oh-no-parent-control/kiosk/            kiosk Python package
 /usr/lib/oh-no-parent-control/parent/           parent Python package

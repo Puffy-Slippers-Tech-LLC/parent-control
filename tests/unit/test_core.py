@@ -6,7 +6,8 @@ from zoneinfo import ZoneInfo
 from oh_no_parent_control.config import validate
 from oh_no_parent_control.core import (
     AccessDenied, BackendFailure, Broker, Busy, InvalidRequest, RateLimited, RollbackFailure,
-    UserAccount, calculate_active_extension_seconds, seconds_until_local_midnight,
+    UserAccount, calculate_active_extension_seconds, format_requested_duration,
+    seconds_until_local_midnight,
 )
 from test_config import valid_config
 from oh_no_parent_control.preferences import (
@@ -20,8 +21,12 @@ class Authorizer:
         self.calls = []
         self.callback = callback
 
-    def check(self, sender, correlation_id, target_label, approver_username):
-        self.calls.append((sender, correlation_id, target_label, approver_username))
+    def check(self, sender, correlation_id, target_label, approver_username,
+              requested_duration, allow_soft_blocked_apps):
+        self.calls.append((
+            sender, correlation_id, target_label, approver_username,
+            requested_duration, allow_soft_blocked_apps,
+        ))
         if self.callback:
             self.callback()
         return self.outcome
@@ -127,12 +132,23 @@ class Extensions:
 
 
 class TimerUsage:
-    def __init__(self, entries=()):
+    def __init__(self, entries=(), callback=None, error=None):
         self.entries = tuple(entries)
         self.calls = []
+        self.as_calls = []
+        self.callback = callback
+        self.error = error
 
     def query_usage(self, uid):
         self.calls.append(uid)
+        return self.entries
+
+    def query_usage_as(self, uid, approver):
+        self.as_calls.append((uid, approver.uid, approver.username))
+        if self.callback:
+            self.callback()
+        if self.error:
+            raise self.error
         return self.entries
 
 
@@ -147,6 +163,12 @@ def make_broker(authorizer=None, accounts=None, preferences=None, extensions=Non
 
 
 class CoreTests(unittest.TestCase):
+    def test_requested_duration_is_human_readable_for_polkit(self):
+        self.assertEqual(format_requested_duration(3 * 60 * 60 + 2 * 60), "3 hours, 2 minutes")
+        self.assertEqual(format_requested_duration(60), "1 minute")
+        self.assertEqual(format_requested_duration(6), "6 seconds")
+        self.assertEqual(format_requested_duration(0), "the rest of the day")
+
     def test_remaining_time_formula_uses_later_backend_expiry_then_adds_grant(self):
         self.assertEqual(calculate_active_extension_seconds(31 * 60, 10 * 60, 5 * 60),
                          36 * 60)
@@ -437,12 +459,46 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(accounts.extension[1], 14 * 60 * 60)
 
     def test_denial_makes_no_writes_and_one_check(self):
-        auth, accounts = Authorizer("denied"), Accounts()
-        result = make_broker(auth, accounts).request_access(
+        auth, accounts, timer_usage = Authorizer("denied"), Accounts(), TimerUsage()
+        result = make_broker(auth, accounts, timer_usage=timer_usage).request_access(
             991, ":1.2", 1001, 1003, 900, False,
         )
         self.assertEqual(result[1], "denied")
         self.assertEqual(len(auth.calls), 1)
+        self.assertEqual(timer_usage.as_calls, [])
+        self.assertEqual(accounts.events, [])
+
+    def test_kiosk_usage_query_runs_as_authenticated_approver(self):
+        timer_usage = TimerUsage()
+        result = make_broker(timer_usage=timer_usage).request_access(
+            991, ":1.2", 1001, 1003, 900, False,
+        )
+        self.assertEqual(result[1], "approved")
+        self.assertEqual(timer_usage.as_calls, [(1001, 1003, "admin")])
+
+    def test_usage_query_failure_makes_no_account_writes(self):
+        accounts = Accounts()
+        timer_usage = TimerUsage(error=RuntimeError("failed"))
+        with self.assertRaises(BackendFailure):
+            make_broker(accounts=accounts, timer_usage=timer_usage).request_access(
+                991, ":1.2", 1001, 1003, 900, False,
+            )
+        self.assertEqual(accounts.events, [])
+
+    def test_approver_change_during_usage_query_makes_no_account_writes(self):
+        accounts = Accounts()
+
+        def demote():
+            old = accounts.users[1003]
+            accounts.users[1003] = UserAccount(
+                old.uid, old.username, old.label, False, old.is_system, old.is_local,
+            )
+
+        timer_usage = TimerUsage(callback=demote)
+        with self.assertRaises(AccessDenied):
+            make_broker(accounts=accounts, timer_usage=timer_usage).request_access(
+                991, ":1.2", 1001, 1003, 900, False,
+            )
         self.assertEqual(accounts.events, [])
 
     def test_disconnected_caller_makes_no_writes(self):

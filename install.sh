@@ -72,7 +72,7 @@ add-apt-repository -y universe
     gir1.2-gtk-4.0 \
     gnome-kiosk \
     libpam-malcontent \
-    lxqt-policykit \
+    mate-polkit-bin \
     make \
     malcontent \
     python3 \
@@ -184,8 +184,9 @@ kiosk_uid="$(id -u "$KIOSK_USER")"
 test "$kiosk_uid" -ne 0
 test -x /usr/bin/oh-no-parent-control
 test -x /usr/bin/oh-no-parent-control-parent
-test -x /usr/bin/lxqt-policykit-agent
+test -x /usr/bin/mate-polkit
 test -x /usr/libexec/oh-no-parent-control-broker
+test -x /usr/libexec/oh-no-parent-control-query-usage
 test -x /usr/libexec/oh-no-parent-control-provision
 test -x /usr/libexec/oh-no-parent-control-preserve-extension-state
 test -s /etc/oh-no-parent-control/config.json

@@ -75,7 +75,8 @@ class TimeStatus:
 
 class Authorizer(Protocol):
     def check(self, sender: str, correlation_id: str, target_label: str,
-              approver_username: str) -> str: ...
+              approver_username: str, requested_duration: str,
+              allow_soft_blocked_apps: bool) -> str: ...
 
 
 class Accounts(Protocol):
@@ -104,6 +105,8 @@ class Extensions(Protocol):
 
 class TimerUsage(Protocol):
     def query_usage(self, uid: int) -> tuple[tuple[int, int], ...]: ...
+    def query_usage_as(
+            self, uid: int, approver: UserAccount) -> tuple[tuple[int, int], ...]: ...
 
 
 def calculate_active_extension_seconds(
@@ -133,6 +136,19 @@ def seconds_until_local_midnight(now: datetime) -> int:
     if not 0 < seconds <= MAX_LOCAL_MIDNIGHT_SECONDS:
         raise BackendFailure("local-midnight duration is outside the safe range")
     return seconds
+
+
+def format_requested_duration(duration_seconds: int) -> str:
+    """Return the kiosk-selected duration as concise human-readable text."""
+    if duration_seconds == 0:
+        return "the rest of the day"
+    hours, remainder = divmod(duration_seconds, 60 * 60)
+    minutes, seconds = divmod(remainder, 60)
+    parts = []
+    for value, singular in ((hours, "hour"), (minutes, "minute"), (seconds, "second")):
+        if value:
+            parts.append(f"{value} {singular}{'' if value == 1 else 's'}")
+    return ", ".join(parts)
 
 
 class Broker:
@@ -187,7 +203,15 @@ class Broker:
         except Exception as error:
             raise BackendFailure("remaining-time status is unavailable") from error
 
-        now = self._now()
+        return self._time_status_from_usage(
+            preferences, usage_entries, grant_time, grant_duration, additional_seconds,
+        )
+
+    def _time_status_from_usage(
+            self, preferences: dict, usage_entries: tuple[tuple[int, int], ...],
+            grant_time: int, grant_duration: int, additional_seconds: int,
+            evaluated_at: datetime | None = None) -> TimeStatus:
+        now = evaluated_at or self._now()
         now_seconds = int(now.timestamp())
         daily_limit_seconds = (
             preferences["daily_time_limit_minutes"] * 60
@@ -480,6 +504,8 @@ class Broker:
 
             outcome = self._authorizer.check(
                 sender, correlation_id, target.label, approver.username,
+                format_requested_duration(duration_seconds),
+                allow_soft_blocked_apps,
             )
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise BackendFailure("authorizer returned an invalid outcome")
@@ -497,14 +523,56 @@ class Broker:
             if self._approver(config, approver_uid) != approver:
                 raise AccessDenied("selected approver changed during authorization")
 
-            approved_at = self._now()
-            duration = (
-                seconds_until_local_midnight(approved_at)
-                if duration_seconds == 0 else
-                self._time_status(target.uid, duration_seconds)
-                .calculated_active_extension_seconds
-            )
-            issued_at = int(approved_at.timestamp())
+            if duration_seconds == 0:
+                issued_at_time = self._now()
+                duration = seconds_until_local_midnight(issued_at_time)
+            else:
+                if self._preferences is None or self._timer_usage is None:
+                    raise BackendFailure("remaining-time status is unavailable")
+                LOG.info("request=%s stage=usage-query approver_uid=%d",
+                         correlation_id, approver.uid)
+                try:
+                    usage_entries = self._timer_usage.query_usage_as(target.uid, approver)
+                except Exception as error:
+                    category = getattr(error, "category", type(error).__name__)
+                    LOG.warning("request=%s stage=usage-query outcome=failed error=%s",
+                                correlation_id, category)
+                    raise BackendFailure("remaining-time status is unavailable") from error
+                LOG.info("request=%s stage=usage-query outcome=accepted", correlation_id)
+
+                # Fail closed before consuming a result obtained under an
+                # identity which may have changed during the helper call.
+                if not self._caller_alive(sender):
+                    LOG.warning("request=%s outcome=denied reason=caller-disconnected",
+                                correlation_id)
+                    return correlation_id, "denied"
+                if self._target(config, target_uid) != target:
+                    raise AccessDenied("selected account changed during authorization")
+                if self._approver(config, approver_uid) != approver:
+                    raise AccessDenied("selected approver changed during authorization")
+
+                try:
+                    preferences = self._preferences.load(target.uid)
+                    grant_time, grant_duration = self._accounts.get_extension(target.uid)
+                except Exception as error:
+                    raise BackendFailure("remaining-time status is unavailable") from error
+                issued_at_time = self._now()
+                duration = self._time_status_from_usage(
+                    preferences, usage_entries, grant_time, grant_duration,
+                    duration_seconds, issued_at_time,
+                ).calculated_active_extension_seconds
+
+            # The identity-scoped query may take up to the backend timeout.
+            # Revalidate again immediately before privileged account writes.
+            if not self._caller_alive(sender):
+                LOG.warning("request=%s outcome=denied reason=caller-disconnected",
+                            correlation_id)
+                return correlation_id, "denied"
+            if self._target(config, target_uid) != target:
+                raise AccessDenied("selected account changed during authorization")
+            if self._approver(config, approver_uid) != approver:
+                raise AccessDenied("selected approver changed during authorization")
+            issued_at = int(issued_at_time.timestamp())
             if issued_at <= 0 or issued_at > (1 << 64) - 1 or not 0 < duration <= UINT32_MAX:
                 raise BackendFailure("calculated extension is outside the supported range")
             self._apply(

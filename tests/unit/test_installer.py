@@ -11,6 +11,18 @@ INSTALLER = ROOT / "install.sh"
 
 
 class InstallerTests(unittest.TestCase):
+    def test_kiosk_cairo_bridge_is_a_runtime_dependency(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+        control = (ROOT / "debian/control").read_text(encoding="utf-8")
+
+        self.assertIn("    python3-gi-cairo\n", script)
+        runtime_dependencies = next(
+            line.removeprefix("Depends: ")
+            for line in control.splitlines()
+            if line.startswith("Depends: ")
+        )
+        self.assertIn("python3-gi-cairo", runtime_dependencies.split(", "))
+
     def test_interrupted_dpkg_state_is_recovered_before_apt_runs(self):
         script = INSTALLER.read_text(encoding="utf-8")
 

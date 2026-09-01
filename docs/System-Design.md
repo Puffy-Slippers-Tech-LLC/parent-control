@@ -136,7 +136,8 @@ countdown.
 
 1. **Manage:** Parent selects child -> reads preferences -> edits app policy at
    any time or calls `SetParentControl` with the daily-limit state and value.
-   Saving app policy applies its blocklist immediately. Extension lifecycle and
+   Every app-policy selection is saved immediately and applies its blocklist.
+   Extension lifecycle and
    Malcontent account state succeed before preferences are committed; any
    failure restores the affected state.
 2. **Child request:** Extension refreshes its own record -> uses saved request

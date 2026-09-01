@@ -76,7 +76,8 @@ add-apt-repository -y universe
     make \
     malcontent \
     python3 \
-    python3-gi
+    python3-gi \
+    python3-gi-cairo
 
 if ! id -u "$KIOSK_USER" >/dev/null 2>&1; then
     adduser \

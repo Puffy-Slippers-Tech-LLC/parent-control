@@ -140,11 +140,3 @@
 .policy-choice:checked {
   border: 0;
 }
-
-.policy-save {
-  border-radius: 12px;
-  padding: 8px 18px;
-  border-color: alpha(#73e6a7, 0.72);
-  background: alpha(#24b66f, 0.72);
-  box-shadow: 0 0 16px alpha(#45df8d, 0.38), inset 0 1px alpha(white, 0.30);
-}

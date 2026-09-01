@@ -38,6 +38,14 @@ class FakeSensitiveWidget:
         self.sensitive = sensitive
 
 
+class FakeToggleButton:
+    def __init__(self, active):
+        self.active = active
+
+    def get_active(self):
+        return self.active
+
+
 class ParentWindowHarness:
     _users_loaded = ParentWindow._users_loaded
     _account_changed = ParentWindow._account_changed
@@ -126,6 +134,56 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertTrue(window._apps_group.sensitive)
         self.assertFalse(window._daily_limit.sensitive)
+
+    def test_selecting_an_app_policy_state_starts_an_auto_save(self):
+        window = type("WindowHarness", (), {})()
+        window._loading = False
+        window.save_count = 0
+        window._save_app_policy = lambda: setattr(
+            window, "save_count", window.save_count + 1,
+        )
+
+        ParentWindow._policy_changed(window, FakeToggleButton(active=True))
+
+        self.assertEqual(window.save_count, 1)
+
+    def test_app_policy_uses_the_current_daily_limit(self):
+        class FakePolicyButton:
+            def get_active(self):
+                return True
+
+        row = type("PolicyRow", (), {})()
+        row.app = {"id": "example.desktop", "targets": ["example"]}
+        row.policy_buttons = {
+            "allowed": FakePolicyButton(),
+            "permanent": FakeToggleButton(active=False),
+            "conditional": FakeToggleButton(active=False),
+        }
+        window = type("WindowHarness", (), {})()
+        window._preferences = {
+            "daily_time_limit_minutes": 30,
+            "apps": {},
+        }
+        window._daily_limit = type("DailyLimit", (), {"get_selected": lambda _self: 60})()
+        window._rows = [row]
+
+        value = ParentWindow._app_policy_value(window)
+
+        self.assertEqual(value["daily_time_limit_minutes"], 60)
+
+    def test_completed_auto_save_does_not_reload_the_widgets(self):
+        window = type("WindowHarness", (), {})()
+        window._save_in_progress = True
+        window._pending_saves = []
+        window._selected_uid = lambda: 1001
+        window._preferences_loaded = lambda _preferences: self.fail("unexpected reload")
+        window._start_next_save = lambda: None
+
+        preferences = {"apps": {"example.desktop": {"state": "conditional"}}}
+        ParentWindow._save_succeeded(window, 1001, preferences)
+
+        self.assertFalse(window._save_in_progress)
+        self.assertEqual(window._preferences, preferences)
 
 
 if __name__ == "__main__":

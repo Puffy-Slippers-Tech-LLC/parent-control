@@ -263,10 +263,7 @@ class ParentWindow(Adw.ApplicationWindow):
                         self._preferences.get("daily_time_limit_minutes", 0)
                     )
                 self._loading = False
-                self._set_apps_sensitive(bool(
-                    self._preferences and
-                    self._preferences.get("parent_control_enabled")
-                ))
+                self._set_apps_sensitive(self._preferences is not None)
 
         def worker():
             try:
@@ -335,7 +332,7 @@ class ParentWindow(Adw.ApplicationWindow):
             state = preferences["apps"].get(row.app["id"], {}).get("state", "allowed")
             row.policy_buttons[state].set_active(True)
         self._loading = False
-        self._set_apps_sensitive(preferences["parent_control_enabled"])
+        self._set_apps_sensitive(True)
         self._save.set_sensitive(False)
         LOG.info("preferences loaded target_uid=%d enabled=%s policy_count=%d",
                  self._selected_uid(), preferences["parent_control_enabled"],
@@ -391,6 +388,9 @@ class ParentWindow(Adw.ApplicationWindow):
         return False
 
     def _set_apps_sensitive(self, sensitive):
+        sensitive = bool(
+            sensitive and not self._loading and self._selected_uid() is not None
+        )
         self._account.set_sensitive(not self._loading)
         self._enabled.set_sensitive(not self._loading and self._selected_uid() is not None)
         self._daily_limit.set_sensitive(

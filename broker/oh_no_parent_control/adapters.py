@@ -65,12 +65,16 @@ class PolkitAuthorizer:
     def __init__(self, connection):
         self.connection = connection
 
-    def check(self, sender: str, correlation_id: str, target_label: str) -> str:
+    def check(self, sender: str, correlation_id: str, target_label: str,
+              approver_username: str) -> str:
         subject = (
             "system-bus-name",
             {"name": GLib.Variant("s", sender)},
         )
-        details = {"target-account": target_label}
+        details = {
+            "target-account": target_label,
+            "approver-user": approver_username,
+        }
         try:
             reply = _call(
                 self.connection, POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE,
@@ -132,6 +136,7 @@ class AccountsService:
             is_admin=properties.get("AccountType", 0) != 0,
             is_system=properties.get("SystemAccount", True),
             is_local=properties.get("LocalAccount", False),
+            is_locked=properties.get("Locked", True),
         )
 
     def list_users(self) -> tuple[UserAccount, ...]:

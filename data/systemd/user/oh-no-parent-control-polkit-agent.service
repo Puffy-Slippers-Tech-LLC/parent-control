@@ -3,11 +3,9 @@ Description=Polkit authentication agent for Oh No! Parent Control
 BindsTo=gnome-session.target
 After=gnome-session.target org.gnome.Kiosk@wayland.service
 Before=oh-no-parent-control-app.service
-OnFailure=gnome-session-shutdown.target
-OnFailureJobMode=replace-irreversibly
 
 [Service]
 Type=simple
-ExecStart=/usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1
+ExecStart=/usr/bin/lxqt-policykit-agent
 Restart=on-failure
 RestartSec=1

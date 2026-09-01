@@ -109,9 +109,10 @@ class RequestWindow(Adw.ApplicationWindow):
         )
 
     def _load_users(self, *_args):
-        LOG.info("managed-user discovery started")
+        LOG.info("request-account discovery started")
         self._request_content.set_loading()
         self._bus_call("ListManagedUsers", None, "(a(us))", self._users_done)
+        self._bus_call("ListApprovers", None, "(a(us))", self._approvers_done)
 
     def _users_done(self, connection, result):
         try:
@@ -120,6 +121,15 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_content.set_accounts(users)
         except Exception as error:
             LOG.warning("users outcome=unavailable error_type=%s", type(error).__name__)
+            self._show_error(error)
+
+    def _approvers_done(self, connection, result):
+        try:
+            users, = connection.call_finish(result).unpack()
+            LOG.info("approver discovery completed count=%d", len(users))
+            self._request_content.set_approvers(users)
+        except Exception as error:
+            LOG.warning("approvers outcome=unavailable error_type=%s", type(error).__name__)
             self._show_error(error)
 
     def _load_preferences(self, target_uid):
@@ -141,7 +151,7 @@ class RequestWindow(Adw.ApplicationWindow):
         if not self._state.begin():
             return
         try:
-            target_uid, target_label, duration_seconds, allow_soft = \
+            target_uid, target_label, approver_uid, duration_seconds, allow_soft = \
                 self._request_content.selected()
             selected, custom, allow_soft = self._request_content.selected_preferences()
         except ValueError as error:
@@ -150,10 +160,13 @@ class RequestWindow(Adw.ApplicationWindow):
             return
         self._set_request_controls(False)
         self._requested_label = target_label
-        LOG.info("target_uid=%d duration_seconds=%d allow_soft=%s stage=request",
-                 target_uid, duration_seconds, allow_soft)
+        LOG.info("target_uid=%d approver_uid=%d duration_seconds=%d "
+                 "allow_soft=%s stage=request", target_uid, approver_uid,
+                 duration_seconds, allow_soft)
         try:
-            self._pending_request = (target_uid, duration_seconds, allow_soft)
+            self._pending_request = (
+                target_uid, approver_uid, duration_seconds, allow_soft,
+            )
             self._bus_call(
                 "UpdateRequestPreferences",
                 GLib.Variant("(usdb)", (target_uid, selected, custom, allow_soft)),
@@ -165,10 +178,13 @@ class RequestWindow(Adw.ApplicationWindow):
     def _preferences_saved(self, connection, result):
         try:
             connection.call_finish(result)
-            target_uid, duration_seconds, allow_soft = self._pending_request
+            target_uid, approver_uid, duration_seconds, allow_soft = self._pending_request
             self._bus_call(
                 "RequestAccess",
-                GLib.Variant("(uub)", (target_uid, duration_seconds, allow_soft)),
+                GLib.Variant(
+                    "(uuub)",
+                    (target_uid, approver_uid, duration_seconds, allow_soft),
+                ),
                 "(ss)", self._request_done, REQUEST_TIMEOUT_MS,
             )
         except Exception as error:

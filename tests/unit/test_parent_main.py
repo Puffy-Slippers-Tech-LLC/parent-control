@@ -25,6 +25,18 @@ class FakeDropDown:
             self.owner._account_changed()
 
 
+class FakeSensitiveWidget:
+    def __init__(self, active=False):
+        self.active = active
+        self.sensitive = None
+
+    def get_active(self):
+        return self.active
+
+    def set_sensitive(self, sensitive):
+        self.sensitive = sensitive
+
+
 class ParentWindowHarness:
     _users_loaded = ParentWindow._users_loaded
     _account_changed = ParentWindow._account_changed
@@ -87,6 +99,20 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(window.load_count, 0)
         self.assertEqual(window.toasts, ["No interactive non-admin users were found"])
+
+    def test_app_settings_stay_enabled_when_daily_limit_is_off(self):
+        window = type("WindowHarness", (), {})()
+        window._loading = False
+        window._selected_uid = lambda: 1001
+        window._account = FakeSensitiveWidget()
+        window._enabled = FakeSensitiveWidget(active=False)
+        window._daily_limit = FakeSensitiveWidget()
+        window._apps_group = FakeSensitiveWidget()
+
+        ParentWindow._set_apps_sensitive(window, True)
+
+        self.assertTrue(window._apps_group.sensitive)
+        self.assertFalse(window._daily_limit.sensitive)
 
 
 if __name__ == "__main__":

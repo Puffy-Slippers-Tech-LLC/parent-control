@@ -52,12 +52,13 @@ class RequestContent(Gtk.Box):
         self._accounts_loaded = False
         self._approvers_loaded = False
         self._ready = False
+        self._controls_enabled = True
+        self._screen_time_limit_enabled = None
         self._on_account_selected = on_account_selected
 
         self.append(self._header())
         self._status = Gtk.Label(label="Loading request details…", wrap=True)
         self._status.add_css_class("oh-no-parent-control-status")
-        self.append(self._status)
 
         account_selectors = Gtk.Grid(column_spacing=8, row_spacing=16)
         account_selectors.add_css_class("oh-no-parent-control-account-row")
@@ -116,6 +117,7 @@ class RequestContent(Gtk.Box):
         self._request.connect("clicked", on_request)
         actions.append(self._request)
         self.append(actions)
+        self.append(self._status)
 
     @staticmethod
     def _header():
@@ -158,7 +160,9 @@ class RequestContent(Gtk.Box):
         self._accounts_loaded = False
         self._approvers_loaded = False
         self._ready = False
-        self._request.set_sensitive(False)
+        self._screen_time_limit_enabled = None
+        self._update_controls()
+        self._status.remove_css_class("oh-no-parent-control-error")
         self._status.set_text("Loading accounts…")
 
     def set_accounts(self, users):
@@ -208,17 +212,30 @@ class RequestContent(Gtk.Box):
             self._status.set_text(
                 "No local interactive administrator accounts are available."
             )
+        elif self._screen_time_limit_enabled is False:
+            self._status.set_text(
+                "Screen time limit is not enabled in the parent app."
+            )
         else:
             self._status.set_text("Choose the account and approving administrator")
-        self._request.set_sensitive(self._ready)
+        if self._screen_time_limit_enabled is False:
+            self._status.add_css_class("oh-no-parent-control-error")
+        else:
+            self._status.remove_css_class("oh-no-parent-control-error")
+        self._update_controls()
 
     def _account_changed(self, *_args):
         index = self._accounts.get_selected()
         if (self._accounts_loaded and index < len(self._account_uids) and
                 self._on_account_selected is not None):
+            self._screen_time_limit_enabled = None
+            self._update_ready()
             self._on_account_selected(self._account_uids[index])
 
     def set_preferences(self, preferences):
+        self._screen_time_limit_enabled = (
+            preferences.get("parent_control_enabled") is True
+        )
         request = preferences.get("request", {})
         selected_value = request.get("last_selected_duration", str(DEFAULT_DURATION_SECONDS))
         selected_seconds = None if selected_value == "custom" else int(selected_value)
@@ -234,6 +251,15 @@ class RequestContent(Gtk.Box):
         custom = request.get("last_custom_minutes", MIN_CUSTOM_MINUTES)
         self._custom_entry.set_text(str(custom))
         self._allow_soft.set_active(bool(request.get("allow_soft_blocked_apps", False)))
+        self._update_ready()
+
+    def is_selected_account(self, target_uid):
+        """Whether an asynchronous response still belongs to the selected child."""
+        index = self._accounts.get_selected()
+        return (
+            index < len(self._account_uids) and
+            self._account_uids[index] == target_uid
+        )
 
     def _duration_clicked(self, button):
         if not button.get_active():
@@ -297,11 +323,20 @@ class RequestContent(Gtk.Box):
         self._update_ready()
 
     def set_controls_sensitive(self, enabled):
-        self._request.set_sensitive(enabled and self._ready)
-        self._cancel.set_sensitive(enabled)
-        self._custom_entry.set_sensitive(enabled)
-        self._allow_soft.set_sensitive(enabled)
-        self._accounts.set_sensitive(enabled)
-        self._approvers.set_sensitive(enabled)
+        self._controls_enabled = enabled
+        self._update_controls()
+
+    def _update_controls(self):
+        """Apply request availability while always preserving the exit path."""
+        request_available = (
+            self._controls_enabled and self._ready and
+            self._screen_time_limit_enabled is True
+        )
+        self._request.set_sensitive(request_available)
+        self._cancel.set_sensitive(self._controls_enabled)
+        self._accounts.set_sensitive(self._controls_enabled)
+        self._custom_entry.set_sensitive(request_available)
+        self._allow_soft.set_sensitive(request_available)
+        self._approvers.set_sensitive(request_available)
         for button in self._duration_buttons:
-            button.set_sensitive(enabled)
+            button.set_sensitive(request_available)

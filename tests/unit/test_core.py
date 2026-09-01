@@ -153,16 +153,38 @@ class TimerUsage:
 
 
 def make_broker(authorizer=None, accounts=None, preferences=None, extensions=None,
-                clock=None, alive=lambda _s: True, timer_usage=None):
+                clock=None, alive=lambda _s: True, timer_usage=None,
+                application_catalog=None):
     config = validate(valid_config())
     return Broker(lambda: config, authorizer or Authorizer(), accounts or Accounts(),
                   preferences or Preferences(), extensions, timer_usage or TimerUsage(),
+                  application_catalog,
                   monotonic=clock or (lambda: 100),
                   now=lambda: datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles")),
                   caller_alive=alive)
 
 
 class CoreTests(unittest.TestCase):
+    def test_application_catalog_is_scoped_to_the_selected_managed_user(self):
+        observed = []
+        broker = make_broker(application_catalog=lambda user: observed.append(user) or ({
+            "id": "lunarclient.desktop", "name": "Lunar Client",
+            "description": "Minecraft client", "icon": "",
+            "targets": ("/home/child/Applications/LunarClient.AppImage",),
+        },))
+
+        applications = broker.list_applications(1003, 1001)
+
+        self.assertEqual(observed[0].uid, 1001)
+        self.assertEqual(applications[0]["targets"],
+                         ("/home/child/Applications/LunarClient.AppImage",))
+
+    def test_application_catalog_requires_administrator_access(self):
+        broker = make_broker(application_catalog=lambda _user: ())
+
+        with self.assertRaises(AccessDenied):
+            broker.list_applications(1002, 1001)
+
     def test_requested_duration_is_human_readable_for_polkit(self):
         self.assertEqual(format_requested_duration(3 * 60 * 60 + 2 * 60), "3 hours, 2 minutes")
         self.assertEqual(format_requested_duration(60), "1 minute")

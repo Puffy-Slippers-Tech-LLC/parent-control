@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import cairo
 import logging
 import json
 import math
@@ -36,6 +37,18 @@ GATEWAY_EFFECT_FRAME_MS = 33
 # slightly left of the image centre.  Shift the composed artwork just enough
 # to centre the form within the gateway at every resolution.
 GATEWAY_CENTERING_OFFSET = 0.03125
+# Native dimensions and measured corners of the gateway opening.  These points
+# sit on the innermost purple edge, rather than on the outer cyan frame. Keeping
+# them in source-image space lets the anchors follow the same responsive cover
+# scaling and crop as the painted texture.
+GATEWAY_ARTWORK_WIDTH = 3_840
+GATEWAY_ARTWORK_HEIGHT = 2_160
+GATEWAY_INNER_CORNERS = (
+    (1_374 / GATEWAY_ARTWORK_WIDTH, 347 / GATEWAY_ARTWORK_HEIGHT),
+    (2_276 / GATEWAY_ARTWORK_WIDTH, 405 / GATEWAY_ARTWORK_HEIGHT),
+    (2_276 / GATEWAY_ARTWORK_WIDTH, 1_780 / GATEWAY_ARTWORK_HEIGHT),
+    (1_374 / GATEWAY_ARTWORK_WIDTH, 1_837 / GATEWAY_ARTWORK_HEIGHT),
+)
 # Project the complete form as the flat surface mounted inside the gateway.
 # The gateway's horizon crosses the middle of the form, so its upper edges
 # descend to the right while its lower edges rise to the right.
@@ -49,13 +62,55 @@ PREVIEW_DEFAULT_HEIGHT = 1443
 PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
 PREVIEW_APPROVERS = ((1000, "Taylor Morgan"),)
 PREVIEW_PREFERENCES = {
-    "request": {
-        "last_selected_duration": "1800",
-        "last_custom_minutes": 30,
-        "allow_soft_blocked_apps": False,
+    1001: {
+        "parent_control_enabled": True,
+        "request": {
+            "last_selected_duration": "1800",
+            "last_custom_minutes": 30,
+            "allow_soft_blocked_apps": False,
+        },
+    },
+    1002: {
+        "parent_control_enabled": False,
+        "request": {
+            "last_selected_duration": "1800",
+            "last_custom_minutes": 30,
+            "allow_soft_blocked_apps": False,
+        },
     },
 }
 LOG = logging.getLogger("oh-no-parent-control")
+
+
+def _gateway_artwork_geometry(width, height):
+    """Return the gateway artwork's cover-scaled bounds in widget space."""
+    scale = max(
+        width / GATEWAY_ARTWORK_WIDTH,
+        height / GATEWAY_ARTWORK_HEIGHT,
+    )
+    rendered_width = GATEWAY_ARTWORK_WIDTH * scale
+    rendered_height = GATEWAY_ARTWORK_HEIGHT * scale
+    return (
+        (width - rendered_width) / 2
+        + rendered_width * GATEWAY_CENTERING_OFFSET,
+        (height - rendered_height) / 2,
+        rendered_width,
+        rendered_height,
+    )
+
+
+def _gateway_inner_corners(width, height):
+    """Map the artwork's four inner gateway corners into widget space."""
+    image_x, image_y, rendered_width, rendered_height = (
+        _gateway_artwork_geometry(width, height)
+    )
+    return tuple(
+        (
+            image_x + normalized_x * rendered_width,
+            image_y + normalized_y * rendered_height,
+        )
+        for normalized_x, normalized_y in GATEWAY_INNER_CORNERS
+    )
 
 
 class BrokerLogHandler(logging.Handler):
@@ -129,17 +184,8 @@ class GatewayBackground(Gtk.Widget):
             return
 
         now = GLib.get_monotonic_time() / 1_000_000 - self._started_at
-        image_width = self._texture.get_width()
-        image_height = self._texture.get_height()
-        scale = max(width / image_width, height / image_height)
-        rendered_width = image_width * scale
-        rendered_height = image_height * scale
         image_bounds = Graphene.Rect().init(
-            (width - rendered_width) / 2
-            + rendered_width * GATEWAY_CENTERING_OFFSET,
-            (height - rendered_height) / 2,
-            rendered_width,
-            rendered_height,
+            *_gateway_artwork_geometry(width, height)
         )
         snapshot.append_texture(self._texture, image_bounds)
 
@@ -386,6 +432,7 @@ class GatewayAlignedRequest(Gtk.Widget):
     def __init__(self, child):
         super().__init__(hexpand=True, vexpand=True)
         self._child = child
+        self._form_corners = ()
         child.set_parent(self)
 
     def do_measure(self, orientation, for_size):
@@ -412,10 +459,234 @@ class GatewayAlignedRequest(Gtk.Widget):
             (height - projected_bounds.get_height()) / 2 - projected_bounds.get_y(),
         )
         transform = Gsk.Transform.new().translate(placement).transform(projection)
+        # Use the complete allocation transform for the attachment points. In
+        # particular, this keeps the top and bottom corners on the form's yawed
+        # edges instead of approximating them from an axis-aligned allocation.
+        self._form_corners = tuple(
+            (projected.x, projected.y)
+            for projected in (
+                transform.transform_point(Graphene.Point().init(x, y))
+                for x, y in (
+                    (0, 0),
+                    (child_width, 0),
+                    (child_width, child_height),
+                    (0, child_height),
+                )
+            )
+        )
         self._child.allocate(child_width, child_height, baseline, transform)
 
     def do_snapshot(self, snapshot):
+        self._append_gateway_chains(snapshot)
         self.snapshot_child(self._child, snapshot)
+
+    def _append_gateway_chains(self, snapshot):
+        """Draw four block-built chains behind the gateway-mounted form."""
+        width = self.get_width()
+        height = self.get_height()
+        if width <= 0 or height <= 0 or len(self._form_corners) != 4:
+            return
+
+        bounds = Graphene.Rect().init(0, 0, width, height)
+        context = snapshot.append_cairo(bounds)
+        link_length = max(18.0, min(42.0, min(width, height) * 0.03))
+        gateway_corners = _gateway_inner_corners(width, height)
+
+        # The gateway artwork is a single background texture, so it cannot
+        # naturally occlude overlay content. Restrict the visible chains to
+        # the measured inner opening: their extended terminal links continue
+        # through the boundary geometrically but disappear beneath the frame.
+        context.save()
+        context.move_to(*gateway_corners[0])
+        for corner in gateway_corners[1:]:
+            context.line_to(*corner)
+        context.close_path()
+        context.clip()
+
+        for gateway_corner, form_corner in zip(
+            gateway_corners, self._form_corners,
+        ):
+            self._draw_minecraft_chain(
+                context, gateway_corner, form_corner, link_length,
+            )
+        context.restore()
+
+    @classmethod
+    def _draw_minecraft_chain(cls, context, start, end, link_length):
+        """Draw interlocking, angular links between two attachment points."""
+        vector_x = end[0] - start[0]
+        vector_y = end[1] - start[1]
+        distance = math.hypot(vector_x, vector_y)
+        if distance < 1:
+            return
+
+        # Bury the gateway terminal substantially beneath the inner frame. Its
+        # faceted end then reads as emerging from the portal corner instead of
+        # merely touching an antialiased pixel edge. The form is painted after
+        # the chains, so a smaller overlap is enough at that end.
+        unit_x = vector_x / distance
+        unit_y = vector_y / distance
+        gateway_inset = max(12.0, min(24.0, link_length * 0.68))
+        form_overlap = max(6.0, min(14.0, link_length * 0.30))
+        start = (
+            start[0] - unit_x * gateway_inset,
+            start[1] - unit_y * gateway_inset,
+        )
+        end = (
+            end[0] + unit_x * form_overlap,
+            end[1] + unit_y * form_overlap,
+        )
+        vector_x = end[0] - start[0]
+        vector_y = end[1] - start[1]
+        distance = math.hypot(vector_x, vector_y)
+        link_length = min(link_length, distance)
+
+        # Gravity pulls the middle of each chain downward while preserving its
+        # exact endpoints. Sample the quadratic curve so links remain evenly
+        # spaced by travelled distance rather than by its parameter value.
+        sag = min(link_length * 1.25, distance * 0.13)
+        curve_samples = cls._chain_curve_samples(start, end, sag)
+        curve_length = curve_samples[-1][0]
+        chain_span = max(0.0, curve_length - link_length)
+        preferred_spacing = link_length * 0.58
+        link_count = max(1, math.ceil(chain_span / preferred_spacing) + 1)
+
+        for link_index in range(link_count):
+            travelled = (
+                curve_length / 2 if link_count == 1
+                else link_length / 2
+                + chain_span * link_index / (link_count - 1)
+            )
+            center_x, center_y, angle = cls._chain_curve_position(
+                curve_samples, travelled,
+            )
+            # Alternating broad and edge-on rings mimic Minecraft's linked,
+            # block-built chain silhouette rather than a dashed cable.
+            edge_on = link_index % 2 == 1
+            cls._draw_angular_chain_link(
+                context, center_x, center_y, angle, link_length, edge_on,
+            )
+
+    @staticmethod
+    def _chain_curve_samples(start, end, sag, sample_count=32):
+        """Return cumulative-distance samples of a gravity-sagged chain."""
+        control_x = (start[0] + end[0]) / 2
+        control_y = (start[1] + end[1]) / 2 + sag * 2
+        samples = []
+        previous_x = previous_y = None
+        travelled = 0.0
+        for sample_index in range(sample_count + 1):
+            progress = sample_index / sample_count
+            inverse = 1 - progress
+            point_x = (
+                inverse * inverse * start[0]
+                + 2 * inverse * progress * control_x
+                + progress * progress * end[0]
+            )
+            point_y = (
+                inverse * inverse * start[1]
+                + 2 * inverse * progress * control_y
+                + progress * progress * end[1]
+            )
+            tangent_x = (
+                2 * inverse * (control_x - start[0])
+                + 2 * progress * (end[0] - control_x)
+            )
+            tangent_y = (
+                2 * inverse * (control_y - start[1])
+                + 2 * progress * (end[1] - control_y)
+            )
+            if previous_x is not None:
+                travelled += math.hypot(
+                    point_x - previous_x, point_y - previous_y,
+                )
+            samples.append(
+                (travelled, point_x, point_y, math.atan2(tangent_y, tangent_x)),
+            )
+            previous_x, previous_y = point_x, point_y
+        return samples
+
+    @staticmethod
+    def _chain_curve_position(samples, target_distance):
+        """Interpolate a point and tangent angle at an arc distance."""
+        for previous, current in zip(samples, samples[1:]):
+            if target_distance > current[0]:
+                continue
+            segment_length = current[0] - previous[0]
+            fraction = (
+                0.0 if segment_length <= 0
+                else (target_distance - previous[0]) / segment_length
+            )
+            return (
+                previous[1] + (current[1] - previous[1]) * fraction,
+                previous[2] + (current[2] - previous[2]) * fraction,
+                previous[3] + (current[3] - previous[3]) * fraction,
+            )
+        return samples[-1][1:]
+
+    @classmethod
+    def _draw_angular_chain_link(
+        cls, context, center_x, center_y, angle, link_length, edge_on,
+    ):
+        """Paint one hollow, faceted metal link with a restrained portal glow."""
+        half_length = link_length / 2
+        half_width = link_length * (0.17 if edge_on else 0.34)
+        metal_width = max(3.0, link_length * 0.13)
+        inner_half_length = max(half_length * 0.58, half_length - metal_width * 1.7)
+        inner_half_width = max(1.0, half_width - metal_width)
+
+        context.save()
+        context.translate(center_x, center_y)
+        context.rotate(angle)
+        context.set_line_join(cairo.LineJoin.MITER)
+        context.set_line_cap(cairo.LineCap.BUTT)
+
+        cls._append_angular_link_path(context, half_length, half_width)
+        context.set_source_rgba(0.48, 0.16, 0.96, 0.30)
+        context.set_line_width(max(5.0, metal_width * 2.35))
+        context.stroke()
+
+        cls._append_angular_link_path(context, half_length, half_width)
+        cls._append_angular_link_path(
+            context, inner_half_length, inner_half_width,
+        )
+        context.set_fill_rule(cairo.FillRule.EVEN_ODD)
+        context.set_source_rgba(0.44, 0.22, 0.68, 1.0)
+        context.fill()
+
+        cls._append_angular_link_path(context, half_length, half_width)
+        cls._append_angular_link_path(
+            context, inner_half_length, inner_half_width,
+        )
+        context.set_source_rgba(0.06, 0.025, 0.13, 0.96)
+        context.set_line_width(max(1.4, metal_width * 0.38))
+        context.stroke()
+
+        # A single cool edge catches the gateway light without turning the
+        # chain into another lightning effect.
+        bevel = min(half_width * 0.62, half_length * 0.16)
+        context.move_to(-half_length + bevel, -half_width)
+        context.line_to(half_length - bevel, -half_width)
+        context.set_source_rgba(
+            0.40, 0.98, 0.96, 0.62 if edge_on else 0.86,
+        )
+        context.set_line_width(max(1.2, metal_width * 0.40))
+        context.stroke()
+        context.restore()
+
+    @staticmethod
+    def _append_angular_link_path(context, half_length, half_width):
+        """Append a closed octagonal path for a pixel-art chain ring."""
+        bevel = min(half_width * 0.62, half_length * 0.16)
+        context.move_to(-half_length + bevel, -half_width)
+        context.line_to(half_length - bevel, -half_width)
+        context.line_to(half_length, -half_width + bevel)
+        context.line_to(half_length, half_width - bevel)
+        context.line_to(half_length - bevel, half_width)
+        context.line_to(-half_length + bevel, half_width)
+        context.line_to(-half_length, half_width - bevel)
+        context.line_to(-half_length, -half_width + bevel)
+        context.close_path()
 
     def do_dispose(self):
         if self._child is not None:
@@ -558,19 +829,23 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _load_preferences(self, target_uid):
         if self._preview:
-            self._request_content.set_preferences(PREVIEW_PREFERENCES)
+            self._request_content.set_preferences(PREVIEW_PREFERENCES[target_uid])
             return
         LOG.info("preferences load started target_uid=%d", target_uid)
         self._bus_call(
             "GetPreferences", GLib.Variant("(u)", (target_uid,)), "(s)",
-            self._preferences_done,
+            lambda connection, result: self._preferences_done(
+                target_uid, connection, result,
+            ),
         )
 
-    def _preferences_done(self, connection, result):
+    def _preferences_done(self, target_uid, connection, result):
         try:
             encoded, = connection.call_finish(result).unpack()
+            if not self._request_content.is_selected_account(target_uid):
+                return
             self._request_content.set_preferences(json.loads(encoded))
-            LOG.info("preferences load completed")
+            LOG.info("preferences load completed target_uid=%d", target_uid)
         except Exception as error:
             LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
 

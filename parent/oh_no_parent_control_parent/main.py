@@ -16,7 +16,6 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from .catalog import list_apps
 from .client import BrokerClient, configure_logging
 
 LOG = logging.getLogger("oh-no-parent-control-parent")
@@ -59,6 +58,13 @@ PREVIEW_PREFERENCES = {
         "request": {},
     },
 }
+PREVIEW_APPS = ({
+    "id": "org.gnome.Calculator.desktop",
+    "name": "Calculator",
+    "description": "Perform arithmetic",
+    "icon": "accessories-calculator-symbolic",
+    "targets": ["/usr/bin/gnome-calculator"],
+},)
 
 
 class PreviewBrokerClient:
@@ -72,6 +78,9 @@ class PreviewBrokerClient:
 
     def get_preferences(self, uid):
         return copy.deepcopy(self._preferences[uid])
+
+    def list_apps(self, _uid):
+        return copy.deepcopy(PREVIEW_APPS)
 
     def get_time_status(self, _uid):
         return {
@@ -249,7 +258,15 @@ class ParentWindow(Adw.ApplicationWindow):
         self._search.connect("search-changed", self._filter)
         search_row.add_suffix(self._search)
         apps.add(search_row)
-        for app in list_apps():
+        self._app_rows = []
+        page.add(apps)
+
+    def _set_catalog(self, applications):
+        for row in self._app_rows:
+            self._apps_group.remove(row)
+        self._rows = []
+        self._app_rows = []
+        for app in applications:
             row = Adw.ActionRow(
                 title=app["name"], subtitle=app["description"] or app["id"],
                 css_classes=["app-policy-row"],
@@ -257,7 +274,12 @@ class ParentWindow(Adw.ApplicationWindow):
             row.app = app
             row.search_text = f'{app["name"]} {app["description"]} {app["id"]}'.casefold()
             if app["icon"]:
-                row.add_prefix(Gtk.Image(gicon=app["icon"], pixel_size=32))
+                try:
+                    icon = Gio.Icon.new_for_string(app["icon"])
+                except GLib.Error:
+                    icon = None
+                if icon is not None:
+                    row.add_prefix(Gtk.Image(gicon=icon, pixel_size=32))
             row.policy_buttons = {}
             selector = Gtk.Box(
                 orientation=Gtk.Orientation.HORIZONTAL, spacing=3,
@@ -279,9 +301,9 @@ class ParentWindow(Adw.ApplicationWindow):
                 row.policy_buttons[state["id"]] = button
                 selector.append(button)
             row.add_suffix(selector)
-            apps.add(row)
+            self._apps_group.add(row)
             self._rows.append(row)
-        page.add(apps)
+            self._app_rows.append(row)
 
     def _run(self, operation, success, failure=None):
         def done(value=None, error=None):
@@ -357,12 +379,15 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         LOG.info("preferences load started target_uid=%d", uid)
         self._set_apps_sensitive(False)
-        self._run(lambda: self._client.get_preferences(uid),
-                  lambda value: self._preferences_for(uid, value))
+        self._run(
+            lambda: (self._client.get_preferences(uid), self._client.list_apps(uid)),
+            lambda value: self._preferences_for(uid, *value),
+        )
 
-    def _preferences_for(self, uid, preferences):
+    def _preferences_for(self, uid, preferences, applications):
         if uid != self._selected_uid():
             return
+        self._set_catalog(applications)
         self._preferences_loaded(preferences)
 
     def _preferences_loaded(self, preferences):
@@ -480,7 +505,14 @@ class ParentWindow(Adw.ApplicationWindow):
         # limit. Take it from the current control so queued policy changes do
         # not reintroduce an earlier limit after a screen-time edit.
         value["daily_time_limit_minutes"] = self._daily_limit.get_selected()
-        value["apps"] = {}
+        # Preserve saved policies for launchers which have disappeared since
+        # the account was last managed. Replacing the visible rows below is
+        # therefore the only change made by this save.
+        visible_ids = {row.app["id"] for row in self._rows}
+        value["apps"] = {
+            app_id: policy for app_id, policy in self._preferences["apps"].items()
+            if app_id not in visible_ids
+        }
         for row in self._rows:
             state = next(
                 state["id"] for state in STATES

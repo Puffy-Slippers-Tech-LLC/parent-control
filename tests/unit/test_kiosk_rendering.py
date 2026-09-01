@@ -60,6 +60,53 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('self._stack.add_named(self._request_surface, "request")', source)
         self.assertNotIn(".skew(", source)
 
+    def test_four_block_chains_connect_form_to_gateway_corners(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+
+        self.assertIn("GATEWAY_ARTWORK_WIDTH = 3_840", source)
+        self.assertIn("GATEWAY_ARTWORK_HEIGHT = 2_160", source)
+        self.assertIn("GATEWAY_INNER_CORNERS = (", source)
+        corners_start = source.index("GATEWAY_INNER_CORNERS = (")
+        corners_end = source.index("# Project the complete form", corners_start)
+        corner_constants = source[corners_start:corners_end]
+        self.assertEqual(corner_constants.count("/ GATEWAY_ARTWORK_WIDTH,"), 4)
+        self.assertEqual(corner_constants.count("/ GATEWAY_ARTWORK_HEIGHT),"), 4)
+        for source_corner in (
+            "(1_374 / GATEWAY_ARTWORK_WIDTH, 347 / GATEWAY_ARTWORK_HEIGHT)",
+            "(2_276 / GATEWAY_ARTWORK_WIDTH, 405 / GATEWAY_ARTWORK_HEIGHT)",
+            "(2_276 / GATEWAY_ARTWORK_WIDTH, 1_780 / GATEWAY_ARTWORK_HEIGHT)",
+            "(1_374 / GATEWAY_ARTWORK_WIDTH, 1_837 / GATEWAY_ARTWORK_HEIGHT)",
+        ):
+            self.assertIn(source_corner, corner_constants)
+        self.assertIn("def _gateway_artwork_geometry(width, height):", source)
+        self.assertGreaterEqual(
+            source.count("_gateway_artwork_geometry(width, height)"), 3,
+        )
+        self.assertIn("transform.transform_point(Graphene.Point().init(x, y))", source)
+        self.assertIn("for gateway_corner, form_corner in zip(", source)
+        self.assertIn("gateway_inset =", source)
+        self.assertIn("start[0] - unit_x * gateway_inset", source)
+        self.assertIn("form_overlap =", source)
+        self.assertIn("end[0] + unit_x * form_overlap", source)
+        self.assertIn("gateway_corners = _gateway_inner_corners(width, height)", source)
+        opening_clip = source.index("context.clip()")
+        chain_draw = source.index("self._draw_minecraft_chain(")
+        self.assertLess(opening_clip, chain_draw)
+
+        chain_snapshot = source.index("self._append_gateway_chains(snapshot)")
+        form_snapshot = source.index("self.snapshot_child(self._child, snapshot)")
+        self.assertLess(chain_snapshot, form_snapshot)
+
+        self.assertIn("def _draw_minecraft_chain", source)
+        self.assertIn("for link_index in range(link_count):", source)
+        self.assertIn("edge_on = link_index % 2 == 1", source)
+        self.assertIn("sag = min(link_length * 1.25, distance * 0.13)", source)
+        self.assertIn("def _chain_curve_samples", source)
+        self.assertIn("control_y = (start[1] + end[1]) / 2 + sag * 2", source)
+        self.assertIn("def _chain_curve_position", source)
+        self.assertIn("def _append_angular_link_path", source)
+        self.assertIn("context.set_fill_rule(cairo.FillRule.EVEN_ODD)", source)
+
     def test_gateway_artwork_is_static_with_animated_gateway_energy(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 

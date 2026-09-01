@@ -155,6 +155,7 @@ class Broker:
     def __init__(self, config_loader: Callable[[], Configuration], authorizer: Authorizer,
                  accounts: Accounts, preferences: Preferences | None = None,
                  extensions: Extensions | None = None, timer_usage: TimerUsage | None = None,
+                 application_catalog: Callable[[UserAccount], tuple[dict, ...]] | None = None,
                  *, monotonic=time.monotonic,
                  now=lambda: datetime.now().astimezone(), caller_alive=lambda _sender: True):
         self._config_loader = config_loader
@@ -163,6 +164,7 @@ class Broker:
         self._preferences = preferences
         self._extensions = extensions
         self._timer_usage = timer_usage
+        self._application_catalog = application_catalog
         self._monotonic = monotonic
         self._now = now
         self._caller_alive = caller_alive
@@ -347,6 +349,19 @@ class Broker:
             return self._preferences.load(target.uid)
         except PreferencesError as error:
             raise BackendFailure("preferences are unavailable") from error
+
+    def list_applications(self, caller_uid: int, target_uid: int) -> tuple[dict, ...]:
+        """List the selected child's launchers for the administrator UI."""
+        config = self._load_config()
+        if not self._is_admin(caller_uid):
+            raise AccessDenied("administrator access is required")
+        target = self._target(config, target_uid)
+        if self._application_catalog is None:
+            raise BackendFailure("application catalog is unavailable")
+        try:
+            return self._application_catalog(target)
+        except Exception as error:
+            raise BackendFailure("application catalog is unavailable") from error
 
     def set_preferences(self, caller_uid: int, target_uid: int, value: object) -> dict:
         config = self._load_config()

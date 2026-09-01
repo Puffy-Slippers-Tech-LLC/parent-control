@@ -40,6 +40,16 @@ class BrokerClient:
         encoded, = self._call("GetPreferences", GLib.Variant("(u)", (uid,)), "(s)")
         return json.loads(encoded)
 
+    def list_apps(self, uid):
+        applications, = self._call(
+            "ListApplications", GLib.Variant("(u)", (uid,)), "(a(ssssas))",
+        )
+        return [
+            {"id": app_id, "name": name, "description": description,
+             "icon": icon, "targets": list(targets)}
+            for app_id, name, description, icon, targets in applications
+        ]
+
     def get_time_status(self, uid, additional_seconds=0):
         # Malcontent deliberately authorizes QueryUsage against the real parent
         # account which owns this D-Bus connection. A root broker is not a

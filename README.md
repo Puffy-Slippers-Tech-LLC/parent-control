@@ -19,6 +19,16 @@ sudo apt install oh-no-parent-control
 
 ## Development
 
+On a clean Ubuntu Desktop development machine, install the dependencies for
+checks and all three previews:
+
+```sh
+./setup.sh
+```
+
+This does not install the product or configure accounts, services, or Polkit.
+Use `sudo ./install.sh` only to deploy the product to a machine.
+
 The repository is organized by runtime component:
 
 - `parent/` contains the administrator application.

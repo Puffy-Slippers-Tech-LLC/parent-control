@@ -78,6 +78,7 @@ the kiosk UID and request rate limit. It must not duplicate child preferences.
 | `ListManagedUsers` | — | yes | yes |
 | `ListApprovers` | — | yes | yes |
 | `GetPreferences` | own | selected child | selected child |
+| `ListApplications` | — | — | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
 | `UpdateRequestPreferences` | own | selected child | selected child |
@@ -95,6 +96,10 @@ independently of the daily-limit state. Enabling applies the saved integer limit
 of 0–1440 minutes; zero supports the product's grant-only mode. Disabling removes
 the daily restriction and clears product-applied grants while retaining both the
 selected limit and the applied app filter.
+The broker discovers launchers in the selected child's user XDG application
+directories as well as the system directories. It turns each direct launcher
+into the executable path (or Flatpak ref) used by Malcontent, so a per-user
+AppImage is both displayed and restricted using its actual executable path.
 `RequestAccess` additionally requires interactive Polkit approval and performs
 transactional AccountsService updates with rollback.
 The kiosk selects a local interactive administrator returned by `ListApprovers`.

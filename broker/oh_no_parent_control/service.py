@@ -16,6 +16,7 @@ from gi.repository import Gio, GLib
 
 from . import config
 from .adapters import AccountsService, CallerCredentials, PolkitAuthorizer, TimerUsage
+from .catalog import list_apps
 from .core import Broker, BrokerError, InvalidRequest
 from .extension_manager import ExtensionManager
 from .logs import DailyLogWriter, configure_broker_logging
@@ -46,6 +47,10 @@ INTROSPECTION_XML = f"""
     <method name="GetPreferences">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="out"/>
+    </method>
+    <method name="ListApplications">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="applications" type="a(ssssas)" direction="out"/>
     </method>
     <method name="GetTimeStatus">
       <arg name="target_uid" type="u" direction="in"/>
@@ -98,6 +103,7 @@ class Service:
             lambda: config.load(CONFIG_PATH), PolkitAuthorizer(connection),
             AccountsService(connection), PreferenceStore(), ExtensionManager(),
             TimerUsage(connection),
+            application_catalog=list_apps,
             caller_alive=self.credentials.alive,
         )
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
@@ -136,6 +142,14 @@ class Service:
                 target_uid, = parameters.unpack()
                 value = self.broker.get_preferences(caller_uid, target_uid)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(value),)))
+            elif method == "ListApplications":
+                target_uid, = parameters.unpack()
+                applications = self.broker.list_applications(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(a(ssssas))", ([
+                    (app["id"], app["name"], app["description"], app["icon"],
+                     list(app["targets"]))
+                    for app in applications
+                ],)))
             elif method == "GetTimeStatus":
                 target_uid, additional = parameters.unpack()
                 status = self.broker.get_time_status(

@@ -181,6 +181,30 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(value["daily_time_limit_minutes"], 60)
 
+    def test_app_policy_preserves_unlisted_launchers(self):
+        row = type("PolicyRow", (), {})()
+        row.app = {"id": "visible.desktop", "targets": ["/usr/bin/visible"]}
+        row.policy_buttons = {
+            "allowed": FakeToggleButton(active=True),
+            "permanent": FakeToggleButton(active=False),
+            "conditional": FakeToggleButton(active=False),
+        }
+        window = type("WindowHarness", (), {})()
+        window._preferences = {
+            "daily_time_limit_minutes": 30,
+            "apps": {
+                "gone.desktop": {
+                    "state": "permanent", "targets": ["/opt/gone.AppImage"],
+                },
+            },
+        }
+        window._daily_limit = type("DailyLimit", (), {"get_selected": lambda _self: 30})()
+        window._rows = [row]
+
+        value = ParentWindow._app_policy_value(window)
+
+        self.assertEqual(value["apps"], window._preferences["apps"])
+
     def test_completed_auto_save_does_not_reload_the_widgets(self):
         window = type("WindowHarness", (), {})()
         window._save_in_progress = True

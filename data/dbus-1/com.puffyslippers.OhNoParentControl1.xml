@@ -18,6 +18,10 @@
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="out"/>
     </method>
+    <method name="ListApplications">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="applications" type="a(ssssas)" direction="out"/>
+    </method>
     <method name="GetTimeStatus">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="additional_one_time_grant_seconds" type="u" direction="in"/>

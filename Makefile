@@ -13,7 +13,7 @@ EXTENSION_ASSETS := request-options.json
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 
-.PHONY: check _install-product-files uninstall pack-extension install-extension
+.PHONY: check _install-product-files uninstall pack-extension install-extension preview-kiosk
 
 check:
 	@bash -n install.sh
@@ -23,6 +23,9 @@ check:
 	@$(PYTHON) -c 'import pathlib,xml.etree.ElementTree as E; [E.parse(p) for p in pathlib.Path("data").glob("**/*.xml")]; [E.parse(p) for p in pathlib.Path(".").glob("**/*.policy")]'
 	@$(PYTHON) -c 'import xml.etree.ElementTree as E; r=E.parse("child/policy/org.gnome.shell.extensions.oh-no-parent-control.policy").getroot(); a=r.find("./action[@id=\"org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps\"]"); assert a is not None; i=a.find("./annotate[@key=\"org.freedesktop.policykit.imply\"]").text.split(); assert i == ["com.endlessm.ParentalControls.SessionLimits.ChangeOwn", "com.endlessm.ParentalControls.AppFilter.ChangeOwn"]'
 	@! grep -REn 'resource:///org/gnome/shell|AuthPrompt|UnlockDialog|Main\.screenShield|_estimatedTimes' kiosk broker data config tools README.md
+
+preview-kiosk:
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview
 
 pack-extension:
 	gnome-extensions pack "$(CHILD_DIR)" --force --out-dir=. $(EXTENSION_SOURCES:%=--extra-source=%) $(EXTENSION_ASSETS:%=--extra-source=%)

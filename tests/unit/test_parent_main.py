@@ -1,7 +1,7 @@
 import unittest
 
 from parent.oh_no_parent_control_parent.main import (
-    STATES, ParentWindow, _can_start, _duration_label, _minutes_label,
+    PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _duration_label, _minutes_label,
     _time_status_subtitle,
 )
 
@@ -65,6 +65,16 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def test_preview_client_uses_fixture_data_and_persists_ui_changes_in_memory(self):
+        client = PreviewBrokerClient()
+
+        self.assertEqual(client.list_users(), PREVIEW_USERS)
+        preferences = client.get_preferences(1001)
+        preferences["daily_time_limit_minutes"] = 120
+        client.set_preferences(1001, preferences)
+
+        self.assertEqual(client.get_preferences(1001)["daily_time_limit_minutes"], 120)
+
     def test_parent_app_only_starts_when_broker_authorizes_its_caller(self):
         class AuthorizedClient:
             def list_users(self):

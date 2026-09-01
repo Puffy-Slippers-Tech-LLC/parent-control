@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly uuid='oh-no-parent-control@tech.puffyslippers.com'
+readonly child_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly system_schema_dir='/usr/share/glib-2.0/schemas'
+preview_root="$(mktemp -d)"
+shell_pid=''
+
+cleanup() {
+    if [[ -n "$shell_pid" ]] && kill -0 "$shell_pid" 2>/dev/null; then
+        kill "$shell_pid" 2>/dev/null || true
+        wait "$shell_pid" 2>/dev/null || true
+    fi
+    rm -rf "$preview_root"
+}
+trap cleanup EXIT INT TERM
+
+command -v gnome-shell >/dev/null || {
+    echo 'gnome-shell is required for the child preview.' >&2
+    exit 1
+}
+command -v gsettings >/dev/null || {
+    echo 'gsettings is required for the child preview.' >&2
+    exit 1
+}
+command -v dbus-run-session >/dev/null || {
+    echo 'dbus-run-session is required for the child preview.' >&2
+    exit 1
+}
+command -v glib-compile-schemas >/dev/null || {
+    echo 'glib-compile-schemas is required for the child preview.' >&2
+    exit 1
+}
+[[ -x /usr/libexec/mutter-devkit ]] || {
+    echo 'Mutter Devkit is required for the child preview (install mutter-dev-bin on Ubuntu).' >&2
+    exit 1
+}
+[[ -d "$system_schema_dir" ]] || {
+    echo "GNOME settings schemas are missing from $system_schema_dir." >&2
+    exit 1
+}
+
+mkdir -p "$preview_root/data/gnome-shell/extensions" "$preview_root/config"
+ln -s "$child_dir" "$preview_root/data/gnome-shell/extensions/$uuid"
+
+# Build a private schema cache from the installed sources. This keeps preview
+# settings isolated and avoids inheriting an outdated system cache after a
+# GNOME package upgrade.
+schema_dir="$preview_root/schemas"
+mkdir -p "$schema_dir"
+cp -a "$system_schema_dir/." "$schema_dir/"
+glib-compile-schemas "$schema_dir"
+
+# Keep extension discovery and enabled-extensions settings out of the host
+# session. The symlink lets GNOME Shell execute the checkout directly.
+export XDG_DATA_HOME="$preview_root/data"
+export XDG_CONFIG_HOME="$preview_root/config"
+export GSETTINGS_BACKEND=keyfile
+export GSETTINGS_SCHEMA_DIR="$schema_dir"
+export OH_NO_PARENT_CONTROL_PREVIEW=1
+gsettings set org.gnome.shell enabled-extensions "['$uuid']"
+
+echo 'Starting child preview in a nested GNOME Shell. Edit child files to reload.'
+while true; do
+    reload_stamp="$preview_root/reload-stamp"
+    touch "$reload_stamp"
+    # GNOME Shell 49+ replaced the legacy --nested backend with Mutter's
+    # development kit.  Its own D-Bus session keeps the preview isolated from
+    # the host Shell and avoids attempting to claim the active login session.
+    dbus-run-session -- gnome-shell --devkit --wayland --force-animations &
+    shell_pid=$!
+    reloading=false
+
+    while kill -0 "$shell_pid" 2>/dev/null; do
+        sleep 1
+        if find "$child_dir" -type f \( -name '*.js' -o -name '*.css' -o -name '*.json' \) \
+            -newer "$reload_stamp" -print -quit | grep -q .; then
+            reloading=true
+            kill "$shell_pid" 2>/dev/null || true
+            break
+        fi
+    done
+
+    wait "$shell_pid" || true
+    shell_pid=''
+    "$reloading" || break
+done

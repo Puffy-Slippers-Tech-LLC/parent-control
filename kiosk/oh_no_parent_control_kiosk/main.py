@@ -22,6 +22,8 @@ INTERFACE = BUS_NAME
 # An authorization prompt remains open until the administrator responds.
 # G_MAXINT is GIO's supported no-timeout value.
 REQUEST_TIMEOUT_MS = GLib.MAXINT
+# Keep the confirmation visible briefly before returning to GDM.
+SUCCESS_LOGOUT_DELAY_MS = 3_000
 LOG = logging.getLogger("oh-no-parent-control")
 
 
@@ -60,6 +62,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self.add_css_class("oh-no-parent-control-window")
         self.set_default_size(800, 600)
         self._state = RequestState()
+        self._success_logout_source_id = None
         self._system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
         self._build()
         LOG.info("request station window initialized")
@@ -102,6 +105,19 @@ class RequestWindow(Adw.ApplicationWindow):
         # this clean exit into a supported kiosk-session logout back to GDM.
         LOG.info("return to login requested")
         self.get_application().quit()
+
+    def _logout_after_success(self):
+        self._success_logout_source_id = None
+        LOG.info("approved request acknowledged; returning to login")
+        self._logout()
+        return GLib.SOURCE_REMOVE
+
+    def _schedule_success_logout(self):
+        if self._success_logout_source_id is not None:
+            GLib.source_remove(self._success_logout_source_id)
+        self._success_logout_source_id = GLib.timeout_add(
+            SUCCESS_LOGOUT_DELAY_MS, self._logout_after_success,
+        )
 
     def _bus_call(self, method, parameters, reply_signature, callback, timeout=30_000):
         self._system_bus.call(
@@ -202,6 +218,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._show_result(
                     "Request approved", f"The requested access is ready for {self._requested_label}."
                 )
+                self._schedule_success_logout()
             elif outcome == "cancelled":
                 # Cancellation is not an error or a session transition.  The
                 # administrator returns to the same kiosk request form without

@@ -17,6 +17,7 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn('/usr/libexec/mutter-devkit', source)
         self.assertIn('glib-compile-schemas "$schema_dir"', source)
         self.assertIn('GSETTINGS_SCHEMA_DIR="$schema_dir"', source)
+        self.assertIn('unset GDK_BACKEND', source)
         self.assertIn('dbus-run-session -- gnome-shell --devkit --wayland', source)
         self.assertNotIn('gnome-shell --nested', source)
 

@@ -41,6 +41,9 @@ GATEWAY_CENTERING_OFFSET = 0.03125
 # descend to the right while its lower edges rise to the right.
 GATEWAY_FORM_YAW_DEGREES = 10.0
 GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0
+# The visible gateway opening is slightly right of the overlay's allocation
+# centre. Keep the mounted form centred in that opening at every resolution.
+GATEWAY_FORM_CENTERING_OFFSET = 0.019
 PREVIEW_DEFAULT_WIDTH = 1918
 PREVIEW_DEFAULT_HEIGHT = 1443
 PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
@@ -403,7 +406,9 @@ class GatewayAlignedRequest(Gtk.Widget):
             Graphene.Rect().init(0, 0, child_width, child_height),
         )
         placement = Graphene.Point().init(
-            (width - projected_bounds.get_width()) / 2 - projected_bounds.get_x(),
+            (width - projected_bounds.get_width()) / 2
+            - projected_bounds.get_x()
+            + width * GATEWAY_FORM_CENTERING_OFFSET,
             (height - projected_bounds.get_height()) / 2 - projected_bounds.get_y(),
         )
         transform = Gsk.Transform.new().translate(placement).transform(projection)

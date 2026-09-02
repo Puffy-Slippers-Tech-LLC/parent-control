@@ -647,7 +647,7 @@ class ParentWindow(Adw.ApplicationWindow):
             "App Access (What happens)", STATES, {
                 "allowed": "App can always be used",
                 "permanent": "App is completely blocked and can only be allowed by admins",
-                "conditional": "App is blocked and can be granted one-time extension per child request",
+                "conditional": "App is blocked and can be granted one-time extension per child request if time limit is enabled",
             }, access=True,
         ))
         sections.append(Gtk.Separator(

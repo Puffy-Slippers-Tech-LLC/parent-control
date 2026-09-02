@@ -165,6 +165,34 @@ def make_broker(authorizer=None, accounts=None, preferences=None, extensions=Non
 
 
 class CoreTests(unittest.TestCase):
+    def test_startup_refreshes_only_preference_enabled_managed_children(self):
+        accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
+        preferences.values[1001]["parent_control_enabled"] = True
+        preferences.values[1003] = default_preferences()
+        preferences.values[1003]["parent_control_enabled"] = True
+        broker = make_broker(
+            accounts=accounts, preferences=preferences, extensions=extensions,
+        )
+
+        refreshed = broker.refresh_enabled_extensions()
+
+        self.assertEqual(refreshed, (1001,))
+        self.assertEqual(extensions.calls, [(1001, True)])
+
+    def test_startup_extension_refresh_reports_install_failure(self):
+        class FailingExtensions(Extensions):
+            def set_enabled(self, uid, enabled):
+                raise RuntimeError("copy failed")
+
+        preferences = Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+
+        with self.assertRaisesRegex(
+                BackendFailure, "could not refresh the child extension for uid 1001"):
+            make_broker(
+                preferences=preferences, extensions=FailingExtensions(),
+            ).refresh_enabled_extensions()
+
     def test_application_catalog_is_scoped_to_the_selected_managed_user(self):
         observed = []
         broker = make_broker(application_catalog=lambda user: observed.append(user) or ({

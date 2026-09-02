@@ -322,6 +322,14 @@ class InstallerTests(unittest.TestCase):
             script,
         )
 
+    def test_package_session_renewal_restarts_broker_to_publish_child_payload(self):
+        postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+
+        self.assertIn("*process-restart*|*session-renewal*)", postinst)
+        self.assertIn(
+            "systemctl restart oh-no-parent-control-broker.service", postinst,
+        )
+
     def test_activation_manifest_is_generated_after_direct_pam_and_gdm_setup(self):
         script = INSTALLER.read_text(encoding="utf-8")
 

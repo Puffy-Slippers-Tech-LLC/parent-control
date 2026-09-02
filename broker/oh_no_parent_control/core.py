@@ -172,6 +172,34 @@ class Broker:
         self._rate_lock = threading.Lock()
         self._last_request = {}
 
+    def refresh_enabled_extensions(self) -> tuple[int, ...]:
+        """Republish the installed payload for every enabled managed child."""
+        config = self._load_config()
+        if self._preferences is None or self._extensions is None:
+            raise BackendFailure("extension management is unavailable")
+        try:
+            users = self._accounts.list_users()
+        except Exception as error:
+            raise BackendFailure("managed accounts are unavailable") from error
+
+        refreshed = []
+        for user in users:
+            if not self._eligible(config, user):
+                continue
+            try:
+                preferences = self._preferences.load(user.uid)
+                if preferences["parent_control_enabled"]:
+                    # The child runs a private copy under its home directory.
+                    # Reinstalling it here makes changes to the immutable
+                    # package payload effective at the next Shell session.
+                    self._extensions.set_enabled(user.uid, True)
+                    refreshed.append(user.uid)
+            except Exception as error:
+                raise BackendFailure(
+                    f"could not refresh the child extension for uid {user.uid}"
+                ) from error
+        return tuple(refreshed)
+
     def calculate_remaining_time(
             self, caller_uid: int, target_uid: int,
             daily_allowance_remaining_seconds: int,

@@ -237,7 +237,8 @@ systemctl enable oh-no-parent-control-restore-extension-state.service
 systemctl restart accounts-daemon.service
 # Product files may have replaced an already running D-Bus broker. Restart it
 # after provisioning has written its configuration so the parent, kiosk, and
-# broker always use the same installed interface and preference schema.
+# broker always use the same installed interface and preference schema. Broker
+# startup also republishes the child payload for every enabled managed account.
 systemctl restart oh-no-parent-control-broker.service
 
 # Fail before completing if any essential installation invariant is missing.

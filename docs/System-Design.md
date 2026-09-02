@@ -82,6 +82,7 @@ the kiosk UID and request rate limit. It must not duplicate child preferences.
 | `ListApplications` | — | — | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
+| `CalculateOwnRemainingTime` | own | — | — |
 | `UpdateRequestPreferences` | own | selected child | selected child |
 | `SetPreferences` | — | — | selected child |
 | `SetParentControl` | — | — | selected child |
@@ -98,6 +99,14 @@ independently of the daily-limit state. Enabling applies the saved integer limit
 of 0–1440 minutes; zero supports the product's grant-only mode. Disabling removes
 the daily restriction and clears product-applied grants while retaining the
 selected limit and reapplying the saved app filter.
+Explicitly revoking a live one-time grant clears it and restores the saved app
+filter. The managed child's extension consumes the resulting timer update and
+uses GNOME's public screen-lock D-Bus API whenever the authoritative remaining
+time is zero. The child supplies only its public timer estimate; the broker
+derives the child UID from the D-Bus caller and reads the live grant itself.
+The extension repeats lock enforcement if a retained desktop is unlocked,
+without ending another user's foreground session on the shared display seat.
+A later fresh login is evaluated against the remaining daily allowance by PAM.
 The broker discovers launchers in the selected child's user XDG application
 directories as well as the system directories. It turns each direct launcher
 into the executable path (or Flatpak ref) used by Malcontent, so a per-user
@@ -171,8 +180,9 @@ the unused daily allowance, and passes all three operands to
 the formula, while Malcontent sees the real parent identity instead of the root
 broker identity. For a child request, the broker performs that same
 parent-identity usage query and calculation before writing the grant. The child
-uses `CalculateRemainingTime` only when reconciling its displayed notification
-countdown.
+uses `CalculateOwnRemainingTime` when reconciling its displayed notification
+countdown and zero-time lock. That method ignores any cached grant claim and
+reads the current ActiveExtension through the broker.
 
 ## Main flows
 

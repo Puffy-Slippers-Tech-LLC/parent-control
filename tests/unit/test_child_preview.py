@@ -60,6 +60,17 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertNotIn("org.freedesktop.Accounts", extension)
         self.assertNotIn("Polkit", extension)
 
+    def test_zero_time_locks_only_from_the_managed_child_extension(self):
+        indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
+        client = (ROOT / "child" / "timeCalculationClient.js").read_text()
+
+        self.assertIn("'CalculateOwnRemainingTime'", client)
+        self.assertIn("calculateOwnRemainingTime", indicator)
+        self.assertIn("manager.dailyLimitEnabled", indicator)
+        self.assertIn("'org.gnome.ScreenSaver'", indicator)
+        self.assertIn("SCREEN_SAVER_INTERFACE, 'Lock'", indicator)
+        self.assertNotIn("TerminateUser", indicator)
+
     def test_preview_lists_two_mock_approvers(self):
         source = (ROOT / "child" / "approverClient.js").read_text()
 

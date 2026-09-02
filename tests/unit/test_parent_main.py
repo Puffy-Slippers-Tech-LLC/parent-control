@@ -3,7 +3,7 @@ import inspect
 from pathlib import Path
 
 from parent.oh_no_parent_control_parent.main import (
-    APPLICATION_ICON_NAME, MATCH_RULES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _duration_label, _minutes_label,
+    APPLICATION_ICON_NAME, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _duration_label, _minutes_label,
     _time_status_subtitle,
 )
 
@@ -130,7 +130,7 @@ class ParentWindowTests(unittest.TestCase):
 
             def __init__(self):
                 self._enabled = SettableToggle()
-                self._daily_limit = type("DailyLimit", (), {"set_selected": lambda *_args: None})()
+                self._set_daily_limit_value = lambda *_args: None
                 self._rows = [ExactMatchRow()]
                 self._selected_uid = lambda: 1001
                 self._set_apps_sensitive = lambda _sensitive: None
@@ -243,6 +243,22 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn(".calculation-panel {", stylesheet)
         self.assertIn(".remaining-time-value {", stylesheet)
 
+    def test_screen_limit_setting_icons_are_centered_in_their_tile(self):
+        source = inspect.getsource(ParentWindow._setting_icon)
+
+        self.assertIn("container = Gtk.CenterBox(", source)
+        self.assertIn("container.set_center_widget(Gtk.Image(", source)
+
+    def test_calculation_layout_groups_the_first_two_operands_in_max(self):
+        source = inspect.getsource(ParentWindow._time_calculation_panel)
+
+        self.assertIn('css_classes=["equation-maximum"]', source)
+        self.assertIn('label="max("', source)
+        self.assertIn('label=","', source)
+        self.assertIn('label=")"', source)
+        self.assertIn('label="+"', source)
+        self.assertIn('label="="', source)
+
     def test_policy_selector_measurement_slot_is_fully_transparent(self):
         source = inspect.getsource(ParentWindow._policy_selector_slot)
 
@@ -337,6 +353,13 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(_minutes_label(1), "1 minute")
         self.assertEqual(_minutes_label(1440), "1440 minutes")
 
+    def test_daily_limit_menu_has_requested_presets_and_custom_selection(self):
+        self.assertEqual(DAILY_LIMIT_PRESETS[:4], (0, 15, 30, 45))
+        self.assertEqual(DAILY_LIMIT_PRESETS[-1], 23 * 60 + 30)
+        self.assertEqual(_daily_limit_label(90), "1.5 hours")
+        self.assertEqual(_daily_limit_selection(30), (2, False))
+        self.assertEqual(_daily_limit_selection(31), (CUSTOM_DAILY_LIMIT_INDEX, True))
+
     def test_time_status_explicitly_shows_formula_operands_and_result(self):
         subtitle = _time_status_subtitle({
             "daily_allowance_remaining_seconds": 31 * 60,
@@ -350,6 +373,11 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn("Additional one-time grant: 5m", subtitle)
         self.assertIn("max(31m, 10m) + 5m = 36m", subtitle)
         self.assertEqual(_duration_label(65), "1m 5s")
+
+    def test_revoke_confirmation_discloses_that_the_child_is_locked(self):
+        source = inspect.getsource(ParentWindow._confirm_revoke)
+
+        self.assertIn("lock their desktop when no time remains", source)
 
     def test_loading_users_loads_initial_selection_once(self):
         window = ParentWindowHarness()
@@ -421,7 +449,7 @@ class ParentWindowTests(unittest.TestCase):
             "daily_time_limit_minutes": 30,
             "apps": {},
         }
-        window._daily_limit = type("DailyLimit", (), {"get_selected": lambda _self: 60})()
+        window._daily_limit_minutes = lambda: 60
         window._rows = [row]
 
         value = ParentWindow._app_policy_value(window)
@@ -447,7 +475,7 @@ class ParentWindowTests(unittest.TestCase):
                 },
             },
         }
-        window._daily_limit = type("DailyLimit", (), {"get_selected": lambda _self: 30})()
+        window._daily_limit_minutes = lambda: 30
         window._rows = [row]
 
         value = ParentWindow._app_policy_value(window)

@@ -79,6 +79,10 @@ INTROSPECTION_XML = f"""
       <arg name="additional_one_time_grant_seconds" type="u" direction="in"/>
       <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
     </method>
+    <method name="CalculateOwnRemainingTime">
+      <arg name="daily_allowance_remaining_seconds" type="u" direction="in"/>
+      <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
+    </method>
     <method name="SetPreferences">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="in"/>
@@ -229,6 +233,12 @@ class Service:
                 target_uid, daily, grant, additional = parameters.unpack()
                 calculated = self.broker.calculate_remaining_time(
                     caller_uid, target_uid, daily, grant, additional,
+                )
+                invocation.return_value(GLib.Variant("(u)", (calculated,)))
+            elif method == "CalculateOwnRemainingTime":
+                daily, = parameters.unpack()
+                calculated = self.broker.calculate_own_remaining_time(
+                    caller_uid, daily,
                 )
                 invocation.return_value(GLib.Variant("(u)", (calculated,)))
             elif method == "SetPreferences":

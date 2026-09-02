@@ -59,6 +59,9 @@ MATCH_RULES = (
     },
 )
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
+MAX_CUSTOM_DAILY_LIMIT_MINUTES = MAX_DAILY_LIMIT_MINUTES - 1
+DAILY_LIMIT_PRESETS = (0, 15, 30, 45, *range(60, MAX_DAILY_LIMIT_MINUTES, 30))
+CUSTOM_DAILY_LIMIT_INDEX = len(DAILY_LIMIT_PRESETS)
 CONTENT_MAX_WIDTH = 1046
 # The major surfaces use a 24 px horizontal margin on either side.  Start the
 # window at that natural content width rather than showing a wide empty gutter
@@ -165,6 +168,22 @@ class PreviewBrokerClient:
 
 def _minutes_label(minutes):
     return f"{minutes} minute" if minutes == 1 else f"{minutes} minutes"
+
+
+def _daily_limit_label(minutes):
+    """Format the compact set of daily allowance menu choices."""
+    if minutes < 60:
+        return _minutes_label(minutes)
+    hours = minutes / 60
+    return f"{hours:g} hour" if hours == 1 else f"{hours:g} hours"
+
+
+def _daily_limit_selection(minutes):
+    """Return the menu index for a stored allowance and whether it is custom."""
+    try:
+        return DAILY_LIMIT_PRESETS.index(minutes), False
+    except ValueError:
+        return CUSTOM_DAILY_LIMIT_INDEX, True
 
 
 def _duration_label(seconds):
@@ -387,8 +406,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._daily_limit = Adw.ComboRow(
             title="Daily Time Allowance",
             model=Gtk.StringList.new([
-                _minutes_label(minutes)
-                for minutes in range(MAX_DAILY_LIMIT_MINUTES + 1)
+                *[_daily_limit_label(minutes) for minutes in DAILY_LIMIT_PRESETS],
+                "Custom value",
             ]),
             sensitive=False,
             css_classes=["daily-limit-row"],
@@ -396,6 +415,28 @@ class ParentWindow(Adw.ApplicationWindow):
         self._daily_limit.add_prefix(self._setting_icon("x-office-calendar-symbolic"))
         self._daily_limit.connect("notify::selected", self._daily_limit_changed)
         screen_limit_rows.append(self._daily_limit)
+        self._custom_daily_limit = Adw.ActionRow(
+            title="Custom daily allowance",
+            subtitle="Enter a whole number from 0 to 1439.",
+            visible=False,
+            css_classes=["custom-daily-limit-row"],
+        )
+        self._custom_daily_limit_entry = Gtk.Entry(
+            text="30",
+            input_purpose=Gtk.InputPurpose.DIGITS,
+            width_chars=5,
+            max_width_chars=5,
+            valign=Gtk.Align.CENTER,
+        )
+        self._custom_daily_limit_entry.connect(
+            "activate", self._custom_daily_limit_changed,
+        )
+        custom_daily_limit_focus = Gtk.EventControllerFocus.new()
+        custom_daily_limit_focus.connect("leave", self._custom_daily_limit_changed)
+        self._custom_daily_limit_entry.add_controller(custom_daily_limit_focus)
+        self._custom_daily_limit.add_suffix(self._custom_daily_limit_entry)
+        self._custom_daily_limit.add_suffix(Gtk.Label(label="minutes"))
+        screen_limit_rows.append(self._custom_daily_limit)
         self._time_status = Adw.ExpanderRow(
             title="Today's Remaining Time",
             subtitle="Time left for today",
@@ -536,11 +577,15 @@ class ParentWindow(Adw.ApplicationWindow):
 
     @staticmethod
     def _setting_icon(icon_name):
-        container = Gtk.Box(
+        container = Gtk.CenterBox(
             valign=Gtk.Align.CENTER,
             css_classes=["setting-icon"],
         )
-        container.append(Gtk.Image(icon_name=icon_name, pixel_size=22))
+        container.set_center_widget(Gtk.Image(
+            icon_name=icon_name,
+            pixel_size=22,
+            valign=Gtk.Align.CENTER,
+        ))
         return container
 
     def _time_calculation_panel(self):
@@ -577,18 +622,8 @@ class ParentWindow(Adw.ApplicationWindow):
 
         equation = Gtk.Box(spacing=8, css_classes=["calculation-equation"])
         self._time_operand_values = []
-        labels = (
-            "Daily allowance remaining",
-            "One-time grant remaining",
-            "Additional one-time grant",
-            "Calculated ActiveExtension",
-        )
-        for index, label in enumerate(labels):
-            if index:
-                equation.append(Gtk.Label(
-                    label="=" if index == 3 else "+",
-                    css_classes=["equation-operator"],
-                ))
+
+        def operand(label):
             column = Gtk.Box(
                 orientation=Gtk.Orientation.VERTICAL,
                 spacing=6,
@@ -601,8 +636,28 @@ class ParentWindow(Adw.ApplicationWindow):
             ))
             value = Gtk.Label(label="—", css_classes=["equation-value"])
             column.append(value)
-            equation.append(column)
             self._time_operand_values.append(value)
+            return column
+
+        maximum = Gtk.Box(
+            spacing=8, hexpand=True, css_classes=["equation-maximum"],
+        )
+        maximum.append(Gtk.Label(
+            label="max(", css_classes=["equation-function"],
+        ))
+        maximum.append(operand("Daily allowance remaining"))
+        maximum.append(Gtk.Label(
+            label=",", css_classes=["equation-separator"],
+        ))
+        maximum.append(operand("One-time grant remaining"))
+        maximum.append(Gtk.Label(
+            label=")", css_classes=["equation-function"],
+        ))
+        equation.append(maximum)
+        equation.append(Gtk.Label(label="+", css_classes=["equation-operator"]))
+        equation.append(operand("Additional one-time grant"))
+        equation.append(Gtk.Label(label="=", css_classes=["equation-operator"]))
+        equation.append(operand("Calculated ActiveExtension"))
         panel.append(equation)
         return panel
 
@@ -863,7 +918,7 @@ class ParentWindow(Adw.ApplicationWindow):
                     self._enabled.set_active(bool(
                         self._preferences.get("parent_control_enabled")
                     ))
-                    self._daily_limit.set_selected(
+                    self._set_daily_limit_value(
                         self._preferences.get("daily_time_limit_minutes", 0)
                     )
                 self._loading = False
@@ -944,7 +999,7 @@ class ParentWindow(Adw.ApplicationWindow):
     def _preferences_loaded(self, preferences):
         self._preferences = preferences
         self._enabled.set_active(preferences["parent_control_enabled"])
-        self._daily_limit.set_selected(preferences["daily_time_limit_minutes"])
+        self._set_daily_limit_value(preferences["daily_time_limit_minutes"])
         for row in self._rows:
             state = preferences["apps"].get(row.app["id"], {}).get("state", "allowed")
             row.policy_buttons[state].set_active(True)
@@ -1031,6 +1086,11 @@ class ParentWindow(Adw.ApplicationWindow):
             not self._loading and self._selected_uid() is not None and
             self._enabled.get_active()
         )
+        if hasattr(self, "_custom_daily_limit"):
+            self._custom_daily_limit.set_sensitive(
+                not self._loading and self._selected_uid() is not None and
+                self._enabled.get_active()
+            )
         self._apps_group.set_sensitive(sensitive)
 
     def _confirm_revoke(self, *_args):
@@ -1041,7 +1101,8 @@ class ParentWindow(Adw.ApplicationWindow):
         dialog = Adw.MessageDialog.new(
             self, "Revoke one-time grant?",
             "This will revoke one-time screen time and access to soft blocked apps "
-            f"granted to {child_name}. Their remaining daily time allowance is not impacted.",
+            f"granted to {child_name}, and lock their desktop when no time remains. "
+            "Their remaining daily time allowance is not impacted.",
         )
         dialog.add_response("cancel", "Cancel")
         dialog.add_response("revoke", "Revoke grant")
@@ -1082,11 +1143,48 @@ class ParentWindow(Adw.ApplicationWindow):
     def _daily_limit_changed(self, row, _param):
         if self._loading or self._selected_uid() is None:
             return
+        is_custom = row.get_selected() == CUSTOM_DAILY_LIMIT_INDEX
+        self._custom_daily_limit.set_visible(is_custom)
+        if is_custom:
+            self._custom_daily_limit_entry.grab_focus()
+            return
         self._save_parent_control(self._enabled.get_active())
+
+    def _custom_daily_limit_changed(self, *_args):
+        if self._loading or self._selected_uid() is None:
+            return False
+        text = self._custom_daily_limit_entry.get_text().strip()
+        if not text.isdecimal() or not 0 <= int(text) <= MAX_CUSTOM_DAILY_LIMIT_MINUTES:
+            self._custom_daily_limit_entry.add_css_class("error")
+            self._custom_daily_limit.set_subtitle(
+                "Enter a whole number from 0 to 1439."
+            )
+            return False
+        self._custom_daily_limit_entry.remove_css_class("error")
+        self._custom_daily_limit.set_subtitle("Enter a whole number from 0 to 1439.")
+        self._save_parent_control(self._enabled.get_active())
+        return False
+
+    def _set_daily_limit_value(self, minutes):
+        """Load a saved value into either a preset or the Custom value row."""
+        selected, is_custom = _daily_limit_selection(minutes)
+        self._daily_limit.set_selected(selected)
+        self._custom_daily_limit.set_visible(is_custom)
+        if is_custom:
+            self._custom_daily_limit_entry.set_text(str(minutes))
+
+    def _daily_limit_minutes(self):
+        if self._daily_limit.get_selected() != CUSTOM_DAILY_LIMIT_INDEX:
+            return DAILY_LIMIT_PRESETS[self._daily_limit.get_selected()]
+        text = self._custom_daily_limit_entry.get_text().strip()
+        if text.isdecimal() and 0 <= int(text) <= MAX_CUSTOM_DAILY_LIMIT_MINUTES:
+            return int(text)
+        # Invalid custom input is never saved; retain the last valid value.
+        return self._preferences.get("daily_time_limit_minutes", 30)
 
     def _save_parent_control(self, enabled):
         uid = self._selected_uid()
-        daily_limit_minutes = self._daily_limit.get_selected()
+        daily_limit_minutes = self._daily_limit_minutes()
         self._queue_save("parent-control", uid, enabled, daily_limit_minutes)
 
     def _start_parent_control_save(self, uid, enabled, daily_limit_minutes):
@@ -1196,7 +1294,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # SetPreferences retains the enabled state, but it persists the daily
         # limit. Take it from the current control so queued policy changes do
         # not reintroduce an earlier limit after a screen-time edit.
-        value["daily_time_limit_minutes"] = self._daily_limit.get_selected()
+        value["daily_time_limit_minutes"] = self._daily_limit_minutes()
         # Preserve saved policies for launchers which have disappeared since
         # the account was last managed. Replacing the visible rows below is
         # therefore the only change made by this save.

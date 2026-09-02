@@ -207,8 +207,7 @@ entry.oh-no-parent-control-custom-entry {
   background-color: rgba(255, 255, 255, 0.08);
 }
 
-.oh-no-parent-control-duration-notice {
-  min-height: 86px;
+.oh-no-parent-control-screen-limit-notice {
   padding: 14px 20px;
   color: rgba(255, 255, 255, 0.96);
   font-weight: 700;

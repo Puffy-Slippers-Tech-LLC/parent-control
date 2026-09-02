@@ -126,36 +126,28 @@ class RequestContent(Gtk.Box):
         self._status = Gtk.Label(label="Loading request details…", wrap=True)
         self._status.add_css_class("oh-no-parent-control-status")
 
-        account_selectors = Gtk.Grid(column_spacing=8, row_spacing=16)
-        account_selectors.add_css_class("oh-no-parent-control-account-row")
-        account_selectors.attach(Gtk.Label(label="Child", xalign=0), 0, 0, 1, 1)
+        child_selector = Gtk.Grid(column_spacing=8)
+        child_selector.add_css_class("oh-no-parent-control-account-row")
+        child_selector.attach(Gtk.Label(label="Child", xalign=0), 0, 0, 1, 1)
         self._accounts = GatewayDropDown(self._account_changed)
         self._accounts.set_hexpand(True)
-        account_selectors.attach(self._accounts, 1, 0, 1, 1)
+        child_selector.attach(self._accounts, 1, 0, 1, 1)
+        self.append(child_selector)
 
-        account_selectors.attach(Gtk.Label(label="Approver", xalign=0), 0, 1, 1, 1)
+        self._request_form = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=16,
+        )
+        approver_selector = Gtk.Grid(column_spacing=8)
+        approver_selector.add_css_class("oh-no-parent-control-account-row")
+        approver_selector.attach(Gtk.Label(label="Approver", xalign=0), 0, 0, 1, 1)
         self._approvers = GatewayDropDown()
         self._approvers.set_hexpand(True)
-        account_selectors.attach(self._approvers, 1, 1, 1, 1)
-        self.append(account_selectors)
+        approver_selector.attach(self._approvers, 1, 0, 1, 1)
+        self._request_form.append(approver_selector)
 
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._choices.add_css_class("oh-no-parent-control-choices")
-        self._duration_menu = Gtk.Overlay()
-        self._duration_menu.set_child(self._choices)
-        self._duration_notice = Gtk.Label(
-            label=(
-                "No time limit set, but you can still request to allow "
-                "soft blocked apps."
-            ),
-            wrap=True,
-            justify=Gtk.Justification.CENTER,
-            halign=Gtk.Align.FILL,
-            valign=Gtk.Align.CENTER,
-        )
-        self._duration_notice.add_css_class("oh-no-parent-control-duration-notice")
-        self._duration_menu.add_overlay(self._duration_notice)
-        self.append(self._duration_menu)
+        self._request_form.append(self._choices)
         self._build_duration_choices()
 
         self._custom_row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
@@ -169,7 +161,7 @@ class RequestContent(Gtk.Box):
         self._custom_row.append(self._custom_entry)
         self._custom_row.append(Gtk.Label(label="minutes"))
         self._custom_row.set_visible(False)
-        self.append(self._custom_row)
+        self._request_form.append(self._custom_row)
 
         filter_row = Gtk.Box(spacing=12)
         filter_row.add_css_class("oh-no-parent-control-app-filter-toggle")
@@ -182,20 +174,34 @@ class RequestContent(Gtk.Box):
         self._allow_soft = Gtk.Switch(valign=Gtk.Align.CENTER)
         filter_label.set_mnemonic_widget(self._allow_soft)
         filter_row.append(self._allow_soft)
-        self.append(filter_row)
+        self._request_form.append(filter_row)
 
         actions = Gtk.Box(spacing=10, homogeneous=True)
         actions.add_css_class("oh-no-parent-control-actions")
-        self._cancel = Gtk.Button(label="Cancel", hexpand=True)
-        self._cancel.add_css_class("oh-no-parent-control-cancel-button")
-        self._cancel.connect("clicked", on_cancel)
-        actions.append(self._cancel)
         self._request = Gtk.Button(label="Request", hexpand=True)
         self._request.add_css_class("oh-no-parent-control-request-button")
         self._request.set_sensitive(False)
         self._request.connect("clicked", on_request)
         actions.append(self._request)
-        self.append(actions)
+        self._request_form.append(actions)
+
+        self._screen_limit_overlay = Gtk.Overlay()
+        self._screen_limit_overlay.set_child(self._request_form)
+        self._screen_limit_notice = Gtk.Label(
+            label="Screen limit is not enabled in Parent App",
+            wrap=True,
+            justify=Gtk.Justification.CENTER,
+            halign=Gtk.Align.FILL,
+            valign=Gtk.Align.FILL,
+        )
+        self._screen_limit_notice.add_css_class("oh-no-parent-control-screen-limit-notice")
+        self._screen_limit_overlay.add_overlay(self._screen_limit_notice)
+        self.append(self._screen_limit_overlay)
+
+        self._cancel = Gtk.Button(label="Cancel", hexpand=True)
+        self._cancel.add_css_class("oh-no-parent-control-cancel-button")
+        self._cancel.connect("clicked", on_cancel)
+        self.append(self._cancel)
         self.append(self._status)
 
     @staticmethod
@@ -416,6 +422,6 @@ class RequestContent(Gtk.Box):
         self._approvers.set_sensitive(request_available)
         for button in self._duration_buttons:
             button.set_sensitive(request_available and time_limit_enabled)
-        self._duration_notice.set_visible(
-            request_available and self._screen_time_limit_enabled is False
+        self._screen_limit_notice.set_visible(
+            self._screen_time_limit_enabled is False
         )

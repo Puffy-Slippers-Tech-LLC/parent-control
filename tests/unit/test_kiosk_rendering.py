@@ -110,14 +110,25 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("self._approvers = GatewayDropDown()", source)
         self.assertNotIn("Gtk.DropDown", source)
 
-    def test_soft_block_request_remains_available_without_a_time_limit(self):
+    def test_screen_limit_off_disables_the_request_form_without_a_footer_error(self):
         source = KIOSK_CONTENT.read_text(encoding="utf-8")
 
-        self.assertIn("self._duration_menu = Gtk.Overlay()", source)
+        self.assertNotIn("self._duration_menu = Gtk.Overlay()", source)
+        self.assertIn("self._screen_limit_overlay = Gtk.Overlay()", source)
         self.assertIn(
-            "No time limit set, but you can still request to allow ", source,
+            'label="Screen limit is not enabled in Parent App"', source,
         )
-        self.assertIn("self._duration_menu.add_overlay(self._duration_notice)", source)
+        self.assertIn(
+            "self._screen_limit_overlay.add_overlay(self._screen_limit_notice)", source,
+        )
+        self.assertLess(
+            source.index("self.append(child_selector)"),
+            source.index("self.append(self._screen_limit_overlay)"),
+        )
+        self.assertLess(
+            source.index("self.append(self._screen_limit_overlay)"),
+            source.index("self.append(self._cancel)"),
+        )
         self.assertIn("self._screen_time_limit_enabled is not None", source)
         self.assertIn(
             "self._custom_entry.set_sensitive(request_available and time_limit_enabled)",
@@ -125,6 +136,8 @@ class KioskRenderingTests(unittest.TestCase):
         )
         self.assertIn("self._allow_soft.set_sensitive(request_available)", source)
         self.assertIn("self._approvers.set_sensitive(request_available)", source)
+        self.assertIn("self._cancel.set_sensitive(self._controls_enabled)", source)
+        self.assertIn("self._status.remove_css_class(\"oh-no-parent-control-error\")", source)
 
     def test_four_block_chains_connect_form_to_gateway_corners(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")

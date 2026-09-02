@@ -82,6 +82,9 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("self.snapshot_child(self._child, snapshot)", source)
         self.assertIn("self._request_surface = GatewayAlignedRequest(self._request_content)", source)
         self.assertIn('self._stack.add_named(self._request_surface, "request")', source)
+        self.assertIn("self._result_surface = GatewayAlignedRequest(self._result_view)", source)
+        self.assertIn('self._stack.add_named(self._result_surface, "result")', source)
+        self.assertNotIn('self._stack.add_named(self._result_view, "result")', source)
         self.assertNotIn(".skew(", source)
 
     def test_account_selectors_stay_in_the_transformed_form(self):

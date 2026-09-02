@@ -407,14 +407,7 @@ class ParentWindow(Adw.ApplicationWindow):
         app_limits_header.append(self._app_limits_description)
         app_limits.append(app_limits_header)
 
-        self._add_legend(app_limits, "App Access Legend", STATES, {
-            "allowed": "Allows the app to run.",
-            "permanent": "Blocks the app until an administrator changes this setting.",
-            "conditional": "Blocks the app unless an approved one-off extension permits it.",
-        }, access=True)
-        self._add_legend(app_limits, "Match Rule Legend", MATCH_RULES, {
-            rule["id"]: rule["description"] for rule in MATCH_RULES
-        })
+        app_limits.append(self._legend_card())
         app_limits.append(Gtk.Separator(
             orientation=Gtk.Orientation.HORIZONTAL,
             css_classes=["app-limits-divider"],
@@ -609,65 +602,140 @@ class ParentWindow(Adw.ApplicationWindow):
             ))
         return selector
 
-    def _add_legend(self, container, title, items, descriptions, *, access=False):
-        legend = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=10,
+    def _legend_card(self):
+        card = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
             css_classes=["policy-legend"],
         )
-        legend.append(Gtk.Label(
-            label=title, xalign=0, css_classes=["policy-legend-heading"],
-        ))
-        legend_row = Gtk.Box(
-            spacing=24 if access else 80,
-            css_classes=[
-                "policy-legend-row",
-                "access-legend-row" if access else "match-legend-row",
-            ],
-        )
-        for item in items:
-            column = Gtk.Box(spacing=8, hexpand=True, valign=Gtk.Align.CENTER,
-                             css_classes=["policy-legend-column"])
-            if access:
-                icon = Gtk.ToggleButton(active=True, can_focus=False, can_target=False,
-                    valign=Gtk.Align.CENTER,
-                    css_classes=["policy-choice", "policy-legend-icon", item["css"]],
-                    child=Gtk.Image(icon_name=item["icon"], pixel_size=19))
-            else:
-                icon = Gtk.Button(can_focus=False, can_target=False,
-                                  valign=Gtk.Align.CENTER,
-                                  css_classes=["match-rule-button", "policy-choice",
-                                               "policy-legend-icon", item["css"]],
-                                  child=self._match_rule_image(item))
-            column.append(icon)
-            column.append(Gtk.Label(label=item["label"], xalign=0,
-                                    css_classes=["policy-legend-title"]))
-            help_affordance = Gtk.Box(spacing=0, valign=Gtk.Align.CENTER)
-            help_affordance.append(Gtk.Label(label="("))
-            help_button = Gtk.LinkButton(label="?", uri="help:match-rule",
-                                         css_classes=["policy-help-link"])
-            help_button.connect("activate-link", self._show_help_popover,
-                                descriptions[item["id"]])
-            help_affordance.append(help_button)
-            help_affordance.append(Gtk.Label(label=")"))
-            column.append(help_affordance)
-            legend_row.append(column)
-        legend.append(legend_row)
-        container.append(legend)
 
-    def _show_help_popover(self, button, description):
-        popover = Gtk.Popover(position=Gtk.PositionType.BOTTOM, autohide=False)
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
-                          css_classes=["policy-help-popover"])
-        close = Gtk.Button(icon_name="window-close-symbolic", halign=Gtk.Align.END,
-                           tooltip_text="Close")
-        close.connect("clicked", lambda *_args: popover.popdown())
-        content.append(close)
-        content.append(Gtk.Label(label=description, wrap=True, max_width_chars=36,
-                                 xalign=0))
-        popover.set_child(content)
-        popover.set_parent(button)
-        popover.popup()
-        return True
+        header_content = Gtk.Box(spacing=16, valign=Gtk.Align.CENTER)
+        book = Gtk.Box(
+            valign=Gtk.Align.CENTER,
+            css_classes=["policy-legend-book"],
+        )
+        book.append(Gtk.Image(
+            icon_name="accessories-dictionary-symbolic", pixel_size=22,
+        ))
+        header_content.append(book)
+
+        labels = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True,
+            valign=Gtk.Align.CENTER,
+        )
+        labels.append(Gtk.Label(
+            label="Legend", xalign=0, css_classes=["policy-legend-title"],
+        ))
+        subtitle = Gtk.Label(
+            label="Quick reference for access and match rules",
+            xalign=0, wrap=True, css_classes=["policy-legend-subtitle"],
+        )
+        labels.append(subtitle)
+        header_content.append(labels)
+        chevron = Gtk.Image(icon_name="go-down-symbolic", pixel_size=20)
+        header_content.append(chevron)
+
+        header = Gtk.ToggleButton(
+            active=False,
+            tooltip_text="Show legend",
+            css_classes=["policy-legend-header"],
+            child=header_content,
+        )
+        card.append(header)
+
+        sections = Gtk.Box(css_classes=["policy-legend-sections"])
+        sections.append(self._legend_section(
+            "App Access (What happens)", STATES, {
+                "allowed": "App can always be used",
+                "permanent": "App is completely blocked and can only be allowed by admins",
+                "conditional": "App is blocked and can be granted one-time extension per child request",
+            }, access=True,
+        ))
+        sections.append(Gtk.Separator(
+            orientation=Gtk.Orientation.VERTICAL,
+            css_classes=["policy-legend-divider"],
+        ))
+        sections.append(self._legend_section(
+            "Match Rule (How apps are matched)", MATCH_RULES, {
+                "pattern": "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)",
+                "precise": "Matches exact app path\n(e.g., /usr/bin/firefox)",
+            }, access=False,
+        ))
+
+        revealer = Gtk.Revealer(
+            transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
+            transition_duration=180,
+            reveal_child=False,
+            child=sections,
+        )
+        card.append(revealer)
+        header.connect(
+            "toggled", self._legend_toggled,
+            revealer, subtitle, chevron, card,
+        )
+        return card
+
+    def _legend_section(self, title, items, descriptions, *, access):
+        section = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            hexpand=True,
+            css_classes=["policy-legend-section"],
+        )
+        section.append(Gtk.Label(
+            label=title, xalign=0, wrap=True,
+            css_classes=["policy-legend-section-title"],
+        ))
+        rows = Gtk.Grid(
+            row_spacing=12, column_spacing=16,
+            css_classes=["policy-legend-rows"],
+        )
+        for row, item in enumerate(items):
+            if access:
+                icon = Gtk.ToggleButton(
+                    active=True, can_focus=False, can_target=False,
+                    valign=Gtk.Align.CENTER,
+                    css_classes=[
+                        "policy-choice", "policy-legend-icon", item["css"],
+                    ],
+                    child=Gtk.Image(icon_name=item["icon"], pixel_size=19),
+                )
+            else:
+                icon = Gtk.Button(
+                    can_focus=False, can_target=False, valign=Gtk.Align.CENTER,
+                    css_classes=[
+                        "match-rule-button", "policy-choice",
+                        "policy-legend-icon", item["css"],
+                    ],
+                    child=self._match_rule_image(item),
+                )
+            rows.attach(icon, 0, row, 1, 1)
+            rows.attach(Gtk.Label(
+                label=item["label"], xalign=0, wrap=True, width_chars=22,
+                css_classes=["policy-legend-item-title"],
+            ), 1, row, 1, 1)
+            rows.attach(Gtk.Label(
+                label=descriptions[item["id"]], xalign=0, wrap=True,
+                width_chars=22, hexpand=True,
+                css_classes=["policy-legend-description"],
+            ), 2, row, 1, 1)
+        section.append(rows)
+        return section
+
+    @staticmethod
+    def _legend_toggled(button, revealer, subtitle, chevron, card):
+        expanded = button.get_active()
+        revealer.set_reveal_child(expanded)
+        subtitle.set_label(
+            "Understanding access rules and match rules"
+            if expanded else "Quick reference for access and match rules"
+        )
+        chevron.set_from_icon_name(
+            "go-up-symbolic" if expanded else "go-down-symbolic",
+        )
+        button.set_tooltip_text("Hide legend" if expanded else "Show legend")
+        if expanded:
+            card.add_css_class("expanded")
+        else:
+            card.remove_css_class("expanded")
 
     def _show_about(self, *_args):
         AboutDialog(self).present()

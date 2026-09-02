@@ -258,7 +258,7 @@
 }
 
 .app-limits-card-header {
-  padding: 28px 29px 41px;
+  padding: 28px 29px 30px;
 }
 
 .app-limits-title {
@@ -274,57 +274,93 @@
 
 .policy-legend {
   margin: 0 29px 28px;
+  border: 1px solid alpha(#24242a, 0.16);
+  border-radius: 14px;
+  background: alpha(white, 0.48);
+  transition: 160ms ease-in-out;
 }
 
-.policy-legend-heading {
-  color: #34343e;
-  font-size: 17px;
-  font-weight: 750;
+.policy-legend.expanded {
+  border-color: alpha(#7357ef, 0.58);
+  background: linear-gradient(145deg,
+                              alpha(#fbfaff, 0.96),
+                              alpha(#f7f5ff, 0.58));
 }
 
-.policy-legend-row {
-  min-height: 68px;
-  padding: 0 28px;
-  border: 1px solid alpha(#24242a, 0.11);
-  border-radius: 12px;
-  background: alpha(white, 0.52);
-}
-
-.match-legend-row {
-  padding-left: 22px;
-  padding-right: 22px;
-}
-
-.policy-help-link {
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-  border: none;
-  border-radius: 0;
-  background: none;
+.policy-legend-header {
+  min-height: 78px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
   box-shadow: none;
-  font-weight: 700;
-  text-decoration-line: underline;
+  color: #7357ef;
 }
 
-.policy-help-popover {
-  padding: 8px;
+.policy-legend-header:hover {
+  background: alpha(#7357ef, 0.045);
 }
 
-.policy-legend-column {
-  min-height: 64px;
+.policy-legend-header:checked,
+.policy-legend-header:active {
+  background: transparent;
+  box-shadow: none;
+}
+
+.policy-legend-book {
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 13px;
+  color: white;
+  background: linear-gradient(145deg, #8266f7, #6544e8);
+  box-shadow: 0 3px 9px alpha(#6240e2, 0.28),
+              inset 0 1px alpha(white, 0.25);
 }
 
 .policy-legend-title {
-  color: #34343e;
-  font-size: 17px;
-  font-weight: 550;
+  color: #292934;
+  font-size: 18px;
+  font-weight: 750;
+}
+
+.policy-legend-subtitle {
+  color: alpha(#292934, 0.65);
+  font-size: 15px;
+}
+
+.policy-legend-sections {
+  padding: 2px 32px 22px;
+}
+
+.policy-legend-section {
+  padding: 0 2px;
+}
+
+.policy-legend-section-title {
+  margin-bottom: 16px;
+  color: #7051ea;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.policy-legend-divider {
+  margin: 0 25px;
+  background: alpha(#7357ef, 0.23);
+}
+
+.policy-legend-rows {
+  margin-left: 4px;
+}
+
+.policy-legend-item-title {
+  color: #292934;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .policy-legend-description {
-  color: alpha(@window_fg_color, 0.68);
-  font-size: 0.88em;
+  color: alpha(#292934, 0.70);
+  font-size: 14px;
 }
 
 .app-limits-divider {

@@ -88,6 +88,21 @@ class PackageActivationTests(unittest.TestCase):
 
             self.assertEqual(changed_impacts(old, new), ["reboot"])
 
+    def test_execution_readiness_gate_requires_reboot(self):
+        self.assertEqual(
+            activation_for(
+                "usr/lib/systemd/system/display-manager.service.d/"
+                "oh-no-parent-control.conf"
+            ),
+            "reboot",
+        )
+        self.assertEqual(
+            activation_for(
+                "usr/libexec/oh-no-parent-control-execution-policy-ready"
+            ),
+            "reboot",
+        )
+
     def test_removed_file_keeps_its_old_activation_requirement(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

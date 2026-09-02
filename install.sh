@@ -253,6 +253,8 @@ test -x /usr/libexec/oh-no-parent-control-query-usage
 test -x /usr/libexec/oh-no-parent-control-provision
 test -x /usr/libexec/oh-no-parent-control-preserve-extension-state
 test -x /usr/libexec/oh-no-parent-control-session-limit-check
+test -x /usr/libexec/oh-no-parent-control-execution-policy-ready
+test -x /usr/libexec/oh-no-parent-control-execution-policy-probe
 test -s /usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/Gearbox_Waltz.mp3
 test -s /etc/oh-no-parent-control/config.json
 test -s /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules
@@ -262,6 +264,8 @@ test -s /usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.chi
 test ! -e /usr/share/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy
 test -s /usr/lib/systemd/system/oh-no-parent-control-broker.service
 test -s /usr/lib/systemd/system/oh-no-parent-control-restore-extension-state.service
+test -s /usr/lib/systemd/system/fapolicyd.service.d/oh-no-parent-control-readiness.conf
+test -s /usr/lib/systemd/system/display-manager.service.d/oh-no-parent-control.conf
 test -s /usr/lib/systemd/user/oh-no-parent-control-app.service
 test -s /usr/lib/systemd/user/oh-no-parent-control-polkit-agent.service
 test -s /usr/lib/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf

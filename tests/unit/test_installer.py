@@ -66,6 +66,10 @@ class InstallerTests(unittest.TestCase):
         ).split(", "))
         self.assertIn("data/fapolicyd/99-oh-no-parent-control-allow.rules", makefile)
         self.assertIn("systemctl is-active --quiet fapolicyd.service", script)
+        self.assertIn("oh-no-parent-control-execution-policy-ready", makefile)
+        self.assertIn("oh-no-parent-control-execution-policy-probe", makefile)
+        self.assertIn("display-manager.service.d", makefile)
+        self.assertIn("fapolicyd.service.d", makefile)
 
     def test_interrupted_dpkg_state_is_recovered_before_apt_runs(self):
         script = INSTALLER.read_text(encoding="utf-8")

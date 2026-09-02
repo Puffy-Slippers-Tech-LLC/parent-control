@@ -24,11 +24,12 @@ releases that predate this mechanism.
 | `session-renewal` | Refresh enabled child payloads through broker startup; the next child or kiosk GNOME session uses the update | No |
 | `reboot` | Normal Ubuntu reboot-required marker is created | Yes |
 
-`reboot` is reserved for changes to PAM or GDM/pre-session integration. These
-must activate at a clean login-manager boundary. Extension payloads, kiosk
-session units, and GNOME session descriptors are `session-renewal`, because an
-existing graphical session cannot load their replacement safely but the machine
-does not need to reboot. For this activation level, the package starts the
+`reboot` is reserved for changes to PAM or login-manager/pre-session
+integration. These must activate at a clean login-manager boundary. Extension
+payloads, kiosk session units, and GNOME session descriptors are
+`session-renewal`, because an existing graphical session cannot load their
+replacement safely but the machine does not need to reboot. For this activation
+level, the package starts the
 broker, which republishes the immutable extension payload to every enabled
 managed child's private extension directory before the next login. Broker code,
 its systemd unit, and its D-Bus contract are `process-restart`.
@@ -39,6 +40,9 @@ Polkit action definitions and administrator-selection rules are `none` because
 polkitd monitors both directories and loads their changes for subsequent
 authorization requests. A request-flow update can still require a broker
 restart or session renewal through its changed broker and child payload files.
+The display-manager/fapolicyd readiness gate and its executable canary are also
+`reboot`: their fail-closed ordering can only be guaranteed when the login
+manager starts in the same boot transaction after fapolicyd becomes ready.
 
 The package never clears `/run/reboot-required` or removes package names from
 `/run/reboot-required.pkgs`: either may have been created by Ubuntu or another

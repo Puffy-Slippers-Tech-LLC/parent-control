@@ -125,6 +125,12 @@ reconciles the aggregate rules before accepting D-Bus calls and after the
 broker changes an AppFilter. Rule replacement
 and activation are transactional; a reload failure restores and reloads the
 previous rules.
+The packaged fapolicyd service drop-in keeps the daemon in its systemd
+`activating` state until a root-owned canary execution is denied by the live
+kernel policy. The display manager requires that completed startup, so no
+managed graphical login can begin while fapolicyd is still rebuilding its
+trust database after boot. If the readiness check fails, the login manager
+fails closed instead of exposing an execution-policy gap.
 `RequestAccess` and `RequestOwnAccess` require interactive Polkit approval and
 perform transactional AccountsService updates with rollback. `RequestOwnAccess`
 derives the target UID from the system-bus caller, so a child cannot name a
@@ -193,6 +199,8 @@ countdown.
 /usr/libexec/oh-no-parent-control-broker       broker launcher
 /usr/libexec/oh-no-parent-control-query-usage  identity-scoped read-only helper
 /usr/libexec/oh-no-parent-control-session-limit-check  PAM limit-state gate
+/usr/libexec/oh-no-parent-control-execution-policy-ready  fapolicyd readiness gate
+/usr/libexec/oh-no-parent-control-execution-policy-probe  deny canary
 /usr/libexec/oh-no-parent-control-migrate-state saved-data migration runner
 /usr/libexec/oh-no-parent-control-preserve-extension-state
 /usr/lib/oh-no-parent-control/kiosk/            kiosk Python package
@@ -201,6 +209,8 @@ countdown.
 /var/lib/oh-no-parent-control/preferences/     authoritative child records
 /var/log/oh-no-parent-control/<component>/     daily logs (10-day retention)
 /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules generated execution denies
+/usr/lib/systemd/system/{fapolicyd,display-manager}.service.d/
+                                                  boot readiness ordering
 ```
 
 APT and the full-machine installer stop the broker and run the packaged,

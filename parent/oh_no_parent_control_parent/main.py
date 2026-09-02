@@ -625,10 +625,12 @@ class ParentWindow(Adw.ApplicationWindow):
                              css_classes=["policy-legend-column"])
             if access:
                 icon = Gtk.ToggleButton(active=True, can_focus=False, can_target=False,
+                    valign=Gtk.Align.CENTER,
                     css_classes=["policy-choice", "policy-legend-icon", item["css"]],
                     child=Gtk.Image(icon_name=item["icon"], pixel_size=19))
             else:
                 icon = Gtk.Button(can_focus=False, can_target=False,
+                                  valign=Gtk.Align.CENTER,
                                   css_classes=["match-rule-button", "policy-choice",
                                                "policy-legend-icon", item["css"]],
                                   child=self._match_rule_image(item))

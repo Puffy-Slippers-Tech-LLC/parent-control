@@ -28,7 +28,12 @@ def activation_for(path: str) -> str:
         "etc/gdm3/",
         "usr/share/pam-configs/",
         "etc/pam.d/",
-    )):
+        "usr/lib/systemd/system/display-manager.service.d/",
+        "usr/lib/systemd/system/fapolicyd.service.d/",
+    )) or path in {
+        "usr/libexec/oh-no-parent-control-execution-policy-ready",
+        "usr/libexec/oh-no-parent-control-execution-policy-probe",
+    }:
         return "reboot"
     # polkitd monitors its action and rule directories and evaluates them for
     # each authorization request, so no service or session restart is required.

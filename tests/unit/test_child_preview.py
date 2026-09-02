@@ -11,6 +11,10 @@ class ChildPreviewTests(unittest.TestCase):
 
         self.assertIn('mktemp -d', source)
         self.assertIn('XDG_DATA_HOME="$preview_root/data"', source)
+        self.assertIn('extension_dir="$preview_root/data/gnome-shell/extensions/$uuid"', source)
+        self.assertIn('for source in "$child_dir"/*.js "$child_dir"/*.css "$child_dir"/*.json', source)
+        self.assertIn('app_logo.png,company_logo.png,brand.json,app.json', source)
+        self.assertIn('ln -s "$source" "$extension_dir/${source##*/}"', source)
         self.assertIn('GSETTINGS_BACKEND=keyfile', source)
         self.assertIn('command -v dbus-run-session', source)
         self.assertIn('command -v glib-compile-schemas', source)
@@ -75,6 +79,9 @@ class ChildPreviewTests(unittest.TestCase):
                       request_dialog)
         self.assertIn("[['Help', 'help'], ['About', 'about']]", request_dialog)
         self.assertIn("this._onMenu?.(action);", request_dialog)
+        self.assertIn("'button-press-event'", request_dialog)
+        self.assertIn('this._onMenuPress?.()', request_dialog)
+        self.assertIn('() => this._preserveForOverflowMenu()', request_dialog)
 
     def test_request_dialog_header_uses_the_product_logo(self):
         request_dialog = (ROOT / "child" / "requestDialog.js").read_text()

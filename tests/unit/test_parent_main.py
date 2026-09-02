@@ -197,7 +197,7 @@ class ParentWindowTests(unittest.TestCase):
     def test_main_body_is_split_into_screen_and_app_limit_tabs(self):
         source = inspect.getsource(ParentWindow._build)
 
-        account_picker = source.index("account_section.append(self._account)")
+        account_picker = source.index("account_actions.append(self._account)")
         view_stack = source.index("pages = Adw.ViewStack")
         screen_tab = source.index(
             'screen_limits_page, "screen-limits", "Screen Limits", "alarm-symbolic"'
@@ -228,6 +228,16 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('self._time_status.add_row(self._time_calculation_panel())', source)
         self.assertEqual(source.count("maximum_size=CONTENT_MAX_WIDTH"), 4)
         self.assertIn(".account-picker {", stylesheet)
+        self.assertIn('css_classes=["account-actions-separator"]', source)
+        self.assertIn(".account-actions-separator {", stylesheet)
+        self.assertIn("margin: 35px 0;", stylesheet)
+        self.assertIn("margin: 18px 30px 18px 120px;", stylesheet)
+        self.assertIn(".revoke-grant-button:hover {", stylesheet)
+        self.assertIn(".revoke-grant-button:active {", stylesheet)
+        self.assertIn('icon_name="action-unavailable-symbolic", pixel_size=40', source)
+        self.assertIn("width_request=270, max_width_chars=36", source)
+        self.assertIn("width_request=320", source)
+        self.assertNotIn("revoke_icon.append", source)
         self.assertIn(".screen-limits-card-header {", stylesheet)
         self.assertIn(".screen-limit-switch:checked {", stylesheet)
         self.assertIn(".calculation-panel {", stylesheet)
@@ -361,6 +371,7 @@ class ParentWindowTests(unittest.TestCase):
         window._loading = False
         window._selected_uid = lambda: 1001
         window._account = FakeSensitiveWidget()
+        window._revoke = FakeSensitiveWidget()
         window._enabled = FakeSensitiveWidget(active=False)
         window._daily_limit = FakeSensitiveWidget()
         window._apps_group = FakeSensitiveWidget()

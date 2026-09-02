@@ -41,8 +41,18 @@ command -v glib-compile-schemas >/dev/null || {
     exit 1
 }
 
-mkdir -p "$preview_root/data/gnome-shell/extensions" "$preview_root/config"
-ln -s "$child_dir" "$preview_root/data/gnome-shell/extensions/$uuid"
+extension_dir="$preview_root/data/gnome-shell/extensions/$uuid"
+mkdir -p "$extension_dir" "$preview_root/config"
+# Mirror the packaged extension layout while keeping source edits live. A
+# directory symlink makes import.meta.url point into the temporary tree without
+# exposing the branding files that are bundled beside the installed modules.
+for source in "$child_dir"/*.js "$child_dir"/*.css "$child_dir"/*.json; do
+    ln -s "$source" "$extension_dir/${source##*/}"
+done
+for source in "$child_dir"/../data/{app_logo.png,company_logo.png,brand.json,app.json} \
+        "$child_dir"/../LICENSE; do
+    ln -s "$source" "$extension_dir/${source##*/}"
+done
 
 # Build a private schema cache from the installed sources. This keeps preview
 # settings isolated and avoids inheriting an outdated system cache after a

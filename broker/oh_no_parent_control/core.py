@@ -570,6 +570,43 @@ class Broker:
                 raise
             raise BackendFailure("could not change parent-control state") from error
 
+    def revoke_one_time_grant(self, caller_uid: int, target_uid: int) -> None:
+        """Remove a live grant and restore the saved app blocklist atomically."""
+        if not self._request_lock.acquire(blocking=False):
+            raise Busy("another request is already in progress")
+        try:
+            config = self._load_config()
+            if not self._is_admin(caller_uid):
+                raise AccessDenied("administrator access is required")
+            target = self._target(config, target_uid)
+            preferences = self._load_request_preferences(target.uid)
+            desired_filter = (False, blocked_targets(preferences, False))
+            old_filter = self._accounts.get_filter(target.uid)
+            old_extension = self._accounts.get_extension(target.uid)
+            try:
+                self._accounts.set_filter(target.uid, desired_filter)
+                if self._accounts.get_filter(target.uid) != desired_filter:
+                    raise BackendFailure("app-filter verification failed")
+                self._accounts.set_extension(target.uid, (0, 0))
+                if self._accounts.get_extension(target.uid) != (0, 0):
+                    raise BackendFailure("extension verification failed")
+            except Exception as error:
+                try:
+                    self._accounts.set_extension(target.uid, old_extension)
+                    self._accounts.set_filter(target.uid, old_filter)
+                    if (self._accounts.get_extension(target.uid) != old_extension or
+                            self._accounts.get_filter(target.uid) != old_filter):
+                        raise RuntimeError("rollback read-back mismatch")
+                except Exception as rollback_error:
+                    raise RollbackFailure(
+                        "one-time grant rollback could not be verified"
+                    ) from rollback_error
+                if isinstance(error, BrokerError):
+                    raise
+                raise BackendFailure("one-time grant could not be revoked") from error
+        finally:
+            self._request_lock.release()
+
     def request_access(self, caller_uid: int, sender: str, target_uid: int,
                        approver_uid: int, duration_seconds: int,
                        allow_soft_blocked_apps: bool) -> tuple[str, str]:

@@ -89,6 +89,7 @@ add-apt-repository -y universe
     gnome-kiosk \
     gstreamer1.0-plugins-base \
     gstreamer1.0-plugins-ugly \
+    gtk-update-icon-cache \
     libpam-malcontent \
     mate-polkit-bin \
     make \
@@ -135,6 +136,12 @@ env -u MAKEFLAGS -u MFLAGS \
     SYSTEMD_USER_DIR=/usr/lib/systemd/user \
     PRODUCT_LIBDIR=/usr/lib/oh-no-parent-control \
     GENERATE_ACTIVATION_MANIFEST=0
+
+# The full-machine installer writes directly into the hicolor theme rather
+# than going through dpkg's icon-cache trigger.  Refresh the cache now so GNOME
+# can resolve the newly installed desktop icon instead of showing its generic
+# fallback icon.
+gtk-update-icon-cache --force --quiet /usr/share/icons/hicolor
 
 /usr/libexec/oh-no-parent-control-migrate-state
 rm -f /var/lib/oh-no-parent-control/migration-in-progress

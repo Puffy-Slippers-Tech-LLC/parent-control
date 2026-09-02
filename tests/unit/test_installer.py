@@ -16,6 +16,7 @@ class InstallerTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 
         self.assertTrue((ROOT / "data/app_logo.png").is_file())
+        self.assertTrue((ROOT / "data/app_icon.png").is_file())
         self.assertTrue((ROOT / "data/company_logo.png").is_file())
         self.assertIn(
             "BRANDING_ASSETS := data/brand.json data/app.json "
@@ -125,8 +126,10 @@ class InstallerTests(unittest.TestCase):
         self.assertIn('"root:sudo"', script)
         self.assertIn('"640"', script)
 
-    def test_product_artwork_is_installed_as_the_shared_desktop_icon(self):
+    def test_full_resolution_product_artwork_is_installed_as_the_desktop_icon(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        installer = INSTALLER.read_text(encoding="utf-8")
+        control = (ROOT / "debian/control").read_text(encoding="utf-8")
         parent_entry = (
             ROOT / "data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop"
         ).read_text(encoding="utf-8")
@@ -135,21 +138,34 @@ class InstallerTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         icon = "com.puffyslippers.OhNoParentControl"
-        logo = ROOT / "data/app_logo.png"
-        with logo.open("rb") as source:
+        launcher_icon = ROOT / "data/app_icon.png"
+        with launcher_icon.open("rb") as source:
             self.assertEqual(source.read(8), b"\x89PNG\r\n\x1a\n")
             self.assertEqual(source.read(4), b"\x00\x00\x00\r")
             self.assertEqual(source.read(4), b"IHDR")
             width, height = struct.unpack(">II", source.read(8))
-        self.assertLessEqual(width, 128)
-        self.assertLessEqual(height, 128)
+        self.assertEqual((width, height), (512, 512))
         self.assertIn(
-            "data/app_logo.png \"$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/"
+            "data/app_icon.png \"$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/"
             f"{icon}.png\"",
             makefile,
         )
         self.assertIn(f"Icon={icon}", parent_entry)
         self.assertIn(f"Icon={icon}", kiosk_entry)
+        icon_install = installer.index(
+            'make --no-print-directory -C "$SCRIPT_DIR" _install-product-files'
+        )
+        cache_refresh = installer.index(
+            "gtk-update-icon-cache --force --quiet /usr/share/icons/hicolor"
+        )
+        self.assertLess(icon_install, cache_refresh)
+        self.assertIn("    gtk-update-icon-cache \\\n", installer)
+        runtime_dependencies = next(
+            line.removeprefix("Depends: ")
+            for line in control.splitlines()
+            if line.startswith("Depends: ")
+        )
+        self.assertIn("gtk-update-icon-cache", runtime_dependencies.split(", "))
 
     def test_polkit_vendor_metadata_uses_shared_branding(self):
         policy = ROOT / "data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in"

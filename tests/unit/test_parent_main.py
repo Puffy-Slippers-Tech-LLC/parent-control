@@ -269,7 +269,9 @@ class ParentWindowTests(unittest.TestCase):
             / "parent/oh_no_parent_control_parent/style.css"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("self.set_default_size(1344, 1168)", initializer)
+        self.assertIn(
+            "self.set_default_size(DEFAULT_WINDOW_WIDTH, 1168)", initializer,
+        )
         self.assertIn('css_classes=["app-limits-card"]', source)
         self.assertIn('label="App Limits", xalign=0', source)
         self.assertIn('css_classes=["apps-section"]', source)

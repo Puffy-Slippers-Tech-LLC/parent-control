@@ -38,6 +38,15 @@ class PackageActivationTests(unittest.TestCase):
             "process-restart",
         )
 
+    def test_desktop_icon_change_activates_at_the_next_session(self):
+        self.assertEqual(
+            activation_for(
+                "usr/share/icons/hicolor/512x512/apps/"
+                "com.puffyslippers.OhNoParentControl.png"
+            ),
+            "session-renewal",
+        )
+
     def test_session_payload_change_does_not_signal_reboot(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -2,6 +2,7 @@
 Name=Oh No! Parent Control
 Comment=Request additional child access
 Exec=/usr/bin/oh-no-parent-control
+Icon=com.puffyslippers.OhNoParentControl
 Type=Application
 Categories=GTK;System;
 NoDisplay=true

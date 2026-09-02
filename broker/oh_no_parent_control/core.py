@@ -374,6 +374,24 @@ class Broker:
         except Exception as error:
             raise BackendFailure("application catalog is unavailable") from error
 
+    def _refresh_application_targets(self, target: UserAccount,
+                                     preferences: dict) -> dict:
+        """Replace UI-cached targets with the child's current launcher targets."""
+        if self._application_catalog is None:
+            return preferences
+        try:
+            applications = self._application_catalog(target)
+            current_targets = {
+                application["id"]: list(application["targets"])
+                for application in applications
+            }
+            for desktop_id, policy in preferences["apps"].items():
+                if desktop_id in current_targets:
+                    policy["targets"] = current_targets[desktop_id]
+            return validate_preferences(preferences)
+        except Exception as error:
+            raise BackendFailure("application catalog is unavailable") from error
+
     def set_preferences(self, caller_uid: int, target_uid: int, value: object) -> dict:
         config = self._load_config()
         if not self._is_admin(caller_uid):
@@ -391,6 +409,11 @@ class Broker:
             raise InvalidRequest(str(error)) from error
         # The dedicated toggle operation owns installation state.
         requested["parent_control_enabled"] = current["parent_control_enabled"]
+        # The parent window may have remained open while an application
+        # self-updated and replaced its versioned executable. Resolve the
+        # selected desktop IDs again at commit time so neither the saved
+        # Malcontent target nor the execution rule points at a vanished file.
+        requested = self._refresh_application_targets(target, requested)
         try:
             old_filter = self._accounts.get_filter(target.uid)
         except Exception as error:

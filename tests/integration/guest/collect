@@ -1,0 +1,111 @@
+#!/bin/bash
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly CHECKOUT="/var/lib/oh-no-parent-control-integration/checkout"
+if (( $# != 1 )); then
+    echo "Usage: collect VM_NAME" >&2
+    exit 2
+fi
+readonly VM_NAME="$1"
+"$SCRIPT_DIR/guard.py" "$VM_NAME"
+
+readonly RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+readonly OUTPUT="/var/tmp/oh-no-parent-control-artifacts/$RUN_ID"
+if [[ -e "$OUTPUT" ]]; then
+    echo "collect: artifact run already exists: $OUTPUT" >&2
+    exit 1
+fi
+install -d -o root -g root -m 0700 "$OUTPUT"
+
+{
+    . /etc/os-release
+    printf 'PRETTY_NAME=%s\nVERSION_ID=%s\n' "$PRETTY_NAME" "$VERSION_ID"
+    uname -a
+    gnome-shell --version
+    flatpak --version
+    fapolicyd --version
+    dpkg-query -W -f='${binary:Package}\t${db:Status-Abbrev}\t${Version}\n' \
+        ubuntu-desktop gnome-shell accountsservice malcontent fapolicyd flatpak \
+        libpam0g libpam-malcontent
+} >"$OUTPUT/platform.txt" 2>&1 || true
+
+{
+    for unit in accounts-daemon.service fapolicyd.service \
+            malcontent-timerd.service malcontent-timer-extension-agent.service \
+            oh-no-parent-control-broker.service gdm.service; do
+        echo "## $unit"
+        systemctl is-enabled "$unit" || true
+        systemctl is-active "$unit" || true
+        systemctl --no-pager --full status "$unit" || true
+    done
+} >"$OUTPUT/service-status.txt" 2>&1
+
+journalctl --no-pager --utc -b \
+    -u accounts-daemon.service \
+    -u fapolicyd.service \
+    -u malcontent-timerd.service \
+    -u malcontent-timer-extension-agent.service \
+    -u oh-no-parent-control-broker.service \
+    >"$OUTPUT/service-journal.txt" 2>&1 || true
+
+{
+    echo "## Product broker"
+    busctl --system call com.puffyslippers.OhNoParentControl1 \
+        /com/puffyslippers/OhNoParentControl1 \
+        com.puffyslippers.OhNoParentControl1 ListManagedUsers || true
+    busctl --system call com.puffyslippers.OhNoParentControl1 \
+        /com/puffyslippers/OhNoParentControl1 \
+        com.puffyslippers.OhNoParentControl1 ListApprovers || true
+    for uid in 2000 2001 2002 2003; do
+        echo "## AccountsService UID $uid"
+        busctl --system get-property org.freedesktop.Accounts \
+            "/org/freedesktop/Accounts/User$uid" org.freedesktop.Accounts.User \
+            UserName || true
+        busctl --system get-property org.freedesktop.Accounts \
+            "/org/freedesktop/Accounts/User$uid" org.freedesktop.Accounts.User \
+            AccountType || true
+        busctl --system get-property org.freedesktop.Accounts \
+            "/org/freedesktop/Accounts/User$uid" \
+            com.endlessm.ParentalControls.SessionLimits LimitType || true
+        busctl --system get-property org.freedesktop.Accounts \
+            "/org/freedesktop/Accounts/User$uid" \
+            com.endlessm.ParentalControls.SessionLimits ActiveExtension || true
+        busctl --system get-property org.freedesktop.Accounts \
+            "/org/freedesktop/Accounts/User$uid" \
+            com.endlessm.ParentalControls.AppFilter AppFilter || true
+    done
+} >"$OUTPUT/dbus-replies.txt" 2>&1
+
+{
+    find /etc/fapolicyd/rules.d -maxdepth 1 -type f -printf '## %p\n' \
+        -exec sed -n '1,240p' '{}' \;
+    echo "## Compiled rules"
+    fapolicyd-cli --list || true
+} >"$OUTPUT/fapolicyd-rules.txt" 2>&1
+
+{
+    loginctl list-sessions --no-legend || true
+    loginctl list-users --no-legend || true
+    for user in onpc-admin onpc-child oh-no-parent-control onpc-unrelated; do
+        echo "## gdm-password account result: $user"
+        if pamtester gdm-password "$user" acct_mgmt; then
+            echo "result=allowed"
+        else
+            status=$?
+            echo "result=denied exit_status=$status"
+        fi
+    done
+} >"$OUTPUT/login-results.txt" 2>&1
+
+if [[ -d /var/log/oh-no-parent-control ]]; then
+    install -d -o root -g root -m 0700 "$OUTPUT/product-logs"
+    cp -a /var/log/oh-no-parent-control/. "$OUTPUT/product-logs/"
+fi
+if [[ -d /var/tmp/onpc-h50-results ]]; then
+    install -d -o root -g root -m 0700 "$OUTPUT/test-results"
+    cp -a /var/tmp/onpc-h50-results/. "$OUTPUT/test-results/"
+fi
+
+"$SCRIPT_DIR/redact.py" "$OUTPUT" /etc/oh-no-parent-control-integration-vm
+printf '%s\n' "$OUTPUT"

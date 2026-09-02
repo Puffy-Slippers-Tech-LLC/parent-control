@@ -20,7 +20,7 @@
     </method>
     <method name="ListApplications">
       <arg name="target_uid" type="u" direction="in"/>
-      <arg name="applications" type="a(ssssas)" direction="out"/>
+      <arg name="applications" type="a(ssssasas)" direction="out"/>
     </method>
     <method name="GetTimeStatus">
       <arg name="target_uid" type="u" direction="in"/>

@@ -120,9 +120,10 @@ class PolkitAuthorizer:
 
 
 class AccountsService:
-    def __init__(self, connection, execution_policy=None):
+    def __init__(self, connection, execution_policy=None, preferences=None):
         self.connection = connection
         self._execution_policy = execution_policy
+        self._preferences = preferences
         self._execution_policy_lock = threading.RLock()
 
     def _user_path(self, uid: int) -> str:
@@ -208,10 +209,28 @@ class AccountsService:
             return
         with self._execution_policy_lock:
             filters = {}
+            patterns = {}
             for user in self.list_users():
                 allowlist, targets = self.get_filter(user.uid)
                 filters[user.uid] = () if allowlist else targets
-            self._execution_policy.reconcile(filters)
+                if self._preferences is None or allowlist:
+                    continue
+                try:
+                    preferences = self._preferences.load(user.uid)
+                    active = []
+                    live = set(targets)
+                    for entry in preferences["apps"].values():
+                        if entry["state"] == "permanent" or (
+                                entry["state"] == "conditional" and
+                                any(target in live for target in entry["targets"])):
+                            active.extend(entry["patterns"])
+                    patterns[user.uid] = tuple(sorted(set(active)))
+                except Exception as error:
+                    raise RuntimeError("could not load wildcard policy") from error
+            if patterns:
+                self._execution_policy.reconcile(filters, patterns)
+            else:
+                self._execution_policy.reconcile(filters)
 
     def get_extension(self, target_uid: int) -> tuple[int, int]:
         grant_time, duration = self._get(

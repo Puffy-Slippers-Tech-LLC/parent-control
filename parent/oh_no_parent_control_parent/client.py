@@ -42,12 +42,13 @@ class BrokerClient:
 
     def list_apps(self, uid):
         applications, = self._call(
-            "ListApplications", GLib.Variant("(u)", (uid,)), "(a(ssssas))",
+            "ListApplications", GLib.Variant("(u)", (uid,)), "(a(ssssasas))",
         )
         return [
             {"id": app_id, "name": name, "description": description,
-             "icon": icon, "targets": list(targets)}
-            for app_id, name, description, icon, targets in applications
+             "icon": icon, "targets": list(targets),
+             "suggested_patterns": list(patterns)}
+            for app_id, name, description, icon, targets, patterns in applications
         ]
 
     def get_time_status(self, uid, additional_seconds=0):

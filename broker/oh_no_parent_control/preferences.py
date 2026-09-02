@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .config import UINT32_MAX, validate_target
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 VALID_APP_STATES = {"allowed", "permanent", "conditional"}
 MIN_DAILY_LIMIT_MINUTES = 0
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
@@ -20,6 +20,7 @@ MIN_CUSTOM_MINUTES = 0.1
 MAX_CUSTOM_MINUTES = 1440
 VALID_DURATIONS = {"custom", "0", "300", "900", "1800", "3600", "7200", "14400"}
 DESKTOP_ID_RE = re.compile(r"^[^/\x00]+\.desktop$")
+_UNSAFE_PATTERN_CHARACTERS = frozenset(",\"\\\x00\r\n")
 
 
 class PreferencesError(ValueError):
@@ -66,7 +67,7 @@ def validate_preferences(raw: object) -> dict:
     for desktop_id, entry in raw["apps"].items():
         if not isinstance(desktop_id, str) or not DESKTOP_ID_RE.fullmatch(desktop_id):
             raise PreferencesError("invalid desktop application ID")
-        if not isinstance(entry, dict) or set(entry) != {"state", "targets"}:
+        if not isinstance(entry, dict) or set(entry) != {"state", "targets", "patterns"}:
             raise PreferencesError("invalid application preference")
         state = entry["state"]
         if state not in VALID_APP_STATES:
@@ -76,8 +77,15 @@ def validate_preferences(raw: object) -> dict:
         targets = tuple(validate_target(value) for value in entry["targets"])
         if len(targets) != len(set(targets)):
             raise PreferencesError("duplicate application target")
+        if not isinstance(entry["patterns"], list):
+            raise PreferencesError("application patterns must be an array")
+        patterns = tuple(_validate_pattern(value, targets) for value in entry["patterns"])
+        if len(patterns) != len(set(patterns)):
+            raise PreferencesError("duplicate application pattern")
         if state != "allowed":
-            apps[desktop_id] = {"state": state, "targets": list(targets)}
+            apps[desktop_id] = {
+                "state": state, "targets": list(targets), "patterns": list(patterns),
+            }
 
     request = raw["request"]
     if not isinstance(request, dict) or set(request) != {
@@ -104,7 +112,27 @@ def validate_preferences(raw: object) -> dict:
             "last_custom_minutes": custom,
             "allow_soft_blocked_apps": request["allow_soft_blocked_apps"],
         },
-    }
+}
+
+
+def _validate_pattern(value: object, targets: tuple[str, ...]) -> str:
+    """Validate the deliberately small, same-directory filename-glob contract."""
+    if not isinstance(value, str) or not value.startswith("/"):
+        raise PreferencesError("application pattern must be an absolute path")
+    directory, separator, basename = value.rpartition("/")
+    directory = directory or "/"
+    if not separator or not basename or not any(char in basename for char in "*?"):
+        raise PreferencesError("application pattern must contain a basename wildcard")
+    if "/" in basename or any(char in basename for char in _UNSAFE_PATTERN_CHARACTERS):
+        raise PreferencesError("application pattern contains unsupported characters")
+    if any(char.isspace() for char in directory) or any(
+            char in directory for char in _UNSAFE_PATTERN_CHARACTERS):
+        raise PreferencesError("application pattern directory cannot be represented safely")
+    resolved_directory = os.path.realpath(directory)
+    if not any(target.startswith("/") and os.path.dirname(os.path.realpath(target)) == resolved_directory
+               for target in targets):
+        raise PreferencesError("application pattern must share a directory with its target")
+    return f"{resolved_directory.rstrip('/')}/{basename}" if resolved_directory != "/" else f"/{basename}"
 
 
 def blocked_targets(preferences: dict, allow_soft: bool) -> tuple[str, ...]:
@@ -114,6 +142,16 @@ def blocked_targets(preferences: dict, allow_soft: bool) -> tuple[str, ...]:
                 entry["state"] == "conditional" and not allow_soft):
             targets.extend(entry["targets"])
     return tuple(sorted(set(targets)))
+
+
+def blocked_patterns(preferences: dict, allow_soft: bool) -> tuple[str, ...]:
+    """Return active native filename patterns using the same soft-block state."""
+    patterns = []
+    for entry in preferences["apps"].values():
+        if entry["state"] == "permanent" or (
+                entry["state"] == "conditional" and not allow_soft):
+            patterns.extend(entry["patterns"])
+    return tuple(sorted(set(patterns)))
 
 
 @dataclass

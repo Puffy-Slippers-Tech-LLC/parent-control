@@ -51,7 +51,7 @@ check:
 
 preview-kiosk:
 	# The preview watches kiosk assets and source files; no manual relaunch is needed.
-	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview --soundtrack "$(CURDIR)/data/Gearbox_Waltz.mp3"
 
 preview-parent:
 	# The preview watches parent source and CSS files; no backend or installation is needed.

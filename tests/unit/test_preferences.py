@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from oh_no_parent_control.preferences import (
-    PreferenceStore, PreferencesError, blocked_targets, default_preferences,
+    PreferenceStore, PreferencesError, blocked_patterns, blocked_targets, default_preferences,
     validate_preferences,
 )
 
@@ -22,12 +22,30 @@ class PreferenceTests(unittest.TestCase):
     def test_three_state_policy_computes_filters(self):
         value = default_preferences()
         value["apps"] = {
-            "hard.desktop": {"state": "permanent", "targets": ["/usr/bin/hard"]},
-            "soft.desktop": {"state": "conditional", "targets": ["org.example.Soft"]},
+            "hard.desktop": {"state": "permanent", "targets": ["/usr/bin/hard"], "patterns": []},
+            "soft.desktop": {"state": "conditional", "targets": ["org.example.Soft"], "patterns": []},
         }
         value = validate_preferences(value)
         self.assertEqual(blocked_targets(value, False), ("/usr/bin/hard", "org.example.Soft"))
         self.assertEqual(blocked_targets(value, True), ("/usr/bin/hard",))
+
+    def test_pattern_must_share_its_target_directory_and_follows_soft_state(self):
+        value = default_preferences()
+        value["apps"] = {
+            "lunar.desktop": {
+                "state": "conditional",
+                "targets": ["/home/child/Applications/Lunar Client-3.7.17.AppImage"],
+                "patterns": ["/home/child/Applications/Lunar Client-*.AppImage"],
+            },
+        }
+        normalized = validate_preferences(value)
+        self.assertEqual(blocked_patterns(normalized, False), (
+            "/home/child/Applications/Lunar Client-*.AppImage",
+        ))
+        self.assertEqual(blocked_patterns(normalized, True), ())
+        value["apps"]["lunar.desktop"]["patterns"] = ["/tmp/Lunar-*.AppImage"]
+        with self.assertRaisesRegex(PreferencesError, "share a directory"):
+            validate_preferences(value)
 
     def test_invalid_request_value_is_rejected(self):
         value = default_preferences()

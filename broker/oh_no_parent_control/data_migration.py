@@ -27,7 +27,18 @@ Validator = Callable[[object], object]
 
 # Once a migration has shipped it is part of the on-disk compatibility
 # contract. Never alter or remove an existing entry; append N -> N + 1 here.
-PREFERENCE_MIGRATIONS: dict[int, Migration] = {}
+def migrate_preferences_v1_to_v2(raw: dict[str, Any]) -> dict[str, Any]:
+    """Add the empty wildcard collection without altering prior policy."""
+    migrated = dict(raw)
+    migrated["version"] = 2
+    migrated["apps"] = {
+        desktop_id: {**entry, "patterns": []}
+        for desktop_id, entry in raw.get("apps", {}).items()
+    }
+    return migrated
+
+
+PREFERENCE_MIGRATIONS: dict[int, Migration] = {1: migrate_preferences_v1_to_v2}
 
 
 class MigrationError(RuntimeError):

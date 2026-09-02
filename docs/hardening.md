@@ -134,7 +134,7 @@ not decide product policy.
 
 ## Phase 0: freeze contracts and create seams
 
-### [ ] H-00 — Capture the reproducible baseline
+### [x] H-00 — Capture the reproducible baseline
 
 - **Depends on:** none
 - **Complexity:** S
@@ -161,7 +161,7 @@ Acceptance:
 - `make check` passes.
 - No production behavior changes.
 
-### [ ] H-01 — Codify the threat model and enforcement guarantees
+### [x] H-01 — Codify the threat model and enforcement guarantees
 
 - **Depends on:** H-00
 - **Complexity:** M
@@ -656,6 +656,12 @@ Acceptance:
 - **Recommended model:** `gpt-5.6-sol`, reasoning `xhigh`
 - **Activation:** none for test-only files
 - **Migration:** none
+
+Implementation note (2026-09-01): the guarded harness, deterministic guest
+provisioning, clean-install runner, artifact collector, destruction checks, and
+host-safe contract tests are implemented. The task remains unchecked until the
+clean-install acceptance run is performed on a disposable VM; it must not be
+performed on the development workstation.
 
 Actions:
 

@@ -36,6 +36,19 @@ class ProvisionTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "invalid language"):
             provision.accounts_service_language(user)
 
+    @mock.patch("tools.provision.subprocess.run")
+    def test_sets_kiosk_account_icon_to_the_packaged_app_logo(self, run):
+        user = SimpleNamespace(pw_uid=1002, pw_name="oh-no-parent-control")
+
+        provision.accounts_service_set_icon_file(user)
+
+        run.assert_called_once_with([
+            "busctl", "--system", "call", "org.freedesktop.Accounts",
+            "/org/freedesktop/Accounts/User1002",
+            "org.freedesktop.Accounts.User", "SetIconFile", "s",
+            "/usr/share/oh-no-parent-control/app_logo.png",
+        ], check=True)
+
 
 if __name__ == "__main__":
     unittest.main()

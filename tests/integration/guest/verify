@@ -1,0 +1,52 @@
+#!/bin/bash
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly CHECKOUT="/var/lib/oh-no-parent-control-integration/checkout"
+if (( $# != 1 )); then
+    echo "Usage: verify VM_NAME" >&2
+    exit 2
+fi
+readonly VM_NAME="$1"
+"$SCRIPT_DIR/guard.py" "$VM_NAME"
+
+grep -Fx -- "$VM_NAME" \
+    /var/lib/oh-no-parent-control-integration/platform-setup-complete >/dev/null
+grep -Fx -- "$VM_NAME" \
+    /var/lib/oh-no-parent-control-integration/run-complete >/dev/null
+"$SCRIPT_DIR/verify_packages.py" \
+    "$CHECKOUT/tests/integration/expected-packages.tsv"
+
+[[ "$(id -u onpc-admin)" == 2000 ]]
+[[ "$(id -u onpc-child)" == 2001 ]]
+[[ "$(id -u oh-no-parent-control)" == 2002 ]]
+[[ "$(id -u onpc-unrelated)" == 2003 ]]
+id -nG onpc-admin | tr ' ' '\n' | grep -Fx sudo >/dev/null
+for user in onpc-child oh-no-parent-control onpc-unrelated; do
+    if id -nG "$user" | tr ' ' '\n' | grep -Eq '^(sudo|adm)$'; then
+        echo "verify: $user unexpectedly has administrator groups" >&2
+        exit 1
+    fi
+done
+
+python3 - <<'PY'
+import json
+with open('/etc/oh-no-parent-control/config.json', encoding='utf-8') as stream:
+    config = json.load(stream)
+assert config['kiosk_uid'] == 2002
+PY
+
+for unit in accounts-daemon.service fapolicyd.service \
+        malcontent-timerd.service malcontent-timer-extension-agent.service \
+        oh-no-parent-control-broker.service; do
+    systemctl is-active --quiet "$unit"
+done
+
+busctl --system call com.puffyslippers.OhNoParentControl1 \
+    /com/puffyslippers/OhNoParentControl1 \
+    com.puffyslippers.OhNoParentControl1 ListManagedUsers >/dev/null
+test -s /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules
+test -s /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules
+pamtester gdm-password onpc-child acct_mgmt
+pamtester gdm-password onpc-unrelated acct_mgmt
+echo "Post-reboot clean-install verification passed."

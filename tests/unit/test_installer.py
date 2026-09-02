@@ -106,6 +106,24 @@ class InstallerTests(unittest.TestCase):
         self.assertIn('"root:sudo"', script)
         self.assertIn('"640"', script)
 
+    def test_product_artwork_is_installed_as_the_shared_desktop_icon(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        parent_entry = (
+            ROOT / "data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop"
+        ).read_text(encoding="utf-8")
+        kiosk_entry = (
+            ROOT / "data/wayland-sessions/oh-no-parent-control.desktop"
+        ).read_text(encoding="utf-8")
+
+        icon = "com.puffyslippers.OhNoParentControl"
+        self.assertIn(
+            "data/app_logo.png \"$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/"
+            f"{icon}.png\"",
+            makefile,
+        )
+        self.assertIn(f"Icon={icon}", parent_entry)
+        self.assertIn(f"Icon={icon}", kiosk_entry)
+
     def test_polkit_vendor_metadata_uses_shared_branding(self):
         policy = ROOT / "data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in"
         branding = ROOT / "data/brand.json"

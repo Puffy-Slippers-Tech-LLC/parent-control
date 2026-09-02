@@ -2,7 +2,7 @@
 Name=Oh No! Parent Control
 Comment=Manage parent controls for child accounts
 Exec=/usr/bin/oh-no-parent-control-parent
-Icon=preferences-system-parental-controls
+Icon=com.puffyslippers.OhNoParentControl
 Type=Application
 Categories=Settings;Security;
 Keywords=parental;control;children;apps;

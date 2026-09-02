@@ -101,6 +101,10 @@ The broker discovers launchers in the selected child's user XDG application
 directories as well as the system directories. It turns each direct launcher
 into the executable path (or Flatpak ref) used by Malcontent, so a per-user
 AppImage is both displayed and restricted using its actual executable path.
+When the parent saves an app policy, the broker resolves every selected desktop
+ID against the child's current launcher again before applying and persisting
+targets. This prevents an open parent window from saving a vanished executable
+path after an application replaces a versioned AppImage during an update.
 Malcontent supplies the supported GNOME launcher policy but does not mediate a
 trusted `.desktop` file opened directly from the desktop or Files. The broker
 therefore mirrors native executable targets from each live AccountsService

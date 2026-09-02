@@ -1,0 +1,79 @@
+#!/bin/bash
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if (( $# != 2 )); then
+    echo "Usage: setup VM_NAME CREDENTIALS_JSON" >&2
+    exit 2
+fi
+readonly VM_NAME="$1"
+readonly CREDENTIALS="$2"
+"$SCRIPT_DIR/guard.py" "$VM_NAME"
+
+if [[ ! "$CREDENTIALS" =~ ^/tmp/onpc-h50-credentials-[0-9a-f]{32}\.json$ ]] ||
+        [[ ! -f "$CREDENTIALS" ]]; then
+    echo "setup: credentials are not the expected per-VM upload" >&2
+    exit 1
+fi
+trap 'rm -f -- "$CREDENTIALS"' EXIT
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get -y full-upgrade
+apt-get install -y ubuntu-desktop flatpak make nodejs pamtester
+
+ensure_standard_user() {
+    local name="$1"
+    local uid="$2"
+    local comment="$3"
+    if id "$name" >/dev/null 2>&1; then
+        [[ "$(id -u "$name")" == "$uid" ]] || {
+            echo "setup: $name exists with the wrong UID" >&2
+            exit 1
+        }
+    else
+        useradd --create-home --user-group --uid "$uid" --comment "$comment" \
+            --shell /bin/bash "$name"
+    fi
+    usermod --comment "$comment" --shell /bin/bash "$name"
+    if id -nG "$name" | tr ' ' '\n' | grep -Eq '^(sudo|adm)$'; then
+        echo "setup: standard account $name unexpectedly has administrator groups" >&2
+        exit 1
+    fi
+}
+
+[[ "$(id -u onpc-admin)" == 2000 ]]
+usermod --append --groups adm,sudo --comment \
+    "Oh No Parent Control Test Administrator" onpc-admin
+ensure_standard_user onpc-child 2001 "Oh No Parent Control Test Child"
+ensure_standard_user oh-no-parent-control 2002 "Oh No Parent Control Test Kiosk"
+ensure_standard_user onpc-unrelated 2003 "Oh No Parent Control Unrelated User"
+
+python3 - "$CREDENTIALS" <<'PY' | chpasswd
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    values = json.load(stream)
+expected = {"onpc-admin", "onpc-child", "onpc-unrelated"}
+if set(values) != expected:
+    raise SystemExit("credential file has unexpected users")
+for user in sorted(expected):
+    password = values[user]
+    if not isinstance(password, str) or len(password) < 20 or "\n" in password or ":" in password:
+        raise SystemExit("credential file has an invalid password")
+    print(f"{user}:{password}")
+PY
+
+for user in onpc-admin onpc-child oh-no-parent-control onpc-unrelated; do
+    busctl --system call org.freedesktop.Accounts /org/freedesktop/Accounts \
+        org.freedesktop.Accounts CacheUser s "$user" >/dev/null
+done
+
+systemctl set-default graphical.target
+install -d -o root -g root -m 0700 /var/lib/oh-no-parent-control-integration
+printf '%s\n' "$VM_NAME" > /var/lib/oh-no-parent-control-integration/platform-setup-complete
+chmod 0600 /var/lib/oh-no-parent-control-integration/platform-setup-complete
+
+test ! -e /usr/libexec/oh-no-parent-control-broker
+echo "Ubuntu Desktop and deterministic test accounts are ready; product is not installed."

@@ -46,6 +46,10 @@ def activation_for(path: str) -> str:
         "usr/share/wayland-sessions/",
     )):
         return "session-renewal"
+    # GNOME Shell may retain an icon texture for the running session.  The next
+    # login reliably picks up a replacement without requiring a reboot.
+    if path.startswith("usr/share/icons/"):
+        return "session-renewal"
     if path in {
         "usr/libexec/oh-no-parent-control-broker",
         "usr/lib/systemd/system/oh-no-parent-control-broker.service",

@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly CHECKOUT="/var/lib/oh-no-parent-control-integration/checkout"
+if (( $# != 1 )); then
+    echo "Usage: run VM_NAME" >&2
+    exit 2
+fi
+readonly VM_NAME="$1"
+"$SCRIPT_DIR/guard.py" "$VM_NAME"
+
+grep -Fx -- "$VM_NAME" \
+    /var/lib/oh-no-parent-control-integration/platform-setup-complete >/dev/null
+test ! -e /usr/libexec/oh-no-parent-control-broker
+install -d -o root -g root -m 0700 /var/tmp/onpc-h50-results
+
+runuser -u onpc-admin -- env HOME=/home/onpc-admin \
+    make -C "$CHECKOUT" check 2>&1 | \
+    tee /var/tmp/onpc-h50-results/make-check.txt
+
+SUDO_USER=onpc-admin /bin/bash "$CHECKOUT/install.sh" 2>&1 | \
+    tee /var/tmp/onpc-h50-results/clean-install.txt
+
+"$SCRIPT_DIR/verify_packages.py" \
+    "$CHECKOUT/tests/integration/expected-packages.tsv" 2>&1 | \
+    tee /var/tmp/onpc-h50-results/package-matrix.txt
+
+printf '%s\n' "$VM_NAME" > /var/lib/oh-no-parent-control-integration/run-complete
+chmod 0600 /var/lib/oh-no-parent-control-integration/run-complete
+echo "Clean install completed. Reboot before final verification."

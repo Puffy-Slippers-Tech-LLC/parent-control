@@ -1,0 +1,9 @@
+# Package<TAB>exact supported Ubuntu 26.04 version
+ubuntu-desktop	1.570.2
+gnome-shell	50.1-0ubuntu1.2
+accountsservice	23.13.9-8ubuntu5.2
+malcontent	0.14.0-0ubuntu1.1
+fapolicyd	1.3.6-1
+flatpak	1.16.6-1
+libpam0g	1.7.0-5ubuntu3.1
+libpam-malcontent	0.14.0-0ubuntu1.1

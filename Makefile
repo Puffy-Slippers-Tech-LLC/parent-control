@@ -23,6 +23,7 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(SYSCONFDIR)/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
 	$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session \
 	$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop \
+	$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png \
 	$(DATADIR)/pam-configs/oh-no-parent-control-session-limits \
 	$(DATADIR)/pam-configs/oh-no-parent-control-kiosk-only \
 	$(SYSCONFDIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
@@ -106,9 +107,10 @@ _install-product-files:
 	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d"
 	install -m 0644 data/systemd/user/oh-no-parent-control-*.service "$(DESTDIR)$(SYSTEMD_USER_DIR)/"
 	install -m 0644 data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/"
-	install -d "$(DESTDIR)$(DATADIR)/gnome-session/sessions" "$(DESTDIR)$(DATADIR)/wayland-sessions" "$(DESTDIR)$(DATADIR)/applications"
+	install -d "$(DESTDIR)$(DATADIR)/gnome-session/sessions" "$(DESTDIR)$(DATADIR)/wayland-sessions" "$(DESTDIR)$(DATADIR)/applications" "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps"
 	install -m 0644 data/gnome-session/sessions/oh-no-parent-control.session "$(DESTDIR)$(DATADIR)/gnome-session/sessions/"
 	install -m 0644 data/wayland-sessions/oh-no-parent-control.desktop "$(DESTDIR)$(DATADIR)/wayland-sessions/"
+	install -m 0644 data/app_logo.png "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png"
 	install -m 0644 data/applications/com.puffyslippers.OhNoParentControl.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	# GNOME only indexes desktop entries the signed-in user can read.  The
 	# installer/package assigns this file to Ubuntu's administrator group.
@@ -132,7 +134,7 @@ uninstall:
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules"
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/89-oh-no-parent-control.rules" "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules"
 	rm -f "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-app.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-polkit-agent.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/session.conf"
-	rm -f "$(DESTDIR)$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session" "$(DESTDIR)$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.desktop" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.Parent.desktop"
+	rm -f "$(DESTDIR)$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session" "$(DESTDIR)$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop" "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.desktop" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.Parent.desktop"
 	rm -f "$(DESTDIR)$(DATADIR)/oh-no-parent-control/config.example.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/brand.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/company_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/com.puffyslippers.OhNoParentControl1.conf.in" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json"
 	rm -f "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/README.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/System-Design.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Package-Update.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Data-Migration.md"
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/oh-no-parent-control/config.json"

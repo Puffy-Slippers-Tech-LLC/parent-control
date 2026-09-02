@@ -379,6 +379,53 @@ class CoreTests(unittest.TestCase):
             (False, ("/usr/bin/game", "org.example.Game")),
         )
 
+    def test_saving_app_policy_refreshes_target_after_app_self_update(self):
+        accounts, preferences = Accounts(), Preferences()
+        value = preferences.load(1001)
+        value["apps"] = {
+            "lunarclient.desktop": {
+                "state": "conditional",
+                "targets": [
+                    "/home/child/Applications/Lunar Client-3.7.13.AppImage",
+                ],
+            },
+        }
+        catalog = lambda _user: ({
+            "id": "lunarclient.desktop",
+            "name": "Lunar Client",
+            "description": "Minecraft client",
+            "icon": "",
+            "targets": (
+                "/home/child/Applications/Lunar Client-3.7.17.AppImage",
+            ),
+        },)
+
+        saved = make_broker(
+            accounts=accounts, preferences=preferences,
+            application_catalog=catalog,
+        ).set_preferences(1003, 1001, value)
+
+        expected = "/home/child/Applications/Lunar Client-3.7.17.AppImage"
+        self.assertEqual(
+            saved["apps"]["lunarclient.desktop"]["targets"], [expected],
+        )
+        self.assertEqual(accounts.filter, (False, (expected,)))
+
+    def test_app_policy_refresh_preserves_policy_for_missing_launcher(self):
+        accounts, preferences = Accounts(), Preferences()
+        value = preferences.load(1001)
+
+        saved = make_broker(
+            accounts=accounts, preferences=preferences,
+            application_catalog=lambda _user: (),
+        ).set_preferences(1003, 1001, value)
+
+        self.assertEqual(saved["apps"], value["apps"])
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
+
     def test_app_policy_save_failure_restores_live_filter(self):
         class FailingPreferences(Preferences):
             def save(self, uid, value):

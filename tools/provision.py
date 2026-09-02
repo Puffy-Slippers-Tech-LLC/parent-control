@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 
 ADMIN_GROUPS = {"sudo", "adm"}
+KIOSK_ICON_FILE = "/usr/share/oh-no-parent-control/app_logo.png"
 
 
 def fail(message):
@@ -64,6 +65,15 @@ def accounts_service_language(user):
     return fields[1]
 
 
+def accounts_service_set_icon_file(user, icon_file=KIOSK_ICON_FILE):
+    """Make the kiosk account use the product's packaged artwork."""
+    subprocess.run([
+        "busctl", "--system", "call", "org.freedesktop.Accounts",
+        f"/org/freedesktop/Accounts/User{user.pw_uid}",
+        "org.freedesktop.Accounts.User", "SetIconFile", "s", icon_file,
+    ], check=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--kiosk-user", required=True)
@@ -98,6 +108,7 @@ def main():
     atomic_write(policy_path, policy.replace("@KIOSK_USER@", kiosk.pw_name), 0o644)
 
     if prefix == Path("/"):
+        accounts_service_set_icon_file(kiosk)
         language = ""
         if args.language_source_user:
             try:

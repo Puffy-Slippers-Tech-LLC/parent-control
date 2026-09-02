@@ -6,7 +6,7 @@ polkit.addRule(function(action, subject) {
 
 polkit.addAdminRule(function(action, subject) {
     if (action.id != "tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access" &&
-        action.id != "org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps")
+        action.id != "tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access")
         return null;
 
     var approver = action.lookup("approver-user");

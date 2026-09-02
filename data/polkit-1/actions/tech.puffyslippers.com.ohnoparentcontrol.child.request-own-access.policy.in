@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>@VENDOR_NAME@</vendor>
+  <action id="tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access">
+    <description>Authorize additional time and app access for a managed child</description>
+    <message>Grant $(target-account) $(requested-duration)$(soft-blocked-apps)?</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

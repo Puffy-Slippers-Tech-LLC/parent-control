@@ -33,6 +33,10 @@ are `process-restart`.
 The packaged fapolicyd fallback rule is also `process-restart`: broker startup
 regenerates the UID-scoped deny rules and asks fapolicyd to load the resulting
 aggregate before the broker begins serving requests.
+Polkit action definitions and administrator-selection rules are `none` because
+polkitd monitors both directories and loads their changes for subsequent
+authorization requests. A request-flow update can still require a broker
+restart or session renewal through its changed broker and child payload files.
 
 The package never clears `/run/reboot-required` or removes package names from
 `/run/reboot-required.pkgs`: either may have been created by Ubuntu or another

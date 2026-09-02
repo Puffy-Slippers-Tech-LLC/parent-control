@@ -457,7 +457,7 @@ class RequestForm {
                 seconds,
                 allowSoftBlockedApps,
                 untilEndOfDay,
-                approver[1]);
+                approver[0]);
             if (granted) {
                 saveRequestPreferences(
                     this._selected, this._lastCustomMinutes,

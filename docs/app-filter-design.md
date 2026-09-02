@@ -1,37 +1,24 @@
 # Single authorization for time and app access
 
-The request flow uses one custom Polkit meta-action which implies the two
-privileged backend actions:
+The child extension is an untrusted front end. It sends the selected approver
+UID, duration, and conditional-app choice to the root broker through
+`RequestOwnAccess`; it does not invoke Polkit or write AccountsService
+properties. The broker derives the target UID from the live system-bus caller,
+loads the canonical app policy, and validates the selected local administrator.
 
-- `com.endlessm.ParentalControls.SessionLimits.ChangeOwn`
-- `com.endlessm.ParentalControls.AppFilter.ChangeOwn`
+The broker then checks the dedicated
+`tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access` Polkit action
+for the child's unique system-bus subject. Because the broker is the trusted
+mechanism, it can supply the validated target, approver, duration, and
+app-relaxation details. The action uses `auth_admin`, has no implied
+AccountsService permissions, and retains no authorization in the child
+session.
 
-The GNOME Shell extension first checks
-`org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps` with user
-interaction enabled. It then writes `ActiveExtension` and `AppFilter` through
-AccountsService without `ALLOW_INTERACTIVE_AUTHORIZATION`, so only the
-meta-action can display an authentication dialog. `ActiveExtension` is replaced
-with `(approval time, requested duration)`.
-
-## Why the authorization is retained briefly
-
-Polkit evaluates an implied action by checking whether the same subject is
-currently authorized for the meta-action. A plain `auth_admin` result is not
-retained after the interactive check returns, so it cannot authorize the two
-subsequent D-Bus calls. The combined action therefore uses `auth_admin_keep`.
-
-The extension captures the temporary authorization ID and revokes it in a
-`finally` block immediately after the two backend operations finish. Polkit
-also scopes the authorization to the GNOME Shell system-bus subject. This gives
-the sequential operations one approval without leaving the combined grant
-active for Polkit's normal retention window.
-
-Both properties are changed on the same system-bus connection used for the
-combined check. This avoids Malcontent 0.14's delegated timer-agent check,
-which represents the caller as a different Polkit subject and cannot consume
-the combined authorization reliably. Every approved request derives and
-writes the app filter from the extension policy file; the live filter is not
-read back into that configuration.
+After approval, the broker revalidates the caller, both accounts, and the
+preference snapshot. It calculates the complete desired state, writes
+`AppFilter` and `ActiveExtension` as one verified root-owned transaction, and
+rolls back the prior state if any write or read-back fails. Only a verified
+commit is reported as approved.
 
 ## App-filter semantics
 
@@ -44,5 +31,5 @@ while hard blocked targets remain. When it is unchecked, both soft blocked and
 hard blocked targets remain blocked. Other apps are allowed by the blocklist
 automatically.
 
-The policy file must be installed under `/usr/share/polkit-1/actions/`; bundling
-it only with the user extension is not sufficient.
+The request action is installed under `/usr/share/polkit-1/actions/`, and its
+administrator-selection rule is installed under `/etc/polkit-1/rules.d/`.

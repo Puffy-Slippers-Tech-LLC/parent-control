@@ -4,14 +4,11 @@ import GLib from 'gi://GLib';
 
 import {AboutDialog} from './aboutDialog.js';
 import {listApprovers} from './approverClient.js';
-import {AppFilterClient} from './appFilterClient.js';
 import {appName} from './branding.js';
-import {getBlockedTargets, loadAppPolicy} from './appPolicyStore.js';
-import {ParentalApproval} from './parentalApproval.js';
 import {isPreview} from './previewMode.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
+import {requestOwnAccess} from './requestAccessClient.js';
 import {RequestPopover} from './requestDialog.js';
-import {SessionLimitsClient} from './sessionLimitsClient.js';
 import {refreshSharedPreferences} from './sharedPreferencesClient.js';
 import {logError, logInfo, logWarning} from './logger.js';
 
@@ -20,9 +17,6 @@ export default class OhNoParentControlExtension extends Extension {
         logInfo('extension enabled');
         this._preview = isPreview();
         this._appName = appName(this);
-        this._approval = this._preview ? null : new ParentalApproval();
-        this._appFilter = this._preview ? null : new AppFilterClient();
-        this._sessionLimits = this._preview ? null : new SessionLimitsClient();
         this._indicator = new RemainingTimeIndicator(
             sourceActor => this._showDialog(sourceActor),
             this._preview ? 45 * 60 : 0,
@@ -45,9 +39,6 @@ export default class OhNoParentControlExtension extends Extension {
         this._aboutDialog = null;
         this._indicator?.destroy();
         this._indicator = null;
-        this._approval = null;
-        this._appFilter = null;
-        this._sessionLimits = null;
         logInfo('extension disabled');
     }
 
@@ -71,7 +62,7 @@ export default class OhNoParentControlExtension extends Extension {
         logInfo('request dialog opened');
         const request = async (
             durationSeconds, allowSoftBlockedApps, untilEndOfDay = false,
-            approverUsername) => {
+            approverUid) => {
             if (this._preview) {
                 this._indicator?.showGrantedTime(durationSeconds);
                 return true;
@@ -79,41 +70,15 @@ export default class OhNoParentControlExtension extends Extension {
             logInfo(`requesting ${durationSeconds} seconds of ` +
                 (untilEndOfDay ? 'remaining time' : 'additional time'));
 
-            // Both privileged writes use the same AccountsService system-bus
-            // subject, so the combined meta-action authorizes them together.
-            const granted = await this._approval.withAuthorization(async () => {
-                let grantedDurationSeconds;
-                if (untilEndOfDay) {
-                    await this._sessionLimits.replaceActiveExtension(
-                        durationSeconds);
-                    grantedDurationSeconds = durationSeconds;
-                } else {
-                    grantedDurationSeconds =
-                        await this._sessionLimits.addActiveExtension(
-                            durationSeconds);
-                }
-
-                this._indicator?.showGrantedTime(grantedDurationSeconds);
-
-                try {
-                    const policy = loadAppPolicy();
-                    const blockedTargets = getBlockedTargets(
-                        policy, allowSoftBlockedApps);
-                    // The combined action implies this permission, so this
-                    // must never initiate another auth dialog.
-                    await this._appFilter.setBlockedTargets(blockedTargets);
-                    logInfo(`applied ${blockedTargets.length} app restrictions`);
-                } catch (error) {
-                    // A time grant must remain successful even if the
-                    // optional app-filter update fails.
-                    logWarning(`app filter update failed: ${error.message}`);
-                }
-
-                return true;
-            }, approverUsername);
-
-            logInfo(`request ${granted ? 'approved' : 'rejected'}`);
-            return granted;
+            const result = await requestOwnAccess(
+                approverUid,
+                untilEndOfDay ? 0 : durationSeconds,
+                allowSoftBlockedApps);
+            logInfo(`request=${result.correlationId} outcome=${result.outcome}`);
+            if (result.outcome !== 'approved')
+                return false;
+            this._indicator?.showGrantedTime(result.grantedDurationSeconds);
+            return true;
         };
         this._dialog = new RequestPopover(
             request, sourceActor, action => this._showAbout(action), this._appName);

@@ -48,6 +48,14 @@ INTROSPECTION_XML = f"""
       <arg name="correlation_id" type="s" direction="out"/>
       <arg name="result_code" type="s" direction="out"/>
     </method>
+    <method name="RequestOwnAccess">
+      <arg name="approver_uid" type="u" direction="in"/>
+      <arg name="duration_seconds" type="u" direction="in"/>
+      <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
+      <arg name="correlation_id" type="s" direction="out"/>
+      <arg name="result_code" type="s" direction="out"/>
+      <arg name="granted_duration_seconds" type="u" direction="out"/>
+    </method>
     <method name="GetPreferences">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="out"/>
@@ -135,9 +143,8 @@ class Service:
             self._sync_execution_policy_after_signal()
 
     def _app_filter_changed(self, *_args):
-        # The child approval flow writes its own AppFilter after Polkit
-        # authorization. Mirror that supported AccountsService change too,
-        # rather than only tracking writes initiated by this broker.
+        # Mirror supported AccountsService changes regardless of which broker
+        # transaction or administrator operation initiated them.
         threading.Thread(
             target=self._sync_execution_policy_after_signal,
             daemon=True,
@@ -176,6 +183,14 @@ class Service:
                     target=self._request_worker,
                     args=(invocation, caller_uid, sender, target_uid,
                           approver_uid, duration_seconds, allow_soft),
+                    daemon=True,
+                ).start()
+            elif method == "RequestOwnAccess":
+                approver_uid, duration_seconds, allow_soft = parameters.unpack()
+                threading.Thread(
+                    target=self._request_own_worker,
+                    args=(invocation, caller_uid, sender, approver_uid,
+                          duration_seconds, allow_soft),
                     daemon=True,
                 ).start()
             elif method == "GetPreferences":
@@ -264,9 +279,29 @@ class Service:
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )
 
+    def _request_own_worker(self, invocation, caller_uid, sender,
+                            approver_uid, duration_seconds, allow_soft):
+        try:
+            result = self.broker.request_own_access(
+                caller_uid, sender, approver_uid, duration_seconds, allow_soft,
+            )
+            GLib.idle_add(self._return_own_value, invocation, result)
+        except BrokerError as error:
+            GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
+        except Exception:
+            logging.exception("[oh-no-parent-control] own request failed")
+            GLib.idle_add(
+                self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
+            )
+
     @staticmethod
     def _return_value(invocation, result):
         invocation.return_value(GLib.Variant("(ss)", result))
+        return GLib.SOURCE_REMOVE
+
+    @staticmethod
+    def _return_own_value(invocation, result):
+        invocation.return_value(GLib.Variant("(ssu)", result))
         return GLib.SOURCE_REMOVE
 
     @staticmethod

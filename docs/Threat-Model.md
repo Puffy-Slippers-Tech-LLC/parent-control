@@ -141,10 +141,9 @@ The following are release blockers, not acceptable limitations:
 - CVE-2026-44931 remains exploitable on the selected supported package; or
 - the required clean-VM matrix has not passed for the release.
 
-Known current gaps are tracked rather than hidden: the child extension still
-performs direct AccountsService writes under a temporarily retained implied
-Polkit authorization until H-11/H-12 replace that path; fapolicyd availability
-is still coupled to broker startup until H-22/H-30; backend drift reconciliation
+Known current gaps are tracked rather than hidden: live VM coverage of the
+broker-mediated child request remains part of H-51; fapolicyd availability is
+still coupled to broker startup until H-22/H-30; backend drift reconciliation
 and health reporting await H-20 through H-22; and no automated live VM harness
 exists until H-50.  These are hardening work items, not completed guarantees.
 

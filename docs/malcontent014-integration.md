@@ -6,7 +6,7 @@ Shell's installed D-Bus interface use. Live system-bus introspection is blocked
 in the development sandbox; that limitation is recorded in
 `evidence/20260828T201750Z/`.
 
-## Child request API
+## Malcontent request API considered
 
 - Bus name: `org.freedesktop.MalcontentTimer1`
 - Object path: `/org/freedesktop/MalcontentTimer1`
@@ -21,19 +21,20 @@ in the development sandbox; that limitation is recorded in
 For a device/session request, record type is `login-session` and identifier is
 empty. Positive durations are arbitrary seconds. Duration zero asks the
 extension agent to choose a duration (typically until the end of today), but
-does not guarantee that result. The extension calculates the exact duration
-to the next local midnight for its “Rest of the day” choice and sends that
-positive value.
+does not guarantee that result. The product does not use this method for its
+combined time/app request because it cannot make that operation one
+broker-verified transaction.
 
 An approved positive duration replaces the active extension beginning at the
 approval time; it does not add to a previous active extension. Unused daily
 allowance remains valid, so Malcontent permits access until the later of the
-daily-allowance expiry and the active-extension expiry. “Rest of the day” is
-sent as the already-calculated interval to local midnight.
+daily-allowance expiry and the active-extension expiry. For “Rest of the day,”
+the product broker calculates the exact interval to the next local midnight
+after approval and writes that positive duration directly to `ActiveExtension`.
 
 The product's minute choices are explicitly additional time. Before writing a
-new `ActiveExtension`, the child queries `GetEstimatedTimes` and sends the live
-remainder to the product broker's shared calculation:
+new `ActiveExtension`, the broker queries usage through the authenticated
+parent identity and applies its shared calculation:
 
 ```text
 max(Daily allowance remaining, One-time grant remaining)
@@ -45,28 +46,15 @@ remaining writes a 37-minute active extension. The parent status row and kiosk
 request flow use the same broker-owned function. This conversion is not applied
 to “Rest of the day”, which remains an absolute expiry choice.
 
-The request originates from the restricted user's system-bus connection. The
-daemon identifies the caller and forwards it to
-`org.freedesktop.MalcontentTimer1.ExtensionAgent` at
-`/org/freedesktop/MalcontentTimer1/ExtensionAgent`. The packaged extension
-agent requests the existing Polkit action
-`org.freedesktop.Malcontent.SessionLimits.Extend`. The extension neither grants
-time nor changes stored policy.
+The extension calls the product broker's `RequestOwnAccess` method. The broker
+uses the extension's unique system-bus name only as the Polkit subject and
+derives the target UID from its authenticated caller credentials. After one
+non-retained product-action approval, the broker writes the documented
+`ActiveExtension` property `(tu)` and the app filter as root, verifies both,
+and rolls back both on failure. No Malcontent permission is implied or retained
+in the child session.
 
-The extension's combined time/app request cannot use `RequestExtension`
-non-interactively: Malcontent 0.14 delegates its Polkit check to a separate
-agent using a forwarded pidfd subject, which does not reliably consume a
-temporary meta-action authorization created for the Shell's system-bus
-subject. Making it interactive would add a second authentication dialog.
-
-Instead, the combined action temporarily implies the two AccountsService
-permissions `SessionLimits.ChangeOwn` and `AppFilter.ChangeOwn`. After the one
-interactive combined check, the extension replaces the documented
-`ActiveExtension` property `(tu)` with `(approval time, selected duration)` and
-optionally writes the app filter. Both writes are non-interactive and originate
-from the same GNOME Shell system-bus subject.
-
-After a combined AccountsService write, the extension relies on Malcontent's
+After a broker-owned AccountsService write, the extension relies on Malcontent's
 supported `EstimatedTimesChanged` signal and `GetEstimatedTimes` query. It does
 not change GNOME Shell's private time-limit state or attach to the native lock
 screen request flow.

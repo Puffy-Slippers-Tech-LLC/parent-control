@@ -30,6 +30,32 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn('if (this._preview) {', extension)
         self.assertIn('if (isPreview())', preferences)
 
+    def test_live_request_is_one_broker_owned_transaction(self):
+        extension = (ROOT / "child" / "extension.js").read_text()
+        client = (ROOT / "child" / "requestAccessClient.js").read_text()
+        makefile = (ROOT / "Makefile").read_text()
+        extension_sources = next(
+            line for line in makefile.splitlines()
+            if line.startswith("EXTENSION_SOURCES :=")
+        )
+
+        self.assertIn("requestOwnAccess", extension)
+        self.assertIn("'RequestOwnAccess'", client)
+        self.assertIn("new GLib.Variant('(uub)'", client)
+        self.assertIn("const REQUEST_TIMEOUT_MS = 0x7fffffff;", client)
+        self.assertNotIn("GLib.MAXINT", client)
+        self.assertIn("requestAccessClient.js", makefile)
+        for obsolete in (
+            "appFilterClient.js",
+            "parentalApproval.js",
+            "sessionLimitsClient.js",
+        ):
+            self.assertNotIn(obsolete, extension_sources)
+            self.assertFalse((ROOT / "child" / obsolete).exists())
+
+        self.assertNotIn("org.freedesktop.Accounts", extension)
+        self.assertNotIn("Polkit", extension)
+
     def test_preview_lists_two_mock_approvers(self):
         source = (ROOT / "child" / "approverClient.js").read_text()
 

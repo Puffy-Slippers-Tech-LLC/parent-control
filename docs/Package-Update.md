@@ -30,6 +30,9 @@ session units, and GNOME session descriptors are `session-renewal`, because an
 existing graphical session cannot load their replacement safely but the machine
 does not need to reboot. Broker code, its systemd unit, and its D-Bus contract
 are `process-restart`.
+The packaged fapolicyd fallback rule is also `process-restart`: broker startup
+regenerates the UID-scoped deny rules and asks fapolicyd to load the resulting
+aggregate before the broker begins serving requests.
 
 The package never clears `/run/reboot-required` or removes package names from
 `/run/reboot-required.pkgs`: either may have been created by Ubuntu or another

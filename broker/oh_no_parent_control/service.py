@@ -15,10 +15,14 @@ gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
 from . import config
-from .adapters import AccountsService, CallerCredentials, PolkitAuthorizer, TimerUsage
+from .adapters import (
+    ACCOUNTS_NAME, APP_FILTER_INTERFACE, PROPERTIES_INTERFACE,
+    AccountsService, CallerCredentials, PolkitAuthorizer, TimerUsage,
+)
 from .catalog import list_apps
 from .core import Broker, BrokerError, InvalidRequest
 from .extension_manager import ExtensionManager
+from .execution_policy import FapolicydPolicy
 from .logs import DailyLogWriter, configure_broker_logging
 from .preferences import PreferenceStore
 
@@ -99,15 +103,40 @@ class Service:
     def __init__(self, connection, log_writer):
         self.connection = connection
         self.credentials = CallerCredentials(connection)
+        self.accounts = AccountsService(connection, FapolicydPolicy())
+        # Rules persist across broker restarts, then are reconciled against
+        # AccountsService before accepting calls so deleted or changed users
+        # cannot inherit stale execution policy.
+        self.accounts.sync_execution_policy()
         self.broker = Broker(
             lambda: config.load(CONFIG_PATH), PolkitAuthorizer(connection),
-            AccountsService(connection), PreferenceStore(), ExtensionManager(),
+            self.accounts, PreferenceStore(), ExtensionManager(),
             TimerUsage(connection),
             application_catalog=list_apps,
             caller_alive=self.credentials.alive,
         )
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
         self.log_writer = log_writer
+        self._app_filter_signal_id = self.connection.signal_subscribe(
+            ACCOUNTS_NAME, PROPERTIES_INTERFACE, "PropertiesChanged",
+            None, APP_FILTER_INTERFACE, Gio.DBusSignalFlags.NONE,
+            self._app_filter_changed,
+        )
+
+    def _app_filter_changed(self, *_args):
+        # The child approval flow writes its own AppFilter after Polkit
+        # authorization. Mirror that supported AccountsService change too,
+        # rather than only tracking writes initiated by this broker.
+        threading.Thread(
+            target=self._sync_execution_policy_after_signal,
+            daemon=True,
+        ).start()
+
+    def _sync_execution_policy_after_signal(self):
+        try:
+            self.accounts.sync_execution_policy()
+        except Exception:
+            logging.exception("app execution policy signal sync failed")
 
     def register(self):
         self.connection.register_object(

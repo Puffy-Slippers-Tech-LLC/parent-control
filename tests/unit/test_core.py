@@ -293,7 +293,10 @@ class CoreTests(unittest.TestCase):
 
         self.assertEqual(accounts.limit_type, 2)
         self.assertEqual(accounts.daily_limit, 7200)
-        self.assertEqual(accounts.filter, (False, ("old.App",)))
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
         self.assertEqual(accounts.extension, (0, 0))
 
     def test_disabling_daily_limit_removes_only_time_restrictions(self):
@@ -308,7 +311,10 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(saved["daily_time_limit_minutes"], 90)
         self.assertEqual(accounts.limit_type, 0)
         self.assertEqual(accounts.daily_limit, 0)
-        self.assertEqual(accounts.filter, (False, ("old.App",)))
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
         self.assertEqual(accounts.extension, (0, 0))
         self.assertEqual(extensions.calls, [(1001, False)])
 
@@ -341,7 +347,7 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(accounts.events, [])
         self.assertEqual(extensions.calls, [])
 
-    def test_changing_daily_limit_preserves_active_grant_and_filter(self):
+    def test_changing_daily_limit_preserves_active_grant_and_reapplies_filter(self):
         accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
         preferences.values[1001]["parent_control_enabled"] = True
 
@@ -351,7 +357,10 @@ class CoreTests(unittest.TestCase):
 
         self.assertEqual(saved["daily_time_limit_minutes"], 1440)
         self.assertEqual(accounts.daily_limit, 24 * 60 * 60)
-        self.assertEqual(accounts.filter, (False, ("old.App",)))
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
         self.assertEqual(accounts.extension, (1, 2))
         self.assertEqual(extensions.calls, [])
 
@@ -385,8 +394,9 @@ class CoreTests(unittest.TestCase):
 
         self.assertEqual(accounts.filter, (False, ("old.App",)))
 
-    def test_toggling_daily_limit_does_not_replace_applied_app_filter(self):
+    def test_disabling_daily_limit_reapplies_saved_app_filter(self):
         accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
+        # A prior one-off extension allowed soft-blocked applications.
         accounts.filter = (False, ("org.example.Game",))
         broker = make_broker(
             accounts=accounts, preferences=preferences, extensions=extensions,
@@ -395,7 +405,10 @@ class CoreTests(unittest.TestCase):
         broker.set_parent_control(1003, 1001, True, 60)
         broker.set_parent_control(1003, 1001, False, 60)
 
-        self.assertEqual(accounts.filter, (False, ("org.example.Game",)))
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
 
     def test_child_and_kiosk_share_request_menu_values(self):
         preferences = Preferences()

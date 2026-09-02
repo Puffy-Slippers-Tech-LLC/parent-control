@@ -13,6 +13,7 @@ if [ "$1" = configure ]; then
     /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"
     systemctl daemon-reload >/dev/null || true
     systemctl reload dbus.service >/dev/null || true
+    systemctl enable --now fapolicyd.service >/dev/null
 
     pending=/var/lib/oh-no-parent-control/package-activation-pending
     if [ -f "$pending" ]; then

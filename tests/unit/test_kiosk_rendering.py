@@ -7,6 +7,18 @@ KIOSK_MAIN = ROOT / "kiosk/oh_no_parent_control_kiosk/main.py"
 
 
 class KioskRenderingTests(unittest.TestCase):
+    def test_production_kiosk_plays_the_packaged_soundtrack_on_a_loop(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+
+        self.assertIn('gi.require_version("Gst", "1.0")', source)
+        self.assertIn('class BackgroundMusic:', source)
+        self.assertIn('Path(__file__).with_name("Gearbox_Waltz.mp3")', source)
+        self.assertIn('self._bus.connect("message::eos", self._restart)', source)
+        self.assertIn('Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT', source)
+        self.assertIn('self._music = None if preview else BackgroundMusic()', source)
+        self.assertIn('self._music.start()', source)
+        self.assertIn('self._music.close()', source)
+
     def test_preview_uses_the_production_window_without_privileged_services(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 

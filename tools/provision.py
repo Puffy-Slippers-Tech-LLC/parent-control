@@ -107,11 +107,15 @@ def main():
             if language_source.pw_uid == 0:
                 fail("language source account must not be root")
             language = accounts_service_language(language_source)
-        subprocess.run([
-            "busctl", "--system", "call", "org.freedesktop.Accounts",
-            f"/org/freedesktop/Accounts/User{kiosk.pw_uid}",
-            "org.freedesktop.Accounts.User", "SetLanguage", "s", language,
-        ], check=True)
+        # AccountsService rejects an empty SetLanguage value on current
+        # Ubuntu releases.  An empty source language means "use the machine
+        # default", which is already the account's state, so leave it alone.
+        if language:
+            subprocess.run([
+                "busctl", "--system", "call", "org.freedesktop.Accounts",
+                f"/org/freedesktop/Accounts/User{kiosk.pw_uid}",
+                "org.freedesktop.Accounts.User", "SetLanguage", "s", language,
+            ], check=True)
         subprocess.run([
             "busctl", "--system", "set-property", "org.freedesktop.Accounts",
             f"/org/freedesktop/Accounts/User{kiosk.pw_uid}",

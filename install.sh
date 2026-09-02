@@ -81,10 +81,14 @@ add-apt-repository -y universe
 "${apt_get[@]}" install -y \
     accountsservice \
     dbus-user-session \
+    fapolicyd \
     gdm3 \
     gir1.2-adw-1 \
+    gir1.2-gstreamer-1.0 \
     gir1.2-gtk-4.0 \
     gnome-kiosk \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-ugly \
     libpam-malcontent \
     mate-polkit-bin \
     make \
@@ -145,6 +149,7 @@ systemd-sysusers
 systemctl daemon-reload
 systemctl reload dbus.service
 systemctl enable --now \
+    fapolicyd.service \
     malcontent-timerd.service \
     malcontent-timer-extension-agent.service
 
@@ -240,7 +245,9 @@ test -x /usr/libexec/oh-no-parent-control-query-usage
 test -x /usr/libexec/oh-no-parent-control-provision
 test -x /usr/libexec/oh-no-parent-control-preserve-extension-state
 test -x /usr/libexec/oh-no-parent-control-session-limit-check
+test -s /usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/Gearbox_Waltz.mp3
 test -s /etc/oh-no-parent-control/config.json
+test -s /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules
 test -s /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
 test -s /usr/share/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy
 test -s /usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy
@@ -293,9 +300,11 @@ if [[ -n "$INSTALLER_USER" ]]; then
         org.freedesktop.Accounts.User Language)"
 fi
 systemctl is-enabled --quiet malcontent-timerd.service
+systemctl is-enabled --quiet fapolicyd.service
 systemctl is-enabled --quiet malcontent-timer-extension-agent.service
 systemctl is-enabled --quiet oh-no-parent-control-restore-extension-state.service
 systemctl is-active --quiet malcontent-timerd.service
+systemctl is-active --quiet fapolicyd.service
 systemctl is-active --quiet malcontent-timer-extension-agent.service
 systemctl is-active --quiet oh-no-parent-control-broker.service
 

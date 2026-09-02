@@ -18,8 +18,9 @@ gi.require_version("Adw", "1")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Graphene", "1.0")
 gi.require_version("Gsk", "4.0")
+gi.require_version("Gst", "1.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gst, Gtk
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
 
@@ -133,6 +134,44 @@ class BrokerLogHandler(logging.Handler):
             )
         except Exception:
             self._connection = None
+
+
+class BackgroundMusic:
+    """Keep the kiosk soundtrack playing for the lifetime of its window."""
+
+    def __init__(self):
+        Gst.init(None)
+        self._player = Gst.ElementFactory.make("playbin")
+        if self._player is None:
+            raise RuntimeError("GStreamer playbin is unavailable")
+        track = Gio.File.new_for_path(
+            str(Path(__file__).with_name("Gearbox_Waltz.mp3")),
+        )
+        self._player.set_property("uri", track.get_uri())
+        self._bus = self._player.get_bus()
+        self._bus.add_signal_watch()
+        self._bus.connect("message::eos", self._restart)
+        self._bus.connect("message::error", self._error)
+
+    def start(self):
+        self._player.set_state(Gst.State.PLAYING)
+
+    def close(self):
+        self._bus.remove_signal_watch()
+        self._player.set_state(Gst.State.NULL)
+
+    def _restart(self, _bus, _message):
+        """Seek to the start after each completed track."""
+        self._player.seek_simple(
+            Gst.Format.TIME,
+            Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT,
+            0,
+        )
+        self._player.set_state(Gst.State.PLAYING)
+
+    @staticmethod
+    def _error(_bus, _message):
+        LOG.warning("kiosk background music playback failed")
 
 
 class GatewayBackground(Gtk.Widget):
@@ -720,10 +759,19 @@ class RequestWindow(Adw.ApplicationWindow):
         self._success_logout_source_id = None
         self._system_bus = None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
         self._build()
+        self._music = None if preview else BackgroundMusic()
+        if self._music is not None:
+            self._music.start()
+        self.connect("destroy", self._stop_music)
         LOG.info("request station window initialized")
         if not preview:
             self.connect("map", lambda *_args: self.fullscreen())
         self._load_users()
+
+    def _stop_music(self, *_args):
+        if self._music is not None:
+            self._music.close()
+            self._music = None
 
     def _build(self):
         self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)

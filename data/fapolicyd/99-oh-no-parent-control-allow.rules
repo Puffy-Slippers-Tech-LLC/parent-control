@@ -1,0 +1,4 @@
+# Oh No! Parent Control adds explicit per-user denies before this fallback.
+# Leave unrelated execution and file access unchanged unless an administrator
+# has installed an earlier fapolicyd policy of their own.
+allow perm=any all : all

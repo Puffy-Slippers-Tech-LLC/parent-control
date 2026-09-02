@@ -7,6 +7,7 @@ import os
 import pwd
 import subprocess
 import tempfile
+import threading
 
 import gi
 
@@ -119,8 +120,10 @@ class PolkitAuthorizer:
 
 
 class AccountsService:
-    def __init__(self, connection):
+    def __init__(self, connection, execution_policy=None):
         self.connection = connection
+        self._execution_policy = execution_policy
+        self._execution_policy_lock = threading.RLock()
 
     def _user_path(self, uid: int) -> str:
         reply = _call(
@@ -197,6 +200,18 @@ class AccountsService:
         allowlist, targets = value
         self._set(target_uid, APP_FILTER_INTERFACE, "AppFilter",
                   GLib.Variant("(bas)", (allowlist, list(targets))))
+        self.sync_execution_policy()
+
+    def sync_execution_policy(self) -> None:
+        """Make native execution rules match every current app blocklist."""
+        if self._execution_policy is None:
+            return
+        with self._execution_policy_lock:
+            filters = {}
+            for user in self.list_users():
+                allowlist, targets = self.get_filter(user.uid)
+                filters[user.uid] = () if allowlist else targets
+            self._execution_policy.reconcile(filters)
 
     def get_extension(self, target_uid: int) -> tuple[int, int]:
         grant_time, duration = self._get(

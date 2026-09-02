@@ -35,6 +35,18 @@ class InstallerTests(unittest.TestCase):
         )
         self.assertIn("python3-gi-cairo", runtime_dependencies.split(", "))
 
+    def test_execution_policy_daemon_and_fallback_rule_are_installed(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+        control = (ROOT / "debian/control").read_text(encoding="utf-8")
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+
+        self.assertIn("    fapolicyd \\\n", script)
+        self.assertIn("fapolicyd", next(
+            line for line in control.splitlines() if line.startswith("Depends: ")
+        ).split(", "))
+        self.assertIn("data/fapolicyd/99-oh-no-parent-control-allow.rules", makefile)
+        self.assertIn("systemctl is-active --quiet fapolicyd.service", script)
+
     def test_interrupted_dpkg_state_is_recovered_before_apt_runs(self):
         script = INSTALLER.read_text(encoding="utf-8")
 
@@ -58,6 +70,26 @@ class InstallerTests(unittest.TestCase):
         self.assertIn(
             "kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg", makefile,
         )
+
+    def test_kiosk_music_and_its_playback_dependencies_are_packaged(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        script = INSTALLER.read_text(encoding="utf-8")
+        control = (ROOT / "debian/control").read_text(encoding="utf-8")
+
+        self.assertTrue((ROOT / "data/Gearbox_Waltz.mp3").is_file())
+        self.assertIn("data/Gearbox_Waltz.mp3", makefile)
+        self.assertIn(
+            "test -s /usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/"
+            "Gearbox_Waltz.mp3",
+            script,
+        )
+        for dependency in (
+            "gir1.2-gstreamer-1.0",
+            "gstreamer1.0-plugins-base",
+            "gstreamer1.0-plugins-ugly",
+        ):
+            self.assertIn(f"    {dependency} \\\n", script)
+            self.assertIn(dependency, control)
 
     def test_parent_launcher_is_only_readable_by_administrators(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")

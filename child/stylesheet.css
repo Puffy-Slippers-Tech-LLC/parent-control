@@ -76,13 +76,14 @@
 
 .oh-no-parent-control-content {
   spacing: 16px;
+  /* The approver label is populated asynchronously. Keep that refresh from
+   * changing the popover's measured width after it is shown. */
+  width: 350px;
   min-width: 350px;
   padding: 6px;
 }
 
 .oh-no-parent-control-about-logo {
-  width: 128px;
-  height: 128px;
   margin-bottom: 12px;
 }
 

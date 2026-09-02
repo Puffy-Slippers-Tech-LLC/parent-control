@@ -105,8 +105,6 @@ class AboutDialog(Gtk.Window):
                           margin_start=24, margin_end=24)
 
         logo = Gtk.Picture.new_for_filename(str(branding_asset_path("app_logo.png")))
-        logo.set_size_request(150, 150)
-        logo.set_content_fit(Gtk.ContentFit.CONTAIN)
         logo.set_halign(Gtk.Align.CENTER)
         logo.set_margin_top(16)
         content.append(logo)

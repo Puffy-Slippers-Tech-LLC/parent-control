@@ -1,9 +1,10 @@
 import unittest
 import inspect
 from pathlib import Path
+from unittest import mock
 
 from parent.oh_no_parent_control_parent.main import (
-    APPLICATION_ICON_NAME, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _duration_label, _minutes_label,
+    APPLICATION_ICON_NAME, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _duration_label, _minutes_label,
     _time_status_subtitle,
 )
 
@@ -386,6 +387,11 @@ class ParentWindowTests(unittest.TestCase):
 
         window = type("WindowHarness", (), {})()
         window._time_status_loading = True
+        window._time_status_refresh_pending = False
+        window._time_status_retry_id = 0
+        window._time_status_retry_count = 0
+        window._cancel_time_status_retry = lambda: None
+        window._load_pending_time_status_refresh = lambda: None
         window._selected_uid = lambda: 1001
         window._time_status_value = Label()
         window._time_operand_values = [Label(), Label(), Label(), Label()]
@@ -408,6 +414,72 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(window._remaining_time_seconds, 0)
         self.assertFalse(window._revoke.sensitive)
+
+    def test_transient_time_status_failure_retries_before_showing_unavailable(self):
+        class Label:
+            def __init__(self, label):
+                self.label = label
+
+            def set_label(self, label):
+                self.label = label
+
+        window = type("WindowHarness", (), {
+            "_retry_time_status": ParentWindow._retry_time_status,
+        })()
+        window._time_status_loading = True
+        window._time_status_refresh_pending = False
+        window._time_status_retry_id = 0
+        window._time_status_retry_count = 0
+        window._selected_uid = lambda: 1001
+        window._time_status_value = Label("59 minutes")
+        window._time_operand_values = [Label("59m") for _index in range(4)]
+        window._load_time_status = mock.Mock()
+
+        with mock.patch(
+            "parent.oh_no_parent_control_parent.main.GLib.timeout_add_seconds",
+            return_value=73,
+        ) as timeout_add:
+            ParentWindow._time_status_failed(window, 1001, RuntimeError("busy"))
+
+        self.assertEqual(window._time_status_value.label, "59 minutes")
+        self.assertEqual(window._time_status_retry_id, 73)
+        retry_callback = timeout_add.call_args.args[1]
+        self.assertEqual(retry_callback(), 0)
+        window._load_time_status.assert_called_once_with(retry=True)
+
+    def test_time_status_failure_shows_unavailable_after_bounded_retries(self):
+        class Label:
+            def __init__(self):
+                self.label = "value"
+
+            def set_label(self, label):
+                self.label = label
+
+        window = type("WindowHarness", (), {})()
+        window._time_status_loading = True
+        window._time_status_refresh_pending = False
+        window._time_status_retry_id = 0
+        window._time_status_retry_count = MAX_TIME_STATUS_RETRIES
+        window._selected_uid = lambda: 1001
+        window._time_status_value = Label()
+        window._time_operand_values = [Label() for _index in range(4)]
+
+        ParentWindow._time_status_failed(window, 1001, RuntimeError("busy"))
+
+        self.assertEqual(window._time_status_value.label, "Unavailable")
+        self.assertEqual(
+            [label.label for label in window._time_operand_values], ["—"] * 4,
+        )
+
+    def test_overlapping_time_status_refresh_is_coalesced(self):
+        window = type("WindowHarness", (), {})()
+        window._time_status_loading = True
+        window._time_status_refresh_pending = False
+        window._selected_uid = lambda: 1001
+
+        ParentWindow._load_time_status(window)
+
+        self.assertTrue(window._time_status_refresh_pending)
 
     def test_loading_users_loads_initial_selection_once(self):
         window = ParentWindowHarness()

@@ -67,6 +67,8 @@ CONTENT_MAX_WIDTH = 1046
 # window at that natural content width rather than showing a wide empty gutter
 # around the clamped column.
 DEFAULT_WINDOW_WIDTH = CONTENT_MAX_WIDTH + 2 * 24
+TIME_STATUS_RETRY_DELAY_SECONDS = 1
+MAX_TIME_STATUS_RETRIES = 3
 PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
 PREVIEW_PREFERENCES = {
     1001: {
@@ -225,6 +227,9 @@ class ParentWindow(Adw.ApplicationWindow):
         self._pending_saves = []
         self._restore_preferences_uid = None
         self._time_status_loading = False
+        self._time_status_refresh_pending = False
+        self._time_status_retry_id = 0
+        self._time_status_retry_count = 0
         self._remaining_time_seconds = None
         self._build()
         self._time_status_refresh_id = GLib.timeout_add_seconds(
@@ -1020,10 +1025,16 @@ class ParentWindow(Adw.ApplicationWindow):
                  len(preferences["apps"]))
         self._load_time_status()
 
-    def _load_time_status(self):
+    def _load_time_status(self, *, retry=False):
         uid = self._selected_uid()
-        if uid is None or self._time_status_loading:
+        if uid is None:
             return
+        if self._time_status_loading:
+            self._time_status_refresh_pending = True
+            return
+        if not retry:
+            self._cancel_time_status_retry()
+            self._time_status_retry_count = 0
         self._time_status_loading = True
         self._run(
             lambda: self._client.get_time_status(uid),
@@ -1033,7 +1044,10 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _time_status_loaded(self, uid, status):
         self._time_status_loading = False
+        self._cancel_time_status_retry()
+        self._time_status_retry_count = 0
         if uid != self._selected_uid():
+            self._time_status_refresh_pending = False
             self._load_time_status()
             return
         self._remaining_time_seconds = max(
@@ -1059,16 +1073,44 @@ class ParentWindow(Adw.ApplicationWindow):
             status["calculated_active_extension_seconds"],
         )
         self._set_apps_sensitive(True)
+        self._load_pending_time_status_refresh()
 
     def _time_status_failed(self, uid, error):
         self._time_status_loading = False
         if uid != self._selected_uid():
+            self._time_status_refresh_pending = False
             self._load_time_status()
             return
         LOG.warning("remaining-time load failed target_uid=%d: %s", uid, error)
+        if self._time_status_refresh_pending:
+            self._time_status_refresh_pending = False
+            self._load_time_status()
+            return
+        if self._time_status_retry_count < MAX_TIME_STATUS_RETRIES:
+            self._time_status_retry_count += 1
+            self._time_status_retry_id = GLib.timeout_add_seconds(
+                TIME_STATUS_RETRY_DELAY_SECONDS, self._retry_time_status,
+            )
+            return
         self._time_status_value.set_label("Unavailable")
         for value in self._time_operand_values:
             value.set_label("—")
+
+    def _retry_time_status(self):
+        self._time_status_retry_id = 0
+        self._load_time_status(retry=True)
+        return GLib.SOURCE_REMOVE
+
+    def _cancel_time_status_retry(self):
+        if self._time_status_retry_id:
+            GLib.source_remove(self._time_status_retry_id)
+            self._time_status_retry_id = 0
+
+    def _load_pending_time_status_refresh(self):
+        if not self._time_status_refresh_pending:
+            return
+        self._time_status_refresh_pending = False
+        self._load_time_status()
 
     def _refresh_time_status(self):
         if self._selected_uid() is not None:
@@ -1076,6 +1118,7 @@ class ParentWindow(Adw.ApplicationWindow):
         return GLib.SOURCE_CONTINUE
 
     def _close_requested(self, *_args):
+        self._cancel_time_status_retry()
         if self._time_status_refresh_id:
             GLib.source_remove(self._time_status_refresh_id)
             self._time_status_refresh_id = 0

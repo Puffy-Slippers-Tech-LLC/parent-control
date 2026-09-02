@@ -361,6 +361,19 @@ class InstallerTests(unittest.TestCase):
         self.assertLess(baseline_copy, missing_baseline)
         self.assertLess(missing_baseline, comparison)
 
+    def test_reboot_activation_prompts_interactively_after_signaling_system(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+
+        marker = script.index("touch /run/reboot-required.pkgs")
+        terminal_guard = script.index('if [[ -t 0 && -t 1 ]]')
+        prompt = script.index("Reboot now? [y/N]")
+        reboot = script.index("systemctl reboot", prompt)
+
+        self.assertLess(marker, terminal_guard)
+        self.assertLess(terminal_guard, prompt)
+        self.assertLess(prompt, reboot)
+        self.assertIn('y|Y|yes|YES|Yes)', script[prompt:reboot])
+
     def test_both_install_paths_migrate_saved_data_before_starting_broker(self):
         script = INSTALLER.read_text(encoding="utf-8")
         preinst = (ROOT / "debian/preinst").read_text(encoding="utf-8")

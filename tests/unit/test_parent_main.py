@@ -379,6 +379,36 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertIn("lock their desktop when no time remains", source)
 
+    def test_revoke_is_disabled_when_authoritative_remaining_time_is_zero(self):
+        class Label:
+            def set_label(self, _label):
+                pass
+
+        window = type("WindowHarness", (), {})()
+        window._time_status_loading = True
+        window._selected_uid = lambda: 1001
+        window._time_status_value = Label()
+        window._time_operand_values = [Label(), Label(), Label(), Label()]
+        window._loading = False
+        window._account = FakeSensitiveWidget()
+        window._revoke = FakeSensitiveWidget()
+        window._enabled = FakeSensitiveWidget(active=True)
+        window._daily_limit = FakeSensitiveWidget()
+        window._apps_group = FakeSensitiveWidget()
+        window._set_apps_sensitive = lambda sensitive: ParentWindow._set_apps_sensitive(
+            window, sensitive,
+        )
+
+        ParentWindow._time_status_loaded(window, 1001, {
+            "daily_allowance_remaining_seconds": 0,
+            "one_time_grant_remaining_seconds": 0,
+            "additional_one_time_grant_seconds": 0,
+            "calculated_active_extension_seconds": 0,
+        })
+
+        self.assertEqual(window._remaining_time_seconds, 0)
+        self.assertFalse(window._revoke.sensitive)
+
     def test_loading_users_loads_initial_selection_once(self):
         window = ParentWindowHarness()
 

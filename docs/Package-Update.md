@@ -21,15 +21,17 @@ releases that predate this mechanism.
 | --- | --- | --- |
 | `none` | Nothing | No |
 | `process-restart` | Reload systemd and D-Bus, then restart the broker | No |
-| `session-renewal` | The next child or kiosk GNOME session uses the update | No |
+| `session-renewal` | Refresh enabled child payloads through broker startup; the next child or kiosk GNOME session uses the update | No |
 | `reboot` | Normal Ubuntu reboot-required marker is created | Yes |
 
 `reboot` is reserved for changes to PAM or GDM/pre-session integration. These
 must activate at a clean login-manager boundary. Extension payloads, kiosk
 session units, and GNOME session descriptors are `session-renewal`, because an
 existing graphical session cannot load their replacement safely but the machine
-does not need to reboot. Broker code, its systemd unit, and its D-Bus contract
-are `process-restart`.
+does not need to reboot. For this activation level, the package starts the
+broker, which republishes the immutable extension payload to every enabled
+managed child's private extension directory before the next login. Broker code,
+its systemd unit, and its D-Bus contract are `process-restart`.
 The packaged fapolicyd fallback rule is also `process-restart`: broker startup
 regenerates the UID-scoped deny rules and asks fapolicyd to load the resulting
 aggregate before the broker begins serving requests.

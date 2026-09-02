@@ -21,6 +21,17 @@ def signatures(xml):
 
 
 class ServiceContractTests(unittest.TestCase):
+    def test_service_refreshes_enabled_child_payloads_before_registration(self):
+        source = (
+            ROOT / "broker/oh_no_parent_control/service.py"
+        ).read_text(encoding="utf-8")
+
+        refresh = source.index("self.broker.refresh_enabled_extensions()")
+        registration_metadata = source.index(
+            "self.node_info = Gio.DBusNodeInfo.new_for_xml", refresh,
+        )
+        self.assertLess(refresh, registration_metadata)
+
     def test_embedded_and_installed_dbus_contracts_match(self):
         canonical = (
             ROOT / "data/dbus-1/com.puffyslippers.OhNoParentControl1.xml"

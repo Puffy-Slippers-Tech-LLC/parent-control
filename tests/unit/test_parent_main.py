@@ -180,11 +180,11 @@ class ParentWindowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn(".match-rule-button.match-rule-pattern {", stylesheet)
         self.assertIn(".match-rule-button.match-rule-precise {", stylesheet)
-        self.assertIn(".match-rule-icon {\n  font-size: 18px;", stylesheet)
+        self.assertIn(".match-rule-icon {\n  font-size: 20px;", stylesheet)
         self.assertIn("padding: 6px 5px 0;", stylesheet)
-        self.assertIn(".match-rule-icon.match-rule-pattern {\n  font-size: 27px;", stylesheet)
+        self.assertIn(".match-rule-icon.match-rule-pattern {\n  font-size: 28px;", stylesheet)
         self.assertIn("padding-top: 7px;", stylesheet)
-        self.assertIn("min-width: 54px;", stylesheet)
+        self.assertIn("min-width: 74px;", stylesheet)
         self.assertNotIn(".match-rule-button.match-rule-pattern:hover", stylesheet)
 
     def test_app_policy_headings_use_measurement_matched_control_slots(self):
@@ -212,9 +212,10 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn("screen_limits_page.set_child(Adw.Clamp(", source)
         self.assertIn("screen_limits.append(screen_limit_rows)", source)
         self.assertIn(
-            'self._add_legend(app_limits_page, "App Access Legend"', source,
+            'self._add_legend(app_limits, "App Access Legend"', source,
         )
-        self.assertIn("app_limits_page.add(apps)", source)
+        self.assertIn("app_limits.append(apps_section)", source)
+        self.assertIn("app_limits_page.set_child(Adw.Clamp(", source)
 
     def test_screen_limits_use_reference_card_and_calculation_layout(self):
         source = inspect.getsource(ParentWindow._build)
@@ -227,7 +228,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('self._time_status = Adw.ExpanderRow(', source)
         self.assertIn('self._time_status.add_suffix(self._time_status_value)', source)
         self.assertIn('self._time_status.add_row(self._time_calculation_panel())', source)
-        self.assertEqual(source.count("maximum_size=680"), 3)
+        self.assertEqual(source.count("maximum_size=CONTENT_MAX_WIDTH"), 4)
         self.assertIn(".account-picker {", stylesheet)
         self.assertIn(".screen-limits-card-header {", stylesheet)
         self.assertIn(".screen-limit-switch:checked {", stylesheet)
@@ -246,8 +247,8 @@ class ParentWindowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         source = inspect.getsource(ParentWindow._set_catalog)
 
-        self.assertIn(".match-rule-cell {\n  min-width: 76px;", stylesheet)
-        self.assertIn("width_request=76, halign=Gtk.Align.CENTER", source)
+        self.assertIn(".match-rule-cell {\n  min-width: 92px;", stylesheet)
+        self.assertIn("width_request=92, halign=Gtk.Align.CENTER", source)
 
     def test_match_rule_button_uses_an_interactive_capsule(self):
         stylesheet = (
@@ -256,9 +257,26 @@ class ParentWindowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn(".match-rule-button.policy-choice {", stylesheet)
-        self.assertIn("min-height: 38px;", stylesheet)
+        self.assertIn("min-height: 46px;", stylesheet)
         self.assertIn(".match-rule-button.policy-choice:hover {", stylesheet)
         self.assertIn("border-radius: 22px;", stylesheet)
+
+    def test_app_limits_reference_layout_uses_one_wide_card(self):
+        source = inspect.getsource(ParentWindow._build)
+        initializer = inspect.getsource(ParentWindow.__init__)
+        stylesheet = (
+            Path(__file__).resolve().parents[2]
+            / "parent/oh_no_parent_control_parent/style.css"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("self.set_default_size(1344, 1168)", initializer)
+        self.assertIn('css_classes=["app-limits-card"]', source)
+        self.assertIn('label="App Limits", xalign=0', source)
+        self.assertIn('css_classes=["apps-section"]', source)
+        self.assertIn('css_classes=["apps-panel"]', source)
+        self.assertIn(".app-limits-card {", stylesheet)
+        self.assertIn(".apps-section {\n  margin: 16px 29px 16px;", stylesheet)
+        self.assertIn(".policy-choice {\n  min-width: 88px;", stylesheet)
 
     def test_match_rule_legend_uses_normal_visual_state(self):
         source = inspect.getsource(ParentWindow._add_legend)

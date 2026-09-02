@@ -216,7 +216,11 @@ each day creates `YYYY-MM-DD.log` and removes that component's logs beyond the
 newest 10 days.
 
 Enabling Parent Control copies the immutable payload to the child's local
-GNOME extension directory and enables its UUID. Disabling removes both.
+GNOME extension directory and enables its UUID. Disabling removes both. Broker
+startup republishes that payload for every preference-enabled managed child
+before accepting calls. Package activation starts the broker when the payload
+changes, so an already-running Shell may finish with its loaded code while the
+next child session reliably loads the new per-user copy.
 The PAM account stack exempts systemd, kiosk, and administrator accounts, then
 uses the public AccountsService `LimitType` property to skip `pam_malcontent`
 only when the account is confirmed unrestricted. Unknown or malformed state

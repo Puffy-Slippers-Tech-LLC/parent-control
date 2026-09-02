@@ -59,6 +59,7 @@ MATCH_RULES = (
     },
 )
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
+CONTENT_MAX_WIDTH = 1046
 PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
 PREVIEW_PREFERENCES = {
     1001: {
@@ -187,8 +188,8 @@ class ParentWindow(Adw.ApplicationWindow):
         # The application ID ends in ``.Parent``, but the shared installed
         # desktop icon uses the product-wide name.
         self.set_icon_name(APPLICATION_ICON_NAME)
-        self.set_default_size(920, 760)
-        self.set_size_request(720, 600)
+        self.set_default_size(1344, 1168)
+        self.set_size_request(820, 700)
         self._client = client_factory()
         self._users = []
         self._preferences = None
@@ -210,7 +211,7 @@ class ParentWindow(Adw.ApplicationWindow):
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar(css_classes=["parent-header"])
         header.set_title_widget(Adw.WindowTitle(
-            title=app_name(),
+            title=app_name(), css_classes=["parent-window-title"],
         ))
         menu = Gio.Menu()
         menu.append("Help", "win.help")
@@ -242,11 +243,11 @@ class ParentWindow(Adw.ApplicationWindow):
         self.set_content(self._toasts)
 
         # The selected child applies to both tabs. Keep the picker outside the
-        # stack and use the same clamp as the tab bar and screen-limit card so
-        # the three major surfaces always share one visual column.
+        # stack and use the same clamp as the tab bar and both page cards so
+        # every major surface shares one visual column.
         account_section = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
-            spacing=10,
+            spacing=18,
             hexpand=True,
             css_classes=["account-section"],
         )
@@ -267,8 +268,8 @@ class ParentWindow(Adw.ApplicationWindow):
         account_section.append(self._account)
         content.append(Adw.Clamp(
             child=account_section,
-            maximum_size=680,
-            tightening_threshold=680,
+            maximum_size=CONTENT_MAX_WIDTH,
+            tightening_threshold=CONTENT_MAX_WIDTH,
             css_classes=["account-clamp"],
         ))
 
@@ -281,8 +282,8 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         content.append(Adw.Clamp(
             child=switcher,
-            maximum_size=680,
-            tightening_threshold=680,
+            maximum_size=CONTENT_MAX_WIDTH,
+            tightening_threshold=CONTENT_MAX_WIDTH,
             css_classes=["switcher-clamp"],
         ))
         content.append(pages)
@@ -367,39 +368,85 @@ class ParentWindow(Adw.ApplicationWindow):
 
         screen_limits_page.set_child(Adw.Clamp(
             child=screen_limits,
-            maximum_size=680,
-            tightening_threshold=680,
+            maximum_size=CONTENT_MAX_WIDTH,
+            tightening_threshold=CONTENT_MAX_WIDTH,
             css_classes=["screen-limits-clamp"],
         ))
 
-        app_limits_page = Adw.PreferencesPage()
+        app_limits_page = Gtk.ScrolledWindow(
+            hscrollbar_policy=Gtk.PolicyType.NEVER,
+            vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+            css_classes=["app-limits-page"],
+        )
         pages.add_titled_with_icon(
             app_limits_page, "app-limits", "App Limits", "view-grid-symbolic",
         )
 
-        self._add_legend(app_limits_page, "App Access Legend", STATES, {
+        app_limits = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            css_classes=["app-limits-card"],
+        )
+        app_limits_header = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=3,
+            css_classes=["app-limits-card-header"],
+        )
+        app_limits_header.append(Gtk.Label(
+            label="App Limits", xalign=0,
+            css_classes=["app-limits-title"],
+        ))
+        self._app_limits_description = Gtk.Label(
+            label="Manage which apps this child can use and how they are accessed.",
+            xalign=0, wrap=True,
+            css_classes=["app-limits-description"],
+        )
+        app_limits_header.append(self._app_limits_description)
+        app_limits.append(app_limits_header)
+
+        self._add_legend(app_limits, "App Access Legend", STATES, {
             "allowed": "Allows the app to run.",
             "permanent": "Blocks the app until an administrator changes this setting.",
             "conditional": "Blocks the app unless an approved one-off extension permits it.",
         }, access=True)
-        self._add_legend(app_limits_page, "Match Rule Legend", MATCH_RULES, {
+        self._add_legend(app_limits, "Match Rule Legend", MATCH_RULES, {
             rule["id"]: rule["description"] for rule in MATCH_RULES
         })
+        app_limits.append(Gtk.Separator(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            css_classes=["app-limits-divider"],
+        ))
+
+        apps_section = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            css_classes=["apps-section"],
+        )
+        search_row = Gtk.Box(
+            spacing=18, css_classes=["apps-panel-header"],
+        )
+        search_labels = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            hexpand=True, valign=Gtk.Align.CENTER,
+        )
+        search_labels.append(Gtk.Label(
+            label="Installed apps", xalign=0,
+            css_classes=["apps-panel-title"],
+        ))
+        search_labels.append(Gtk.Label(
+            label="Desktop, AppImage, Flatpak, Snap, and system launchers",
+            xalign=0, wrap=True,
+            css_classes=["apps-panel-subtitle"],
+        ))
+        search_row.append(search_labels)
+        self._search = Gtk.SearchEntry(
+            placeholder_text="Search installed apps", valign=Gtk.Align.CENTER,
+            width_chars=32, css_classes=["apps-search"],
+        )
+        self._search.connect("search-changed", self._filter)
+        search_row.append(self._search)
+        apps_section.append(search_row)
 
         apps = Adw.PreferencesGroup(css_classes=["apps-panel"])
         self._apps_group = apps
-        search_row = Adw.ActionRow(
-            title="Installed apps",
-            subtitle="Desktop, AppImage, Flatpak, Snap, and system launchers",
-            css_classes=["apps-panel-header"],
-        )
-        self._search = Gtk.SearchEntry(
-            placeholder_text="Search installed apps", valign=Gtk.Align.CENTER,
-            width_chars=25, css_classes=["apps-search"],
-        )
-        self._search.connect("search-changed", self._filter)
-        search_row.add_suffix(self._search)
-        apps.add(search_row)
         # PreferencesGroup places non-row widgets after its list. Keep the
         # headings in an ActionRow so they remain directly above app rows.
         # The trailing headings are overlaid on inert copies of the controls
@@ -416,7 +463,14 @@ class ParentWindow(Adw.ApplicationWindow):
             "Access Rule", self._policy_selector_slot(), "access-rule-header"))
         apps.add(headers)
         self._app_rows = []
-        app_limits_page.add(apps)
+        apps_section.append(apps)
+        app_limits.append(apps_section)
+        app_limits_page.set_child(Adw.Clamp(
+            child=app_limits,
+            maximum_size=CONTENT_MAX_WIDTH,
+            tightening_threshold=CONTENT_MAX_WIDTH,
+            css_classes=["app-limits-clamp"],
+        ))
 
     @staticmethod
     def _account_factory():
@@ -529,7 +583,7 @@ class ParentWindow(Adw.ApplicationWindow):
     @staticmethod
     def _match_rule_slot():
         cell = Gtk.Box(
-            width_request=76, halign=Gtk.Align.CENTER,
+            width_request=92, halign=Gtk.Align.CENTER,
             valign=Gtk.Align.CENTER, css_classes=["match-rule-cell"],
         )
         cell.append(Gtk.Button(
@@ -551,9 +605,21 @@ class ParentWindow(Adw.ApplicationWindow):
             ))
         return selector
 
-    def _add_legend(self, page, title, items, descriptions, *, access=False):
-        legend = Adw.PreferencesGroup(title=title, css_classes=["policy-legend"])
-        legend_row = Gtk.Box(spacing=18, css_classes=["policy-legend-row"])
+    def _add_legend(self, container, title, items, descriptions, *, access=False):
+        legend = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=10,
+            css_classes=["policy-legend"],
+        )
+        legend.append(Gtk.Label(
+            label=title, xalign=0, css_classes=["policy-legend-heading"],
+        ))
+        legend_row = Gtk.Box(
+            spacing=24 if access else 80,
+            css_classes=[
+                "policy-legend-row",
+                "access-legend-row" if access else "match-legend-row",
+            ],
+        )
         for item in items:
             column = Gtk.Box(spacing=8, hexpand=True, valign=Gtk.Align.CENTER,
                              css_classes=["policy-legend-column"])
@@ -579,8 +645,8 @@ class ParentWindow(Adw.ApplicationWindow):
             help_affordance.append(Gtk.Label(label=")"))
             column.append(help_affordance)
             legend_row.append(column)
-        legend.add(legend_row)
-        page.add(legend)
+        legend.append(legend_row)
+        container.append(legend)
 
     def _show_help_popover(self, button, description):
         popover = Gtk.Popover(position=Gtk.PositionType.BOTTOM, autohide=False)
@@ -618,7 +684,13 @@ class ParentWindow(Adw.ApplicationWindow):
                 except GLib.Error:
                     icon = None
                 if icon is not None:
-                    row.add_prefix(Gtk.Image(gicon=icon, pixel_size=32))
+                    icon_cell = Gtk.Box(
+                        width_request=80, halign=Gtk.Align.CENTER,
+                        valign=Gtk.Align.CENTER,
+                        css_classes=["app-icon-cell"],
+                    )
+                    icon_cell.append(Gtk.Image(gicon=icon, pixel_size=36))
+                    row.add_prefix(icon_cell)
             row.policy_buttons = {}
             row.match_rule_button = Gtk.Button(
                 tooltip_text="Edit match rule", valign=Gtk.Align.CENTER,
@@ -626,7 +698,7 @@ class ParentWindow(Adw.ApplicationWindow):
             )
             row.match_rule_button.connect("clicked", self._edit_match_rule, row)
             match_rule_cell = Gtk.Box(
-                width_request=76, halign=Gtk.Align.CENTER,
+                width_request=92, halign=Gtk.Align.CENTER,
                 valign=Gtk.Align.CENTER, css_classes=["match-rule-cell"],
             )
             match_rule_cell.append(row.match_rule_button)
@@ -729,6 +801,9 @@ class ParentWindow(Adw.ApplicationWindow):
         child_name = self._users[selected][1].split(maxsplit=1)[0]
         self._screen_limits_description.set_label(
             f"Manage how much screen time {child_name} can have each day."
+        )
+        self._app_limits_description.set_label(
+            f"Manage which apps {child_name} can use and how they are accessed."
         )
         self._loading = True
         self._time_status_value.set_label("Loading…")

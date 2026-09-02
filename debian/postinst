@@ -24,7 +24,11 @@ if [ "$1" = configure ]; then
         rm -f "$previous" "$pending"
 
         case "$impacts" in
-            *process-restart*)
+            *process-restart*|*session-renewal*)
+                # Starting the broker also republishes the immutable child
+                # extension payload to every enabled managed account. The
+                # running Shell keeps its loaded code; the next session reads
+                # the refreshed per-user copy.
                 systemctl restart oh-no-parent-control-broker.service >/dev/null || true
                 ;;
         esac

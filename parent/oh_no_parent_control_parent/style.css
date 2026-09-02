@@ -1,13 +1,35 @@
 .preferences-page {
-  background: linear-gradient(145deg, #fbfbfc, #f3f4f7);
+  background: linear-gradient(145deg, #fcfcfd, #f6f7f9);
 }
 
 .parent-header {
-  min-height: 54px;
+  min-height: 78px;
+  background: alpha(white, 0.72);
+  box-shadow: inset 0 -1px alpha(#25252b, 0.10);
+}
+
+.parent-window-title,
+.parent-window-title .title {
+  color: #292934;
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.parent-header windowcontrols button {
+  min-width: 40px;
+  min-height: 40px;
+  margin: 0 11px;
+  padding: 0;
+  border-radius: 50%;
+  background: alpha(#e8e8eb, 0.72);
+}
+
+.parent-header menubutton {
+  margin-right: 18px;
 }
 
 .account-clamp {
-  margin: 24px 20px 0;
+  margin: 30px 24px 0;
 }
 
 .account-section {
@@ -21,16 +43,16 @@
 }
 
 .section-title {
-  font-size: 1.05em;
+  font-size: 18px;
 }
 
 .account-picker {
-  min-height: 62px;
-  padding: 0 14px;
+  min-height: 80px;
+  padding: 0 22px;
   border: 1px solid alpha(#24242a, 0.13);
-  border-radius: 13px;
-  background: alpha(white, 0.92);
-  box-shadow: 0 4px 12px alpha(black, 0.09), inset 0 1px alpha(white, 0.9);
+  border-radius: 14px;
+  background: alpha(white, 0.95);
+  box-shadow: 0 4px 12px alpha(black, 0.08), inset 0 1px alpha(white, 0.92);
 }
 
 .account-picker button {
@@ -40,36 +62,37 @@
 }
 
 .account-avatar {
-  min-width: 42px;
-  min-height: 42px;
+  min-width: 50px;
+  min-height: 50px;
   border-radius: 50%;
   background: linear-gradient(145deg, #eeeaff, #dcd6ff);
-  font-size: 24px;
+  font-size: 27px;
 }
 
 .account-name {
   color: #27272d;
-  font-size: 1.1em;
+  font-size: 21px;
   font-weight: 700;
 }
 
 .switcher-clamp {
-  margin: 39px 20px 0;
+  margin: 40px 24px 0;
 }
 
 .main-view-switcher {
-  min-height: 46px;
+  min-height: 63px;
   border: 1px solid alpha(#24242a, 0.12);
-  border-radius: 13px;
-  background: alpha(white, 0.88);
+  border-radius: 12px;
+  background: alpha(white, 0.94);
   box-shadow: 0 3px 10px alpha(black, 0.08);
 }
 
 .main-view-switcher button {
-  min-height: 45px;
-  margin: 0 20px;
+  min-height: 62px;
+  margin: 0 28px;
   border-radius: 12px;
   color: #57575d;
+  font-size: 18px;
   font-weight: 650;
   background: transparent;
   box-shadow: none;
@@ -78,15 +101,16 @@
 .main-view-switcher button:checked {
   color: #6954ed;
   background: alpha(#6d56ed, 0.025);
-  box-shadow: inset 0 -3px #6d56ed;
+  box-shadow: inset 0 -4px #6d56ed;
 }
 
-.limits-page {
+.limits-page,
+.app-limits-page {
   background: transparent;
 }
 
 .screen-limits-clamp {
-  margin: 29px 20px 28px;
+  margin: 29px 24px 36px;
 }
 
 .screen-limits-card {
@@ -221,21 +245,54 @@
   color: @accent_color;
 }
 
-.apps-panel > box > box {
+.app-limits-clamp {
+  margin: 29px 24px 36px;
+}
+
+.app-limits-card {
   border: 1px solid alpha(@window_fg_color, 0.10);
-  border-radius: 22px;
-  background: linear-gradient(125deg,
-                              alpha(#e5e8e9, 0.46),
-                              alpha(#aeb5bc, 0.30));
-  box-shadow: 0 12px 32px alpha(black, 0.16),
-              inset 0 1px alpha(white, 0.46),
-              inset 0 -1px alpha(#69727a, 0.12);
+  border-radius: 14px;
+  background: alpha(white, 0.96);
+  box-shadow: 0 4px 13px alpha(black, 0.08),
+              inset 0 1px alpha(white, 0.90);
+}
+
+.app-limits-card-header {
+  padding: 28px 29px 41px;
+}
+
+.app-limits-title {
+  color: #292934;
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.app-limits-description {
+  color: alpha(#292934, 0.68);
+  font-size: 17px;
+}
+
+.policy-legend {
+  margin: 0 29px 28px;
+}
+
+.policy-legend-heading {
+  color: #34343e;
+  font-size: 17px;
+  font-weight: 750;
 }
 
 .policy-legend-row {
-  padding: 12px 16px;
+  min-height: 68px;
+  padding: 0 28px;
+  border: 1px solid alpha(#24242a, 0.11);
   border-radius: 12px;
-  background: alpha(@window_fg_color, 0.055);
+  background: alpha(white, 0.52);
+}
+
+.match-legend-row {
+  padding-left: 22px;
+  padding-right: 22px;
 }
 
 .policy-help-link {
@@ -256,15 +313,18 @@
 }
 
 .policy-legend-column {
-  min-height: 44px;
+  min-height: 64px;
 }
 
 .policy-legend-icon {
-  min-width: 24px;
+  min-width: 40px;
+  min-height: 40px;
 }
 
 .policy-legend-title {
-  font-weight: 600;
+  color: #34343e;
+  font-size: 17px;
+  font-weight: 550;
 }
 
 .policy-legend-description {
@@ -272,40 +332,65 @@
   font-size: 0.88em;
 }
 
+.app-limits-divider {
+  background: alpha(#24242a, 0.12);
+}
+
+.apps-section {
+  margin: 16px 29px 16px;
+}
+
+.apps-panel > box > box {
+  border: 1px solid alpha(@window_fg_color, 0.11);
+  border-radius: 14px;
+  background: alpha(white, 0.78);
+  box-shadow: 0 3px 9px alpha(black, 0.06);
+}
+
 .apps-panel-header {
-  min-height: 68px;
-  background: linear-gradient(115deg, alpha(white, 0.12), alpha(#879ab5, 0.12));
+  min-height: 64px;
+}
+
+.apps-panel-title {
+  color: #34343e;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.apps-panel-subtitle {
+  color: alpha(#292934, 0.62);
+  font-size: 14px;
 }
 
 .app-policy-columns {
-  min-height: 34px;
+  min-height: 43px;
   color: @window_fg_color;
+  background: alpha(white, 0.36);
 }
 
 .app-policy-column-header {
-  font-size: 0.88em;
+  font-size: 15px;
   font-weight: 800;
 }
 
 .app-policy-columns title {
-  font-size: 0.88em;
+  font-size: 15px;
   font-weight: 800;
 }
 
 .app-policy-icon-header {
-  min-width: 32px;
+  min-width: 80px;
 }
 
 .match-rule-cell {
-  min-width: 76px;
-  min-height: 42px;
+  min-width: 92px;
+  min-height: 54px;
+  margin-right: 41px;
 }
 
 .match-rule-button.policy-choice {
-  min-width: 54px;
-  /* 38px plus the 1px borders matches the selector's 34px buttons,
-   * 2px padding, and 1px borders: 40px overall. */
-  min-height: 38px;
+  min-width: 74px;
+  min-height: 46px;
   margin: 0;
   padding: 0;
   border: 1px solid alpha(white, 0.30);
@@ -328,7 +413,7 @@
 }
 
 .match-rule-icon {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: 0.04em;
   /* Uppercase glyphs and asterisks sit high in their line box. */
@@ -336,29 +421,39 @@
 }
 
 .match-rule-icon.match-rule-pattern {
-  font-size: 27px;
+  font-size: 28px;
   padding-top: 7px;
 }
 
 .app-policy-row {
-  min-height: 52px;
-  background: linear-gradient(to right,
-                              alpha(#e9ebec, 0.25),
-                              alpha(#aeb5bc, 0.18));
+  min-height: 72px;
+  background: alpha(white, 0.32);
 }
 
-.apps-panel-header title,
 .app-policy-row title {
   font-weight: 600;
 }
 
+.app-policy-row subtitle {
+  color: alpha(#292934, 0.62);
+  font-size: 14px;
+}
+
+.app-policy-row title {
+  font-size: 16px;
+}
+
+.app-icon-cell {
+  min-width: 80px;
+}
+
 .apps-search {
-  min-height: 40px;
-  min-width: 280px;
-  border: 0;
+  min-height: 44px;
+  min-width: 390px;
+  border: 1px solid alpha(#24242a, 0.06);
   border-radius: 14px;
-  background: alpha(@window_fg_color, 0.075);
-  box-shadow: inset 0 1px 2px alpha(black, 0.10), inset 0 1px alpha(white, 0.20);
+  background: alpha(@window_fg_color, 0.055);
+  box-shadow: inset 0 1px 2px alpha(black, 0.06), inset 0 1px alpha(white, 0.40);
 }
 
 .apps-search:focus-within {
@@ -379,8 +474,8 @@
 }
 
 .policy-choice {
-  min-width: 42px;
-  min-height: 34px;
+  min-width: 88px;
+  min-height: 46px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -438,6 +533,16 @@
 
 .policy-choice:checked {
   border: 0;
+}
+
+.policy-choice.policy-legend-icon {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.match-rule-button.policy-choice.policy-legend-icon {
+  min-width: 64px;
+  min-height: 44px;
 }
 
 .match-rule-button.policy-choice:hover {

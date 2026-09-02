@@ -124,6 +124,12 @@ class Service:
             application_catalog=list_apps,
             caller_alive=self.credentials.alive,
         )
+        refreshed_uids = self.broker.refresh_enabled_extensions()
+        if refreshed_uids:
+            logging.info(
+                "refreshed child extension payloads uids=%s",
+                ",".join(str(uid) for uid in refreshed_uids),
+            )
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
         self.log_writer = log_writer
         self._app_filter_signal_id = self.connection.signal_subscribe(
@@ -320,12 +326,18 @@ def main():
     logging.info("broker starting config=%s", CONFIG_PATH)
     loop = GLib.MainLoop()
     service_holder = []
+    startup_failed = []
 
     def on_bus_acquired(_connection, _name):
-        service = Service(_connection, log_writer)
-        service.register()
-        service_holder.append(service)
-        logging.info("system bus acquired; broker ready")
+        try:
+            service = Service(_connection, log_writer)
+            service.register()
+            service_holder.append(service)
+            logging.info("system bus acquired; broker ready")
+        except Exception:
+            startup_failed.append(True)
+            logging.exception("broker initialization failed")
+            loop.quit()
 
     def on_name_lost(_connection, _name):
         logging.critical("could not own the system-bus name")
@@ -342,7 +354,7 @@ def main():
     finally:
         logging.info("broker stopping")
         Gio.bus_unown_name(owner_id)
-    return 0
+    return 1 if startup_failed else 0
 
 
 if __name__ == "__main__":

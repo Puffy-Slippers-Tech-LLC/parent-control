@@ -168,17 +168,23 @@ class InstallerTests(unittest.TestCase):
         self.assertIn("gtk-update-icon-cache", runtime_dependencies.split(", "))
 
     def test_polkit_vendor_metadata_uses_shared_branding(self):
-        policy = ROOT / "data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in"
         branding = ROOT / "data/brand.json"
-
-        rendered = render(policy, branding)
-        root = ElementTree.fromstring(rendered)
         values = json.loads(branding.read_text(encoding="utf-8"))
+        policies = (
+            ROOT / "data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy.in",
+            ROOT / "data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in",
+        )
 
-        self.assertEqual(root.findtext("vendor"), values["vendor_name"])
-        self.assertIsNone(root.find("vendor_url"))
-        self.assertTrue(values["vendor_url"])
-        self.assertNotIn(values["vendor_name"], policy.read_text(encoding="utf-8"))
+        for policy in policies:
+            with self.subTest(policy=policy.name):
+                rendered = render(policy, branding)
+                root = ElementTree.fromstring(rendered)
+                self.assertEqual(root.findtext("vendor"), values["vendor_name"])
+                self.assertIsNone(root.find("vendor_url"))
+                self.assertTrue(values["vendor_url"])
+                self.assertNotIn(
+                    values["vendor_name"], policy.read_text(encoding="utf-8"),
+                )
 
     def test_identity_scoped_usage_helper_is_installed(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
@@ -235,8 +241,38 @@ class InstallerTests(unittest.TestCase):
         self.assertIn('action.lookup("approver-user")', contents)
         self.assertIn('return ["unix-user:" + approver]', contents)
         self.assertIn(
-            'org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps',
+            'tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access',
             contents,
+        )
+        self.assertNotIn("ApproveTimeAndApps", contents)
+
+        child_policy = (
+            ROOT / "data/polkit-1/actions/"
+            "tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy.in"
+        ).read_text(encoding="utf-8")
+        self.assertIn("<allow_active>auth_admin</allow_active>", child_policy)
+        self.assertNotIn("auth_admin_keep", child_policy)
+        self.assertNotIn("org.freedesktop.policykit.imply", child_policy)
+
+    def test_direct_upgrade_removes_obsolete_child_privilege_code(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        obsolete_sources = next(
+            line for line in makefile.splitlines()
+            if line.startswith("OBSOLETE_EXTENSION_SOURCES :=")
+        )
+
+        for obsolete in (
+            "appFilterClient.js",
+            "appPolicyStore.js",
+            "parentalApproval.js",
+            "sessionLimitsClient.js",
+        ):
+            self.assertIn(obsolete, obsolete_sources)
+        self.assertIn(
+            '"$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/$(file)"', makefile,
+        )
+        self.assertIn(
+            "org.gnome.shell.extensions.oh-no-parent-control.policy", makefile,
         )
 
     def test_kiosk_uses_current_restartable_polkit_agent(self):

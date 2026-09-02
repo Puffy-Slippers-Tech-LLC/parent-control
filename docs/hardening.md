@@ -34,8 +34,7 @@ Before changing code, read these files in order:
 9. `broker/oh_no_parent_control/adapters.py`
 10. `broker/oh_no_parent_control/service.py`
 11. `broker/oh_no_parent_control/execution_policy.py`
-12. `child/extension.js`, `child/parentalApproval.js`,
-    `child/sessionLimitsClient.js`, and `child/appFilterClient.js`
+12. `child/extension.js` and `child/requestAccessClient.js`
 
 Then run:
 
@@ -270,8 +269,8 @@ Acceptance:
 Actions:
 
 1. Add `RequestOwnAccess` to the canonical D-Bus XML and service introspection.
-2. Require the system-bus caller UID to equal the target UID and require the
-   target to remain an eligible managed child.
+2. Derive the target UID from the system-bus caller and require it to remain an
+   eligible managed child.
 3. Add a dedicated Polkit action for the broker-mediated child request. It must
    authorize the request only; it must not imply AccountsService actions and
    must not use retained `auth_admin_keep` authorization.

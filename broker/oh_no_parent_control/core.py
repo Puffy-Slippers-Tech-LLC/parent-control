@@ -74,7 +74,7 @@ class TimeStatus:
 
 
 class Authorizer(Protocol):
-    def check(self, sender: str, correlation_id: str, target_label: str,
+    def check(self, request_kind: str, sender: str, correlation_id: str, target_label: str,
               approver_username: str, requested_duration: str,
               allow_soft_blocked_apps: bool) -> str: ...
 
@@ -545,12 +545,33 @@ class Broker:
     def request_access(self, caller_uid: int, sender: str, target_uid: int,
                        approver_uid: int, duration_seconds: int,
                        allow_soft_blocked_apps: bool) -> tuple[str, str]:
+        correlation_id, outcome, _granted_duration = self._request_access(
+            "kiosk", caller_uid, sender, target_uid, approver_uid,
+            duration_seconds, allow_soft_blocked_apps,
+        )
+        return correlation_id, outcome
+
+    def request_own_access(self, caller_uid: int, sender: str,
+                           approver_uid: int, duration_seconds: int,
+                           allow_soft_blocked_apps: bool) -> tuple[str, str, int]:
+        return self._request_access(
+            "child", caller_uid, sender, caller_uid, approver_uid,
+            duration_seconds, allow_soft_blocked_apps,
+        )
+
+    def _request_access(self, request_kind: str, caller_uid: int, sender: str,
+                        target_uid: int, approver_uid: int,
+                        duration_seconds: int,
+                        allow_soft_blocked_apps: bool) -> tuple[str, str, int]:
         correlation_id = str(uuid.uuid4())
         if not self._request_lock.acquire(blocking=False):
             raise Busy("another request is already in progress")
         try:
             config = self._load_config()
-            self._check_caller(config, caller_uid)
+            if request_kind == "kiosk":
+                self._check_caller(config, caller_uid)
+            elif request_kind != "child":
+                raise BackendFailure("request kind is invalid")
             if type(duration_seconds) is not int or not (
                 duration_seconds == 0 or
                 MIN_REQUEST_SECONDS <= duration_seconds <= MAX_REQUEST_SECONDS
@@ -559,15 +580,24 @@ class Broker:
             if type(allow_soft_blocked_apps) is not bool:
                 raise InvalidRequest("allow-soft value must be boolean")
             target = self._target(config, target_uid)
+            if request_kind == "child" and caller_uid != target.uid:
+                raise AccessDenied("a child can request access only for itself")
             approver = self._approver(config, approver_uid)
+            preferences = self._load_request_preferences(target.uid)
+            desired_filter = (
+                False,
+                blocked_targets(preferences, allow_soft_blocked_apps),
+            )
+            if request_kind == "child" and not preferences["parent_control_enabled"]:
+                raise AccessDenied("parent control is not enabled for this account")
             self._apply_rate_limit(caller_uid, config.minimum_request_interval_seconds)
             LOG.info("request=%s caller_uid=%d target_uid=%d approver_uid=%d "
-                     "duration_seconds=%d allow_soft=%s stage=authorize",
+                     "duration_seconds=%d allow_soft=%s kind=%s stage=authorize",
                      correlation_id, caller_uid, target.uid, approver.uid,
-                     duration_seconds, allow_soft_blocked_apps)
+                     duration_seconds, allow_soft_blocked_apps, request_kind)
 
             outcome = self._authorizer.check(
-                sender, correlation_id, target.label, approver.username,
+                request_kind, sender, correlation_id, target.label, approver.username,
                 format_requested_duration(duration_seconds),
                 allow_soft_blocked_apps,
             )
@@ -575,10 +605,10 @@ class Broker:
                 raise BackendFailure("authorizer returned an invalid outcome")
             if outcome != "approved":
                 LOG.info("request=%s outcome=%s", correlation_id, outcome)
-                return correlation_id, outcome
+                return correlation_id, outcome, 0
             if not self._caller_alive(sender):
                 LOG.warning("request=%s outcome=denied reason=caller-disconnected", correlation_id)
-                return correlation_id, "denied"
+                return correlation_id, "denied", 0
             # Fail closed if the selected account changed while the parent was
             # authenticating (including an AccountType promotion to admin), or
             # if the selected approver is no longer an eligible administrator.
@@ -586,6 +616,8 @@ class Broker:
                 raise AccessDenied("selected account changed during authorization")
             if self._approver(config, approver_uid) != approver:
                 raise AccessDenied("selected approver changed during authorization")
+            if self._load_request_preferences(target.uid) != preferences:
+                raise AccessDenied("preferences changed during authorization")
 
             if duration_seconds == 0:
                 issued_at_time = self._now()
@@ -609,14 +641,15 @@ class Broker:
                 if not self._caller_alive(sender):
                     LOG.warning("request=%s outcome=denied reason=caller-disconnected",
                                 correlation_id)
-                    return correlation_id, "denied"
+                    return correlation_id, "denied", 0
                 if self._target(config, target_uid) != target:
                     raise AccessDenied("selected account changed during authorization")
                 if self._approver(config, approver_uid) != approver:
                     raise AccessDenied("selected approver changed during authorization")
+                if self._load_request_preferences(target.uid) != preferences:
+                    raise AccessDenied("preferences changed during authorization")
 
                 try:
-                    preferences = self._preferences.load(target.uid)
                     grant_time, grant_duration = self._accounts.get_extension(target.uid)
                 except Exception as error:
                     raise BackendFailure("remaining-time status is unavailable") from error
@@ -631,20 +664,22 @@ class Broker:
             if not self._caller_alive(sender):
                 LOG.warning("request=%s outcome=denied reason=caller-disconnected",
                             correlation_id)
-                return correlation_id, "denied"
+                return correlation_id, "denied", 0
             if self._target(config, target_uid) != target:
                 raise AccessDenied("selected account changed during authorization")
             if self._approver(config, approver_uid) != approver:
                 raise AccessDenied("selected approver changed during authorization")
+            if self._load_request_preferences(target.uid) != preferences:
+                raise AccessDenied("preferences changed during request")
             issued_at = int(issued_at_time.timestamp())
             if issued_at <= 0 or issued_at > (1 << 64) - 1 or not 0 < duration <= UINT32_MAX:
                 raise BackendFailure("calculated extension is outside the supported range")
             self._apply(
-                config, target.uid, allow_soft_blocked_apps,
-                (issued_at, duration), correlation_id
+                target.uid, preferences, desired_filter,
+                (issued_at, duration), correlation_id,
             )
             LOG.info("request=%s outcome=approved", correlation_id)
-            return correlation_id, "approved"
+            return correlation_id, "approved", duration
         finally:
             self._request_lock.release()
 
@@ -663,21 +698,21 @@ class Broker:
                 raise RateLimited("requests are being made too quickly")
             self._last_request[caller_uid] = current
 
-    def _apply(self, config: Configuration, target_uid: int,
-               allow_soft_blocked_apps: bool,
+    def _load_request_preferences(self, target_uid: int) -> dict:
+        if self._preferences is None:
+            raise BackendFailure("preferences are unavailable")
+        try:
+            return self._preferences.load(target_uid)
+        except (OSError, PreferencesError) as error:
+            raise BackendFailure("preferences are unavailable") from error
+
+    def _apply(self, target_uid: int,
+               preferences: dict, desired_filter: tuple[bool, tuple[str, ...]],
                extension: tuple[int, int], correlation_id: str) -> None:
         old_limit_type = self._accounts.get_limit_type(target_uid)
         old_daily_limit = self._accounts.get_daily_limit(target_uid)
         old_filter = self._accounts.get_filter(target_uid)
         old_extension = self._accounts.get_extension(target_uid)
-        if self._preferences is None:
-            raise BackendFailure("preference store is unavailable")
-        try:
-            preferences = self._preferences.load(target_uid)
-            targets = blocked_targets(preferences, allow_soft_blocked_apps)
-        except PreferencesError as error:
-            raise BackendFailure("preferences are unavailable") from error
-        desired_filter = (False, targets)
         try:
             desired_daily_limit = preferences["daily_time_limit_minutes"] * 60
             if old_limit_type == 0 or old_daily_limit != desired_daily_limit:

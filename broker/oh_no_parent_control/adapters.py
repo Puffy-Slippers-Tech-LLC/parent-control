@@ -22,7 +22,10 @@ DBUS_INTERFACE = "org.freedesktop.DBus"
 POLKIT_NAME = "org.freedesktop.PolicyKit1"
 POLKIT_PATH = "/org/freedesktop/PolicyKit1/Authority"
 POLKIT_INTERFACE = "org.freedesktop.PolicyKit1.Authority"
-ACTION_ID = "tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access"
+REQUEST_ACTION_IDS = {
+    "child": "tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access",
+    "kiosk": "tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access",
+}
 ACCOUNTS_NAME = "org.freedesktop.Accounts"
 ACCOUNTS_PATH = "/org/freedesktop/Accounts"
 ACCOUNTS_INTERFACE = "org.freedesktop.Accounts"
@@ -83,9 +86,14 @@ class PolkitAuthorizer:
     def __init__(self, connection):
         self.connection = connection
 
-    def check(self, sender: str, correlation_id: str, target_label: str,
+    def check(self, request_kind: str, sender: str, correlation_id: str,
+              target_label: str,
               approver_username: str, requested_duration: str,
               allow_soft_blocked_apps: bool) -> str:
+        try:
+            action_id = REQUEST_ACTION_IDS[request_kind]
+        except KeyError as error:
+            raise ValueError("invalid authorization request kind") from error
         subject = (
             "system-bus-name",
             {"name": GLib.Variant("s", sender)},
@@ -103,7 +111,7 @@ class PolkitAuthorizer:
                 self.connection, POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE,
                 "CheckAuthorization",
                 GLib.Variant("((sa{sv})sa{ss}us)", (
-                    subject, ACTION_ID, details,
+                    subject, action_id, details,
                     1,  # AllowUserInteraction
                     f"oh-no-parent-control-{correlation_id}",
                 )),

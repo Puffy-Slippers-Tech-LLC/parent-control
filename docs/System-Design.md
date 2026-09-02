@@ -85,6 +85,7 @@ the kiosk UID and request rate limit. It must not duplicate child preferences.
 | `UpdateRequestPreferences` | own | selected child | selected child |
 | `SetPreferences` | — | — | selected child |
 | `SetParentControl` | — | — | selected child |
+| `RequestOwnAccess` | own | — | — |
 | `RequestAccess` | — | selected child | — |
 
 Eligible children are local, interactive, non-system, non-admin accounts with
@@ -120,23 +121,28 @@ the same policy. Because fapolicyd 1.3 cannot quote whitespace in path rules,
 such executable names use their SHA-256 object identity; ordinary paths use an
 exact path rule. Missing saved targets need no current execution rule. Flatpak
 refs remain enforced by Malcontent/Flatpak. The broker
-reconciles the aggregate rules before accepting D-Bus calls and after either
-the broker or the approved child flow changes an AppFilter. Rule replacement
+reconciles the aggregate rules before accepting D-Bus calls and after the
+broker changes an AppFilter. Rule replacement
 and activation are transactional; a reload failure restores and reloads the
 previous rules.
-`RequestAccess` additionally requires interactive Polkit approval and performs
-transactional AccountsService updates with rollback.
-The kiosk selects a local interactive administrator returned by `ListApprovers`.
+`RequestAccess` and `RequestOwnAccess` require interactive Polkit approval and
+perform transactional AccountsService updates with rollback. `RequestOwnAccess`
+derives the target UID from the system-bus caller, so a child cannot name a
+different target. The child and kiosk select a local interactive administrator
+returned by `ListApprovers`.
 The broker revalidates that account, passes its username as an action detail,
 and an action-specific Polkit administrator rule limits authentication to that
 one identity. The standard authentication agent therefore shows a password
 dialog without a second identity-selection page. This remains one authorization
-for both the app-filter and ActiveExtension writes.
+for the complete app-filter and ActiveExtension transaction. The request
+actions use `auth_admin`, do not imply AccountsService permissions, and do not
+retain a capability in either front end.
 After approval, the broker launches a fixed-purpose, root-owned helper under the
 selected administrator's UID and primary GID. The helper makes only the public
 Malcontent parent usage query on a new system-bus connection and returns usage
 intervals to the broker. The broker validates those intervals, calculates the
-grant, revalidates both accounts and the kiosk connection, and owns all writes.
+grant, revalidates both accounts, preferences, and the requesting connection,
+and owns all writes.
 This lets Malcontent see the authenticated parent as its actual D-Bus caller
 without delegating any privileged write to the helper.
 The kiosk session runs the maintained MATE Polkit agent as a restartable user
@@ -157,8 +163,9 @@ connection. It reads the current one-time grant from AccountsService, derives
 the unused daily allowance, and passes all three operands to
 `CalculateRemainingTime`. The broker therefore remains the single source for
 the formula, while Malcontent sees the real parent identity instead of the root
-broker identity. The child likewise passes its live Malcontent estimate through
-`CalculateRemainingTime` before writing a grant or displaying the notification
+broker identity. For a child request, the broker performs that same
+parent-identity usage query and calculation before writing the grant. The child
+uses `CalculateRemainingTime` only when reconciling its displayed notification
 countdown.
 
 ## Main flows
@@ -170,9 +177,10 @@ countdown.
    Malcontent account state succeed before preferences are committed; any
    failure restores the affected state.
 2. **Child request:** Extension refreshes its own record -> selects a local
-   interactive administrator returned by `ListApprovers` -> follows its
-   in-session approval path. Its Polkit action detail and action-specific
-   administrator rule limit the authentication dialog to that identity.
+   interactive administrator returned by `ListApprovers` -> calls
+   `RequestOwnAccess` -> broker derives the child from the caller, validates the
+   request, authorizes only the selected administrator, and commits the verified
+   time/app transaction.
 3. **Kiosk request:** Kiosk selects a child and approving administrator, then
    loads/updates the child's request values -> calls `RequestAccess` -> broker
    authorizes the selected administrator and updates AccountsService.

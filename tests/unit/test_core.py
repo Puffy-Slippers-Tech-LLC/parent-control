@@ -21,10 +21,10 @@ class Authorizer:
         self.calls = []
         self.callback = callback
 
-    def check(self, sender, correlation_id, target_label, approver_username,
+    def check(self, request_kind, sender, correlation_id, target_label, approver_username,
               requested_duration, allow_soft_blocked_apps):
         self.calls.append((
-            sender, correlation_id, target_label, approver_username,
+            request_kind, sender, correlation_id, target_label, approver_username,
             requested_duration, allow_soft_blocked_apps,
         ))
         if self.callback:
@@ -468,6 +468,59 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(request["last_custom_minutes"], 22.5)
         self.assertTrue(request["allow_soft_blocked_apps"])
 
+    def test_managed_child_request_is_broker_owned_and_targets_caller(self):
+        auth, accounts, preferences = Authorizer(), Accounts(), Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+
+        correlation_id, outcome, granted_duration = make_broker(
+            auth, accounts, preferences=preferences,
+        ).request_own_access(1001, ":1.20", 1003, 900, True)
+
+        self.assertTrue(correlation_id)
+        self.assertEqual((outcome, granted_duration), ("approved", 900))
+        self.assertEqual(auth.calls[0][0], "child")
+        self.assertEqual(auth.calls[0][1], ":1.20")
+        self.assertEqual(accounts.filter, (False, ("org.example.Game",)))
+        self.assertIn(("set_extension", 1001, accounts.extension), accounts.events)
+
+    def test_child_request_requires_enabled_managed_caller(self):
+        auth, accounts, preferences = Authorizer(), Accounts(), Preferences()
+        broker = make_broker(auth, accounts, preferences=preferences)
+
+        with self.assertRaises(AccessDenied):
+            broker.request_own_access(1001, ":1.20", 1003, 900, False)
+        with self.assertRaises(AccessDenied):
+            broker.request_own_access(1003, ":1.21", 1003, 900, False)
+
+        self.assertEqual(auth.calls, [])
+        self.assertEqual(accounts.events, [])
+
+    def test_child_request_revalidates_preferences_after_authorization(self):
+        accounts, preferences = Accounts(), Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+
+        def disable():
+            preferences.values[1001]["parent_control_enabled"] = False
+
+        with self.assertRaises(AccessDenied):
+            make_broker(
+                Authorizer(callback=disable), accounts, preferences=preferences,
+            ).request_own_access(1001, ":1.20", 1003, 900, False)
+
+        self.assertEqual(accounts.events, [])
+
+    def test_child_request_rejects_unvalidated_approver_before_polkit(self):
+        auth, accounts, preferences = Authorizer(), Accounts(), Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+
+        with self.assertRaises(AccessDenied):
+            make_broker(
+                auth, accounts, preferences=preferences,
+            ).request_own_access(1001, ":1.20", 1002, 900, False)
+
+        self.assertEqual(auth.calls, [])
+        self.assertEqual(accounts.events, [])
+
     def test_admin_target_is_rejected_without_authorization(self):
         auth, accounts = Authorizer(), Accounts()
         with self.assertRaises(AccessDenied):
@@ -490,6 +543,7 @@ class CoreTests(unittest.TestCase):
         accounts.daily_limit = 7200
         make_broker(auth, accounts).request_access(991, ":1.2", 1001, 1003, 900, False)
         self.assertEqual(len(auth.calls), 1)
+        self.assertEqual(auth.calls[0][0], "kiosk")
         self.assertEqual(accounts.limit_type, 2)
         self.assertEqual(accounts.daily_limit, 0)
 

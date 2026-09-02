@@ -38,6 +38,15 @@ class PackageActivationTests(unittest.TestCase):
             "process-restart",
         )
 
+    def test_polkit_action_change_is_loaded_without_restart(self):
+        self.assertEqual(
+            activation_for(
+                "usr/share/polkit-1/actions/"
+                "tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy"
+            ),
+            "none",
+        )
+
     def test_desktop_icon_change_activates_at_the_next_session(self):
         self.assertEqual(
             activation_for(

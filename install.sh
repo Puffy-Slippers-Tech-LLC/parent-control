@@ -256,8 +256,9 @@ test -s /usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/Gearbox_W
 test -s /etc/oh-no-parent-control/config.json
 test -s /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules
 test -s /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
-test -s /usr/share/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy
 test -s /usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy
+test -s /usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy
+test ! -e /usr/share/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy
 test -s /usr/lib/systemd/system/oh-no-parent-control-broker.service
 test -s /usr/lib/systemd/system/oh-no-parent-control-restore-extension-state.service
 test -s /usr/lib/systemd/user/oh-no-parent-control-app.service

@@ -14,6 +14,14 @@
       <arg name="correlation_id" type="s" direction="out"/>
       <arg name="result_code" type="s" direction="out"/>
     </method>
+    <method name="RequestOwnAccess">
+      <arg name="approver_uid" type="u" direction="in"/>
+      <arg name="duration_seconds" type="u" direction="in"/>
+      <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
+      <arg name="correlation_id" type="s" direction="out"/>
+      <arg name="result_code" type="s" direction="out"/>
+      <arg name="granted_duration_seconds" type="u" direction="out"/>
+    </method>
     <method name="GetPreferences">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="out"/>

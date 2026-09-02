@@ -188,6 +188,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # desktop icon uses the product-wide name.
         self.set_icon_name(APPLICATION_ICON_NAME)
         self.set_default_size(920, 760)
+        self.set_size_request(720, 600)
         self._client = client_factory()
         self._users = []
         self._preferences = None
@@ -207,7 +208,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _build(self):
         toolbar = Adw.ToolbarView()
-        header = Adw.HeaderBar()
+        header = Adw.HeaderBar(css_classes=["parent-header"])
         header.set_title_widget(Adw.WindowTitle(
             title=app_name(),
         ))
@@ -232,30 +233,110 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         header.pack_end(self._menu_button)
         toolbar.add_top_bar(header)
-        page = Adw.PreferencesPage(css_classes=["preferences-page"])
-        toolbar.set_content(page)
+        content = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            css_classes=["preferences-page"],
+        )
+        toolbar.set_content(content)
         self._toasts = Adw.ToastOverlay(child=toolbar)
         self.set_content(self._toasts)
 
-        accounts = Adw.PreferencesGroup(title="Child account")
-        account_row = Adw.ActionRow(title="Account")
-        self._account = Gtk.DropDown(model=Gtk.StringList.new([]), hexpand=True)
+        # The selected child applies to both tabs. Keep the picker outside the
+        # stack and use the same clamp as the tab bar and screen-limit card so
+        # the three major surfaces always share one visual column.
+        account_section = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=10,
+            hexpand=True,
+            css_classes=["account-section"],
+        )
+        account_section.append(Gtk.Label(
+            label="Child account",
+            xalign=0,
+            css_classes=["section-title"],
+        ))
+        self._account = Gtk.DropDown(
+            model=Gtk.StringList.new([]), hexpand=True,
+            css_classes=["account-picker"],
+        )
+        self._account.set_factory(self._account_factory())
+        self._account.set_list_factory(self._account_factory())
         self._account_changed_handler = self._account.connect(
             "notify::selected", self._account_changed
         )
-        account_row.add_suffix(self._account)
-        accounts.add(account_row)
-        page.add(accounts)
+        account_section.append(self._account)
+        content.append(Adw.Clamp(
+            child=account_section,
+            maximum_size=680,
+            tightening_threshold=680,
+            css_classes=["account-clamp"],
+        ))
 
-        screen_limits = Adw.PreferencesGroup(title="Screen Limits")
+        pages = Adw.ViewStack(vexpand=True)
+        switcher = Adw.ViewSwitcher(
+            stack=pages,
+            policy=Adw.ViewSwitcherPolicy.WIDE,
+            hexpand=True,
+            css_classes=["main-view-switcher"],
+        )
+        content.append(Adw.Clamp(
+            child=switcher,
+            maximum_size=680,
+            tightening_threshold=680,
+            css_classes=["switcher-clamp"],
+        ))
+        content.append(pages)
+
+        screen_limits_page = Gtk.ScrolledWindow(
+            hscrollbar_policy=Gtk.PolicyType.NEVER,
+            vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+            css_classes=["limits-page"],
+        )
+        pages.add_titled_with_icon(
+            screen_limits_page, "screen-limits", "Screen Limits", "alarm-symbolic",
+        )
+
+        screen_limits = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            css_classes=["screen-limits-card"],
+        )
+        card_header = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=2,
+            css_classes=["screen-limits-card-header"],
+        )
+        card_header.append(Gtk.Label(
+            label="Screen Limits",
+            xalign=0,
+            css_classes=["screen-limits-title"],
+        ))
+        self._screen_limits_description = Gtk.Label(
+            label="Manage how much screen time this child can have each day.",
+            xalign=0,
+            wrap=True,
+            css_classes=["screen-limits-description"],
+        )
+        card_header.append(self._screen_limits_description)
+        screen_limits.append(card_header)
+
+        screen_limit_rows = Gtk.ListBox(
+            selection_mode=Gtk.SelectionMode.NONE,
+            css_classes=["screen-limit-rows"],
+        )
         control_row = Adw.ActionRow(
             title="Screen Time Limit",
             subtitle="Turn on / off screen time limit",
+            css_classes=["screen-limit-toggle-row"],
         )
-        self._enabled = Gtk.Switch(valign=Gtk.Align.CENTER, sensitive=False)
+        control_row.add_prefix(self._setting_icon("alarm-symbolic"))
+        self._enabled = Gtk.Switch(
+            valign=Gtk.Align.CENTER,
+            sensitive=False,
+            css_classes=["screen-limit-switch"],
+        )
         self._enabled.connect("notify::active", self._enabled_changed)
         control_row.add_suffix(self._enabled)
-        screen_limits.add(control_row)
+        screen_limit_rows.append(control_row)
         self._daily_limit = Adw.ComboRow(
             title="Daily Time Allowance",
             model=Gtk.StringList.new([
@@ -263,26 +344,45 @@ class ParentWindow(Adw.ApplicationWindow):
                 for minutes in range(MAX_DAILY_LIMIT_MINUTES + 1)
             ]),
             sensitive=False,
+            css_classes=["daily-limit-row"],
         )
+        self._daily_limit.add_prefix(self._setting_icon("x-office-calendar-symbolic"))
         self._daily_limit.connect("notify::selected", self._daily_limit_changed)
-        screen_limits.add(self._daily_limit)
-        self._time_status = Adw.ActionRow(
+        screen_limit_rows.append(self._daily_limit)
+        self._time_status = Adw.ExpanderRow(
             title="Today's Remaining Time",
-            subtitle_lines=3,
-            subtitle=(
-                "Formula: max(Daily allowance remaining, One-time grant remaining) "
-                "+ Additional one-time grant\nLoading today's values…"
-            ),
+            subtitle="Time left for today",
+            expanded=True,
+            css_classes=["time-status-row"],
         )
-        screen_limits.add(self._time_status)
-        page.add(screen_limits)
+        self._time_status.add_prefix(self._setting_icon("hourglass-symbolic"))
+        self._time_status_value = Gtk.Label(
+            label="Loading…", valign=Gtk.Align.CENTER,
+            css_classes=["remaining-time-value"],
+        )
+        self._time_status.add_suffix(self._time_status_value)
+        self._time_status.add_row(self._time_calculation_panel())
+        screen_limit_rows.append(self._time_status)
+        screen_limits.append(screen_limit_rows)
 
-        self._add_legend(page, "App Access Legend", STATES, {
+        screen_limits_page.set_child(Adw.Clamp(
+            child=screen_limits,
+            maximum_size=680,
+            tightening_threshold=680,
+            css_classes=["screen-limits-clamp"],
+        ))
+
+        app_limits_page = Adw.PreferencesPage()
+        pages.add_titled_with_icon(
+            app_limits_page, "app-limits", "App Limits", "view-grid-symbolic",
+        )
+
+        self._add_legend(app_limits_page, "App Access Legend", STATES, {
             "allowed": "Allows the app to run.",
             "permanent": "Blocks the app until an administrator changes this setting.",
             "conditional": "Blocks the app unless an approved one-off extension permits it.",
         }, access=True)
-        self._add_legend(page, "Match Rule Legend", MATCH_RULES, {
+        self._add_legend(app_limits_page, "Match Rule Legend", MATCH_RULES, {
             rule["id"]: rule["description"] for rule in MATCH_RULES
         })
 
@@ -309,14 +409,109 @@ class ParentWindow(Adw.ApplicationWindow):
         headers.add_prefix(Gtk.Label(label="Icon", xalign=0, hexpand=False,
                                      css_classes=["app-policy-column-header",
                                                   "app-policy-icon-header"]))
-        headers.set_title("App Name & Detail")
+        headers.set_title("App Name &amp; Detail")
         headers.add_suffix(self._policy_column_heading(
             "Match Rule", self._match_rule_slot(), "match-rule-header"))
         headers.add_suffix(self._policy_column_heading(
             "Access Rule", self._policy_selector_slot(), "access-rule-header"))
         apps.add(headers)
         self._app_rows = []
-        page.add(apps)
+        app_limits_page.add(apps)
+
+    @staticmethod
+    def _account_factory():
+        factory = Gtk.SignalListItemFactory()
+
+        def setup(_factory, item):
+            row = Gtk.Box(spacing=14, valign=Gtk.Align.CENTER)
+            row.append(Gtk.Label(
+                label="👦🏻",
+                css_classes=["account-avatar"],
+            ))
+            row.append(Gtk.Label(
+                xalign=0, hexpand=True, ellipsize=3,
+                css_classes=["account-name"],
+            ))
+            item.set_child(row)
+
+        def bind(_factory, item):
+            item.get_child().get_last_child().set_label(item.get_item().get_string())
+
+        factory.connect("setup", setup)
+        factory.connect("bind", bind)
+        return factory
+
+    @staticmethod
+    def _setting_icon(icon_name):
+        container = Gtk.Box(
+            valign=Gtk.Align.CENTER,
+            css_classes=["setting-icon"],
+        )
+        container.append(Gtk.Image(icon_name=icon_name, pixel_size=22))
+        return container
+
+    def _time_calculation_panel(self):
+        panel = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=8,
+            css_classes=["calculation-panel"],
+        )
+        heading = Gtk.Box(spacing=10)
+        heading.append(Gtk.Image(
+            icon_name="accessories-calculator-symbolic", pixel_size=18,
+            css_classes=["calculation-icon"],
+        ))
+        heading.append(Gtk.Label(
+            label="How it's calculated", xalign=0, hexpand=True,
+            css_classes=["calculation-title"],
+        ))
+        collapse = Gtk.Button(
+            icon_name="go-up-symbolic",
+            tooltip_text="Hide calculation",
+            css_classes=["calculation-collapse"],
+        )
+        collapse.connect(
+            "clicked", lambda *_args: self._time_status.set_expanded(False),
+        )
+        heading.append(collapse)
+        panel.append(heading)
+
+        formula = Gtk.Label(xalign=0, wrap=True, css_classes=["calculation-formula"])
+        formula.set_markup(
+            "<b>Formula:</b> max(Daily allowance remaining, One-time grant remaining) "
+            "\n+ Additional one-time grant"
+        )
+        panel.append(formula)
+
+        equation = Gtk.Box(spacing=8, css_classes=["calculation-equation"])
+        self._time_operand_values = []
+        labels = (
+            "Daily allowance remaining",
+            "One-time grant remaining",
+            "Additional one-time grant",
+            "Calculated ActiveExtension",
+        )
+        for index, label in enumerate(labels):
+            if index:
+                equation.append(Gtk.Label(
+                    label="=" if index == 3 else "+",
+                    css_classes=["equation-operator"],
+                ))
+            column = Gtk.Box(
+                orientation=Gtk.Orientation.VERTICAL,
+                spacing=6,
+                hexpand=True,
+                homogeneous=True,
+            )
+            column.append(Gtk.Label(
+                label=label, justify=Gtk.Justification.CENTER,
+                css_classes=["equation-label"],
+            ))
+            value = Gtk.Label(label="—", css_classes=["equation-value"])
+            column.append(value)
+            equation.append(column)
+            self._time_operand_values.append(value)
+        panel.append(equation)
+        return panel
 
     @staticmethod
     def _policy_column_heading(label, slot, css_class):
@@ -530,11 +725,15 @@ class ParentWindow(Adw.ApplicationWindow):
         uid = self._selected_uid()
         if uid is None:
             return
-        self._loading = True
-        self._time_status.set_subtitle(
-            "Formula: max(Daily allowance remaining, One-time grant remaining) "
-            "+ Additional one-time grant\nLoading today's values…"
+        selected = self._account.get_selected()
+        child_name = self._users[selected][1].split(maxsplit=1)[0]
+        self._screen_limits_description.set_label(
+            f"Manage how much screen time {child_name} can have each day."
         )
+        self._loading = True
+        self._time_status_value.set_label("Loading…")
+        for value in self._time_operand_values:
+            value.set_label("—")
         LOG.info("preferences load started target_uid=%d", uid)
         self._set_apps_sensitive(False)
         self._run(
@@ -584,7 +783,17 @@ class ParentWindow(Adw.ApplicationWindow):
         if uid != self._selected_uid():
             self._load_time_status()
             return
-        self._time_status.set_subtitle(_time_status_subtitle(status))
+        durations = (
+            _duration_label(status["daily_allowance_remaining_seconds"]),
+            _duration_label(status["one_time_grant_remaining_seconds"]),
+            _duration_label(status["additional_one_time_grant_seconds"]),
+            _duration_label(status["calculated_active_extension_seconds"]),
+        )
+        self._time_status_value.set_label(
+            _minutes_label(max(0, status["calculated_active_extension_seconds"] // 60))
+        )
+        for label, duration in zip(self._time_operand_values, durations):
+            label.set_label(duration)
         LOG.info(
             "remaining time loaded target_uid=%d daily=%d grant=%d additional=%d calculated=%d",
             uid,
@@ -600,10 +809,9 @@ class ParentWindow(Adw.ApplicationWindow):
             self._load_time_status()
             return
         LOG.warning("remaining-time load failed target_uid=%d: %s", uid, error)
-        self._time_status.set_subtitle(
-            "Formula: max(Daily allowance remaining, One-time grant remaining) "
-            "+ Additional one-time grant\nToday's values are unavailable."
-        )
+        self._time_status_value.set_label("Unavailable")
+        for value in self._time_operand_values:
+            value.set_label("—")
 
     def _refresh_time_status(self):
         if self._selected_uid() is not None:

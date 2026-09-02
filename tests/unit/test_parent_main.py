@@ -194,6 +194,46 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('self._policy_selector_slot()', source)
         self.assertIn('self._policy_column_heading(', source)
 
+    def test_main_body_is_split_into_screen_and_app_limit_tabs(self):
+        source = inspect.getsource(ParentWindow._build)
+
+        account_picker = source.index("account_section.append(self._account)")
+        view_stack = source.index("pages = Adw.ViewStack")
+        screen_tab = source.index(
+            'screen_limits_page, "screen-limits", "Screen Limits", "alarm-symbolic"'
+        )
+        app_tab = source.index(
+            'app_limits_page, "app-limits", "App Limits", "view-grid-symbolic"'
+        )
+
+        self.assertLess(account_picker, view_stack)
+        self.assertLess(view_stack, screen_tab)
+        self.assertLess(screen_tab, app_tab)
+        self.assertIn("screen_limits_page.set_child(Adw.Clamp(", source)
+        self.assertIn("screen_limits.append(screen_limit_rows)", source)
+        self.assertIn(
+            'self._add_legend(app_limits_page, "App Access Legend"', source,
+        )
+        self.assertIn("app_limits_page.add(apps)", source)
+
+    def test_screen_limits_use_reference_card_and_calculation_layout(self):
+        source = inspect.getsource(ParentWindow._build)
+        stylesheet = (
+            Path(__file__).resolve().parents[2]
+            / "parent/oh_no_parent_control_parent/style.css"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('self._account.set_factory(self._account_factory())', source)
+        self.assertIn('self._time_status = Adw.ExpanderRow(', source)
+        self.assertIn('self._time_status.add_suffix(self._time_status_value)', source)
+        self.assertIn('self._time_status.add_row(self._time_calculation_panel())', source)
+        self.assertEqual(source.count("maximum_size=680"), 3)
+        self.assertIn(".account-picker {", stylesheet)
+        self.assertIn(".screen-limits-card-header {", stylesheet)
+        self.assertIn(".screen-limit-switch:checked {", stylesheet)
+        self.assertIn(".calculation-panel {", stylesheet)
+        self.assertIn(".remaining-time-value {", stylesheet)
+
     def test_policy_selector_measurement_slot_is_fully_transparent(self):
         source = inspect.getsource(ParentWindow._policy_selector_slot)
 

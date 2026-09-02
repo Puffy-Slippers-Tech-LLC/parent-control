@@ -20,6 +20,8 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(DATADIR)/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service \
 	$(DATADIR)/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml \
 	$(DATADIR)/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf \
+	$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy \
+	$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy \
 	$(SYSCONFDIR)/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
 	$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session \
 	$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop \
@@ -31,7 +33,8 @@ ACTIVATION_MANIFEST_PATHS := \
 	/etc/gdm3/PreSession/Default
 UUID := oh-no-parent-control@tech.puffyslippers.com
 CHILD_DIR := child
-EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js branding.js logger.js parentalApproval.js previewMode.js remainingTimeIndicator.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js timeCalculationClient.js timerQuery.js
+EXTENSION_SOURCES := aboutDialog.js approverClient.js branding.js logger.js previewMode.js remainingTimeIndicator.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sharedPreferencesClient.js timeCalculationClient.js timerQuery.js
+OBSOLETE_EXTENSION_SOURCES := appFilterClient.js appPolicyStore.js parentalApproval.js sessionLimitsClient.js
 EXTENSION_ASSETS := request-options.json
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
@@ -48,7 +51,7 @@ check:
 	@PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk $(PYTHON) -m unittest discover -s tests/unit -v
 	@$(PYTHON) -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for p in pathlib.Path(".").glob("**/*.py") if ".git" not in p.parts]'
 	@$(PYTHON) -c 'import pathlib,xml.etree.ElementTree as E; [E.parse(p) for p in pathlib.Path("data").glob("**/*.xml")]; [E.parse(p) for p in pathlib.Path(".").glob("**/*.policy")]'
-	@$(PYTHON) -c 'import xml.etree.ElementTree as E; r=E.parse("child/policy/org.gnome.shell.extensions.oh-no-parent-control.policy").getroot(); a=r.find("./action[@id=\"org.gnome.shell.extensions.oh-no-parent-control.ApproveTimeAndApps\"]"); assert a is not None; i=a.find("./annotate[@key=\"org.freedesktop.policykit.imply\"]").text.split(); assert i == ["com.endlessm.ParentalControls.SessionLimits.ChangeOwn", "com.endlessm.ParentalControls.AppFilter.ChangeOwn"]'
+	@! grep -REn 'org\.freedesktop\.policykit\.imply|ApproveTimeAndApps|Properties.*Set.*(AppFilter|ActiveExtension)' child data/polkit-1
 	@! grep -REn 'resource:///org/gnome/shell|AuthPrompt|UnlockDialog|Main\.screenShield|_estimatedTimes' kiosk broker data config tools README.md
 
 preview-kiosk:
@@ -68,6 +71,7 @@ pack-extension:
 
 install-extension:
 	install -d "$(EXTENSION_DIR)"
+	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(EXTENSION_DIR)/"
 	install -m 0644 $(BRANDING_ASSETS) LICENSE "$(EXTENSION_DIR)/"
 	@echo "Installed $(UUID) to $(EXTENSION_DIR)"
@@ -90,6 +94,7 @@ _install-product-files:
 	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg data/Gearbox_Waltz.mp3 child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension"
 	install -m 0644 parent/oh_no_parent_control_parent/*.py parent/oh_no_parent_control_parent/style.css "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"
+	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"
 	install -m 0644 $(BRANDING_ASSETS) LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"
 	install -m 0644 broker/oh_no_parent_control/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"
@@ -97,9 +102,10 @@ _install-product-files:
 	install -m 0644 data/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service "$(DESTDIR)$(DATADIR)/dbus-1/system-services/"
 	install -m 0644 data/dbus-1/com.puffyslippers.OhNoParentControl1.xml "$(DESTDIR)$(DATADIR)/dbus-1/interfaces/"
 	install -d "$(DESTDIR)$(DATADIR)/polkit-1/actions" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)"
-	# The in-session extension authenticates this meta-action once; its implied
-	# permissions cover both the ActiveExtension and AppFilter writes.
-	install -m 0644 child/policy/org.gnome.shell.extensions.oh-no-parent-control.policy "$(DESTDIR)$(DATADIR)/polkit-1/actions/"
+	# The broker is the trusted Polkit mechanism for both request front ends.
+	# Remove the obsolete child-owned meta-action during direct installations.
+	rm -f "$(DESTDIR)$(DATADIR)/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy"
+	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy"
 	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy"
 	install -d "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d"
 	install -m 0644 data/polkit-1/rules.d/00-oh-no-parent-control-session.rules "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d/"
@@ -133,7 +139,7 @@ _generate-package-activation-manifest:
 uninstall:
 	rm -f "$(DESTDIR)$(PREFIX)/bin/oh-no-parent-control" "$(DESTDIR)$(PREFIX)/bin/oh-no-parent-control-parent" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-broker" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-migrate-state" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-query-usage" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-preserve-extension-state" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-session-limit-check" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-activation"
 	rm -f "$(DESTDIR)$(DATADIR)/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service" "$(DESTDIR)$(DATADIR)/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml" "$(DESTDIR)$(DATADIR)/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf"
-	rm -f "$(DESTDIR)$(DATADIR)/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy" "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-broker.service" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-restore-extension-state.service"
+	rm -f "$(DESTDIR)$(DATADIR)/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy" "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy" "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-broker.service" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-restore-extension-state.service"
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules"
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/89-oh-no-parent-control.rules" "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules"
 	rm -f "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-app.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-polkit-agent.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/session.conf"

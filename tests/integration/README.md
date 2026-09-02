@@ -65,8 +65,8 @@ host app filter.  It runs:
   extension lifecycle, logs, kiosk and parent clients/UI, provisioning,
   installer, package activation, systemd unit, and PAM limit helper;
 - Python and XML parse checks; and
-- source-contract checks that reject private GNOME Shell APIs and verify the
-  child Polkit action's exact implied permissions.
+- source-contract checks that reject private GNOME Shell APIs and verify that
+  child requests use the broker action without retained or implied privileges.
 
 Run it from the repository root:
 

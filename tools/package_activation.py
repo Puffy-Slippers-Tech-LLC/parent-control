@@ -30,9 +30,12 @@ def activation_for(path: str) -> str:
         "etc/pam.d/",
     )):
         return "reboot"
-    # polkitd monitors its rule directory and evaluates the rule on each
-    # authorization request, so no service or session restart is required.
-    if path.startswith("etc/polkit-1/rules.d/"):
+    # polkitd monitors its action and rule directories and evaluates them for
+    # each authorization request, so no service or session restart is required.
+    if path.startswith((
+        "etc/polkit-1/rules.d/",
+        "usr/share/polkit-1/actions/",
+    )):
         return "none"
     # The broker regenerates and reloads the aggregate execution rules during
     # startup, so a changed packaged fallback activates with a broker restart.

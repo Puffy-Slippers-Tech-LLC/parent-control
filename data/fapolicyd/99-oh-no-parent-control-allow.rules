@@ -1,3 +1,7 @@
+# The root-owned canary lets systemd distinguish a forked fapolicyd process from
+# a daemon which has installed its fanotify marks and is processing decisions.
+deny perm=execute uid=0 : path=/usr/libexec/oh-no-parent-control-execution-policy-probe
+
 # Oh No! Parent Control adds explicit per-user denies before this fallback.
 # Leave unrelated execution and file access unchanged unless an administrator
 # has installed an earlier fapolicyd policy of their own.

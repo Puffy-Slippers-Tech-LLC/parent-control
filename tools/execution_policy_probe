@@ -1,0 +1,3 @@
+#!/bin/sh
+# Executing this means fapolicyd has not started enforcing its canary rule yet.
+exit 23

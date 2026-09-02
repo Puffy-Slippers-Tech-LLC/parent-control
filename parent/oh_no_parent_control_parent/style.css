@@ -316,11 +316,6 @@
   min-height: 64px;
 }
 
-.policy-legend-icon {
-  min-width: 40px;
-  min-height: 40px;
-}
-
 .policy-legend-title {
   color: #34343e;
   font-size: 17px;
@@ -389,12 +384,12 @@
 }
 
 .match-rule-button.policy-choice {
-  min-width: 74px;
-  min-height: 46px;
+  min-width: 36px;
+  min-height: 36px;
   margin: 0;
   padding: 0;
   border: 1px solid alpha(white, 0.30);
-  border-radius: 22px;
+  border-radius: 12px;
   background: linear-gradient(to bottom,
                               alpha(#d9e1e8, 0.48),
                               alpha(#aebbc8, 0.34));
@@ -413,16 +408,16 @@
 }
 
 .match-rule-icon {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: 0.04em;
   /* Uppercase glyphs and asterisks sit high in their line box. */
-  padding: 6px 5px 0;
+  padding: 2px 1px 0;
 }
 
 .match-rule-icon.match-rule-pattern {
-  font-size: 28px;
-  padding-top: 7px;
+  font-size: 20px;
+  padding-top: 3px;
 }
 
 .app-policy-row {
@@ -462,9 +457,9 @@
 }
 
 .policy-selector {
-  padding: 2px;
+  padding: 0;
   border: 1px solid alpha(white, 0.30);
-  border-radius: 22px;
+  border-radius: 14px;
   background: linear-gradient(to bottom,
                               alpha(#d9e1e8, 0.48),
                               alpha(#aebbc8, 0.34));
@@ -474,12 +469,12 @@
 }
 
 .policy-choice {
-  min-width: 88px;
-  min-height: 46px;
+  min-width: 36px;
+  min-height: 36px;
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 18px;
+  border-radius: 12px;
   background: transparent;
   box-shadow: none;
   transition: 140ms ease-in-out;
@@ -533,16 +528,6 @@
 
 .policy-choice:checked {
   border: 0;
-}
-
-.policy-choice.policy-legend-icon {
-  min-width: 40px;
-  min-height: 40px;
-}
-
-.match-rule-button.policy-choice.policy-legend-icon {
-  min-width: 64px;
-  min-height: 44px;
 }
 
 .match-rule-button.policy-choice:hover {

@@ -180,11 +180,11 @@ class ParentWindowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn(".match-rule-button.match-rule-pattern {", stylesheet)
         self.assertIn(".match-rule-button.match-rule-precise {", stylesheet)
-        self.assertIn(".match-rule-icon {\n  font-size: 20px;", stylesheet)
-        self.assertIn("padding: 6px 5px 0;", stylesheet)
-        self.assertIn(".match-rule-icon.match-rule-pattern {\n  font-size: 28px;", stylesheet)
-        self.assertIn("padding-top: 7px;", stylesheet)
-        self.assertIn("min-width: 74px;", stylesheet)
+        self.assertIn(".match-rule-icon {\n  font-size: 16px;", stylesheet)
+        self.assertIn("padding: 2px 1px 0;", stylesheet)
+        self.assertIn(".match-rule-icon.match-rule-pattern {\n  font-size: 20px;", stylesheet)
+        self.assertIn("padding-top: 3px;", stylesheet)
+        self.assertIn("min-width: 36px;", stylesheet)
         self.assertNotIn(".match-rule-button.match-rule-pattern:hover", stylesheet)
 
     def test_app_policy_headings_use_measurement_matched_control_slots(self):
@@ -257,9 +257,9 @@ class ParentWindowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn(".match-rule-button.policy-choice {", stylesheet)
-        self.assertIn("min-height: 46px;", stylesheet)
+        self.assertIn("min-height: 36px;", stylesheet)
         self.assertIn(".match-rule-button.policy-choice:hover {", stylesheet)
-        self.assertIn("border-radius: 22px;", stylesheet)
+        self.assertIn("border-radius: 12px;", stylesheet)
 
     def test_app_limits_reference_layout_uses_one_wide_card(self):
         source = inspect.getsource(ParentWindow._build)
@@ -276,13 +276,40 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('css_classes=["apps-panel"]', source)
         self.assertIn(".app-limits-card {", stylesheet)
         self.assertIn(".apps-section {\n  margin: 16px 29px 16px;", stylesheet)
-        self.assertIn(".policy-choice {\n  min-width: 88px;", stylesheet)
+        self.assertIn(".policy-choice {\n  min-width: 36px;", stylesheet)
 
     def test_match_rule_legend_uses_normal_visual_state(self):
         source = inspect.getsource(ParentWindow._add_legend)
 
         self.assertIn("icon = Gtk.Button(can_focus=False, can_target=False,", source)
         self.assertNotIn("icon = Gtk.Button(sensitive=False", source)
+
+    def test_legend_icons_use_the_same_dimensions_as_app_table_controls(self):
+        stylesheet = (
+            Path(__file__).resolve().parents[2]
+            / "parent/oh_no_parent_control_parent/style.css"
+        ).read_text(encoding="utf-8")
+        source = inspect.getsource(ParentWindow._add_legend)
+
+        self.assertNotIn(".policy-choice.policy-legend-icon {", stylesheet)
+        self.assertNotIn(
+            ".match-rule-button.policy-choice.policy-legend-icon {", stylesheet,
+        )
+        self.assertIn(".policy-choice {\n  min-width: 36px;\n  min-height: 36px;",
+                      stylesheet)
+        self.assertIn(
+            ".match-rule-button.policy-choice {\n  min-width: 36px;\n"
+            "  min-height: 36px;",
+            stylesheet,
+        )
+        self.assertIn(
+            "can_target=False,\n                    valign=Gtk.Align.CENTER,",
+            source,
+        )
+        self.assertIn(
+            "can_target=False,\n                                  valign=Gtk.Align.CENTER,",
+            source,
+        )
 
     def test_daily_limit_labels_use_singular_only_for_one_minute(self):
         self.assertEqual(_minutes_label(0), "0 minutes")

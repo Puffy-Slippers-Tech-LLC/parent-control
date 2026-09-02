@@ -47,6 +47,14 @@ busctl --system call com.puffyslippers.OhNoParentControl1 \
     com.puffyslippers.OhNoParentControl1 ListManagedUsers >/dev/null
 test -s /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules
 test -s /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules
+test -x /usr/libexec/oh-no-parent-control-execution-policy-ready
+test -x /usr/libexec/oh-no-parent-control-execution-policy-probe
+systemctl show fapolicyd.service --property=ExecStartPost --value |
+    grep -F oh-no-parent-control-execution-policy-ready >/dev/null
+systemctl show display-manager.service --property=Requires --value |
+    tr ' ' '\n' | grep -Fx fapolicyd.service >/dev/null
+journalctl -b -u fapolicyd.service --no-pager |
+    grep -F 'fapolicyd execution enforcement is ready' >/dev/null
 pamtester gdm-password onpc-child acct_mgmt
 pamtester gdm-password onpc-unrelated acct_mgmt
 echo "Post-reboot clean-install verification passed."

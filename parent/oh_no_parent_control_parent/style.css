@@ -270,15 +270,19 @@
 }
 
 .equation-label {
-  font-size: 0.72em;
+  font-size: 0.9em;
 }
 
 .equation-value {
-  font-size: 1.03em;
+  font-size: 1.3em;
+  font-weight: 700;
 }
 
+.equation-function,
+.equation-separator,
 .equation-operator {
   min-width: 14px;
+  font-size: 1.25em;
   font-weight: 700;
 }
 
@@ -471,6 +475,11 @@
   min-width: 92px;
   min-height: 54px;
   margin-right: 41px;
+}
+
+/* Offset the overlay by half the cell width to center it over the button. */
+.match-rule-header .app-policy-column-header {
+  margin-right: 92px;
 }
 
 .match-rule-button.policy-choice {

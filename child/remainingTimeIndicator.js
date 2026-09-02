@@ -8,12 +8,15 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
 import {queryEstimatedTimes} from './timerQuery.js';
-import {calculateRemainingTime} from './timeCalculationClient.js';
+import {calculateOwnRemainingTime} from './timeCalculationClient.js';
 import {logDebug, logInfo, logWarning} from './logger.js';
 const ROLE = 'screenTimeRemaining';
 const TIMER_BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const TIMER_OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
 const TIMER_INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
+const SCREEN_SAVER_NAME = 'org.gnome.ScreenSaver';
+const SCREEN_SAVER_PATH = '/org/gnome/ScreenSaver';
+const SCREEN_SAVER_INTERFACE = 'org.gnome.ScreenSaver';
 
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
@@ -85,9 +88,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._activeExtensionEnd = approvedGrantRemaining > 0
             ? Main.timeLimitsManager.getCurrentTime() + approvedGrantRemaining
             : 0;
-        this._sessionEnd = 0;
         this._calculatedEnd = this._activeExtensionEnd;
+        this._statusLoaded = false;
+        this._lockPending = false;
         this._refreshPending = false;
+        this._refreshAgain = false;
         this._vertical = null;
         this._timerSignalId = this._preview ? 0 : Gio.DBus.system.signal_subscribe(
             TIMER_BUS_NAME, TIMER_INTERFACE, 'EstimatedTimesChanged',
@@ -204,8 +209,12 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     async _refreshEstimate() {
-        if (this._destroyed || this._refreshPending)
+        if (this._destroyed)
             return;
+        if (this._refreshPending) {
+            this._refreshAgain = true;
+            return;
+        }
 
         this._refreshPending = true;
         try {
@@ -214,21 +223,20 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 return;
 
             const estimate = estimates[''];
-            this._sessionEnd = estimate ? Number(estimate[2]) : 0;
+            const sessionEnd = estimate ? Number(estimate[2]) : 0;
             const currentTime = Main.timeLimitsManager.getCurrentTime();
             const managerLimit = Number(
                 Main.timeLimitsManager.dailyLimitTime ?? 0);
             const effectiveAllowanceRemaining = Math.max(
-                0, Math.ceil(Math.max(managerLimit, this._sessionEnd) - currentTime));
-            const oneTimeGrantRemaining = Math.max(
-                0, Math.ceil(this._activeExtensionEnd - currentTime));
-            const calculated = await calculateRemainingTime(
-                effectiveAllowanceRemaining, oneTimeGrantRemaining, 0);
+                0, Math.ceil(Math.max(managerLimit, sessionEnd) - currentTime));
+            const calculated = await calculateOwnRemainingTime(
+                effectiveAllowanceRemaining);
             if (this._destroyed)
                 return;
             this._calculatedEnd = currentTime + calculated;
+            this._statusLoaded = true;
             logInfo('timer estimate loaded; ' +
-                `session end=${this._sessionEnd}; calculated remaining=${calculated}`);
+                `session end=${sessionEnd}; calculated remaining=${calculated}`);
         } catch (error) {
             if (!this._destroyed) {
                 // A transient daemon/database failure says nothing about the
@@ -239,8 +247,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             }
         } finally {
             this._refreshPending = false;
-            if (!this._destroyed)
+            if (!this._destroyed) {
                 this._sync();
+                if (this._refreshAgain) {
+                    this._refreshAgain = false;
+                    this._refreshEstimate();
+                }
+            }
         }
     }
 
@@ -280,12 +293,37 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._clearTimeout();
             this._stopRequestIconSpin();
             this._setShown(false);
+            if (!this._preview && this._statusLoaded &&
+                manager.dailyLimitEnabled && !Main.sessionMode.isLocked &&
+                !Main.sessionMode.isGreeter)
+                this._lockSession();
             return;
         }
 
         this._setShown(true);
         this._updateLabel(remainingSecs);
         this._schedule(remainingSecs);
+    }
+
+    _lockSession() {
+        if (this._destroyed || this._lockPending)
+            return;
+
+        this._lockPending = true;
+        Gio.DBus.session.call(
+            SCREEN_SAVER_NAME, SCREEN_SAVER_PATH, SCREEN_SAVER_INTERFACE, 'Lock',
+            null, null, Gio.DBusCallFlags.NONE, -1, null,
+            (connection, result) => {
+                try {
+                    connection.call_finish(result);
+                    logInfo('locked managed desktop because no time remains');
+                } catch (error) {
+                    if (!this._destroyed)
+                        logWarning(`could not lock managed desktop: ${error.message}`);
+                } finally {
+                    this._lockPending = false;
+                }
+            });
     }
 
     _setShown(shown) {

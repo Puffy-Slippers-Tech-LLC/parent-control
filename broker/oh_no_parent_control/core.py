@@ -215,6 +215,28 @@ class Broker:
             additional_one_time_grant_seconds,
         )
 
+    def calculate_own_remaining_time(
+            self, caller_uid: int,
+            daily_allowance_remaining_seconds: int) -> int:
+        """Combine a child's timer estimate with its broker-owned live grant."""
+        config = self._load_config()
+        target = self._target(config, caller_uid)
+        try:
+            grant_time, grant_duration = self._accounts.get_extension(target.uid)
+        except Exception as error:
+            raise BackendFailure("remaining-time grant is unavailable") from error
+        if (type(grant_time) is not int or type(grant_duration) is not int or
+                grant_time < 0 or not 0 <= grant_duration <= UINT32_MAX):
+            raise BackendFailure("remaining-time grant is invalid")
+        grant_remaining = max(
+            0, grant_time + grant_duration - int(self._now().timestamp()),
+        )
+        if grant_remaining > UINT32_MAX:
+            raise BackendFailure("remaining-time grant is invalid")
+        return calculate_active_extension_seconds(
+            daily_allowance_remaining_seconds, grant_remaining, 0,
+        )
+
     def get_time_status(self, caller_uid: int, target_uid: int,
                         additional_seconds: int = 0) -> TimeStatus:
         config = self._load_config()

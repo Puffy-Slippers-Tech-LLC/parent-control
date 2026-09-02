@@ -246,6 +246,20 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(status.additional_one_time_grant_seconds, 5 * 60)
         self.assertEqual(status.calculated_active_extension_seconds, 36 * 60)
 
+    def test_child_remaining_time_uses_backend_grant_not_a_cached_claim(self):
+        now = datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles"))
+        accounts = Accounts()
+        accounts.extension = (int(now.timestamp()) - 60, 10 * 60)
+        broker = make_broker(accounts=accounts)
+
+        self.assertEqual(broker.calculate_own_remaining_time(1001, 2 * 60), 9 * 60)
+        accounts.extension = (0, 0)
+        self.assertEqual(broker.calculate_own_remaining_time(1001, 2 * 60), 2 * 60)
+
+    def test_admin_cannot_use_child_owned_remaining_time_endpoint(self):
+        with self.assertRaises(AccessDenied):
+            make_broker().calculate_own_remaining_time(1003, 0)
+
     def test_list_exposes_only_local_standard_accounts(self):
         users = make_broker().list_managed_users(991)
         self.assertEqual([(user.uid, user.label) for user in users], [

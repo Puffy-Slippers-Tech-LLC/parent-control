@@ -47,6 +47,14 @@ class PackageActivationTests(unittest.TestCase):
             "session-renewal",
         )
 
+    def test_shared_logo_is_reapplied_by_provisioning(self):
+        self.assertEqual(
+            activation_for(
+                "usr/share/oh-no-parent-control/app_logo.png"
+            ),
+            "none",
+        )
+
     def test_session_payload_change_does_not_signal_reboot(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

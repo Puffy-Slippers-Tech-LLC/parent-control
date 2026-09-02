@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 
 ADMIN_GROUPS = {"sudo", "adm"}
+# The shared logo is also within AccountsService's 128-pixel icon limit.
 KIOSK_ICON_FILE = "/usr/share/oh-no-parent-control/app_logo.png"
 
 
@@ -66,7 +67,7 @@ def accounts_service_language(user):
 
 
 def accounts_service_set_icon_file(user, icon_file=KIOSK_ICON_FILE):
-    """Make the kiosk account use the product's packaged artwork."""
+    """Make the kiosk account use the product's AccountsService-safe artwork."""
     subprocess.run([
         "busctl", "--system", "call", "org.freedesktop.Accounts",
         f"/org/freedesktop/Accounts/User{user.pw_uid}",

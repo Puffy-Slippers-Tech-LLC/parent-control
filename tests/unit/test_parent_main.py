@@ -171,6 +171,28 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(window.save_count, 1)
 
+    def test_leaving_an_app_pattern_field_starts_an_auto_save(self):
+        window = type("WindowHarness", (), {})()
+        window._loading = False
+        window.save_count = 0
+        window._save_app_policy = lambda: setattr(
+            window, "save_count", window.save_count + 1,
+        )
+
+        ParentWindow._pattern_focus_left(window)
+
+        self.assertEqual(window.save_count, 1)
+
+    def test_filename_only_pattern_uses_its_app_executable_directory(self):
+        row = type("PolicyRow", (), {})()
+        row.app = {"targets": ["/home/child/Applications/Lunar Client.AppImage"]}
+        row.pattern = type("Pattern", (), {"get_text": lambda _self: "*Lunar*Client*"})()
+
+        self.assertEqual(
+            ParentWindow._pattern_value(row),
+            "/home/child/Applications/*Lunar*Client*",
+        )
+
     def test_app_policy_uses_the_current_daily_limit(self):
         class FakePolicyButton:
             def get_active(self):

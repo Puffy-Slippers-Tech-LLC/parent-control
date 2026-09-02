@@ -339,6 +339,9 @@ class ParentWindow(Adw.ApplicationWindow):
             if suggestions:
                 row.pattern.set_placeholder_text(suggestions[0])
             row.pattern.connect("activate", lambda *_args: self._save_app_policy())
+            pattern_focus = Gtk.EventControllerFocus()
+            pattern_focus.connect("leave", self._pattern_focus_left)
+            row.pattern.add_controller(pattern_focus)
             row.add_suffix(row.pattern)
             self._apps_group.add(row)
             self._rows.append(row)
@@ -540,6 +543,30 @@ class ParentWindow(Adw.ApplicationWindow):
         if button.get_active() and not self._loading:
             self._save_app_policy()
 
+    def _pattern_focus_left(self, *_args):
+        """Persist an edited filename pattern when its entry loses focus."""
+        if not self._loading:
+            self._save_app_policy()
+
+    @staticmethod
+    def _pattern_value(row):
+        """Return the canonical pattern for a row's native executable directory.
+
+        The broker stores an absolute directory and a filename glob, but the
+        editor accepts a filename-only glob because the row already identifies
+        the executable it guards.
+        """
+        pattern = row.pattern.get_text().strip()
+        if not pattern or pattern.startswith("/") or "/" in pattern:
+            return pattern
+        directories = {
+            os.path.dirname(os.path.realpath(target))
+            for target in row.app["targets"] if target.startswith("/")
+        }
+        if len(directories) != 1:
+            return pattern
+        return os.path.join(directories.pop(), pattern)
+
     def _app_policy_value(self):
         value = dict(self._preferences)
         # SetPreferences retains the enabled state, but it persists the daily
@@ -560,10 +587,10 @@ class ParentWindow(Adw.ApplicationWindow):
                 if row.policy_buttons[state["id"]].get_active()
             )
             if state != "allowed":
+                pattern = self._pattern_value(row)
                 value["apps"][row.app["id"]] = {
                     "state": state, "targets": row.app["targets"],
-                    "patterns": ([row.pattern.get_text().strip()] if row.pattern.get_text().strip()
-                                 else []),
+                    "patterns": [pattern] if pattern else [],
                 }
         return value
 

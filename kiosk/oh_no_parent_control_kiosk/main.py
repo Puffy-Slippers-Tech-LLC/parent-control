@@ -156,6 +156,10 @@ class BackgroundMusic:
     def start(self):
         self._player.set_state(Gst.State.PLAYING)
 
+    def set_muted(self, muted):
+        """Mute or restore the soundtrack without interrupting its loop."""
+        self._player.set_property("mute", muted)
+
     def close(self):
         self._bus.remove_signal_watch()
         self._player.set_state(Gst.State.NULL)
@@ -799,13 +803,24 @@ class RequestWindow(Adw.ApplicationWindow):
         about_action.connect("activate", self._show_about)
         actions.add_action(help_action)
         actions.add_action(about_action)
+        self._mute_button = Gtk.Button(
+            icon_name="audio-volume-high-symbolic",
+            tooltip_text="Mute sound",
+        )
+        self._mute_button.add_css_class("oh-no-parent-control-menu-button")
+        self._mute_button.connect("clicked", self._toggle_mute)
         menu_button = Gtk.MenuButton(
             icon_name="open-menu-symbolic", menu_model=menu,
-            tooltip_text="Menu", halign=Gtk.Align.END, valign=Gtk.Align.START,
-            margin_top=20, margin_end=20,
+            tooltip_text="Menu",
         )
         menu_button.add_css_class("oh-no-parent-control-menu-button")
-        layout.add_overlay(menu_button)
+        top_controls = Gtk.Box(
+            spacing=8, halign=Gtk.Align.END, valign=Gtk.Align.START,
+            margin_top=20, margin_end=20,
+        )
+        top_controls.append(self._mute_button)
+        top_controls.append(menu_button)
+        layout.add_overlay(top_controls)
         if self._preview:
             # The production kiosk is fullscreen, but its frameless preview
             # still needs a compositor-supported surface for moving it.
@@ -837,6 +852,14 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _show_about(self, *_args):
         AboutDialog(self, links_enabled=False).present()
+
+    def _toggle_mute(self, *_args):
+        muted = self._mute_button.get_icon_name() != "audio-volume-muted-symbolic"
+        self._music.set_muted(muted)
+        self._mute_button.set_icon_name(
+            "audio-volume-muted-symbolic" if muted else "audio-volume-high-symbolic",
+        )
+        self._mute_button.set_tooltip_text("Unmute sound" if muted else "Mute sound")
 
     @staticmethod
     def _page(title):

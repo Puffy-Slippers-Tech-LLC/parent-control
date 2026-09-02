@@ -49,3 +49,9 @@ class ChildPreviewTests(unittest.TestCase):
                       request_dialog)
         self.assertIn("[['Help', 'help'], ['About', 'about']]", request_dialog)
         self.assertIn("this._onMenu?.(action);", request_dialog)
+
+    def test_request_form_width_does_not_depend_on_async_approver_text(self):
+        stylesheet = (ROOT / "child" / "stylesheet.css").read_text()
+        rule = stylesheet.split(".oh-no-parent-control-content {", 1)[1].split("}", 1)[0]
+
+        self.assertIn("width: 350px;", rule)

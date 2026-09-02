@@ -141,7 +141,21 @@ class RequestContent(Gtk.Box):
 
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._choices.add_css_class("oh-no-parent-control-choices")
-        self.append(self._choices)
+        self._duration_menu = Gtk.Overlay()
+        self._duration_menu.set_child(self._choices)
+        self._duration_notice = Gtk.Label(
+            label=(
+                "No time limit set, but you can still request to allow "
+                "soft blocked apps."
+            ),
+            wrap=True,
+            justify=Gtk.Justification.CENTER,
+            halign=Gtk.Align.FILL,
+            valign=Gtk.Align.CENTER,
+        )
+        self._duration_notice.add_css_class("oh-no-parent-control-duration-notice")
+        self._duration_menu.add_overlay(self._duration_notice)
+        self.append(self._duration_menu)
         self._build_duration_choices()
 
         self._custom_row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
@@ -280,16 +294,9 @@ class RequestContent(Gtk.Box):
             self._status.set_text(
                 "No local interactive administrator accounts are available."
             )
-        elif self._screen_time_limit_enabled is False:
-            self._status.set_text(
-                "Screen time limit is not enabled in the parent app."
-            )
         else:
             self._status.set_text("Choose the account and approving administrator")
-        if self._screen_time_limit_enabled is False:
-            self._status.add_css_class("oh-no-parent-control-error")
-        else:
-            self._status.remove_css_class("oh-no-parent-control-error")
+        self._status.remove_css_class("oh-no-parent-control-error")
         self._update_controls()
 
     def _account_changed(self, *_args):
@@ -398,13 +405,17 @@ class RequestContent(Gtk.Box):
         """Apply request availability while always preserving the exit path."""
         request_available = (
             self._controls_enabled and self._ready and
-            self._screen_time_limit_enabled is True
+            self._screen_time_limit_enabled is not None
         )
+        time_limit_enabled = self._screen_time_limit_enabled is True
         self._request.set_sensitive(request_available)
         self._cancel.set_sensitive(self._controls_enabled)
         self._accounts.set_sensitive(self._controls_enabled)
-        self._custom_entry.set_sensitive(request_available)
+        self._custom_entry.set_sensitive(request_available and time_limit_enabled)
         self._allow_soft.set_sensitive(request_available)
         self._approvers.set_sensitive(request_available)
         for button in self._duration_buttons:
-            button.set_sensitive(request_available)
+            button.set_sensitive(request_available and time_limit_enabled)
+        self._duration_notice.set_visible(
+            request_available and self._screen_time_limit_enabled is False
+        )

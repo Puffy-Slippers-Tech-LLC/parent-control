@@ -207,6 +207,15 @@ entry.oh-no-parent-control-custom-entry {
   background-color: rgba(255, 255, 255, 0.08);
 }
 
+.oh-no-parent-control-duration-notice {
+  min-height: 86px;
+  padding: 14px 20px;
+  color: rgba(255, 255, 255, 0.96);
+  font-weight: 700;
+  background-color: rgba(7, 12, 17, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
 .oh-no-parent-control-actions {
   min-width: 350px;
 }

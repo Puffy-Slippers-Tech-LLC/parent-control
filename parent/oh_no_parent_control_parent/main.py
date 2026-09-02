@@ -60,6 +60,10 @@ MATCH_RULES = (
 )
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
 CONTENT_MAX_WIDTH = 1046
+# The major surfaces use a 24 px horizontal margin on either side.  Start the
+# window at that natural content width rather than showing a wide empty gutter
+# around the clamped column.
+DEFAULT_WINDOW_WIDTH = CONTENT_MAX_WIDTH + 2 * 24
 PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
 PREVIEW_PREFERENCES = {
     1001: {
@@ -188,7 +192,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # The application ID ends in ``.Parent``, but the shared installed
         # desktop icon uses the product-wide name.
         self.set_icon_name(APPLICATION_ICON_NAME)
-        self.set_default_size(1344, 1168)
+        self.set_default_size(DEFAULT_WINDOW_WIDTH, 1168)
         self.set_size_request(820, 700)
         self._client = client_factory()
         self._users = []

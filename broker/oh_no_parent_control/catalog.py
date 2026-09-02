@@ -30,10 +30,22 @@ def suggested_patterns(target: str) -> tuple[str, ...]:
     if not target.endswith(".AppImage"):
         return ()
     directory, basename = os.path.split(target)
-    # Keep the AppImage suffix and replace a numeric version plus any updater
-    # suffix.  The parent may edit this; it is never silently activated.
-    suggested = re.sub(r"(?:[-_]v?\d+(?:\.\d+)+(?:[-_][A-Za-z0-9]+)?)\.AppImage$",
-                       "-*.AppImage", basename)
+    stem = basename.removesuffix(".AppImage")
+    # Replace a dotted version wherever it occurs as a filename component. An
+    # updater identifier is often a GUID following a stable label (for example
+    # ``-ow_e1eda9...``); replace that identifier too while retaining the label
+    # so the suggestion does not match every AppImage in the directory.
+    suggested = re.sub(
+        r"(?:(?<=^)|(?<=[-_]))v?\d+(?:\.\d+)+(?=$|[-_])", "*", stem,
+    )
+    with_guid = re.sub(r"(?<=[-_])[0-9A-Fa-f]{8,}(?=$|[-_])", "*", suggested)
+    if with_guid == suggested:
+        # An unstructured updater suffix (such as ``-abc``) is volatile as a
+        # whole. This preserves the existing conservative suggestion.
+        suggested = re.sub(r"([_-]\*)(?:[-_][A-Za-z0-9]+)$", r"\1", suggested)
+    else:
+        suggested = with_guid
+    suggested += ".AppImage"
     if suggested == basename:
         return ()
     return (os.path.join(os.path.realpath(directory), suggested),)

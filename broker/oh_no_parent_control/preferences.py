@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .config import UINT32_MAX, validate_target
 
-FORMAT_VERSION = 2
+FORMAT_VERSION = 3
 VALID_APP_STATES = {"allowed", "permanent", "conditional"}
 MIN_DAILY_LIMIT_MINUTES = 0
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
@@ -67,7 +67,9 @@ def validate_preferences(raw: object) -> dict:
     for desktop_id, entry in raw["apps"].items():
         if not isinstance(desktop_id, str) or not DESKTOP_ID_RE.fullmatch(desktop_id):
             raise PreferencesError("invalid desktop application ID")
-        if not isinstance(entry, dict) or set(entry) != {"state", "targets", "patterns"}:
+        if not isinstance(entry, dict) or set(entry) != {
+            "state", "targets", "patterns", "user_saved_match_rule",
+        }:
             raise PreferencesError("invalid application preference")
         state = entry["state"]
         if state not in VALID_APP_STATES:
@@ -82,9 +84,15 @@ def validate_preferences(raw: object) -> dict:
         patterns = tuple(_validate_pattern(value, targets) for value in entry["patterns"])
         if len(patterns) != len(set(patterns)):
             raise PreferencesError("duplicate application pattern")
-        if state != "allowed":
+        user_saved_match_rule = entry["user_saved_match_rule"]
+        if type(user_saved_match_rule) is not bool:
+            raise PreferencesError("application match-rule override must be boolean")
+        # Keep an allowed entry only when it carries a saved match-rule choice.
+        # That choice must survive changing access back to allowed.
+        if state != "allowed" or user_saved_match_rule:
             apps[desktop_id] = {
                 "state": state, "targets": list(targets), "patterns": list(patterns),
+                "user_saved_match_rule": user_saved_match_rule,
             }
 
     request = raw["request"]

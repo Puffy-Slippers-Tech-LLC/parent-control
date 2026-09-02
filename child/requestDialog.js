@@ -1,4 +1,5 @@
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 
@@ -21,6 +22,12 @@ import {
 import {logError} from './logger.js';
 
 export {DURATIONS} from './requestOptions.js';
+
+function extensionAsset(name) {
+    const [modulePath] = GLib.filename_from_uri(import.meta.url);
+    return new Gio.FileIcon({file: Gio.File.new_for_path(
+        GLib.build_filenamev([GLib.path_get_dirname(modulePath), name]))});
+}
 
 // Zero is only the UI sentinel for this choice. The ActiveExtension backend
 // write requires a positive duration, so calculate the interval explicitly.
@@ -66,7 +73,7 @@ class RequestForm {
         });
         header.add_child(new St.Icon({
             style_class: 'oh-no-parent-control-header-icon',
-            icon_name: 'alarm-symbolic',
+            gicon: extensionAsset('app_logo.png'),
             y_align: Clutter.ActorAlign.CENTER,
         }));
         const headerCopy = new St.BoxLayout({

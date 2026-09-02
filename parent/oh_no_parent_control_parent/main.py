@@ -42,6 +42,20 @@ STATES = (
         "css": "policy-soft-blocked",
     },
 )
+MATCH_RULES = (
+    {
+        "id": "pattern",
+        "label": "Pattern Match",
+        "icon": "folder-saved-search-symbolic",
+        "description": "Matches versioned filenames using a wildcard.",
+    },
+    {
+        "id": "precise",
+        "label": "Precise execution path",
+        "icon": "crosshairs-symbolic",
+        "description": "Matches only this exact executable path.",
+    },
+)
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
 PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
 PREVIEW_PREFERENCES = {
@@ -49,8 +63,8 @@ PREVIEW_PREFERENCES = {
         "parent_control_enabled": True,
         "daily_time_limit_minutes": 90,
         "apps": {
-            "org.gnome.Software.desktop": {"state": "conditional", "targets": [], "patterns": []},
-            "org.gnome.Calculator.desktop": {"state": "permanent", "targets": [], "patterns": []},
+            "org.gnome.Software.desktop": {"state": "conditional", "targets": [], "patterns": [], "user_saved_match_rule": False},
+            "org.gnome.Calculator.desktop": {"state": "permanent", "targets": [], "patterns": [], "user_saved_match_rule": False},
         },
         "request": {},
     },
@@ -227,49 +241,14 @@ class ParentWindow(Adw.ApplicationWindow):
         screen_limits.add(self._time_status)
         page.add(screen_limits)
 
-        legend = Adw.PreferencesGroup(
-            title="App access legend", css_classes=["policy-legend"],
-        )
-        legend_row = Gtk.Grid(
-            column_homogeneous=True, column_spacing=12,
-            css_classes=["policy-legend-row"],
-        )
-        legend_items = (
-            (STATES[0], None),
-            (STATES[1], "Can only be unblocked by admins"),
-            (STATES[2], "Can be toggled in one-off extensions"),
-        )
-        for index, (state, subtitle) in enumerate(legend_items):
-            column = Gtk.Box(
-                orientation=Gtk.Orientation.HORIZONTAL, spacing=8,
-                hexpand=True, valign=Gtk.Align.CENTER,
-                css_classes=["policy-legend-column"],
-            )
-            column.append(Gtk.ToggleButton(
-                active=True, can_focus=False, can_target=False,
-                css_classes=[
-                    "policy-choice", "policy-legend-icon", state["css"],
-                ],
-                child=Gtk.Image(icon_name=state["icon"], pixel_size=19),
-                valign=Gtk.Align.CENTER,
-            ))
-            text = Gtk.Box(
-                orientation=Gtk.Orientation.VERTICAL,
-                hexpand=True, valign=Gtk.Align.CENTER,
-            )
-            text.append(Gtk.Label(
-                label=state["label"], xalign=0,
-                css_classes=["policy-legend-title"],
-            ))
-            if subtitle:
-                text.append(Gtk.Label(
-                    label=subtitle, xalign=0, wrap=True,
-                    css_classes=["policy-legend-description"],
-                ))
-            column.append(text)
-            legend_row.attach(column, index, 0, 1, 1)
-        legend.add(legend_row)
-        page.add(legend)
+        self._add_legend(page, "App Access Legend", STATES, {
+            "allowed": "Allows the app to run.",
+            "permanent": "Blocks the app until an administrator changes this setting.",
+            "conditional": "Blocks the app unless an approved one-off extension permits it.",
+        }, access=True)
+        self._add_legend(page, "Match Rule Legend", MATCH_RULES, {
+            rule["id"]: rule["description"] for rule in MATCH_RULES
+        })
 
         apps = Adw.PreferencesGroup(css_classes=["apps-panel"])
         self._apps_group = apps
@@ -285,8 +264,65 @@ class ParentWindow(Adw.ApplicationWindow):
         self._search.connect("search-changed", self._filter)
         search_row.add_suffix(self._search)
         apps.add(search_row)
+        # PreferencesGroup places non-row widgets after its list.  Keep the
+        # headings in an ActionRow so they remain directly above app rows.
+        headers = Adw.ActionRow(css_classes=["app-policy-columns"])
+        headers.add_prefix(Gtk.Label(label="Icon", xalign=0,
+                                     css_classes=["app-policy-column-header"]))
+        headers.set_title("App Name & Detail")
+        match_header = Gtk.Label(label="Match Rule", xalign=0,
+                                 css_classes=["app-policy-column-header"])
+        access_header = Gtk.Label(label="Access Rule", xalign=0,
+                                  css_classes=["app-policy-column-header"])
+        headers.add_suffix(match_header)
+        headers.add_suffix(access_header)
+        apps.add(headers)
         self._app_rows = []
         page.add(apps)
+
+    def _add_legend(self, page, title, items, descriptions, *, access=False):
+        legend = Adw.PreferencesGroup(title=title, css_classes=["policy-legend"])
+        legend_row = Gtk.Box(spacing=18, css_classes=["policy-legend-row"])
+        for item in items:
+            column = Gtk.Box(spacing=8, hexpand=True, valign=Gtk.Align.CENTER,
+                             css_classes=["policy-legend-column"])
+            if access:
+                icon = Gtk.ToggleButton(active=True, can_focus=False, can_target=False,
+                    css_classes=["policy-choice", "policy-legend-icon", item["css"]],
+                    child=Gtk.Image(icon_name=item["icon"], pixel_size=19))
+            else:
+                icon = Gtk.Image(icon_name=item["icon"], pixel_size=24,
+                                 css_classes=["match-rule-icon"])
+            column.append(icon)
+            column.append(Gtk.Label(label=item["label"], xalign=0,
+                                    css_classes=["policy-legend-title"]))
+            help_affordance = Gtk.Box(spacing=0, valign=Gtk.Align.CENTER)
+            help_affordance.append(Gtk.Label(label="("))
+            help_button = Gtk.LinkButton(label="?", uri="help:match-rule",
+                                         css_classes=["policy-help-link"])
+            help_button.connect("activate-link", self._show_help_popover,
+                                descriptions[item["id"]])
+            help_affordance.append(help_button)
+            help_affordance.append(Gtk.Label(label=")"))
+            column.append(help_affordance)
+            legend_row.append(column)
+        legend.add(legend_row)
+        page.add(legend)
+
+    def _show_help_popover(self, button, description):
+        popover = Gtk.Popover(position=Gtk.PositionType.BOTTOM, autohide=False)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
+                          css_classes=["policy-help-popover"])
+        close = Gtk.Button(icon_name="window-close-symbolic", halign=Gtk.Align.END,
+                           tooltip_text="Close")
+        close.connect("clicked", lambda *_args: popover.popdown())
+        content.append(close)
+        content.append(Gtk.Label(label=description, wrap=True, max_width_chars=36,
+                                 xalign=0))
+        popover.set_child(content)
+        popover.set_parent(button)
+        popover.popup()
+        return True
 
     def _show_about(self, *_args):
         AboutDialog(self).present()
@@ -311,6 +347,12 @@ class ParentWindow(Adw.ApplicationWindow):
                 if icon is not None:
                     row.add_prefix(Gtk.Image(gicon=icon, pixel_size=32))
             row.policy_buttons = {}
+            row.match_rule_button = Gtk.Button(
+                tooltip_text="Edit match rule", valign=Gtk.Align.CENTER,
+                css_classes=["match-rule-button"],
+            )
+            row.match_rule_button.connect("clicked", self._edit_match_rule, row)
+            row.add_suffix(row.match_rule_button)
             selector = Gtk.Box(
                 orientation=Gtk.Orientation.HORIZONTAL, spacing=3,
                 valign=Gtk.Align.CENTER, css_classes=["policy-selector"],
@@ -331,18 +373,9 @@ class ParentWindow(Adw.ApplicationWindow):
                 row.policy_buttons[state["id"]] = button
                 selector.append(button)
             row.add_suffix(selector)
-            row.pattern = Gtk.Entry(
-                placeholder_text="Update-stable filename pattern (optional)",
-                width_chars=30, valign=Gtk.Align.CENTER,
-            )
-            suggestions = app.get("suggested_patterns", [])
-            if suggestions:
-                row.pattern.set_placeholder_text(suggestions[0])
-            row.pattern.connect("activate", lambda *_args: self._save_app_policy())
-            pattern_focus = Gtk.EventControllerFocus()
-            pattern_focus.connect("leave", self._pattern_focus_left)
-            row.pattern.add_controller(pattern_focus)
-            row.add_suffix(row.pattern)
+            row.match_rule = None
+            row.user_saved_match_rule = False
+            self._update_match_rule_icon(row)
             self._apps_group.add(row)
             self._rows.append(row)
             self._app_rows.append(row)
@@ -439,8 +472,12 @@ class ParentWindow(Adw.ApplicationWindow):
         for row in self._rows:
             state = preferences["apps"].get(row.app["id"], {}).get("state", "allowed")
             row.policy_buttons[state].set_active(True)
-            patterns = preferences["apps"].get(row.app["id"], {}).get("patterns", [])
-            row.pattern.set_text(patterns[0] if patterns else "")
+            policy = preferences["apps"].get(row.app["id"], {})
+            row.user_saved_match_rule = policy.get("user_saved_match_rule", False)
+            row.match_rule = policy.get("patterns", [None])[0]
+            if row.match_rule is None and row.user_saved_match_rule:
+                row.match_rule = self._default_match_rule(row)
+            self._update_match_rule_icon(row)
         self._loading = False
         self._set_apps_sensitive(True)
         LOG.info("preferences loaded target_uid=%d enabled=%s policy_count=%d",
@@ -543,29 +580,78 @@ class ParentWindow(Adw.ApplicationWindow):
         if button.get_active() and not self._loading:
             self._save_app_policy()
 
-    def _pattern_focus_left(self, *_args):
-        """Persist an edited filename pattern when its entry loses focus."""
-        if not self._loading:
-            self._save_app_policy()
-
     @staticmethod
-    def _pattern_value(row):
-        """Return the canonical pattern for a row's native executable directory.
-
-        The broker stores an absolute directory and a filename glob, but the
-        editor accepts a filename-only glob because the row already identifies
-        the executable it guards.
-        """
-        pattern = row.pattern.get_text().strip()
-        if not pattern or pattern.startswith("/") or "/" in pattern:
-            return pattern
+    def _canonical_match_rule(row, rule):
+        """Return an absolute same-directory rule from editor input."""
+        rule = rule.strip()
+        if not rule or rule.startswith("/") or "/" in rule:
+            return rule
         directories = {
             os.path.dirname(os.path.realpath(target))
             for target in row.app["targets"] if target.startswith("/")
         }
         if len(directories) != 1:
-            return pattern
-        return os.path.join(directories.pop(), pattern)
+            return rule
+        return os.path.join(directories.pop(), rule)
+
+    def _default_match_rule(self, row):
+        suggestions = row.app.get("suggested_patterns", [])
+        return suggestions[0] if suggestions else row.app["targets"][0]
+
+    @staticmethod
+    def _is_pattern(rule):
+        return "*" in rule or "?" in rule
+
+    def _update_match_rule_icon(self, row):
+        rule = row.match_rule or self._default_match_rule(row)
+        match = MATCH_RULES[0] if self._is_pattern(rule) else MATCH_RULES[1]
+        row.match_rule_button.set_child(Gtk.Image(icon_name=match["icon"], pixel_size=22))
+        row.match_rule_button.set_tooltip_text(match["label"])
+
+    def _edit_match_rule(self, _button, row):
+        dialog = Gtk.Dialog(transient_for=self, modal=True, title="Edit Match Rule")
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Reset to Default", Gtk.ResponseType.APPLY)
+        dialog.add_button("Save", Gtk.ResponseType.OK)
+        dialog.set_default_response(Gtk.ResponseType.OK)
+        content = dialog.get_content_area()
+        content.set_spacing(12)
+        content.set_margin_top(18)
+        content.set_margin_bottom(18)
+        content.set_margin_start(18)
+        content.set_margin_end(18)
+        content.append(Gtk.Label(
+            label="Use an exact execution path, or include * for a versioned filename pattern.",
+            wrap=True, xalign=0,
+        ))
+        entry = Gtk.Entry(hexpand=True, width_chars=54,
+                          text=row.match_rule or self._default_match_rule(row))
+        content.append(entry)
+
+        def response(_dialog, response_id):
+            if response_id == Gtk.ResponseType.OK:
+                rule = self._canonical_match_rule(row, entry.get_text())
+                if not rule:
+                    self._toast("A match rule is required")
+                    return
+                if not self._is_pattern(rule) and rule not in row.app["targets"]:
+                    self._toast("A precise match must be this app's execution path")
+                    return
+                row.match_rule = rule
+                # Saving the detected default is not an override. A value only
+                # becomes user-saved once it differs from that default.
+                row.user_saved_match_rule = rule != self._default_match_rule(row)
+                self._update_match_rule_icon(row)
+                self._save_app_policy()
+            elif response_id == Gtk.ResponseType.APPLY:
+                row.match_rule = self._default_match_rule(row)
+                row.user_saved_match_rule = False
+                self._update_match_rule_icon(row)
+                self._save_app_policy()
+            dialog.destroy()
+
+        dialog.connect("response", response)
+        dialog.present()
 
     def _app_policy_value(self):
         value = dict(self._preferences)
@@ -586,11 +672,14 @@ class ParentWindow(Adw.ApplicationWindow):
                 state["id"] for state in STATES
                 if row.policy_buttons[state["id"]].get_active()
             )
-            if state != "allowed":
-                pattern = self._pattern_value(row)
+            # An explicit match-rule selection is retained even if access is
+            # currently allowed, so it is ready when the app is blocked later.
+            if state != "allowed" or row.user_saved_match_rule:
+                rule = row.match_rule if row.user_saved_match_rule else self._default_match_rule(row)
                 value["apps"][row.app["id"]] = {
                     "state": state, "targets": row.app["targets"],
-                    "patterns": [pattern] if pattern else [],
+                    "patterns": [rule] if self._is_pattern(rule) else [],
+                    "user_saved_match_rule": row.user_saved_match_rule,
                 }
         return value
 

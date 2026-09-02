@@ -22,8 +22,8 @@ class PreferenceTests(unittest.TestCase):
     def test_three_state_policy_computes_filters(self):
         value = default_preferences()
         value["apps"] = {
-            "hard.desktop": {"state": "permanent", "targets": ["/usr/bin/hard"], "patterns": []},
-            "soft.desktop": {"state": "conditional", "targets": ["org.example.Soft"], "patterns": []},
+            "hard.desktop": {"state": "permanent", "targets": ["/usr/bin/hard"], "patterns": [], "user_saved_match_rule": False},
+            "soft.desktop": {"state": "conditional", "targets": ["org.example.Soft"], "patterns": [], "user_saved_match_rule": False},
         }
         value = validate_preferences(value)
         self.assertEqual(blocked_targets(value, False), ("/usr/bin/hard", "org.example.Soft"))
@@ -36,6 +36,7 @@ class PreferenceTests(unittest.TestCase):
                 "state": "conditional",
                 "targets": ["/home/child/Applications/Lunar Client-3.7.17.AppImage"],
                 "patterns": ["/home/child/Applications/Lunar Client-*.AppImage"],
+                "user_saved_match_rule": True,
             },
         }
         normalized = validate_preferences(value)
@@ -46,6 +47,21 @@ class PreferenceTests(unittest.TestCase):
         value["apps"]["lunar.desktop"]["patterns"] = ["/tmp/Lunar-*.AppImage"]
         with self.assertRaisesRegex(PreferencesError, "share a directory"):
             validate_preferences(value)
+
+    def test_user_saved_match_rule_is_retained_when_access_is_allowed(self):
+        value = default_preferences()
+        value["apps"] = {
+            "game.desktop": {
+                "state": "allowed",
+                "targets": ["/usr/bin/game"],
+                "patterns": [],
+                "user_saved_match_rule": True,
+            },
+        }
+
+        normalized = validate_preferences(value)
+
+        self.assertTrue(normalized["apps"]["game.desktop"]["user_saved_match_rule"])
 
     def test_invalid_request_value_is_rejected(self):
         value = default_preferences()

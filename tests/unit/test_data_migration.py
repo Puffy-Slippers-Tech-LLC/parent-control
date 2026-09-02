@@ -6,11 +6,12 @@ from pathlib import Path
 
 from oh_no_parent_control.data_migration import (
     MigrationError,
+    PREFERENCE_MIGRATIONS,
     migrate_all_state,
     migrate_document,
     migrate_preferences,
 )
-from oh_no_parent_control.preferences import default_preferences
+from oh_no_parent_control.preferences import default_preferences, validate_preferences
 
 
 class DataMigrationTests(unittest.TestCase):
@@ -133,8 +134,28 @@ class DataMigrationTests(unittest.TestCase):
 
             self.assertEqual(migrate_preferences(directory), 1)
             migrated = json.loads(record.read_text(encoding="utf-8"))
-            self.assertEqual(migrated["version"], 2)
-            self.assertEqual(migrated["apps"]["lunar.desktop"]["patterns"], [])
+        self.assertEqual(migrated["version"], 3)
+        self.assertEqual(migrated["apps"]["lunar.desktop"]["patterns"], [])
+        self.assertFalse(migrated["apps"]["lunar.desktop"]["user_saved_match_rule"])
+
+    def test_v2_pattern_is_migrated_as_a_user_saved_match_rule(self):
+        value = default_preferences()
+        value["version"] = 2
+        value["apps"] = {
+            "lunar.desktop": {
+                "state": "conditional",
+                "targets": ["/home/child/Applications/Lunar-3.7.17.AppImage"],
+                "patterns": ["/home/child/Applications/Lunar-*.AppImage"],
+            },
+        }
+
+        migrated, changed = migrate_document(
+            value, current_version=3, migrations=PREFERENCE_MIGRATIONS,
+            validator=validate_preferences,
+        )
+
+        self.assertTrue(changed)
+        self.assertTrue(migrated["apps"]["lunar.desktop"]["user_saved_match_rule"])
 
     def test_duplicate_keys_and_unsafe_records_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

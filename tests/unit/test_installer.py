@@ -16,7 +16,7 @@ class InstallerTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 
         self.assertTrue((ROOT / "data/app_logo.png").is_file())
-        self.assertTrue((ROOT / "data/app_icon.png").is_file())
+        self.assertTrue((ROOT / "data/app_logo_gnome_launcher.png").is_file())
         self.assertTrue((ROOT / "data/company_logo.png").is_file())
         self.assertIn(
             "BRANDING_ASSETS := data/brand.json data/app.json "
@@ -138,7 +138,7 @@ class InstallerTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         icon = "com.puffyslippers.OhNoParentControl"
-        launcher_icon = ROOT / "data/app_icon.png"
+        launcher_icon = ROOT / "data/app_logo_gnome_launcher.png"
         with launcher_icon.open("rb") as source:
             self.assertEqual(source.read(8), b"\x89PNG\r\n\x1a\n")
             self.assertEqual(source.read(4), b"\x00\x00\x00\r")
@@ -146,7 +146,7 @@ class InstallerTests(unittest.TestCase):
             width, height = struct.unpack(">II", source.read(8))
         self.assertEqual((width, height), (512, 512))
         self.assertIn(
-            "data/app_icon.png \"$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/"
+            "data/app_logo_gnome_launcher.png \"$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/"
             f"{icon}.png\"",
             makefile,
         )

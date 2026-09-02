@@ -33,6 +33,8 @@ UUID := oh-no-parent-control@tech.puffyslippers.com
 CHILD_DIR := child
 EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js branding.js logger.js parentalApproval.js previewMode.js remainingTimeIndicator.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js timeCalculationClient.js timerQuery.js
 EXTENSION_ASSETS := request-options.json
+# app_logo.png is intentionally limited to 128 pixels for AccountsService;
+# app_icon.png is the full-resolution GNOME launcher asset.
 BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_logo.png
 EXTENSION_PACK_ASSETS := $(BRANDING_ASSETS) LICENSE
 EXTENSION_BASE ?= $(HOME)/.local/share
@@ -111,7 +113,7 @@ _install-product-files:
 	install -d "$(DESTDIR)$(DATADIR)/gnome-session/sessions" "$(DESTDIR)$(DATADIR)/wayland-sessions" "$(DESTDIR)$(DATADIR)/applications" "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps"
 	install -m 0644 data/gnome-session/sessions/oh-no-parent-control.session "$(DESTDIR)$(DATADIR)/gnome-session/sessions/"
 	install -m 0644 data/wayland-sessions/oh-no-parent-control.desktop "$(DESTDIR)$(DATADIR)/wayland-sessions/"
-	install -m 0644 data/app_logo.png "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png"
+	install -m 0644 data/app_icon.png "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png"
 	install -m 0644 data/applications/com.puffyslippers.OhNoParentControl.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	# GNOME only indexes desktop entries the signed-in user can read.  The
 	# installer/package assigns this file to Ubuntu's administrator group.

@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from oh_no_parent_control.catalog import _application, list_apps
+from oh_no_parent_control.catalog import _application, list_apps, suggested_patterns
 from oh_no_parent_control.core import UserAccount
 
 
@@ -41,6 +41,16 @@ class CatalogTests(unittest.TestCase):
             application = _application(launcher, "lunarclient.desktop", home)
         self.assertEqual(application["suggested_patterns"], (
             f"{appimage.parent}/Lunar Client-*.AppImage",))
+
+    def test_versioned_appimage_with_guid_gets_a_structured_pattern_suggestion(self):
+        target = (
+            "/home/adrian/Applications/"
+            "Lunar Client-3.7.13-ow_e1eda9a97aab9c00fb9acf48129edd99.AppImage"
+        )
+
+        self.assertEqual(suggested_patterns(target), (
+            "/home/adrian/Applications/Lunar Client-*-ow_*.AppImage",
+        ))
 
     def test_catalog_reads_the_managed_users_private_desktop_directory(self):
         with tempfile.TemporaryDirectory() as temporary:

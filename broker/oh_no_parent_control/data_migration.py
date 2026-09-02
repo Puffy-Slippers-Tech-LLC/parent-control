@@ -38,7 +38,26 @@ def migrate_preferences_v1_to_v2(raw: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
-PREFERENCE_MIGRATIONS: dict[int, Migration] = {1: migrate_preferences_v1_to_v2}
+def migrate_preferences_v2_to_v3(raw: dict[str, Any]) -> dict[str, Any]:
+    """Record whether an existing saved pattern is a user match-rule override."""
+    migrated = dict(raw)
+    migrated["version"] = 3
+    migrated["apps"] = {
+        desktop_id: {
+            **entry,
+            # A legacy wildcard could only have been typed into the old editor,
+            # so retain it as a user choice. Exact legacy entries use defaults.
+            "user_saved_match_rule": bool(entry.get("patterns")),
+        }
+        for desktop_id, entry in raw.get("apps", {}).items()
+    }
+    return migrated
+
+
+PREFERENCE_MIGRATIONS: dict[int, Migration] = {
+    1: migrate_preferences_v1_to_v2,
+    2: migrate_preferences_v2_to_v3,
+}
 
 
 class MigrationError(RuntimeError):

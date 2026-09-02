@@ -143,7 +143,7 @@ Example:
 
 ```text
 Lunar Client-3.7.17-ow_2eff89.AppImage
-Lunar Client-*.AppImage
+Lunar Client-*-ow_*.AppImage
 ```
 
 The parent must:

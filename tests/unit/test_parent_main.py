@@ -171,25 +171,12 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(window.save_count, 1)
 
-    def test_leaving_an_app_pattern_field_starts_an_auto_save(self):
-        window = type("WindowHarness", (), {})()
-        window._loading = False
-        window.save_count = 0
-        window._save_app_policy = lambda: setattr(
-            window, "save_count", window.save_count + 1,
-        )
-
-        ParentWindow._pattern_focus_left(window)
-
-        self.assertEqual(window.save_count, 1)
-
-    def test_filename_only_pattern_uses_its_app_executable_directory(self):
+    def test_filename_only_match_rule_uses_its_app_executable_directory(self):
         row = type("PolicyRow", (), {})()
         row.app = {"targets": ["/home/child/Applications/Lunar Client.AppImage"]}
-        row.pattern = type("Pattern", (), {"get_text": lambda _self: "*Lunar*Client*"})()
 
         self.assertEqual(
-            ParentWindow._pattern_value(row),
+            ParentWindow._canonical_match_rule(row, "*Lunar*Client*"),
             "/home/child/Applications/*Lunar*Client*",
         )
 
@@ -205,6 +192,8 @@ class ParentWindowTests(unittest.TestCase):
             "permanent": FakeToggleButton(active=False),
             "conditional": FakeToggleButton(active=False),
         }
+        row.user_saved_match_rule = False
+        row.match_rule = None
         window = type("WindowHarness", (), {})()
         window._preferences = {
             "daily_time_limit_minutes": 30,
@@ -225,6 +214,8 @@ class ParentWindowTests(unittest.TestCase):
             "permanent": FakeToggleButton(active=False),
             "conditional": FakeToggleButton(active=False),
         }
+        row.user_saved_match_rule = False
+        row.match_rule = None
         window = type("WindowHarness", (), {})()
         window._preferences = {
             "daily_time_limit_minutes": 30,

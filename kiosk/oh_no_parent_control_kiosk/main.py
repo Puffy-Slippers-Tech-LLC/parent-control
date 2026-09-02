@@ -829,7 +829,11 @@ class RequestWindow(Adw.ApplicationWindow):
         return_button.add_css_class("oh-no-parent-control-request-button")
         return_button.connect("clicked", self._logout)
         self._result_view.append(return_button)
-        self._stack.add_named(self._result_view, "result")
+        # Keep every outcome, including the post-authorization confirmation,
+        # mounted in the gateway plane.  Adding this box directly to the stack
+        # would bypass the yaw and perspective used by the request form.
+        self._result_surface = GatewayAlignedRequest(self._result_view)
+        self._stack.add_named(self._result_surface, "result")
 
     def _show_about(self, *_args):
         AboutDialog(self, links_enabled=False).present()

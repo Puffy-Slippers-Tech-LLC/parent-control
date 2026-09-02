@@ -211,9 +211,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertLess(screen_tab, app_tab)
         self.assertIn("screen_limits_page.set_child(Adw.Clamp(", source)
         self.assertIn("screen_limits.append(screen_limit_rows)", source)
-        self.assertIn(
-            'self._add_legend(app_limits, "App Access Legend"', source,
-        )
+        self.assertIn("app_limits.append(self._legend_card())", source)
         self.assertIn("app_limits.append(apps_section)", source)
         self.assertIn("app_limits_page.set_child(Adw.Clamp(", source)
 
@@ -281,17 +279,18 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn(".policy-choice {\n  min-width: 36px;", stylesheet)
 
     def test_match_rule_legend_uses_normal_visual_state(self):
-        source = inspect.getsource(ParentWindow._add_legend)
+        source = inspect.getsource(ParentWindow._legend_section)
 
-        self.assertIn("icon = Gtk.Button(can_focus=False, can_target=False,", source)
-        self.assertNotIn("icon = Gtk.Button(sensitive=False", source)
+        self.assertIn("icon = Gtk.Button(", source)
+        self.assertIn("can_focus=False, can_target=False", source)
+        self.assertNotIn("sensitive=False", source)
 
     def test_legend_icons_use_the_same_dimensions_as_app_table_controls(self):
         stylesheet = (
             Path(__file__).resolve().parents[2]
             / "parent/oh_no_parent_control_parent/style.css"
         ).read_text(encoding="utf-8")
-        source = inspect.getsource(ParentWindow._add_legend)
+        source = inspect.getsource(ParentWindow._legend_section)
 
         self.assertNotIn(".policy-choice.policy-legend-icon {", stylesheet)
         self.assertNotIn(
@@ -304,14 +303,24 @@ class ParentWindowTests(unittest.TestCase):
             "  min-height: 36px;",
             stylesheet,
         )
-        self.assertIn(
-            "can_target=False,\n                    valign=Gtk.Align.CENTER,",
-            source,
-        )
-        self.assertIn(
-            "can_target=False,\n                                  valign=Gtk.Align.CENTER,",
-            source,
-        )
+        self.assertEqual(source.count("can_focus=False, can_target=False"), 2)
+
+    def test_legend_is_one_collapsed_expandable_card(self):
+        source = inspect.getsource(ParentWindow._legend_card)
+        toggled = inspect.getsource(ParentWindow._legend_toggled)
+        stylesheet = (
+            Path(__file__).resolve().parents[2]
+            / "parent/oh_no_parent_control_parent/style.css"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('label="Legend"', source)
+        self.assertIn('active=False', source)
+        self.assertIn('reveal_child=False', source)
+        self.assertIn('"App Access (What happens)", STATES', source)
+        self.assertIn('"Match Rule (How apps are matched)", MATCH_RULES', source)
+        self.assertIn('orientation=Gtk.Orientation.VERTICAL', source)
+        self.assertIn('card.add_css_class("expanded")', toggled)
+        self.assertIn('.policy-legend.expanded {', stylesheet)
 
     def test_daily_limit_labels_use_singular_only_for_one_minute(self):
         self.assertEqual(_minutes_label(0), "0 minutes")

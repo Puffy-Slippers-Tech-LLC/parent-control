@@ -125,6 +125,9 @@ class BrokerClient:
         )
         return json.loads(encoded)
 
+    def revoke_one_time_grant(self, uid):
+        self._call("RevokeOneTimeGrant", GLib.Variant("(u)", (uid,)), "()")
+
     def log_event(self, level, message):
         self.connection.call(
             BUS_NAME, OBJECT_PATH, INTERFACE, "LogEvent",

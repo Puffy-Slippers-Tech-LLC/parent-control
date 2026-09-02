@@ -375,6 +375,21 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(accounts.events, [])
         self.assertEqual(extensions.calls, [])
 
+    def test_admin_can_revoke_a_grant_without_changing_daily_allowance(self):
+        accounts = Accounts()
+        accounts.extension = (123, 900)
+        accounts.filter = (False, ("org.example.Game",))
+
+        make_broker(accounts=accounts).revoke_one_time_grant(1003, 1001)
+
+        self.assertEqual(accounts.extension, (0, 0))
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
+        self.assertEqual(accounts.limit_type, 2)
+        self.assertEqual(accounts.daily_limit, 3600)
+
     def test_changing_daily_limit_preserves_active_grant_and_reapplies_filter(self):
         accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
         preferences.values[1001]["parent_control_enabled"] = True

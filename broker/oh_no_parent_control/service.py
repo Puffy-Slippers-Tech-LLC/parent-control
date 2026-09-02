@@ -97,6 +97,9 @@ INTROSPECTION_XML = f"""
       <arg name="daily_limit_minutes" type="u" direction="in"/>
       <arg name="saved_json" type="s" direction="out"/>
     </method>
+    <method name="RevokeOneTimeGrant">
+      <arg name="target_uid" type="u" direction="in"/>
+    </method>
     <method name="LogEvent">
       <arg name="component" type="s" direction="in"/>
       <arg name="level" type="s" direction="in"/>
@@ -248,6 +251,10 @@ class Service:
                     caller_uid, target_uid, enabled, daily_limit_minutes,
                 )
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method == "RevokeOneTimeGrant":
+                target_uid, = parameters.unpack()
+                self.broker.revoke_one_time_grant(caller_uid, target_uid)
+                invocation.return_value(None)
             elif method == "LogEvent":
                 component, level, message = parameters.unpack()
                 self.broker.authorize_log_component(caller_uid, component)

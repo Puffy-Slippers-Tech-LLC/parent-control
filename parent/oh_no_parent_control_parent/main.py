@@ -159,6 +159,9 @@ class PreviewBrokerClient:
         preferences["daily_time_limit_minutes"] = daily_limit_minutes
         return self.get_preferences(uid)
 
+    def revoke_one_time_grant(self, _uid):
+        return None
+
 
 def _minutes_label(minutes):
     return f"{minutes} minute" if minutes == 1 else f"{minutes} minutes"
@@ -256,10 +259,12 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["account-section"],
         )
         account_section.append(Gtk.Label(
-            label="Child account",
-            xalign=0,
-            css_classes=["section-title"],
+            label="Child account", xalign=0, css_classes=["section-title"],
         ))
+        account_actions = Gtk.Box(
+            hexpand=True,
+            css_classes=["account-actions"],
+        )
         self._account = Gtk.DropDown(
             model=Gtk.StringList.new([]), hexpand=True,
             css_classes=["account-picker"],
@@ -269,7 +274,44 @@ class ParentWindow(Adw.ApplicationWindow):
         self._account_changed_handler = self._account.connect(
             "notify::selected", self._account_changed
         )
-        account_section.append(self._account)
+        account_actions.append(self._account)
+        account_actions.append(Gtk.Separator(
+            orientation=Gtk.Orientation.VERTICAL,
+            valign=Gtk.Align.CENTER,
+            css_classes=["account-actions-separator"],
+        ))
+        revoke_content = Gtk.Box(
+            spacing=16, valign=Gtk.Align.CENTER,
+            css_classes=["revoke-grant-content"],
+        )
+        revoke_icon = Gtk.Image(
+            icon_name="action-unavailable-symbolic", pixel_size=40,
+            css_classes=["revoke-grant-icon"],
+        )
+        revoke_content.append(revoke_icon)
+        revoke_labels = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=3,
+            valign=Gtk.Align.CENTER, hexpand=True,
+        )
+        revoke_labels.append(Gtk.Label(
+            label="Revoke one-time grant", xalign=0,
+            css_classes=["revoke-grant-title"],
+        ))
+        self._revoke_description = Gtk.Label(
+            label="Revokes one-time screen time and app access grants.",
+            xalign=0, wrap=True, width_request=270, max_width_chars=36,
+            css_classes=["revoke-grant-description"],
+        )
+        revoke_labels.append(self._revoke_description)
+        revoke_content.append(revoke_labels)
+        self._revoke = Gtk.Button(
+            child=revoke_content, valign=Gtk.Align.FILL,
+            width_request=320, css_classes=["revoke-grant-button"],
+            sensitive=False,
+        )
+        self._revoke.connect("clicked", self._confirm_revoke)
+        account_actions.append(self._revoke)
+        account_section.append(account_actions)
         content.append(Adw.Clamp(
             child=account_section,
             maximum_size=CONTENT_MAX_WIDTH,
@@ -879,6 +921,9 @@ class ParentWindow(Adw.ApplicationWindow):
         self._app_limits_description.set_label(
             f"Manage which apps {child_name} can use and how they are accessed."
         )
+        self._revoke_description.set_label(
+            f"Revokes one-time screen time and app access grants granted to {child_name}."
+        )
         self._loading = True
         self._time_status_value.set_label("Loading…")
         for value in self._time_operand_values:
@@ -978,12 +1023,55 @@ class ParentWindow(Adw.ApplicationWindow):
             sensitive and not self._loading and self._selected_uid() is not None
         )
         self._account.set_sensitive(not self._loading)
+        self._revoke.set_sensitive(
+            not self._loading and self._selected_uid() is not None
+        )
         self._enabled.set_sensitive(not self._loading and self._selected_uid() is not None)
         self._daily_limit.set_sensitive(
             not self._loading and self._selected_uid() is not None and
             self._enabled.get_active()
         )
         self._apps_group.set_sensitive(sensitive)
+
+    def _confirm_revoke(self, *_args):
+        selected = self._account.get_selected()
+        if selected >= len(self._users):
+            return
+        child_name = self._users[selected][1]
+        dialog = Adw.MessageDialog.new(
+            self, "Revoke one-time grant?",
+            "This will revoke one-time screen time and access to soft blocked apps "
+            f"granted to {child_name}. Their remaining daily time allowance is not impacted.",
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("revoke", "Revoke grant")
+        dialog.set_response_appearance("revoke", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", self._revoke_response)
+        dialog.present()
+
+    def _revoke_response(self, _dialog, response):
+        if response != "revoke":
+            return
+        uid = self._selected_uid()
+        if uid is None:
+            return
+        self._loading = True
+        self._set_apps_sensitive(False)
+        self._run(
+            lambda: self._client.revoke_one_time_grant(uid),
+            lambda _value: self._revoke_succeeded(uid),
+            lambda error: self._save_failed(uid, "one-time grant", error),
+        )
+
+    def _revoke_succeeded(self, uid):
+        if uid != self._selected_uid():
+            return
+        self._loading = False
+        self._set_apps_sensitive(True)
+        self._toast("One-time grant revoked")
+        self._load_time_status()
 
     def _enabled_changed(self, switch, _param):
         if self._loading or self._selected_uid() is None:

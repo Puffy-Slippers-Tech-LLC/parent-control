@@ -50,11 +50,12 @@ export function secondsUntilEndOfLocalDay(now = GLib.DateTime.new_now_local()) {
 
 // The in-session panel popup uses this form.
 class RequestForm {
-    constructor(onRequest, onClose, onMenu, onMenuToggle,
+    constructor(onRequest, onClose, onMenu, onMenuPress, onMenuToggle,
         appName = 'Parent Control') {
         this._onRequest = onRequest;
         this._onClose = onClose;
         this._onMenu = onMenu;
+        this._onMenuPress = onMenuPress;
         this._onMenuToggle = onMenuToggle;
         this._destroyed = false;
         this._working = false;
@@ -106,6 +107,10 @@ class RequestForm {
             accessible_name: 'Menu',
             y_align: Clutter.ActorAlign.CENTER,
         });
+        // PopupMenu begins closing on button press. Preserve the request
+        // popover before that happens; waiting for `clicked` is too late.
+        this._menuButton.connect('button-press-event', () =>
+            this._onMenuPress?.());
         this._menuButton.connect('clicked', () => this._onMenuToggle?.());
         header.add_child(this._menuButton);
         this.actor.add_child(header);
@@ -506,6 +511,7 @@ class RequestForm {
         this._onRequest = null;
         this._onClose = null;
         this._onMenu = null;
+        this._onMenuPress = null;
         this._onMenuToggle = null;
         this._menuButton = null;
         this._overflowMenu = null;
@@ -531,6 +537,7 @@ export class RequestPopover extends PopupMenu.PopupMenu {
             onRequest,
             () => this.close(BoxPointer.PopupAnimation.FULL),
             onMenu,
+            () => this._preserveForOverflowMenu(),
             () => this._toggleOverflowMenu(),
             appName);
         this._form.addPopupActions();
@@ -553,11 +560,13 @@ export class RequestPopover extends PopupMenu.PopupMenu {
         });
     }
 
-    _toggleOverflowMenu() {
-        // PopupMenu closes when a header button is clicked. Reopen after its
-        // click handling completes so this in-dialog control is not mistaken
-        // for a request-popover dismissal.
+    _preserveForOverflowMenu() {
+        // PopupMenu starts closing on button press. Mark it first so its
+        // menu-closed handler can reopen the request popover after the click.
         this._keepOpen = true;
+    }
+
+    _toggleOverflowMenu() {
         this._form.toggleOverflowMenu();
     }
 

@@ -36,6 +36,15 @@
   min-width: 0;
 }
 
+.account-actions {
+  min-height: 132px;
+  min-width: 0;
+  border: 1px solid alpha(#24242a, 0.13);
+  border-radius: 14px;
+  background: alpha(white, 0.95);
+  box-shadow: 0 4px 12px alpha(black, 0.08), inset 0 1px alpha(white, 0.92);
+}
+
 .section-title,
 .screen-limits-title {
   color: #26262a;
@@ -47,18 +56,63 @@
 }
 
 .account-picker {
-  min-height: 80px;
-  padding: 0 22px;
-  border: 1px solid alpha(#24242a, 0.13);
-  border-radius: 14px;
-  background: alpha(white, 0.95);
-  box-shadow: 0 4px 12px alpha(black, 0.08), inset 0 1px alpha(white, 0.92);
+  min-width: 0;
+  min-height: 130px;
+  padding: 0 30px;
+  border: 0;
+  border-radius: 14px 0 0 14px;
+  background: transparent;
+  box-shadow: none;
 }
 
 .account-picker button {
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.account-actions-separator {
+  min-height: 60px;
+  margin: 35px 0;
+  background: alpha(#24242a, 0.10);
+}
+
+.revoke-grant-button {
+  min-height: 94px;
+  min-width: 0;
+  margin: 18px 30px 18px 120px;
+  padding: 0 22px;
+  border: 1px solid alpha(#24242a, 0.13);
+  border-radius: 14px;
+  background: alpha(white, 0.72);
+  box-shadow: 0 2px 6px alpha(black, 0.035);
+}
+
+.revoke-grant-button:hover {
+  border-color: alpha(#ff453a, 0.32);
+  background: alpha(#ff453a, 0.075);
+  box-shadow: 0 3px 9px alpha(#ff453a, 0.10);
+}
+
+.revoke-grant-button:active {
+  background: alpha(#ff453a, 0.13);
+}
+
+.revoke-grant-icon {
+  min-width: 40px;
+  min-height: 40px;
+  color: #ff2920;
+}
+
+.revoke-grant-title {
+  color: #f01c13;
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.revoke-grant-description {
+  color: alpha(#27272d, 0.68);
+  font-size: 15px;
 }
 
 .account-avatar {

@@ -34,6 +34,10 @@ def activation_for(path: str) -> str:
     # authorization request, so no service or session restart is required.
     if path.startswith("etc/polkit-1/rules.d/"):
         return "none"
+    # The broker regenerates and reloads the aggregate execution rules during
+    # startup, so a changed packaged fallback activates with a broker restart.
+    if path.startswith("etc/fapolicyd/rules.d/"):
+        return "process-restart"
     if path.startswith((
         "usr/lib/oh-no-parent-control/child/extension/",
         "usr/lib/oh-no-parent-control/kiosk/",

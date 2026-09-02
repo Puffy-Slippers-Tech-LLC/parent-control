@@ -34,6 +34,7 @@ Kiosk request station ────┘                       │
                                                   ├── per-child JSON preferences
                                                   ├── child extension lifecycle
                                                   ├── AccountsService/Malcontent
+                                                  ├── fapolicyd execution rules
                                                   └── Polkit authorization
 ```
 
@@ -94,12 +95,25 @@ UID >= 1000, excluding the kiosk account.
 limit. Saving preferences immediately applies the configured app blocklist,
 independently of the daily-limit state. Enabling applies the saved integer limit
 of 0–1440 minutes; zero supports the product's grant-only mode. Disabling removes
-the daily restriction and clears product-applied grants while retaining both the
-selected limit and the applied app filter.
+the daily restriction and clears product-applied grants while retaining the
+selected limit and reapplying the saved app filter.
 The broker discovers launchers in the selected child's user XDG application
 directories as well as the system directories. It turns each direct launcher
 into the executable path (or Flatpak ref) used by Malcontent, so a per-user
 AppImage is both displayed and restricted using its actual executable path.
+Malcontent supplies the supported GNOME launcher policy but does not mediate a
+trusted `.desktop` file opened directly from the desktop or Files. The broker
+therefore mirrors native executable targets from each live AccountsService
+blocklist into product-owned fapolicyd rules. Those UID-scoped execute denials
+make registered launchers, desktop files, and direct executable launches obey
+the same policy. Because fapolicyd 1.3 cannot quote whitespace in path rules,
+such executable names use their SHA-256 object identity; ordinary paths use an
+exact path rule. Missing saved targets need no current execution rule. Flatpak
+refs remain enforced by Malcontent/Flatpak. The broker
+reconciles the aggregate rules before accepting D-Bus calls and after either
+the broker or the approved child flow changes an AppFilter. Rule replacement
+and activation are transactional; a reload failure restores and reloads the
+previous rules.
 `RequestAccess` additionally requires interactive Polkit approval and performs
 transactional AccountsService updates with rollback.
 The kiosk selects a local interactive administrator returned by `ListApprovers`.
@@ -168,6 +182,7 @@ countdown.
 /usr/lib/oh-no-parent-control/child/extension/ immutable extension payload
 /var/lib/oh-no-parent-control/preferences/     authoritative child records
 /var/log/oh-no-parent-control/<component>/     daily logs (10-day retention)
+/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules generated execution denies
 ```
 
 APT and the full-machine installer stop the broker and run the packaged,

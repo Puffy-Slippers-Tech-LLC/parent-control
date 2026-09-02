@@ -461,6 +461,10 @@ class Broker:
             try:
                 desired_limit_type = DAILY_LIMIT_FLAG if enabled else 0
                 desired_daily_limit = daily_limit_minutes * 60 if enabled else 0
+                # App access is independent from screen time. Reapply the
+                # saved blocklist so a toggle cannot retain a temporary
+                # soft-block exception (or another stale live filter).
+                desired_filter = (False, blocked_targets(current, False))
 
                 if not enabled:
                     self._accounts.set_limit_type(target.uid, desired_limit_type)
@@ -469,10 +473,13 @@ class Broker:
                     self._accounts.set_extension(target.uid, (0, 0))
                 if enabled:
                     self._accounts.set_limit_type(target.uid, desired_limit_type)
+                self._accounts.set_filter(target.uid, desired_filter)
 
                 if (self._accounts.get_limit_type(target.uid) != desired_limit_type or
                         self._accounts.get_daily_limit(target.uid) != desired_daily_limit):
                     raise BackendFailure("parent-control account verification failed")
+                if self._accounts.get_filter(target.uid) != desired_filter:
+                    raise BackendFailure("app-filter verification failed")
                 if (extension_changed and
                         self._accounts.get_extension(target.uid) != (0, 0)):
                     raise BackendFailure("parent-control account verification failed")

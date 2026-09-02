@@ -21,8 +21,15 @@ class BrokerServiceUnitTests(unittest.TestCase):
         self.assertEqual(ambient, {"CAP_SETGID", "CAP_SETUID"})
         self.assertTrue(ambient <= bounded)
         self.assertTrue(
-            {"CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER"} <= bounded
+            {"CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER", "CAP_KILL"} <= bounded
         )
+
+    def test_broker_starts_with_and_can_reload_execution_policy(self):
+        source = BROKER_UNIT.read_text(encoding="utf-8")
+
+        self.assertIn("Requires=fapolicyd.service", source)
+        self.assertIn("After=fapolicyd.service", source)
+        self.assertIn("ReadWritePaths=/etc/fapolicyd", source)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 [Unit]
 Description=Oh No! Parent Control request broker
 ConditionPathExists=!/var/lib/oh-no-parent-control/migration-in-progress
+Requires=fapolicyd.service
+After=fapolicyd.service
 
 [Service]
 Type=dbus
@@ -11,7 +13,7 @@ Group=sudo
 # ExtensionManager deliberately enters the selected child's identity before
 # accessing that child's dconf database. Keep only the capabilities required
 # for that transition and for installing child-owned extension files.
-CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUID
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL CAP_SETGID CAP_SETUID
 AmbientCapabilities=CAP_SETGID CAP_SETUID
 NoNewPrivileges=yes
 PrivateDevices=yes
@@ -23,6 +25,7 @@ StateDirectoryMode=0700
 LogsDirectory=oh-no-parent-control
 LogsDirectoryMode=0750
 ReadWritePaths=/home
+ReadWritePaths=/etc/fapolicyd
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes

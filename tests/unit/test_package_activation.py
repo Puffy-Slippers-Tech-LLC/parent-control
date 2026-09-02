@@ -30,6 +30,14 @@ class PackageActivationTests(unittest.TestCase):
             "none",
         )
 
+    def test_execution_rule_change_reloads_with_broker_restart(self):
+        self.assertEqual(
+            activation_for(
+                "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules"
+            ),
+            "process-restart",
+        )
+
     def test_session_payload_change_does_not_signal_reboot(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

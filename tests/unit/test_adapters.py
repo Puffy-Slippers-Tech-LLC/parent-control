@@ -59,6 +59,41 @@ class PolkitAdapterTests(unittest.TestCase):
                 mock.patch.object(accounts, "get_user", side_effect=lambda uid: uid):
             self.assertEqual(accounts.list_users(), (1001, 1002))
 
+    def test_app_filter_write_reconciles_native_execution_policy(self):
+        policy = mock.Mock()
+        accounts = AccountsService(object(), policy)
+        users = (
+            UserAccount(1001, "child", "Child", False, False, True),
+            UserAccount(1003, "parent", "Parent", True, False, True),
+        )
+        filters = {
+            1001: (False, ("/home/child/Game.AppImage", "app/org.game/x86_64/stable")),
+            1003: (False, ()),
+        }
+        with mock.patch.object(accounts, "_set") as set_property, \
+                mock.patch.object(accounts, "list_users", return_value=users), \
+                mock.patch.object(accounts, "get_filter",
+                                  side_effect=lambda uid: filters[uid]):
+            accounts.set_filter(1001, filters[1001])
+
+        set_property.assert_called_once()
+        policy.reconcile.assert_called_once_with({
+            1001: filters[1001][1],
+            1003: (),
+        })
+
+    def test_allowlist_is_not_misrepresented_as_a_native_blocklist(self):
+        policy = mock.Mock()
+        accounts = AccountsService(object(), policy)
+        user = UserAccount(1001, "child", "Child", False, False, True)
+        with mock.patch.object(accounts, "list_users", return_value=(user,)), \
+                mock.patch.object(
+                    accounts, "get_filter", return_value=(True, ("/usr/bin/allowed",))
+                ):
+            accounts.sync_execution_policy()
+
+        policy.reconcile.assert_called_once_with({1001: ()})
+
     def test_timer_usage_queries_selected_child_through_parent_interface(self):
         reply = mock.Mock()
         reply.unpack.return_value = ([(10, 20), (30, 40)],)

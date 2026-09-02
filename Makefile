@@ -20,6 +20,7 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(DATADIR)/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service \
 	$(DATADIR)/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml \
 	$(DATADIR)/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf \
+	$(SYSCONFDIR)/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
 	$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session \
 	$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop \
 	$(DATADIR)/pam-configs/oh-no-parent-control-session-limits \
@@ -82,7 +83,7 @@ _install-product-files:
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui"
 	install -m 0644 common/__init__.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/"
 	install -m 0644 common/oh_no_parent_control_ui/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
-	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
+	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg data/Gearbox_Waltz.mp3 child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension"
 	install -m 0644 parent/oh_no_parent_control_parent/*.py parent/oh_no_parent_control_parent/style.css "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"
@@ -98,6 +99,8 @@ _install-product-files:
 	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy"
 	install -d "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d"
 	install -m 0644 data/polkit-1/rules.d/00-oh-no-parent-control-session.rules "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d/"
+	install -d "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d"
+	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/"
 	install -m 0644 data/systemd/oh-no-parent-control-broker.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
 	install -m 0644 data/systemd/oh-no-parent-control-restore-extension-state.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
 	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d"
@@ -127,11 +130,12 @@ uninstall:
 	rm -f "$(DESTDIR)$(DATADIR)/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service" "$(DESTDIR)$(DATADIR)/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml" "$(DESTDIR)$(DATADIR)/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf"
 	rm -f "$(DESTDIR)$(DATADIR)/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy" "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-broker.service" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-restore-extension-state.service"
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules"
+	rm -f "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/89-oh-no-parent-control.rules" "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules"
 	rm -f "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-app.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-polkit-agent.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/session.conf"
 	rm -f "$(DESTDIR)$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session" "$(DESTDIR)$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.desktop" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.Parent.desktop"
 	rm -f "$(DESTDIR)$(DATADIR)/oh-no-parent-control/config.example.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/brand.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/company_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/com.puffyslippers.OhNoParentControl1.conf.in" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json"
 	rm -f "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/README.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/System-Design.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Package-Update.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Data-Migration.md"
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/oh-no-parent-control/config.json"
-	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/request-options.json" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"*.py
+	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/Gearbox_Waltz.mp3" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/request-options.json" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"*.py
 	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/common/__init__.py" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.js "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.json "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/stylesheet.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/app_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/company_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/LICENSE"
 	@echo 'Product files removed. Accounts and managed-account policies were not changed.'

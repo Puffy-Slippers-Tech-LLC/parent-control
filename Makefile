@@ -24,6 +24,7 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session \
 	$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop \
 	$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png \
+	$(DATADIR)/oh-no-parent-control/app_logo.png \
 	$(DATADIR)/pam-configs/oh-no-parent-control-session-limits \
 	$(DATADIR)/pam-configs/oh-no-parent-control-kiosk-only \
 	$(SYSCONFDIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \

@@ -37,7 +37,7 @@ class ProvisionTests(unittest.TestCase):
             provision.accounts_service_language(user)
 
     @mock.patch("tools.provision.subprocess.run")
-    def test_sets_kiosk_account_icon_to_the_packaged_app_logo(self, run):
+    def test_sets_kiosk_account_icon_to_the_shared_logo(self, run):
         user = SimpleNamespace(pw_uid=1002, pw_name="oh-no-parent-control")
 
         provision.accounts_service_set_icon_file(user)

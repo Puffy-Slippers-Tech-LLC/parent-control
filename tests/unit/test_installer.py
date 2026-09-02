@@ -1,4 +1,5 @@
 import json
+import struct
 import unittest
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
@@ -22,6 +23,24 @@ class InstallerTests(unittest.TestCase):
             makefile,
         )
         self.assertNotIn("data/logo.png", makefile)
+
+    def test_shared_logo_is_safe_for_the_kiosk_account(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        icon = ROOT / "data/app_logo.png"
+
+        self.assertTrue(icon.is_file())
+        with icon.open("rb") as source:
+            self.assertEqual(source.read(8), b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(source.read(4), b"\x00\x00\x00\r")
+            self.assertEqual(source.read(4), b"IHDR")
+            width, height = struct.unpack(">II", source.read(8))
+        self.assertLessEqual(width, 128)
+        self.assertLessEqual(height, 128)
+        self.assertIn(
+            "config/config.example.json $(BRANDING_ASSETS) LICENSE "
+            "\"$(DESTDIR)$(DATADIR)/oh-no-parent-control/\"",
+            makefile,
+        )
 
     def test_kiosk_cairo_bridge_is_a_runtime_dependency(self):
         script = INSTALLER.read_text(encoding="utf-8")
@@ -116,6 +135,14 @@ class InstallerTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         icon = "com.puffyslippers.OhNoParentControl"
+        logo = ROOT / "data/app_logo.png"
+        with logo.open("rb") as source:
+            self.assertEqual(source.read(8), b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(source.read(4), b"\x00\x00\x00\r")
+            self.assertEqual(source.read(4), b"IHDR")
+            width, height = struct.unpack(">II", source.read(8))
+        self.assertLessEqual(width, 128)
+        self.assertLessEqual(height, 128)
         self.assertIn(
             "data/app_logo.png \"$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/"
             f"{icon}.png\"",

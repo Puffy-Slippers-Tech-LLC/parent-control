@@ -46,13 +46,15 @@ MATCH_RULES = (
     {
         "id": "pattern",
         "label": "Pattern Match",
-        "icon": "folder-saved-search-symbolic",
+        "glyph": "***",
+        "css": "match-rule-pattern",
         "description": "Matches versioned filenames using a wildcard.",
     },
     {
         "id": "precise",
         "label": "Precise execution path",
-        "icon": "crosshairs-symbolic",
+        "glyph": "ABC",
+        "css": "match-rule-precise",
         "description": "Matches only this exact executable path.",
     },
 )
@@ -63,8 +65,24 @@ PREVIEW_PREFERENCES = {
         "parent_control_enabled": True,
         "daily_time_limit_minutes": 90,
         "apps": {
-            "org.gnome.Software.desktop": {"state": "conditional", "targets": [], "patterns": [], "user_saved_match_rule": False},
-            "org.gnome.Calculator.desktop": {"state": "permanent", "targets": [], "patterns": [], "user_saved_match_rule": False},
+            "org.gnome.Software.desktop": {
+                "state": "allowed",
+                "targets": ["/usr/lib/gnome-software/gnome-software-46.0"],
+                "patterns": ["/usr/lib/gnome-software/gnome-software-*.0"],
+                "user_saved_match_rule": True,
+            },
+            "org.gnome.Epiphany.desktop": {
+                "state": "permanent",
+                "targets": ["/usr/lib/epiphany/epiphany-46.0"],
+                "patterns": ["/usr/lib/epiphany/epiphany-*.0"],
+                "user_saved_match_rule": True,
+            },
+            "org.gnome.Calculator.desktop": {
+                "state": "conditional",
+                "targets": ["/usr/bin/gnome-calculator"],
+                "patterns": [],
+                "user_saved_match_rule": False,
+            },
         },
         "request": {},
     },
@@ -75,14 +93,32 @@ PREVIEW_PREFERENCES = {
         "request": {},
     },
 }
-PREVIEW_APPS = ({
-    "id": "org.gnome.Calculator.desktop",
-    "name": "Calculator",
-    "description": "Perform arithmetic",
-    "icon": "accessories-calculator-symbolic",
-    "targets": ["/usr/bin/gnome-calculator"],
-    "suggested_patterns": [],
-},)
+PREVIEW_APPS = (
+    {
+        "id": "org.gnome.Software.desktop",
+        "name": "Software",
+        "description": "Install and update applications",
+        "icon": "org.gnome.Software",
+        "targets": ["/usr/lib/gnome-software/gnome-software-46.0"],
+        "suggested_patterns": ["/usr/lib/gnome-software/gnome-software-*.0"],
+    },
+    {
+        "id": "org.gnome.Epiphany.desktop",
+        "name": "Web",
+        "description": "Browse the web",
+        "icon": "org.gnome.Epiphany",
+        "targets": ["/usr/lib/epiphany/epiphany-46.0"],
+        "suggested_patterns": ["/usr/lib/epiphany/epiphany-*.0"],
+    },
+    {
+        "id": "org.gnome.Calculator.desktop",
+        "name": "Calculator",
+        "description": "Perform arithmetic",
+        "icon": "accessories-calculator-symbolic",
+        "targets": ["/usr/bin/gnome-calculator"],
+        "suggested_patterns": [],
+    },
+)
 
 
 class PreviewBrokerClient:
@@ -264,21 +300,61 @@ class ParentWindow(Adw.ApplicationWindow):
         self._search.connect("search-changed", self._filter)
         search_row.add_suffix(self._search)
         apps.add(search_row)
-        # PreferencesGroup places non-row widgets after its list.  Keep the
+        # PreferencesGroup places non-row widgets after its list. Keep the
         # headings in an ActionRow so they remain directly above app rows.
+        # The trailing headings are overlaid on inert copies of the controls
+        # below. This makes their columns use the same measurements as every
+        # app row instead of letting the heading text determine the width.
         headers = Adw.ActionRow(css_classes=["app-policy-columns"])
-        headers.add_prefix(Gtk.Label(label="Icon", xalign=0,
-                                     css_classes=["app-policy-column-header"]))
+        headers.add_prefix(Gtk.Label(label="Icon", xalign=0, hexpand=False,
+                                     css_classes=["app-policy-column-header",
+                                                  "app-policy-icon-header"]))
         headers.set_title("App Name & Detail")
-        match_header = Gtk.Label(label="Match Rule", xalign=0,
-                                 css_classes=["app-policy-column-header"])
-        access_header = Gtk.Label(label="Access Rule", xalign=0,
-                                  css_classes=["app-policy-column-header"])
-        headers.add_suffix(match_header)
-        headers.add_suffix(access_header)
+        headers.add_suffix(self._policy_column_heading(
+            "Match Rule", self._match_rule_slot(), "match-rule-header"))
+        headers.add_suffix(self._policy_column_heading(
+            "Access Rule", self._policy_selector_slot(), "access-rule-header"))
         apps.add(headers)
         self._app_rows = []
         page.add(apps)
+
+    @staticmethod
+    def _policy_column_heading(label, slot, css_class):
+        """Overlay a heading on a measurement-matched, inert policy control."""
+        overlay = Gtk.Overlay(css_classes=["app-policy-heading", css_class])
+        overlay.set_child(slot)
+        heading = Gtk.Label(label=label, halign=Gtk.Align.CENTER,
+                            valign=Gtk.Align.CENTER,
+                            css_classes=["app-policy-column-header"])
+        overlay.add_overlay(heading)
+        overlay.set_measure_overlay(heading, False)
+        overlay.set_clip_overlay(heading, False)
+        return overlay
+
+    @staticmethod
+    def _match_rule_slot():
+        cell = Gtk.Box(
+            width_request=76, halign=Gtk.Align.CENTER,
+            valign=Gtk.Align.CENTER, css_classes=["match-rule-cell"],
+        )
+        cell.append(Gtk.Button(
+            sensitive=False, can_focus=False, can_target=False, opacity=0,
+            css_classes=["match-rule-button"],
+        ))
+        return cell
+
+    @staticmethod
+    def _policy_selector_slot():
+        selector = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=3,
+            opacity=0, css_classes=["policy-selector"],
+        )
+        for state in STATES:
+            selector.append(Gtk.ToggleButton(
+                sensitive=False, can_focus=False, can_target=False,
+                css_classes=["policy-choice", state["css"]],
+            ))
+        return selector
 
     def _add_legend(self, page, title, items, descriptions, *, access=False):
         legend = Adw.PreferencesGroup(title=title, css_classes=["policy-legend"])
@@ -291,8 +367,10 @@ class ParentWindow(Adw.ApplicationWindow):
                     css_classes=["policy-choice", "policy-legend-icon", item["css"]],
                     child=Gtk.Image(icon_name=item["icon"], pixel_size=19))
             else:
-                icon = Gtk.Image(icon_name=item["icon"], pixel_size=24,
-                                 css_classes=["match-rule-icon"])
+                icon = Gtk.Button(can_focus=False, can_target=False,
+                                  css_classes=["match-rule-button", "policy-choice",
+                                               "policy-legend-icon", item["css"]],
+                                  child=self._match_rule_image(item))
             column.append(icon)
             column.append(Gtk.Label(label=item["label"], xalign=0,
                                     css_classes=["policy-legend-title"]))
@@ -352,7 +430,12 @@ class ParentWindow(Adw.ApplicationWindow):
                 css_classes=["match-rule-button"],
             )
             row.match_rule_button.connect("clicked", self._edit_match_rule, row)
-            row.add_suffix(row.match_rule_button)
+            match_rule_cell = Gtk.Box(
+                width_request=76, halign=Gtk.Align.CENTER,
+                valign=Gtk.Align.CENTER, css_classes=["match-rule-cell"],
+            )
+            match_rule_cell.append(row.match_rule_button)
+            row.add_suffix(match_rule_cell)
             selector = Gtk.Box(
                 orientation=Gtk.Orientation.HORIZONTAL, spacing=3,
                 valign=Gtk.Align.CENTER, css_classes=["policy-selector"],
@@ -474,7 +557,7 @@ class ParentWindow(Adw.ApplicationWindow):
             row.policy_buttons[state].set_active(True)
             policy = preferences["apps"].get(row.app["id"], {})
             row.user_saved_match_rule = policy.get("user_saved_match_rule", False)
-            row.match_rule = policy.get("patterns", [None])[0]
+            row.match_rule = (policy.get("patterns") or [None])[0]
             if row.match_rule is None and row.user_saved_match_rule:
                 row.match_rule = self._default_match_rule(row)
             self._update_match_rule_icon(row)
@@ -605,8 +688,18 @@ class ParentWindow(Adw.ApplicationWindow):
     def _update_match_rule_icon(self, row):
         rule = row.match_rule or self._default_match_rule(row)
         match = MATCH_RULES[0] if self._is_pattern(rule) else MATCH_RULES[1]
-        row.match_rule_button.set_child(Gtk.Image(icon_name=match["icon"], pixel_size=22))
+        row.match_rule_button.set_css_classes(
+            ["match-rule-button", "policy-choice", match["css"]]
+        )
+        row.match_rule_button.set_child(self._match_rule_image(match))
         row.match_rule_button.set_tooltip_text(match["label"])
+
+    @staticmethod
+    def _match_rule_image(match):
+        return Gtk.Label(
+            label=match["glyph"],
+            css_classes=["match-rule-icon", match["css"]],
+        )
 
     def _edit_match_rule(self, _button, row):
         dialog = Gtk.Dialog(transient_for=self, modal=True, title="Edit Match Rule")

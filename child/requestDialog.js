@@ -25,8 +25,14 @@ export {DURATIONS} from './requestOptions.js';
 
 function extensionAsset(name) {
     const [modulePath] = GLib.filename_from_uri(import.meta.url);
-    return new Gio.FileIcon({file: Gio.File.new_for_path(
-        GLib.build_filenamev([GLib.path_get_dirname(modulePath), name]))});
+    const extensionDir = GLib.path_get_dirname(modulePath);
+    const bundled = GLib.build_filenamev([extensionDir, name]);
+    // The installed extension and packed archive include the branding asset
+    // beside this module. The development preview instead runs the checkout
+    // directly, where shared branding remains in data/.
+    const path = GLib.file_test(bundled, GLib.FileTest.EXISTS) ? bundled
+        : GLib.build_filenamev([extensionDir, '..', 'data', name]);
+    return new Gio.FileIcon({file: Gio.File.new_for_path(path)});
 }
 
 // Zero is only the UI sentinel for this choice. The ActiveExtension backend

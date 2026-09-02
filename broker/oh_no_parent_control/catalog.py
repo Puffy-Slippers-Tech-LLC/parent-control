@@ -69,7 +69,12 @@ def _launcher_files(directory: Path):
             if not name.endswith(".desktop"):
                 continue
             filename = Path(root, name)
-            if filename.is_file() and not filename.is_symlink():
+            # Flatpak exports desktop entries as symlinks into the active
+            # deployment.  GNOME follows those links, so excluding them makes
+            # the broker's catalog disagree with the managed user's app grid.
+            # ``is_file()`` still rejects dangling links and links whose target
+            # is not a regular file.
+            if filename.is_file():
                 yield filename
 
 

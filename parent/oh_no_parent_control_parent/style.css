@@ -77,25 +77,65 @@
 
 .app-policy-columns {
   min-height: 34px;
-  padding: 6px 16px;
-  color: alpha(@window_fg_color, 0.68);
+  color: @window_fg_color;
 }
 
 .app-policy-column-header {
-  font-size: 0.82em;
-  font-weight: 700;
+  font-size: 0.88em;
+  font-weight: 800;
 }
 
-.match-rule-button {
-  min-width: 42px;
-  min-height: 34px;
-  border-radius: 18px;
+.app-policy-columns title {
+  font-size: 0.88em;
+  font-weight: 800;
+}
+
+.app-policy-icon-header {
+  min-width: 32px;
+}
+
+.match-rule-cell {
+  min-width: 76px;
+  min-height: 42px;
+}
+
+.match-rule-button.policy-choice {
+  min-width: 54px;
+  /* 38px plus the 1px borders matches the selector's 34px buttons,
+   * 2px padding, and 1px borders: 40px overall. */
+  min-height: 38px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid alpha(white, 0.30);
+  border-radius: 22px;
+  background: linear-gradient(to bottom,
+                              alpha(#d9e1e8, 0.48),
+                              alpha(#aebbc8, 0.34));
+  box-shadow: 0 2px 7px alpha(black, 0.15),
+              inset 0 1px alpha(white, 0.54),
+              inset 0 -1px alpha(#718091, 0.18);
+  transition: 140ms ease-in-out;
+}
+
+.match-rule-button.match-rule-pattern {
+  color: #c63843;
+}
+
+.match-rule-button.match-rule-precise {
   color: #7959aa;
 }
 
-.match-rule-button:hover,
 .match-rule-icon {
-  color: #7959aa;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  /* Uppercase glyphs and asterisks sit high in their line box. */
+  padding: 6px 5px 0;
+}
+
+.match-rule-icon.match-rule-pattern {
+  font-size: 27px;
+  padding-top: 7px;
 }
 
 .app-policy-row {
@@ -196,4 +236,22 @@
 
 .policy-choice:checked {
   border: 0;
+}
+
+.match-rule-button.policy-choice:hover {
+  border-color: alpha(white, 0.62);
+  background: linear-gradient(to bottom,
+                              alpha(#eef3f7, 0.70),
+                              alpha(#bdc8d3, 0.58));
+  box-shadow: 0 4px 10px alpha(black, 0.20),
+              inset 0 1px alpha(white, 0.66),
+              inset 0 -1px alpha(#718091, 0.18);
+}
+
+.match-rule-button.policy-choice:active {
+  background: linear-gradient(to bottom,
+                              alpha(#b9c5d0, 0.62),
+                              alpha(#dbe3e9, 0.52));
+  box-shadow: inset 0 2px 4px alpha(black, 0.18),
+              inset 0 1px alpha(white, 0.34);
 }

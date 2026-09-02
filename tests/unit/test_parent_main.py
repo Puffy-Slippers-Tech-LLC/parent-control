@@ -3,7 +3,7 @@ import inspect
 from pathlib import Path
 
 from parent.oh_no_parent_control_parent.main import (
-    APPLICATION_ICON_NAME, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _duration_label, _minutes_label,
+    APPLICATION_ICON_NAME, MATCH_RULES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _duration_label, _minutes_label,
     _time_status_subtitle,
 )
 
@@ -89,6 +89,61 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(client.get_preferences(1001)["daily_time_limit_minutes"], 120)
 
+    def test_preview_shows_the_three_policy_and_match_rule_combinations(self):
+        client = PreviewBrokerClient()
+        applications = {app["id"]: app for app in client.list_apps(1001)}
+        policies = client.get_preferences(1001)["apps"]
+
+        self.assertEqual(
+            [(app_id, policies[app_id]["state"], bool(policies[app_id]["patterns"]))
+             for app_id in (
+                 "org.gnome.Software.desktop",
+                 "org.gnome.Epiphany.desktop",
+                 "org.gnome.Calculator.desktop",
+             )],
+            [
+                ("org.gnome.Software.desktop", "allowed", True),
+                ("org.gnome.Epiphany.desktop", "permanent", True),
+                ("org.gnome.Calculator.desktop", "conditional", False),
+            ],
+        )
+        self.assertEqual(
+            applications["org.gnome.Calculator.desktop"]["suggested_patterns"], [],
+        )
+
+    def test_loading_an_exact_match_policy_accepts_an_empty_pattern_list(self):
+        class SettableToggle:
+            def set_active(self, _active):
+                pass
+
+        class ExactMatchRow:
+            app = {"id": "calculator.desktop", "targets": ["/usr/bin/gnome-calculator"]}
+            policy_buttons = {"conditional": SettableToggle()}
+            user_saved_match_rule = False
+            match_rule = "not-yet-loaded"
+
+        class ExactMatchHarness:
+            _preferences_loaded = ParentWindow._preferences_loaded
+            _default_match_rule = ParentWindow._default_match_rule
+            _update_match_rule_icon = lambda self, _row: None
+            _load_time_status = lambda self: None
+
+            def __init__(self):
+                self._enabled = SettableToggle()
+                self._daily_limit = type("DailyLimit", (), {"set_selected": lambda *_args: None})()
+                self._rows = [ExactMatchRow()]
+                self._selected_uid = lambda: 1001
+                self._set_apps_sensitive = lambda _sensitive: None
+
+        harness = ExactMatchHarness()
+        harness._preferences_loaded({
+            "parent_control_enabled": True,
+            "daily_time_limit_minutes": 90,
+            "apps": {"calculator.desktop": {"state": "conditional", "patterns": []}},
+        })
+
+        self.assertIsNone(harness._rows[0].match_rule)
+
     def test_parent_app_only_starts_when_broker_authorizes_its_caller(self):
         class AuthorizedClient:
             def list_users(self):
@@ -110,6 +165,66 @@ class ParentWindowTests(unittest.TestCase):
                 ("conditional", "dialog-warning-symbolic", "policy-soft-blocked"),
             ],
         )
+
+    def test_match_rule_states_use_the_new_rule_icons_and_selected_button_classes(self):
+        self.assertEqual(
+            [(rule["id"], rule["glyph"], rule["css"]) for rule in MATCH_RULES],
+            [
+                ("pattern", "***", "match-rule-pattern"),
+                ("precise", "ABC", "match-rule-precise"),
+            ],
+        )
+        stylesheet = (
+            Path(__file__).resolve().parents[2]
+            / "parent/oh_no_parent_control_parent/style.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn(".match-rule-button.match-rule-pattern {", stylesheet)
+        self.assertIn(".match-rule-button.match-rule-precise {", stylesheet)
+        self.assertIn(".match-rule-icon {\n  font-size: 18px;", stylesheet)
+        self.assertIn("padding: 6px 5px 0;", stylesheet)
+        self.assertIn(".match-rule-icon.match-rule-pattern {\n  font-size: 27px;", stylesheet)
+        self.assertIn("padding-top: 7px;", stylesheet)
+        self.assertIn("min-width: 54px;", stylesheet)
+        self.assertNotIn(".match-rule-button.match-rule-pattern:hover", stylesheet)
+
+    def test_app_policy_headings_use_measurement_matched_control_slots(self):
+        source = inspect.getsource(ParentWindow._build)
+
+        self.assertIn('self._match_rule_slot()', source)
+        self.assertIn('self._policy_selector_slot()', source)
+        self.assertIn('self._policy_column_heading(', source)
+
+    def test_policy_selector_measurement_slot_is_fully_transparent(self):
+        source = inspect.getsource(ParentWindow._policy_selector_slot)
+
+        self.assertIn('opacity=0, css_classes=["policy-selector"]', source)
+
+    def test_match_rule_control_is_centered_in_a_dedicated_cell(self):
+        root = Path(__file__).resolve().parents[2]
+        stylesheet = (
+            root / "parent/oh_no_parent_control_parent/style.css"
+        ).read_text(encoding="utf-8")
+        source = inspect.getsource(ParentWindow._set_catalog)
+
+        self.assertIn(".match-rule-cell {\n  min-width: 76px;", stylesheet)
+        self.assertIn("width_request=76, halign=Gtk.Align.CENTER", source)
+
+    def test_match_rule_button_uses_an_interactive_capsule(self):
+        stylesheet = (
+            Path(__file__).resolve().parents[2]
+            / "parent/oh_no_parent_control_parent/style.css"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(".match-rule-button.policy-choice {", stylesheet)
+        self.assertIn("min-height: 38px;", stylesheet)
+        self.assertIn(".match-rule-button.policy-choice:hover {", stylesheet)
+        self.assertIn("border-radius: 22px;", stylesheet)
+
+    def test_match_rule_legend_uses_normal_visual_state(self):
+        source = inspect.getsource(ParentWindow._add_legend)
+
+        self.assertIn("icon = Gtk.Button(can_focus=False, can_target=False,", source)
+        self.assertNotIn("icon = Gtk.Button(sensitive=False", source)
 
     def test_daily_limit_labels_use_singular_only_for_one_minute(self):
         self.assertEqual(_minutes_label(0), "0 minutes")

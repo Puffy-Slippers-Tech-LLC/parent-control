@@ -74,3 +74,33 @@ class CatalogTests(unittest.TestCase):
 
         self.assertEqual(catalog[0]["id"], "game.desktop")
         self.assertEqual(catalog[0]["targets"], (str(executable),))
+
+    def test_catalog_follows_flatpak_exported_desktop_entry_symlink(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            deployment = home / ".local/share/flatpak/app/com.mojang.Minecraft/current/active/export/share/applications"
+            deployment.mkdir(parents=True)
+            launcher = deployment / "com.mojang.Minecraft.desktop"
+            launcher.write_text(
+                "[Desktop Entry]\nType=Application\nName=Minecraft\n"
+                "X-Flatpak=com.mojang.Minecraft\n"
+                "Exec=/usr/bin/flatpak run --arch=x86_64 --branch=stable "
+                "com.mojang.Minecraft\n",
+                encoding="utf-8",
+            )
+            exports = home / ".local/share/flatpak/exports/share/applications"
+            exports.mkdir(parents=True)
+            (exports / launcher.name).symlink_to(launcher)
+            user = UserAccount(1001, "adrian", "Adrian", False, False, True)
+            account = SimpleNamespace(pw_uid=1001, pw_dir=str(home))
+
+            with patch("oh_no_parent_control.catalog.pwd.getpwnam", return_value=account), \
+                    patch("oh_no_parent_control.catalog.SYSTEM_APPLICATION_DIRS", ()):
+                catalog = list_apps(user)
+
+        self.assertEqual(catalog[0]["id"], "com.mojang.Minecraft.desktop")
+        self.assertEqual(catalog[0]["name"], "Minecraft")
+        self.assertEqual(
+            catalog[0]["targets"],
+            ("app/com.mojang.Minecraft/x86_64/stable",),
+        )

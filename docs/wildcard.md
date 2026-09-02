@@ -2,9 +2,8 @@
 
 ## Status
 
-This is an implementation design, not a description of current behavior.
-Wildcard application policy is deliberately absent from the current schema,
-D-Bus API, parent UI, and execution-policy renderer.
+Wildcard application policy is implemented as a broker-owned compiler in the
+preference schema, D-Bus catalog, parent UI, and execution-policy renderer.
 
 Do not require fapolicyd 2.x on the supported Ubuntu 26.04 baseline. Ubuntu
 ships fapolicyd 1.3.6 there. Upstream fapolicyd 2.x is not provided as a

@@ -12,7 +12,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk
 
-from common.oh_no_parent_control_ui.about import app_name
+from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
 
 
 def _load_options():
@@ -188,8 +188,13 @@ class RequestContent(Gtk.Box):
     def _header():
         header = Gtk.Box(spacing=13)
         header.add_css_class("oh-no-parent-control-header")
-        icon = Gtk.Image.new_from_icon_name("alarm-symbolic")
-        icon.set_pixel_size(24)
+        icon = Gtk.Image.new_from_file(
+            str(branding_asset_path("app_logo.png")),
+        )
+        # Match the combined title/subtitle block so the artwork spans from
+        # the title's top edge to the subtitle's bottom edge.
+        icon.set_pixel_size(52)
+        icon.set_valign(Gtk.Align.CENTER)
         icon.add_css_class("oh-no-parent-control-header-icon")
         header.append(icon)
         copy = Gtk.Box(

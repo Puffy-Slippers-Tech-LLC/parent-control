@@ -7,6 +7,7 @@ import os
 import pwd
 import shlex
 import shutil
+import re
 from pathlib import Path
 
 from .core import UserAccount
@@ -22,6 +23,20 @@ SYSTEM_APPLICATION_DIRS = (
     Path("/var/lib/flatpak/exports/share/applications"),
     Path("/var/lib/snapd/desktop/applications"),
 )
+
+
+def suggested_patterns(target: str) -> tuple[str, ...]:
+    """Offer a conservative version-stable AppImage filename pattern."""
+    if not target.endswith(".AppImage"):
+        return ()
+    directory, basename = os.path.split(target)
+    # Keep the AppImage suffix and replace a numeric version plus any updater
+    # suffix.  The parent may edit this; it is never silently activated.
+    suggested = re.sub(r"(?:[-_]v?\d+(?:\.\d+)+(?:[-_][A-Za-z0-9]+)?)\.AppImage$",
+                       "-*.AppImage", basename)
+    if suggested == basename:
+        return ()
+    return (os.path.join(os.path.realpath(directory), suggested),)
 
 
 def _bool(entry, key):
@@ -110,6 +125,7 @@ def _application(filename: Path, desktop_id: str, home: Path):
         "description": entry.get("Comment") or desktop_id,
         "icon": entry.get("Icon", ""),
         "targets": (target,),
+        "suggested_patterns": suggested_patterns(target) if target.startswith("/") else (),
     }
 
 

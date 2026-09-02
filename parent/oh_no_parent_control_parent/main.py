@@ -21,6 +21,7 @@ from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_hel
 from .client import BrokerClient, configure_logging
 
 LOG = logging.getLogger("oh-no-parent-control-parent")
+APPLICATION_ICON_NAME = "com.puffyslippers.OhNoParentControl"
 STATES = (
     {
         "id": "allowed",
@@ -48,8 +49,8 @@ PREVIEW_PREFERENCES = {
         "parent_control_enabled": True,
         "daily_time_limit_minutes": 90,
         "apps": {
-            "org.gnome.Software.desktop": {"state": "conditional", "targets": []},
-            "org.gnome.Calculator.desktop": {"state": "permanent", "targets": []},
+            "org.gnome.Software.desktop": {"state": "conditional", "targets": [], "patterns": []},
+            "org.gnome.Calculator.desktop": {"state": "permanent", "targets": [], "patterns": []},
         },
         "request": {},
     },
@@ -66,6 +67,7 @@ PREVIEW_APPS = ({
     "description": "Perform arithmetic",
     "icon": "accessories-calculator-symbolic",
     "targets": ["/usr/bin/gnome-calculator"],
+    "suggested_patterns": [],
 },)
 
 
@@ -132,6 +134,9 @@ def _time_status_subtitle(status):
 class ParentWindow(Adw.ApplicationWindow):
     def __init__(self, application, *, client_factory=BrokerClient):
         super().__init__(application=application, title=app_name())
+        # The application ID ends in ``.Parent``, but the shared installed
+        # desktop icon uses the product-wide name.
+        self.set_icon_name(APPLICATION_ICON_NAME)
         self.set_default_size(920, 760)
         self._client = client_factory()
         self._users = []
@@ -326,6 +331,15 @@ class ParentWindow(Adw.ApplicationWindow):
                 row.policy_buttons[state["id"]] = button
                 selector.append(button)
             row.add_suffix(selector)
+            row.pattern = Gtk.Entry(
+                placeholder_text="Update-stable filename pattern (optional)",
+                width_chars=30, valign=Gtk.Align.CENTER,
+            )
+            suggestions = app.get("suggested_patterns", [])
+            if suggestions:
+                row.pattern.set_placeholder_text(suggestions[0])
+            row.pattern.connect("activate", lambda *_args: self._save_app_policy())
+            row.add_suffix(row.pattern)
             self._apps_group.add(row)
             self._rows.append(row)
             self._app_rows.append(row)
@@ -422,6 +436,8 @@ class ParentWindow(Adw.ApplicationWindow):
         for row in self._rows:
             state = preferences["apps"].get(row.app["id"], {}).get("state", "allowed")
             row.policy_buttons[state].set_active(True)
+            patterns = preferences["apps"].get(row.app["id"], {}).get("patterns", [])
+            row.pattern.set_text(patterns[0] if patterns else "")
         self._loading = False
         self._set_apps_sensitive(True)
         LOG.info("preferences loaded target_uid=%d enabled=%s policy_count=%d",
@@ -546,6 +562,8 @@ class ParentWindow(Adw.ApplicationWindow):
             if state != "allowed":
                 value["apps"][row.app["id"]] = {
                     "state": state, "targets": row.app["targets"],
+                    "patterns": ([row.pattern.get_text().strip()] if row.pattern.get_text().strip()
+                                 else []),
                 }
         return value
 

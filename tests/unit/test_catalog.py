@@ -27,6 +27,21 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(application["targets"], (str(appimage),))
         self.assertEqual(application["name"], "Lunar Client")
 
+    def test_versioned_appimage_gets_an_editable_pattern_suggestion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            appimage = home / "Applications" / "Lunar Client-3.7.17-abc.AppImage"
+            appimage.parent.mkdir()
+            appimage.touch()
+            launcher = home / "lunarclient.desktop"
+            launcher.write_text(
+                "[Desktop Entry]\nType=Application\nName=Lunar Client\n"
+                f"Exec='{appimage}'\n", encoding="utf-8",
+            )
+            application = _application(launcher, "lunarclient.desktop", home)
+        self.assertEqual(application["suggested_patterns"], (
+            f"{appimage.parent}/Lunar Client-*.AppImage",))
+
     def test_catalog_reads_the_managed_users_private_desktop_directory(self):
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)

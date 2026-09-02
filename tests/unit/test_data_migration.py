@@ -115,6 +115,27 @@ class DataMigrationTests(unittest.TestCase):
 
             self.assertEqual(migrate_preferences(directory), 0)
 
+    def test_v1_preferences_gain_empty_patterns_without_changing_blocks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "preferences"
+            directory.mkdir(mode=0o700)
+            record = directory / "1001.json"
+            value = default_preferences()
+            value["version"] = 1
+            value["apps"] = {
+                "lunar.desktop": {
+                    "state": "conditional",
+                    "targets": ["/home/child/Applications/Lunar Client-3.7.17.AppImage"],
+                },
+            }
+            record.write_text(json.dumps(value), encoding="utf-8")
+            record.chmod(0o600)
+
+            self.assertEqual(migrate_preferences(directory), 1)
+            migrated = json.loads(record.read_text(encoding="utf-8"))
+            self.assertEqual(migrated["version"], 2)
+            self.assertEqual(migrated["apps"]["lunar.desktop"]["patterns"], [])
+
     def test_duplicate_keys_and_unsafe_records_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / "preferences"

@@ -42,6 +42,25 @@ class ExecutionPolicyTests(unittest.TestCase):
         self.assertNotIn("Missing", rules)
         self.assertIn("path=/usr/bin/game", rules)
 
+    def test_pattern_guards_future_matching_updates_and_preserves_existing_nonmatches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lunar = directory / "Lunar Client-3.7.17.AppImage"
+            prism = directory / "PrismLauncher.AppImage"
+            lunar.write_bytes(b"lunar")
+            prism.write_bytes(b"prism")
+            lunar.chmod(0o755)
+            prism.chmod(0o755)
+
+            rules = FapolicydPolicy.render(
+                {1001: (str(lunar),)}, {1001: (f"{directory}/Lunar Client-*.AppImage",)},
+            )
+
+        self.assertIn("sha256hash=", rules)
+        self.assertIn(f"allow perm=execute uid=1001 : path={prism}", rules)
+        self.assertIn(f"deny_syslog perm=execute uid=1001 : dir={directory}/", rules)
+        self.assertLess(rules.index("sha256hash="), rules.index(f"dir={directory}/"))
+
     def test_reconcile_atomically_writes_and_loads_rules(self):
         with tempfile.TemporaryDirectory() as temporary:
             rules_path = Path(temporary) / "89-oh-no-parent-control.rules"

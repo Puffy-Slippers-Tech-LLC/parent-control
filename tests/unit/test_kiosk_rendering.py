@@ -4,26 +4,38 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 KIOSK_MAIN = ROOT / "kiosk/oh_no_parent_control_kiosk/main.py"
+KIOSK_CONTENT = ROOT / "kiosk/oh_no_parent_control_kiosk/request_content.py"
 
 
 class KioskRenderingTests(unittest.TestCase):
-    def test_production_kiosk_plays_the_packaged_soundtrack_on_a_loop(self):
+    def test_request_header_uses_the_product_logo(self):
+        source = KIOSK_CONTENT.read_text(encoding="utf-8")
+
+        self.assertIn('branding_asset_path("app_logo.png")', source)
+        self.assertIn("Gtk.Image.new_from_file", source)
+        self.assertIn("icon.set_pixel_size(52)", source)
+        self.assertNotIn('Gtk.Image.new_from_icon_name("alarm-symbolic")', source)
+
+    def test_kiosk_and_preview_play_the_soundtrack_on_a_loop(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 
         self.assertIn('gi.require_version("Gst", "1.0")', source)
         self.assertIn('class BackgroundMusic:', source)
         self.assertIn('Path(__file__).with_name("Gearbox_Waltz.mp3")', source)
         self.assertIn('self._bus.connect("message::eos", self._restart)', source)
         self.assertIn('Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT', source)
-        self.assertIn('self._music = None if preview else BackgroundMusic()', source)
+        self.assertIn('str(soundtrack or Path(__file__).with_name("Gearbox_Waltz.mp3"))', source)
+        self.assertIn('self._music = BackgroundMusic(soundtrack)', source)
         self.assertIn('self._music.start()', source)
         self.assertIn('self._music.close()', source)
+        self.assertIn('--preview --soundtrack "$(CURDIR)/data/Gearbox_Waltz.mp3"', makefile)
 
     def test_preview_uses_the_production_window_without_privileged_services(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertIn('parser.add_argument(\n        "--preview"', source)
-        self.assertIn("RequestWindow(self, preview=self._preview)", source)
+        self.assertIn("self, preview=self._preview, soundtrack=self._soundtrack", source)
         self.assertIn("self._system_bus = None if preview", source)
         self.assertIn("self._request_content.set_accounts(PREVIEW_USERS)", source)
         self.assertIn("This is a visual preview; no access was requested.", source)
@@ -73,9 +85,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertNotIn(".skew(", source)
 
     def test_account_selectors_stay_in_the_transformed_form(self):
-        source = (ROOT / "kiosk/oh_no_parent_control_kiosk/request_content.py").read_text(
-            encoding="utf-8",
-        )
+        source = KIOSK_CONTENT.read_text(encoding="utf-8")
 
         self.assertIn("class GatewayDropDown(Gtk.Box):", source)
         self.assertIn("outside the request form's snapshot", source)
@@ -123,6 +133,8 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("def _draw_minecraft_chain", source)
         self.assertIn("for link_index in range(link_count):", source)
         self.assertIn("edge_on = link_index % 2 == 1", source)
+        self.assertIn("if link_index == link_count - 1:", source)
+        self.assertIn("edge_on = False", source)
         self.assertIn("sag = min(link_length * 1.25, distance * 0.13)", source)
         self.assertIn("def _chain_curve_samples", source)
         self.assertIn("control_y = (start[1] + end[1]) / 2 + sag * 2", source)

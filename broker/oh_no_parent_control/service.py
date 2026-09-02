@@ -54,7 +54,7 @@ INTROSPECTION_XML = f"""
     </method>
     <method name="ListApplications">
       <arg name="target_uid" type="u" direction="in"/>
-      <arg name="applications" type="a(ssssas)" direction="out"/>
+      <arg name="applications" type="a(ssssasas)" direction="out"/>
     </method>
     <method name="GetTimeStatus">
       <arg name="target_uid" type="u" direction="in"/>
@@ -103,14 +103,15 @@ class Service:
     def __init__(self, connection, log_writer):
         self.connection = connection
         self.credentials = CallerCredentials(connection)
-        self.accounts = AccountsService(connection, FapolicydPolicy())
+        preferences = PreferenceStore()
+        self.accounts = AccountsService(connection, FapolicydPolicy(), preferences)
         # Rules persist across broker restarts, then are reconciled against
         # AccountsService before accepting calls so deleted or changed users
         # cannot inherit stale execution policy.
         self.accounts.sync_execution_policy()
         self.broker = Broker(
             lambda: config.load(CONFIG_PATH), PolkitAuthorizer(connection),
-            self.accounts, PreferenceStore(), ExtensionManager(),
+            self.accounts, preferences, ExtensionManager(),
             TimerUsage(connection),
             application_catalog=list_apps,
             caller_alive=self.credentials.alive,
@@ -122,6 +123,16 @@ class Service:
             None, APP_FILTER_INTERFACE, Gio.DBusSignalFlags.NONE,
             self._app_filter_changed,
         )
+        # Directory guards are the security boundary; this bounded periodic
+        # reconciliation only admits newly discovered safe nonmatches after
+        # they have been classified.  A dropped filesystem notification can
+        # therefore cause inconvenience, never a wildcard bypass.
+        self._policy_rescan_stop = threading.Event()
+        threading.Thread(target=self._periodic_policy_rescan, daemon=True).start()
+
+    def _periodic_policy_rescan(self):
+        while not self._policy_rescan_stop.wait(30):
+            self._sync_execution_policy_after_signal()
 
     def _app_filter_changed(self, *_args):
         # The child approval flow writes its own AppFilter after Polkit
@@ -174,9 +185,9 @@ class Service:
             elif method == "ListApplications":
                 target_uid, = parameters.unpack()
                 applications = self.broker.list_applications(caller_uid, target_uid)
-                invocation.return_value(GLib.Variant("(a(ssssas))", ([
+                invocation.return_value(GLib.Variant("(a(ssssasas))", ([
                     (app["id"], app["name"], app["description"], app["icon"],
-                     list(app["targets"]))
+                     list(app["targets"]), list(app.get("suggested_patterns", ())))
                     for app in applications
                 ],)))
             elif method == "GetTimeStatus":

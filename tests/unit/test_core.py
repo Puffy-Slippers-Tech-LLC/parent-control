@@ -101,8 +101,8 @@ class Preferences:
         self.values = {}
         value = default_preferences()
         value["apps"] = {
-            "game.desktop": {"state": "permanent", "targets": ["org.example.Game"]},
-            "soft.desktop": {"state": "conditional", "targets": ["/usr/bin/game"]},
+            "game.desktop": {"state": "permanent", "targets": ["org.example.Game"], "patterns": []},
+            "soft.desktop": {"state": "conditional", "targets": ["/usr/bin/game"], "patterns": []},
         }
         self.values[1001] = value
 
@@ -263,9 +263,9 @@ class CoreTests(unittest.TestCase):
 
     def test_preferences_are_scoped_by_role(self):
         broker = make_broker()
-        self.assertEqual(broker.get_preferences(1001, 1001)["version"], 1)
-        self.assertEqual(broker.get_preferences(991, 1001)["version"], 1)
-        self.assertEqual(broker.get_preferences(1003, 1001)["version"], 1)
+        self.assertEqual(broker.get_preferences(1001, 1001)["version"], 2)
+        self.assertEqual(broker.get_preferences(991, 1001)["version"], 2)
+        self.assertEqual(broker.get_preferences(1003, 1001)["version"], 2)
         with self.assertRaises(AccessDenied):
             broker.get_preferences(1002, 1001)
 
@@ -388,6 +388,7 @@ class CoreTests(unittest.TestCase):
                 "targets": [
                     "/home/child/Applications/Lunar Client-3.7.13.AppImage",
                 ],
+                "patterns": [],
             },
         }
         catalog = lambda _user: ({

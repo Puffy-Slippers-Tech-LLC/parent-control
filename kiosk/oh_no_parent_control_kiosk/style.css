@@ -35,29 +35,34 @@ window.oh-no-parent-control-window {
 
 .oh-no-parent-control-dialog {
   min-width: 350px;
-  padding: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 24px;
-  color: rgba(255, 255, 255, 0.90);
-  background-color: #303946;
-  background-image: linear-gradient(to bottom, rgba(74, 86, 103, 0.98), rgba(35, 42, 53, 0.99));
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.20);
+  padding: 26px;
+  /* This is a physical board, not a translucent dialog laid over the gate.
+   * Its square, stepped bevel stays part of the child snapshot, so the
+   * gateway's existing yaw applies to the board, its depth, and its controls
+   * as one surface. */
+  border: 6px solid #121927;
+  border-top-color: #718190;
+  border-right-color: #1b2633;
+  border-bottom-color: #080d15;
+  border-left-color: #344452;
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.94);
+  background-color: #303b47;
+  background-image: linear-gradient(to bottom,
+      #647585 0%, #647585 4%, #445462 4%, #37434e 12%,
+      #303a45 88%, #222b36 100%);
+  box-shadow: 0 9px 0 #111824, 0 17px 0 #070b12,
+      0 28px 38px rgba(0, 0, 0, 0.62),
+      inset 0 3px #92a2af, inset 0 -5px #1a222c;
 }
 
 .oh-no-parent-control-header {
-  margin: 4px 2px 2px;
+  margin: 12px 2px 2px;
 }
 
 .oh-no-parent-control-header-icon {
-  min-width: 24px;
-  min-height: 24px;
-  padding: 10px;
-  border: 1px solid rgba(115, 230, 167, 0.62);
-  border-radius: 15px;
-  color: white;
-  background-color: rgba(36, 182, 111, 0.30);
-  background-image: linear-gradient(to bottom, rgba(115, 230, 167, 0.40), rgba(36, 182, 111, 0.30));
-  box-shadow: 0 0 18px rgba(69, 223, 141, 0.48), inset 0 1px rgba(255, 255, 255, 0.35);
+  min-width: 52px;
+  min-height: 52px;
 }
 
 .oh-no-parent-control-title {
@@ -85,11 +90,12 @@ window.oh-no-parent-control-window {
 button.oh-no-parent-control-account-selector {
   min-height: 38px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 11px;
+  border: 2px solid #17212b;
+  border-top-color: #728390;
+  border-radius: 2px;
   color: rgba(255, 255, 255, 0.92);
-  background-color: rgba(255, 255, 255, 0.10);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.12);
+  background-color: #26323d;
+  box-shadow: 0 3px 0 #111820, inset 0 1px rgba(255, 255, 255, 0.16);
 }
 
 button.oh-no-parent-control-account-selector:hover,
@@ -101,16 +107,16 @@ button.oh-no-parent-control-account-selector:focus-visible {
 .oh-no-parent-control-account-choices {
   padding: 5px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  background-color: rgba(35, 42, 53, 0.98);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.34), inset 0 1px rgba(255, 255, 255, 0.10);
+  border-radius: 2px;
+  background-color: #1b2530;
+  box-shadow: 0 5px 0 #090d13, 0 8px 20px rgba(0, 0, 0, 0.34), inset 0 1px rgba(255, 255, 255, 0.10);
 }
 
 button.oh-no-parent-control-account-choice {
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 1px;
   color: rgba(255, 255, 255, 0.90);
   background: transparent;
   box-shadow: none;
@@ -127,17 +133,18 @@ button.oh-no-parent-control-account-choice:focus-visible {
 .oh-no-parent-control-choices {
   min-width: 336px;
   padding: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 18px;
-  background-color: rgba(185, 203, 224, 0.07);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.12);
+  border: 3px solid #1b2630;
+  border-top-color: #70808d;
+  border-radius: 2px;
+  background-color: #25313c;
+  box-shadow: 0 4px 0 #111820, inset 0 2px rgba(255, 255, 255, 0.12);
 }
 
 button.oh-no-parent-control-choice {
   min-height: 20px;
   padding: 10px 13px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 1px;
   color: rgba(255, 255, 255, 0.78);
   background: transparent;
   box-shadow: none;
@@ -158,7 +165,7 @@ button.oh-no-parent-control-choice:checked {
   border-color: rgba(115, 230, 167, 0.72);
   background-color: rgba(36, 182, 111, 0.72);
   background-image: linear-gradient(to right, rgba(75, 199, 131, 0.90), rgba(36, 182, 111, 0.78));
-  box-shadow: 0 0 16px rgba(69, 223, 141, 0.42), inset 0 1px rgba(255, 255, 255, 0.28);
+  box-shadow: 0 3px 0 rgba(9, 71, 49, 0.92), 0 0 16px rgba(69, 223, 141, 0.42), inset 0 1px rgba(255, 255, 255, 0.28);
 }
 
 button.oh-no-parent-control-choice:checked:hover {
@@ -170,10 +177,11 @@ button.oh-no-parent-control-choice:checked:hover {
   min-width: 350px;
   min-height: 36px;
   padding: 7px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  background-color: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+  border: 2px solid #1a2530;
+  border-top-color: #667783;
+  border-radius: 2px;
+  background-color: #26323d;
+  box-shadow: 0 3px 0 #111820, inset 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .oh-no-parent-control-app-filter-label {
@@ -194,7 +202,7 @@ button.oh-no-parent-control-choice:checked:hover {
 entry.oh-no-parent-control-custom-entry {
   min-height: 30px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 10px;
+  border-radius: 1px;
   color: white;
   background-color: rgba(255, 255, 255, 0.08);
 }
@@ -206,13 +214,14 @@ entry.oh-no-parent-control-custom-entry {
 button.oh-no-parent-control-cancel-button {
   min-height: 42px;
   margin-top: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 14px;
+  border: 2px solid #17212b;
+  border-top-color: #71818e;
+  border-radius: 2px;
   color: rgba(255, 255, 255, 0.90);
   font-weight: 700;
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: #303c47;
   background-image: none;
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 0 #111820, inset 0 1px rgba(255, 255, 255, 0.12);
   text-shadow: none;
 }
 
@@ -227,12 +236,12 @@ button.oh-no-parent-control-request-button,
   min-height: 42px;
   margin-top: 4px;
   border: 1px solid rgba(115, 230, 167, 0.64);
-  border-radius: 14px;
+  border-radius: 2px;
   color: white;
   font-weight: 700;
   background-color: rgba(36, 182, 111, 0.70);
   background-image: linear-gradient(to bottom, rgba(75, 199, 131, 0.84), rgba(36, 182, 111, 0.68));
-  box-shadow: 0 0 14px rgba(69, 223, 141, 0.30), inset 0 1px rgba(255, 255, 255, 0.24);
+  box-shadow: 0 4px 0 rgba(9, 71, 49, 0.92), 0 0 14px rgba(69, 223, 141, 0.30), inset 0 1px rgba(255, 255, 255, 0.24);
   text-shadow: none;
 }
 

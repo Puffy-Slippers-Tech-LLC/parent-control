@@ -1,7 +1,9 @@
 import unittest
+import inspect
+from pathlib import Path
 
 from parent.oh_no_parent_control_parent.main import (
-    PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _duration_label, _minutes_label,
+    APPLICATION_ICON_NAME, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _duration_label, _minutes_label,
     _time_status_subtitle,
 )
 
@@ -65,6 +67,18 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def test_runtime_icon_matches_the_installed_parent_desktop_icon(self):
+        root = Path(__file__).resolve().parents[2]
+        desktop_entry = (
+            root / "data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(f"Icon={APPLICATION_ICON_NAME}", desktop_entry)
+        self.assertIn(
+            "self.set_icon_name(APPLICATION_ICON_NAME)",
+            inspect.getsource(ParentWindow.__init__),
+        )
+
     def test_preview_client_uses_fixture_data_and_persists_ui_changes_in_memory(self):
         client = PreviewBrokerClient()
 

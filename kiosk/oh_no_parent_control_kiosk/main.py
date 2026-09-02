@@ -139,13 +139,13 @@ class BrokerLogHandler(logging.Handler):
 class BackgroundMusic:
     """Keep the kiosk soundtrack playing for the lifetime of its window."""
 
-    def __init__(self):
+    def __init__(self, soundtrack=None):
         Gst.init(None)
         self._player = Gst.ElementFactory.make("playbin")
         if self._player is None:
             raise RuntimeError("GStreamer playbin is unavailable")
         track = Gio.File.new_for_path(
-            str(Path(__file__).with_name("Gearbox_Waltz.mp3")),
+            str(soundtrack or Path(__file__).with_name("Gearbox_Waltz.mp3")),
         )
         self._player.set_property("uri", track.get_uri())
         self._bus = self._player.get_bus()
@@ -568,7 +568,10 @@ class GatewayAlignedRequest(Gtk.Widget):
         unit_x = vector_x / distance
         unit_y = vector_y / distance
         gateway_inset = max(12.0, min(24.0, link_length * 0.68))
-        form_overlap = max(6.0, min(14.0, link_length * 0.30))
+        # Seat the terminal link well beneath the board's opaque bevel.  A
+        # shallow overlap leaves the hollow centre of a ring exposed at the
+        # edge and makes a mechanically attached chain look detached.
+        form_overlap = max(10.0, min(22.0, link_length * 0.52))
         start = (
             start[0] - unit_x * gateway_inset,
             start[1] - unit_y * gateway_inset,
@@ -604,6 +607,11 @@ class GatewayAlignedRequest(Gtk.Widget):
             # Alternating broad and edge-on rings mimic Minecraft's linked,
             # block-built chain silhouette rather than a dashed cable.
             edge_on = link_index % 2 == 1
+            # The terminal ring is the visible attachment hardware.  Keep it
+            # broad even when the alternating sequence would make it edge-on,
+            # so it meets the form with a continuous, substantial silhouette.
+            if link_index == link_count - 1:
+                edge_on = False
             cls._draw_angular_chain_link(
                 context, center_x, center_y, angle, link_length, edge_on,
             )
@@ -747,7 +755,7 @@ def configure_logging(preview=False):
 
 
 class RequestWindow(Adw.ApplicationWindow):
-    def __init__(self, application, *, preview=False):
+    def __init__(self, application, *, preview=False, soundtrack=None):
         super().__init__(application=application, title=app_name())
         self.add_css_class("oh-no-parent-control-window")
         self.set_default_size(
@@ -759,9 +767,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._success_logout_source_id = None
         self._system_bus = None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
         self._build()
-        self._music = None if preview else BackgroundMusic()
-        if self._music is not None:
-            self._music.start()
+        self._music = BackgroundMusic(soundtrack)
+        self._music.start()
         self.connect("destroy", self._stop_music)
         LOG.info("request station window initialized")
         if not preview:
@@ -1023,9 +1030,10 @@ class RequestWindow(Adw.ApplicationWindow):
 
 
 class Application(Adw.Application):
-    def __init__(self, *, preview=False):
+    def __init__(self, *, preview=False, soundtrack=None):
         super().__init__(application_id="com.puffyslippers.OhNoParentControl")
         self._preview = preview
+        self._soundtrack = soundtrack
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
         self._css_provider = None
         self._preview_monitor = None
@@ -1087,7 +1095,9 @@ class Application(Adw.Application):
         return GLib.SOURCE_REMOVE
 
     def do_activate(self):
-        window = self.get_active_window() or RequestWindow(self, preview=self._preview)
+        window = self.get_active_window() or RequestWindow(
+            self, preview=self._preview, soundtrack=self._soundtrack,
+        )
         if self._css_provider is None:
             self._css_provider = Gtk.CssProvider()
             self._load_stylesheet()
@@ -1106,10 +1116,14 @@ def main(argv=None):
         "--preview", action="store_true",
         help="render the kiosk UI with fixture data and no privileged services",
     )
+    parser.add_argument(
+        "--soundtrack", type=Path,
+        help="soundtrack file to play instead of the installed kiosk soundtrack",
+    )
     args = parser.parse_args(argv)
     configure_logging(preview=args.preview)
     LOG.info("kiosk app starting")
-    return Application(preview=args.preview).run([sys.argv[0]])
+    return Application(preview=args.preview, soundtrack=args.soundtrack).run([sys.argv[0]])
 
 
 if __name__ == "__main__":

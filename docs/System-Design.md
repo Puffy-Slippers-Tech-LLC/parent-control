@@ -61,7 +61,7 @@ The root-owned, mode `0600`, atomically replaced record contains:
 version
 parent_control_enabled
 daily_time_limit_minutes
-apps[desktop-id] = { state, targets[] }
+apps[desktop-id] = { state, targets[], patterns[] }
 request = { last_selected_duration, last_custom_minutes,
             allow_soft_blocked_apps }
 ```
@@ -105,6 +105,12 @@ When the parent saves an app policy, the broker resolves every selected desktop
 ID against the child's current launcher again before applying and persisting
 targets. This prevents an open parent window from saving a vanished executable
 path after an application replaces a versioned AppImage during an update.
+An app policy may also contain same-directory basename patterns such as
+`/home/adrian/Applications/Lunar Client-*.AppImage`. These are compiled into
+exact safe-file allowances followed by a UID-scoped fapolicyd directory denial;
+therefore a newly downloaded matching AppImage is denied before reconciliation.
+Conditional patterns are removed alongside their concrete target when an
+approved extension allows soft-blocked apps.
 Malcontent supplies the supported GNOME launcher policy but does not mediate a
 trusted `.desktop` file opened directly from the desktop or Files. The broker
 therefore mirrors native executable targets from each live AccountsService

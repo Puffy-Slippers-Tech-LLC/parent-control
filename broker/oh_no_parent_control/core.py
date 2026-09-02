@@ -419,16 +419,24 @@ class Broker:
         except Exception as error:
             raise BackendFailure("app filter is unavailable") from error
         desired_filter = (False, blocked_targets(requested, False))
+        preferences_saved = False
         try:
+            # Persist first so AccountsService's synchronous execution-policy
+            # reconciliation compiles the matching canonical patterns with the
+            # new AppFilter.  If anything below fails, restore both sources.
+            saved = self._preferences.save(target.uid, requested)
+            preferences_saved = True
             self._accounts.set_filter(target.uid, desired_filter)
             if self._accounts.get_filter(target.uid) != desired_filter:
                 raise BackendFailure("app-filter verification failed")
-            try:
-                return self._preferences.save(target.uid, requested)
-            except PreferencesError as error:
-                raise BackendFailure("preferences could not be saved") from error
+            sync = getattr(self._accounts, "sync_execution_policy", None)
+            if sync is not None:
+                sync()
+            return saved
         except Exception as error:
             try:
+                if preferences_saved:
+                    self._preferences.save(target.uid, current)
                 self._accounts.set_filter(target.uid, old_filter)
                 if self._accounts.get_filter(target.uid) != old_filter:
                     raise RuntimeError("app-filter rollback read-back mismatch")

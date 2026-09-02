@@ -20,6 +20,13 @@ def _data_dir() -> Path:
     return _INSTALLED_DATA_DIR if _INSTALLED_DATA_DIR.is_dir() else _SOURCE_DATA_DIR
 
 
+def branding_asset_path(filename: str) -> Path:
+    """Return a package-installed branding asset without accepting path traversal."""
+    if not filename or Path(filename).name != filename:
+        raise ValueError("branding asset filename must be a plain filename")
+    return _data_dir() / filename
+
+
 def _load_json(name: str) -> dict:
     value = json.loads((_data_dir() / name).read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -97,7 +104,7 @@ class AboutDialog(Gtk.Window):
                           margin_top=18, margin_bottom=18,
                           margin_start=24, margin_end=24)
 
-        logo = Gtk.Picture.new_for_filename(str(_data_dir() / "app_logo.png"))
+        logo = Gtk.Picture.new_for_filename(str(branding_asset_path("app_logo.png")))
         logo.set_size_request(150, 150)
         logo.set_content_fit(Gtk.ContentFit.CONTAIN)
         logo.set_halign(Gtk.Align.CENTER)

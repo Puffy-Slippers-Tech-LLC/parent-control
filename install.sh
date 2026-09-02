@@ -353,6 +353,19 @@ if [[ "$activation_impacts" == *reboot* ]]; then
     else
         printf '\n%s\n' "$reboot_warning"
     fi
+
+    # A person running the installer from a terminal can activate the required
+    # login-stack boundary immediately.  Keep unattended installs
+    # non-interactive; the standard Ubuntu marker above remains authoritative
+    # until an administrator reboots by another means.
+    if [[ -t 0 && -t 1 ]]; then
+        read -r -p 'Reboot now? [y/N] ' reboot_answer || reboot_answer=""
+        case "$reboot_answer" in
+            y|Y|yes|YES|Yes)
+                systemctl reboot
+                ;;
+        esac
+    fi
 else
     printf 'No reboot is required for this update.\n'
 fi

@@ -225,6 +225,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._pending_saves = []
         self._restore_preferences_uid = None
         self._time_status_loading = False
+        self._remaining_time_seconds = None
         self._build()
         self._time_status_refresh_id = GLib.timeout_add_seconds(
             30, self._refresh_time_status,
@@ -980,6 +981,9 @@ class ParentWindow(Adw.ApplicationWindow):
             f"Revokes one-time screen time and app access grants granted to {child_name}."
         )
         self._loading = True
+        # Do not carry a previous child's grant state into this selection while
+        # its authoritative time status is still loading.
+        self._remaining_time_seconds = None
         self._time_status_value.set_label("Loading…")
         for value in self._time_operand_values:
             value.set_label("—")
@@ -1032,6 +1036,9 @@ class ParentWindow(Adw.ApplicationWindow):
         if uid != self._selected_uid():
             self._load_time_status()
             return
+        self._remaining_time_seconds = max(
+            0, int(status["calculated_active_extension_seconds"]),
+        )
         durations = (
             _duration_label(status["daily_allowance_remaining_seconds"]),
             _duration_label(status["one_time_grant_remaining_seconds"]),
@@ -1051,6 +1058,7 @@ class ParentWindow(Adw.ApplicationWindow):
             status["additional_one_time_grant_seconds"],
             status["calculated_active_extension_seconds"],
         )
+        self._set_apps_sensitive(True)
 
     def _time_status_failed(self, uid, error):
         self._time_status_loading = False
@@ -1079,7 +1087,9 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         self._account.set_sensitive(not self._loading)
         self._revoke.set_sensitive(
-            not self._loading and self._selected_uid() is not None
+            not self._loading and self._selected_uid() is not None and
+            getattr(self, "_remaining_time_seconds", None) is not None and
+            self._remaining_time_seconds > 0
         )
         self._enabled.set_sensitive(not self._loading and self._selected_uid() is not None)
         self._daily_limit.set_sensitive(

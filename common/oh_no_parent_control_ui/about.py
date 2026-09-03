@@ -116,10 +116,9 @@ class AboutDialog(Gtk.Window):
                                  css_classes=["dim-label"], halign=Gtk.Align.CENTER,
                                  margin_bottom=16))
         content.append(Gtk.Separator())
-        content.append(_detail_row(None, "Website", values["app_url"],
+        content.append(_detail_row("web-browser-symbolic", "Website", values["app_url"],
                                    values["app_url"],
-                                   links_enabled=links_enabled,
-                                   icon_filename="company_logo.png"))
+                                   links_enabled=links_enabled))
         subject = f"{values['app_name']}: Feedbacks"
         # Some mail clients display '+' from form-style query encoding
         # literally. Percent encoding is unambiguous for a mailto URI.

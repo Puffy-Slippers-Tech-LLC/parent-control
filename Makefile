@@ -58,12 +58,16 @@ SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
 TEST_ENV = PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$${PYTHONPATH:-}
 PYTEST = $(TEST_ENV) $(PYTHON) -m pytest
+UI_TEST_PYTHON ?= $(CURDIR)/.venv/onpc-ui-tests/bin/python
 
 check-unit:
 	@$(PYTEST) tests/unit -m "unit or contract"
 
 check-component:
 	@$(PYTEST) tests/component -m component
+	@test -x "$(UI_TEST_PYTHON)" || (echo 'UI test environment missing; run ./setup.sh' >&2; exit 1)
+	@PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$(CURDIR):$${PYTHONPATH:-} \
+		"$(UI_TEST_PYTHON)" -m pytest tests/ui -m ui
 
 check-marker:
 	@test -n "$(MARKER)" || (echo 'Usage: make check-marker MARKER=unit' >&2; exit 2)
@@ -88,7 +92,7 @@ check:
 	@for file in extension.js $(filter %.js,$(EXTENSION_SOURCES)); do node --check "$(CHILD_DIR)/$$file"; done
 	@$(PYTHON) tools/verify_test_traceability.py --mode stage
 	@$(MAKE) --no-print-directory check-unit
-	@$(MAKE) --no-print-directory check-component
+	@$(PYTEST) tests/component -m component
 	@$(PYTHON) -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for p in pathlib.Path(".").glob("**/*.py") if ".git" not in p.parts]'
 	@$(PYTHON) -c 'import pathlib,xml.etree.ElementTree as E; [E.parse(p) for p in pathlib.Path("data").glob("**/*.xml")]; [E.parse(p) for p in pathlib.Path(".").glob("**/*.policy")]'
 	@! grep -REn 'org\.freedesktop\.policykit\.imply|ApproveTimeAndApps|Properties.*Set.*(AppFilter|ActiveExtension)' child data/polkit-1

@@ -18,6 +18,13 @@ GENERIC_LAUNCHERS = {
     "/usr/bin/env", "/bin/sh", "/usr/bin/sh", "/bin/bash", "/usr/bin/bash",
     "/usr/bin/flatpak", "/usr/bin/snap",
 }
+SNAP_COMMAND_DIRS = (
+    Path("/snap/bin"),
+    Path("/var/lib/snapd/snap/bin"),
+)
+SNAP_LAUNCHERS = {
+    "/usr/bin/snap",
+}
 SYSTEM_APPLICATION_DIRS = (
     Path("/usr/local/share/applications"),
     Path("/usr/share/applications"),
@@ -97,6 +104,35 @@ def _flatpak_target(entry, arguments):
     return f"app/{flatpak_id}/{arch}/{branch}" if arch and branch else None
 
 
+def _snap_target(entry, executable: str):
+    """Keep the public snap command path as the launcher's app identity.
+
+    Commands in ``/snap/bin`` are symlinks to the shared ``snap`` executable,
+    but Malcontent deliberately compares the command path from the desktop
+    entry without resolving symlinks.  Resolving it here loses the individual
+    application identity and makes every Snap launcher look like the shared
+    wrapper.
+    """
+    instance_name = entry.get("X-SnapInstanceName", "").strip()
+    app_name = entry.get("X-SnapAppName", "").strip()
+    if not instance_name or not app_name or not os.path.isabs(executable):
+        LOG.warning("catalog launcher outcome=rejected reason=invalid-snap-metadata")
+        return None
+    command = Path(os.path.normpath(executable))
+    command_names = {instance_name, f"{instance_name}.{app_name}"}
+    if command.name not in command_names or command.parent not in SNAP_COMMAND_DIRS:
+        LOG.warning("catalog launcher outcome=rejected reason=invalid-snap-command")
+        return None
+    if not command.is_symlink():
+        LOG.warning("catalog launcher outcome=rejected reason=unavailable-snap-command")
+        return None
+    if os.path.realpath(command) not in SNAP_LAUNCHERS or not command.is_file():
+        LOG.warning("catalog launcher outcome=rejected reason=invalid-snap-launcher")
+        return None
+    LOG.debug("catalog launcher outcome=accepted target_type=snap")
+    return str(command)
+
+
 def _executable_target(entry, home: Path):
     try:
         arguments = shlex.split(entry["Exec"])
@@ -108,6 +144,8 @@ def _executable_target(entry, home: Path):
     if flatpak_target:
         return flatpak_target
     executable = arguments[0]
+    if entry.get("X-SnapInstanceName", "") or entry.get("X-SnapAppName", ""):
+        return _snap_target(entry, executable)
     if os.path.isabs(executable):
         resolved = os.path.realpath(executable)
     else:

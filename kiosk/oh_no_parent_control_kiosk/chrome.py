@@ -1,8 +1,8 @@
-"""Visual chrome for the shared request form.
+"""Visual chrome for the shared request GUI.
 
-Look-and-feel only: pixel-art icons, stone-and-iron panels, rivets, and the
-bundled Minecraft-inspired form font. Request behavior stays in
-``request_content``.
+Look-and-feel only: pixel-art icons, stone-and-iron panels, rivets, HUD
+plates, and the bundled Minecraft-inspired form font. Request behavior stays
+in ``request_content``.
 """
 
 from __future__ import annotations
@@ -179,6 +179,57 @@ MLLLLLLM
     },
 )
 
+SPEAKER = _parse_sprite(
+    """
+..WW....
+.WWW.Y..
+WWWW.Y.Y
+WWWW..Y.
+WWWW..Y.
+WWWW.Y.Y
+.WWW.Y..
+..WW....
+""",
+    {
+        "W": (214, 196, 130, 255),
+        "Y": (236, 236, 214, 255),
+    },
+)
+
+SPEAKER_MUTED = _parse_sprite(
+    """
+..WW....
+.WWW.R.R
+WWWW..R.
+WWWW.R..
+WWWW.R..
+WWWW..R.
+.WWW.R.R
+..WW....
+""",
+    {
+        "W": (214, 196, 130, 255),
+        "R": (188, 58, 48, 255),
+    },
+)
+
+MENU = _parse_sprite(
+    """
+.MMMMMM.
+.MLLLLM.
+........
+.MMMMMM.
+.MLLLLM.
+........
+.MMMMMM.
+.MLLLLM.
+""",
+    {
+        "M": (46, 49, 44, 255),
+        "L": (190, 184, 151, 255),
+    },
+)
+
 
 class PixelIcon(Gtk.Widget):
     """Nearest-neighbor pixel sprite used as decorative form chrome."""
@@ -193,6 +244,11 @@ class PixelIcon(Gtk.Widget):
         self.set_size_request(display_size, display_size)
         if label:
             self.set_tooltip_text(label)
+
+    def set_pixels(self, pixels):
+        """Replace the sprite while keeping the same on-screen size."""
+        self._texture = _texture_from_pixels(pixels)
+        self.queue_draw()
 
     def do_measure(self, orientation, for_size):
         size = self._display_size
@@ -456,11 +512,17 @@ def paint_board_frame(snapshot, width, height):
 
 def paint_button_hardware(snapshot, width, height, kind):
     """Add corner clamps without changing the button's GTK allocation."""
-    if kind not in {"request", "cancel"} or width < 50 or height < 30:
+    if kind not in {"request", "cancel", "hud"} or width < 36 or height < 28:
         return
     context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
-    size = min(14.0, height * 0.28)
-    colour = (0.31, 0.32, 0.30) if kind == "cancel" else (0.27, 0.30, 0.25)
+    if kind == "hud":
+        size = min(12.0, width * 0.24, height * 0.24)
+        colour = (0.31, 0.32, 0.30)
+        rivet_radius = 1.8
+    else:
+        size = min(14.0, height * 0.28)
+        colour = (0.31, 0.32, 0.30) if kind == "cancel" else (0.27, 0.30, 0.25)
+        rivet_radius = 2.2
     if kind == "request":
         # The reference uses a green inset held inside a separate iron cage.
         # Paint that cage over the normal button so hit testing and allocation
@@ -474,7 +536,7 @@ def paint_button_hardware(snapshot, width, height, kind):
                  (width - size, height - size)):
         _rectangle(context, x, y, size, size, *colour)
         _paint_bevel(context, x, y, size, size)
-        _paint_rivet(context, x + size / 2, y + size / 2, 2.2)
+        _paint_rivet(context, x + size / 2, y + size / 2, rivet_radius)
 
 
 class MetalPanel(Gtk.Box):
@@ -505,6 +567,22 @@ class ArmoredButton(Gtk.Button):
 
     def do_snapshot(self, snapshot):
         Gtk.Button.do_snapshot(self, snapshot)
+        paint_button_hardware(
+            snapshot, self.get_width(), self.get_height(), self._armor_kind,
+        )
+
+
+class ArmoredMenuButton(Gtk.MenuButton):
+    """A GTK menu button with the same iron clamps as ``ArmoredButton``."""
+
+    __gtype_name__ = "OhNoArmoredMenuButton"
+
+    def __init__(self, *args, armor_kind="hud", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._armor_kind = armor_kind
+
+    def do_snapshot(self, snapshot):
+        Gtk.MenuButton.do_snapshot(self, snapshot)
         paint_button_hardware(
             snapshot, self.get_width(), self.get_height(), self._armor_kind,
         )

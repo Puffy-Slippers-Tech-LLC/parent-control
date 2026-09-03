@@ -63,11 +63,11 @@ The broker is divided into these layers:
 - `preferences.py`: current schema, strict normalization, and atomic per-child
   storage
 - `catalog.py`: launcher discovery in the selected child's XDG and system
-  application directories, with executable or Flatpak target projection
+  application directories, with native, Snap, or Flatpak target projection
 - `execution_policy.py`: aggregate UID-scoped fapolicyd rule generation,
   replacement, activation, and rollback
-- `app_termination.py`: UID-confined native and Flatpak process discovery and
-  termination
+- `app_termination.py`: UID-confined native, Snap, and Flatpak process discovery
+  and termination
 - `extension_manager.py`: safe per-child activation and runtime verification of
   the immutable GNOME extension payload
 - `config.py` and `logs.py`: fail-closed machine configuration and broker-owned
@@ -246,11 +246,17 @@ whether a grant is current nor signals processes itself.
 ## Application policy and enforcement
 
 The parent selects policy by desktop ID, but enforcement uses the corresponding
-native executable path or full Flatpak ref. The broker discovers launchers from
-the selected child's user XDG directories before system directories, so the
-catalog reflects that child's app grid. On every app-policy save it resolves
-each still-present desktop ID again; a self-updated executable is not replaced
-by a stale target, while a missing app's saved rule remains intact.
+native executable path, public Snap command path, or full Flatpak ref. The
+broker discovers launchers from the selected child's user XDG directories
+before system directories, so the catalog reflects that child's app grid. On
+every app-policy save it resolves each still-present desktop ID again; a
+self-updated executable is not replaced by a stale target, while a missing
+app's saved rule remains intact. After
+installing and verifying the complete policy, the broker stops applications
+whose effective policy just became more restrictive. It stops only matching
+processes owned by the selected child, across all of that child's retained
+sessions. Policy saves serialize with approvals, revocations, and session
+preparation so a concurrent grant cannot relax a newly saved hard block.
 
 The live AccountsService `AppFilter` is always a blocklist. Its complete form
 contains hard and soft targets. An approved request that allows soft blocked
@@ -258,9 +264,10 @@ apps omits only conditional targets; hard targets remain. A same-directory
 basename pattern may accompany a native AppImage target. Conditional patterns
 participate only while their owning conditional target is in the live blocklist.
 
-Malcontent and GNOME enforce supported launcher and Flatpak identities. To
-prevent a native target from bypassing the launcher policy through a desktop
-file, file manager, or command, the broker mirrors live native targets into
+Malcontent and GNOME enforce supported launcher, Snap command, and Flatpak
+identities. To prevent a native target from bypassing the launcher policy
+through a desktop file, file manager, or command, the broker mirrors live native
+targets into
 UID-scoped fapolicyd execute denials. Ordinary targets use exact paths. Since
 fapolicyd 1.3 cannot quote whitespace safely, affected existing executable
 names use their SHA-256 object identity. Pattern rules put exact safe-file
@@ -319,16 +326,19 @@ the request station.
 After approval, the broker confirms that the requesting bus name still exists
 and revalidates the child, approver, and preferences after authentication,
 after the identity-scoped usage query, and immediately before writes. A
-nonblocking broker lock permits only one approval, revocation, or session-entry
-reconciliation transaction at a time. The per-caller repeat interval is
-recorded only after a successful grant, so denial or cancellation does not
-consume it.
+nonblocking broker lock permits only one app-policy save, approval, revocation,
+or session-entry reconciliation transaction at a time. The per-caller repeat
+interval is recorded only after a successful grant, so denial or cancellation
+does not consume it.
 
 For a request that keeps soft blocks enabled, the broker writes and verifies the
 complete hard-and-soft filter, terminates matching apps owned by the selected
-child, and writes `ActiveExtension` last. Native processes are pinned with
-pidfds and signalled only after all four kernel-reported UIDs match the child.
-Flatpak instances are enumerated and killed by instance ID using the child's
+child, and writes `ActiveExtension` last. Native and Snap processes are pinned
+with pidfds and signalled only after all four kernel-reported UIDs match the
+child. Snap processes additionally match the kernel-applied
+`snap.<instance>.<app>` AppArmor security label rather than the transient
+executable path inside a mounted Snap revision. Flatpak instances are
+enumerated and killed by instance ID using the child's
 UID, primary GID, empty supplementary groups, and runtime directory. Every live
 session for that UID is in scope; another user's process is never signalled.
 When soft blocked apps are allowed, the broker installs the hard-only filter and
@@ -346,7 +356,9 @@ rollback read-back failure is reported distinctly.
 
 1. **Manage:** The Parent App selects one child, loads preferences, child-specific
    launchers, and time status, then serializes automatic saves in interaction
-   order. App policy applies immediately. Screen-time changes go through
+   order. App policy applies immediately, including stopping the selected
+   child's newly blocked running applications in every retained session.
+   Screen-time changes go through
    `SetParentControl`; revocation goes through `RevokeOneTimeGrant` after a
    confirmation that running blocked apps will close.
 2. **Child session entry:** On extension startup and after an unlock transition,

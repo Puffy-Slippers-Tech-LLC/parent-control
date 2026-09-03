@@ -7,13 +7,15 @@ from types import SimpleNamespace
 from unittest import mock
 
 from oh_no_parent_control.app_termination import (
-    AppTerminationError, RunningAppTerminator,
+    AppTerminationError, RunningAppTerminator, _native_targets,
+    _snap_security_labels,
 )
 
 
 class RunningAppTerminatorTests(unittest.TestCase):
     @staticmethod
-    def _process(proc_root: Path, pid: int, uid: int, executable: str):
+    def _process(proc_root: Path, pid: int, uid: int, executable: str,
+                 security_label: str | None = None):
         directory = proc_root / str(pid)
         directory.mkdir()
         (directory / "status").write_text(
@@ -21,6 +23,11 @@ class RunningAppTerminatorTests(unittest.TestCase):
             encoding="ascii",
         )
         (directory / "exe").symlink_to(executable)
+        if security_label is not None:
+            (directory / "attr").mkdir()
+            (directory / "attr/current").write_text(
+                f"{security_label} (enforce)\n", encoding="ascii",
+            )
 
     def test_native_matching_is_limited_to_the_approved_child_uid(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -55,6 +62,59 @@ class RunningAppTerminatorTests(unittest.TestCase):
                         # Nonmatching process descriptors are closed by the adapter.
                         with self.assertRaises(OSError):
                             os.fstat(descriptor)
+
+    def test_snap_matching_uses_kernel_label_and_selected_child_uid(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc_root = Path(directory)
+            child_uid = os.getuid()
+            self._process(
+                proc_root, 101, child_uid,
+                "/snap/thunderbird/812/usr/lib/thunderbird/thunderbird",
+                "snap.thunderbird.thunderbird",
+            )
+            self._process(
+                proc_root, 202, child_uid + 1,
+                "/snap/thunderbird/812/usr/lib/thunderbird/thunderbird",
+                "snap.thunderbird.thunderbird",
+            )
+            self._process(
+                proc_root, 303, child_uid,
+                "/snap/firefox/999/usr/lib/firefox/firefox",
+                "snap.firefox.firefox",
+            )
+            terminator = RunningAppTerminator(proc_root=proc_root)
+            opened = []
+
+            def pidfd_open(pid, _flags):
+                descriptor = os.open("/dev/null", os.O_RDONLY)
+                opened.append(descriptor)
+                return descriptor
+
+            terminator._pidfd_open = pidfd_open
+            matches = terminator._matching_native_processes(
+                child_uid, (), (), ("snap.thunderbird.thunderbird",),
+            )
+            try:
+                self.assertEqual([pid for pid, _pidfd in matches], [101])
+            finally:
+                for _pid, descriptor in matches:
+                    os.close(descriptor)
+                matched_fds = {descriptor for _pid, descriptor in matches}
+                for descriptor in opened:
+                    if descriptor not in matched_fds:
+                        with self.assertRaises(OSError):
+                            os.fstat(descriptor)
+
+    def test_snap_command_projects_to_app_label_not_native_executable(self):
+        self.assertEqual(_native_targets(("/snap/bin/thunderbird",)), ())
+        self.assertEqual(
+            _snap_security_labels(("/snap/bin/thunderbird",)),
+            ("snap.thunderbird.thunderbird",),
+        )
+        self.assertEqual(
+            _snap_security_labels(("/snap/bin/example_app.viewer",)),
+            ("snap.example_app.viewer",),
+        )
 
     def test_native_termination_uses_pidfd_sigkill_and_verifies_exit(self):
         descriptor = os.open("/dev/null", os.O_RDONLY)

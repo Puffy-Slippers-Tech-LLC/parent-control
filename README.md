@@ -67,7 +67,12 @@ The unit and private-D-Bus component suites use pytest. On Ubuntu 26.04,
 `setup.sh` installs the reviewed archive versions listed in
 `tests/test-tools-ubuntu-26.04.txt`, including `python3-pytest=9.0.2-4` and
 `python3-dbusmock=0.38.1-1`. Run `make check-unit` for unit and contract tests,
-or `make check-component` for the host-safe private-bus component suite.
+or `make check-component` for private-bus and hermetic GTK component tests.
+The latter creates a disposable Wayland compositor, private D-Bus, and private
+AT-SPI bus for each test process; it never uses the developer's desktop session.
+`setup.sh` creates its isolated Dogtail 2.1.0 environment from the hash-pinned
+wheel in `tests/ui/requirements.txt` and installs Ubuntu's maintained
+`gnome-ponytail-daemon` package for real Wayland runs that need input injection.
 
 Preview the kiosk UI from the checkout, with representative fixture data and
 without a kiosk login, broker, D-Bus calls, Polkit, or account changes:

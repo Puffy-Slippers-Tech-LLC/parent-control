@@ -1,0 +1,5 @@
+# The UI test runner is an isolated virtual environment created by setup.sh.
+# Dogtail 2.x is installed from its published universal wheel with a verified
+# hash.  Do not substitute Ubuntu's legacy python3-dogtail 1.x package.
+dogtail==2.1.0 \
+    --hash=sha256:5cc9e097d20b4cb287b840381697df5e1565cca97571111c60d984f8d74edb53

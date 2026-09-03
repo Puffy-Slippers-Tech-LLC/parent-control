@@ -18,6 +18,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
+from common.oh_no_parent_control_ui.accessibility import describe_control
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
 from .client import BrokerClient, configure_logging
@@ -282,6 +283,10 @@ class ParentWindow(Adw.ApplicationWindow):
             menu_model=menu,
             tooltip_text="Menu",
         )
+        describe_control(
+            self._menu_button, "Parent app menu",
+            "Open help and product information.",
+        )
         header.pack_end(self._menu_button)
         toolbar.add_top_bar(header)
         content = Gtk.Box(
@@ -301,9 +306,10 @@ class ParentWindow(Adw.ApplicationWindow):
             hexpand=True,
             css_classes=["account-section"],
         )
-        account_section.append(Gtk.Label(
+        account_label = Gtk.Label(
             label="Child account", xalign=0, css_classes=["section-title"],
-        ))
+        )
+        account_section.append(account_label)
         account_actions = Gtk.Box(
             hexpand=True,
             css_classes=["account-actions"],
@@ -312,6 +318,14 @@ class ParentWindow(Adw.ApplicationWindow):
             model=Gtk.StringList.new([]), hexpand=True,
             css_classes=["account-picker"],
         )
+        describe_control(
+            self._account, "Selected child",
+            "Choose the child whose screen time and app policy are displayed.",
+        )
+        # A DropDown's visible selection is its AT-SPI name.  Connect the
+        # enduring section label as well, so assistive technology identifies
+        # the control's purpose independently of the selected child.
+        account_label.set_mnemonic_widget(self._account)
         self._account.set_factory(self._account_factory())
         self._account.set_list_factory(self._account_factory())
         self._account_changed_handler = self._account.connect(
@@ -351,6 +365,10 @@ class ParentWindow(Adw.ApplicationWindow):
             child=revoke_content, valign=Gtk.Align.FILL,
             width_request=320, css_classes=["revoke-grant-button"],
             sensitive=False,
+        )
+        describe_control(
+            self._revoke, "Revoke one-time access",
+            "Remove the selected child's active one-time grant after confirmation.",
         )
         self._revoke.connect("clicked", self._confirm_revoke)
         account_actions.append(self._revoke)
@@ -425,6 +443,10 @@ class ParentWindow(Adw.ApplicationWindow):
             sensitive=False,
             css_classes=["screen-limit-switch"],
         )
+        describe_control(
+            self._enabled, "Screen time limit",
+            "Enable or disable daily screen-time control for the selected child.",
+        )
         self._enabled.connect("notify::active", self._enabled_changed)
         control_row.add_suffix(self._enabled)
         screen_limit_rows.append(control_row)
@@ -436,6 +458,10 @@ class ParentWindow(Adw.ApplicationWindow):
             ]),
             sensitive=False,
             css_classes=["daily-limit-row"],
+        )
+        describe_control(
+            self._daily_limit, "Daily time allowance",
+            "Choose the selected child's daily screen-time allowance.",
         )
         self._daily_limit.add_prefix(self._setting_icon("x-office-calendar-symbolic"))
         self._daily_limit.connect("notify::selected", self._daily_limit_changed)
@@ -452,6 +478,10 @@ class ParentWindow(Adw.ApplicationWindow):
             width_chars=5,
             max_width_chars=5,
             valign=Gtk.Align.CENTER,
+        )
+        describe_control(
+            self._custom_daily_limit_entry, "Custom daily allowance",
+            "Enter a whole number of minutes from zero through 1439.",
         )
         self._custom_daily_limit_entry.connect(
             "activate", self._custom_daily_limit_changed,
@@ -545,6 +575,10 @@ class ParentWindow(Adw.ApplicationWindow):
         self._search = Gtk.SearchEntry(
             placeholder_text="Search installed apps", valign=Gtk.Align.CENTER,
             width_chars=32, css_classes=["apps-search"],
+        )
+        describe_control(
+            self._search, "Search installed apps",
+            "Filter the selected child's available applications.",
         )
         self._search.connect("search-changed", self._filter)
         self._search.set_sensitive(False)
@@ -741,6 +775,10 @@ class ParentWindow(Adw.ApplicationWindow):
             tooltip_text=f"Filter by {label}",
             halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
             css_classes=["app-policy-filter"],
+        )
+        describe_control(
+            trigger, f"Filter {label}",
+            f"Choose which {label.casefold()} values are shown in the app list.",
         )
         trigger_content = Gtk.Box(
             spacing=4, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
@@ -1009,6 +1047,10 @@ class ParentWindow(Adw.ApplicationWindow):
             tooltip_text="Edit match rule", valign=Gtk.Align.CENTER,
             css_classes=["match-rule-button"],
         )
+        describe_control(
+            row.match_rule_button, f"{app['name']} match rule",
+            "Choose whether this application's saved rule matches an exact path or versioned filename pattern.",
+        )
         row.match_rule_button.connect("clicked", self._edit_match_rule, row)
         match_rule_cell = Gtk.Box(
             width_request=92, halign=Gtk.Align.CENTER,
@@ -1027,6 +1069,10 @@ class ParentWindow(Adw.ApplicationWindow):
                 css_classes=["policy-choice", state["css"]],
                 child=Gtk.Image(icon_name=state["icon"], pixel_size=19),
                 valign=Gtk.Align.CENTER,
+            )
+            describe_control(
+                button, f"{app['name']} access rule: {state['label']}",
+                f"Set the selected child's access rule for {app['name']} to {state['label']}.",
             )
             if first_button is None:
                 first_button = button

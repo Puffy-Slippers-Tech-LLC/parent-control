@@ -11,6 +11,26 @@ request-menu selection/custom value live in one root-owned per-child record.
 The Parent App, extension, and kiosk all access that record through the broker;
 there are no separate user-home preference files.
 
+## License, source, and Malcontent disclosure
+
+Copyright (C) 2026 Puffy Slippers Tech LLC. Oh No! Parent Control is free
+software under the GNU General Public License, version 3.0 only. The complete
+license is in [LICENSE](LICENSE), and the corresponding source (including the
+package build and installation scripts) is this repository:
+<https://github.com/Puffy-Slippers-Tech-LLC/parent-control>.
+
+The product interoperates with the separately installed Malcontent service via
+documented public D-Bus and AccountsService APIs; it does not include, modify,
+or redistribute Malcontent. Malcontent is an LGPL-2.1-or-later operating-system
+dependency, with its own notices and source supplied by the distribution. This
+product is not affiliated with or endorsed by the Malcontent authors or GNOME.
+Read [NOTICE](NOTICE) and
+[the integration note](docs/malcontent014-integration.md) before deploying
+restrictions: Malcontent is one enforcement component, not a guarantee that
+every possible method of use is blocked.
+Maintainers should follow [the compliance guide](docs/Compliance.md) for every
+release.
+
 Install the Debian package with:
 
 ```sh

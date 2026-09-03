@@ -1,6 +1,7 @@
 import threading
 import unittest
 from datetime import datetime
+from unittest import mock
 from zoneinfo import ZoneInfo
 
 from oh_no_parent_control.config import validate
@@ -165,13 +166,33 @@ class TimerUsage:
         return self.entries
 
 
+class RunningApps:
+    def __init__(self, events=None, *, terminated=0, error=None):
+        self.calls = []
+        self.events = events
+        self.terminated = terminated
+        self.error = error
+
+    def preflight(self, uid, targets, patterns):
+        self.calls.append(("preflight", uid, targets, patterns))
+
+    def terminate(self, uid, targets, patterns):
+        self.calls.append(("terminate", uid, targets, patterns))
+        if self.events is not None:
+            self.events.append(("terminate_apps", uid, targets, patterns))
+        if self.error:
+            raise self.error
+        return self.terminated
+
+
 def make_broker(authorizer=None, accounts=None, preferences=None, extensions=None,
                 clock=None, alive=lambda _s: True, timer_usage=None,
-                application_catalog=None):
+                application_catalog=None, running_apps=None):
     config = validate(valid_config())
     return Broker(lambda: config, authorizer or Authorizer(), accounts or Accounts(),
                   preferences or Preferences(), extensions, timer_usage or TimerUsage(),
                   application_catalog,
+                  running_apps or RunningApps(),
                   monotonic=clock or (lambda: 100),
                   now=lambda: datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles")),
                   caller_alive=alive)
@@ -416,16 +437,106 @@ class CoreTests(unittest.TestCase):
         accounts = Accounts()
         accounts.extension = (123, 900)
         accounts.filter = (False, ("org.example.Game",))
+        running_apps = RunningApps(accounts.events, terminated=2)
 
-        make_broker(accounts=accounts).revoke_one_time_grant(1003, 1001)
+        make_broker(
+            accounts=accounts, running_apps=running_apps,
+        ).revoke_one_time_grant(1003, 1001)
 
         self.assertEqual(accounts.extension, (0, 0))
         self.assertEqual(
             accounts.filter,
             (False, ("/usr/bin/game", "org.example.Game")),
         )
+        expected_targets = ("/usr/bin/game", "org.example.Game")
+        self.assertEqual(running_apps.calls, [
+            ("preflight", 1001, expected_targets, ()),
+            ("terminate", 1001, expected_targets, ()),
+        ])
+        names = [event[0] for event in accounts.events]
+        self.assertLess(names.index("set_filter"), names.index("terminate_apps"))
+        self.assertLess(names.index("terminate_apps"), names.index("set_extension"))
         self.assertEqual(accounts.limit_type, 2)
         self.assertEqual(accounts.daily_limit, 3600)
+
+    def test_revoke_uses_saved_patterns_and_only_selected_child_uid(self):
+        preferences = Preferences()
+        preferences.values[1001]["apps"]["soft.desktop"]["patterns"] = [
+            "/usr/bin/game-*",
+        ]
+        running_apps = RunningApps()
+
+        make_broker(
+            preferences=preferences, running_apps=running_apps,
+        ).revoke_one_time_grant(1003, 1001)
+
+        self.assertEqual(running_apps.calls, [
+            (
+                "preflight", 1001,
+                ("/usr/bin/game", "org.example.Game"),
+                ("/usr/bin/game-*",),
+            ),
+            (
+                "terminate", 1001,
+                ("/usr/bin/game", "org.example.Game"),
+                ("/usr/bin/game-*",),
+            ),
+        ])
+
+    def test_revoke_preflight_failure_makes_no_account_writes(self):
+        accounts = Accounts()
+        running_apps = RunningApps()
+        running_apps.preflight = mock.Mock(side_effect=RuntimeError("unsupported"))
+
+        with self.assertRaises(BackendFailure):
+            make_broker(
+                accounts=accounts, running_apps=running_apps,
+            ).revoke_one_time_grant(1003, 1001)
+
+        self.assertFalse(any(event[0].startswith("set_") for event in accounts.events))
+
+    def test_revoke_termination_failure_keeps_strict_filter_and_old_grant(self):
+        accounts = Accounts()
+        accounts.extension = (123, 900)
+        running_apps = RunningApps(error=RuntimeError("partial termination"))
+
+        with self.assertRaises(BackendFailure):
+            make_broker(
+                accounts=accounts, running_apps=running_apps,
+            ).revoke_one_time_grant(1003, 1001)
+
+        self.assertEqual(accounts.extension, (123, 900))
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
+
+    def test_revoke_failure_after_a_kill_keeps_strict_filter_and_old_grant(self):
+        accounts = Accounts()
+        accounts.fail_extension = True
+        running_apps = RunningApps(terminated=1)
+
+        with self.assertRaises(BackendFailure):
+            make_broker(
+                accounts=accounts, running_apps=running_apps,
+            ).revoke_one_time_grant(1003, 1001)
+
+        self.assertEqual(accounts.extension, (1, 2))
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
+
+    def test_revoke_with_no_blocked_apps_skips_process_enumeration(self):
+        preferences = Preferences()
+        preferences.values[1001]["apps"] = {}
+        running_apps = RunningApps()
+
+        make_broker(
+            preferences=preferences, running_apps=running_apps,
+        ).revoke_one_time_grant(1003, 1001)
+
+        self.assertEqual(running_apps.calls, [])
 
     def test_changing_daily_limit_preserves_active_grant_and_reapplies_filter(self):
         accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
@@ -584,6 +695,25 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(auth.calls[0][1], ":1.20")
         self.assertEqual(accounts.filter, (False, ("org.example.Game",)))
         self.assertIn(("set_extension", 1001, accounts.extension), accounts.events)
+
+    def test_managed_child_no_soft_request_terminates_only_its_blocked_apps(self):
+        accounts, preferences = Accounts(), Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+        running_apps = RunningApps()
+
+        _correlation_id, outcome, _duration = make_broker(
+            accounts=accounts, preferences=preferences,
+            running_apps=running_apps,
+        ).request_own_access(1001, ":1.20", 1003, 900, False)
+
+        self.assertEqual(outcome, "approved")
+        self.assertIn(
+            (
+                "terminate", 1001,
+                ("/usr/bin/game", "org.example.Game"), (),
+            ),
+            running_apps.calls,
+        )
 
     def test_child_request_requires_enabled_managed_caller(self):
         auth, accounts, preferences = Authorizer(), Accounts(), Preferences()
@@ -755,21 +885,84 @@ class CoreTests(unittest.TestCase):
 
     def test_allow_soft_omits_only_soft_targets(self):
         accounts = Accounts()
-        result = make_broker(accounts=accounts).request_access(
+        running_apps = RunningApps()
+        result = make_broker(accounts=accounts, running_apps=running_apps).request_access(
             991, ":1.2", 1001, 1003, 900, True,
         )
         self.assertEqual(result[1], "approved")
         self.assertEqual(accounts.filter, (False, ("org.example.Game",)))
+        self.assertEqual(running_apps.calls, [])
+
+    def test_disallow_soft_terminates_hard_and_soft_apps_only_for_target_child(self):
+        accounts = Accounts()
+        preferences = Preferences()
+        preferences.values[1001]["apps"]["soft.desktop"]["patterns"] = [
+            "/usr/bin/game-*",
+        ]
+        running_apps = RunningApps()
+
+        result = make_broker(
+            accounts=accounts, preferences=preferences, running_apps=running_apps,
+        ).request_access(991, ":1.2", 1001, 1003, 900, False)
+
+        self.assertEqual(result[1], "approved")
+        expected_targets = ("/usr/bin/game", "org.example.Game")
+        self.assertEqual(running_apps.calls, [
+            ("preflight", 1001, expected_targets, ("/usr/bin/game-*",)),
+            ("terminate", 1001, expected_targets, ("/usr/bin/game-*",)),
+        ])
+
+    def test_denied_request_does_not_terminate_apps(self):
+        running_apps = RunningApps()
+        result = make_broker(
+            authorizer=Authorizer("denied"), running_apps=running_apps,
+        ).request_access(991, ":1.2", 1001, 1003, 900, False)
+
+        self.assertEqual(result[1], "denied")
+        self.assertEqual(running_apps.calls, [])
 
     def test_filter_precedes_extension_and_readback(self):
         accounts = Accounts()
-        make_broker(accounts=accounts).request_access(
+        running_apps = RunningApps(accounts.events)
+        make_broker(accounts=accounts, running_apps=running_apps).request_access(
             991, ":1.2", 1001, 1003, 900, False,
         )
         names = [event[0] for event in accounts.events]
         self.assertLess(names.index("set_filter"), names.index("set_extension"))
+        self.assertLess(names.index("set_filter"), names.index("terminate_apps"))
+        self.assertLess(names.index("terminate_apps"), names.index("set_extension"))
         self.assertEqual(accounts.filter, (False, ("/usr/bin/game", "org.example.Game")))
         self.assertEqual(accounts.extension[1], 900)
+
+    def test_termination_failure_does_not_grant_time_and_keeps_strict_filter(self):
+        accounts = Accounts()
+        old_extension = accounts.extension
+        running_apps = RunningApps(
+            accounts.events, error=RuntimeError("partial termination"),
+        )
+
+        with self.assertRaises(BackendFailure):
+            make_broker(
+                accounts=accounts, running_apps=running_apps,
+            ).request_access(991, ":1.2", 1001, 1003, 900, False)
+
+        self.assertEqual(accounts.extension, old_extension)
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
+
+    def test_preflight_failure_makes_no_account_writes(self):
+        accounts = Accounts()
+        running_apps = RunningApps()
+        running_apps.preflight = mock.Mock(side_effect=RuntimeError("unsupported"))
+
+        with self.assertRaises(BackendFailure):
+            make_broker(
+                accounts=accounts, running_apps=running_apps,
+            ).request_access(991, ":1.2", 1001, 1003, 900, False)
+
+        self.assertFalse(any(event[0].startswith("set_") for event in accounts.events))
 
     def test_kiosk_grant_uses_shared_accumulative_formula(self):
         now = datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles"))

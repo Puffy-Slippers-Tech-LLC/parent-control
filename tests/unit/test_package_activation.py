@@ -24,6 +24,15 @@ class PackageActivationTests(unittest.TestCase):
 
             self.assertEqual(changed_impacts(old, new), ["process-restart"])
 
+    def test_app_termination_adapter_activates_with_broker_restart(self):
+        self.assertEqual(
+            activation_for(
+                "usr/lib/oh-no-parent-control/broker/"
+                "oh_no_parent_control/app_termination.py"
+            ),
+            "process-restart",
+        )
+
     def test_migration_runner_activates_during_postinst(self):
         self.assertEqual(
             activation_for("usr/libexec/oh-no-parent-control-migrate-state"),

@@ -410,6 +410,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             duration: 1000,
             mode: Clutter.AnimationMode.LINEAR,
             repeatCount: -1,
+            // This is an urgent countdown state, not decorative motion. Keep
+            // the rotation running when ordinary Shell animations are off;
+            // otherwise 360 degrees collapses to the unchanged end frame.
+            animationRequired: true,
         });
     }
 

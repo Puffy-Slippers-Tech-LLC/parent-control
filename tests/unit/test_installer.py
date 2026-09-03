@@ -38,7 +38,7 @@ class InstallerTests(unittest.TestCase):
         self.assertLessEqual(width, 128)
         self.assertLessEqual(height, 128)
         self.assertIn(
-            "config/config.example.json $(BRANDING_ASSETS) LICENSE "
+            "config/config.example.json $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "
             "\"$(DESTDIR)$(DATADIR)/oh-no-parent-control/\"",
             makefile,
         )

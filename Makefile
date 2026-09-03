@@ -45,7 +45,7 @@ EXTENSION_ASSETS := request-options.json
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
 BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_logo.png
-EXTENSION_PACK_ASSETS := $(BRANDING_ASSETS) LICENSE
+EXTENSION_PACK_ASSETS := $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 
@@ -83,7 +83,7 @@ install-extension:
 	install -d "$(EXTENSION_DIR)"
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(EXTENSION_DIR)/"
-	install -m 0644 $(BRANDING_ASSETS) LICENSE "$(EXTENSION_DIR)/"
+	install -m 0644 $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
 	@echo "Installed $(UUID) to $(EXTENSION_DIR)"
 
 # Internal target used by install.sh. Keep privileged host orchestration in the
@@ -111,7 +111,7 @@ _install-product-files:
 	install -m 0644 parent/oh_no_parent_control_parent/*.py parent/oh_no_parent_control_parent/style.css "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"
-	install -m 0644 $(BRANDING_ASSETS) LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"
+	install -m 0644 $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"
 	install -m 0644 broker/oh_no_parent_control/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"
 	install -d "$(DESTDIR)$(DATADIR)/dbus-1/system-services" "$(DESTDIR)$(DATADIR)/dbus-1/interfaces"
 	install -m 0644 data/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service "$(DESTDIR)$(DATADIR)/dbus-1/system-services/"
@@ -143,10 +143,10 @@ _install-product-files:
 	# installer/package assigns this file to Ubuntu's administrator group.
 	install -m 0640 data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	install -d "$(DESTDIR)$(DATADIR)/oh-no-parent-control" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control"
-	install -m 0644 config/config.example.json $(BRANDING_ASSETS) LICENSE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
+	install -m 0644 config/config.example.json $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf.in "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0755 tools/provision.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision"
-	install -m 0644 README.md LICENSE docs/System-Design.md docs/Package-Update.md docs/Data-Migration.md "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"
+	install -m 0644 README.md LICENSE COPYRIGHT NOTICE docs/Compliance.md docs/System-Design.md docs/Package-Update.md docs/Data-Migration.md docs/malcontent014-integration.md "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"
 ifneq ($(GENERATE_ACTIVATION_MANIFEST),0)
 	$(MAKE) --no-print-directory _generate-package-activation-manifest DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)" SYSCONFDIR="$(SYSCONFDIR)" LIBEXECDIR="$(LIBEXECDIR)" DATADIR="$(DATADIR)" SYSTEMD_SYSTEM_DIR="$(SYSTEMD_SYSTEM_DIR)" SYSTEMD_USER_DIR="$(SYSTEMD_USER_DIR)" PRODUCT_LIBDIR="$(PRODUCT_LIBDIR)"
 endif
@@ -162,9 +162,9 @@ uninstall:
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/89-oh-no-parent-control.rules" "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules"
 	rm -f "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-app.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-polkit-agent.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/session.conf"
 	rm -f "$(DESTDIR)$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session" "$(DESTDIR)$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop" "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.desktop" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.Parent.desktop"
-	rm -f "$(DESTDIR)$(DATADIR)/oh-no-parent-control/config.example.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/brand.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/company_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/com.puffyslippers.OhNoParentControl1.conf.in" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json"
-	rm -f "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/README.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/System-Design.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Package-Update.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Data-Migration.md"
+	rm -f "$(DESTDIR)$(DATADIR)/oh-no-parent-control/config.example.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/brand.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/company_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/COPYRIGHT" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/NOTICE" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/com.puffyslippers.OhNoParentControl1.conf.in" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json"
+	rm -f "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/README.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/COPYRIGHT" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/NOTICE" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Compliance.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/System-Design.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Package-Update.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Data-Migration.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/malcontent014-integration.md"
 	rm -f "$(DESTDIR)$(SYSCONFDIR)/oh-no-parent-control/config.json"
 	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/Gearbox_Waltz.mp3" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/request-options.json" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"*.py
-	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/common/__init__.py" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.js "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.json "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/stylesheet.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/app_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/company_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/LICENSE"
+	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/common/__init__.py" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.js "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.json "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/stylesheet.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/app_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/company_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/LICENSE" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/COPYRIGHT" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/NOTICE"
 	@echo 'Product files removed. Accounts and managed-account policies were not changed.'

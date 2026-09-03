@@ -95,6 +95,20 @@ class InstallerTests(unittest.TestCase):
             "kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg", makefile,
         )
 
+    def test_kiosk_request_form_font_is_packaged(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        font = ROOT / "kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf"
+        license_file = ROOT / "kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt"
+
+        self.assertTrue(font.is_file())
+        self.assertTrue(license_file.is_file())
+        self.assertIn(
+            "kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf", makefile,
+        )
+        self.assertIn(
+            "kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt", makefile,
+        )
+
     def test_kiosk_music_and_its_playback_dependencies_are_packaged(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         script = INSTALLER.read_text(encoding="utf-8")
@@ -234,6 +248,20 @@ class InstallerTests(unittest.TestCase):
             pam_config.index("oh-no-parent-control-session-limit-check"),
             pam_config.index("pam_malcontent.so"),
         )
+        self.assertIn("Session-Type: Additional", pam_config)
+        self.assertLess(
+            pam_config.index("required pam_malcontent.so"),
+            pam_config.index(
+                "optional pam_exec.so quiet "
+                "/usr/libexec/oh-no-parent-control-clear-session-runtime-max"
+            ),
+        )
+        self.assertIn("tools/clear_session_runtime_max.py", makefile)
+        script = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn(
+            "oh-no-parent-control-clear-session-runtime-max", script,
+        )
+        self.assertIn("/etc/pam.d/common-session", script)
 
     def test_selected_approver_polkit_rule_is_installed(self):
         script = INSTALLER.read_text(encoding="utf-8")

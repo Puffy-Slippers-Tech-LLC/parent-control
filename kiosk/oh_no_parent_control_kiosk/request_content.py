@@ -14,6 +14,10 @@ from gi.repository import Gtk
 
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
+from .chrome import (
+    APPROVER_HEAD, CHILD_HEAD, LOCK, POINTER, SHIELD, ArmoredButton,
+    MetalBoard, MetalPanel, PixelIcon,
+)
 
 
 def _load_options():
@@ -33,6 +37,9 @@ DEFAULT_DURATION_SECONDS = OPTIONS["default_duration_seconds"]
 MIN_CUSTOM_MINUTES = OPTIONS["minimum_custom_minutes"]
 MAX_CUSTOM_MINUTES = OPTIONS["maximum_custom_minutes"]
 NUMBER_RE = re.compile(r"^(?:\d+(?:\.\d+)?|\.\d+)$")
+# Expanded account lists stay on the gateway plane, so they grow the board.
+# Keep only two rows visible and page with matching chevrons when more exist.
+VISIBLE_ACCOUNT_CHOICES = 2
 
 
 class GatewayDropDown(Gtk.Box):
@@ -49,6 +56,8 @@ class GatewayDropDown(Gtk.Box):
         self._on_selected = on_selected
         self._selected = Gtk.INVALID_LIST_POSITION
         self._items = ()
+        self._choice_buttons = []
+        self._scroll_offset = 0
 
         self._trigger = Gtk.Button()
         self._trigger.add_css_class("oh-no-parent-control-account-selector")
@@ -59,7 +68,8 @@ class GatewayDropDown(Gtk.Box):
         trigger_content.append(self._selected_icon)
         self._selected_label = Gtk.Label(xalign=0, hexpand=True)
         trigger_content.append(self._selected_label)
-        trigger_content.append(Gtk.Image.new_from_icon_name("pan-down-symbolic"))
+        self._trigger_arrow = Gtk.Image.new_from_icon_name("pan-down-symbolic")
+        trigger_content.append(self._trigger_arrow)
         self._trigger.set_child(trigger_content)
         self._trigger.connect("clicked", self._toggle_choices)
         self.append(self._trigger)
@@ -67,15 +77,34 @@ class GatewayDropDown(Gtk.Box):
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self._choices.add_css_class("oh-no-parent-control-account-choices")
         self._choices.set_visible(False)
+        self._scroll_up = self._scroll_button("pan-up-symbolic", -1)
+        self._choice_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self._scroll_down = self._scroll_button("pan-down-symbolic", 1)
+        self._choices.append(self._scroll_up)
+        self._choices.append(self._choice_list)
+        self._choices.append(self._scroll_down)
         self.append(self._choices)
+        wheel = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
+        wheel.connect("scroll", self._wheel_scroll)
+        self._choices.add_controller(wheel)
+
+    def _scroll_button(self, icon_name, delta):
+        button = Gtk.Button(halign=Gtk.Align.FILL)
+        button.add_css_class("oh-no-parent-control-account-choice")
+        button.add_css_class("oh-no-parent-control-account-scroll")
+        button.set_child(Gtk.Image.new_from_icon_name(icon_name))
+        button.connect("clicked", self._nudge_scroll, delta)
+        return button
 
     def set_items(self, items):
         self._items = tuple(items)
         self._selected = Gtk.INVALID_LIST_POSITION
+        self._scroll_offset = 0
         self._selected_label.set_text("")
         apply_gtk_user_icon(self._selected_icon, "")
-        while child := self._choices.get_first_child():
-            self._choices.remove(child)
+        self._choice_buttons = []
+        while child := self._choice_list.get_first_child():
+            self._choice_list.remove(child)
         for index, (label, icon_file) in enumerate(self._items):
             choice = Gtk.Button(halign=Gtk.Align.FILL)
             choice.add_css_class("oh-no-parent-control-account-choice")
@@ -87,8 +116,9 @@ class GatewayDropDown(Gtk.Box):
             content.append(Gtk.Label(label=label, xalign=0, hexpand=True))
             choice.set_child(content)
             choice.connect("clicked", self._choose, index)
-            self._choices.append(choice)
-        self._choices.set_visible(False)
+            self._choice_list.append(choice)
+            self._choice_buttons.append(choice)
+        self._set_expanded(False)
 
     def set_selected(self, index):
         if index >= len(self._items):
@@ -108,24 +138,72 @@ class GatewayDropDown(Gtk.Box):
     def _toggle_choices(self, *_args):
         if not self._trigger.get_sensitive():
             return
-        self._choices.set_visible(not self._choices.get_visible())
+        self._set_expanded(not self._choices.get_visible())
 
     def collapse(self):
-        self._choices.set_visible(False)
+        self._set_expanded(False)
 
     def _choose(self, _button, index):
         self.set_selected(index)
-        self._choices.set_visible(False)
+        self._set_expanded(False)
+
+    def _set_expanded(self, expanded):
+        self._choices.set_visible(expanded)
+        self._trigger_arrow.set_from_icon_name(
+            "pan-up-symbolic" if expanded else "pan-down-symbolic",
+        )
+        if expanded:
+            self._reveal_selected()
+        self._refresh_choice_window()
+
+    def _max_scroll_offset(self):
+        return max(0, len(self._choice_buttons) - VISIBLE_ACCOUNT_CHOICES)
+
+    def _reveal_selected(self):
+        if self._selected == Gtk.INVALID_LIST_POSITION:
+            return
+        if self._selected < self._scroll_offset:
+            self._scroll_offset = self._selected
+        elif self._selected >= self._scroll_offset + VISIBLE_ACCOUNT_CHOICES:
+            self._scroll_offset = self._selected - VISIBLE_ACCOUNT_CHOICES + 1
+
+    def _nudge_scroll(self, _button, delta):
+        self._scroll_offset += delta
+        self._refresh_choice_window()
+
+    def _wheel_scroll(self, _controller, _dx, dy):
+        if dy > 0:
+            self._scroll_offset += 1
+        elif dy < 0:
+            self._scroll_offset -= 1
+        else:
+            return False
+        self._refresh_choice_window()
+        return True
+
+    def _refresh_choice_window(self):
+        overflow = len(self._choice_buttons) > VISIBLE_ACCOUNT_CHOICES
+        self._scroll_offset = min(
+            max(0, self._scroll_offset), self._max_scroll_offset(),
+        )
+        for index, button in enumerate(self._choice_buttons):
+            button.set_visible(
+                self._scroll_offset <= index < self._scroll_offset + VISIBLE_ACCOUNT_CHOICES
+            )
+        self._scroll_up.set_visible(overflow)
+        self._scroll_down.set_visible(overflow)
+        self._scroll_up.set_sensitive(self._scroll_offset > 0)
+        self._scroll_down.set_sensitive(self._scroll_offset < self._max_scroll_offset())
 
 
-class RequestContent(Gtk.Box):
+class RequestContent(MetalBoard):
     """Reusable request-time form used as the kiosk's primary content."""
 
     def __init__(self, on_request, on_cancel, on_account_selected=None, *,
                  lock_child_selector=False, on_values_changed=None):
         super().__init__(
             orientation=Gtk.Orientation.VERTICAL,
-            spacing=16,
+            spacing=2,
             halign=Gtk.Align.CENTER,
             valign=Gtk.Align.CENTER,
         )
@@ -152,29 +230,39 @@ class RequestContent(Gtk.Box):
         self._child_muted = False
 
         self.append(self._header())
-        self._status = Gtk.Label(label="Loading request details…", wrap=True)
+        self._status = Gtk.Label(
+            label="Loading request details…",
+            wrap=True,
+            hexpand=True,
+            xalign=0,
+            yalign=0.5,
+            valign=Gtk.Align.CENTER,
+        )
+        # Bound wrap at measure time so the footer grows with the caption
+        # instead of clipping a second line against min-height.
+        self._status.set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)
+        self._status.set_max_width_chars(26)
+        self._status.set_overflow(Gtk.Overflow.VISIBLE)
         self._status.add_css_class("oh-no-parent-control-status")
 
-        child_selector = Gtk.Grid(column_spacing=8)
-        child_selector.add_css_class("oh-no-parent-control-account-row")
-        child_selector.attach(Gtk.Label(label="Child", xalign=0), 0, 0, 1, 1)
         self._accounts = GatewayDropDown(self._account_changed)
         self._accounts.set_hexpand(True)
-        child_selector.attach(self._accounts, 1, 0, 1, 1)
+        child_selector = self._account_row("Child", CHILD_HEAD, self._accounts)
         self.append(child_selector)
 
         self._request_form = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=16,
+            orientation=Gtk.Orientation.VERTICAL, spacing=5,
         )
-        approver_selector = Gtk.Grid(column_spacing=8)
-        approver_selector.add_css_class("oh-no-parent-control-account-row")
-        approver_selector.attach(Gtk.Label(label="Approver", xalign=0), 0, 0, 1, 1)
         self._approvers = GatewayDropDown(self._approver_changed)
         self._approvers.set_hexpand(True)
-        approver_selector.attach(self._approvers, 1, 0, 1, 1)
+        approver_selector = self._account_row(
+            "Approver", APPROVER_HEAD, self._approvers,
+        )
         self._request_form.append(approver_selector)
 
-        self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._choices = MetalPanel(
+            orientation=Gtk.Orientation.VERTICAL, spacing=0, panel_kind="well",
+        )
         self._choices.add_css_class("oh-no-parent-control-choices")
         self._request_form.append(self._choices)
         self._build_duration_choices()
@@ -195,6 +283,11 @@ class RequestContent(Gtk.Box):
         filter_row = Gtk.Button()
         filter_row.add_css_class("oh-no-parent-control-app-filter-toggle")
         filter_inner = Gtk.Box(spacing=12)
+        filter_icon = PixelIcon(
+            SHIELD, display_size=20, label="Allow soft blocked apps",
+        )
+        filter_icon.add_css_class("oh-no-parent-control-filter-icon")
+        filter_inner.append(filter_icon)
         filter_label = Gtk.Label(
             label="Allow soft blocked apps", xalign=0, hexpand=True,
             valign=Gtk.Align.CENTER,
@@ -213,7 +306,9 @@ class RequestContent(Gtk.Box):
 
         actions = Gtk.Box(spacing=10, homogeneous=True)
         actions.add_css_class("oh-no-parent-control-actions")
-        self._request = Gtk.Button(label="Request", hexpand=True)
+        self._request = ArmoredButton(
+            label="REQUEST", hexpand=True, armor_kind="request",
+        )
         self._request.add_css_class("oh-no-parent-control-request-button")
         self._request.set_sensitive(False)
         self._request.connect("clicked", on_request)
@@ -233,44 +328,116 @@ class RequestContent(Gtk.Box):
         self._screen_limit_overlay.add_overlay(self._screen_limit_notice)
         self.append(self._screen_limit_overlay)
 
-        self._cancel = Gtk.Button(label="Cancel", hexpand=True)
+        self._cancel = ArmoredButton(
+            label="CANCEL", hexpand=True, armor_kind="cancel",
+        )
         self._cancel.add_css_class("oh-no-parent-control-cancel-button")
         self._cancel.connect("clicked", on_cancel)
         self.append(self._cancel)
-        self.append(self._status)
+        status_row = MetalPanel(
+            orientation=Gtk.Orientation.VERTICAL,
+            hexpand=True,
+            panel_kind="footer",
+        )
+        status_row.add_css_class("oh-no-parent-control-status-row")
+        status_row.set_overflow(Gtk.Overflow.VISIBLE)
+        status_inner = Gtk.Box(
+            spacing=8,
+            hexpand=True,
+            valign=Gtk.Align.CENTER,
+        )
+        status_inner.add_css_class("oh-no-parent-control-status-inner")
+        status_inner.set_overflow(Gtk.Overflow.VISIBLE)
+        lock = PixelIcon(LOCK, display_size=16, label="")
+        lock.set_valign(Gtk.Align.CENTER)
+        status_inner.append(lock)
+        status_inner.append(self._status)
+        status_row.append(status_inner)
+        self.append(status_row)
 
     @staticmethod
     def _header():
-        header = Gtk.Box(spacing=13)
+        header = MetalPanel(spacing=8, panel_kind="header")
         header.add_css_class("oh-no-parent-control-header")
         icon = Gtk.Image.new_from_file(
             str(branding_asset_path("app_logo.png")),
         )
-        # Match the combined title/subtitle block so the artwork spans from
-        # the title's top edge to the subtitle's bottom edge.
-        icon.set_pixel_size(52)
+        # Keep the plate close to the two-line heading without dominating it.
+        icon.set_pixel_size(48)
         icon.set_valign(Gtk.Align.CENTER)
         icon.add_css_class("oh-no-parent-control-header-icon")
-        header.append(icon)
+        plate = Gtk.Box()
+        plate.add_css_class("oh-no-parent-control-logo-plate")
+        plate.set_valign(Gtk.Align.CENTER)
+        plate.append(icon)
+        header.append(plate)
         copy = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=3,
+            orientation=Gtk.Orientation.VERTICAL, spacing=1,
             valign=Gtk.Align.CENTER,
+            hexpand=True,
         )
-        title = Gtk.Label(label=app_name(), xalign=0)
-        title.add_css_class("oh-no-parent-control-title")
-        copy.append(title)
-        subtitle = Gtk.Label(label="Choose how much extra time you need", xalign=0)
+        copy.add_css_class("oh-no-parent-control-header-copy")
+        for line in RequestContent._title_lines(app_name()):
+            title = Gtk.Label(label=line, xalign=0)
+            title.add_css_class("oh-no-parent-control-title")
+            copy.append(title)
+        subtitle = Gtk.Label(
+            label="Choose how much extra time you need",
+            xalign=0,
+            wrap=True,
+        )
         subtitle.add_css_class("oh-no-parent-control-subtitle")
         copy.append(subtitle)
         header.append(copy)
         return header
 
+    @staticmethod
+    def _title_lines(name):
+        """Split the product name into the two-line board heading."""
+        if "! " in name:
+            lead, rest = name.split("! ", 1)
+            return (f"{lead}!".upper(), rest.upper())
+        return (name.upper(),)
+
+    @staticmethod
+    def _account_row(caption, icon_pixels, dropdown):
+        row = MetalPanel(spacing=8, panel_kind="metal")
+        row.add_css_class("oh-no-parent-control-account-row")
+        icon = PixelIcon(icon_pixels, display_size=24, label=caption)
+        icon.add_css_class("oh-no-parent-control-role-icon")
+        icon.set_valign(Gtk.Align.START)
+        icon.set_margin_top(1)
+        row.append(icon)
+        detail = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True,
+        )
+        detail.set_valign(Gtk.Align.START)
+        detail.set_margin_top(1)
+        label = Gtk.Label(label=caption, xalign=0)
+        label.add_css_class("oh-no-parent-control-account-caption")
+        label.set_valign(Gtk.Align.START)
+        label.set_vexpand(False)
+        detail.append(label)
+        dropdown.set_valign(Gtk.Align.START)
+        detail.append(dropdown)
+        row.append(detail)
+        return row
+
     def _build_duration_choices(self):
         group = None
         for label, seconds in DURATIONS:
-            button = Gtk.ToggleButton(label=label, hexpand=True)
+            button = Gtk.ToggleButton(hexpand=True)
             button.duration_seconds = seconds
             button.add_css_class("oh-no-parent-control-choice")
+            overlay = Gtk.Overlay()
+            overlay.set_child(Gtk.Label(label=label, hexpand=True))
+            pointer = PixelIcon(POINTER, display_size=14, label="")
+            pointer.add_css_class("oh-no-parent-control-choice-pointer")
+            pointer.set_halign(Gtk.Align.START)
+            pointer.set_valign(Gtk.Align.CENTER)
+            pointer.set_can_target(False)
+            overlay.add_overlay(pointer)
+            button.set_child(overlay)
             if group is None:
                 group = button
             else:

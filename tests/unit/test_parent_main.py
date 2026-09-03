@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest import mock
 
 from parent.oh_no_parent_control_parent.main import (
-    APPLICATION_ICON_NAME, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _duration_label, _minutes_label,
+    APPLICATION_ICON_NAME, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _duration_label, _minutes_label,
     _time_status_subtitle,
 )
 
@@ -58,7 +58,11 @@ class ParentWindowHarness:
         self._account_changed_handler = 1
         self._account = FakeDropDown(self)
         self.load_count = 0
+        self.apps_load_uids = []
         self.toasts = []
+
+    def _ensure_apps_load(self, uid):
+        self.apps_load_uids.append(uid)
 
     def _load_selected(self):
         self.load_count += 1
@@ -125,6 +129,7 @@ class ParentWindowTests(unittest.TestCase):
 
         class ExactMatchHarness:
             _preferences_loaded = ParentWindow._preferences_loaded
+            _apply_app_policies = ParentWindow._apply_app_policies
             _default_match_rule = ParentWindow._default_match_rule
             _update_match_rule_icon = lambda self, _row: None
             _load_time_status = lambda self: None
@@ -134,7 +139,10 @@ class ParentWindowTests(unittest.TestCase):
                 self._set_daily_limit_value = lambda *_args: None
                 self._rows = [ExactMatchRow()]
                 self._selected_uid = lambda: 1001
+                self._loading = False
                 self._set_apps_sensitive = lambda _sensitive: None
+                self._update_apps_loading_ui = lambda: None
+                self._filter = lambda *_args: None
 
         harness = ExactMatchHarness()
         harness._preferences_loaded({
@@ -194,6 +202,87 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('self._match_rule_slot()', source)
         self.assertIn('self._policy_selector_slot()', source)
         self.assertIn('self._policy_column_heading(', source)
+
+    def test_match_and_access_rule_headings_are_multi_select_filters(self):
+        source = inspect.getsource(ParentWindow._policy_column_heading)
+        stylesheet = (
+            Path(__file__).resolve().parents[2]
+            / "parent/oh_no_parent_control_parent/style.css"
+        ).read_text(encoding="utf-8")
+        build = inspect.getsource(ParentWindow._build)
+
+        self.assertIn("Gtk.Popover(", source)
+        self.assertIn("Gtk.CheckButton(", source)
+        self.assertIn("popover.popup()", source)
+        self.assertIn("icon_factory(item)", source)
+        self.assertIn('css_classes=["app-policy-filter-item-label"]', source)
+        self.assertIn("MATCH_RULES, self._match_rule_filters", build)
+        self.assertIn("STATES, self._access_rule_filters", build)
+        self.assertIn("self._match_rule_filter_icon", build)
+        self.assertIn("self._access_rule_filter_icon", build)
+        self.assertIn(".app-policy-filter {", stylesheet)
+        self.assertIn(".app-policy-filter-item-label {", stylesheet)
+        self.assertIn(
+            ".match-rule-header .app-policy-filter {\n  margin-right: 41px;",
+            stylesheet,
+        )
+        self.assertNotIn(
+            ".match-rule-header .app-policy-column-header {",
+            stylesheet,
+        )
+
+    def test_app_table_filters_rows_by_search_match_rule_and_access_rule(self):
+        class FakeSearch:
+            def get_text(self):
+                return "calc"
+
+        class VisibleRow:
+            def __init__(self, search_text, match_rule, access):
+                self.search_text = search_text
+                self.match_rule = match_rule
+                self.app = {
+                    "targets": ["/usr/bin/gnome-calculator"],
+                    "suggested_patterns": [],
+                }
+                self.policy_buttons = {
+                    "allowed": FakeToggleButton(access == "allowed"),
+                    "permanent": FakeToggleButton(access == "permanent"),
+                    "conditional": FakeToggleButton(access == "conditional"),
+                }
+                self.visible = None
+
+            def set_visible(self, visible):
+                self.visible = visible
+
+        shown = VisibleRow("calculator desktop", None, "conditional")
+        hidden_search = VisibleRow("firefox desktop", None, "conditional")
+        hidden_match = VisibleRow(
+            "calc pattern", "/usr/lib/calc/calc-*.0", "conditional",
+        )
+        hidden_access = VisibleRow("calculator allowed", None, "allowed")
+        window = type("WindowHarness", (), {})()
+        window._search = FakeSearch()
+        window._match_rule_filters = {"precise"}
+        window._access_rule_filters = {"conditional"}
+        window._rows = [shown, hidden_search, hidden_match, hidden_access]
+        window._default_match_rule = lambda row: ParentWindow._default_match_rule(
+            window, row,
+        )
+        window._is_pattern = ParentWindow._is_pattern
+        window._row_match_rule_id = lambda row: ParentWindow._row_match_rule_id(
+            window, row,
+        )
+        window._row_access_rule_id = ParentWindow._row_access_rule_id
+        window._row_matches_filters = (
+            lambda row, query: ParentWindow._row_matches_filters(window, row, query)
+        )
+
+        ParentWindow._filter(window)
+
+        self.assertTrue(shown.visible)
+        self.assertFalse(hidden_search.visible)
+        self.assertFalse(hidden_match.visible)
+        self.assertFalse(hidden_access.visible)
 
     def test_main_body_is_split_into_screen_and_app_limit_tabs(self):
         source = inspect.getsource(ParentWindow._build)
@@ -274,7 +363,7 @@ class ParentWindowTests(unittest.TestCase):
         stylesheet = (
             root / "parent/oh_no_parent_control_parent/style.css"
         ).read_text(encoding="utf-8")
-        source = inspect.getsource(ParentWindow._set_catalog)
+        source = inspect.getsource(ParentWindow._add_app_row)
 
         self.assertIn(".match-rule-cell {\n  min-width: 92px;", stylesheet)
         self.assertIn("width_request=92, halign=Gtk.Align.CENTER", source)
@@ -305,8 +394,12 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('label="App Limits", xalign=0', source)
         self.assertIn('css_classes=["apps-section"]', source)
         self.assertIn('css_classes=["apps-panel"]', source)
+        self.assertIn('css_classes=["apps-table-overlay"]', source)
+        self.assertIn('css_classes=["apps-loading-mask"]', source)
+        self.assertIn('label="Loading installed apps…"', source)
         self.assertIn(".app-limits-card {", stylesheet)
         self.assertIn(".apps-section {\n  margin: 16px 29px 16px;", stylesheet)
+        self.assertIn(".apps-loading-mask {", stylesheet)
         self.assertIn(".policy-choice {\n  min-width: 36px;", stylesheet)
 
     def test_match_rule_legend_uses_normal_visual_state(self):
@@ -491,6 +584,7 @@ class ParentWindowTests(unittest.TestCase):
         window._users_loaded([(1001, "Child")])
 
         self.assertEqual(window.load_count, 1)
+        self.assertEqual(window.apps_load_uids, [1001])
 
     def test_loading_no_users_does_not_load_preferences(self):
         window = ParentWindowHarness()
@@ -498,6 +592,7 @@ class ParentWindowTests(unittest.TestCase):
         window._users_loaded([])
 
         self.assertEqual(window.load_count, 0)
+        self.assertEqual(window.apps_load_uids, [])
         self.assertEqual(window.toasts, ["No interactive non-admin users were found"])
 
     def test_app_settings_stay_enabled_when_daily_limit_is_off(self):
@@ -522,6 +617,7 @@ class ParentWindowTests(unittest.TestCase):
         window._save_app_policy = lambda: setattr(
             window, "save_count", window.save_count + 1,
         )
+        window._filter = lambda *_args: None
 
         ParentWindow._policy_changed(window, FakeToggleButton(active=True))
 
@@ -601,6 +697,121 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertFalse(window._save_in_progress)
         self.assertEqual(window._preferences, preferences)
+
+    def test_selected_account_loads_apps_independently_of_preferences(self):
+        source = inspect.getsource(ParentWindow._load_selected)
+
+        self.assertIn("self._ensure_apps_load(uid)", source)
+        self.assertIn("self._client.get_preferences(uid)", source)
+        self.assertNotIn("self._client.list_apps(uid)", source)
+        self.assertLess(
+            source.index("self._ensure_apps_load(uid)"),
+            source.index("self._client.get_preferences(uid)"),
+        )
+        self.assertEqual(CATALOG_ROW_BATCH_SIZE, 8)
+
+    def test_app_catalog_is_cached_until_the_app_limits_tab_is_shown(self):
+        window = type("WindowHarness", (), {
+            "_apps_loaded": ParentWindow._apps_loaded,
+            "_apps_mask_should_show": ParentWindow._apps_mask_should_show,
+            "_maybe_populate_app_table": ParentWindow._maybe_populate_app_table,
+        })()
+        window._apps_load_generation = 1
+        window._selected_uid = lambda: 1001
+        window._app_limits_visible = False
+        window._apps_loading = True
+        window._catalog_building = False
+        window._apps_table_ready = False
+        window._preferences = {"apps": {}}
+        window._app_catalog = None
+        window.catalog_sets = 0
+        window.ui_updates = 0
+        window._set_catalog = lambda _apps: setattr(
+            window, "catalog_sets", window.catalog_sets + 1,
+        )
+        window._update_apps_loading_ui = lambda: setattr(
+            window, "ui_updates", window.ui_updates + 1,
+        )
+
+        ParentWindow._apps_loaded(window, 1001, 1, [{"id": "one.desktop"}])
+
+        self.assertFalse(window._apps_loading)
+        self.assertEqual(window._app_catalog[0]["id"], "one.desktop")
+        self.assertEqual(window.catalog_sets, 0)
+        self.assertFalse(window._apps_mask_should_show())
+
+        window._app_limits_visible = True
+        self.assertTrue(window._apps_mask_should_show())
+        ParentWindow._maybe_populate_app_table(window)
+        self.assertEqual(window.catalog_sets, 1)
+
+    def test_app_limits_tab_keeps_the_table_masked_until_rows_are_ready(self):
+        window = type("WindowHarness", (), {
+            "_apps_mask_should_show": ParentWindow._apps_mask_should_show,
+            "_visible_page_changed": ParentWindow._visible_page_changed,
+        })()
+        window._pages = type("Pages", (), {
+            "get_visible_child_name": lambda self: "app-limits",
+        })()
+        window._app_limits_visible = False
+        window._apps_loading = True
+        window._catalog_building = False
+        window._apps_table_ready = False
+        window._preferences = None
+        window._app_catalog = None
+        window._maybe_populate_app_table = lambda: None
+        window.mask_visible = None
+        window.spinner_spinning = None
+        window._apps_loading_mask = type("Mask", (), {
+            "set_visible": lambda self, visible: setattr(window, "mask_visible", visible),
+        })()
+        window._apps_loading_spinner = type("Spinner", (), {
+            "set_spinning": lambda self, spinning: setattr(
+                window, "spinner_spinning", spinning,
+            ),
+        })()
+        window._update_apps_loading_ui = lambda: ParentWindow._update_apps_loading_ui(
+            window,
+        )
+
+        with mock.patch(
+            "parent.oh_no_parent_control_parent.main.GLib.idle_add",
+        ) as idle_add:
+            ParentWindow._visible_page_changed(window)
+
+        self.assertTrue(window._app_limits_visible)
+        self.assertTrue(window._apps_mask_should_show())
+        self.assertTrue(window.mask_visible)
+        self.assertTrue(window.spinner_spinning)
+        idle_add.assert_called_once_with(window._maybe_populate_app_table)
+
+        window._apps_loading = False
+        window._app_catalog = []
+        window._catalog_building = False
+        window._apps_table_ready = True
+        window._preferences = {"apps": {}}
+        window._update_apps_loading_ui()
+        self.assertFalse(window._apps_mask_should_show())
+        self.assertFalse(window.mask_visible)
+        self.assertFalse(window.spinner_spinning)
+
+    def test_stale_app_catalog_results_are_ignored_after_account_change(self):
+        window = type("WindowHarness", (), {
+            "_apps_loaded": ParentWindow._apps_loaded,
+            "_apps_failed": ParentWindow._apps_failed,
+        })()
+        window._apps_load_generation = 2
+        window._selected_uid = lambda: 1002
+        window._apps_loading = True
+        window._app_catalog = None
+        window._update_apps_loading_ui = lambda: None
+        window._maybe_populate_app_table = lambda: None
+
+        ParentWindow._apps_loaded(window, 1001, 1, [{"id": "stale.desktop"}])
+        ParentWindow._apps_failed(window, 1001, 1, RuntimeError("gone"))
+
+        self.assertTrue(window._apps_loading)
+        self.assertIsNone(window._app_catalog)
 
 
 if __name__ == "__main__":

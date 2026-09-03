@@ -33,6 +33,8 @@ def activation_for(path: str) -> str:
     )) or path in {
         "usr/libexec/oh-no-parent-control-execution-policy-ready",
         "usr/libexec/oh-no-parent-control-execution-policy-probe",
+        "usr/libexec/oh-no-parent-control-session-limit-check",
+        "usr/libexec/oh-no-parent-control-clear-session-runtime-max",
     }:
         return "reboot"
     # polkitd monitors its action and rule directories and evaluates them for

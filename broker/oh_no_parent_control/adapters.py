@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import pwd
+import re
 import subprocess
 import tempfile
 import threading
@@ -35,6 +36,15 @@ APP_FILTER_INTERFACE = "com.endlessm.ParentalControls.AppFilter"
 TIMER_NAME = "org.freedesktop.MalcontentTimer1"
 TIMER_PATH = "/org/freedesktop/MalcontentTimer1"
 TIMER_PARENT_INTERFACE = "org.freedesktop.MalcontentTimer1.Parent"
+LOGIN_NAME = "org.freedesktop.login1"
+LOGIN_PATH = "/org/freedesktop/login1"
+LOGIN_MANAGER_INTERFACE = "org.freedesktop.login1.Manager"
+LOGIN_SESSION_INTERFACE = "org.freedesktop.login1.Session"
+SYSTEMD_NAME = "org.freedesktop.systemd1"
+SYSTEMD_PATH = "/org/freedesktop/systemd1"
+SYSTEMD_MANAGER_INTERFACE = "org.freedesktop.systemd1.Manager"
+SESSION_SCOPE_ID = re.compile(r"^[A-Za-z0-9]+$")
+RUNTIME_MAX_USEC_INFINITY = (1 << 64) - 1
 CALL_TIMEOUT_MS = 30_000
 # Authorization is user-driven.  Keep the Polkit prompt pending until the
 # administrator accepts or cancels it rather than treating inactivity as a
@@ -201,6 +211,52 @@ class AccountsService:
 
     def get_user(self, uid: int) -> UserAccount:
         return self._account_from_path(self._user_path(uid))
+
+    def clear_session_runtime_max(self, uid: int) -> tuple[str, ...]:
+        """Remove pam_malcontent's systemd kill timer from this user's logins.
+
+        In-session expiry is a screen lock. A later login is still denied by
+        PAM when remaining time is zero. Clearing RuntimeMaxUSec prevents a
+        login-time snapshot from tearing down a live session after a grant.
+        """
+        if type(uid) is not int or not 0 < uid <= (1 << 32) - 1:
+            return ()
+        try:
+            reply = _call(
+                self.connection, LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE,
+                "ListSessions", None, "a(susso)",
+            )
+        except GLib.Error:
+            return ()
+        cleared = []
+        for session_id, session_uid, _user, _seat, path in reply.unpack()[0]:
+            if session_uid != uid or not SESSION_SCOPE_ID.fullmatch(session_id):
+                continue
+            try:
+                properties = _call(
+                    self.connection, LOGIN_NAME, path, PROPERTIES_INTERFACE,
+                    "GetAll", GLib.Variant("(s)", (LOGIN_SESSION_INTERFACE,)),
+                    "(a{sv})",
+                ).unpack()[0]
+            except GLib.Error:
+                continue
+            if properties.get("Class") != "user":
+                continue
+            unit = f"session-{session_id}.scope"
+            try:
+                _call(
+                    self.connection, SYSTEMD_NAME, SYSTEMD_PATH,
+                    SYSTEMD_MANAGER_INTERFACE, "SetUnitProperties",
+                    GLib.Variant("(sba(sv))", (
+                        unit, True,
+                        [("RuntimeMaxUSec", GLib.Variant("t", RUNTIME_MAX_USEC_INFINITY))],
+                    )),
+                    "()",
+                )
+            except GLib.Error:
+                continue
+            cleared.append(unit)
+        return tuple(cleared)
 
     def _set(self, uid: int, interface: str, prop: str, value: GLib.Variant):
         _call(

@@ -1,0 +1,11 @@
+# Host-safe test runner dependencies for Ubuntu 26.04 (resolute).
+# Install from the Ubuntu archive; do not install arbitrary wheels into the
+# system interpreter. The package version is pinned to the reviewed archive
+# version used by this plan.
+python3-pytest=9.0.2-4
+python3-pytest-cov=5.0.0-1
+python3-coverage=7.13.5+dfsg1-0ubuntu1
+python3-hypothesis=6.151.5-1
+python3-dbusmock=0.38.1-1
+libpam0g-dev=1.7.0-5ubuntu3.2
+shellcheck=0.11.0-2

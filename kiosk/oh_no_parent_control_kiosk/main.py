@@ -27,7 +27,8 @@ from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_hel
 from .model import RequestState, public_error
 from .request_content import RequestContent
 from .chrome import (
-    BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, MetalBoard,
+    BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, ArmoredButton,
+    MetalBoard,
 )
 
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
@@ -1026,10 +1027,13 @@ class RequestWindow(Adw.ApplicationWindow):
         self._result_detail = Gtk.Label(wrap=True, justify=Gtk.Justification.CENTER)
         self._result_view.append(self._result_title)
         self._result_view.append(self._result_detail)
-        self._result_action = Gtk.Button(
+        self._result_action = ArmoredButton(
             label="Close" if self._child_overlay else "Return to Login",
+            hexpand=True, armor_kind="request",
         )
         self._result_action.add_css_class("oh-no-parent-control-request-button")
+        self._result_action.set_margin_start(10)
+        self._result_action.set_margin_end(10)
         self._result_action.connect("clicked", self._cancel)
         self._result_view.append(self._result_action)
         escape = Gtk.EventControllerKey()

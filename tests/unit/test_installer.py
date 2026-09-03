@@ -217,7 +217,7 @@ class InstallerTests(unittest.TestCase):
             INSTALLER.read_text(encoding="utf-8"),
         )
 
-    def test_unrestricted_accounts_skip_the_no_limit_pam_message(self):
+    def test_login_time_pam_module_is_installed(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         pam_config = (
             ROOT / "data/pam-configs/oh-no-parent-control-session-limits"
@@ -234,10 +234,24 @@ class InstallerTests(unittest.TestCase):
             "gir1.2-malcontent-0", INSTALLER.read_text(encoding="utf-8"),
         )
         self.assertIn("Auth-Type: Additional", pam_config)
+        self.assertIn("required pam_oh_no_parent_control.so", pam_config)
+        self.assertIn("tools/pam_oh_no_parent_control.c", makefile)
+        pam_module = (
+            ROOT / "tools/pam_oh_no_parent_control.c"
+        ).read_text(encoding="utf-8")
+        self.assertIn("return PAM_ACCT_EXPIRED;", pam_module)
+        self.assertIn("return PAM_SYSTEM_ERR;", pam_module)
+        self.assertIn("libpam0g-dev", (ROOT / "debian/control").read_text(
+            encoding="utf-8"
+        ))
+        self.assertIn("libpam0g-dev", INSTALLER.read_text(encoding="utf-8"))
         self.assertIn(
-            "required pam_exec.so quiet quiet_log "
-            "/usr/libexec/oh-no-parent-control-session-limit-check --authenticate",
-            pam_config,
+            'grep -Fq "pam_oh_no_parent_control.so"',
+            INSTALLER.read_text(encoding="utf-8"),
+        )
+        self.assertNotIn(
+            "session-limit-check --authenticate",
+            INSTALLER.read_text(encoding="utf-8"),
         )
         self.assertIn(
             "[success=1 default=ignore] pam_exec.so quiet quiet_log "
@@ -324,11 +338,40 @@ class InstallerTests(unittest.TestCase):
         ):
             self.assertIn(obsolete, obsolete_sources)
         self.assertIn(
-            '"$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/$(file)"', makefile,
+            '"$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/$(file)"', makefile,
         )
         self.assertIn(
             "org.gnome.shell.extensions.oh-no-parent-control.policy", makefile,
         )
+
+    def test_child_extension_is_packaged_for_shell_startup_discovery(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        control = (ROOT / "debian/control").read_text(encoding="utf-8")
+        installer = INSTALLER.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "SYSTEM_EXTENSION_DIR := "
+            "$(DATADIR)/gnome-shell/extensions/$(UUID)",
+            makefile,
+        )
+        self.assertIn(
+            '"$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"',
+            makefile,
+        )
+        self.assertIn(
+            "require test -s /usr/share/gnome-shell/extensions/"
+            "oh-no-parent-control@tech.puffyslippers.com/extension.js",
+            INSTALLER.read_text(encoding="utf-8"),
+        )
+        self.assertNotIn(
+            'install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json '
+            'stylesheet.css extension.js $(EXTENSION_SOURCES) '
+            '$(EXTENSION_ASSETS)) "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"',
+            makefile,
+        )
+        for dependency in ("gnome-shell", "libglib2.0-bin"):
+            self.assertIn(f"    {dependency} \\\n", installer)
+            self.assertIn(dependency, control)
 
     def test_kiosk_uses_current_restartable_polkit_agent(self):
         script = INSTALLER.read_text(encoding="utf-8")
@@ -407,7 +450,7 @@ class InstallerTests(unittest.TestCase):
         self.assertNotIn("malcontent-timerd.service", resident)
         self.assertIn("fapolicyd.service", resident)
 
-    def test_package_session_renewal_restarts_broker_to_publish_child_payload(self):
+    def test_package_session_renewal_restarts_broker_to_reassert_activation(self):
         postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
 
         self.assertIn("*process-restart*|*session-renewal*)", postinst)

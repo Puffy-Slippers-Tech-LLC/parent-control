@@ -76,6 +76,17 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertNotIn("TerminateUser", indicator)
         self.assertNotIn("RuntimeMax", indicator)
 
+    def test_session_entry_reconciles_expired_grants_through_the_broker(self):
+        indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
+        client = (ROOT / "child" / "sessionPreparationClient.js").read_text()
+        makefile = (ROOT / "Makefile").read_text()
+
+        self.assertIn("'PrepareOwnSession'", client)
+        self.assertIn("prepareOwnSession", indicator)
+        self.assertIn("Main.sessionMode.isLocked", indicator)
+        self.assertNotIn("terminate", client.lower())
+        self.assertIn("sessionPreparationClient.js", makefile)
+
     def test_notification_keeps_the_panel_indicator_without_a_shell_form(self):
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
         stylesheet = (ROOT / "child" / "stylesheet.css").read_text()

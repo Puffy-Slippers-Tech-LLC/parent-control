@@ -1,0 +1,4 @@
+# ShellCheck configuration for maintained Bash scripts in this repository.
+shell=bash
+external-sources=true
+severity=error

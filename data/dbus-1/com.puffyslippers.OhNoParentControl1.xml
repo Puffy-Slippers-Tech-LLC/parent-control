@@ -54,6 +54,9 @@
       <arg name="daily_allowance_remaining_seconds" type="u" direction="in"/>
       <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
     </method>
+    <method name="PrepareOwnSession">
+      <arg name="reconciled" type="b" direction="out"/>
+    </method>
     <method name="SetPreferences">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="in"/>

@@ -199,7 +199,7 @@ def make_broker(authorizer=None, accounts=None, preferences=None, extensions=Non
 
 
 class CoreTests(unittest.TestCase):
-    def test_startup_refreshes_only_preference_enabled_managed_children(self):
+    def test_startup_reasserts_only_preference_enabled_managed_children(self):
         accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
         preferences.values[1001]["parent_control_enabled"] = True
         preferences.values[1003] = default_preferences()
@@ -213,10 +213,10 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(refreshed, (1001,))
         self.assertEqual(extensions.calls, [(1001, True)])
 
-    def test_startup_extension_refresh_reports_install_failure(self):
+    def test_startup_extension_refresh_reports_activation_failure(self):
         class FailingExtensions(Extensions):
             def set_enabled(self, uid, enabled):
-                raise RuntimeError("copy failed")
+                raise RuntimeError("activation failed")
 
         preferences = Preferences()
         preferences.values[1001]["parent_control_enabled"] = True
@@ -648,6 +648,54 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(
             accounts.filter,
             (False, ("/usr/bin/game", "org.example.Game")),
+        )
+
+    def test_session_entry_after_expired_grant_restores_and_terminates_blocks(self):
+        accounts, preferences, running_apps = Accounts(), Preferences(), RunningApps()
+        # The remembered form toggle is not grant authority after expiry.
+        preferences.values[1001]["request"]["allow_soft_blocked_apps"] = True
+        accounts.extension = (1, 2)
+        accounts.filter = (False, ("org.example.Game",))
+        broker = make_broker(
+            accounts=accounts, preferences=preferences,
+            running_apps=running_apps,
+        )
+
+        self.assertTrue(broker.prepare_own_session(1001))
+
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "org.example.Game")),
+        )
+        self.assertEqual(running_apps.calls, [
+            ("preflight", 1001, ("/usr/bin/game", "org.example.Game"), ()),
+            ("terminate", 1001, ("/usr/bin/game", "org.example.Game"), ()),
+        ])
+
+    def test_session_entry_with_renewed_grant_preserves_apps_and_soft_access(self):
+        accounts, preferences, running_apps = Accounts(), Preferences(), RunningApps()
+        preferences.values[1001]["parent_control_enabled"] = True
+        accounts.extension = (1, 2)
+        accounts.filter = (False, ("org.example.Game",))
+        broker = make_broker(
+            accounts=accounts, preferences=preferences,
+            running_apps=running_apps,
+        )
+
+        _correlation_id, outcome, granted = broker.request_own_access(
+            1001, ":1.20", 1003, 10 * 60, True,
+        )
+        self.assertEqual(outcome, "approved")
+        self.assertGreater(granted, 0)
+        # The replacement grant is current by the time the child unlocks and
+        # must win over the older expired grant.
+        self.assertFalse(broker.prepare_own_session(1001))
+
+        self.assertEqual(accounts.filter, (False, ("org.example.Game",)))
+        self.assertEqual(running_apps.calls, [])
+        self.assertNotIn(
+            ("set_filter", 1001, (False, ("/usr/bin/game", "org.example.Game"))),
+            accounts.events,
         )
 
     def test_child_and_kiosk_share_request_menu_values(self):

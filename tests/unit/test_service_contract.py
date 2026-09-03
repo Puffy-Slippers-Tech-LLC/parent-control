@@ -21,7 +21,14 @@ def signatures(xml):
 
 
 class ServiceContractTests(unittest.TestCase):
-    def test_service_refreshes_enabled_child_payloads_before_registration(self):
+    def test_service_uses_current_binding_friendly_registration_api(self):
+        source = (
+            ROOT / "broker/oh_no_parent_control/service.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("register_object_with_closures2", source)
+
+    def test_service_reasserts_enabled_child_activation_before_registration(self):
         source = (
             ROOT / "broker/oh_no_parent_control/service.py"
         ).read_text(encoding="utf-8")
@@ -55,6 +62,12 @@ class ServiceContractTests(unittest.TestCase):
             ("granted_duration_seconds", "u", "out"),
         ))
         self.assertNotIn("target_uid", [name for name, _type, _direction in method])
+
+    def test_session_preparation_derives_target_from_child_caller(self):
+        self.assertEqual(
+            signatures(INTROSPECTION_XML)["PrepareOwnSession"],
+            (("reconciled", "b", "out"),),
+        )
 
     def test_user_lists_include_the_accounts_service_icon_file(self):
         self.assertEqual(

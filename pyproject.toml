@@ -1,0 +1,35 @@
+[tool.pytest.ini_options]
+testpaths = ["tests/unit", "tests/component"]
+python_files = ["test_*.py"]
+addopts = ["--strict-markers", "--strict-config"]
+markers = [
+    "unit: host-safe unit tests",
+    "contract: source and interface contract checks",
+    "component: host-safe component tests",
+    "ui: semantic graphical component tests",
+    "system: installed-system tests in a disposable guest",
+    "e2e: graphical end-to-end tests in a disposable guest",
+    "slow: tests that exceed the normal local feedback budget",
+    "guest_mutating: tests that mutate a disposable guest",
+]
+filterwarnings = [
+    "error",
+    "ignore::gi.PyGIDeprecationWarning",
+    "ignore:'asyncio.AbstractEventLoopPolicy' is deprecated.*:DeprecationWarning:gi.events",
+    "ignore:'asyncio.get_event_loop_policy' is deprecated.*:DeprecationWarning:gi.events",
+]
+junit_family = "xunit2"
+
+[tool.coverage.run]
+branch = true
+source = ["broker", "parent", "kiosk", "common", "tools"]
+parallel = true
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]

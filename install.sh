@@ -136,15 +136,19 @@ add-apt-repository -y universe </dev/null
     dbus-user-session \
     fapolicyd \
     gdm3 \
+    gcc \
     gir1.2-adw-1 \
     gir1.2-gstreamer-1.0 \
     gir1.2-gtk-4.0 \
     gir1.2-malcontent-0 \
     gnome-kiosk \
+    gnome-shell \
     gstreamer1.0-plugins-base \
     gstreamer1.0-plugins-ugly \
     gtk-update-icon-cache \
+    libglib2.0-bin \
     libpam-malcontent \
+    libpam0g-dev \
     mate-polkit-bin \
     make \
     malcontent \
@@ -295,7 +299,7 @@ systemctl enable oh-no-parent-control-restore-extension-state.service
 # Product files may have replaced an already running D-Bus broker. Restart it
 # after provisioning has written its configuration so the parent, kiosk, and
 # broker always use the same installed interface and preference schema. Broker
-# startup also republishes the child payload for every enabled managed account.
+# startup also reasserts extension activation for every enabled managed account.
 # Do not restart accounts-daemon here: provision already applied kiosk
 # properties on the live daemon, and a restart under fapolicyd can stall.
 start_unit oh-no-parent-control-broker.service
@@ -313,9 +317,11 @@ require test -x /usr/libexec/oh-no-parent-control-provision
 require test -x /usr/libexec/oh-no-parent-control-package-activation
 require test -x /usr/libexec/oh-no-parent-control-preserve-extension-state
 require test -x /usr/libexec/oh-no-parent-control-session-limit-check
+require test -r "/usr/lib/$(cc -print-multiarch)/security/pam_oh_no_parent_control.so"
 require test -x /usr/libexec/oh-no-parent-control-clear-session-runtime-max
 require test -x /usr/libexec/oh-no-parent-control-execution-policy-ready
 require test -x /usr/libexec/oh-no-parent-control-execution-policy-probe
+require test -s /usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/extension.js
 require test -s /usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/Gearbox_Waltz.mp3
 require test -s /etc/oh-no-parent-control/config.json
 require test -s /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules
@@ -349,7 +355,7 @@ require grep -Fq "pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-c
 require grep -Fq "pam_malcontent.so" /etc/pam.d/common-account
 require grep -Fq "pam_exec.so quiet quiet_log /usr/libexec/oh-no-parent-control-session-limit-check" \
     /etc/pam.d/common-account
-require grep -Fq "pam_exec.so quiet quiet_log /usr/libexec/oh-no-parent-control-session-limit-check --authenticate" \
+require grep -Fq "pam_oh_no_parent_control.so" \
     /etc/pam.d/common-auth
 require grep -Fq "pam_exec.so quiet /usr/libexec/oh-no-parent-control-clear-session-runtime-max" \
     /etc/pam.d/common-session

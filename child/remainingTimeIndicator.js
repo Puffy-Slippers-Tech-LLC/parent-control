@@ -9,6 +9,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
 import {queryEstimatedTimes} from './timerQuery.js';
 import {calculateOwnRemainingTime} from './timeCalculationClient.js';
+import {prepareOwnSession} from './sessionPreparationClient.js';
 import {logDebug, logInfo, logWarning} from './logger.js';
 const ROLE = 'screenTimeRemaining';
 const TIMER_BUS_NAME = 'org.freedesktop.MalcontentTimer1';
@@ -97,6 +98,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._lockPending = false;
         this._refreshPending = false;
         this._refreshAgain = false;
+        this._sessionPreparePending = false;
+        this._sessionPrepared = false;
         this._vertical = null;
         this._timerSignalId = this._preview ? 0 : Gio.DBus.system.signal_subscribe(
             TIMER_BUS_NAME, TIMER_INTERFACE, 'EstimatedTimesChanged',
@@ -267,6 +270,29 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         }
     }
 
+    async _prepareSession() {
+        if (this._preview || this._destroyed || this._sessionPreparePending ||
+            this._sessionPrepared || Main.sessionMode.isLocked ||
+            Main.sessionMode.isGreeter)
+            return;
+
+        this._sessionPreparePending = true;
+        try {
+            const reconciled = await prepareOwnSession();
+            if (this._destroyed)
+                return;
+            this._sessionPrepared = true;
+            logInfo(reconciled
+                ? 'restored expired-grant application policy for session entry'
+                : 'session entry application policy already current');
+        } catch (error) {
+            if (!this._destroyed)
+                logWarning(`could not prepare application policy for session entry: ${error.message}`);
+        } finally {
+            this._sessionPreparePending = false;
+        }
+    }
+
     showGrantedTime(durationSeconds) {
         const now = Main.timeLimitsManager.getCurrentTime();
         if (durationSeconds > 0) {
@@ -289,6 +315,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         const manager = Main.timeLimitsManager;
         const currentTime = manager.getCurrentTime();
+        if (Main.sessionMode.isLocked || Main.sessionMode.isGreeter)
+            this._sessionPrepared = false;
+        else
+            this._prepareSession();
         if (this._activeExtensionEnd <= currentTime)
             this._activeExtensionEnd = 0;
         const remainingSecs = this._remainingSeconds(currentTime);

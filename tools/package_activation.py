@@ -35,7 +35,7 @@ def activation_for(path: str) -> str:
         "usr/libexec/oh-no-parent-control-execution-policy-probe",
         "usr/libexec/oh-no-parent-control-session-limit-check",
         "usr/libexec/oh-no-parent-control-clear-session-runtime-max",
-    }:
+    } or path.endswith("/security/pam_oh_no_parent_control.so"):
         return "reboot"
     # polkitd monitors its action and rule directories and evaluates them for
     # each authorization request, so no service or session restart is required.
@@ -49,9 +49,9 @@ def activation_for(path: str) -> str:
     if path.startswith("etc/fapolicyd/rules.d/"):
         return "process-restart"
     if path.startswith((
-        "usr/lib/oh-no-parent-control/child/extension/",
         "usr/lib/oh-no-parent-control/kiosk/",
         "usr/lib/systemd/user/",
+        "usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/",
         "usr/share/gnome-session/",
         "usr/share/wayland-sessions/",
     )):

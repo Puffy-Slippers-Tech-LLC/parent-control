@@ -8,6 +8,10 @@ import os
 import signal
 import sys
 import threading
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
 import gi
 
@@ -89,6 +93,9 @@ INTROSPECTION_XML = f"""
       <arg name="daily_allowance_remaining_seconds" type="u" direction="in"/>
       <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
     </method>
+    <method name="PrepareOwnSession">
+      <arg name="reconciled" type="b" direction="out"/>
+    </method>
     <method name="SetPreferences">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="in"/>
@@ -127,28 +134,70 @@ INTROSPECTION_XML = f"""
 """
 
 
+@dataclass(frozen=True)
+class ServiceDependencies:
+    """Injectable adapters used to compose the broker and D-Bus transport."""
+
+    credentials: Any
+    accounts: Any
+    config_loader: Any
+    authorizer: Any
+    preferences: Any
+    extensions: Any
+    timer_usage: Any
+    application_catalog: Any
+    running_apps: Any
+    monotonic: Any = time.monotonic
+    now: Any = lambda: datetime.now().astimezone()
+    broker_factory: Any = Broker
+    policy_rescan_interval_seconds: float | None = 30
+
+
+def production_dependencies(connection) -> ServiceDependencies:
+    """Build the production dependency graph for one bus connection."""
+    credentials = CallerCredentials(connection)
+    preferences = PreferenceStore()
+    accounts = AccountsService(connection, FapolicydPolicy(), preferences)
+    return ServiceDependencies(
+        credentials=credentials,
+        accounts=accounts,
+        config_loader=lambda: config.load(CONFIG_PATH),
+        authorizer=PolkitAuthorizer(connection),
+        preferences=preferences,
+        extensions=ExtensionManager(),
+        timer_usage=TimerUsage(connection),
+        application_catalog=list_apps,
+        running_apps=RunningAppTerminator(),
+    )
+
+
 class Service:
-    def __init__(self, connection, log_writer):
+    def __init__(self, connection, log_writer, *, dependencies=None):
         self.connection = connection
-        self.credentials = CallerCredentials(connection)
-        preferences = PreferenceStore()
-        self.accounts = AccountsService(connection, FapolicydPolicy(), preferences)
+        dependencies = dependencies or production_dependencies(connection)
+        self.credentials = dependencies.credentials
+        self.accounts = dependencies.accounts
+        self.broker = dependencies.broker_factory(
+            dependencies.config_loader,
+            dependencies.authorizer,
+            self.accounts,
+            dependencies.preferences,
+            dependencies.extensions,
+            dependencies.timer_usage,
+            application_catalog=dependencies.application_catalog,
+            running_apps=dependencies.running_apps,
+            monotonic=dependencies.monotonic,
+            now=dependencies.now,
+            caller_alive=self.credentials.alive,
+        )
         # Rules persist across broker restarts, then are reconciled against
         # AccountsService before accepting calls so deleted or changed users
         # cannot inherit stale execution policy.
         self.accounts.sync_execution_policy()
-        self.broker = Broker(
-            lambda: config.load(CONFIG_PATH), PolkitAuthorizer(connection),
-            self.accounts, preferences, ExtensionManager(),
-            TimerUsage(connection),
-            application_catalog=list_apps,
-            running_apps=RunningAppTerminator(),
-            caller_alive=self.credentials.alive,
-        )
         refreshed_uids = self.broker.refresh_enabled_extensions()
         if refreshed_uids:
             logging.info(
-                "refreshed child extension payloads child_count=%d",
+                "reasserted child extension activation child_count=%d",
                 len(refreshed_uids),
             )
         try:
@@ -173,10 +222,22 @@ class Service:
         # they have been classified.  A dropped filesystem notification can
         # therefore cause inconvenience, never a wildcard bypass.
         self._policy_rescan_stop = threading.Event()
-        threading.Thread(target=self._periodic_policy_rescan, daemon=True).start()
+        self._policy_rescan_interval_seconds = (
+            dependencies.policy_rescan_interval_seconds
+        )
+        self._policy_rescan_thread = None
+        if self._policy_rescan_interval_seconds is not None:
+            self._policy_rescan_thread = threading.Thread(
+                target=self._periodic_policy_rescan,
+                name="broker-policy-rescan",
+                daemon=True,
+            )
+            self._policy_rescan_thread.start()
+        self._registration_id = None
 
     def _periodic_policy_rescan(self):
-        while not self._policy_rescan_stop.wait(30):
+        while not self._policy_rescan_stop.wait(
+                self._policy_rescan_interval_seconds):
             self._sync_execution_policy_after_signal()
 
     def _app_filter_changed(self, *_args):
@@ -194,14 +255,30 @@ class Service:
             logging.exception("app execution policy signal sync failed")
 
     def register(self):
-        self.connection.register_object(
+        if self._registration_id is not None:
+            raise RuntimeError("D-Bus service is already registered")
+        self._registration_id = self.connection.register_object_with_closures2(
             OBJECT_PATH, self.node_info.interfaces[0], self._method_call, None, None
         )
+
+    def close(self):
+        """Release transport resources owned by this service instance."""
+        self._policy_rescan_stop.set()
+        if self._policy_rescan_thread is not None:
+            self._policy_rescan_thread.join(timeout=1)
+            self._policy_rescan_thread = None
+        if self._app_filter_signal_id is not None:
+            self.connection.signal_unsubscribe(self._app_filter_signal_id)
+            self._app_filter_signal_id = None
+        if self._registration_id is not None:
+            self.connection.unregister_object(self._registration_id)
+            self._registration_id = None
 
     def _method_call(self, _connection, sender, _path, _interface, method,
                      parameters, invocation):
         try:
             caller_uid = self.credentials.uid(sender)
+            deferred_reply = False
             if method != "LogEvent":
                 logging.info("dbus method=%s caller=[Authorized user] stage=dispatch", method)
             if method == "ListManagedUsers":
@@ -223,6 +300,7 @@ class Service:
                 ))
             elif method == "RequestAccess":
                 target_uid, approver_uid, duration_seconds, allow_soft = parameters.unpack()
+                deferred_reply = True
                 threading.Thread(
                     target=self._request_worker,
                     args=(invocation, caller_uid, sender, target_uid,
@@ -231,6 +309,7 @@ class Service:
                 ).start()
             elif method == "RequestOwnAccess":
                 approver_uid, duration_seconds, allow_soft = parameters.unpack()
+                deferred_reply = True
                 threading.Thread(
                     target=self._request_own_worker,
                     args=(invocation, caller_uid, sender, approver_uid,
@@ -272,6 +351,13 @@ class Service:
                     caller_uid, daily,
                 )
                 invocation.return_value(GLib.Variant("(u)", (calculated,)))
+            elif method == "PrepareOwnSession":
+                deferred_reply = True
+                threading.Thread(
+                    target=self._prepare_own_session_worker,
+                    args=(invocation, caller_uid),
+                    daemon=True,
+                ).start()
             elif method == "SetPreferences":
                 target_uid, encoded = parameters.unpack()
                 try:
@@ -312,10 +398,14 @@ class Service:
                     raise InvalidRequest(str(error)) from error
                 invocation.return_value(None)
             else:
+                logging.warning(
+                    "dbus method=%s outcome=denied error_type=UnknownMethod",
+                    method,
+                )
                 invocation.return_dbus_error(
                     f"{BUS_NAME}.Error.InvalidRequest", "unknown method"
                 )
-            if method != "LogEvent":
+            if method != "LogEvent" and not deferred_reply:
                 logging.info("dbus method=%s caller=[Authorized user] outcome=accepted", method)
         except BrokerError as error:
             logging.warning("dbus method=%s outcome=denied error_type=%s",
@@ -331,8 +421,13 @@ class Service:
             result = self.broker.request_access(
                 caller_uid, sender, target_uid, approver_uid, duration_seconds, allow_soft
             )
+            logging.info("dbus method=RequestAccess outcome=accepted")
             GLib.idle_add(self._return_value, invocation, result)
         except BrokerError as error:
+            logging.warning(
+                "dbus method=RequestAccess outcome=denied error_type=%s",
+                type(error).__name__,
+            )
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
             logging.error("request worker kind=kiosk outcome=failed error_type=%s", type(error).__name__)
@@ -346,11 +441,39 @@ class Service:
             result = self.broker.request_own_access(
                 caller_uid, sender, approver_uid, duration_seconds, allow_soft,
             )
+            logging.info("dbus method=RequestOwnAccess outcome=accepted")
             GLib.idle_add(self._return_own_value, invocation, result)
         except BrokerError as error:
+            logging.warning(
+                "dbus method=RequestOwnAccess outcome=denied error_type=%s",
+                type(error).__name__,
+            )
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
             logging.error("request worker kind=child outcome=failed error_type=%s", type(error).__name__)
+            GLib.idle_add(
+                self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
+            )
+
+    def _prepare_own_session_worker(self, invocation, caller_uid):
+        try:
+            reconciled = self.broker.prepare_own_session(caller_uid)
+            logging.info("dbus method=PrepareOwnSession outcome=accepted")
+            GLib.idle_add(
+                self._return_value_variant, invocation,
+                GLib.Variant("(b)", (reconciled,)),
+            )
+        except BrokerError as error:
+            logging.warning(
+                "dbus method=PrepareOwnSession outcome=denied error_type=%s",
+                type(error).__name__,
+            )
+            GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
+        except Exception as error:
+            logging.error(
+                "session-prepare worker outcome=failed error_type=%s",
+                type(error).__name__,
+            )
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )
@@ -363,6 +486,11 @@ class Service:
     @staticmethod
     def _return_own_value(invocation, result):
         invocation.return_value(GLib.Variant("(ssu)", result))
+        return GLib.SOURCE_REMOVE
+
+    @staticmethod
+    def _return_value_variant(invocation, result):
+        invocation.return_value(result)
         return GLib.SOURCE_REMOVE
 
     @staticmethod
@@ -408,6 +536,8 @@ def main():
         loop.run()
     finally:
         logging.info("broker stopping")
+        if service_holder:
+            service_holder[0].close()
         Gio.bus_unown_name(owner_id)
     return 1 if startup_failed else 0
 

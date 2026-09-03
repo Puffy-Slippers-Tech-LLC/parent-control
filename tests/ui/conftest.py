@@ -9,10 +9,6 @@ import time
 from pathlib import Path
 
 import pytest
-import gi
-
-gi.require_version("Atspi", "2.0")
-from gi.repository import Atspi, GLib
 
 ROOT = Path(__file__).resolve().parents[2]
 UI_TIMEOUT_SECONDS = 20
@@ -111,12 +107,13 @@ def launch_ui(hermetic_ui_session, tmp_path):
 
     processes = []
 
-    def launch(name: str):
+    def launch(name: str, *, environment_overrides=None, wait_for_application=True):
         log_path = tmp_path / f"{name}.log"
         environment = {
             **hermetic_ui_session.environment,
             "PYTHONPATH": str(ROOT),
             "PYTHONDONTWRITEBYTECODE": "1",
+            **(environment_overrides or {}),
         }
         log_file = log_path.open("wb")
         process = subprocess.Popen(
@@ -126,6 +123,8 @@ def launch_ui(hermetic_ui_session, tmp_path):
             stderr=subprocess.STDOUT,
         )
         processes.append((process, log_file))
+        if not wait_for_application:
+            return process, log_path
         application = hermetic_ui_session.wait_for_app(name)
         return application, log_path
 
@@ -146,6 +145,14 @@ def launch_ui(hermetic_ui_session, tmp_path):
 @pytest.fixture
 def wait_for_accessible_node():
     """Wait for a semantic accessibility node using AT-SPI events and a deadline."""
+
+    # Importing Atspi initializes libatspi's process-global desktop connection.
+    # This fixture runs only after HermeticSession.boot() has exported the
+    # private bus, so the connection cannot be cached against the host desktop.
+    import gi
+
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi, GLib
 
     def wait(
         application, label: str, role_name: str | None = None, *, labelled: bool = False,
@@ -185,6 +192,26 @@ def wait_for_accessible_node():
             f"Timed out waiting for {label!r} ({role_name or 'any role'}).\n"
             f"Accessibility tree:\n{dump_tree(application, max_depth=20)}",
         )
+
+    return wait
+
+
+@pytest.fixture
+def wait_for_accessible_state():
+    """Wait for an AT-SPI state transition without host-time sleeps."""
+
+    from gi.repository import GLib
+
+    def wait(predicate, description: str):
+        deadline = time.monotonic() + UI_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            if predicate():
+                return
+            loop = GLib.MainLoop()
+            timeout_id = GLib.timeout_add(50, loop.quit)
+            loop.run()
+            GLib.source_remove(timeout_id)
+        raise AssertionError(f"Timed out waiting for accessibility state: {description}")
 
     return wait
 

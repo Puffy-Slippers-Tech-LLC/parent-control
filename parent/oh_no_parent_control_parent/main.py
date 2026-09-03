@@ -1154,8 +1154,17 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _load_users(self):
         LOG.info("managed-user discovery started")
-        self._run(self._client.list_users, self._users_loaded)
+        self._run(self._client.list_users, self._users_loaded, self._users_failed)
         return GLib.SOURCE_REMOVE
+
+    def _users_failed(self, error):
+        """Fail closed before exposing a parent-management surface."""
+        LOG.warning(
+            "managed-user discovery failed; closing management window error_type=%s",
+            type(error).__name__,
+        )
+        self.close()
+        self.get_application().quit()
 
     def _users_loaded(self, users):
         self._users = [parse_listed_user(user) for user in users]
@@ -1786,9 +1795,16 @@ class ParentWindow(Adw.ApplicationWindow):
 
 
 class Application(Adw.Application):
-    def __init__(self, *, preview=False):
+    def __init__(self, *, preview=False, client_factory=None):
         super().__init__(application_id="com.puffyslippers.OhNoParentControl.Parent")
         self._preview = preview
+        # Component tests inject a scripted broker through the same constructor
+        # seam used by the preview.  Production continues to construct only the
+        # system-D-Bus client below, so this does not create a test-only broker
+        # path or weaken the broker's caller authorization boundary.
+        self._client_factory = client_factory or (
+            PreviewBrokerClient if preview else BrokerClient
+        )
         self._css_provider = None
         self._preview_monitor = None
         self._preview_reload_source_id = None
@@ -1844,7 +1860,7 @@ class Application(Adw.Application):
 
     def do_activate(self):
         window = self.get_active_window() or ParentWindow(
-            self, client_factory=PreviewBrokerClient if self._preview else BrokerClient,
+            self, client_factory=self._client_factory,
         )
         if self._css_provider is None:
             self._css_provider = Gtk.CssProvider()

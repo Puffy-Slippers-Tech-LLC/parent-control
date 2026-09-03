@@ -17,25 +17,20 @@ window.oh-no-parent-control-overlay {
 
 button.oh-no-parent-control-hud-button,
 menubutton.oh-no-parent-control-hud-button > button {
-  min-width: 52px;
-  min-height: 52px;
+  min-width: 110px;
+  min-height: 110px;
   padding: 0;
-  border: 4px solid #141613;
-  border-top-color: #777a71;
-  border-left-color: #5a5d56;
-  border-right-color: #20221f;
-  border-bottom-color: #0c0e0b;
+  border: 0;
   border-radius: 0;
   color: rgba(236, 236, 230, 0.94);
-  background-color: #3b3e39;
-  background-image: repeating-linear-gradient(to bottom,
-      #444741 0px, #444741 5px, #3c3f3a 5px, #3c3f3a 10px);
-  box-shadow: 0 4px 0 #10120f, inset 0 1px rgba(255, 255, 255, 0.10);
+  background-color: #25243a;
+  background-image: linear-gradient(to bottom, #3b3857, #1b1a2b);
+  box-shadow: none;
 }
 
 menubutton.oh-no-parent-control-hud-button {
-  min-width: 52px;
-  min-height: 52px;
+  min-width: 110px;
+  min-height: 110px;
   padding: 0;
   border: none;
   border-radius: 0;
@@ -54,24 +49,17 @@ button.oh-no-parent-control-hud-button:focus-visible,
 menubutton.oh-no-parent-control-hud-button > button:hover,
 menubutton.oh-no-parent-control-hud-button > button:focus-visible {
   color: white;
-  border-color: rgba(255, 255, 255, 0.30);
-  background-color: #4a4d48;
-  background-image: repeating-linear-gradient(to bottom,
-      #555851 0px, #555851 5px, #4a4d48 5px, #4a4d48 10px);
+  background-color: #363451;
+  background-image: linear-gradient(to bottom, #4a466c, #27243e);
 }
 
 button.oh-no-parent-control-hud-button:active,
 button.oh-no-parent-control-hud-muted,
 menubutton.oh-no-parent-control-hud-button > button:checked,
 menubutton.oh-no-parent-control-hud-button > button:active {
-  border-top-color: #0c0e0b;
-  border-left-color: #141613;
-  border-right-color: #5a5d56;
-  border-bottom-color: #777a71;
-  background-color: #2a2c29;
-  background-image: repeating-linear-gradient(to bottom,
-      #323430 0px, #323430 5px, #2a2c29 5px, #2a2c29 10px);
-  box-shadow: inset 0 3px #10120f, inset 0 -1px rgba(255, 255, 255, 0.06);
+  background-color: #1b1a2b;
+  background-image: linear-gradient(to bottom, #201e32, #302c47);
+  box-shadow: none;
 }
 
 popover.oh-no-parent-control-hud-menu {
@@ -82,7 +70,7 @@ popover.oh-no-parent-control-hud-menu {
 }
 
 popover.oh-no-parent-control-hud-menu > contents {
-  padding: 6px 8px 18px;
+  padding: 0;
   border: none;
   border-radius: 0;
   background: none;
@@ -90,38 +78,38 @@ popover.oh-no-parent-control-hud-menu > contents {
 }
 
 .oh-no-parent-control-hud-menu-board {
-  min-width: 196px;
+  min-width: 230px;
   min-height: 0;
-  padding: 24px 18px 18px;
+  padding: 13px 15px 14px;
+  background: none;
 }
 
 button.oh-no-parent-control-hud-menu-item {
-  min-height: 28px;
-  padding: 2px 10px;
+  min-height: 82px;
+  padding: 8px 14px;
   margin: 0;
-  border: 3px solid #141416;
-  border-top-color: #92948c;
-  border-left-color: #73766e;
-  border-right-color: #292b28;
-  border-bottom-color: #0c0c0c;
+  border: 0;
   border-radius: 0;
   color: rgba(236, 236, 230, 0.94);
   font-family: "Monocraft", "Ubuntu Mono", monospace;
-  font-size: 0.92em;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: 1px;
-  background-color: #4a4d48;
-  background-image: repeating-linear-gradient(to bottom,
-      #595c56 0px, #595c56 5px, #50534e 5px, #50534e 10px);
-  box-shadow: 0 3px 0 #10120f, inset 0 1px #a2a49c;
+  background-color: #3a3943;
+  background-image: linear-gradient(to bottom, #46454f, #34333d);
+  box-shadow: none;
   text-shadow: none;
 }
 
 button.oh-no-parent-control-hud-menu-item:hover,
 button.oh-no-parent-control-hud-menu-item:focus-visible {
-  border-color: rgba(255, 255, 255, 0.30);
-  background-color: #5a5a60;
-  background-image: linear-gradient(to bottom, #6a6a70, #44444a);
+  background-color: #4b4958;
+  background-image: linear-gradient(to bottom, #5a5768, #3b3946);
+}
+
+.oh-no-parent-control-hud-menu-icon {
+  padding: 0;
+  background: none;
 }
 
 .about-dialog {

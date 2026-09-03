@@ -181,53 +181,102 @@ MLLLLLLM
 
 SPEAKER = _parse_sprite(
     """
-..WW....
-.WWW.Y..
-WWWW.Y.Y
-WWWW..Y.
-WWWW..Y.
-WWWW.Y.Y
-.WWW.Y..
-..WW....
+................
+.......WW.......
+......W.W.......
+.....W..W...W...
+....W...W....W..
+...W....W.....W.
+.WW.....W......W
+.W......W......W
+.W......W......W
+.W......W......W
+.WW.....W......W
+...W....W.....W.
+....W...W....W..
+.....W..W...W...
+......W.W.......
+.......WW.......
 """,
     {
-        "W": (214, 196, 130, 255),
-        "Y": (236, 236, 214, 255),
+        "W": (241, 238, 248, 255),
     },
 )
 
 SPEAKER_MUTED = _parse_sprite(
     """
-..WW....
-.WWW.R.R
-WWWW..R.
-WWWW.R..
-WWWW.R..
-WWWW..R.
-.WWW.R.R
-..WW....
+................
+.......WW.......
+......W.W.......
+.....W..W.......
+....W...W.......
+...W....W...W..W
+.WW.....W....WW.
+.W......W.....W.
+.W......W....WW.
+.W......W...W..W
+.WW.....W.......
+...W....W.......
+....W...W.......
+.....W..W.......
+......W.W.......
+.......WW.......
 """,
     {
-        "W": (214, 196, 130, 255),
-        "R": (188, 58, 48, 255),
+        "W": (241, 238, 248, 255),
     },
 )
 
 MENU = _parse_sprite(
     """
-.MMMMMM.
-.MLLLLM.
-........
-.MMMMMM.
-.MLLLLM.
-........
-.MMMMMM.
-.MLLLLM.
+................
+................
+................
+..WWWWWWWWWWWW..
+..WWWWWWWWWWWW..
+................
+..WWWWWWWWWWWW..
+..WWWWWWWWWWWW..
+................
+..WWWWWWWWWWWW..
+..WWWWWWWWWWWW..
+................
+................
+................
+................
+................
 """,
     {
-        "M": (46, 49, 44, 255),
-        "L": (190, 184, 151, 255),
+        "W": (241, 238, 248, 255),
     },
+)
+
+HELP = _parse_sprite(
+    """
+..WWWW..
+.WW..WW.
+.....WW.
+...WWW..
+...WW...
+........
+...WW...
+...WW...
+""",
+    {"W": (241, 238, 248, 255)},
+)
+
+ABOUT = _parse_sprite(
+    """
+...WW...
+........
+...WW...
+..WWW...
+...WW...
+...WW...
+..WWWW..
+........
+""",
+    {"W": (241, 238, 248, 255)},
 )
 
 
@@ -348,6 +397,146 @@ def _paint_rivet(context, x, y, radius=4.0):
     context.arc(x + 0.8, y + 0.8, max(0.8, radius * 0.22), 0, math.tau)
     context.set_source_rgb(0.20, 0.21, 0.20)
     context.fill()
+
+
+def _paint_hud_frame(context, x, y, width, height, *, compact=False,
+                     fill_face=True):
+    """Paint the stepped violet/cyan chassis used by HUD icon plates."""
+    if width < 42 or height < 42:
+        return
+    edge = 12.0 if compact else 17.0
+    corner = 13.0 if compact else 17.0
+    right = x + width
+    bottom = y + height
+
+    # A hard offset shadow and multiple square rails reproduce the layered,
+    # extruded construction in the artwork without any scale-blurred assets.
+    if fill_face:
+        _rectangle(context, x + 6, y + 7, width - 4, height - 4,
+                   0.025, 0.025, 0.045, 0.88)
+        _rectangle(context, x + 3, y + 2, width - 8, height - 8,
+                   0.08, 0.055, 0.13)
+    else:
+        _rectangle(context, x + 3, y + 2, width - 8, 8,
+                   0.08, 0.055, 0.13)
+        _rectangle(context, x + 3, bottom - 11, width - 8, 8,
+                   0.045, 0.035, 0.075)
+        _rectangle(context, x + 3, y + 10, 8, height - 21,
+                   0.08, 0.055, 0.13)
+        _rectangle(context, right - 11, y + 10, 8, height - 21,
+                   0.035, 0.028, 0.06)
+    _paint_bevel(context, x + 3, y + 2, width - 8, height - 8, heavy=True)
+    _rectangle(context, x + 7, y + 5, width - 16, 3,
+               0.55, 0.24, 0.82)
+    _rectangle(context, x + 7, bottom - 10, width - 16, 3,
+               0.20, 0.10, 0.34)
+    _rectangle(context, x + 6, y + 8, 3, height - 18,
+               0.31, 0.15, 0.52)
+    _rectangle(context, right - 11, y + 8, 3, height - 18,
+               0.08, 0.045, 0.15)
+
+    # The face is inset behind a black lip, then picked out with the cyan and
+    # magenta light strips visible on the gateway itself.
+    if fill_face:
+        _rectangle(context, x + edge - 3, y + edge - 3,
+                   width - edge * 2 + 6, height - edge * 2 + 6,
+                   0.035, 0.030, 0.060)
+        _rectangle(context, x + edge, y + edge,
+                   width - edge * 2, height - edge * 2,
+                   0.145, 0.135, 0.225)
+    else:
+        _rectangle(context, x + edge - 3, y + edge - 3,
+                   width - edge * 2 + 6, 3, 0.035, 0.030, 0.060)
+        _rectangle(context, x + edge - 3, bottom - edge,
+                   width - edge * 2 + 6, 3, 0.035, 0.030, 0.060)
+        _rectangle(context, x + edge - 3, y + edge,
+                   3, height - edge * 2, 0.035, 0.030, 0.060)
+        _rectangle(context, right - edge, y + edge,
+                   3, height - edge * 2, 0.035, 0.030, 0.060)
+    _rectangle(context, x + edge - 2, y + edge - 2,
+               width - edge * 2 + 4, 3, 0.08, 0.89, 0.88)
+    _rectangle(context, x + edge - 2, y + edge + 1,
+               3, height - edge * 2 + 1, 0.08, 0.79, 0.81)
+    _rectangle(context, right - edge - 1, y + edge + 1,
+               3, height - edge * 2 + 1, 0.39, 0.15, 0.58)
+    _rectangle(context, x + edge + 1, bottom - edge - 1,
+               width - edge * 2 - 1, 3, 0.25, 0.12, 0.43)
+
+    # Square clamps intentionally interrupt every rail. They are decorative;
+    # hit testing remains that of the ordinary GTK button beneath them.
+    clamps = (
+        (x + 2, y + 2),
+        (right - corner - 2, y + 2),
+        (x + 2, bottom - corner - 2),
+        (right - corner - 2, bottom - corner - 2),
+    )
+    for clamp_x, clamp_y in clamps:
+        _rectangle(context, clamp_x, clamp_y, corner, corner,
+                   0.17, 0.15, 0.23)
+        _paint_bevel(context, clamp_x, clamp_y, corner, corner)
+        _rectangle(context, clamp_x + 2, clamp_y + 2, 4, 3,
+                   0.13, 0.78, 0.79)
+        _rectangle(context, clamp_x + corner - 6, clamp_y + 3, 3, 4,
+                   0.43, 0.19, 0.62)
+        _paint_rivet(
+            context,
+            clamp_x + corner / 2,
+            clamp_y + corner / 2,
+            1.45 if compact else 1.8,
+        )
+
+
+def _paint_hud_menu_surface(snapshot, width, height):
+    if width < 80 or height < 60:
+        return
+    context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
+    _rectangle(context, 5, 6, width - 5, height - 5, 0.02, 0.025, 0.04, 0.88)
+    _rectangle(context, 1, 1, width - 7, height - 7, 0.19, 0.19, 0.22)
+    _rectangle(context, 12, 13, width - 30, height - 29, 0.12, 0.12, 0.15)
+
+
+def _paint_hud_menu_frame(snapshot, width, height):
+    if width < 80 or height < 60:
+        return
+    context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
+    right = width - 7
+    bottom = height - 7
+    rail = 11
+    _rectangle(context, 1, 1, right, rail, 0.27, 0.27, 0.30)
+    _rectangle(context, 1, bottom - rail, right, rail, 0.13, 0.14, 0.15)
+    _rectangle(context, 1, rail, rail, bottom - rail * 2, 0.23, 0.24, 0.25)
+    _rectangle(context, right - rail, rail, rail, bottom - rail * 2,
+               0.09, 0.09, 0.11)
+    _rectangle(context, 4, 2, right - 8, 2, 0.15, 0.91, 0.88)
+    _rectangle(context, 17, 5, right - 34, 3, 0.57, 0.23, 0.78)
+    _rectangle(context, 4, 5, 3, bottom - 10, 0.48, 0.49, 0.48)
+    _rectangle(context, right - 6, 5, 3, bottom - 10, 0.035, 0.04, 0.05)
+    _rectangle(context, 4, bottom - 7, right - 8, 4, 0.045, 0.05, 0.055)
+    _paint_bevel(context, 11, 11, right - 22, bottom - 22, inset=True, heavy=True)
+    for rivet_x, rivet_y in (
+        (10, 10), (right - 10, 10),
+        (right - 10, bottom - 10), (10, bottom - 10),
+    ):
+        _paint_rivet(context, rivet_x, rivet_y, 2.5)
+
+
+def _paint_hud_menu_stem(snapshot, width, height):
+    if width < 40 or height < 12:
+        return
+    context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
+    center = width * 0.72
+    stem_width = 28.0
+    _rectangle(context, center - stem_width / 2 + 4, 3,
+               stem_width, height, 0.02, 0.025, 0.045, 0.85)
+    _rectangle(context, center - stem_width / 2, 0,
+               stem_width, height, 0.16, 0.14, 0.22)
+    _paint_bevel(context, center - stem_width / 2, 0,
+                 stem_width, height + 5, heavy=True)
+    _rectangle(context, center - 5, 0, 3, height,
+               0.10, 0.83, 0.82)
+    _rectangle(context, center + 3, 0, 3, height,
+               0.45, 0.18, 0.65)
+    _paint_rivet(context, center, height - 5, 2.4)
 
 
 def _paint_panel(snapshot, width, height, kind):
@@ -512,17 +701,30 @@ def paint_board_frame(snapshot, width, height):
 
 def paint_button_hardware(snapshot, width, height, kind):
     """Add corner clamps without changing the button's GTK allocation."""
-    if kind not in {"request", "cancel", "hud"} or width < 36 or height < 28:
+    if kind not in {"request", "cancel", "hud", "hud-menu-item"} or width < 36 or height < 28:
         return
     context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
     if kind == "hud":
-        size = min(12.0, width * 0.24, height * 0.24)
-        colour = (0.31, 0.32, 0.30)
-        rivet_radius = 1.8
-    else:
-        size = min(14.0, height * 0.28)
-        colour = (0.31, 0.32, 0.30) if kind == "cancel" else (0.27, 0.30, 0.25)
-        rivet_radius = 2.2
+        _paint_hud_frame(context, 0, 0, width, height, fill_face=False)
+        return
+    if kind == "hud-menu-item":
+        _rectangle(context, 0, 0, width, 4, 0.48, 0.48, 0.52)
+        _rectangle(context, 0, height - 4, width, 4, 0.055, 0.055, 0.07)
+        _rectangle(context, 0, 0, 4, height, 0.35, 0.35, 0.39)
+        _rectangle(context, width - 4, 0, 4, height, 0.06, 0.06, 0.08)
+        _rectangle(context, 5, 5, width - 10, 2, 0.58, 0.24, 0.76)
+        _rectangle(context, 5, 7, 2, height - 14, 0.10, 0.79, 0.78)
+        _rectangle(context, width - 7, 7, 2, height - 14, 0.28, 0.12, 0.40)
+        _paint_bevel(context, 4, 4, width - 8, height - 8, inset=True)
+        for rivet_x, rivet_y in (
+            (7, 7), (width - 7, 7),
+            (width - 7, height - 7), (7, height - 7),
+        ):
+            _paint_rivet(context, rivet_x, rivet_y, 1.35)
+        return
+    size = min(14.0, height * 0.28)
+    colour = (0.31, 0.32, 0.30) if kind == "cancel" else (0.27, 0.30, 0.25)
+    rivet_radius = 2.2
     if kind == "request":
         # The reference uses a green inset held inside a separate iron cage.
         # Paint that cage over the normal button so hit testing and allocation
@@ -586,6 +788,55 @@ class ArmoredMenuButton(Gtk.MenuButton):
         paint_button_hardware(
             snapshot, self.get_width(), self.get_height(), self._armor_kind,
         )
+
+
+class HudIconFrame(Gtk.Box):
+    """A compact illuminated HUD chassis around a pixel-art menu icon."""
+
+    __gtype_name__ = "OhNoHudIconFrame"
+
+    def __init__(self, pixels, *, display_size=40):
+        super().__init__(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        self.set_size_request(70, 70)
+        self.add_css_class("oh-no-parent-control-hud-menu-icon")
+        icon = PixelIcon(pixels, display_size=display_size, label="")
+        icon.set_halign(Gtk.Align.CENTER)
+        icon.set_valign(Gtk.Align.CENTER)
+        self.append(icon)
+
+    def do_snapshot(self, snapshot):
+        width = self.get_width()
+        height = self.get_height()
+        context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
+        _paint_hud_frame(context, 0, 0, width, height, compact=True)
+        Gtk.Box.do_snapshot(self, snapshot)
+
+
+class HudMenuStem(Gtk.Widget):
+    """Decorative bracket joining the menu plate to its source button."""
+
+    __gtype_name__ = "OhNoHudMenuStem"
+
+    def __init__(self):
+        super().__init__(hexpand=True)
+        self.set_size_request(-1, 28)
+        self.set_can_target(False)
+
+    def do_snapshot(self, snapshot):
+        _paint_hud_menu_stem(snapshot, self.get_width(), self.get_height())
+
+
+class HudMenuBoard(Gtk.Box):
+    """The dark, neon-trimmed plate holding the expanded HUD actions."""
+
+    __gtype_name__ = "OhNoHudMenuBoard"
+
+    def do_snapshot(self, snapshot):
+        width = self.get_width()
+        height = self.get_height()
+        _paint_hud_menu_surface(snapshot, width, height)
+        Gtk.Box.do_snapshot(self, snapshot)
+        _paint_hud_menu_frame(snapshot, width, height)
 
 
 class MetalBoard(Gtk.Box):

@@ -28,9 +28,9 @@ from common.oh_no_parent_control_ui.accessibility import describe_control
 from .model import RequestState, public_error
 from .request_content import RequestContent
 from .chrome import (
-    BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, MENU,
-    SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, MetalBoard,
-    PixelIcon,
+    ABOUT, BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, HELP,
+    MENU, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
+    HudMenuBoard, HudMenuStem, MetalBoard, PixelIcon,
 )
 
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
@@ -979,12 +979,12 @@ class RequestWindow(Adw.ApplicationWindow):
         layout.add_overlay(self._stack)
         help_popover = Gtk.Popover()
         help_popover.set_has_arrow(False)
+        help_popover.set_position(Gtk.PositionType.BOTTOM)
         help_popover.add_css_class("oh-no-parent-control-hud-menu")
-        menu_board = MetalBoard(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        menu_board.add_css_class("oh-no-parent-control-dialog")
+        menu_board = HudMenuBoard(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         menu_board.add_css_class("oh-no-parent-control-hud-menu-board")
         if self._child_overlay:
-            help_item = self._hud_menu_item("HELP")
+            help_item = self._hud_menu_item("HELP", HELP)
             describe_control(
                 help_item, "Help",
                 "Open the product website in the browser.",
@@ -994,7 +994,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 lambda *_args: self._activate_help_menu(help_popover, open_help),
             )
             menu_board.append(help_item)
-        about_item = self._hud_menu_item("ABOUT")
+        about_item = self._hud_menu_item("ABOUT", ABOUT)
         describe_control(
             about_item, "About",
             "Show product name, version, and legal information.",
@@ -1004,9 +1004,10 @@ class RequestWindow(Adw.ApplicationWindow):
             lambda *_args: self._activate_help_menu(help_popover, self._show_about),
         )
         menu_board.append(about_item)
-        help_popover.set_child(menu_board)
         self._muted = False
-        self._mute_icon = PixelIcon(SPEAKER, display_size=24, label="")
+        self._mute_icon = PixelIcon(SPEAKER, display_size=46, label="")
+        self._mute_icon.set_halign(Gtk.Align.CENTER)
+        self._mute_icon.set_valign(Gtk.Align.CENTER)
         self._mute_button = ArmoredButton(
             armor_kind="hud", tooltip_text="Mute sound",
         )
@@ -1017,7 +1018,9 @@ class RequestWindow(Adw.ApplicationWindow):
         self._mute_button.set_child(self._mute_icon)
         self._mute_button.add_css_class("oh-no-parent-control-hud-button")
         self._mute_button.connect("clicked", self._toggle_mute)
-        menu_icon = PixelIcon(MENU, display_size=24, label="")
+        menu_icon = PixelIcon(MENU, display_size=52, label="")
+        menu_icon.set_halign(Gtk.Align.CENTER)
+        menu_icon.set_valign(Gtk.Align.CENTER)
         menu_button = ArmoredMenuButton(
             armor_kind="hud",
             tooltip_text="Menu",
@@ -1031,9 +1034,15 @@ class RequestWindow(Adw.ApplicationWindow):
         menu_button.set_child(menu_icon)
         menu_button.add_css_class("oh-no-parent-control-hud-button")
         menu_button.add_css_class("oh-no-parent-control-menu-button")
+        menu_button.connect("notify::active", self._menu_state_changed)
+        popover_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        popover_content.add_css_class("oh-no-parent-control-hud-menu-content")
+        popover_content.append(HudMenuStem())
+        popover_content.append(menu_board)
+        help_popover.set_child(popover_content)
         top_controls = Gtk.Box(
-            spacing=8, halign=Gtk.Align.END, valign=Gtk.Align.START,
-            margin_top=20, margin_end=20,
+            spacing=18, halign=Gtk.Align.END, valign=Gtk.Align.START,
+            margin_top=24, margin_end=24,
         )
         top_controls.append(self._mute_button)
         top_controls.append(menu_button)
@@ -1092,10 +1101,21 @@ class RequestWindow(Adw.ApplicationWindow):
     def _show_about(self, *_args):
         AboutDialog(self, links_enabled=self._child_overlay).present()
 
+    def _menu_state_changed(self, menu_button, _property):
+        LOG.info(
+            "request-screen menu expanded=%s overlay=%s",
+            menu_button.get_active(),
+            self._child_overlay,
+        )
+
     @staticmethod
-    def _hud_menu_item(label):
-        item = ArmoredButton(label=label, hexpand=True, armor_kind="cancel")
+    def _hud_menu_item(label, icon_pixels):
+        item = ArmoredButton(hexpand=True, armor_kind="hud-menu-item")
         item.add_css_class("oh-no-parent-control-hud-menu-item")
+        content = Gtk.Box(spacing=18, valign=Gtk.Align.CENTER)
+        content.append(HudIconFrame(icon_pixels))
+        content.append(Gtk.Label(label=label, xalign=0, hexpand=True))
+        item.set_child(content)
         return item
 
     @staticmethod

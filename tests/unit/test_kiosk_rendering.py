@@ -45,7 +45,7 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn('def set_muted(self, muted):', source)
         self.assertIn('self._player.set_property("mute", muted)', source)
-        self.assertIn("self._mute_icon = PixelIcon(SPEAKER, display_size=24, label=\"\")", source)
+        self.assertIn("self._mute_icon = PixelIcon(SPEAKER, display_size=46, label=\"\")", source)
         self.assertIn('armor_kind="hud", tooltip_text="Mute sound"', source)
         self.assertIn('self._mute_button.connect("clicked", self._toggle_mute)', source)
         self.assertIn('self._music.set_muted(muted)', source)
@@ -92,17 +92,20 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("preview-child-overlay:", makefile)
         self.assertIn("--preview --child-overlay", makefile)
         self.assertIn(
-            "if self._child_overlay:\n            help_item = self._hud_menu_item(\"HELP\")",
+            "if self._child_overlay:\n            help_item = self._hud_menu_item(\"HELP\", HELP)",
             source,
         )
-        self.assertIn('self._hud_menu_item("ABOUT")', source)
+        self.assertIn('self._hud_menu_item("ABOUT", ABOUT)', source)
         self.assertLess(
-            source.index('self._hud_menu_item("HELP")'),
-            source.index('self._hud_menu_item("ABOUT")'),
+            source.index('self._hud_menu_item("HELP", HELP)'),
+            source.index('self._hud_menu_item("ABOUT", ABOUT)'),
         )
         self.assertIn('always_show_arrow=False', source)
         self.assertIn("oh-no-parent-control-hud-button", source)
         self.assertIn("oh-no-parent-control-hud-menu", source)
+        self.assertIn("popover_content.append(HudMenuStem())", source)
+        self.assertIn("menu_button.connect(\"notify::active\", self._menu_state_changed)", source)
+        self.assertIn('"request-screen menu expanded=%s overlay=%s"', source)
         self.assertNotIn("open-menu-symbolic", source)
 
     def test_result_action_matches_request_and_cancel_button_width(self):
@@ -249,6 +252,9 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("class MetalPanel(Gtk.Box):", chrome)
         self.assertIn("class ArmoredButton(Gtk.Button):", chrome)
         self.assertIn("class ArmoredMenuButton(Gtk.MenuButton):", chrome)
+        self.assertIn("class HudIconFrame(Gtk.Box):", chrome)
+        self.assertIn("class HudMenuStem(Gtk.Widget):", chrome)
+        self.assertIn("class HudMenuBoard(Gtk.Box):", chrome)
         self.assertIn("SPEAKER = _parse_sprite(", chrome)
         self.assertIn("SPEAKER_MUTED = _parse_sprite(", chrome)
         self.assertIn("MENU = _parse_sprite(", chrome)
@@ -260,12 +266,19 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("menubutton.oh-no-parent-control-hud-button > button", css)
         self.assertIn("popover.oh-no-parent-control-hud-menu", css)
         self.assertIn("button.oh-no-parent-control-hud-menu-item", css)
+        self.assertIn("min-width: 110px;", css)
+        self.assertIn("oh-no-parent-control-hud-menu-icon", css)
         self.assertNotIn("border-radius: 18px;", css)
-        from oh_no_parent_control_kiosk.chrome import MENU, SPEAKER, SPEAKER_MUTED
+        from oh_no_parent_control_kiosk.chrome import (
+            ABOUT, HELP, MENU, SPEAKER, SPEAKER_MUTED,
+        )
 
-        for sprite in (SPEAKER, SPEAKER_MUTED, MENU):
+        for sprite in (HELP, ABOUT):
             self.assertEqual(len(sprite), 8)
             self.assertEqual(len(sprite[0]), 8)
+        for sprite in (SPEAKER, SPEAKER_MUTED, MENU):
+            self.assertEqual(len(sprite), 16)
+            self.assertEqual(len(sprite[0]), 16)
         self.assertIn("BOARD_CHAIN_ANCHOR_SIDE_INSET = 12.0", chrome)
         self.assertIn("BOARD_CHAIN_ANCHOR_END_INSET = 34.0", chrome)
         self.assertIn("connector_x =", chrome)

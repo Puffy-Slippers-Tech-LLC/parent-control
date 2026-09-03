@@ -1,6 +1,11 @@
 Name: Oh No Parent Control managed session limits
 Default: yes
 Priority: 1000
+Auth-Type: Additional
+Auth:
+ [success=2 default=ignore] pam_succeed_if.so quiet user = oh-no-parent-control
+ [success=1 default=ignore] pam_succeed_if.so quiet user ingroup sudo
+ required pam_exec.so quiet quiet_log /usr/libexec/oh-no-parent-control-session-limit-check --authenticate
 Account-Type: Additional
 Account:
  [success=4 default=ignore] pam_succeed_if.so quiet service = systemd-user

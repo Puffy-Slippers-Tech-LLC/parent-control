@@ -184,7 +184,7 @@ class Broker:
         self._last_request = {}
 
     def refresh_enabled_extensions(self) -> tuple[int, ...]:
-        """Republish the installed payload for every enabled managed child."""
+        """Reassert extension activation for every enabled managed child."""
         config = self._load_config()
         if self._preferences is None or self._extensions is None:
             raise BackendFailure("extension management is unavailable")
@@ -200,9 +200,8 @@ class Broker:
             try:
                 preferences = self._preferences.load(user.uid)
                 if preferences["parent_control_enabled"]:
-                    # The child runs a private copy under its home directory.
-                    # Reinstalling it here makes changes to the immutable
-                    # package payload effective at the next Shell session.
+                    # A live user bus notifies an existing Shell immediately;
+                    # otherwise the setting is durable for the next session.
                     self._extensions.set_enabled(user.uid, True)
                     refreshed.append(user.uid)
             except Exception as error:
@@ -246,6 +245,111 @@ class Broker:
         return calculate_active_extension_seconds(
             daily_allowance_remaining_seconds, grant_remaining, 0,
         )
+
+    def prepare_own_session(self, caller_uid: int) -> bool:
+        """Restore expired-grant app policy when a child resumes its session.
+
+        A parent may renew an expired grant while the child is at the lock
+        screen. Serialize with approval and re-read ActiveExtension under the
+        transaction lock so a current grant always wins and its applications
+        remain untouched.
+        """
+        if not self._request_lock.acquire(blocking=False):
+            raise Busy("another request is already in progress")
+        try:
+            config = self._load_config()
+            target = self._target(config, caller_uid)
+            try:
+                grant_time, grant_duration = self._accounts.get_extension(target.uid)
+            except Exception as error:
+                raise BackendFailure("remaining-time grant is unavailable") from error
+            if (type(grant_time) is not int or type(grant_duration) is not int or
+                    grant_time < 0 or not 0 <= grant_duration <= UINT32_MAX):
+                raise BackendFailure("remaining-time grant is invalid")
+
+            now_seconds = int(self._now().timestamp())
+            if grant_duration == 0:
+                LOG.info(
+                    "session-prepare target=[Child user] outcome=unchanged "
+                    "reason=no-prior-grant",
+                )
+                return False
+            if grant_time + grant_duration > now_seconds:
+                LOG.info(
+                    "session-prepare target=[Child user] outcome=unchanged "
+                    "reason=active-grant",
+                )
+                return False
+
+            preferences = self._load_request_preferences(target.uid)
+            desired_filter = (False, blocked_targets(preferences, False))
+            termination_patterns = blocked_patterns(preferences, False)
+            terminate_blocked_apps = bool(desired_filter[1] or termination_patterns)
+            if terminate_blocked_apps:
+                if self._running_apps is None:
+                    raise BackendFailure("blocked application termination is unavailable")
+                try:
+                    self._running_apps.preflight(
+                        target.uid, desired_filter[1], termination_patterns,
+                    )
+                except Exception as error:
+                    raise BackendFailure(
+                        "blocked applications could not be stopped"
+                    ) from error
+
+            old_filter = self._accounts.get_filter(target.uid)
+            filter_changed = False
+            termination_started = False
+            try:
+                LOG.info(
+                    "session-prepare target=[Child user] stage=filter-restore "
+                    "blocked_target_count=%d",
+                    len(desired_filter[1]),
+                )
+                self._accounts.set_filter(target.uid, desired_filter)
+                filter_changed = True
+                if self._accounts.get_filter(target.uid) != desired_filter:
+                    raise BackendFailure("app-filter verification failed")
+                if terminate_blocked_apps:
+                    termination_started = True
+                    terminated = self._running_apps.terminate(
+                        target.uid, desired_filter[1], termination_patterns,
+                    )
+                    if type(terminated) is not int or terminated < 0:
+                        raise BackendFailure("blocked application termination failed")
+                    LOG.info(
+                        "session-prepare target=[Child user] "
+                        "stage=blocked-app-termination outcome=accepted count=%d",
+                        terminated,
+                    )
+                LOG.info("session-prepare target=[Child user] outcome=accepted")
+                return True
+            except Exception as error:
+                # Once termination starts, processes cannot be restored. Keep
+                # the canonical strict filter active. Before that point,
+                # preserve the exact policy that preceded reconciliation.
+                if filter_changed and not termination_started:
+                    try:
+                        self._accounts.set_filter(target.uid, old_filter)
+                        if self._accounts.get_filter(target.uid) != old_filter:
+                            raise RuntimeError("app-filter rollback read-back mismatch")
+                    except Exception as rollback_error:
+                        LOG.critical(
+                            "session-prepare outcome=rollback-failed error_type=%s",
+                            type(rollback_error).__name__,
+                        )
+                        raise RollbackFailure(
+                            "session app-filter rollback could not be verified"
+                        ) from rollback_error
+                LOG.warning(
+                    "session-prepare outcome=failed error_type=%s strict_filter=%s",
+                    type(error).__name__, termination_started,
+                )
+                if isinstance(error, BrokerError):
+                    raise
+                raise BackendFailure("session application policy could not be prepared") from error
+        finally:
+            self._request_lock.release()
 
     def get_time_status(self, caller_uid: int, target_uid: int,
                         additional_seconds: int = 0) -> TimeStatus:
@@ -680,8 +784,15 @@ class Broker:
                     raise BackendFailure(
                         "blocked applications could not be stopped"
                     ) from error
-            old_filter = self._accounts.get_filter(target.uid)
-            old_extension = self._accounts.get_extension(target.uid)
+            try:
+                old_filter = self._accounts.get_filter(target.uid)
+                old_extension = self._accounts.get_extension(target.uid)
+            except Exception as error:
+                LOG.warning(
+                    "revoke stage=account-snapshot outcome=failed error_type=%s",
+                    type(error).__name__,
+                )
+                raise BackendFailure("one-time grant state is unavailable") from error
             termination_may_have_changed_processes = False
             try:
                 self._accounts.set_filter(target.uid, desired_filter)
@@ -922,12 +1033,18 @@ class Broker:
                preferences: dict, desired_filter: tuple[bool, tuple[str, ...]],
                extension: tuple[int, int], correlation_id: str,
                termination_patterns: tuple[str, ...] | None = None) -> None:
-        old_limit_type = self._accounts.get_limit_type(target_uid)
-        old_daily_limit = self._accounts.get_daily_limit(target_uid)
-        old_filter = self._accounts.get_filter(target_uid)
-        old_extension = self._accounts.get_extension(target_uid)
+        old_limit_type = old_daily_limit = old_filter = old_extension = None
+        snapshot_complete = False
         termination_may_have_changed_processes = False
         try:
+            # Capture every reversible value before the first write. A read
+            # failure here has made no state change, so it needs public error
+            # translation but must not attempt a partial rollback.
+            old_limit_type = self._accounts.get_limit_type(target_uid)
+            old_daily_limit = self._accounts.get_daily_limit(target_uid)
+            old_filter = self._accounts.get_filter(target_uid)
+            old_extension = self._accounts.get_extension(target_uid)
+            snapshot_complete = True
             desired_daily_limit = preferences["daily_time_limit_minutes"] * 60
             if old_limit_type == 0 or old_daily_limit != desired_daily_limit:
                 LOG.info("request=%s stage=limit-initialize", correlation_id)
@@ -961,7 +1078,12 @@ class Broker:
             if self._accounts.get_extension(target_uid) != extension:
                 raise BackendFailure("extension verification failed")
         except Exception as error:
-            if termination_may_have_changed_processes:
+            if not snapshot_complete:
+                LOG.warning(
+                    "request=%s stage=account-snapshot outcome=failed error_type=%s",
+                    correlation_id, type(error).__name__,
+                )
+            elif termination_may_have_changed_processes:
                 # A killed process cannot be restored. Keep the canonical
                 # hard+soft block filter active, but restore every reversible
                 # account value and never publish the requested time grant.

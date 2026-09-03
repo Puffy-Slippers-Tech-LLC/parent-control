@@ -74,17 +74,21 @@ class SessionLimitCheckTests(unittest.TestCase):
 
     @mock.patch("tools.session_limit_check.pwd.getpwnam")
     def test_non_gdm_authentication_is_unchanged(self, getpwnam):
-        self.assertTrue(
-            session_limit_check.is_authentication_allowed("child", "sudo")
+        self.assertEqual(
+            session_limit_check.authentication_outcome("child", "sudo"),
+            session_limit_check.AuthenticationOutcome.ALLOWED,
         )
         getpwnam.assert_not_called()
 
     @mock.patch("tools.session_limit_check.pwd.getpwnam")
     def test_root_remains_a_recovery_path(self, getpwnam):
         getpwnam.return_value = SimpleNamespace(pw_name="root", pw_uid=0)
-        self.assertTrue(session_limit_check.is_authentication_allowed(
-            "root", "gdm-password",
-        ))
+        self.assertEqual(
+            session_limit_check.authentication_outcome(
+                "root", "gdm-password",
+            ),
+            session_limit_check.AuthenticationOutcome.ALLOWED,
+        )
 
     @mock.patch("tools.session_limit_check.pwd.getpwnam")
     def test_gdm_authentication_denies_zero_time_without_a_grant(self, getpwnam):
@@ -96,9 +100,12 @@ class SessionLimitCheckTests(unittest.TestCase):
 
         with mock.patch.object(session_limit_check.Malcontent.Manager, "new",
                                return_value=manager):
-            self.assertFalse(session_limit_check.is_authentication_allowed(
-                "child", "gdm-password", object(), object(),
-            ))
+            self.assertEqual(
+                session_limit_check.authentication_outcome(
+                    "child", "gdm-password", object(), object(),
+                ),
+                session_limit_check.AuthenticationOutcome.DENIED,
+            )
 
     @mock.patch("tools.session_limit_check.pwd.getpwnam")
     def test_gdm_authentication_allows_an_active_grant(self, getpwnam):
@@ -110,9 +117,12 @@ class SessionLimitCheckTests(unittest.TestCase):
 
         with mock.patch.object(session_limit_check.Malcontent.Manager, "new",
                                return_value=manager):
-            self.assertTrue(session_limit_check.is_authentication_allowed(
-                "child", "gdm-password", object(), object(),
-            ))
+            self.assertEqual(
+                session_limit_check.authentication_outcome(
+                    "child", "gdm-password", object(), object(),
+                ),
+                session_limit_check.AuthenticationOutcome.ALLOWED,
+            )
 
     @mock.patch("tools.session_limit_check.pwd.getpwnam")
     def test_gdm_authentication_backend_failure_fails_closed(self, getpwnam):
@@ -120,26 +130,50 @@ class SessionLimitCheckTests(unittest.TestCase):
         with mock.patch.object(
                 session_limit_check.Malcontent.Manager, "new",
                 side_effect=GLib.Error("unavailable")):
-            self.assertFalse(session_limit_check.is_authentication_allowed(
-                "child", "gdm-password", object(), object(),
-            ))
+            self.assertEqual(
+                session_limit_check.authentication_outcome(
+                    "child", "gdm-password", object(), object(),
+                ),
+                session_limit_check.AuthenticationOutcome.ERROR,
+            )
+
+    @mock.patch("tools.session_limit_check.pwd.getpwnam")
+    def test_inconsistent_denial_is_not_reported_as_no_time(self, getpwnam):
+        getpwnam.return_value = SimpleNamespace(pw_name="child", pw_uid=1001)
+        limits = mock.Mock()
+        limits.check_time_remaining.return_value = (False, 300, True, False)
+        manager = mock.Mock()
+        manager.get_session_limits.return_value = limits
+
+        with mock.patch.object(session_limit_check.Malcontent.Manager, "new",
+                               return_value=manager):
+            self.assertEqual(
+                session_limit_check.authentication_outcome(
+                    "child", "gdm-password", object(), object(),
+                ),
+                session_limit_check.AuthenticationOutcome.ERROR,
+            )
 
     @mock.patch.dict(os.environ, {
         "PAM_USER": "child", "PAM_SERVICE": "gdm-password",
     }, clear=True)
     @mock.patch("tools.session_limit_check._log_authentication_outcome")
-    @mock.patch("tools.session_limit_check.is_authentication_allowed")
+    @mock.patch("tools.session_limit_check.authentication_outcome")
     def test_authentication_mode_returns_the_policy_result(self, check, log):
-        check.return_value = False
+        check.return_value = session_limit_check.AuthenticationOutcome.DENIED
         self.assertEqual(session_limit_check.main(["--authenticate"]), 1)
         check.assert_called_once_with("child", "gdm-password")
-        log.assert_called_once_with(False)
+        log.assert_called_once_with(session_limit_check.AuthenticationOutcome.DENIED)
 
         check.reset_mock()
         log.reset_mock()
-        check.return_value = True
+        check.return_value = session_limit_check.AuthenticationOutcome.ALLOWED
         self.assertEqual(session_limit_check.main(["--authenticate"]), 0)
-        log.assert_called_once_with(True)
+        log.assert_called_once_with(session_limit_check.AuthenticationOutcome.ALLOWED)
+
+        check.return_value = session_limit_check.AuthenticationOutcome.ERROR
+        self.assertEqual(session_limit_check.main(["--authenticate"]), 2)
+        log.assert_called_with(session_limit_check.AuthenticationOutcome.ERROR)
 
     def test_unknown_mode_fails_closed(self):
         self.assertEqual(session_limit_check.main(["--unexpected"]), 1)

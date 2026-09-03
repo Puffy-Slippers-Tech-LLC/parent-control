@@ -94,6 +94,19 @@ class KioskRenderingTests(unittest.TestCase):
             source.index('menu.append("About", "win.about")'),
         )
 
+    def test_result_action_matches_request_and_cancel_button_width(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+        content = KIOSK_CONTENT.read_text(encoding="utf-8")
+
+        self.assertIn("self._result_action = ArmoredButton(", source)
+        self.assertIn("hexpand=True, armor_kind=\"request\"", source)
+        self.assertIn("self._result_action.set_margin_start(10)", source)
+        self.assertIn("self._result_action.set_margin_end(10)", source)
+        self.assertIn("self._request.set_margin_start(10)", content)
+        self.assertIn("self._request.set_margin_end(10)", content)
+        self.assertIn("self._cancel.set_margin_start(10)", content)
+        self.assertIn("self._cancel.set_margin_end(10)", content)
+
     def test_escape_matches_the_cancel_action_when_no_auth_prompt_is_open(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 

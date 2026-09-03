@@ -25,10 +25,9 @@ if [ "$1" = configure ]; then
 
         case "$impacts" in
             *process-restart*|*session-renewal*)
-                # Starting the broker also republishes the immutable child
-                # extension payload to every enabled managed account. The
+                # Starting the broker reasserts per-child activation. A
                 # running Shell keeps its loaded code; the next session reads
-                # the refreshed per-user copy.
+                # the updated immutable system extension payload.
                 systemctl restart oh-no-parent-control-broker.service >/dev/null || true
                 ;;
         esac

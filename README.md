@@ -5,8 +5,8 @@ Parent App, a child-session GNOME Shell extension, and a GNOME Kiosk request
 station for requesting additional time. Eligible child accounts are discovered
 at runtime, including accounts created after installation.
 
-The Parent App lists interactive non-admin users and controls whether the child
-extension is installed and enabled for each one. App-filter states and the last
+The Parent App lists interactive non-admin users and controls whether the
+packaged child extension is activated for each one. App-filter states and the last
 request-menu selection/custom value live in one root-owned per-child record.
 The Parent App, extension, and kiosk all access that record through the broker;
 there are no separate user-home preference files.
@@ -62,6 +62,12 @@ Run the complete host-safe test suite without installing anything:
 ```sh
 make check
 ```
+
+The unit and private-D-Bus component suites use pytest. On Ubuntu 26.04,
+`setup.sh` installs the reviewed archive versions listed in
+`tests/test-tools-ubuntu-26.04.txt`, including `python3-pytest=9.0.2-4` and
+`python3-dbusmock=0.38.1-1`. Run `make check-unit` for unit and contract tests,
+or `make check-component` for the host-safe private-bus component suite.
 
 Preview the kiosk UI from the checkout, with representative fixture data and
 without a kiosk login, broker, D-Bus calls, Polkit, or account changes:

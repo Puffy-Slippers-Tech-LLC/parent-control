@@ -68,8 +68,8 @@ The broker is divided into these layers:
   replacement, activation, and rollback
 - `app_termination.py`: UID-confined native and Flatpak process discovery and
   termination
-- `extension_manager.py`: safe per-child installation/removal and GNOME
-  enablement of the immutable extension payload
+- `extension_manager.py`: safe per-child activation and runtime verification of
+  the immutable GNOME extension payload
 - `config.py` and `logs.py`: fail-closed machine configuration and broker-owned
   component logs
 - `data_migration.py`: offline, version-stepped migration of saved application
@@ -139,7 +139,8 @@ The ownership of runtime state is deliberately split:
 | `ActiveExtension` | AccountsService | Current one-time grant |
 | Usage intervals and estimates | `malcontent-timerd` | Measured daily use |
 | UID-scoped native deny rules | fapolicyd | Live execution policy derived from `AppFilter` and saved patterns |
-| Per-user extension copy | Child home | Derived deployment of the immutable packaged payload |
+| Extension payload | System GNOME data directory | Immutable package content discovered when Shell starts |
+| Extension activation | Per-account GNOME settings | Derived enabled state for managed children |
 
 No measured usage, grant expiry, or generated execution state is imported into
 the preference record.
@@ -160,6 +161,7 @@ the broker resolves and revalidates it.
 | `GetTimeStatus` | own | selected child | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
 | `CalculateOwnRemainingTime` | own | - | - |
+| `PrepareOwnSession` | own | - | - |
 | `UpdateRequestPreferences` | own | selected child | selected child |
 | `SetRequestMuted` | own | selected child | selected child |
 | `SetPreferences` | - | - | selected child |
@@ -180,14 +182,21 @@ Malcontent `LimitType` and `DailyLimit`. The daily limit is an integer from 0
 through 1440 minutes; zero is grant-only mode. App policy remains independent
 of whether the daily limit is enabled.
 
-Enabling from the disabled state installs and enables the child extension,
-clears stale `ActiveExtension`, applies the selected daily limit, and reapplies
-the complete saved app blocklist. Changing the limit while already enabled
-preserves the current grant. Disabling removes the extension, clears the daily
-restriction and current grant, retains the configured choices, and reapplies
-the saved app blocklist. These operations verify the resulting AccountsService
-state before committing the preference record and restore the old state on
-failure.
+The package installs the extension system-wide so every GNOME Shell discovers
+it during startup, while the broker controls activation independently for each
+child. Enabling from the disabled state enables the child extension through
+GNOME Shell's supported `gnome-extensions` interface when a live Shell owns it
+(and through durable offline settings otherwise), clears stale
+`ActiveExtension`, applies the selected daily limit, and reapplies the complete
+saved app blocklist. Changing the limit while already enabled preserves the
+current grant. Disabling deactivates the extension, clears the daily restriction
+and current grant, retains the configured choices, and reapplies the saved app
+blocklist. These operations verify the resulting AccountsService and GNOME
+configured and active extension state before committing the preference record
+and restore the old state on failure. Live activation is accepted only when
+GNOME Shell reports the extension both enabled and active; deactivation is
+accepted only when it reports neither. Offline activation is verified against
+the durable settings that Shell will consume at next login.
 
 The broker owns the backend-compatible grant formula:
 
@@ -218,14 +227,21 @@ method and repeats enforcement if the retained desktop is unlocked without new
 time. `pam_malcontent` independently denies a fresh login at zero. GDM unlocks
 an existing session through PAM authentication without repeating PAM account
 management, so the product PAM profile applies Malcontent's public remaining-
-time check to `gdm-password` authentication as well. This closes the retained-
+time check to `gdm-password` authentication as well. A confirmed zero-time
+result uses PAM's public `PAM_ACCT_EXPIRED` status, which GDM renders as its
+localized time-limit explanation; an indeterminate check remains fail-closed
+without being mislabeled as confirmed exhaustion. This closes the retained-
 session path while preserving active one-time grants; the kiosk and Ubuntu
 administrator accounts bypass this child-only authentication check. Because its
 login-time `RuntimeMaxSec` snapshot would terminate a live session after a
 later grant, the PAM session helper clears that cap after `pam_systemd` creates
 the scope; broker startup also attempts to clear stale caps on existing managed
 sessions. Expiry therefore locks the child instead of logging out that child or
-ending another user's foreground session.
+ending another user's foreground session. Expiry does not itself terminate
+applications. On each new child session and each transition from locked to
+unlocked, the child component invokes the broker-owned `PrepareOwnSession`
+reconciliation described below; the unprivileged component neither decides
+whether a grant is current nor signals processes itself.
 
 ## Application policy and enforcement
 
@@ -259,14 +275,29 @@ and new safe nonmatches are reconciled. Rule replacement is atomic; reload
 failure restores and reloads the previous rule file. On startup, reconciliation
 completes before the D-Bus object is registered.
 
-The specification requires a temporarily relaxed conditional filter to return
-to the complete saved filter when its grant naturally expires. At the time of
-this review, approval, parent-control, and explicit-revocation paths perform
-their required filter transitions, but the broker has no grant-expiry scheduler
-or equivalent reconciliation path. This is an implementation gap. The fix must
-remain broker-owned: re-read `ActiveExtension` at startup and at the scheduled
-expiry, restore the canonical hard-and-soft filter only after verifying that no
-grant is active, and activate the derived fapolicyd policy transactionally.
+The child session asks the broker to prepare application policy whenever a new
+session becomes usable or a locked session resumes. `PrepareOwnSession` derives
+the target child from the D-Bus caller and serializes with approval and
+revocation. While holding that transaction lock, the broker re-reads the
+authoritative `ActiveExtension`; the child component's earlier observation of
+expiry is never used as authority.
+
+If the recorded grant has expired, the broker obtains the canonical hard-and-
+soft targets and patterns from saved preferences, preflights UID-scoped process
+termination, restores and verifies the complete `AppFilter` and derived
+fapolicyd policy, and then stops matching applications owned by that child
+across all of the child's sessions. The remembered request-form toggle does not
+extend an expired grant and is not consulted for this decision. A cleared grant
+with no pending expiry reconciliation requires no additional transition.
+
+If `ActiveExtension` is currently valid, session preparation is a no-op. This
+includes a replacement grant approved after the previous grant expired but
+before the child logs in or unlocks. The replacement approval has already
+installed the policy selected for that grant: an approval allowing soft apps
+therefore preserves the hard-only filter and every running application, while
+an approval that keeps soft blocks has already restored the complete filter and
+stopped blocked applications. Session preparation must not repeat or reverse
+either successful approval transaction.
 
 ## Authorization and grant transactions
 
@@ -288,9 +319,10 @@ the request station.
 After approval, the broker confirms that the requesting bus name still exists
 and revalidates the child, approver, and preferences after authentication,
 after the identity-scoped usage query, and immediately before writes. A
-nonblocking broker lock permits only one approval or revocation transaction at
-a time. The per-caller repeat interval is recorded only after a successful
-grant, so denial or cancellation does not consume it.
+nonblocking broker lock permits only one approval, revocation, or session-entry
+reconciliation transaction at a time. The per-caller repeat interval is
+recorded only after a successful grant, so denial or cancellation does not
+consume it.
 
 For a request that keeps soft blocks enabled, the broker writes and verifies the
 complete hard-and-soft filter, terminates matching apps owned by the selected
@@ -317,12 +349,17 @@ rollback read-back failure is reported distinctly.
    order. App policy applies immediately. Screen-time changes go through
    `SetParentControl`; revocation goes through `RevokeOneTimeGrant` after a
    confirmation that running blocked apps will close.
-2. **Child request:** Selecting the panel indicator launches the kiosk GTK form
+2. **Child session entry:** On extension startup and after an unlock transition,
+   the child component calls `PrepareOwnSession`. The broker re-reads the grant
+   under the shared transaction lock. It reconciles and terminates only for an
+   expired grant; a current replacement grant returns without changing policy
+   or processes.
+3. **Child request:** Selecting the panel indicator launches the kiosk GTK form
    as a fullscreen overlay. `GetOwnAccount` fixes and collapses the child
    selector. The overlay loads shared per-child request choices, uses the
    child-only mute value, and calls `RequestOwnAccess`. Cancel or Escape closes
    the overlay; approval briefly confirms success and then closes it.
-3. **Kiosk request:** The dedicated GNOME session lists eligible children and
+4. **Kiosk request:** The dedicated GNOME session lists eligible children and
    approvers, loads the selected child's request choices, and calls
    `RequestAccess`. The GNOME session is declared as a kiosk session, which
    disables every XDG autostart desktop file; its complete application set is
@@ -338,10 +375,10 @@ exit behavior differ.
 ## Startup, login, and update lifecycle
 
 Broker construction first reconciles all current AccountsService filters into
-fapolicyd. It then republishes the immutable extension payload for every
+fapolicyd. It then reasserts the packaged extension's activation for every
 preference-enabled eligible child and attempts to clear stale live-session
 runtime caps. Only after those steps does it register the D-Bus object. A
-startup reconciliation or extension-publication failure prevents the service
+startup reconciliation or extension-activation failure prevents the service
 from becoming ready.
 
 The packaged fapolicyd drop-in keeps the daemon in systemd's `activating` state
@@ -383,7 +420,8 @@ reboot.
 /usr/libexec/oh-no-parent-control-preserve-extension-state
 /usr/libexec/oh-no-parent-control-{provision,package-activation}
 /usr/lib/oh-no-parent-control/{broker,parent,kiosk,common}/
-/usr/lib/oh-no-parent-control/child/extension/         immutable extension payload
+/usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/
+                                                       immutable extension payload
 /etc/oh-no-parent-control/config.json                  private machine configuration
 /var/lib/oh-no-parent-control/preferences/             authoritative child records
 /var/log/oh-no-parent-control/<component>/             daily component logs
@@ -413,7 +451,9 @@ prunes that component beyond the newest ten dated files.
 - The broker resolves caller identity from system D-Bus and revalidates roles,
   targets, and stale request inputs before privileged writes.
 - A temporary request may remove soft blocks only; it can never remove a hard
-  block. The complete saved filter is the recovery state.
+  block. The complete saved filter is the recovery state. Session-entry
+  reconciliation acts only on an expired grant; a current replacement grant
+  and the live filter installed by its approval take precedence.
 - The kiosk remains request-only, the Parent App remains management and
   revocation only, and the child extension has no independent settings UI.
 - The kiosk GTK request GUI is the single request form. The child session runs

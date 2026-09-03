@@ -11,10 +11,10 @@ ExecStart=/usr/libexec/oh-no-parent-control-broker
 User=root
 Group=sudo
 # ExtensionManager deliberately enters the selected child's identity before
-# accessing that child's dconf database. App termination uses the
+# accessing that child's dconf database and live user bus. App termination uses the
 # PTRACE_MODE_READ_FSCREDS-protected /proc/PID/exe link to verify executable
 # identity before signalling a child-owned process. Keep only the capabilities
-# required for those operations and for installing child-owned extension files.
+# required for those operations.
 CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL CAP_SETGID CAP_SETUID CAP_SYS_PTRACE
 AmbientCapabilities=CAP_SETGID CAP_SETUID
 NoNewPrivileges=yes

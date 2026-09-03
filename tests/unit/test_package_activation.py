@@ -84,7 +84,10 @@ class PackageActivationTests(unittest.TestCase):
     def test_session_payload_change_does_not_signal_reboot(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            extension = root / "usr/lib/oh-no-parent-control/child/extension/extension.js"
+            extension = (
+                root / "usr/share/gnome-shell/extensions/"
+                "oh-no-parent-control@tech.puffyslippers.com/extension.js"
+            )
             extension.parent.mkdir(parents=True)
             extension.write_text("first", encoding="utf-8")
             old = self._manifest(root, "old.json")
@@ -103,6 +106,12 @@ class PackageActivationTests(unittest.TestCase):
         self.assertEqual(
             activation_for(
                 "usr/libexec/oh-no-parent-control-session-limit-check"
+            ),
+            "reboot",
+        )
+        self.assertEqual(
+            activation_for(
+                "usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so"
             ),
             "reboot",
         )

@@ -1,5 +1,5 @@
 - Whenever needing to understand system architecture, refer to @docs/System-Design.md
-- Never use outdated / legacy / internal / private / hacky code
+- Never use outdated / legacy / internal / private / hacky / unsupported code
 - When making a code change, add detailed logging as needed, PII info MUST NOT be logged. Redaction such as [Child user] are allowed.
 - For troubleshooting logs, look in /var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log. If sandbox restrictions prevent reading them, immediately request sandbox  escalation for the minimum necessary read-only command. Never modify or delete logs.
 - Reading any log or journal, retrieving public web pages with read-only tools (including `curl` and `wget`), and internet research are always authorized for this project. If platform sandboxing requires approval, request the minimum necessary read-only escalation without asking separately. Never use these permissions to modify remote or local data.
@@ -7,3 +7,4 @@
 - When adding system integration, classify its update activation; see @docs/Package-Update.md.
 - When a change breaks compatibility with saved application data, follow @docs/Data-Migration.md and ship its migration before changing readers or writers.
 - Whenever touching the child app form or the kiosk app, keep in mind the GUI is shared between them, make sure changes are compatible in both apps.
+- If the dev machine needs a change, make sure to update @setup.sh

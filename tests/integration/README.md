@@ -52,6 +52,25 @@ systemctl is-active accounts-daemon.service fapolicyd.service \
 
 ## Test inventory
 
+## Requirement traceability
+
+`tests/requirements.json` maps every stable `ONPC-...` ID in
+`docs/Specification.md` to its responsible component, required test layer, and
+runtime evidence. Maintain the mapping when a requirement or executable test
+changes. Test references are repository-relative existing files under `tests/`;
+source-contract checks may be recorded as supporting references but never as
+acceptance evidence.
+
+During the staged rollout, run the host-safe structural check with:
+
+```sh
+python3 tools/verify_test_traceability.py --mode stage
+```
+
+Only mark a requirement `covered` after the referenced executable test runs the
+behavior. The final release gate uses `--mode final`, which rejects planned
+coverage and records without executable evidence.
+
 ### Host-safe unit and source-contract tests
 
 `make check` is the required host-safe baseline command.  It does not install
@@ -60,8 +79,9 @@ host app filter.  It runs:
 
 - shell syntax validation for `install.sh`;
 - JavaScript syntax checks for the child extension;
-- Python unit tests in `tests/unit/` covering broker core, adapters,
-  preferences and migrations, execution-policy rendering, catalog,
+- Python unit tests in `tests/unit/` covering broker core, generated broker
+  properties and state-machine transactions, adapters, preferences and
+  migrations, execution-policy rendering, catalog,
   extension lifecycle, logs, kiosk and parent clients/UI, provisioning,
   installer, package activation, systemd unit, and PAM limit helper;
 - Python and XML parse checks; and
@@ -72,6 +92,50 @@ Run it from the repository root:
 
 ```sh
 make check
+```
+
+Pytest markers make the test intent selectable. Every current test is marked
+`unit` or `contract`; the remaining markers are reserved for the component and
+guest layers added later in this plan:
+
+```sh
+make check-marker MARKER=unit
+make check-marker MARKER=contract
+```
+
+The full marker vocabulary is `unit`, `contract`, `component`, `ui`, `system`,
+`e2e`, `slow`, and `guest_mutating`. Source/configuration assertions are
+`contract` tests and are never runtime acceptance evidence. Generate local
+branch-coverage artifacts for the broker, parent, kiosk, common, and tools
+packages with:
+
+```sh
+make check-coverage
+```
+
+This writes HTML and XML reports under the ignored `artifacts/coverage/`
+directory. Coverage is reported by security boundary rather than forced into a
+misleading repository-wide percentage: broker caller/target validation,
+transaction rollback, preferences, migration, execution-policy activation, and
+UID-confined process ownership are the review boundaries. Use the report's
+missing-lines section to identify blind spots; no blanket threshold is applied.
+
+Maintained static checks are available separately and remain host-safe:
+
+```sh
+make check-static
+```
+
+This runs ShellCheck using `.shellcheckrc` and GJS's public module loader for
+the child modules; the existing Node syntax check continues to cover the
+Shell-bound entry point. The Ubuntu archive dependencies are listed in
+`tests/test-tools-ubuntu-26.04.txt`.
+
+Broker generated tests use the committed, deterministic `onpc` Hypothesis
+profile. Re-run them, including committed regression examples, with:
+
+```sh
+make check-unit
 ```
 
 ### Disposable VM integration tests

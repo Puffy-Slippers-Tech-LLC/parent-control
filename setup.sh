@@ -60,12 +60,16 @@ fi
     gir1.2-adw-1 \
     gir1.2-gtk-4.0 \
     gnome-shell \
+    libpam0g-dev=1.7.0-5ubuntu3.2 \
     libglib2.0-bin \
     make \
     mutter-dev-bin \
     nodejs \
     python3 \
+    python3-dbusmock=0.38.1-1 \
     python3-gi \
-    python3-gi-cairo
+    python3-gi-cairo \
+    python3-hypothesis=6.151.5-1 \
+    python3-pytest=9.0.2-4
 
 echo "Development dependencies installed. Run: make check"

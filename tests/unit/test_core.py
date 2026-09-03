@@ -95,6 +95,10 @@ class Accounts:
         self.events.append(("set_daily_limit", uid, value))
         self.daily_limit = value
 
+    def clear_session_runtime_max(self, uid):
+        self.events.append(("clear-runtime-max", uid))
+        return (f"session-{uid}.scope",)
+
 
 class Preferences:
     def __init__(self):
@@ -274,6 +278,16 @@ class CoreTests(unittest.TestCase):
         self.assertEqual([(user.uid, user.label) for user in users], [
             (1001, "Child"), (1002, "Other"),
         ])
+
+    def test_live_session_runtime_caps_are_cleared_only_for_managed_children(self):
+        accounts = Accounts()
+        broker = make_broker(accounts=accounts)
+
+        self.assertEqual(broker.clear_live_session_runtime_caps(), (1001, 1002))
+        self.assertEqual(
+            [event for event in accounts.events if event[0] == "clear-runtime-max"],
+            [("clear-runtime-max", 1001), ("clear-runtime-max", 1002)],
+        )
 
     def test_list_approvers_exposes_only_local_interactive_administrators(self):
         accounts = Accounts()
@@ -806,10 +820,29 @@ class CoreTests(unittest.TestCase):
             )
 
     def test_rate_limit(self):
-        broker = make_broker(clock=lambda: 100)
+        auth = Authorizer()
+        broker = make_broker(auth, clock=lambda: 100)
         broker.request_access(991, ":1.2", 1001, 1003, 900, False)
+        self.assertEqual(len(auth.calls), 1)
         with self.assertRaises(RateLimited):
             broker.request_access(991, ":1.3", 1001, 1003, 900, False)
+        self.assertEqual(len(auth.calls), 1)
+
+    def test_denied_or_cancelled_request_does_not_consume_rate_limit(self):
+        for outcome in ("denied", "cancelled"):
+            with self.subTest(outcome=outcome):
+                auth = Authorizer(outcome)
+                broker = make_broker(auth, clock=lambda: 100)
+                self.assertEqual(
+                    broker.request_access(991, ":1.2", 1001, 1003, 900, False)[1],
+                    outcome,
+                )
+                auth.outcome = "approved"
+                self.assertEqual(
+                    broker.request_access(991, ":1.3", 1001, 1003, 900, False)[1],
+                    "approved",
+                )
+                self.assertEqual(len(auth.calls), 2)
 
     def test_concurrent_request_is_busy(self):
         entered, release = threading.Event(), threading.Event()

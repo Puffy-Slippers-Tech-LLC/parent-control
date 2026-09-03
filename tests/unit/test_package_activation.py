@@ -76,6 +76,20 @@ class PackageActivationTests(unittest.TestCase):
 
             self.assertEqual(changed_impacts(old, new), ["session-renewal"])
 
+    def test_session_runtime_cap_helper_requires_reboot(self):
+        self.assertEqual(
+            activation_for(
+                "usr/libexec/oh-no-parent-control-clear-session-runtime-max"
+            ),
+            "reboot",
+        )
+        self.assertEqual(
+            activation_for(
+                "usr/libexec/oh-no-parent-control-session-limit-check"
+            ),
+            "reboot",
+        )
+
     def test_login_stack_change_requires_reboot(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

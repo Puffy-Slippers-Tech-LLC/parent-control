@@ -37,47 +37,83 @@ window.oh-no-parent-control-overlay {
 }
 
 .oh-no-parent-control-dialog {
-  min-width: 350px;
-  padding: 26px;
-  /* This is a physical board, not a translucent dialog laid over the gate.
-   * Its square, stepped bevel stays part of the child snapshot, so the
-   * gateway's existing yaw applies to the board, its depth, and its controls
-   * as one surface. */
-  border: 6px solid #121927;
-  border-top-color: #718190;
-  border-right-color: #1b2633;
-  border-bottom-color: #080d15;
-  border-left-color: #344452;
-  border-radius: 3px;
-  color: rgba(255, 255, 255, 0.94);
-  background-color: #303b47;
+  min-width: 394px;
+  padding: 22px 18px;
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 16px;
+  /* Physical iron board hung in the gateway. Square riveted plates and a
+   * stepped bevel stay in the child snapshot so the gateway yaw applies to
+   * the board, its depth, and its controls as one surface. */
+  border: 6px solid #10110f;
+  border-top-color: #74766f;
+  border-right-color: #252724;
+  border-bottom-color: #080908;
+  border-left-color: #4f514c;
+  border-radius: 0;
+  color: rgba(236, 236, 230, 0.96);
+  background-color: #3f413e;
   background-image: linear-gradient(to bottom,
-      #647585 0%, #647585 4%, #445462 4%, #37434e 12%,
-      #303a45 88%, #222b36 100%);
-  box-shadow: 0 9px 0 #111824, 0 17px 0 #070b12,
+      #656760 0%, #565852 3%, #444641 3%, #383a37 11%,
+      #353734 88%, #1c1e1c 100%);
+  box-shadow: 0 8px 0 #141512, 0 16px 0 #070807,
       0 28px 38px rgba(0, 0, 0, 0.62),
-      inset 0 3px #92a2af, inset 0 -5px #1a222c;
+      inset 0 2px #a2a49b, inset 0 -5px #161815,
+      inset 0 0 0 1px #111;
 }
 
 .oh-no-parent-control-header {
-  margin: 12px 2px 2px;
+  margin: 5px 0 0;
+  padding: 8px 14px 4px;
+  border: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.oh-no-parent-control-logo-plate {
+  padding: 2px;
+  border: 2px solid #111310;
+  border-top-color: #777a72;
+  border-left-color: #60635c;
+  background-color: #20231f;
+  box-shadow: inset 0 0 0 2px #090a09, 0 3px 0 #090a09;
 }
 
 .oh-no-parent-control-header-icon {
-  min-width: 52px;
-  min-height: 52px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.oh-no-parent-control-header-copy {
+  padding: 4px 6px 2px 0;
 }
 
 .oh-no-parent-control-title {
   color: rgba(255, 255, 255, 0.98);
-  font-size: 1.45em;
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 1.18em;
   font-weight: 700;
+  letter-spacing: 0;
+  /* Pixel fonts ink above the Pango line box; pad so "OH NO!" stays inside. */
+  padding-top: 4px;
+  line-height: 1.05;
 }
 
-.oh-no-parent-control-subtitle,
+.oh-no-parent-control-subtitle {
+  color: rgba(210, 210, 200, 0.72);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 0.70em;
+  padding-right: 4px;
+  padding-bottom: 1px;
+}
+
 .oh-no-parent-control-status {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 0.92em;
+  color: rgba(230, 230, 222, 0.92);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 0.90em;
+  line-height: 1.25;
+  /* Pixel fonts ink below the Pango line box; keep the last row inside. */
+  padding-bottom: 2px;
 }
 
 .oh-no-parent-control-status.oh-no-parent-control-error {
@@ -85,9 +121,45 @@ window.oh-no-parent-control-overlay {
   font-weight: 600;
 }
 
+.oh-no-parent-control-status-row {
+  min-width: 350px;
+  /* Floor for one-line status. Two-line captions grow via wrap measure. */
+  min-height: 62px;
+  margin-top: 3px;
+  padding: 0;
+  border: 2px solid transparent;
+}
+
+.oh-no-parent-control-status-inner {
+  /* 2px extra on the bottom so the last glyph row clears the painted bevel. */
+  margin: 8px 28px 10px 22px;
+}
+
 .oh-no-parent-control-account-row {
   min-width: 350px;
-  min-height: 38px;
+  /* Top inset clears the painted metal bevel so CHILD/APPROVER sit below it. */
+  padding: 7px 12px 6px 10px;
+  border: 2px solid transparent;
+}
+
+.oh-no-parent-control-account-caption {
+  color: rgba(229, 226, 210, 0.90);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 0.92em;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 0;
+  margin: 1px 0 2px 0;
+}
+
+.oh-no-parent-control-role-icon {
+  padding: 2px;
+  border: 2px solid #161713;
+  border-top-color: #706451;
+  border-left-color: #5c513f;
+  background-color: #4c3926;
+  box-shadow: inset 0 1px rgba(255, 232, 181, 0.14), 0 2px 0 #11120f;
 }
 
 .oh-no-parent-control-account-avatar {
@@ -96,39 +168,47 @@ window.oh-no-parent-control-overlay {
 }
 
 button.oh-no-parent-control-account-selector {
-  min-height: 38px;
-  padding: 0 10px;
-  border: 2px solid #17212b;
-  border-top-color: #728390;
-  border-radius: 2px;
-  color: rgba(255, 255, 255, 0.92);
-  background-color: #26323d;
-  box-shadow: 0 3px 0 #111820, inset 0 1px rgba(255, 255, 255, 0.16);
+  min-height: 30px;
+  padding: 0 8px;
+  border: 2px solid #0c0c0c;
+  border-top-color: #171916;
+  border-left-color: #111310;
+  border-right-color: #4b4e48;
+  border-bottom-color: #60635c;
+  border-radius: 0;
+  color: rgba(236, 236, 230, 0.94);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 1em;
+  background-color: #171a17;
+  background-image: linear-gradient(to bottom, #20231f, #141714);
+  box-shadow: inset 0 2px #090a09, inset 0 -1px rgba(255, 255, 255, 0.07),
+      0 2px 0 #151613;
 }
 
 button.oh-no-parent-control-account-selector:hover,
 button.oh-no-parent-control-account-selector:focus-visible {
   border-color: rgba(115, 230, 167, 0.62);
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: #1c1c20;
 }
 
 .oh-no-parent-control-account-choices {
   padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 2px;
-  background-color: #1b2530;
-  box-shadow: 0 5px 0 #090d13, 0 8px 20px rgba(0, 0, 0, 0.34), inset 0 1px rgba(255, 255, 255, 0.10);
+  border: 2px solid #0c0c0c;
+  border-radius: 0;
+  background-color: #151815;
+  box-shadow: 0 5px 0 #09090b, 0 8px 20px rgba(0, 0, 0, 0.34), inset 0 1px rgba(255, 255, 255, 0.08);
 }
 
 button.oh-no-parent-control-account-choice {
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 1px;
-  color: rgba(255, 255, 255, 0.90);
+  border-radius: 0;
+  color: rgba(236, 236, 230, 0.90);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 1em;
   background: transparent;
   box-shadow: none;
-  text-align: left;
 }
 
 button.oh-no-parent-control-account-choice:hover,
@@ -138,22 +218,34 @@ button.oh-no-parent-control-account-choice:focus-visible {
   background-color: rgba(115, 230, 167, 0.18);
 }
 
+button.oh-no-parent-control-account-scroll {
+  min-height: 18px;
+  padding: 0;
+}
+
+button.oh-no-parent-control-account-scroll:disabled {
+  opacity: 0.35;
+}
+
 .oh-no-parent-control-choices {
   min-width: 336px;
-  padding: 7px;
-  border: 3px solid #1b2630;
-  border-top-color: #70808d;
-  border-radius: 2px;
-  background-color: #25313c;
-  box-shadow: 0 4px 0 #111820, inset 0 2px rgba(255, 255, 255, 0.12);
+  padding: 0 7px 7px;
+  border: 6px solid transparent;
+  border-top-width: 3px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 button.oh-no-parent-control-choice {
-  min-height: 20px;
-  padding: 10px 13px;
+  min-height: 16px;
+  padding: 1px 13px 2px;
+  line-height: 1;
   border: 1px solid transparent;
-  border-radius: 1px;
-  color: rgba(255, 255, 255, 0.78);
+  border-radius: 0;
+  color: rgba(220, 220, 214, 0.82);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 1em;
   background: transparent;
   box-shadow: none;
   text-shadow: none;
@@ -163,34 +255,54 @@ button.oh-no-parent-control-choice {
 button.oh-no-parent-control-choice:hover,
 button.oh-no-parent-control-choice:focus-visible {
   color: white;
-  border-color: rgba(255, 255, 255, 0.18);
-  background-color: rgba(255, 255, 255, 0.10);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.10);
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04);
 }
 
 button.oh-no-parent-control-choice:checked {
   color: white;
-  border-color: rgba(115, 230, 167, 0.72);
-  background-color: rgba(36, 182, 111, 0.72);
-  background-image: linear-gradient(to right, rgba(75, 199, 131, 0.90), rgba(36, 182, 111, 0.78));
-  box-shadow: 0 3px 0 rgba(9, 71, 49, 0.92), 0 0 16px rgba(69, 223, 141, 0.42), inset 0 1px rgba(255, 255, 255, 0.28);
+  border-color: #254b20;
+  border-left-color: #75a464;
+  border-top-color: #8aba76;
+  border-bottom-color: #173a15;
+  background-color: #4b9341;
+  background-image: repeating-linear-gradient(to bottom,
+      #65a952 0px, #65a952 2px, #4c8f3f 2px, #4c8f3f 4px);
+  box-shadow: 0 3px 0 #173a15, inset 0 1px rgba(255, 255, 255, 0.24);
 }
 
 button.oh-no-parent-control-choice:checked:hover {
-  border-color: rgba(168, 245, 199, 0.92);
-  background-image: linear-gradient(to right, rgba(92, 214, 148, 0.94), rgba(43, 194, 120, 0.88));
+  border-color: #80b46e;
+  background-image: repeating-linear-gradient(to bottom,
+      #76ba62 0px, #76ba62 2px, #57a149 2px, #57a149 4px);
+}
+
+.oh-no-parent-control-choice-pointer {
+  opacity: 0;
+  margin-left: -7px;
+}
+
+button.oh-no-parent-control-choice:checked .oh-no-parent-control-choice-pointer {
+  opacity: 1;
 }
 
 button.oh-no-parent-control-app-filter-toggle {
-  min-width: 350px;
+  min-width: 348px;
   min-height: 36px;
   padding: 7px 11px;
-  border: 2px solid #1a2530;
-  border-top-color: #667783;
-  border-radius: 2px;
-  color: rgba(255, 255, 255, 0.88);
-  background-color: #26323d;
-  box-shadow: 0 3px 0 #111820, inset 0 1px rgba(255, 255, 255, 0.08);
+  border: 4px solid #141613;
+  border-top-color: #777a71;
+  border-left-color: #5a5d56;
+  border-right-color: #20221f;
+  border-bottom-color: #0c0e0b;
+  border-radius: 0;
+  color: rgba(230, 230, 224, 0.90);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  background-color: #3b3e39;
+  background-image: repeating-linear-gradient(to bottom,
+      #444741 0px, #444741 5px, #3c3f3a 5px, #3c3f3a 10px);
+  box-shadow: 0 4px 0 #10120f, inset 0 1px rgba(255, 255, 255, 0.10);
   transition: 150ms ease;
 }
 
@@ -198,38 +310,76 @@ button.oh-no-parent-control-app-filter-toggle:hover,
 button.oh-no-parent-control-app-filter-toggle:focus-visible {
   color: white;
   border-color: rgba(255, 255, 255, 0.18);
-  background-color: rgba(255, 255, 255, 0.10);
+  background-color: #3a3a40;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .oh-no-parent-control-app-filter-label {
   color: inherit;
   font-weight: 600;
+  font-size: 0.95em;
+}
+
+.oh-no-parent-control-filter-icon {
+  padding: 4px;
+  border: 2px solid #1a2419;
+  border-top-color: #77906e;
+  border-left-color: #5c7955;
+  background-color: #30472d;
+  box-shadow: inset 0 0 0 1px #132112, 0 2px 0 #11130f;
+}
+
+.oh-no-parent-control-app-filter-toggle switch {
+  min-width: 40px;
+  min-height: 20px;
+  border: 2px solid #0c0c0c;
+  border-radius: 0;
+  background-color: #151714;
+  box-shadow: inset 0 2px #0a0a0a;
+}
+
+.oh-no-parent-control-app-filter-toggle switch slider {
+  min-width: 16px;
+  min-height: 16px;
+  margin: 1px;
+  border: 1px solid #2a2a2c;
+  border-top-color: #9a9aa0;
+  border-radius: 0;
+  background-color: #8b8d86;
 }
 
 .oh-no-parent-control-app-filter-toggle switch:checked {
   color: white;
-  border-color: rgba(115, 230, 167, 0.72);
-  background-color: rgba(36, 182, 111, 0.82);
+  border-color: #1b5e20;
+  background-color: #3d9c40;
+}
+
+.oh-no-parent-control-app-filter-toggle switch:checked slider {
+  background-color: #e8e8e4;
+  border-top-color: white;
 }
 
 .oh-no-parent-control-custom-row {
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(220, 220, 214, 0.72);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 1em;
 }
 
 entry.oh-no-parent-control-custom-entry {
   min-height: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 1px;
+  border: 2px solid #0c0c0c;
+  border-radius: 0;
   color: white;
-  background-color: rgba(255, 255, 255, 0.08);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  background-color: #161618;
 }
 
 .oh-no-parent-control-screen-limit-notice {
   padding: 14px 20px;
   color: rgba(255, 255, 255, 0.96);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
   font-weight: 700;
-  background-color: rgba(7, 12, 17, 0.96);
+  background-color: rgba(7, 8, 9, 0.96);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
@@ -239,35 +389,51 @@ entry.oh-no-parent-control-custom-entry {
 
 button.oh-no-parent-control-cancel-button {
   min-height: 42px;
-  margin-top: 4px;
-  border: 2px solid #17212b;
-  border-top-color: #71818e;
-  border-radius: 2px;
-  color: rgba(255, 255, 255, 0.90);
+  margin-top: 7px;
+  border: 3px solid #141416;
+  border-top-color: #92948c;
+  border-left-color: #73766e;
+  border-right-color: #292b28;
+  border-bottom-color: #0c0c0c;
+  border-radius: 0;
+  color: rgba(236, 236, 230, 0.94);
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 1.08em;
   font-weight: 700;
-  background-color: #303c47;
-  background-image: none;
-  box-shadow: 0 4px 0 #111820, inset 0 1px rgba(255, 255, 255, 0.12);
+  letter-spacing: 1px;
+  background-color: #4a4d48;
+  background-image: repeating-linear-gradient(to bottom,
+      #595c56 0px, #595c56 5px, #50534e 5px, #50534e 10px);
+  box-shadow: 0 4px 0 #10120f, inset 0 1px #a2a49c;
   text-shadow: none;
 }
 
 button.oh-no-parent-control-cancel-button:hover,
 button.oh-no-parent-control-cancel-button:focus-visible {
   border-color: rgba(255, 255, 255, 0.30);
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: #5a5a60;
+  background-image: linear-gradient(to bottom, #6a6a70, #44444a);
 }
 
 button.oh-no-parent-control-request-button,
 .oh-no-parent-control-secondary-page button.suggested-action {
   min-height: 42px;
   margin-top: 4px;
-  border: 1px solid rgba(115, 230, 167, 0.64);
-  border-radius: 2px;
+  border: 4px solid #163c14;
+  border-top-color: #a5d795;
+  border-left-color: #78b966;
+  border-right-color: #244c20;
+  border-bottom-color: #102f0e;
+  border-radius: 0;
   color: white;
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 1.08em;
   font-weight: 700;
-  background-color: rgba(36, 182, 111, 0.70);
-  background-image: linear-gradient(to bottom, rgba(75, 199, 131, 0.84), rgba(36, 182, 111, 0.68));
-  box-shadow: 0 4px 0 rgba(9, 71, 49, 0.92), 0 0 14px rgba(69, 223, 141, 0.30), inset 0 1px rgba(255, 255, 255, 0.24);
+  letter-spacing: 1px;
+  background-color: #4b9341;
+  background-image: repeating-linear-gradient(to bottom,
+      #67aa54 0px, #67aa54 2px, #4b8f40 2px, #4b8f40 4px);
+  box-shadow: 0 5px 0 #163c14, inset 0 1px rgba(255, 255, 255, 0.28);
   text-shadow: none;
 }
 
@@ -275,16 +441,17 @@ button.oh-no-parent-control-request-button:hover,
 button.oh-no-parent-control-request-button:focus-visible,
 .oh-no-parent-control-secondary-page button.suggested-action:hover,
 .oh-no-parent-control-secondary-page button.suggested-action:focus-visible {
-  border-color: rgba(168, 245, 199, 0.88);
-  background-color: rgba(43, 194, 120, 0.82);
-  background-image: linear-gradient(to bottom, rgba(92, 214, 148, 0.92), rgba(43, 194, 120, 0.78));
-  box-shadow: 0 0 18px rgba(69, 223, 141, 0.42), inset 0 1px rgba(255, 255, 255, 0.30);
+  border-top-color: #d8ffd0;
+  background-image: repeating-linear-gradient(to bottom,
+      #77ba63 0px, #77ba63 2px, #57a149 2px, #57a149 4px);
+  box-shadow: 0 5px 0 #163c14, inset 0 1px rgba(255, 255, 255, 0.36);
 }
 
 button.oh-no-parent-control-request-button:disabled {
   color: rgba(255, 255, 255, 0.42);
-  border-color: rgba(255, 255, 255, 0.10);
-  background: rgba(255, 255, 255, 0.05);
+  border-color: #1a1a1c;
+  background: #2a2a2e;
+  background-image: none;
   box-shadow: none;
 }
 
@@ -294,6 +461,7 @@ button.oh-no-parent-control-request-button:disabled {
 
 .oh-no-parent-control-page-title {
   color: rgba(255, 255, 255, 0.98);
-  font-size: 1.45em;
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 1.28em;
   font-weight: 700;
 }

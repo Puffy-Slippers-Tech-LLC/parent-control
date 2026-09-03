@@ -332,6 +332,17 @@ class Broker:
         users = (user for user in self._accounts.list_users() if self._eligible(config, user))
         return tuple(sorted(users, key=lambda user: (user.label.casefold(), user.uid)))
 
+    def clear_live_session_runtime_caps(self) -> tuple[int, ...]:
+        """Drop login-time systemd kill timers on live managed child sessions."""
+        config = self._load_config()
+        cleared = []
+        for user in self._accounts.list_users():
+            if not self._eligible(config, user):
+                continue
+            if self._accounts.clear_session_runtime_max(user.uid):
+                cleared.append(user.uid)
+        return tuple(cleared)
+
     def get_own_account(self, caller_uid: int) -> UserAccount:
         """Return the managed child identity of the calling session."""
         config = self._load_config()
@@ -705,6 +716,9 @@ class Broker:
             )
             if request_kind == "child" and not preferences["parent_control_enabled"]:
                 raise AccessDenied("parent control is not enabled for this account")
+            # Check before prompting so a recent grant is rejected without a
+            # new authorization dialog. Denied and cancelled attempts do not
+            # consume the interval; only a completed grant records it below.
             self._apply_rate_limit(caller_uid, config.minimum_request_interval_seconds)
             LOG.info("request=%s caller_uid=%d target_uid=%d approver_uid=%d "
                      "duration_seconds=%d allow_soft=%s kind=%s stage=authorize",
@@ -793,6 +807,7 @@ class Broker:
                 target.uid, preferences, desired_filter,
                 (issued_at, duration), correlation_id,
             )
+            self._record_rate_limit(caller_uid)
             LOG.info("request=%s outcome=approved", correlation_id)
             return correlation_id, "approved", duration
         finally:
@@ -811,7 +826,10 @@ class Broker:
             previous = self._last_request.get(caller_uid)
             if previous is not None and current - previous < interval:
                 raise RateLimited("requests are being made too quickly")
-            self._last_request[caller_uid] = current
+
+    def _record_rate_limit(self, caller_uid: int) -> None:
+        with self._rate_lock:
+            self._last_request[caller_uid] = self._monotonic()
 
     def _load_request_preferences(self, target_uid: int) -> dict:
         if self._preferences is None:

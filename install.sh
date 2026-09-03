@@ -312,6 +312,7 @@ require test -x /usr/libexec/oh-no-parent-control-provision
 require test -x /usr/libexec/oh-no-parent-control-package-activation
 require test -x /usr/libexec/oh-no-parent-control-preserve-extension-state
 require test -x /usr/libexec/oh-no-parent-control-session-limit-check
+require test -x /usr/libexec/oh-no-parent-control-clear-session-runtime-max
 require test -x /usr/libexec/oh-no-parent-control-execution-policy-ready
 require test -x /usr/libexec/oh-no-parent-control-execution-policy-probe
 require test -s /usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/Gearbox_Waltz.mp3
@@ -347,6 +348,8 @@ require grep -Fq "pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-c
 require grep -Fq "pam_malcontent.so" /etc/pam.d/common-account
 require grep -Fq "pam_exec.so quiet quiet_log /usr/libexec/oh-no-parent-control-session-limit-check" \
     /etc/pam.d/common-account
+require grep -Fq "pam_exec.so quiet /usr/libexec/oh-no-parent-control-clear-session-runtime-max" \
+    /etc/pam.d/common-session
 require grep -Fq "pam_succeed_if.so quiet user ingroup sudo" \
     /etc/pam.d/common-account
 require grep -Fq "Group=sudo" /usr/lib/systemd/system/oh-no-parent-control-broker.service

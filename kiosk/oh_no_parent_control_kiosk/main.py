@@ -26,6 +26,9 @@ from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_hel
 
 from .model import RequestState, public_error
 from .request_content import RequestContent
+from .chrome import (
+    BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, MetalBoard,
+)
 
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
 OBJECT_PATH = "/com/puffyslippers/OhNoParentControl1"
@@ -34,8 +37,11 @@ INTERFACE = BUS_NAME
 # G_MAXINT is GIO's supported no-timeout value.
 REQUEST_TIMEOUT_MS = GLib.MAXINT
 # Keep the confirmation visible briefly before returning to GDM or
-# closing the child overlay.
+# closing the child overlay.  Fade the soundtrack over the same interval
+# so dismissal does not cut the music off.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
+SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
+MUSIC_FADE_TICK_MS = 50
 CHILD_SUCCESS_TITLE = "Time granted"
 CHILD_SUCCESS_COPY = "Time granted, click here to close"
 GATEWAY_EFFECT_FRAME_MS = 33
@@ -65,8 +71,18 @@ GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0
 GATEWAY_FORM_CENTERING_OFFSET = 0.019
 PREVIEW_DEFAULT_WIDTH = 1918
 PREVIEW_DEFAULT_HEIGHT = 1443
-PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
-PREVIEW_APPROVERS = ((1000, "Taylor Morgan"),)
+PREVIEW_USERS = (
+    (1001, "Alex Morgan"),
+    (1002, "Sam Rivera"),
+    (1003, "Jordan Hale"),
+    (1004, "Riley Chen"),
+    (1005, "Casey Brooks"),
+)
+PREVIEW_APPROVERS = (
+    (1000, "Taylor Morgan"),
+    (1010, "Avery Quinn"),
+    (1011, "Morgan Blake"),
+)
 PREVIEW_PREFERENCES = {
     1001: {
         "parent_control_enabled": True,
@@ -78,6 +94,30 @@ PREVIEW_PREFERENCES = {
     },
     1002: {
         "parent_control_enabled": False,
+        "request": {
+            "last_selected_duration": "1800",
+            "last_custom_minutes": 30,
+            "allow_soft_blocked_apps": False,
+        },
+    },
+    1003: {
+        "parent_control_enabled": True,
+        "request": {
+            "last_selected_duration": "1800",
+            "last_custom_minutes": 30,
+            "allow_soft_blocked_apps": False,
+        },
+    },
+    1004: {
+        "parent_control_enabled": True,
+        "request": {
+            "last_selected_duration": "1800",
+            "last_custom_minutes": 30,
+            "allow_soft_blocked_apps": False,
+        },
+    },
+    1005: {
+        "parent_control_enabled": True,
         "request": {
             "last_selected_duration": "1800",
             "last_custom_minutes": 30,
@@ -119,6 +159,48 @@ def _gateway_inner_corners(width, height):
     )
 
 
+def _centroid(points):
+    count = len(points)
+    return (
+        sum(point[0] for point in points) / count,
+        sum(point[1] for point in points) / count,
+    )
+
+
+def _unit_vector(origin, target):
+    vector_x = target[0] - origin[0]
+    vector_y = target[1] - origin[1]
+    length = math.hypot(vector_x, vector_y)
+    if length < 1e-9:
+        return (0.0, 0.0)
+    return (vector_x / length, vector_y / length)
+
+
+def _convex_hull(points):
+    """Return the counterclockwise convex hull of 2D points."""
+    unique = sorted(set(points))
+    if len(unique) <= 2:
+        return tuple(unique)
+
+    def cross(origin, first, second):
+        return (
+            (first[0] - origin[0]) * (second[1] - origin[1])
+            - (first[1] - origin[1]) * (second[0] - origin[0])
+        )
+
+    def half(sequence):
+        hull = []
+        for point in sequence:
+            while len(hull) >= 2 and cross(hull[-2], hull[-1], point) <= 0:
+                hull.pop()
+            hull.append(point)
+        return hull
+
+    lower = half(unique)
+    upper = half(reversed(unique))
+    return tuple(lower[:-1] + upper[:-1])
+
+
 class BrokerLogHandler(logging.Handler):
     """Forward front-end records to the broker-owned daily log."""
 
@@ -156,15 +238,49 @@ class BackgroundMusic:
         self._bus.add_signal_watch()
         self._bus.connect("message::eos", self._restart)
         self._bus.connect("message::error", self._error)
+        self._fade_source_id = None
+        self._nominal_volume = 1.0
 
     def start(self):
+        self._player.set_property("volume", self._nominal_volume)
         self._player.set_state(Gst.State.PLAYING)
 
     def set_muted(self, muted):
         """Mute or restore the soundtrack without interrupting its loop."""
         self._player.set_property("mute", muted)
 
+    def fade_out(self, duration_ms):
+        """Lower volume to silence over duration_ms, then leave it at zero."""
+        self.cancel_fade(restore=False)
+        if self._player.get_property("mute"):
+            self._player.set_property("volume", 0.0)
+            return
+        start_volume = self._player.get_property("volume")
+        started_us = GLib.get_monotonic_time()
+        duration_us = max(1, duration_ms) * 1_000
+
+        def tick():
+            elapsed_us = GLib.get_monotonic_time() - started_us
+            if elapsed_us >= duration_us:
+                self._player.set_property("volume", 0.0)
+                self._fade_source_id = None
+                return GLib.SOURCE_REMOVE
+            remaining = 1.0 - (elapsed_us / duration_us)
+            self._player.set_property("volume", start_volume * remaining)
+            return GLib.SOURCE_CONTINUE
+
+        self._fade_source_id = GLib.timeout_add(MUSIC_FADE_TICK_MS, tick)
+
+    def cancel_fade(self, restore=True):
+        """Stop an in-progress fade and optionally restore playback volume."""
+        if self._fade_source_id is not None:
+            GLib.source_remove(self._fade_source_id)
+            self._fade_source_id = None
+        if restore:
+            self._player.set_property("volume", self._nominal_volume)
+
     def close(self):
+        self.cancel_fade(restore=False)
         self._bus.remove_signal_watch()
         self._player.set_state(Gst.State.NULL)
 
@@ -461,16 +577,42 @@ class GatewayBackground(Gtk.Widget):
                 context.stroke()
 
 
-def _gateway_form_projection(width, height):
+def _gateway_form_scale(width, height, form_width, form_height):
+    """Keep the form's design size relative to the gateway at every resolution.
+
+    The board is authored against the preview window. Cover-scaling the
+    artwork already tracks monitor size, so the form uses that same ratio.
+    A further fit clamp keeps the yawed board inside a smaller allocation
+    instead of clipping its natural height.
+    """
+    _image_x, _image_y, rendered_width, _rendered_height = (
+        _gateway_artwork_geometry(width, height)
+    )
+    preview_cover = max(
+        PREVIEW_DEFAULT_WIDTH / GATEWAY_ARTWORK_WIDTH,
+        PREVIEW_DEFAULT_HEIGHT / GATEWAY_ARTWORK_HEIGHT,
+    )
+    window_cover = (
+        rendered_width / GATEWAY_ARTWORK_WIDTH if GATEWAY_ARTWORK_WIDTH else 1.0
+    )
+    design_scale = window_cover / preview_cover if preview_cover else 1.0
+    if form_width <= 0 or form_height <= 0:
+        return design_scale
+    fit = min(width / form_width, height / form_height)
+    return min(design_scale, fit)
+
+
+def _gateway_form_projection(width, height, scale=1.0):
     """Return the gateway's perspective transform around the form's centre."""
     return (
         Gsk.Transform.new()
         .translate(Graphene.Point().init(width / 2, height / 2))
-        .perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH)
+        .perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH * scale)
         .rotate_3d(
             GATEWAY_FORM_YAW_DEGREES,
             Graphene.Vec3().init(0, 1, 0),
         )
+        .scale(scale, scale)
         .translate(Graphene.Point().init(-width / 2, -height / 2))
     )
 
@@ -491,13 +633,18 @@ class GatewayAlignedRequest(Gtk.Widget):
         _minimum_width, natural_width, _minimum_baseline, _natural_baseline = (
             self._child.measure(Gtk.Orientation.HORIZONTAL, -1)
         )
-        child_width = min(width, natural_width)
+        child_width = max(1, natural_width)
         _minimum_height, natural_height, _minimum_baseline, _natural_baseline = (
             self._child.measure(Gtk.Orientation.VERTICAL, child_width)
         )
-        child_height = min(height, natural_height)
+        child_height = max(1, natural_height)
+        form_scale = _gateway_form_scale(
+            width, height, child_width, child_height,
+        )
 
-        projection = _gateway_form_projection(child_width, child_height)
+        projection = _gateway_form_projection(
+            child_width, child_height, form_scale,
+        )
         projected_bounds = projection.transform_bounds(
             Graphene.Rect().init(0, 0, child_width, child_height),
         )
@@ -508,18 +655,22 @@ class GatewayAlignedRequest(Gtk.Widget):
             (height - projected_bounds.get_height()) / 2 - projected_bounds.get_y(),
         )
         transform = Gsk.Transform.new().translate(placement).transform(projection)
-        # Use the complete allocation transform for the attachment points. In
-        # particular, this keeps the top and bottom corners on the form's yawed
-        # edges instead of approximating them from an axis-aligned allocation.
+        # Use the complete allocation transform for the attachment points and
+        # terminate each chain at a visible lug on the vertical rail. Attaching
+        # to the mathematical outer vertices leaves a hollow ring wrapped
+        # around the board and reads as floating instead of mechanically
+        # secured.
+        side = BOARD_CHAIN_ANCHOR_SIDE_INSET
+        end = BOARD_CHAIN_ANCHOR_END_INSET
         self._form_corners = tuple(
             (projected.x, projected.y)
             for projected in (
                 transform.transform_point(Graphene.Point().init(x, y))
                 for x, y in (
-                    (0, 0),
-                    (child_width, 0),
-                    (child_width, child_height),
-                    (0, child_height),
+                    (side, end),
+                    (child_width - side, end),
+                    (child_width - side, child_height - end),
+                    (side, child_height - end),
                 )
             )
         )
@@ -542,26 +693,36 @@ class GatewayAlignedRequest(Gtk.Widget):
         gateway_corners = _gateway_inner_corners(width, height)
 
         # The gateway artwork is a single background texture, so it cannot
-        # naturally occlude overlay content. Restrict the visible chains to
-        # the measured inner opening: their extended terminal links continue
-        # through the boundary geometrically but disappear beneath the frame.
+        # naturally occlude overlay content. Clip to the convex hull of the
+        # inner opening and the live form lugs: terminal links still disappear
+        # beneath the frame, while a board taller than the opening keeps a
+        # visible run of chain out to its corners instead of being cropped at
+        # the gateway's top and bottom edges.
+        clip_polygon = _convex_hull((*gateway_corners, *self._form_corners))
         context.save()
-        context.move_to(*gateway_corners[0])
-        for corner in gateway_corners[1:]:
-            context.line_to(*corner)
-        context.close_path()
-        context.clip()
+        if len(clip_polygon) >= 3:
+            context.move_to(*clip_polygon[0])
+            for corner in clip_polygon[1:]:
+                context.line_to(*corner)
+            context.close_path()
+            context.clip()
 
+        opening_center = _centroid(gateway_corners)
+        form_center = _centroid(self._form_corners)
         for gateway_corner, form_corner in zip(
             gateway_corners, self._form_corners,
         ):
             self._draw_minecraft_chain(
                 context, gateway_corner, form_corner, link_length,
+                start_extend=_unit_vector(opening_center, gateway_corner),
+                end_extend=_unit_vector(form_corner, form_center),
             )
         context.restore()
 
     @classmethod
-    def _draw_minecraft_chain(cls, context, start, end, link_length):
+    def _draw_minecraft_chain(
+        cls, context, start, end, link_length, start_extend=None, end_extend=None,
+    ):
         """Draw interlocking, angular links between two attachment points."""
         vector_x = end[0] - start[0]
         vector_y = end[1] - start[1]
@@ -569,24 +730,26 @@ class GatewayAlignedRequest(Gtk.Widget):
         if distance < 1:
             return
 
-        # Bury the gateway terminal substantially beneath the inner frame. Its
-        # faceted end then reads as emerging from the portal corner instead of
-        # merely touching an antialiased pixel edge. The form is painted after
-        # the chains, so a smaller overlap is enough at that end.
+        # Bury the gateway terminal beneath the inner frame, and seat the form
+        # terminal under the board bevel.  Those extensions follow the opening
+        # and the board, not the chain direction, so a form that sticks out of
+        # the gateway still meets a chain at its lug instead of stretching the
+        # inset the wrong way.
         unit_x = vector_x / distance
         unit_y = vector_y / distance
         gateway_inset = max(12.0, min(24.0, link_length * 0.68))
-        # Seat the terminal link well beneath the board's opaque bevel.  A
-        # shallow overlap leaves the hollow centre of a ring exposed at the
-        # edge and makes a mechanically attached chain look detached.
-        form_overlap = max(10.0, min(22.0, link_length * 0.52))
+        form_overlap = max(18.0, min(38.0, link_length * 0.90))
+        if start_extend is None:
+            start_extend = (-unit_x, -unit_y)
+        if end_extend is None:
+            end_extend = (unit_x, unit_y)
         start = (
-            start[0] - unit_x * gateway_inset,
-            start[1] - unit_y * gateway_inset,
+            start[0] + start_extend[0] * gateway_inset,
+            start[1] + start_extend[1] * gateway_inset,
         )
         end = (
-            end[0] + unit_x * form_overlap,
-            end[1] + unit_y * form_overlap,
+            end[0] + end_extend[0] * form_overlap,
+            end[1] + end_extend[1] * form_overlap,
         )
         vector_x = end[0] - start[0]
         vector_y = end[1] - start[1]
@@ -780,6 +943,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._applying_preferences = False
         self._state = RequestState()
         self._success_logout_source_id = None
+        self._success_countdown_remaining = None
+        self._success_action_label = None
         self._system_bus = None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
         self._build()
         self._music = BackgroundMusic(soundtrack)
@@ -808,15 +973,16 @@ class RequestWindow(Adw.ApplicationWindow):
         layout.set_child(self._background)
         layout.add_overlay(self._stack)
         menu = Gio.Menu()
-        menu.append("Help", "win.help")
-        menu.append("About", "win.about")
         actions = Gio.SimpleActionGroup()
         self.insert_action_group("win", actions)
-        help_action = Gio.SimpleAction.new("help", None)
-        help_action.connect("activate", lambda *_args: open_help())
+        if self._child_overlay:
+            menu.append("Help", "win.help")
+            help_action = Gio.SimpleAction.new("help", None)
+            help_action.connect("activate", lambda *_args: open_help())
+            actions.add_action(help_action)
+        menu.append("About", "win.about")
         about_action = Gio.SimpleAction.new("about", None)
         about_action.connect("activate", self._show_about)
-        actions.add_action(help_action)
         actions.add_action(about_action)
         self._mute_button = Gtk.Button(
             icon_name="audio-volume-high-symbolic",
@@ -900,7 +1066,7 @@ class RequestWindow(Adw.ApplicationWindow):
 
     @staticmethod
     def _page():
-        box = Gtk.Box(
+        box = MetalBoard(
             orientation=Gtk.Orientation.VERTICAL, spacing=24,
             halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
         )
@@ -911,6 +1077,8 @@ class RequestWindow(Adw.ApplicationWindow):
     def _logout(self, *_args):
         self._cancel_success_dismiss()
         if self._preview:
+            if self._music is not None:
+                self._music.cancel_fade()
             self._stack.set_visible_child_name("request")
             return
         # OnSuccess=gnome-session-shutdown.target on the application unit turns
@@ -946,7 +1114,26 @@ class RequestWindow(Adw.ApplicationWindow):
             self._logout()
         return GLib.SOURCE_REMOVE
 
+    def _success_countdown_label(self, remaining):
+        return f"{self._success_action_label} ({remaining})"
+
+    def _tick_success_countdown(self):
+        self._success_countdown_remaining -= 1
+        if self._success_countdown_remaining <= 0:
+            self._success_logout_source_id = None
+            return self._dismiss_after_success()
+        self._result_action.set_label(
+            self._success_countdown_label(self._success_countdown_remaining),
+        )
+        return GLib.SOURCE_CONTINUE
+
     def _cancel_success_dismiss(self):
+        if self._music is not None:
+            self._music.cancel_fade(restore=False)
+        if self._success_action_label is not None:
+            self._result_action.set_label(self._success_action_label)
+            self._success_action_label = None
+        self._success_countdown_remaining = None
         if self._success_logout_source_id is None:
             return
         GLib.source_remove(self._success_logout_source_id)
@@ -954,8 +1141,15 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _schedule_success_logout(self):
         self._cancel_success_dismiss()
+        self._success_action_label = self._result_action.get_label()
+        self._success_countdown_remaining = SUCCESS_COUNTDOWN_SECONDS
+        self._result_action.set_label(
+            self._success_countdown_label(SUCCESS_COUNTDOWN_SECONDS),
+        )
+        if self._music is not None:
+            self._music.fade_out(SUCCESS_LOGOUT_DELAY_MS)
         self._success_logout_source_id = GLib.timeout_add(
-            SUCCESS_LOGOUT_DELAY_MS, self._dismiss_after_success,
+            1_000, self._tick_success_countdown,
         )
 
     def _bus_call(self, method, parameters, reply_signature, callback, timeout=30_000):

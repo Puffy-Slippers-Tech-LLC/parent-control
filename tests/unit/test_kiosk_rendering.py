@@ -13,7 +13,7 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn('branding_asset_path("app_logo.png")', source)
         self.assertIn("Gtk.Image.new_from_file", source)
-        self.assertIn("icon.set_pixel_size(52)", source)
+        self.assertIn("icon.set_pixel_size(48)", source)
         self.assertNotIn('Gtk.Image.new_from_icon_name("alarm-symbolic")', source)
 
     def test_kiosk_and_preview_play_the_soundtrack_on_a_loop(self):
@@ -29,6 +29,9 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('self._music = BackgroundMusic(soundtrack)', source)
         self.assertIn('self._music.start()', source)
         self.assertIn('self._music.close()', source)
+        self.assertIn('def fade_out(self, duration_ms):', source)
+        self.assertIn('self._music.fade_out(SUCCESS_LOGOUT_DELAY_MS)', source)
+        self.assertIn('self._music.cancel_fade()', source)
         self.assertIn('--preview --soundtrack "$(CURDIR)/data/Gearbox_Waltz.mp3"', makefile)
 
     def test_kiosk_has_a_sound_toggle_left_of_the_menu(self):
@@ -66,6 +69,9 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('CHILD_SUCCESS_TITLE = "Time granted"', source)
         self.assertIn("self._show_child_success()", source)
         self.assertIn("SUCCESS_LOGOUT_DELAY_MS = 3_000", source)
+        self.assertIn("SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000", source)
+        self.assertIn('f"{self._success_action_label} ({remaining})"', source)
+        self.assertIn("self._tick_success_countdown", source)
         self.assertIn("self._schedule_success_logout()", source)
         self.assertIn("approved request acknowledged; closing overlay", source)
         self.assertIn('close_click.connect("released", self._close_overlay)', source)
@@ -76,6 +82,11 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("window.oh-no-parent-control-overlay", css)
         self.assertIn("preview-child-overlay:", makefile)
         self.assertIn("--preview --child-overlay", makefile)
+        self.assertIn("if self._child_overlay:\n            menu.append(\"Help\", \"win.help\")", source)
+        self.assertLess(
+            source.index("if self._child_overlay:\n            menu.append(\"Help\", \"win.help\")"),
+            source.index('menu.append("About", "win.about")'),
+        )
 
     def test_escape_matches_the_cancel_action_when_no_auth_prompt_is_open(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
@@ -140,8 +151,10 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0", source)
         self.assertIn("GATEWAY_FORM_CENTERING_OFFSET = 0.019", source)
         self.assertIn("width * GATEWAY_FORM_CENTERING_OFFSET", source)
-        self.assertIn(".perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH)", source)
+        self.assertIn(".perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH * scale)", source)
         self.assertIn(".rotate_3d(", source)
+        self.assertIn(".scale(scale, scale)", source)
+        self.assertIn("def _gateway_form_scale(width, height, form_width, form_height):", source)
         self.assertIn("self._child.allocate(child_width, child_height, baseline, transform)", source)
         self.assertIn("self.snapshot_child(self._child, snapshot)", source)
         self.assertIn("self._request_surface = GatewayAlignedRequest(self._request_content)", source)
@@ -151,8 +164,104 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertNotIn('self._stack.add_named(self._result_view, "result")', source)
         self.assertNotIn(".skew(", source)
 
+    def test_request_form_scales_with_the_gateway_artwork(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+
+        self.assertIn("preview_cover = max(", source)
+        self.assertIn("PREVIEW_DEFAULT_WIDTH / GATEWAY_ARTWORK_WIDTH", source)
+        self.assertIn("PREVIEW_DEFAULT_HEIGHT / GATEWAY_ARTWORK_HEIGHT", source)
+        self.assertIn("window_cover / preview_cover", source)
+        self.assertIn("fit = min(width / form_width, height / form_height)", source)
+        self.assertIn("return min(design_scale, fit)", source)
+        self.assertIn("_gateway_form_scale(\n            width, height, child_width, child_height,", source)
+
+    def test_form_scale_is_identity_at_the_preview_resolution(self):
+        from oh_no_parent_control_kiosk.main import (
+            PREVIEW_DEFAULT_HEIGHT, PREVIEW_DEFAULT_WIDTH, _gateway_form_scale,
+        )
+
+        self.assertAlmostEqual(
+            _gateway_form_scale(
+                PREVIEW_DEFAULT_WIDTH, PREVIEW_DEFAULT_HEIGHT, 400, 700,
+            ),
+            1.0,
+            places=5,
+        )
+        wide_scale = _gateway_form_scale(3840, 2160, 400, 700)
+        self.assertGreater(wide_scale, 1.0)
+        tall_small = _gateway_form_scale(800, 600, 400, 780)
+        self.assertLessEqual(tall_small, 600 / 780)
+
+    def test_request_form_uses_the_minecraft_board_chrome(self):
+        content = KIOSK_CONTENT.read_text(encoding="utf-8")
+        chrome = (ROOT / "kiosk/oh_no_parent_control_kiosk/chrome.py").read_text(
+            encoding="utf-8",
+        )
+        css = (ROOT / "kiosk/oh_no_parent_control_kiosk/style.css").read_text(
+            encoding="utf-8",
+        )
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+
+        self.assertIn("class RequestContent(MetalBoard):", content)
+        self.assertIn('branding_asset_path("app_logo.png")', content)
+        self.assertIn("icon.set_pixel_size(48)", content)
+        self.assertIn("oh-no-parent-control-logo-plate", content)
+        self.assertIn("CHILD_HEAD", content)
+        self.assertIn("APPROVER_HEAD", content)
+        self.assertIn("SHIELD, display_size=20", content)
+        self.assertIn("PixelIcon(LOCK, display_size=16", content)
+        self.assertIn("PixelIcon(POINTER", content)
+        self.assertIn('label="REQUEST"', content)
+        self.assertIn('label="CANCEL"', content)
+        self.assertIn("class MetalBoard(Gtk.Box):", chrome)
+        self.assertIn("class MetalPanel(Gtk.Box):", chrome)
+        self.assertIn("class ArmoredButton(Gtk.Button):", chrome)
+        self.assertIn("def paint_board_frame(", chrome)
+        self.assertIn("def paint_button_hardware(", chrome)
+        self.assertIn("BOARD_CHAIN_ANCHOR_SIDE_INSET = 12.0", chrome)
+        self.assertIn("BOARD_CHAIN_ANCHOR_END_INSET = 34.0", chrome)
+        self.assertIn("connector_x =", chrome)
+        self.assertIn('panel_kind="header"', content)
+        self.assertIn('panel_kind="well"', content)
+        self.assertIn('panel_kind="footer"', content)
+        self.assertIn('armor_kind="request"', content)
+        self.assertIn('armor_kind="cancel"', content)
+        self.assertIn("def _paint_block_texture(", chrome)
+        self.assertIn("padding: 22px 18px;", css)
+        self.assertIn("font-size: 16px;", css)
+        self.assertIn("font-size: 0.70em;", css)
+        self.assertIn("font-size: 0.90em;", css)
+        self.assertIn("font-size: 0.92em;", css)
+        self.assertIn("font-size: 1.08em;", css)
+        self.assertIn("min-height: 62px;", css)
+        self.assertIn("oh-no-parent-control-status-inner", content)
+        self.assertIn("margin: 8px 28px 10px 22px;", css)
+        self.assertIn("padding-bottom: 2px;", css)
+        self.assertIn("set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)", content)
+        self.assertIn("set_max_width_chars(26)", content)
+        self.assertIn("set_overflow(Gtk.Overflow.VISIBLE)", content)
+        self.assertIn('FORM_FONT_FAMILY = "Monocraft"', chrome)
+        self.assertIn("add_font_file", chrome)
+        self.assertIn('font-family: "Monocraft"', css)
+        self.assertIn("kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf", makefile)
+        self.assertTrue(
+            (ROOT / "kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf").is_file(),
+        )
+        self.assertTrue(
+            (ROOT / "kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt").is_file(),
+        )
+        from oh_no_parent_control_kiosk.chrome import (
+            FORM_FONT_FAMILY, register_form_font,
+        )
+
+        self.assertEqual(FORM_FONT_FAMILY, "Monocraft")
+        self.assertTrue(register_form_font())
+
     def test_account_selectors_stay_in_the_transformed_form(self):
         source = KIOSK_CONTENT.read_text(encoding="utf-8")
+        css = (ROOT / "kiosk/oh_no_parent_control_kiosk/style.css").read_text(
+            encoding="utf-8",
+        )
 
         self.assertIn("class GatewayDropDown(Gtk.Box):", source)
         self.assertIn("outside the request form's snapshot", source)
@@ -161,6 +270,14 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("apply_gtk_user_icon", source)
         self.assertIn("parse_listed_user", source)
         self.assertNotIn("Gtk.DropDown", source)
+        self.assertIn("VISIBLE_ACCOUNT_CHOICES = 2", source)
+        self.assertIn("len(self._choice_buttons) - VISIBLE_ACCOUNT_CHOICES", source)
+        self.assertIn("self._scroll_offset <= index < self._scroll_offset + VISIBLE_ACCOUNT_CHOICES", source)
+        self.assertIn('self._scroll_button("pan-up-symbolic", -1)', source)
+        self.assertIn('self._scroll_button("pan-down-symbolic", 1)', source)
+        self.assertIn("oh-no-parent-control-account-scroll", source)
+        self.assertIn("Gtk.EventControllerScrollFlags.VERTICAL", source)
+        self.assertIn("button.oh-no-parent-control-account-scroll", css)
 
     def test_allow_soft_row_is_a_full_width_toggle_button(self):
         source = KIOSK_CONTENT.read_text(encoding="utf-8")
@@ -211,7 +328,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("self._cancel.set_sensitive(self._controls_enabled)", source)
         self.assertIn("self._status.remove_css_class(\"oh-no-parent-control-error\")", source)
 
-    def test_four_block_chains_connect_form_to_gateway_corners(self):
+    def test_four_block_chains_connect_gateway_corners_to_form_rail_lugs(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertIn("GATEWAY_ARTWORK_WIDTH = 3_840", source)
@@ -234,15 +351,27 @@ class KioskRenderingTests(unittest.TestCase):
             source.count("_gateway_artwork_geometry(width, height)"), 3,
         )
         self.assertIn("transform.transform_point(Graphene.Point().init(x, y))", source)
+        self.assertIn("side = BOARD_CHAIN_ANCHOR_SIDE_INSET", source)
+        self.assertIn("end = BOARD_CHAIN_ANCHOR_END_INSET", source)
+        self.assertIn("(side, end)", source)
+        self.assertIn("(child_width - side, child_height - end)", source)
         self.assertIn("for gateway_corner, form_corner in zip(", source)
         self.assertIn("gateway_inset =", source)
-        self.assertIn("start[0] - unit_x * gateway_inset", source)
+        self.assertIn("start[0] + start_extend[0] * gateway_inset", source)
         self.assertIn("form_overlap =", source)
-        self.assertIn("end[0] + unit_x * form_overlap", source)
+        self.assertIn("end[0] + end_extend[0] * form_overlap", source)
+        self.assertIn("start_extend=_unit_vector(opening_center, gateway_corner)", source)
+        self.assertIn("end_extend=_unit_vector(form_corner, form_center)", source)
         self.assertIn("gateway_corners = _gateway_inner_corners(width, height)", source)
+        self.assertIn("_convex_hull((*gateway_corners, *self._form_corners))", source)
+        self.assertIn("def _convex_hull(points):", source)
         opening_clip = source.index("context.clip()")
         chain_draw = source.index("self._draw_minecraft_chain(")
         self.assertLess(opening_clip, chain_draw)
+        self.assertLess(
+            source.index("_convex_hull((*gateway_corners, *self._form_corners))"),
+            opening_clip,
+        )
 
         chain_snapshot = source.index("self._append_gateway_chains(snapshot)")
         form_snapshot = source.index("self.snapshot_child(self._child, snapshot)")
@@ -259,6 +388,31 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("def _chain_curve_position", source)
         self.assertIn("def _append_angular_link_path", source)
         self.assertIn("context.set_fill_rule(cairo.FillRule.EVEN_ODD)", source)
+
+    def test_chain_clip_includes_form_corners_outside_the_gateway(self):
+        from oh_no_parent_control_kiosk.main import _convex_hull, _unit_vector
+
+        gateway = (
+            (100.0, 100.0),
+            (300.0, 110.0),
+            (300.0, 400.0),
+            (100.0, 410.0),
+        )
+        form = (
+            (140.0, 20.0),
+            (260.0, 20.0),
+            (260.0, 500.0),
+            (140.0, 500.0),
+        )
+        hull = set(_convex_hull((*gateway, *form)))
+        for corner in form:
+            self.assertIn(corner, hull)
+        self.assertIn((100.0, 100.0), hull)
+        self.assertIn((300.0, 110.0), hull)
+        self.assertIn((100.0, 410.0), hull)
+        self.assertIn((300.0, 400.0), hull)
+        self.assertLess(_unit_vector((200.0, 255.0), (100.0, 100.0))[0], 0)
+        self.assertLess(_unit_vector((200.0, 260.0), (140.0, 20.0))[1], 0)
 
     def test_gateway_artwork_is_static_with_animated_gateway_energy(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")

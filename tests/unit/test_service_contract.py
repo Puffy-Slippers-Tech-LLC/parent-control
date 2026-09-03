@@ -27,10 +27,14 @@ class ServiceContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         refresh = source.index("self.broker.refresh_enabled_extensions()")
-        registration_metadata = source.index(
-            "self.node_info = Gio.DBusNodeInfo.new_for_xml", refresh,
+        clear_caps = source.index(
+            "self.broker.clear_live_session_runtime_caps()", refresh,
         )
-        self.assertLess(refresh, registration_metadata)
+        registration_metadata = source.index(
+            "self.node_info = Gio.DBusNodeInfo.new_for_xml", clear_caps,
+        )
+        self.assertLess(refresh, clear_caps)
+        self.assertLess(clear_caps, registration_metadata)
 
     def test_embedded_and_installed_dbus_contracts_match(self):
         canonical = (

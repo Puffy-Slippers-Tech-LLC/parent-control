@@ -72,7 +72,9 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("manager.dailyLimitEnabled", indicator)
         self.assertIn("'org.gnome.ScreenSaver'", indicator)
         self.assertIn("SCREEN_SAVER_INTERFACE, 'Lock'", indicator)
+        self.assertIn("Main.sessionMode, 'updated'", indicator)
         self.assertNotIn("TerminateUser", indicator)
+        self.assertNotIn("RuntimeMax", indicator)
 
     def test_notification_keeps_the_panel_indicator_without_a_shell_form(self):
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()

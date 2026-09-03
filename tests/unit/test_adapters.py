@@ -5,7 +5,8 @@ from types import SimpleNamespace
 from gi.repository import Gio, GLib
 
 from oh_no_parent_control.adapters import (
-    AccountsService, PolkitAuthorizer, TimerUsage, TimerUsageError,
+    AccountsService, PolkitAuthorizer, RUNTIME_MAX_USEC_INFINITY, TimerUsage,
+    TimerUsageError,
 )
 from oh_no_parent_control.core import UserAccount
 
@@ -94,6 +95,43 @@ class PolkitAdapterTests(unittest.TestCase):
         with mock.patch("oh_no_parent_control.adapters.pwd.getpwall", return_value=entries), \
                 mock.patch.object(accounts, "get_user", side_effect=lambda uid: uid):
             self.assertEqual(accounts.list_users(), (1001, 1002))
+
+    def test_session_runtime_cap_is_cleared_only_for_the_child_user_session(self):
+        accounts = AccountsService(object())
+        sessions = mock.Mock()
+        sessions.unpack.return_value = ([
+            ("12", 1001, "child", "seat0", "/org/freedesktop/login1/session/_12"),
+            ("2", 1000, "admin", "seat0", "/org/freedesktop/login1/session/_32"),
+            ("c25", 1001, "child", "seat0", "/org/freedesktop/login1/session/c25"),
+            ("../x", 1001, "child", "seat0", "/org/freedesktop/login1/session/bad"),
+        ],)
+        user_session = mock.Mock()
+        user_session.unpack.return_value = ({"Class": "user", "Type": "wayland"},)
+        greeter = mock.Mock()
+        greeter.unpack.return_value = ({"Class": "greeter", "Type": "wayland"},)
+
+        def call(connection, name, path, interface, method, parameters, reply_type,
+                 timeout=None):
+            if method == "ListSessions":
+                return sessions
+            if method == "GetAll" and path.endswith("/c25"):
+                return greeter
+            if method == "GetAll":
+                return user_session
+            if method == "SetUnitProperties":
+                set_property.append(parameters.unpack())
+                return mock.Mock()
+            raise AssertionError(method)
+
+        set_property = []
+        with mock.patch("oh_no_parent_control.adapters._call", side_effect=call):
+            cleared = accounts.clear_session_runtime_max(1001)
+
+        self.assertEqual(cleared, ("session-12.scope",))
+        self.assertEqual(set_property, [(
+            "session-12.scope", True,
+            [("RuntimeMaxUSec", RUNTIME_MAX_USEC_INFINITY)],
+        )])
 
     def test_app_filter_write_reconciles_native_execution_policy(self):
         policy = mock.Mock()

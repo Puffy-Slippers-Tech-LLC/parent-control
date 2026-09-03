@@ -109,7 +109,12 @@ time is zero. The child supplies only its public timer estimate; the broker
 derives the child UID from the D-Bus caller and reads the live grant itself.
 The extension repeats lock enforcement if a retained desktop is unlocked,
 without ending another user's foreground session on the shared display seat.
-A later fresh login is evaluated against the remaining daily allowance by PAM.
+`pam_malcontent` still denies a later fresh login when remaining time is zero.
+It must not keep a systemd `RuntimeMaxSec` kill timer on the live session: that
+snapshot is taken at login and would log the child out after a later grant.
+The session stack therefore clears that cap after `pam_systemd` creates the
+scope. Extra time is granted only by writing `ActiveExtension`; unlock and a
+new login both work again for the granted interval.
 The broker discovers launchers in the selected child's user XDG application
 directories as well as the system directories. It turns each direct launcher
 into the executable path (or Flatpak ref) used by Malcontent, so a per-user
@@ -217,6 +222,7 @@ reads the current ActiveExtension through the broker.
 /usr/libexec/oh-no-parent-control-broker       broker launcher
 /usr/libexec/oh-no-parent-control-query-usage  identity-scoped read-only helper
 /usr/libexec/oh-no-parent-control-session-limit-check  PAM limit-state gate
+/usr/libexec/oh-no-parent-control-clear-session-runtime-max  drop login kill timer
 /usr/libexec/oh-no-parent-control-execution-policy-ready  fapolicyd readiness gate
 /usr/libexec/oh-no-parent-control-execution-policy-probe  deny canary
 /usr/libexec/oh-no-parent-control-migrate-state saved-data migration runner
@@ -254,6 +260,10 @@ uses the public AccountsService `LimitType` property to skip `pam_malcontent`
 only when the account is confirmed unrestricted. Unknown or malformed state
 continues through `pam_malcontent`; enabled zero-minute grant-only mode remains
 enforced without showing the module's unrestricted-account message.
+`pam_malcontent` remains the login remaining-time check. After it allows a
+session, the product session helper clears `RuntimeMaxSec` so systemd does not
+kill the live desktop when the login-time remainder elapses. Zero remaining
+time locks that child's screensaver; it does not terminate the scope.
 
 The Parent App desktop entry is `root:sudo`, mode `0640`.  GNOME therefore
 indexes it only for Ubuntu administrator accounts; the launcher also verifies

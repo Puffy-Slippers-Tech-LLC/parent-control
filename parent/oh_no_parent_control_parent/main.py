@@ -71,6 +71,10 @@ CONTENT_MAX_WIDTH = 1046
 DEFAULT_WINDOW_WIDTH = CONTENT_MAX_WIDTH + 2 * 24
 TIME_STATUS_RETRY_DELAY_SECONDS = 1
 MAX_TIME_STATUS_RETRIES = 3
+# Building every app row on the GTK thread in one burst freezes the window.
+# Yield between small batches so the App Limits tab can switch immediately
+# and the loading mask can keep animating.
+CATALOG_ROW_BATCH_SIZE = 8
 PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
 PREVIEW_PREFERENCES = {
     1001: {
@@ -233,6 +237,18 @@ class ParentWindow(Adw.ApplicationWindow):
         self._time_status_retry_id = 0
         self._time_status_retry_count = 0
         self._remaining_time_seconds = None
+        self._app_catalog = None
+        self._app_catalog_uid = None
+        self._apps_loading = False
+        self._apps_load_uid = None
+        self._apps_load_generation = 0
+        self._apps_table_ready = False
+        self._catalog_building = False
+        self._catalog_build_generation = 0
+        self._pending_catalog_apps = []
+        self._app_limits_visible = False
+        self._match_rule_filters = {rule["id"] for rule in MATCH_RULES}
+        self._access_rule_filters = {state["id"] for state in STATES}
         self._build()
         self._time_status_refresh_id = GLib.timeout_add_seconds(
             30, self._refresh_time_status,
@@ -347,6 +363,7 @@ class ParentWindow(Adw.ApplicationWindow):
         ))
 
         pages = Adw.ViewStack(vexpand=True)
+        self._pages = pages
         switcher = Adw.ViewSwitcher(
             stack=pages,
             policy=Adw.ViewSwitcherPolicy.WIDE,
@@ -530,6 +547,7 @@ class ParentWindow(Adw.ApplicationWindow):
             width_chars=32, css_classes=["apps-search"],
         )
         self._search.connect("search-changed", self._filter)
+        self._search.set_sensitive(False)
         search_row.append(self._search)
         apps_section.append(search_row)
 
@@ -546,12 +564,43 @@ class ParentWindow(Adw.ApplicationWindow):
                                                   "app-policy-icon-header"]))
         headers.set_title("App Name &amp; Detail")
         headers.add_suffix(self._policy_column_heading(
-            "Match Rule", self._match_rule_slot(), "match-rule-header"))
+            "Match Rule", self._match_rule_slot(), "match-rule-header",
+            MATCH_RULES, self._match_rule_filters, self._match_rule_filter_icon))
         headers.add_suffix(self._policy_column_heading(
-            "Access Rule", self._policy_selector_slot(), "access-rule-header"))
+            "Access Rule", self._policy_selector_slot(), "access-rule-header",
+            STATES, self._access_rule_filters, self._access_rule_filter_icon))
         apps.add(headers)
         self._app_rows = []
-        apps_section.append(apps)
+        apps_overlay = Gtk.Overlay(
+            hexpand=True, vexpand=True, css_classes=["apps-table-overlay"],
+        )
+        apps_overlay.set_child(apps)
+        loading_mask = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            hexpand=True, vexpand=True, visible=False, can_target=True,
+            halign=Gtk.Align.FILL, valign=Gtk.Align.FILL,
+            css_classes=["apps-loading-mask"],
+        )
+        loading_content = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=14,
+            halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
+            css_classes=["apps-loading-content"],
+        )
+        self._apps_loading_spinner = Gtk.Spinner(
+            spinning=False, width_request=28, height_request=28,
+            css_classes=["apps-loading-spinner"],
+        )
+        loading_content.append(self._apps_loading_spinner)
+        loading_content.append(Gtk.Label(
+            label="Loading installed apps…",
+            css_classes=["apps-loading-label"],
+        ))
+        loading_center = Gtk.CenterBox(hexpand=True, vexpand=True)
+        loading_center.set_center_widget(loading_content)
+        loading_mask.append(loading_center)
+        apps_overlay.add_overlay(loading_mask)
+        self._apps_loading_mask = loading_mask
+        apps_section.append(apps_overlay)
         app_limits.append(apps_section)
         app_limits_page.set_child(Adw.Clamp(
             child=app_limits,
@@ -559,6 +608,7 @@ class ParentWindow(Adw.ApplicationWindow):
             tightening_threshold=CONTENT_MAX_WIDTH,
             css_classes=["app-limits-clamp"],
         ))
+        self._pages.connect("notify::visible-child-name", self._visible_page_changed)
 
     def _account_factory(self):
         factory = Gtk.SignalListItemFactory()
@@ -682,18 +732,88 @@ class ParentWindow(Adw.ApplicationWindow):
         panel.append(equation)
         return panel
 
-    @staticmethod
-    def _policy_column_heading(label, slot, css_class):
-        """Overlay a heading on a measurement-matched, inert policy control."""
+    def _policy_column_heading(self, label, slot, css_class, items, selected,
+                               icon_factory):
+        """Overlay a filter heading on a measurement-matched, inert policy control."""
         overlay = Gtk.Overlay(css_classes=["app-policy-heading", css_class])
         overlay.set_child(slot)
-        heading = Gtk.Label(label=label, halign=Gtk.Align.CENTER,
-                            valign=Gtk.Align.CENTER,
-                            css_classes=["app-policy-column-header"])
-        overlay.add_overlay(heading)
-        overlay.set_measure_overlay(heading, False)
-        overlay.set_clip_overlay(heading, False)
+        trigger = Gtk.Button(
+            tooltip_text=f"Filter by {label}",
+            halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
+            css_classes=["app-policy-filter"],
+        )
+        trigger_content = Gtk.Box(
+            spacing=4, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
+        )
+        trigger_content.append(Gtk.Label(
+            label=label, css_classes=["app-policy-column-header"],
+        ))
+        trigger_content.append(Gtk.Image(
+            icon_name="pan-down-symbolic", pixel_size=12,
+            css_classes=["app-policy-filter-chevron"],
+        ))
+        trigger.set_child(trigger_content)
+        popover = Gtk.Popover(
+            autohide=True, has_arrow=True,
+            css_classes=["app-policy-filter-popover"],
+        )
+        popover.set_parent(trigger)
+        menu = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=2,
+            css_classes=["app-policy-filter-menu"],
+        )
+        for item in items:
+            choice = Gtk.CheckButton(
+                active=item["id"] in selected,
+                css_classes=["app-policy-filter-item"],
+            )
+            content = Gtk.Box(spacing=10, valign=Gtk.Align.CENTER)
+            content.append(icon_factory(item))
+            content.append(Gtk.Label(
+                label=item["label"], xalign=0, hexpand=True,
+                css_classes=["app-policy-filter-item-label"],
+            ))
+            choice.set_child(content)
+            choice.connect(
+                "toggled", self._column_filter_toggled, item["id"], selected,
+                trigger, items,
+            )
+            menu.append(choice)
+        popover.set_child(menu)
+        trigger.connect("clicked", lambda *_args: popover.popup())
+        overlay.add_overlay(trigger)
+        overlay.set_measure_overlay(trigger, False)
+        overlay.set_clip_overlay(trigger, False)
         return overlay
+
+    def _column_filter_toggled(self, button, item_id, selected, trigger, items):
+        if button.get_active():
+            selected.add(item_id)
+        else:
+            selected.discard(item_id)
+        if selected != {item["id"] for item in items}:
+            trigger.add_css_class("filtered")
+        else:
+            trigger.remove_css_class("filtered")
+        self._filter()
+
+    def _match_rule_filter_icon(self, item):
+        return Gtk.Button(
+            can_focus=False, can_target=False,
+            css_classes=[
+                "match-rule-button", "policy-choice", "policy-legend-icon",
+                item["css"],
+            ],
+            child=self._match_rule_image(item),
+        )
+
+    @staticmethod
+    def _access_rule_filter_icon(item):
+        return Gtk.ToggleButton(
+            active=True, can_focus=False, can_target=False,
+            css_classes=["policy-choice", "policy-legend-icon", item["css"]],
+            child=Gtk.Image(icon_name=item["icon"], pixel_size=19),
+        )
 
     @staticmethod
     def _match_rule_slot():
@@ -858,69 +978,101 @@ class ParentWindow(Adw.ApplicationWindow):
     def _show_about(self, *_args):
         AboutDialog(self).present()
 
-    def _set_catalog(self, applications):
+    def _clear_catalog_rows(self):
         for row in self._app_rows:
             self._apps_group.remove(row)
         self._rows = []
         self._app_rows = []
-        for app in applications:
-            row = Adw.ActionRow(
-                title=app["name"], subtitle=app["description"] or app["id"],
-                css_classes=["app-policy-row"],
-            )
-            row.app = app
-            row.search_text = f'{app["name"]} {app["description"]} {app["id"]}'.casefold()
-            if app["icon"]:
-                try:
-                    icon = Gio.Icon.new_for_string(app["icon"])
-                except GLib.Error:
-                    icon = None
-                if icon is not None:
-                    icon_cell = Gtk.Box(
-                        width_request=80, halign=Gtk.Align.CENTER,
-                        valign=Gtk.Align.CENTER,
-                        css_classes=["app-icon-cell"],
-                    )
-                    icon_cell.append(Gtk.Image(gicon=icon, pixel_size=36))
-                    row.add_prefix(icon_cell)
-            row.policy_buttons = {}
-            row.match_rule_button = Gtk.Button(
-                tooltip_text="Edit match rule", valign=Gtk.Align.CENTER,
-                css_classes=["match-rule-button"],
-            )
-            row.match_rule_button.connect("clicked", self._edit_match_rule, row)
-            match_rule_cell = Gtk.Box(
-                width_request=92, halign=Gtk.Align.CENTER,
-                valign=Gtk.Align.CENTER, css_classes=["match-rule-cell"],
-            )
-            match_rule_cell.append(row.match_rule_button)
-            row.add_suffix(match_rule_cell)
-            selector = Gtk.Box(
-                orientation=Gtk.Orientation.HORIZONTAL, spacing=3,
-                valign=Gtk.Align.CENTER, css_classes=["policy-selector"],
-            )
-            first_button = None
-            for state in STATES:
-                button = Gtk.ToggleButton(
-                    tooltip_text=state["label"],
-                    css_classes=["policy-choice", state["css"]],
-                    child=Gtk.Image(icon_name=state["icon"], pixel_size=19),
+
+    def _add_app_row(self, app):
+        row = Adw.ActionRow(
+            title=app["name"], subtitle=app["description"] or app["id"],
+            css_classes=["app-policy-row"],
+        )
+        row.app = app
+        row.search_text = f'{app["name"]} {app["description"]} {app["id"]}'.casefold()
+        if app["icon"]:
+            try:
+                icon = Gio.Icon.new_for_string(app["icon"])
+            except GLib.Error:
+                icon = None
+            if icon is not None:
+                icon_cell = Gtk.Box(
+                    width_request=80, halign=Gtk.Align.CENTER,
                     valign=Gtk.Align.CENTER,
+                    css_classes=["app-icon-cell"],
                 )
-                if first_button is None:
-                    first_button = button
-                else:
-                    button.set_group(first_button)
-                button.connect("toggled", self._policy_changed)
-                row.policy_buttons[state["id"]] = button
-                selector.append(button)
-            row.add_suffix(selector)
-            row.match_rule = None
-            row.user_saved_match_rule = False
-            self._update_match_rule_icon(row)
-            self._apps_group.add(row)
-            self._rows.append(row)
-            self._app_rows.append(row)
+                icon_cell.append(Gtk.Image(gicon=icon, pixel_size=36))
+                row.add_prefix(icon_cell)
+        row.policy_buttons = {}
+        row.match_rule_button = Gtk.Button(
+            tooltip_text="Edit match rule", valign=Gtk.Align.CENTER,
+            css_classes=["match-rule-button"],
+        )
+        row.match_rule_button.connect("clicked", self._edit_match_rule, row)
+        match_rule_cell = Gtk.Box(
+            width_request=92, halign=Gtk.Align.CENTER,
+            valign=Gtk.Align.CENTER, css_classes=["match-rule-cell"],
+        )
+        match_rule_cell.append(row.match_rule_button)
+        row.add_suffix(match_rule_cell)
+        selector = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=3,
+            valign=Gtk.Align.CENTER, css_classes=["policy-selector"],
+        )
+        first_button = None
+        for state in STATES:
+            button = Gtk.ToggleButton(
+                tooltip_text=state["label"],
+                css_classes=["policy-choice", state["css"]],
+                child=Gtk.Image(icon_name=state["icon"], pixel_size=19),
+                valign=Gtk.Align.CENTER,
+            )
+            if first_button is None:
+                first_button = button
+            else:
+                button.set_group(first_button)
+            button.connect("toggled", self._policy_changed)
+            row.policy_buttons[state["id"]] = button
+            selector.append(button)
+        row.add_suffix(selector)
+        row.match_rule = None
+        row.user_saved_match_rule = False
+        self._update_match_rule_icon(row)
+        self._apps_group.add(row)
+        self._rows.append(row)
+        self._app_rows.append(row)
+
+    def _set_catalog(self, applications):
+        self._clear_catalog_rows()
+        self._pending_catalog_apps = list(applications)
+        self._catalog_building = True
+        self._apps_table_ready = False
+        self._catalog_build_generation = self._apps_load_generation
+        self._update_apps_loading_ui()
+        GLib.idle_add(self._append_catalog_batch)
+
+    def _append_catalog_batch(self):
+        if self._catalog_build_generation != self._apps_load_generation:
+            self._catalog_building = False
+            return GLib.SOURCE_REMOVE
+        batch = self._pending_catalog_apps[:CATALOG_ROW_BATCH_SIZE]
+        self._pending_catalog_apps = self._pending_catalog_apps[CATALOG_ROW_BATCH_SIZE:]
+        for app in batch:
+            self._add_app_row(app)
+        if self._pending_catalog_apps:
+            return GLib.SOURCE_CONTINUE
+        self._catalog_building = False
+        self._apps_table_ready = True
+        self._apply_app_policies()
+        self._filter(self._search)
+        self._update_apps_loading_ui()
+        self._set_apps_sensitive(self._preferences is not None)
+        LOG.info(
+            "application table ready target_uid=%s row_count=%d",
+            self._selected_uid(), len(self._rows),
+        )
+        return GLib.SOURCE_REMOVE
 
     def _run(self, operation, success, failure=None):
         def done(value=None, error=None):
@@ -962,6 +1114,10 @@ class ParentWindow(Adw.ApplicationWindow):
     def _users_loaded(self, users):
         self._users = [parse_listed_user(user) for user in users]
         LOG.info("managed-user discovery completed count=%d", len(self._users))
+        if self._users:
+            # Kick off the selected child's catalog before the account picker
+            # model is rebuilt so App Limits work does not wait on UI setup.
+            self._ensure_apps_load(self._users[0][0])
         self._account.handler_block(self._account_changed_handler)
         try:
             self._account.set_model(Gtk.StringList.new(
@@ -1009,32 +1165,129 @@ class ParentWindow(Adw.ApplicationWindow):
             value.set_label("—")
         LOG.info("preferences load started target_uid=%d", uid)
         self._set_apps_sensitive(False)
+        # Start the application catalog immediately on a background thread so
+        # Screen Limits is not blocked, and App Limits can paint as soon as
+        # the tab is opened.
+        self._ensure_apps_load(uid)
         self._run(
-            lambda: (self._client.get_preferences(uid), self._client.list_apps(uid)),
-            lambda value: self._preferences_for(uid, *value),
+            lambda: self._client.get_preferences(uid),
+            lambda preferences: self._preferences_for(uid, preferences),
         )
 
-    def _preferences_for(self, uid, preferences, applications):
+    def _ensure_apps_load(self, uid):
+        if uid is None:
+            return
+        if self._apps_loading and self._apps_load_uid == uid:
+            return
+        self._apps_load_generation += 1
+        generation = self._apps_load_generation
+        self._apps_load_uid = uid
+        self._app_catalog = None
+        self._app_catalog_uid = None
+        self._apps_loading = True
+        self._apps_table_ready = False
+        self._catalog_building = False
+        self._pending_catalog_apps = []
+        self._clear_catalog_rows()
+        self._update_apps_loading_ui()
+        LOG.info("application catalog load started target_uid=%d", uid)
+        self._run(
+            lambda: self._client.list_apps(uid),
+            lambda applications: self._apps_loaded(uid, generation, applications),
+            lambda error: self._apps_failed(uid, generation, error),
+        )
+
+    def _apps_loaded(self, uid, generation, applications):
+        if generation != self._apps_load_generation or uid != self._selected_uid():
+            return
+        self._apps_loading = False
+        self._app_catalog = applications
+        self._app_catalog_uid = uid
+        LOG.info(
+            "application catalog loaded target_uid=%d app_count=%d",
+            uid, len(applications),
+        )
+        self._update_apps_loading_ui()
+        self._maybe_populate_app_table()
+
+    def _apps_failed(self, uid, generation, error):
+        if generation != self._apps_load_generation or uid != self._selected_uid():
+            return
+        self._apps_loading = False
+        LOG.warning("application catalog load failed target_uid=%d: %s", uid, error)
+        self._toast(f"Could not load installed apps: {error}")
+        self._app_catalog = []
+        self._app_catalog_uid = uid
+        self._update_apps_loading_ui()
+        self._maybe_populate_app_table()
+
+    def _visible_page_changed(self, *_args):
+        self._app_limits_visible = self._pages.get_visible_child_name() == "app-limits"
+        self._update_apps_loading_ui()
+        if self._app_limits_visible:
+            GLib.idle_add(self._maybe_populate_app_table)
+
+    def _maybe_populate_app_table(self):
+        if not self._app_limits_visible or self._app_catalog is None:
+            return GLib.SOURCE_REMOVE
+        if self._apps_table_ready or self._catalog_building:
+            return GLib.SOURCE_REMOVE
+        self._set_catalog(self._app_catalog)
+        return GLib.SOURCE_REMOVE
+
+    def _apps_mask_should_show(self):
+        return bool(
+            getattr(self, "_app_limits_visible", False) and (
+                getattr(self, "_apps_loading", False)
+                or getattr(self, "_catalog_building", False)
+                or not getattr(self, "_apps_table_ready", True)
+                or getattr(self, "_preferences", None) is None
+            )
+        )
+
+    def _update_apps_loading_ui(self):
+        mask = getattr(self, "_apps_loading_mask", None)
+        if mask is None:
+            return
+        show = self._apps_mask_should_show()
+        mask.set_visible(show)
+        spinner = getattr(self, "_apps_loading_spinner", None)
+        if spinner is not None:
+            spinner.set_spinning(show)
+
+    def _preferences_for(self, uid, preferences):
         if uid != self._selected_uid():
             return
-        self._set_catalog(applications)
         self._preferences_loaded(preferences)
+
+    def _apply_app_policies(self):
+        preferences = getattr(self, "_preferences", None)
+        if preferences is None:
+            return
+        was_loading = self._loading
+        self._loading = True
+        try:
+            for row in self._rows:
+                state = preferences["apps"].get(row.app["id"], {}).get("state", "allowed")
+                row.policy_buttons[state].set_active(True)
+                policy = preferences["apps"].get(row.app["id"], {})
+                row.user_saved_match_rule = policy.get("user_saved_match_rule", False)
+                row.match_rule = (policy.get("patterns") or [None])[0]
+                if row.match_rule is None and row.user_saved_match_rule:
+                    row.match_rule = self._default_match_rule(row)
+                self._update_match_rule_icon(row)
+        finally:
+            self._loading = was_loading
 
     def _preferences_loaded(self, preferences):
         self._preferences = preferences
         self._enabled.set_active(preferences["parent_control_enabled"])
         self._set_daily_limit_value(preferences["daily_time_limit_minutes"])
-        for row in self._rows:
-            state = preferences["apps"].get(row.app["id"], {}).get("state", "allowed")
-            row.policy_buttons[state].set_active(True)
-            policy = preferences["apps"].get(row.app["id"], {})
-            row.user_saved_match_rule = policy.get("user_saved_match_rule", False)
-            row.match_rule = (policy.get("patterns") or [None])[0]
-            if row.match_rule is None and row.user_saved_match_rule:
-                row.match_rule = self._default_match_rule(row)
-            self._update_match_rule_icon(row)
+        self._apply_app_policies()
+        self._filter()
         self._loading = False
         self._set_apps_sensitive(True)
+        self._update_apps_loading_ui()
         LOG.info("preferences loaded target_uid=%d enabled=%s policy_count=%d",
                  self._selected_uid(), preferences["parent_control_enabled"],
                  len(preferences["apps"]))
@@ -1159,7 +1412,11 @@ class ParentWindow(Adw.ApplicationWindow):
                 not self._loading and self._selected_uid() is not None and
                 self._enabled.get_active()
             )
-        self._apps_group.set_sensitive(sensitive)
+        table_ready = getattr(self, "_apps_table_ready", True)
+        self._apps_group.set_sensitive(sensitive and table_ready)
+        search = getattr(self, "_search", None)
+        if search is not None:
+            search.set_sensitive(sensitive and table_ready)
 
     def _confirm_revoke(self, *_args):
         selected = self._account.get_selected()
@@ -1273,6 +1530,7 @@ class ParentWindow(Adw.ApplicationWindow):
     def _policy_changed(self, button):
         if button.get_active() and not self._loading:
             self._save_app_policy()
+            self._filter()
 
     @staticmethod
     def _canonical_match_rule(row, rule):
@@ -1347,11 +1605,13 @@ class ParentWindow(Adw.ApplicationWindow):
                 row.user_saved_match_rule = rule != self._default_match_rule(row)
                 self._update_match_rule_icon(row)
                 self._save_app_policy()
+                self._filter()
             elif response_id == Gtk.ResponseType.APPLY:
                 row.match_rule = self._default_match_rule(row)
                 row.user_saved_match_rule = False
                 self._update_match_rule_icon(row)
                 self._save_app_policy()
+                self._filter()
             dialog.destroy()
 
         dialog.connect("response", response)
@@ -1453,10 +1713,28 @@ class ParentWindow(Adw.ApplicationWindow):
     def _toast(self, title):
         self._toasts.add_toast(Adw.Toast(title=title))
 
-    def _filter(self, entry):
-        query = entry.get_text().strip().casefold()
+    def _row_match_rule_id(self, row):
+        rule = row.match_rule or self._default_match_rule(row)
+        return MATCH_RULES[0]["id"] if self._is_pattern(rule) else MATCH_RULES[1]["id"]
+
+    @staticmethod
+    def _row_access_rule_id(row):
+        for state in STATES:
+            if row.policy_buttons[state["id"]].get_active():
+                return state["id"]
+        return STATES[0]["id"]
+
+    def _row_matches_filters(self, row, query):
+        if query and query not in row.search_text:
+            return False
+        if self._row_match_rule_id(row) not in self._match_rule_filters:
+            return False
+        return self._row_access_rule_id(row) in self._access_rule_filters
+
+    def _filter(self, *_args):
+        query = self._search.get_text().strip().casefold()
         for row in self._rows:
-            row.set_visible(not query or query in row.search_text)
+            row.set_visible(self._row_matches_filters(row, query))
 
 
 class Application(Adw.Application):

@@ -149,6 +149,16 @@ class Service:
                 "refreshed child extension payloads uids=%s",
                 ",".join(str(uid) for uid in refreshed_uids),
             )
+        try:
+            cap_uids = self.broker.clear_live_session_runtime_caps()
+        except Exception:
+            logging.exception("could not clear managed session runtime caps")
+        else:
+            if cap_uids:
+                logging.info(
+                    "cleared systemd session runtime caps uids=%s",
+                    ",".join(str(uid) for uid in cap_uids),
+                )
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
         self.log_writer = log_writer
         self._app_filter_signal_id = self.connection.signal_subscribe(

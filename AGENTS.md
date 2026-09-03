@@ -5,3 +5,4 @@
 - Fix the root cause in code, so it's repoducible on a clean computer. Unless specified otherwise, treat this as a new app, no existing installations.
 - When adding system integration, classify its update activation; see @docs/Package-Update.md.
 - When a change breaks compatibility with saved application data, follow @docs/Data-Migration.md and ship its migration before changing readers or writers.
+- Whenever touching the child app form or the kiosk app, keep in mind the GUI is shared between them, make sure changes are compatible in both apps.

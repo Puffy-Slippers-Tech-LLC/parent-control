@@ -136,10 +136,16 @@ window.oh-no-parent-control-overlay {
 }
 
 .oh-no-parent-control-account-row {
-  min-width: 350px;
+  min-width: 0;
+  margin-left: 10px;
+  margin-right: 10px;
+  padding: 0;
+  border: none;
+}
+
+.oh-no-parent-control-account-row-inner {
   /* Top inset clears the painted metal bevel so CHILD/APPROVER sit below it. */
-  padding: 7px 12px 6px 10px;
-  border: 2px solid transparent;
+  margin: 11px 12px 6px 10px;
 }
 
 .oh-no-parent-control-account-caption {
@@ -149,8 +155,9 @@ window.oh-no-parent-control-overlay {
   font-weight: 700;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  padding: 0;
-  margin: 1px 0 2px 0;
+  /* Pixel font inks above the line box; keep the caption off the bevel. */
+  padding: 2px 0 0;
+  margin: 2px 0 2px 0;
 }
 
 .oh-no-parent-control-role-icon {
@@ -228,18 +235,25 @@ button.oh-no-parent-control-account-scroll:disabled {
 }
 
 .oh-no-parent-control-choices {
-  min-width: 336px;
-  padding: 0 7px 7px;
-  border: 6px solid transparent;
-  border-top-width: 3px;
+  min-width: 0;
+  margin-left: 10px;
+  margin-right: 10px;
+  padding: 0;
+  border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
 
+.oh-no-parent-control-choices-inner {
+  /* Measured inset: 4px sides sit on the inner well floor (bevel + notches),
+   * 6px bottom keeps the last row off the painted rim. */
+  margin: 4px 4px 6px;
+}
+
 button.oh-no-parent-control-choice {
   min-height: 16px;
-  padding: 1px 13px 2px;
+  padding: 2px 13px 2px;
   line-height: 1;
   border: 1px solid transparent;
   border-radius: 0;
@@ -288,9 +302,11 @@ button.oh-no-parent-control-choice:checked .oh-no-parent-control-choice-pointer 
 }
 
 button.oh-no-parent-control-app-filter-toggle {
-  min-width: 348px;
+  min-width: 0;
   min-height: 36px;
   padding: 7px 11px;
+  margin-left: 10px;
+  margin-right: 10px;
   border: 4px solid #141613;
   border-top-color: #777a71;
   border-left-color: #5a5d56;
@@ -384,12 +400,15 @@ entry.oh-no-parent-control-custom-entry {
 }
 
 .oh-no-parent-control-actions {
-  min-width: 350px;
+  min-width: 0;
 }
 
 button.oh-no-parent-control-cancel-button {
-  min-height: 42px;
+  min-height: 28px;
+  padding: 2px 10px;
   margin-top: 7px;
+  margin-left: 10px;
+  margin-right: 10px;
   border: 3px solid #141416;
   border-top-color: #92948c;
   border-left-color: #73766e;
@@ -398,13 +417,13 @@ button.oh-no-parent-control-cancel-button {
   border-radius: 0;
   color: rgba(236, 236, 230, 0.94);
   font-family: "Monocraft", "Ubuntu Mono", monospace;
-  font-size: 1.08em;
+  font-size: 0.92em;
   font-weight: 700;
   letter-spacing: 1px;
   background-color: #4a4d48;
   background-image: repeating-linear-gradient(to bottom,
       #595c56 0px, #595c56 5px, #50534e 5px, #50534e 10px);
-  box-shadow: 0 4px 0 #10120f, inset 0 1px #a2a49c;
+  box-shadow: 0 3px 0 #10120f, inset 0 1px #a2a49c;
   text-shadow: none;
 }
 
@@ -417,9 +436,12 @@ button.oh-no-parent-control-cancel-button:focus-visible {
 
 button.oh-no-parent-control-request-button,
 .oh-no-parent-control-secondary-page button.suggested-action {
-  min-height: 42px;
+  min-height: 28px;
+  padding: 2px 10px;
   margin-top: 4px;
-  border: 4px solid #163c14;
+  margin-left: 10px;
+  margin-right: 10px;
+  border: 3px solid #163c14;
   border-top-color: #a5d795;
   border-left-color: #78b966;
   border-right-color: #244c20;
@@ -427,13 +449,13 @@ button.oh-no-parent-control-request-button,
   border-radius: 0;
   color: white;
   font-family: "Monocraft", "Ubuntu Mono", monospace;
-  font-size: 1.08em;
+  font-size: 0.92em;
   font-weight: 700;
   letter-spacing: 1px;
   background-color: #4b9341;
   background-image: repeating-linear-gradient(to bottom,
       #67aa54 0px, #67aa54 2px, #4b8f40 2px, #4b8f40 4px);
-  box-shadow: 0 5px 0 #163c14, inset 0 1px rgba(255, 255, 255, 0.28);
+  box-shadow: 0 3px 0 #163c14, inset 0 1px rgba(255, 255, 255, 0.28);
   text-shadow: none;
 }
 
@@ -444,7 +466,7 @@ button.oh-no-parent-control-request-button:focus-visible,
   border-top-color: #d8ffd0;
   background-image: repeating-linear-gradient(to bottom,
       #77ba63 0px, #77ba63 2px, #57a149 2px, #57a149 4px);
-  box-shadow: 0 5px 0 #163c14, inset 0 1px rgba(255, 255, 255, 0.36);
+  box-shadow: 0 3px 0 #163c14, inset 0 1px rgba(255, 255, 255, 0.36);
 }
 
 button.oh-no-parent-control-request-button:disabled {

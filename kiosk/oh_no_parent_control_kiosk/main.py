@@ -949,6 +949,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._build()
         self._music = BackgroundMusic(soundtrack)
         self._music.start()
+        if preview and not child_overlay:
+            self._apply_mute(True)
         self.connect("destroy", self._on_destroy)
         LOG.info(
             "request station window initialized overlay=%s",
@@ -1208,9 +1210,10 @@ class RequestWindow(Adw.ApplicationWindow):
             self._applying_preferences = True
             try:
                 self._request_content.set_preferences(PREVIEW_PREFERENCES[target_uid])
-                self._apply_mute(
-                    self._request_content.muted_for_surface(self._mute_surface()),
-                )
+                if self._child_overlay:
+                    self._apply_mute(
+                        self._request_content.muted_for_surface(self._mute_surface()),
+                    )
             finally:
                 self._applying_preferences = False
             return

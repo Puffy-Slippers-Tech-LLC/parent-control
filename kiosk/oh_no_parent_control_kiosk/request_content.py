@@ -262,8 +262,24 @@ class RequestContent(MetalBoard):
 
         self._choices = MetalPanel(
             orientation=Gtk.Orientation.VERTICAL, spacing=0, panel_kind="well",
+            hexpand=True,
         )
         self._choices.add_css_class("oh-no-parent-control-choices")
+        self._choices.set_margin_start(10)
+        self._choices.set_margin_end(10)
+        self._duration_box = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=0, hexpand=True,
+        )
+        self._duration_box.add_css_class("oh-no-parent-control-choices-inner")
+        # MetalPanel chrome has no layout cost, so CSS padding on the well does
+        # not keep rows off the painted rim. Child margins are measured: 4px
+        # sides match the well bevel and corner notches so selected/hover bars
+        # fill the inner tray without covering the frame.
+        self._duration_box.set_margin_top(4)
+        self._duration_box.set_margin_bottom(6)
+        self._duration_box.set_margin_start(4)
+        self._duration_box.set_margin_end(4)
+        self._choices.append(self._duration_box)
         self._request_form.append(self._choices)
         self._build_duration_choices()
 
@@ -280,8 +296,10 @@ class RequestContent(MetalBoard):
         self._custom_row.set_visible(False)
         self._request_form.append(self._custom_row)
 
-        filter_row = Gtk.Button()
+        filter_row = Gtk.Button(hexpand=True)
         filter_row.add_css_class("oh-no-parent-control-app-filter-toggle")
+        filter_row.set_margin_start(10)
+        filter_row.set_margin_end(10)
         filter_inner = Gtk.Box(spacing=12)
         filter_icon = PixelIcon(
             SHIELD, display_size=20, label="Allow soft blocked apps",
@@ -310,6 +328,8 @@ class RequestContent(MetalBoard):
             label="REQUEST", hexpand=True, armor_kind="request",
         )
         self._request.add_css_class("oh-no-parent-control-request-button")
+        self._request.set_margin_start(10)
+        self._request.set_margin_end(10)
         self._request.set_sensitive(False)
         self._request.connect("clicked", on_request)
         actions.append(self._request)
@@ -332,6 +352,8 @@ class RequestContent(MetalBoard):
             label="CANCEL", hexpand=True, armor_kind="cancel",
         )
         self._cancel.add_css_class("oh-no-parent-control-cancel-button")
+        self._cancel.set_margin_start(10)
+        self._cancel.set_margin_end(10)
         self._cancel.connect("clicked", on_cancel)
         self.append(self._cancel)
         status_row = MetalPanel(
@@ -401,18 +423,28 @@ class RequestContent(MetalBoard):
 
     @staticmethod
     def _account_row(caption, icon_pixels, dropdown):
-        row = MetalPanel(spacing=8, panel_kind="metal")
+        row = MetalPanel(spacing=0, panel_kind="metal", hexpand=True)
         row.add_css_class("oh-no-parent-control-account-row")
+        row.set_margin_start(10)
+        row.set_margin_end(10)
+        # MetalPanel chrome has no layout cost, so CSS padding on the plate
+        # shrinks the painted face. Child margins keep labels off the bevel.
+        inner = Gtk.Box(spacing=8, hexpand=True)
+        inner.add_css_class("oh-no-parent-control-account-row-inner")
+        inner.set_margin_top(11)
+        inner.set_margin_end(12)
+        inner.set_margin_bottom(6)
+        inner.set_margin_start(10)
         icon = PixelIcon(icon_pixels, display_size=24, label=caption)
         icon.add_css_class("oh-no-parent-control-role-icon")
         icon.set_valign(Gtk.Align.START)
-        icon.set_margin_top(1)
-        row.append(icon)
+        icon.set_margin_top(3)
+        inner.append(icon)
         detail = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True,
         )
         detail.set_valign(Gtk.Align.START)
-        detail.set_margin_top(1)
+        detail.set_margin_top(3)
         label = Gtk.Label(label=caption, xalign=0)
         label.add_css_class("oh-no-parent-control-account-caption")
         label.set_valign(Gtk.Align.START)
@@ -420,7 +452,8 @@ class RequestContent(MetalBoard):
         detail.append(label)
         dropdown.set_valign(Gtk.Align.START)
         detail.append(dropdown)
-        row.append(detail)
+        inner.append(detail)
+        row.append(inner)
         return row
 
     def _build_duration_choices(self):
@@ -443,7 +476,7 @@ class RequestContent(MetalBoard):
             else:
                 button.set_group(group)
             button.connect("clicked", self._duration_clicked)
-            self._choices.append(button)
+            self._duration_box.append(button)
             self._duration_buttons.append(button)
             if seconds == DEFAULT_DURATION_SECONDS:
                 button.set_active(True)

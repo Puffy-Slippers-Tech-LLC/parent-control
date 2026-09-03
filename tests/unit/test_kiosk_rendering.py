@@ -28,6 +28,12 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('str(soundtrack or Path(__file__).with_name("Gearbox_Waltz.mp3"))', source)
         self.assertIn('self._music = BackgroundMusic(soundtrack)', source)
         self.assertIn('self._music.start()', source)
+        self.assertIn('if preview and not child_overlay:', source)
+        self.assertIn('self._apply_mute(True)', source)
+        self.assertLess(
+            source.index("self._music.start()"),
+            source.index("if preview and not child_overlay:"),
+        )
         self.assertIn('self._music.close()', source)
         self.assertIn('def fade_out(self, duration_ms):', source)
         self.assertIn('self._music.fade_out(SUCCESS_LOGOUT_DELAY_MS)', source)
@@ -208,6 +214,8 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("oh-no-parent-control-logo-plate", content)
         self.assertIn("CHILD_HEAD", content)
         self.assertIn("APPROVER_HEAD", content)
+        self.assertIn("icon.set_margin_top(3)", content)
+        self.assertIn("detail.set_margin_top(3)", content)
         self.assertIn("SHIELD, display_size=20", content)
         self.assertIn("PixelIcon(LOCK, display_size=16", content)
         self.assertIn("PixelIcon(POINTER", content)
@@ -226,13 +234,28 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('panel_kind="footer"', content)
         self.assertIn('armor_kind="request"', content)
         self.assertIn('armor_kind="cancel"', content)
+        self.assertIn("set_margin_start(10)", content)
+        self.assertIn("set_margin_end(10)", content)
         self.assertIn("def _paint_block_texture(", chrome)
         self.assertIn("padding: 22px 18px;", css)
         self.assertIn("font-size: 16px;", css)
         self.assertIn("font-size: 0.70em;", css)
         self.assertIn("font-size: 0.90em;", css)
         self.assertIn("font-size: 0.92em;", css)
-        self.assertIn("font-size: 1.08em;", css)
+        self.assertIn("oh-no-parent-control-account-row-inner", content)
+        self.assertIn("inner.set_margin_bottom(6)", content)
+        self.assertIn("margin: 11px 12px 6px 10px;", css)
+        self.assertIn("padding: 2px 0 0;", css)
+        self.assertIn("oh-no-parent-control-choices-inner", content)
+        self.assertIn("self._duration_box.set_margin_bottom(6)", content)
+        self.assertIn("self._duration_box.set_margin_start(4)", content)
+        self.assertIn("self._duration_box.set_margin_end(4)", content)
+        self.assertNotIn("self._duration_box.set_margin_start(8)", content)
+        self.assertNotIn("self._duration_box.set_margin_end(8)", content)
+        self.assertIn("margin: 4px 4px 6px;", css)
+        self.assertIn("padding: 2px 13px 2px;", css)
+        self.assertIn("font-size: 0.92em;", css)
+        self.assertIn("min-height: 28px;", css)
         self.assertIn("min-height: 62px;", css)
         self.assertIn("oh-no-parent-control-status-inner", content)
         self.assertIn("margin: 8px 28px 10px 22px;", css)
@@ -279,13 +302,26 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("Gtk.EventControllerScrollFlags.VERTICAL", source)
         self.assertIn("button.oh-no-parent-control-account-scroll", css)
 
-    def test_allow_soft_row_is_a_full_width_toggle_button(self):
+    def test_form_controls_match_request_and_cancel_button_width(self):
         source = KIOSK_CONTENT.read_text(encoding="utf-8")
         css = (ROOT / "kiosk/oh_no_parent_control_kiosk/style.css").read_text(
             encoding="utf-8",
         )
 
-        self.assertIn("filter_row = Gtk.Button()", source)
+        self.assertIn(
+            'row = MetalPanel(spacing=0, panel_kind="metal", hexpand=True)',
+            source,
+        )
+        self.assertIn("row.set_margin_start(10)", source)
+        self.assertIn("row.set_margin_end(10)", source)
+        self.assertIn("oh-no-parent-control-account-row-inner", source)
+        self.assertIn("inner.set_margin_start(10)", source)
+        self.assertIn("inner.set_margin_end(12)", source)
+        self.assertIn("self._choices.set_margin_start(10)", source)
+        self.assertIn("self._choices.set_margin_end(10)", source)
+        self.assertIn("filter_row = Gtk.Button(hexpand=True)", source)
+        self.assertIn("filter_row.set_margin_start(10)", source)
+        self.assertIn("filter_row.set_margin_end(10)", source)
         self.assertIn("self._allow_soft.set_can_target(False)", source)
         self.assertIn('filter_row.connect("clicked", self._toggle_allow_soft)', source)
         self.assertIn("def _toggle_allow_soft(self, _button):", source)
@@ -297,6 +333,34 @@ class KioskRenderingTests(unittest.TestCase):
             "button.oh-no-parent-control-app-filter-toggle:hover",
             css,
         )
+        self.assertIn(".oh-no-parent-control-account-row {\n  min-width: 0;", css)
+        self.assertIn(
+            ".oh-no-parent-control-account-row {\n  min-width: 0;\n"
+            "  margin-left: 10px;\n  margin-right: 10px;\n"
+            "  padding: 0;\n  border: none;",
+            css,
+        )
+        self.assertIn(
+            ".oh-no-parent-control-account-row-inner {\n"
+            "  /* Top inset clears the painted metal bevel so CHILD/APPROVER "
+            "sit below it. */\n"
+            "  margin: 11px 12px 6px 10px;",
+            css,
+        )
+        self.assertIn(".oh-no-parent-control-choices {\n  min-width: 0;", css)
+        self.assertIn(
+            ".oh-no-parent-control-choices {\n  min-width: 0;\n"
+            "  margin-left: 10px;\n  margin-right: 10px;",
+            css,
+        )
+        self.assertIn(
+            "button.oh-no-parent-control-app-filter-toggle {\n  min-width: 0;\n"
+            "  min-height: 36px;\n  padding: 7px 11px;\n  margin-left: 10px;\n"
+            "  margin-right: 10px;",
+            css,
+        )
+        self.assertNotIn("min-width: 348px;", css)
+        self.assertNotIn("min-width: 336px;", css)
 
     def test_screen_limit_off_disables_the_request_form_without_a_footer_error(self):
         source = KIOSK_CONTENT.read_text(encoding="utf-8")

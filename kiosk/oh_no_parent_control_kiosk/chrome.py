@@ -457,10 +457,13 @@ def _paint_hud_frame(context, x, y, width, height, *, compact=False,
                width - edge * 2 + 4, 3, 0.08, 0.89, 0.88)
     _rectangle(context, x + edge - 2, y + edge + 1,
                3, height - edge * 2 + 1, 0.08, 0.79, 0.81)
+    # Keep the complete inner aperture illuminated.  Dark violet lower/right
+    # strips disappeared against the face once the top-right controls were
+    # reduced to their compact size, making an intact frame look clipped.
     _rectangle(context, right - edge - 1, y + edge + 1,
-               3, height - edge * 2 + 1, 0.39, 0.15, 0.58)
+               3, height - edge * 2 + 1, 0.08, 0.79, 0.81)
     _rectangle(context, x + edge + 1, bottom - edge - 1,
-               width - edge * 2 - 1, 3, 0.25, 0.12, 0.43)
+               width - edge * 2 - 1, 3, 0.08, 0.89, 0.88)
 
     # Square clamps intentionally interrupt every rail. They are decorative;
     # hit testing remains that of the ordinary GTK button beneath them.
@@ -520,12 +523,15 @@ def _paint_hud_menu_frame(snapshot, width, height):
         _paint_rivet(context, rivet_x, rivet_y, 2.5)
 
 
-def _paint_hud_menu_stem(snapshot, width, height):
-    if width < 40 or height < 12:
+def _paint_hud_menu_stem(snapshot, width, height, source_width):
+    if width < source_width or height < 12:
         return
     context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
-    center = width * 0.72
     stem_width = 28.0
+    # Gtk.Popover aligns the right edge of this content with the right edge of
+    # its source button.  Inset the narrower stem by the remaining button width
+    # so its vertical axis, rather than its right edge, meets the icon center.
+    center = max(stem_width / 2, width - source_width + stem_width / 2)
     _rectangle(context, center - stem_width / 2 + 4, 3,
                stem_width, height, 0.02, 0.025, 0.045, 0.85)
     _rectangle(context, center - stem_width / 2, 0,
@@ -705,7 +711,13 @@ def paint_button_hardware(snapshot, width, height, kind):
         return
     context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
     if kind == "hud":
-        _paint_hud_frame(context, 0, 0, width, height, fill_face=False)
+        # Paint in a doubled logical coordinate space so the complete HUD
+        # chassis—including rails, clamps, bevels, and rivets—is half as
+        # thick without changing the GTK button allocation.
+        context.scale(0.5, 0.5)
+        _paint_hud_frame(
+            context, 0, 0, width * 2, height * 2, fill_face=False,
+        )
         return
     if kind == "hud-menu-item":
         _rectangle(context, 0, 0, width, 4, 0.48, 0.48, 0.52)
@@ -790,26 +802,26 @@ class ArmoredMenuButton(Gtk.MenuButton):
         )
 
 
-class HudIconFrame(Gtk.Box):
+class HudIconFrame(Gtk.Overlay):
     """A compact illuminated HUD chassis around a pixel-art menu icon."""
 
     __gtype_name__ = "OhNoHudIconFrame"
 
-    def __init__(self, pixels, *, display_size=40):
+    def __init__(self, pixels, *, display_size=28):
         super().__init__(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
-        self.set_size_request(70, 70)
+        self.set_size_request(54, 54)
         self.add_css_class("oh-no-parent-control-hud-menu-icon")
         icon = PixelIcon(pixels, display_size=display_size, label="")
         icon.set_halign(Gtk.Align.CENTER)
         icon.set_valign(Gtk.Align.CENTER)
-        self.append(icon)
+        self.set_child(icon)
 
     def do_snapshot(self, snapshot):
         width = self.get_width()
         height = self.get_height()
         context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
         _paint_hud_frame(context, 0, 0, width, height, compact=True)
-        Gtk.Box.do_snapshot(self, snapshot)
+        Gtk.Overlay.do_snapshot(self, snapshot)
 
 
 class HudMenuStem(Gtk.Widget):
@@ -817,13 +829,16 @@ class HudMenuStem(Gtk.Widget):
 
     __gtype_name__ = "OhNoHudMenuStem"
 
-    def __init__(self):
+    def __init__(self, *, source_width=66):
         super().__init__(hexpand=True)
+        self._source_width = source_width
         self.set_size_request(-1, 28)
         self.set_can_target(False)
 
     def do_snapshot(self, snapshot):
-        _paint_hud_menu_stem(snapshot, self.get_width(), self.get_height())
+        _paint_hud_menu_stem(
+            snapshot, self.get_width(), self.get_height(), self._source_width,
+        )
 
 
 class HudMenuBoard(Gtk.Box):

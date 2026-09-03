@@ -46,7 +46,7 @@ SUCCESS_LOGOUT_DELAY_MS = 3_000
 SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
 MUSIC_FADE_TICK_MS = 50
 CHILD_SUCCESS_TITLE = "Time granted"
-CHILD_SUCCESS_COPY = "Time granted, click here to close"
+CHILD_SUCCESS_COPY = "Time granted, Close"
 GATEWAY_EFFECT_FRAME_MS = 33
 # The form is centered in the window while the gateway in the artwork is
 # slightly left of the image centre.  Shift the composed artwork just enough
@@ -981,8 +981,10 @@ class RequestWindow(Adw.ApplicationWindow):
         help_popover.set_has_arrow(False)
         help_popover.set_position(Gtk.PositionType.BOTTOM)
         help_popover.add_css_class("oh-no-parent-control-hud-menu")
-        menu_board = HudMenuBoard(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        menu_board = HudMenuBoard(orientation=Gtk.Orientation.VERTICAL)
         menu_board.add_css_class("oh-no-parent-control-hud-menu-board")
+        menu_actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        menu_actions.add_css_class("oh-no-parent-control-hud-menu-actions")
         if self._child_overlay:
             help_item = self._hud_menu_item("HELP", HELP)
             describe_control(
@@ -993,7 +995,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 "clicked",
                 lambda *_args: self._activate_help_menu(help_popover, open_help),
             )
-            menu_board.append(help_item)
+            menu_actions.append(help_item)
         about_item = self._hud_menu_item("ABOUT", ABOUT)
         describe_control(
             about_item, "About",
@@ -1003,9 +1005,10 @@ class RequestWindow(Adw.ApplicationWindow):
             "clicked",
             lambda *_args: self._activate_help_menu(help_popover, self._show_about),
         )
-        menu_board.append(about_item)
+        menu_actions.append(about_item)
+        menu_board.append(menu_actions)
         self._muted = False
-        self._mute_icon = PixelIcon(SPEAKER, display_size=46, label="")
+        self._mute_icon = PixelIcon(SPEAKER, display_size=28, label="")
         self._mute_icon.set_halign(Gtk.Align.CENTER)
         self._mute_icon.set_valign(Gtk.Align.CENTER)
         self._mute_button = ArmoredButton(
@@ -1018,7 +1021,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._mute_button.set_child(self._mute_icon)
         self._mute_button.add_css_class("oh-no-parent-control-hud-button")
         self._mute_button.connect("clicked", self._toggle_mute)
-        menu_icon = PixelIcon(MENU, display_size=52, label="")
+        menu_icon = PixelIcon(MENU, display_size=31, label="")
         menu_icon.set_halign(Gtk.Align.CENTER)
         menu_icon.set_valign(Gtk.Align.CENTER)
         menu_button = ArmoredMenuButton(

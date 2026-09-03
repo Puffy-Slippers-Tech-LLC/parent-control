@@ -184,7 +184,11 @@ def wait_for_accessible_node():
                     )
                     timeout_id = GLib.timeout_add(remaining_milliseconds, loop.quit)
                     loop.run()
-                    GLib.source_remove(timeout_id)
+                    try:
+                        GLib.source_remove(timeout_id)
+                    except SystemError:
+                        # The timeout itself ended the loop and is already gone.
+                        pass
         finally:
             for event_type in registered_events:
                 listener.deregister(event_type)
@@ -210,7 +214,10 @@ def wait_for_accessible_state():
             loop = GLib.MainLoop()
             timeout_id = GLib.timeout_add(50, loop.quit)
             loop.run()
-            GLib.source_remove(timeout_id)
+            try:
+                GLib.source_remove(timeout_id)
+            except SystemError:
+                pass
         raise AssertionError(f"Timed out waiting for accessibility state: {description}")
 
     return wait

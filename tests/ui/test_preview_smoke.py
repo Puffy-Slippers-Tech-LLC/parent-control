@@ -73,16 +73,19 @@ def test_parent_denied_or_unavailable_never_exposes_management_window(launch_ui,
     assert process.wait(timeout=5) == 0
 
 
-def test_parent_no_child_and_loading_state_are_explicit(launch_ui, wait_for_accessible_node,
-                                                         wait_for_accessible_state):
+def test_parent_no_child_message_is_explicit(launch_ui, wait_for_accessible_node):
     no_children, _log_path = launch_ui(
         "parent_component_preview",
         environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "no-users"},
     )
     wait_for_accessible_node(
-        no_children, "No interactive non-admin users were found", "notification",
+        no_children, "No interactive non-administrator account was found.", "label",
     )
 
+
+def test_parent_loading_state_disables_conflicting_controls(launch_ui,
+                                                             wait_for_accessible_node,
+                                                             wait_for_accessible_state):
     loading, _log_path = launch_ui(
         "parent_component_preview",
         environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "loading"},
@@ -95,10 +98,8 @@ def test_parent_no_child_and_loading_state_are_explicit(launch_ui, wait_for_acce
     wait_for_accessible_state(lambda: allowance.sensitive, "loaded daily allowance")
 
 
-def test_parent_time_status_retries_and_reports_unavailable(launch_ui,
-                                                             wait_for_accessible_node,
-                                                             wait_for_accessible_state,
-                                                             tmp_path):
+def test_parent_time_status_retries(launch_ui, wait_for_accessible_node,
+                                    wait_for_accessible_state, tmp_path):
     events_path = tmp_path / "status-events.jsonl"
     retrying, _log_path = launch_ui(
         "parent_component_preview",
@@ -115,6 +116,8 @@ def test_parent_time_status_retries_and_reports_unavailable(launch_ui,
         "two failed status attempts followed by a successful retry",
     )
 
+
+def test_parent_time_status_reports_unavailable(launch_ui, wait_for_accessible_node):
     unavailable, _log_path = launch_ui(
         "parent_component_preview",
         environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "status-unavailable"},
@@ -123,7 +126,8 @@ def test_parent_time_status_retries_and_reports_unavailable(launch_ui,
 
 
 def test_parent_screen_time_change_autosaves_and_never_offers_a_grant(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path):
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state,
+        capture_ui_snapshot, tmp_path):
     events_path = tmp_path / "save-events.jsonl"
     application, _log_path = launch_ui(
         "parent_component_preview",
@@ -137,15 +141,68 @@ def test_parent_screen_time_change_autosaves_and_never_offers_a_grant(
         "screen-time auto-save",
     )
     records = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()]
-    assert records[-1] == {
+    assert [record for record in records if record["event"] == "set_parent_control"] == [{
         "daily_limit_minutes": 90,
         "enabled": False,
         "event": "set_parent_control",
         "uid": 1001,
-    }
-    tree = application.dump()
+    }]
+    tree = capture_ui_snapshot(application, "parent-no-grant").read_text(encoding="utf-8")
     assert "Grant additional time" not in tree
     assert "Approve time" not in tree
+
+
+def test_parent_daily_preset_and_custom_limit_are_exposed(launch_ui,
+                                                          wait_for_accessible_node):
+    application, _log_path = launch_ui(
+        "parent_component_preview",
+        environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "custom-limit"},
+    )
+    wait_for_accessible_node(application, "Daily Time Allowance", "combo box")
+    wait_for_accessible_node(application, "Custom daily allowance", "text")
+
+
+def test_parent_app_search_rule_edit_and_revocation_confirmation(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path):
+    events_path = tmp_path / "app-events.jsonl"
+    application, _log_path = launch_ui(
+        "parent_component_preview",
+        environment_overrides={"ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events_path)},
+    )
+    app_limits = wait_for_accessible_node(application, "App Limits", "page tab")
+    assert app_limits.do_action(0)
+    search = wait_for_accessible_node(application, "Search installed apps", "entry")
+    search.text = "calculator"
+    calculator = wait_for_accessible_node(application, "Calculator")
+    assert calculator.showing
+
+    match_rule = wait_for_accessible_node(application, "Calculator match rule", "button")
+    assert match_rule.do_action(0)
+    dialog = wait_for_accessible_node(application, "Edit Match Rule", "dialog")
+    rule_entry = dialog.child(role_name="text", retry=False)
+    rule_entry.text = "/usr/bin/gnome-calculator"
+    save = dialog.child("Save", role_name="button", retry=False)
+    assert save.do_action(0)
+    wait_for_accessible_state(
+        lambda: events_path.exists() and "set_preferences" in events_path.read_text(),
+        "match-rule auto-save",
+    )
+
+    revoke = wait_for_accessible_node(application, "Revoke one-time access", "button")
+    assert revoke.do_action(0)
+    confirmation = wait_for_accessible_node(application, "Revoke one-time grant?", "dialog")
+    warning = confirmation.child(
+        "This will revoke one-time screen time and access to soft blocked apps "
+        "granted to Alex Morgan, close their running blocked apps, and lock their desktop "
+        "when no time remains. Their remaining daily time allowance is not impacted.",
+        role_name="label", retry=False,
+    )
+    assert warning.showing
+    assert confirmation.child("Revoke grant", role_name="button", retry=False).do_action(0)
+    wait_for_accessible_state(
+        lambda: "revoke_one_time_grant" in events_path.read_text(),
+        "confirmed one-time-grant revocation",
+    )
 
 
 def test_kiosk_accessibility_tree_is_populated(launch_ui, capture_ui_snapshot):

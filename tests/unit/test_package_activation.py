@@ -33,6 +33,14 @@ class PackageActivationTests(unittest.TestCase):
             "process-restart",
         )
 
+    def test_broker_service_change_activates_with_broker_restart(self):
+        self.assertEqual(
+            activation_for(
+                "usr/lib/systemd/system/oh-no-parent-control-broker.service"
+            ),
+            "process-restart",
+        )
+
     def test_migration_runner_activates_during_postinst(self):
         self.assertEqual(
             activation_for("usr/libexec/oh-no-parent-control-migrate-state"),

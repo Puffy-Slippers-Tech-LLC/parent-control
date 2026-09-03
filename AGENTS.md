@@ -1,5 +1,6 @@
 - Whenever needing to understand system architecture, refer to @docs/System-Design.md
 - Never use outdated / legacy / internal / private / hacky code
+- When making a code change, add detailed logging as needed, PII info MUST NOT be logged. Redaction such as [Child user] are allowed.
 - For troubleshooting logs, look in /var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log. If sandbox restrictions prevent reading them, immediately request sandbox  escalation for the minimum necessary read-only command. Never modify or delete logs.
 - Reading any log or journal, retrieving public web pages with read-only tools (including `curl` and `wget`), and internet research are always authorized for this project. If platform sandboxing requires approval, request the minimum necessary read-only escalation without asking separately. Never use these permissions to modify remote or local data.
 - Fix the root cause in code, so it's repoducible on a clean computer. Unless specified otherwise, treat this as a new app, no existing installations.

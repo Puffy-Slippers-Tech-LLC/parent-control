@@ -46,9 +46,8 @@ class ExtensionManager:
                 group=account.pw_gid, extra_groups=(),
             )
         except (OSError, subprocess.SubprocessError) as error:
-            detail = " ".join((getattr(error, "stderr", "") or "").split())[:500]
-            LOG.error("child settings command failed for uid=%d: %s",
-                      account.pw_uid, detail or type(error).__name__)
+            LOG.error("child settings command outcome=failed error_type=%s",
+                      type(error).__name__)
             raise RuntimeError("child GNOME settings are unavailable") from error
 
     def _enabled(self, account):
@@ -62,6 +61,7 @@ class ExtensionManager:
         self._run_as(account, "gsettings", "set", SCHEMA, KEY, repr(values))
 
     def set_enabled(self, uid: int, enabled: bool) -> None:
+        LOG.info("child extension update stage=started enabled=%s", enabled)
         account, home = self._account(uid)
         if home.is_symlink() or home.stat().st_uid != uid:
             raise RuntimeError("child home directory has unsafe ownership")
@@ -100,7 +100,9 @@ class ExtensionManager:
                 values = self._enabled(account)
                 if UUID not in values:
                     self._set_enabled(account, [*values, UUID])
-            except Exception:
+            except Exception as error:
+                LOG.error("child extension update outcome=failed enabled=true error_type=%s",
+                          type(error).__name__)
                 if target.is_dir():
                     shutil.rmtree(target)
                 raise
@@ -110,3 +112,4 @@ class ExtensionManager:
                 self._set_enabled(account, [value for value in values if value != UUID])
             if target.is_dir():
                 shutil.rmtree(target)
+        LOG.info("child extension update outcome=accepted enabled=%s", enabled)

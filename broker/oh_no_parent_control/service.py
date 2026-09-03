@@ -148,8 +148,8 @@ class Service:
         refreshed_uids = self.broker.refresh_enabled_extensions()
         if refreshed_uids:
             logging.info(
-                "refreshed child extension payloads uids=%s",
-                ",".join(str(uid) for uid in refreshed_uids),
+                "refreshed child extension payloads child_count=%d",
+                len(refreshed_uids),
             )
         try:
             cap_uids = self.broker.clear_live_session_runtime_caps()
@@ -158,8 +158,8 @@ class Service:
         else:
             if cap_uids:
                 logging.info(
-                    "cleared systemd session runtime caps uids=%s",
-                    ",".join(str(uid) for uid in cap_uids),
+                    "cleared systemd session runtime caps child_count=%d",
+                    len(cap_uids),
                 )
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
         self.log_writer = log_writer
@@ -203,7 +203,7 @@ class Service:
         try:
             caller_uid = self.credentials.uid(sender)
             if method != "LogEvent":
-                logging.info("dbus method=%s caller_uid=%d stage=dispatch", method, caller_uid)
+                logging.info("dbus method=%s caller=[Authorized user] stage=dispatch", method)
             if method == "ListManagedUsers":
                 users = self.broker.list_managed_users(caller_uid)
                 invocation.return_value(GLib.Variant(
@@ -316,13 +316,13 @@ class Service:
                     f"{BUS_NAME}.Error.InvalidRequest", "unknown method"
                 )
             if method != "LogEvent":
-                logging.info("dbus method=%s caller_uid=%d outcome=accepted", method, caller_uid)
+                logging.info("dbus method=%s caller=[Authorized user] outcome=accepted", method)
         except BrokerError as error:
             logging.warning("dbus method=%s outcome=denied error_type=%s",
                             method, type(error).__name__)
             invocation.return_dbus_error(error.dbus_name, str(error))
-        except Exception:
-            logging.exception("[oh-no-parent-control] request dispatch failed")
+        except Exception as error:
+            logging.error("dbus method=%s outcome=failed error_type=%s", method, type(error).__name__)
             invocation.return_dbus_error(f"{BUS_NAME}.Error.Failed", "service failure")
 
     def _request_worker(self, invocation, caller_uid, sender, target_uid,
@@ -334,8 +334,8 @@ class Service:
             GLib.idle_add(self._return_value, invocation, result)
         except BrokerError as error:
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
-        except Exception:
-            logging.exception("[oh-no-parent-control] request failed")
+        except Exception as error:
+            logging.error("request worker kind=kiosk outcome=failed error_type=%s", type(error).__name__)
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )
@@ -349,8 +349,8 @@ class Service:
             GLib.idle_add(self._return_own_value, invocation, result)
         except BrokerError as error:
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
-        except Exception:
-            logging.exception("[oh-no-parent-control] own request failed")
+        except Exception as error:
+            logging.error("request worker kind=child outcome=failed error_type=%s", type(error).__name__)
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )

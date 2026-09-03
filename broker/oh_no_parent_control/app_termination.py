@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import fnmatch
+import logging
 import os
 import pwd
 import re
@@ -22,6 +23,7 @@ MAX_FLATPAK_OUTPUT_BYTES = 1024 * 1024
 FLATPAK_TIMEOUT_SECONDS = 5
 PROCESS_EXIT_TIMEOUT_SECONDS = 2
 MAX_NATIVE_TERMINATION_PASSES = 4
+LOG = logging.getLogger("oh-no-parent-control.app-termination")
 FLATPAK_INSTANCE_RE = re.compile(r"^[0-9]+$")
 FLATPAK_ID_RE = re.compile(
     r"^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+$"
@@ -58,6 +60,8 @@ class RunningAppTerminator:
                   patterns: tuple[str, ...]) -> None:
         """Reject an unsupported termination request before policy is changed."""
         identity = self._identity(target_uid)
+        LOG.info("blocked-app termination preflight native_target_count=%d flatpak_target_count=%d pattern_count=%d",
+                 len(_native_targets(targets)), len(_flatpak_targets(targets)), len(patterns))
         if (_native_targets(targets) or patterns) and (
                 self._pidfd_open is None or self._pidfd_send_signal is None):
             raise AppTerminationError("pidfd signaling is unavailable")
@@ -71,12 +75,14 @@ class RunningAppTerminator:
         """Kill blocked apps for *target_uid* and return the number terminated."""
         self.preflight(target_uid, targets, patterns)
         identity = self._identity(target_uid)
+        LOG.info("blocked-app termination stage=started")
         terminated = self._terminate_flatpaks(
             identity, _flatpak_targets(targets),
         )
         terminated += self._terminate_native(
             target_uid, _native_targets(targets), patterns,
         )
+        LOG.info("blocked-app termination outcome=accepted terminated_count=%d", terminated)
         return terminated
 
     @staticmethod

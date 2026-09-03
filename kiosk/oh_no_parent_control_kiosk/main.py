@@ -1181,7 +1181,7 @@ class RequestWindow(Adw.ApplicationWindow):
     def _own_account_done(self, connection, result):
         try:
             uid, label, icon_file = connection.call_finish(result).unpack()
-            LOG.info("own-account discovery completed uid=%d", uid)
+            LOG.info("own-account discovery completed account=[Child user]")
             self._request_content.set_accounts(((uid, label, icon_file),))
         except Exception as error:
             LOG.warning("own-account outcome=unavailable error_type=%s", type(error).__name__)
@@ -1217,7 +1217,7 @@ class RequestWindow(Adw.ApplicationWindow):
             finally:
                 self._applying_preferences = False
             return
-        LOG.info("preferences load started target_uid=%d", target_uid)
+        LOG.info("preferences load started target=[Child user]")
         self._bus_call(
             "GetPreferences", GLib.Variant("(u)", (target_uid,)), "(s)",
             lambda connection, result: self._preferences_done(
@@ -1238,7 +1238,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 )
             finally:
                 self._applying_preferences = False
-            LOG.info("preferences load completed target_uid=%d", target_uid)
+            LOG.info("preferences load completed target=[Child user]")
         except Exception as error:
             LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
 
@@ -1319,8 +1319,8 @@ class RequestWindow(Adw.ApplicationWindow):
             return
         self._set_request_controls(False)
         self._requested_label = target_label
-        LOG.info("target_uid=%d approver_uid=%d duration_seconds=%d "
-                 "allow_soft=%s overlay=%s stage=request", target_uid, approver_uid,
+        LOG.info("target=[Child user] approver=[Administrator] duration_seconds=%d "
+                 "allow_soft=%s overlay=%s stage=request",
                  duration_seconds, allow_soft, self._child_overlay)
         try:
             self._pending_request = (

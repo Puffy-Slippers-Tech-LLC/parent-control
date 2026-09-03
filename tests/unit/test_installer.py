@@ -337,6 +337,13 @@ class InstallerTests(unittest.TestCase):
         self.assertIn("Wants=oh-no-parent-control-polkit-agent.service", session)
         self.assertNotIn("Requires=oh-no-parent-control-polkit-agent.service", session)
 
+    def test_kiosk_session_disables_all_xdg_autostart_apps(self):
+        session = (
+            ROOT / "data/gnome-session/sessions/oh-no-parent-control.session"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("Kiosk=true", session)
+
     def test_debian_package_avoids_transitional_polkit_dependency(self):
         control = (ROOT / "debian/control").read_text(encoding="utf-8")
 

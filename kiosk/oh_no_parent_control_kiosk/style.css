@@ -36,6 +36,18 @@ window.oh-no-parent-control-overlay {
   font-weight: 500;
 }
 
+/* Keep link text aligned with the labels above it. GTK buttons otherwise add
+ * their standard internal padding around LinkButton's child label. */
+.about-link {
+  margin: 0;
+  padding: 0;
+}
+
+button.about-link > label {
+  margin: 0;
+  padding: 0;
+}
+
 .oh-no-parent-control-dialog {
   min-width: 394px;
   padding: 22px 18px;

@@ -2,6 +2,14 @@
   background: linear-gradient(145deg, #fcfcfd, #f6f7f9);
 }
 
+/* Align About-dialog links with their labels. LinkButton normally inherits
+ * button padding from the GTK theme. */
+button.about-link,
+button.about-link > label {
+  margin: 0;
+  padding: 0;
+}
+
 .parent-header {
   min-height: 78px;
   background: alpha(white, 0.72);

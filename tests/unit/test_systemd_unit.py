@@ -28,8 +28,12 @@ class BrokerServiceUnitTests(unittest.TestCase):
         self.assertEqual(ambient, {"CAP_SETGID", "CAP_SETUID"})
         self.assertTrue(ambient <= bounded)
         self.assertTrue(
-            {"CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER", "CAP_KILL"} <= bounded
+            {
+                "CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER", "CAP_KILL",
+                "CAP_SYS_PTRACE",
+            } <= bounded
         )
+        self.assertNotIn("CAP_SYS_PTRACE", ambient)
 
     def test_broker_starts_with_and_can_reload_execution_policy(self):
         source = BROKER_UNIT.read_text(encoding="utf-8")

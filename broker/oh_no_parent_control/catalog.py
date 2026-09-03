@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import configparser
+import logging
 import os
 import pwd
 import shlex
@@ -23,6 +24,7 @@ SYSTEM_APPLICATION_DIRS = (
     Path("/var/lib/flatpak/exports/share/applications"),
     Path("/var/lib/snapd/desktop/applications"),
 )
+LOG = logging.getLogger("oh-no-parent-control.catalog")
 
 
 def suggested_patterns(target: str) -> tuple[str, ...]:
@@ -157,8 +159,10 @@ def list_apps(user: UserAccount):
     try:
         account = pwd.getpwnam(user.username)
     except KeyError:
+        LOG.warning("catalog discovery outcome=account-unavailable")
         return ()
     if account.pw_uid != user.uid:
+        LOG.warning("catalog discovery outcome=identity-mismatch")
         return ()
     home = Path(account.pw_dir)
     directories = (
@@ -175,4 +179,6 @@ def list_apps(user: UserAccount):
             application = _application(filename, desktop_id, home)
             if application:
                 result[desktop_id] = application
-    return tuple(sorted(result.values(), key=lambda app: app["name"].casefold()))
+    applications = tuple(sorted(result.values(), key=lambda app: app["name"].casefold()))
+    LOG.info("catalog discovery outcome=accepted app_count=%d", len(applications))
+    return applications

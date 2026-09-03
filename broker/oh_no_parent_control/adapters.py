@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import pwd
 import re
@@ -52,6 +53,7 @@ CALL_TIMEOUT_MS = 30_000
 AUTH_TIMEOUT_MS = GLib.MAXINT
 USAGE_HELPER = "/usr/libexec/oh-no-parent-control-query-usage"
 MAX_USAGE_HELPER_OUTPUT_BYTES = 8 * 1024 * 1024
+LOG = logging.getLogger("oh-no-parent-control.adapters")
 
 
 class TimerUsageError(RuntimeError):
@@ -94,7 +96,8 @@ class CallerCredentials:
                 "NameHasOwner", GLib.Variant("(s)", (sender,)), "(b)",
             )
             return reply.unpack()[0]
-        except GLib.Error:
+        except GLib.Error as error:
+            LOG.warning("caller liveness check outcome=failed error_type=%s", type(error).__name__)
             return False
 
 
@@ -133,9 +136,10 @@ class PolkitAuthorizer:
                 )),
                 "((bba{ss}))", AUTH_TIMEOUT_MS,
             )
-        except GLib.Error:
+        except GLib.Error as error:
             # Agent loss and authority errors fail closed.  This call itself
             # has no timeout; a user cancellation is returned by Polkit below.
+            LOG.warning("authorization check outcome=backend-failed error_type=%s", type(error).__name__)
             return "denied"
         authorized, challenge, _details = reply.unpack()[0]
         if authorized:
@@ -279,6 +283,7 @@ class AccountsService:
         if self._execution_policy is None:
             return
         with self._execution_policy_lock:
+            LOG.info("execution-policy sync stage=collect-filters")
             filters = {}
             patterns = {}
             for user in self.list_users():
@@ -298,6 +303,8 @@ class AccountsService:
                     patterns[user.uid] = tuple(sorted(set(active)))
                 except Exception as error:
                     raise RuntimeError("could not load wildcard policy") from error
+            LOG.info("execution-policy sync stage=reconcile account_count=%d pattern_account_count=%d",
+                     len(filters), len(patterns))
             if patterns:
                 self._execution_policy.reconcile(filters, patterns)
             else:
@@ -342,6 +349,7 @@ class TimerUsage:
             self, uid: int,
             approver: UserAccount) -> tuple[tuple[int, int], ...]:
         """Query through a new bus connection owned by the authenticated approver."""
+        LOG.info("usage helper stage=launch")
         try:
             identity = pwd.getpwuid(approver.uid)
         except KeyError as error:
@@ -380,8 +388,10 @@ class TimerUsage:
                 output.seek(0)
                 encoded = output.read(MAX_USAGE_HELPER_OUTPUT_BYTES + 1)
         except subprocess.TimeoutExpired as error:
+            LOG.warning("usage helper outcome=timeout")
             raise TimerUsageError("timeout") from error
         except OSError as error:
+            LOG.warning("usage helper outcome=unavailable error_type=%s", type(error).__name__)
             raise TimerUsageError("helper-unavailable") from error
 
         try:
@@ -398,4 +408,5 @@ class TimerUsage:
                         for value in interval)):
                 raise TimerUsageError("invalid-helper-reply")
             intervals.append(tuple(interval))
+        LOG.info("usage helper outcome=accepted interval_count=%d", len(intervals))
         return tuple(intervals)

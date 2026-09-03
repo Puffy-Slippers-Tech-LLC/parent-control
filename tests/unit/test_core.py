@@ -222,7 +222,7 @@ class CoreTests(unittest.TestCase):
         preferences.values[1001]["parent_control_enabled"] = True
 
         with self.assertRaisesRegex(
-                BackendFailure, "could not refresh the child extension for uid 1001"):
+            BackendFailure, "could not refresh the child extension"):
             make_broker(
                 preferences=preferences, extensions=FailingExtensions(),
             ).refresh_enabled_extensions()

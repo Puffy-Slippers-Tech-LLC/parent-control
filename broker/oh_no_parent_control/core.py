@@ -206,9 +206,8 @@ class Broker:
                     self._extensions.set_enabled(user.uid, True)
                     refreshed.append(user.uid)
             except Exception as error:
-                raise BackendFailure(
-                    f"could not refresh the child extension for uid {user.uid}"
-                ) from error
+                LOG.error("extension refresh outcome=failed error_type=%s", type(error).__name__)
+                raise BackendFailure("could not refresh the child extension") from error
         return tuple(refreshed)
 
     def calculate_remaining_time(
@@ -502,6 +501,8 @@ class Broker:
         except Exception as error:
             raise BackendFailure("app filter is unavailable") from error
         desired_filter = (False, blocked_targets(requested, False))
+        LOG.info("app-policy update stage=started blocked_target_count=%d",
+                 len(desired_filter[1]))
         preferences_saved = False
         try:
             # Persist first so AccountsService's synchronous execution-policy
@@ -515,8 +516,10 @@ class Broker:
             sync = getattr(self._accounts, "sync_execution_policy", None)
             if sync is not None:
                 sync()
+            LOG.info("app-policy update outcome=accepted")
             return saved
         except Exception as error:
+            LOG.warning("app-policy update stage=rollback error_type=%s", type(error).__name__)
             try:
                 if preferences_saved:
                     self._preferences.save(target.uid, current)
@@ -524,6 +527,8 @@ class Broker:
                 if self._accounts.get_filter(target.uid) != old_filter:
                     raise RuntimeError("app-filter rollback read-back mismatch")
             except Exception as rollback_error:
+                LOG.critical("app-policy update outcome=rollback-failed error_type=%s",
+                             type(rollback_error).__name__)
                 raise RollbackFailure(
                     "app-filter rollback could not be verified"
                 ) from rollback_error
@@ -575,6 +580,8 @@ class Broker:
                 "daily time limit must be an integer from 0 to 1440 minutes"
             )
         target = self._target(config, target_uid)
+        LOG.info("parent-control update stage=started enabled=%s daily_limit_minutes=%d",
+                 enabled, daily_limit_minutes)
         if self._preferences is None or self._extensions is None:
             raise BackendFailure("extension management is unavailable")
         try:
@@ -615,8 +622,12 @@ class Broker:
 
                 current["parent_control_enabled"] = enabled
                 current["daily_time_limit_minutes"] = daily_limit_minutes
-                return self._preferences.save(target.uid, current)
+                saved = self._preferences.save(target.uid, current)
+                LOG.info("parent-control update outcome=accepted enabled=%s", enabled)
+                return saved
             except Exception as error:
+                LOG.warning("parent-control update stage=rollback error_type=%s",
+                            type(error).__name__)
                 rollback_error = None
                 try:
                     self._restore(
@@ -631,6 +642,8 @@ class Broker:
                 except Exception as caught:
                     rollback_error = rollback_error or caught
                 if rollback_error is not None:
+                    LOG.critical("parent-control update outcome=rollback-failed error_type=%s",
+                                 type(rollback_error).__name__)
                     raise RollbackFailure(
                         "parent-control rollback could not be verified"
                     ) from rollback_error
@@ -645,6 +658,7 @@ class Broker:
         if not self._request_lock.acquire(blocking=False):
             raise Busy("another request is already in progress")
         try:
+            LOG.info("revoke stage=started caller=[Administrator] target=[Child user]")
             config = self._load_config()
             if not self._is_admin(caller_uid):
                 raise AccessDenied("administrator access is required")
@@ -682,14 +696,15 @@ class Broker:
                         raise BackendFailure("blocked application termination failed")
                     termination_may_have_changed_processes = terminated > 0
                     LOG.info(
-                        "revoke target_uid=%d stage=blocked-app-termination "
-                        "outcome=accepted count=%d",
-                        target.uid, terminated,
+                        "revoke target=[Child user] stage=blocked-app-termination "
+                        "outcome=accepted count=%d", terminated,
                     )
                 self._accounts.set_extension(target.uid, (0, 0))
                 if self._accounts.get_extension(target.uid) != (0, 0):
                     raise BackendFailure("extension verification failed")
+                LOG.info("revoke outcome=accepted")
             except Exception as error:
+                LOG.warning("revoke stage=rollback error_type=%s", type(error).__name__)
                 try:
                     self._accounts.set_extension(target.uid, old_extension)
                     rollback_filter = (
@@ -702,6 +717,8 @@ class Broker:
                             self._accounts.get_filter(target.uid) != rollback_filter):
                         raise RuntimeError("rollback read-back mismatch")
                 except Exception as rollback_error:
+                    LOG.critical("revoke outcome=rollback-failed error_type=%s",
+                                 type(rollback_error).__name__)
                     raise RollbackFailure(
                         "one-time grant rollback could not be verified"
                     ) from rollback_error
@@ -766,9 +783,9 @@ class Broker:
             # new authorization dialog. Denied and cancelled attempts do not
             # consume the interval; only a completed grant records it below.
             self._apply_rate_limit(caller_uid, config.minimum_request_interval_seconds)
-            LOG.info("request=%s caller_uid=%d target_uid=%d approver_uid=%d "
+            LOG.info("request=%s caller=[Request surface] target=[Child user] approver=[Administrator] "
                      "duration_seconds=%d allow_soft=%s kind=%s stage=authorize",
-                     correlation_id, caller_uid, target.uid, approver.uid,
+                     correlation_id,
                      duration_seconds, allow_soft_blocked_apps, request_kind)
 
             outcome = self._authorizer.check(
@@ -800,8 +817,8 @@ class Broker:
             else:
                 if self._preferences is None or self._timer_usage is None:
                     raise BackendFailure("remaining-time status is unavailable")
-                LOG.info("request=%s stage=usage-query approver_uid=%d",
-                         correlation_id, approver.uid)
+                LOG.info("request=%s stage=usage-query approver=[Administrator]",
+                         correlation_id)
                 try:
                     usage_entries = self._timer_usage.query_usage_as(target.uid, approver)
                 except Exception as error:
@@ -879,7 +896,7 @@ class Broker:
         try:
             return self._config_loader()
         except ConfigurationError as error:
-            LOG.error("configuration rejected: %s", error)
+            LOG.error("configuration rejected error_type=%s", type(error).__name__)
             raise BackendFailure("broker configuration is unavailable") from error
 
     def _apply_rate_limit(self, caller_uid: int, interval: int) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -27,6 +28,7 @@ REQUIRED_REQUEST_KEYS = {
 OPTIONAL_REQUEST_KEYS = {
     "last_selected_approver_uid", "kiosk_muted", "child_muted",
 }
+LOG = logging.getLogger("oh-no-parent-control.preferences")
 
 
 class PreferencesError(ValueError):
@@ -197,13 +199,20 @@ class PreferenceStore:
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
+            LOG.info("preference load outcome=default-record")
             return default_preferences()
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            LOG.warning("preference load outcome=failed error_type=%s", type(error).__name__)
             raise PreferencesError("could not read preferences") from error
-        return validate_preferences(raw)
+        try:
+            return validate_preferences(raw)
+        except PreferencesError as error:
+            LOG.warning("preference load outcome=invalid error_type=%s", type(error).__name__)
+            raise
 
     def save(self, uid: int, preferences: object) -> dict:
         normalized = validate_preferences(preferences)
+        LOG.info("preference save stage=validated app_policy_count=%d", len(normalized["apps"]))
         path = self._path(uid)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.directory, 0o700)
@@ -216,9 +225,13 @@ class PreferenceStore:
                 os.fsync(stream.fileno())
             os.chmod(temporary, 0o600)
             os.replace(temporary, path)
+        except OSError as error:
+            LOG.error("preference save outcome=failed error_type=%s", type(error).__name__)
+            raise
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
+        LOG.info("preference save outcome=accepted")
         return normalized
 
     def update_request(self, uid: int, selected: str, custom: float,

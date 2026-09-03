@@ -37,8 +37,10 @@ class DailyLogWriter:
         directory = self.root / component
         path = directory / f"{date}.log"
         clean_message = message.replace("\r", "\\r").replace("\n", "\\n")
-        source = f" uid={source_uid}" if source_uid is not None else ""
-        line = f"{now.isoformat(timespec='seconds')} {level}{source} {clean_message}\n"
+        # Authorization is enforced before this writer is called.  Do not
+        # retain the caller UID: it is personal data and adds no diagnostic
+        # value beyond the component and operation context in the message.
+        line = f"{now.isoformat(timespec='seconds')} {level} {clean_message}\n"
 
         with self._lock:
             created = False

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import fnmatch
+import logging
 import os
 import stat
 import subprocess
 import tempfile
 import threading
 from pathlib import Path
+
+LOG = logging.getLogger("oh-no-parent-control.execution-policy")
 
 
 class ExecutionPolicyError(RuntimeError):
@@ -154,6 +157,7 @@ class FapolicydPolicy:
 
     def reconcile(self, filters: dict[int, tuple[str, ...]],
                   patterns: dict[int, tuple[str, ...]] | None = None) -> None:
+        LOG.info("execution policy reconcile stage=compile account_count=%d", len(filters))
         contents = self.render(filters, patterns)
         with self._lock:
             previous = None
@@ -165,12 +169,17 @@ class FapolicydPolicy:
                 raise ExecutionPolicyError("could not read current execution policy") from error
 
             if previous == contents.encode("utf-8"):
+                LOG.info("execution policy reconcile outcome=unchanged")
                 return
 
+            LOG.info("execution policy reconcile stage=replace")
             self._replace(contents.encode("utf-8"))
             try:
+                LOG.info("execution policy reconcile stage=activate")
                 self._reload()
             except Exception as error:
+                LOG.error("execution policy reconcile outcome=activation-failed error_type=%s",
+                          type(error).__name__)
                 try:
                     if previous is None:
                         self._rules_path.unlink(missing_ok=True)
@@ -184,6 +193,7 @@ class FapolicydPolicy:
                 if isinstance(error, ExecutionPolicyError):
                     raise
                 raise ExecutionPolicyError("execution policy could not be activated") from error
+            LOG.info("execution policy reconcile outcome=accepted")
 
     def _replace(self, contents: bytes) -> None:
         try:

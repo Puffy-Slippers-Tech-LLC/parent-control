@@ -1069,8 +1069,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._update_apps_loading_ui()
         self._set_apps_sensitive(self._preferences is not None)
         LOG.info(
-            "application table ready target_uid=%s row_count=%d",
-            self._selected_uid(), len(self._rows),
+            "application table ready target=[Child user] row_count=%d",
+            len(self._rows),
         )
         return GLib.SOURCE_REMOVE
 
@@ -1084,7 +1084,7 @@ class ParentWindow(Adw.ApplicationWindow):
                 if failure is not None:
                     failure(caught)
                     return
-                LOG.warning("broker operation failed: %s", caught)
+                LOG.warning("broker operation failed error_type=%s", type(caught).__name__)
                 self._toast(f"Could not complete the change: {caught}")
                 self._loading = True
                 if self._preferences is not None:
@@ -1163,7 +1163,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._time_status_value.set_label("Loading…")
         for value in self._time_operand_values:
             value.set_label("—")
-        LOG.info("preferences load started target_uid=%d", uid)
+        LOG.info("preferences load started target=[Child user]")
         self._set_apps_sensitive(False)
         # Start the application catalog immediately on a background thread so
         # Screen Limits is not blocked, and App Limits can paint as soon as
@@ -1190,7 +1190,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._pending_catalog_apps = []
         self._clear_catalog_rows()
         self._update_apps_loading_ui()
-        LOG.info("application catalog load started target_uid=%d", uid)
+        LOG.info("application catalog load started target=[Child user]")
         self._run(
             lambda: self._client.list_apps(uid),
             lambda applications: self._apps_loaded(uid, generation, applications),
@@ -1204,8 +1204,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._app_catalog = applications
         self._app_catalog_uid = uid
         LOG.info(
-            "application catalog loaded target_uid=%d app_count=%d",
-            uid, len(applications),
+            "application catalog loaded target=[Child user] app_count=%d",
+            len(applications),
         )
         self._update_apps_loading_ui()
         self._maybe_populate_app_table()
@@ -1214,7 +1214,8 @@ class ParentWindow(Adw.ApplicationWindow):
         if generation != self._apps_load_generation or uid != self._selected_uid():
             return
         self._apps_loading = False
-        LOG.warning("application catalog load failed target_uid=%d: %s", uid, error)
+        LOG.warning("application catalog load failed target=[Child user] error_type=%s",
+                    type(error).__name__)
         self._toast(f"Could not load installed apps: {error}")
         self._app_catalog = []
         self._app_catalog_uid = uid
@@ -1288,8 +1289,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._loading = False
         self._set_apps_sensitive(True)
         self._update_apps_loading_ui()
-        LOG.info("preferences loaded target_uid=%d enabled=%s policy_count=%d",
-                 self._selected_uid(), preferences["parent_control_enabled"],
+        LOG.info("preferences loaded target=[Child user] enabled=%s policy_count=%d",
+                 preferences["parent_control_enabled"],
                  len(preferences["apps"]))
         self._load_time_status()
 
@@ -1333,8 +1334,7 @@ class ParentWindow(Adw.ApplicationWindow):
         for label, duration in zip(self._time_operand_values, durations):
             label.set_label(duration)
         LOG.info(
-            "remaining time loaded target_uid=%d daily=%d grant=%d additional=%d calculated=%d",
-            uid,
+            "remaining time loaded target=[Child user] daily=%d grant=%d additional=%d calculated=%d",
             status["daily_allowance_remaining_seconds"],
             status["one_time_grant_remaining_seconds"],
             status["additional_one_time_grant_seconds"],
@@ -1349,7 +1349,8 @@ class ParentWindow(Adw.ApplicationWindow):
             self._time_status_refresh_pending = False
             self._load_time_status()
             return
-        LOG.warning("remaining-time load failed target_uid=%d: %s", uid, error)
+        LOG.warning("remaining-time load failed target=[Child user] error_type=%s",
+                    type(error).__name__)
         if self._time_status_refresh_pending:
             self._time_status_refresh_pending = False
             self._load_time_status()
@@ -1515,8 +1516,8 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _start_parent_control_save(self, uid, enabled, daily_limit_minutes):
         LOG.info(
-            "parent-control change started target_uid=%d enabled=%s daily_limit_minutes=%d",
-            uid, enabled, daily_limit_minutes,
+            "parent-control change started target=[Child user] enabled=%s daily_limit_minutes=%d",
+            enabled, daily_limit_minutes,
         )
         self._run(
             lambda: self._client.set_parent_control(
@@ -1656,8 +1657,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._queue_save("app-policy", uid, value)
 
     def _start_app_policy_save(self, uid, value):
-        LOG.info("app-policy auto-save started target_uid=%d policy_count=%d",
-                 uid, len(value["apps"]))
+        LOG.info("app-policy auto-save started target=[Child user] policy_count=%d",
+                 len(value["apps"]))
         self._run(
             lambda: self._client.set_preferences(uid, value),
             lambda preferences: self._save_succeeded(uid, preferences),
@@ -1687,15 +1688,15 @@ class ParentWindow(Adw.ApplicationWindow):
             # The controls already show this policy. Updating them again makes
             # every row animate, which is perceived as a flash.
             self._preferences = preferences
-        LOG.info("preference auto-save completed target_uid=%d", uid)
+        LOG.info("preference auto-save completed target=[Child user]")
         if refresh_time_status:
             self._load_time_status()
         self._start_next_save()
 
     def _save_failed(self, uid, setting, error):
         self._save_in_progress = False
-        LOG.warning("preference auto-save failed target_uid=%d setting=%s: %s",
-                    uid, setting, error)
+        LOG.warning("preference auto-save failed target=[Child user] setting=%s error_type=%s",
+                    setting, type(error).__name__)
         self._toast(f"Could not save {setting}: {error}")
         if uid == self._selected_uid():
             self._restore_preferences_uid = uid

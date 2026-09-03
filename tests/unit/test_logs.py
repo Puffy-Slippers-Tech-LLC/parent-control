@@ -23,8 +23,10 @@ class DailyLogWriterTests(unittest.TestCase):
 
         parent = (self.root / "parent" / "2026-08-31.log").read_text()
         child = (self.root / "child" / "2026-08-31.log").read_text()
-        self.assertIn("INFO uid=1003 started", parent)
-        self.assertIn(r"WARNING uid=1001 line one\nline two", child)
+        self.assertIn("INFO started", parent)
+        self.assertNotIn("uid=1003", parent)
+        self.assertIn(r"WARNING line one\nline two", child)
+        self.assertNotIn("uid=1001", child)
 
     def test_new_daily_file_prunes_to_ten_days(self):
         directory = self.root / "kiosk"

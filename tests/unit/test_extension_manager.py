@@ -38,7 +38,8 @@ class ExtensionManagerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "GNOME settings are unavailable"):
                 ExtensionManager._run_as(self.account, "gsettings", "get", "schema", "key")
 
-        self.assertIn("session bus failed", logs.output[0])
+        self.assertIn("error_type=CalledProcessError", logs.output[0])
+        self.assertNotIn("session bus failed", logs.output[0])
 
 
 if __name__ == "__main__":

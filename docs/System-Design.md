@@ -1,153 +1,415 @@
 # System design
 
-Oh No! Parent Control is three front ends around one privileged broker. The broker owns per-child preferences and validates every cross-account operation.
+Oh No! Parent Control has three unprivileged front ends around one privileged
+broker. The broker owns product policy, resolves every caller from system D-Bus
+credentials, and validates every cross-account operation. AccountsService,
+Malcontent, fapolicyd, systemd, PAM, and GNOME Shell provide the operating-system
+enforcement mechanisms.
 
 ## Repository map
 
 ```text
-parent/   Administrator GTK app: child selection, enablement, app policy
-child/    Managed-user GNOME Shell extension, assets, and extension policy
-kiosk/    Dedicated GTK request-time station
+parent/   Administrator GTK app: child selection, screen time, app policy
+child/    Managed-user GNOME Shell extension: countdown, lock, request launcher
+kiosk/    Dedicated GTK request station and the shared request form
+common/   Shared GTK branding, About dialog, and user-icon helpers
 broker/   Root system-D-Bus service, policy, storage, and OS adapters
-data/     D-Bus, Polkit, systemd, desktop, and GNOME session integration
-config/   Machine configuration example
-tools/    Installation-time provisioning
-tests/    Broker and kiosk unit tests
+data/     D-Bus, Polkit, systemd, PAM, desktop, and GNOME-session integration
+config/   Machine-configuration example
+tools/    Provisioning, session, execution-readiness, and package helpers
+debian/   Debian package metadata and maintainer scripts
+tests/    Host-safe unit tests and the disposable-VM integration harness
 ```
 
 Entry points:
 
 - Parent: `parent/oh_no_parent_control_parent/main.py`
 - Child: `child/extension.js`
-- Kiosk: `kiosk/oh_no_parent_control_kiosk/main.py`
+- Kiosk and child request overlay: `kiosk/oh_no_parent_control_kiosk/main.py`
 - Broker: `broker/oh_no_parent_control/service.py`; policy is in `core.py`
 - D-Bus contract: `data/dbus-1/com.puffyslippers.OhNoParentControl1.xml`
 - Build and installation map: `Makefile`
 
-## Runtime hierarchy
+## Runtime hierarchy and trust boundaries
 
 ```text
 Parent app ───────────────┐
 Child extension ──────────┼── system D-Bus ──> root broker
 Kiosk request station ────┘                       │
-                                                  ├── per-child JSON preferences
-                                                  ├── child extension lifecycle
+                                                  ├── private child preferences
                                                   ├── AccountsService/Malcontent
-                                                  ├── fapolicyd execution rules
+                                                  ├── fapolicyd execution policy
+                                                  ├── child extension lifecycle
+                                                  ├── child-owned process termination
                                                   └── Polkit authorization
 ```
 
-Front ends never share files directly. The root broker resolves caller UIDs, reloads account data, validates targets, and owns these layers:
+Front ends do not read or write the private preference files. The parent does
+make a read-only Malcontent usage query on its own system-bus connection because
+Malcontent authorizes that query against the real administrator caller. All
+product policy changes and every cross-account write still pass through the
+broker. The system-bus policy permits callers to reach the service; the broker,
+not possession of the bus name or a client executable, is the authorization
+boundary.
 
-- `core.py`: caller roles, target eligibility, validation, and transactions
-- `preferences.py`: schema normalization and atomic per-child storage
-- `extension_manager.py`: install/remove and enable/disable child extension
-- `adapters.py`: AccountsService, Polkit, caller credentials, user discovery
-- `service.py`: thin D-Bus binding and error translation
+The broker is divided into these layers:
 
-## Shared state
+- `service.py`: service construction, startup reconciliation, D-Bus dispatch,
+  asynchronous approval workers, and public error translation
+- `core.py`: caller roles, target eligibility, validation, time arithmetic,
+  serialization of approval/revocation, and rollback transactions
+- `adapters.py`: caller credentials, AccountsService, Polkit, logind/systemd,
+  and Malcontent timer access
+- `preferences.py`: current schema, strict normalization, and atomic per-child
+  storage
+- `catalog.py`: launcher discovery in the selected child's XDG and system
+  application directories, with executable or Flatpak target projection
+- `execution_policy.py`: aggregate UID-scoped fapolicyd rule generation,
+  replacement, activation, and rollback
+- `app_termination.py`: UID-confined native and Flatpak process discovery and
+  termination
+- `extension_manager.py`: safe per-child installation/removal and GNOME
+  enablement of the immutable extension payload
+- `config.py` and `logs.py`: fail-closed machine configuration and broker-owned
+  component logs
+- `data_migration.py`: offline, version-stepped migration of saved application
+  data before a new broker may start
 
-The single preference source for child UID `N` is:
+## Accounts and roles
+
+Candidate accounts are enumerated from current NSS identities so a newly
+created local user can appear before first login. Accounts with a noninteractive
+shell are excluded from the discovered lists. AccountsService is then the
+authority for UID, local/system status, account type, lock state, display name,
+and icon.
+
+An eligible child is a local, non-system, non-administrator account with UID at
+least 1000, excluding the configured kiosk UID. An eligible approver is a local,
+non-system, unlocked administrator with UID at least 1000 and a username safe
+for the Polkit identity rule. The broker reloads these account records rather
+than trusting cached front-end labels or roles.
+
+The dedicated kiosk UID is generated into the root-owned machine configuration
+at installation. It is neither a child nor an administrator and may use only
+the request-station operations allowed by the broker. The Parent App launcher
+is owned by `root:sudo` with mode `0640`, so GNOME indexes it only for Ubuntu
+administrators; the launcher and broker also recheck the live administrator
+role before a management window or operation is allowed.
+
+## Persistent and derived state
+
+The single product preference source for child UID `N` is:
 
 ```text
 /var/lib/oh-no-parent-control/preferences/N.json
 ```
 
-The root-owned, mode `0600`, atomically replaced record contains:
+The preference directory is root-only and each mode-`0600` record is validated
+and atomically replaced. Its current logical schema is:
 
 ```text
 version
 parent_control_enabled
 daily_time_limit_minutes
-apps[desktop-id] = { state, targets[], patterns[] }
-request = { last_selected_duration, last_custom_minutes,
-            allow_soft_blocked_apps, last_selected_approver_uid,
-            kiosk_muted, child_muted }
+apps[desktop-id] = {
+    state, targets[], patterns[], user_saved_match_rule
+}
+request = {
+    last_selected_duration, last_custom_minutes,
+    allow_soft_blocked_apps, last_selected_approver_uid,
+    kiosk_muted, child_muted
+}
 ```
 
-App states are `allowed` (omitted when normalized), `permanent` (hard blocked), and `conditional` (blocked unless a request allows soft-blocked apps).
+App states are `allowed`, `permanent` (hard blocked), and `conditional` (soft
+blocked). Normalization omits an allowed entry unless it carries a saved match
+rule that must survive later policy changes.
 
-Machine configuration is separate and contains only deployment values such as the kiosk UID and request rate limit. It must not duplicate child preferences.
+Machine configuration is separate at
+`/etc/oh-no-parent-control/config.json`. It contains only its schema version,
+the kiosk UID, and the minimum successful-request interval; it does not
+duplicate child preferences.
+
+The ownership of runtime state is deliberately split:
+
+| State | Authority | Purpose |
+| --- | --- | --- |
+| Configured screen-time and app choices | Product preference record | Durable parent intent |
+| `AppFilter` | AccountsService | Live launcher/Flatpak blocklist derived from preferences |
+| `ActiveExtension` | AccountsService | Current one-time grant |
+| Usage intervals and estimates | `malcontent-timerd` | Measured daily use |
+| UID-scoped native deny rules | fapolicyd | Live execution policy derived from `AppFilter` and saved patterns |
+| Per-user extension copy | Child home | Derived deployment of the immutable packaged payload |
+
+No measured usage, grant expiry, or generated execution state is imported into
+the preference record.
 
 ## Broker interface and roles
 
+`own` means that the broker derives or verifies the child identity against the
+calling UID. `selected child` means a caller may supply an eligible target UID;
+the broker resolves and revalidates it.
+
 | D-Bus method | Child | Kiosk | Admin |
 | --- | --- | --- | --- |
-| `ListManagedUsers` | — | yes | yes |
+| `ListManagedUsers` | - | yes | yes |
 | `ListApprovers` | yes | yes | yes |
-| `GetOwnAccount` | own | — | — |
+| `GetOwnAccount` | own | - | - |
 | `GetPreferences` | own | selected child | selected child |
-| `ListApplications` | — | — | selected child |
+| `ListApplications` | - | - | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
-| `CalculateOwnRemainingTime` | own | — | — |
+| `CalculateOwnRemainingTime` | own | - | - |
 | `UpdateRequestPreferences` | own | selected child | selected child |
 | `SetRequestMuted` | own | selected child | selected child |
-| `SetPreferences` | — | — | selected child |
-| `SetParentControl` | — | — | selected child |
-| `RequestOwnAccess` | own | — | — |
-| `RequestAccess` | — | selected child | — |
+| `SetPreferences` | - | - | selected child |
+| `SetParentControl` | - | - | selected child |
+| `RevokeOneTimeGrant` | - | - | selected child |
+| `RequestOwnAccess` | own | - | - |
+| `RequestAccess` | - | selected child | - |
+| `LogEvent` | child component | kiosk component | parent component |
 
-Eligible children are local, interactive, non-system, non-admin accounts with UID >= 1000, excluding the kiosk account.
+`LogEvent` is intentionally role-scoped: a front end cannot choose another
+component's log, and no D-Bus caller may write the broker component log.
 
-`SetPreferences` cannot alter `parent_control_enabled`; only `SetParentControl` owns extension lifecycle and the account's Malcontent daily limit. Saving preferences immediately applies the configured app blocklist, independently of the daily-limit state. Enabling applies the saved integer limit of 0–1440 minutes; zero supports the product's grant-only mode. Disabling removes the daily restriction and clears product-applied grants while retaining the selected limit and reapplying the saved app filter. Explicitly revoking a live one-time grant clears it and restores the saved app filter. The managed child's extension consumes the resulting timer update and uses GNOME's public screen-lock D-Bus API whenever the authoritative remaining time is zero. The child supplies only its public timer estimate; the broker derives the child UID from the D-Bus caller and reads the live grant itself. The extension repeats lock enforcement if a retained desktop is unlocked, without ending another user's foreground session on the shared display seat. `pam_malcontent` still denies a later fresh login when remaining time is zero. It must not keep a systemd `RuntimeMaxSec` kill timer on the live session: that snapshot is taken at login and would log the child out after a later grant. The session stack therefore clears that cap after `pam_systemd` creates the scope. Extra time is granted only by writing `ActiveExtension`; unlock and a new login both work again for the granted interval. The broker discovers launchers in the selected child's user XDG application directories as well as the system directories. It turns each direct launcher into the executable path (or Flatpak ref) used by Malcontent, so a per-user AppImage is both displayed and restricted using its actual executable path. When the parent saves an app policy, the broker resolves every selected desktop ID against the child's current launcher again before applying and persisting targets. This prevents an open parent window from saving a vanished executable path after an application replaces a versioned AppImage during an update. An app policy may also contain same-directory basename patterns such as `/home/adrian/Applications/Lunar Client-*.AppImage`. These are compiled into exact safe-file allowances followed by a UID-scoped fapolicyd directory denial; therefore a newly downloaded matching AppImage is denied before reconciliation. Conditional patterns are removed alongside their concrete target when an approved extension allows soft-blocked apps. Malcontent supplies the supported GNOME launcher policy but does not mediate a trusted `.desktop` file opened directly from the desktop or Files. The broker therefore mirrors native executable targets from each live AccountsService blocklist into product-owned fapolicyd rules. Those UID-scoped execute denials make registered launchers, desktop files, and direct executable launches obey the same policy. Because fapolicyd 1.3 cannot quote whitespace in path rules, such executable names use their SHA-256 object identity; ordinary paths use an exact path rule. Missing saved targets need no current execution rule. Flatpak refs remain enforced by Malcontent/Flatpak. The broker reconciles the aggregate rules before accepting D-Bus calls and after the broker changes an AppFilter. Rule replacement and activation are transactional; a reload failure restores and reloads the previous rules. The packaged fapolicyd service drop-in keeps the daemon in its systemd `activating` state until a root-owned canary execution is denied by the live kernel policy. The display manager requires that completed startup, so no managed graphical login can begin while fapolicyd is still rebuilding its trust database after boot. If the readiness check fails, the login manager fails closed instead of exposing an execution-policy gap. `RequestAccess` and `RequestOwnAccess` require interactive Polkit approval and perform transactional AccountsService updates with rollback. `RequestOwnAccess` derives the target UID from the system-bus caller, so a child cannot name a different target. The child and kiosk select a local interactive administrator returned by `ListApprovers`. The broker revalidates that account, passes its username as an action detail, and an action-specific Polkit administrator rule limits authentication to that one identity. The standard authentication agent therefore shows a password dialog without a second identity-selection page. This remains one authorization for the complete app-filter and ActiveExtension transaction. The request actions use `auth_admin`, do not imply AccountsService permissions, and do not retain a capability in either front end. After approval, the broker launches a fixed-purpose, root-owned helper under the selected administrator's UID and primary GID. The helper makes only the public Malcontent parent usage query on a new system-bus connection and returns usage intervals to the broker. The broker validates those intervals, calculates the grant, revalidates both accounts, preferences, and the requesting connection, and owns all writes. This lets Malcontent see the authenticated parent as its actual D-Bus caller without delegating any privileged write to the helper. For an approved request which does not allow soft-blocked apps, the broker activates and verifies the child's complete hard-and-soft block filter, then immediately terminates matching applications owned by that child before it writes `ActiveExtension`. Native processes must have all four kernel-reported UIDs equal to the approved child UID and are pinned and signalled through pidfds. Flatpak instances are enumerated and killed by instance ID with the fixed Flatpak command running under that child's UID, primary GID, empty supplementary groups, and runtime directory. The same application running as another child, an administrator, the kiosk user, or a system account is never signalled. All live sessions for the approved child are in scope. When the request allows soft-blocked apps, the broker performs no process termination, including for a retained hard-blocked process. Because process termination is irreversible, a partial termination failure cannot use the normal complete rollback. The broker restores the prior grant and time-limit values, retains the child's canonical hard-and-soft filter, reports failure, and does not write the new extension. Preflight, filtering, or verification failure before any process is signalled retains the ordinary complete rollback behavior. The kiosk session runs the maintained MATE Polkit agent as a restartable user service. Authentication-agent failure denies the in-flight request but does not end the kiosk session; systemd restarts the agent for a later request.
+## Screen-time model
 
-Parent revocation uses the same process-ownership boundary as request approval. The broker restores and verifies the complete hard-and-soft filter, terminates matching applications owned only by the parent-selected child UID across that child's sessions, and clears `ActiveExtension` last. If termination may have started but revocation cannot finish, the strict filter remains active, the prior grant is restored, and the parent receives a failure; another user's processes and policy are never changed.
+`SetPreferences` cannot alter `parent_control_enabled`. Only
+`SetParentControl` owns the child extension lifecycle and the account's
+Malcontent `LimitType` and `DailyLimit`. The daily limit is an integer from 0
+through 1440 minutes; zero is grant-only mode. App policy remains independent
+of whether the daily limit is enabled.
 
-The broker is the single source of truth for the backend-compatible grant formula:
+Enabling from the disabled state installs and enables the child extension,
+clears stale `ActiveExtension`, applies the selected daily limit, and reapplies
+the complete saved app blocklist. Changing the limit while already enabled
+preserves the current grant. Disabling removes the extension, clears the daily
+restriction and current grant, retains the configured choices, and reapplies
+the saved app blocklist. These operations verify the resulting AccountsService
+state before committing the preference record and restore the old state on
+failure.
+
+The broker owns the backend-compatible grant formula:
 
 ```text
 ActiveExtension = max(Daily allowance remaining, One-time grant remaining)
                   + Additional one-time grant
 ```
 
-Malcontent authorizes its public parent usage API against the actual D-Bus caller, so the parent app queries that API using the signed-in administrator's connection. It reads the current one-time grant from AccountsService, derives the unused daily allowance, and passes all three operands to `CalculateRemainingTime`. The broker therefore remains the single source for the formula, while Malcontent sees the real parent identity instead of the root broker identity. For a child request, the broker performs that same parent-identity usage query and calculation before writing the grant. The child uses `CalculateOwnRemainingTime` when reconciling its displayed notification countdown and zero-time lock. That method ignores any cached grant claim and reads the current ActiveExtension through the broker.
+For the Parent App, the administrator queries usage directly through the public
+Malcontent parent interface, reads the current grant, computes the two remaining
+operands, and asks `CalculateRemainingTime` to validate and apply the formula.
+For a fixed-duration request, the broker launches the fixed-purpose
+`oh-no-parent-control-query-usage` helper under the authenticated approver's UID
+and primary GID. The helper opens a new system-bus connection and returns only
+usage intervals; the root broker validates them and owns every write. A
+rest-of-day request instead computes the seconds to the next local midnight with
+timezone-aware epoch arithmetic.
+
+The child extension uses GNOME Shell's supported time-limit manager and the
+public Malcontent estimate signal/query for the daily estimate. It passes that
+estimate to `CalculateOwnRemainingTime`; the broker derives the child from the
+caller and reads the live `ActiveExtension` itself. The panel counts down in
+minutes and then seconds, preserving its last verified estimate across a
+temporary read failure.
+
+At zero usable time the extension invokes the public GNOME ScreenSaver `Lock`
+method and repeats enforcement if the retained desktop is unlocked without new
+time. `pam_malcontent` independently denies a fresh login at zero. Because its
+login-time `RuntimeMaxSec` snapshot would terminate a live session after a
+later grant, the PAM session helper clears that cap after `pam_systemd` creates
+the scope; broker startup also attempts to clear stale caps on existing managed
+sessions. Expiry therefore locks the child instead of logging out that child or
+ending another user's foreground session.
+
+## Application policy and enforcement
+
+The parent selects policy by desktop ID, but enforcement uses the corresponding
+native executable path or full Flatpak ref. The broker discovers launchers from
+the selected child's user XDG directories before system directories, so the
+catalog reflects that child's app grid. On every app-policy save it resolves
+each still-present desktop ID again; a self-updated executable is not replaced
+by a stale target, while a missing app's saved rule remains intact.
+
+The live AccountsService `AppFilter` is always a blocklist. Its complete form
+contains hard and soft targets. An approved request that allows soft blocked
+apps omits only conditional targets; hard targets remain. A same-directory
+basename pattern may accompany a native AppImage target. Conditional patterns
+participate only while their owning conditional target is in the live blocklist.
+
+Malcontent and GNOME enforce supported launcher and Flatpak identities. To
+prevent a native target from bypassing the launcher policy through a desktop
+file, file manager, or command, the broker mirrors live native targets into
+UID-scoped fapolicyd execute denials. Ordinary targets use exact paths. Since
+fapolicyd 1.3 cannot quote whitespace safely, affected existing executable
+names use their SHA-256 object identity. Pattern rules put exact safe-file
+allowances before a denial for the guarded directory, so a matching new
+AppImage is denied before a later rescan while unrelated existing executables
+remain usable.
+
+Every broker `AppFilter` write synchronously reconciles and reloads the
+aggregate fapolicyd policy. The broker also subscribes to AccountsService
+`PropertiesChanged` and rescans every 30 seconds so supported external changes
+and new safe nonmatches are reconciled. Rule replacement is atomic; reload
+failure restores and reloads the previous rule file. On startup, reconciliation
+completes before the D-Bus object is registered.
+
+The specification requires a temporarily relaxed conditional filter to return
+to the complete saved filter when its grant naturally expires. At the time of
+this review, approval, parent-control, and explicit-revocation paths perform
+their required filter transitions, but the broker has no grant-expiry scheduler
+or equivalent reconciliation path. This is an implementation gap. The fix must
+remain broker-owned: re-read `ActiveExtension` at startup and at the scheduled
+expiry, restore the canonical hard-and-soft filter only after verifying that no
+grant is active, and activate the derived fapolicyd policy transactionally.
+
+## Authorization and grant transactions
+
+`RequestAccess` is restricted to the configured kiosk UID.
+`RequestOwnAccess` derives its target from the child caller, and rejects a child
+whose screen-time control is disabled. Both paths validate the requested
+duration, approver, target, and saved preference snapshot before invoking a
+dedicated interactive Polkit action.
+
+The broker supplies the selected administrator username as an action detail.
+The installed Polkit administrator rule restricts the challenge to exactly that
+identity, so the standard agent shows one password prompt without a second
+identity-selection page. The action uses `auth_admin`, implies no AccountsService
+permission, and retains no reusable authorization in either front end. The
+kiosk session runs the maintained MATE Polkit agent as a restartable user
+service; agent failure denies the in-flight attempt without permanently ending
+the request station.
+
+After approval, the broker confirms that the requesting bus name still exists
+and revalidates the child, approver, and preferences after authentication,
+after the identity-scoped usage query, and immediately before writes. A
+nonblocking broker lock permits only one approval or revocation transaction at
+a time. The per-caller repeat interval is recorded only after a successful
+grant, so denial or cancellation does not consume it.
+
+For a request that keeps soft blocks enabled, the broker writes and verifies the
+complete hard-and-soft filter, terminates matching apps owned by the selected
+child, and writes `ActiveExtension` last. Native processes are pinned with
+pidfds and signalled only after all four kernel-reported UIDs match the child.
+Flatpak instances are enumerated and killed by instance ID using the child's
+UID, primary GID, empty supplementary groups, and runtime directory. Every live
+session for that UID is in scope; another user's process is never signalled.
+When soft blocked apps are allowed, the broker installs the hard-only filter and
+does not terminate any open process, including an already-open hard-blocked app.
+
+Parent revocation uses the same process-ownership boundary. It restores and
+verifies the complete filter, terminates matching apps for the selected child,
+and clears `ActiveExtension` last. Reversible failure before termination
+restores the complete old account state. Once termination may have changed a
+process, that side effect cannot be rolled back; failure instead restores the
+old time values, keeps the strict filter active, and reports the failure. A
+rollback read-back failure is reported distinctly.
 
 ## Main flows
 
-1. **Manage:** Parent selects child -> reads preferences -> edits app policy at any time, calls `SetParentControl` with the daily-limit state and value, or revokes a live grant. Every app-policy selection is saved immediately and applies its blocklist. Revocation verifies the complete saved blocklist, closes matching apps only for the selected child, and clears the grant last. Extension lifecycle and Malcontent account state succeed before preferences are committed; any failure restores the affected state.
-2. **Child request:** The panel notification is unchanged. Clicking it launches the shared kiosk request GUI as a fullscreen overlay. The overlay locks the child selector to the signed-in account from `GetOwnAccount`, shares duration/approver/app-filter choices through the child's preference record, keeps a separate mute value from the kiosk station, and calls `RequestOwnAccess`. The broker derives the child from the caller, validates the request, authorizes only the selected administrator, and commits the verified time/app transaction. A request that keeps soft blocks enabled closes that child's supported running hard- and soft-blocked apps before granting time; a request that allows soft-blocked apps closes nothing. Cancel or Escape closes the overlay.
-3. **Kiosk request:** Kiosk selects a child and approving administrator, then loads/updates the child's request values -> calls `RequestAccess` -> broker authorizes the selected administrator and performs the same child-scoped app-termination and AccountsService transaction as the child request. Escape matches Cancel and returns to the login screen when no authorization prompt is showing.
+1. **Manage:** The Parent App selects one child, loads preferences, child-specific
+   launchers, and time status, then serializes automatic saves in interaction
+   order. App policy applies immediately. Screen-time changes go through
+   `SetParentControl`; revocation goes through `RevokeOneTimeGrant` after a
+   confirmation that running blocked apps will close.
+2. **Child request:** Selecting the panel indicator launches the kiosk GTK form
+   as a fullscreen overlay. `GetOwnAccount` fixes and collapses the child
+   selector. The overlay loads shared per-child request choices, uses the
+   child-only mute value, and calls `RequestOwnAccess`. Cancel or Escape closes
+   the overlay; approval briefly confirms success and then closes it.
+3. **Kiosk request:** The dedicated GNOME session lists eligible children and
+   approvers, loads the selected child's request choices, and calls
+   `RequestAccess`. The GNOME session is declared as a kiosk session, which
+   disables every XDG autostart desktop file; its complete application set is
+   instead the kiosk compositor, request station, and authentication agent
+   declared by the session's systemd target. It remains request-only. Cancel or
+   Escape returns to the sign-in screen, and approval does so after a brief
+   confirmation.
+
+The child overlay and kiosk deliberately use the same GTK request form and
+validation. Only account selection, mute surface, broker request method, and
+exit behavior differ.
+
+## Startup, login, and update lifecycle
+
+Broker construction first reconciles all current AccountsService filters into
+fapolicyd. It then republishes the immutable extension payload for every
+preference-enabled eligible child and attempts to clear stale live-session
+runtime caps. Only after those steps does it register the D-Bus object. A
+startup reconciliation or extension-publication failure prevents the service
+from becoming ready.
+
+The packaged fapolicyd drop-in keeps the daemon in systemd's `activating` state
+until a root-owned canary execution is denied by the live kernel policy. The
+display manager requires completed fapolicyd startup, so a managed graphical
+login cannot begin while the daemon rebuilds its trust database. Readiness
+failure therefore fails closed before the login manager starts.
+
+The PAM account stack exempts systemd, the kiosk account, and administrators.
+For other accounts, the public AccountsService `LimitType` helper skips
+`pam_malcontent` only when the account is positively confirmed unrestricted;
+unknown or malformed state continues through the enforcing module. The kiosk
+account is additionally confined to the dedicated GNOME session.
+
+APT and the full-machine installer stop the broker and run the packaged,
+version-stepped migration framework before newly installed readers can access
+saved preferences. A migration-in-progress marker also prevents systemd from
+starting the broker. See `Data-Migration.md` for the schema contract.
+
+Package activation is selected from a generated digest manifest. Depending on
+the installed file that changed, an update needs no action, a broker restart, a
+new child/kiosk session, or a reboot at the PAM/display-manager boundary. See
+`Package-Update.md` for the classification rules. The direct installer uses the
+same comparison. It also snapshots the invoking administrator's global GNOME
+extension switch and restores that exact value before GDM after a required
+reboot.
 
 ## Installed layout
 
 ```text
-/usr/bin/oh-no-parent-control                  kiosk launcher
-/usr/bin/oh-no-parent-control-parent           parent launcher
-/usr/libexec/oh-no-parent-control-broker       broker launcher
-/usr/libexec/oh-no-parent-control-query-usage  identity-scoped read-only helper
-/usr/libexec/oh-no-parent-control-session-limit-check  PAM limit-state gate
-/usr/libexec/oh-no-parent-control-clear-session-runtime-max  drop login kill timer
-/usr/libexec/oh-no-parent-control-execution-policy-ready  fapolicyd readiness gate
-/usr/libexec/oh-no-parent-control-execution-policy-probe  deny canary
-/usr/libexec/oh-no-parent-control-migrate-state saved-data migration runner
+/usr/bin/oh-no-parent-control                         kiosk/overlay launcher
+/usr/bin/oh-no-parent-control-parent                  parent launcher
+/usr/libexec/oh-no-parent-control-broker              broker launcher
+/usr/libexec/oh-no-parent-control-query-usage         approver-scoped read helper
+/usr/libexec/oh-no-parent-control-migrate-state       saved-data migration runner
+/usr/libexec/oh-no-parent-control-session-limit-check PAM limit-state gate
+/usr/libexec/oh-no-parent-control-clear-session-runtime-max
+/usr/libexec/oh-no-parent-control-execution-policy-{ready,probe}
 /usr/libexec/oh-no-parent-control-preserve-extension-state
-/usr/lib/oh-no-parent-control/kiosk/            kiosk Python package
-/usr/lib/oh-no-parent-control/parent/           parent Python package
-/usr/lib/oh-no-parent-control/child/extension/ immutable extension payload
-/var/lib/oh-no-parent-control/preferences/     authoritative child records
-/var/log/oh-no-parent-control/<component>/     daily logs (10-day retention)
-/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules generated execution denies
+/usr/libexec/oh-no-parent-control-{provision,package-activation}
+/usr/lib/oh-no-parent-control/{broker,parent,kiosk,common}/
+/usr/lib/oh-no-parent-control/child/extension/         immutable extension payload
+/etc/oh-no-parent-control/config.json                  private machine configuration
+/var/lib/oh-no-parent-control/preferences/             authoritative child records
+/var/log/oh-no-parent-control/<component>/             daily component logs
+/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules   generated UID-scoped denies
 /usr/lib/systemd/system/{fapolicyd,display-manager}.service.d/
-                                                  boot readiness ordering
+                                                       boot readiness ordering
 ```
 
-APT and the full-machine installer stop the broker and run the packaged, version-stepped migration framework before newly installed code can access saved preferences. See `Data-Migration.md` for the schema contract and failure recovery behavior.
+## Logging
 
-The broker is the sole log-file writer. Logs are owned by `root:sudo`: Ubuntu administrators can read them, while other users cannot. Parent, child, and kiosk send log events over the public D-Bus interface; caller-role checks prevent components from writing into one another's folders. A component's first event each day creates `YYYY-MM-DD.log` and removes that component's logs beyond the newest 10 days.
-
-Enabling Parent Control copies the immutable payload to the child's local GNOME extension directory and enables its UUID. Disabling removes both. Broker startup republishes that payload for every preference-enabled managed child before accepting calls. Package activation starts the broker when the payload changes, so an already-running Shell may finish with its loaded code while the next child session reliably loads the new per-user copy. The PAM account stack exempts systemd, kiosk, and administrator accounts, then uses the public AccountsService `LimitType` property to skip `pam_malcontent` only when the account is confirmed unrestricted. Unknown or malformed state continues through `pam_malcontent`; enabled zero-minute grant-only mode remains enforced without showing the module's unrestricted-account message. `pam_malcontent` remains the login remaining-time check. After it allows a session, the product session helper clears `RuntimeMaxSec` so systemd does not kill the live desktop when the login-time remainder elapses. Zero remaining time locks that child's screensaver; it does not terminate the scope.
-
-The Parent App desktop entry is `root:sudo`, mode `0640`. GNOME therefore indexes it only for Ubuntu administrator accounts; the launcher also verifies broker administrator access before creating a window. The broker remains the authorization authority and rechecks the AccountsService role for every call.
-
-The full-machine installer snapshots the invoking administrator's global GNOME extension switch. A boot-time one-shot restores that exact value before GDM starts, then deletes the snapshot. This prevents Ubuntu's Shell stop-timeout fallback during the required reboot from changing an administrator preference; an extension switch which was already off remains off.
+The broker is the sole file-log writer. Logs are under
+`/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log`, owned by
+`root:sudo` so Ubuntu administrators can read them and other users cannot.
+Parent, child, and kiosk records are forwarded over D-Bus after role checks;
+broker records are written internally. A component's first event on a new day
+prunes that component beyond the newest ten dated files.
 
 ## Design invariants
 
-- One preference record per child; no preference files in user homes.
-- All cross-account operations pass through the broker.
-- Caller role and target eligibility are checked again immediately before privileged writes.
-- Parent Control state changes only after extension lifecycle success.
-- Kiosk behavior remains request-only; parent behavior remains management-only.
-- The child extension has no independent preferences UI.
-- The kiosk GTK request GUI is the single request form. The child session invokes that same GUI as an overlay; only the session backend differs.
+- One validated preference record exists per child; private policy is never
+  stored in a user home.
+- Preferences hold durable intent; AccountsService and fapolicyd hold derived
+  enforcement state, and Malcontent owns measured use.
+- All cross-account writes and all product authorization pass through the
+  broker. A front end may perform only the documented identity-sensitive,
+  read-only usage query directly.
+- The broker resolves caller identity from system D-Bus and revalidates roles,
+  targets, and stale request inputs before privileged writes.
+- A temporary request may remove soft blocks only; it can never remove a hard
+  block. The complete saved filter is the recovery state.
+- The kiosk remains request-only, the Parent App remains management and
+  revocation only, and the child extension has no independent settings UI.
+- The kiosk GTK request GUI is the single request form. The child session runs
+  that form in overlay mode; changes must remain compatible with both surfaces.

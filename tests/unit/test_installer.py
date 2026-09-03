@@ -224,6 +224,21 @@ class InstallerTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("tools/session_limit_check.py", makefile)
+        runtime_dependencies = next(
+            line.removeprefix("Depends: ")
+            for line in (ROOT / "debian/control").read_text(encoding="utf-8").splitlines()
+            if line.startswith("Depends: ")
+        )
+        self.assertIn("gir1.2-malcontent-0", runtime_dependencies.split(", "))
+        self.assertIn(
+            "gir1.2-malcontent-0", INSTALLER.read_text(encoding="utf-8"),
+        )
+        self.assertIn("Auth-Type: Additional", pam_config)
+        self.assertIn(
+            "required pam_exec.so quiet quiet_log "
+            "/usr/libexec/oh-no-parent-control-session-limit-check --authenticate",
+            pam_config,
+        )
         self.assertIn(
             "[success=1 default=ignore] pam_exec.so quiet quiet_log "
             "/usr/libexec/oh-no-parent-control-session-limit-check",
@@ -262,6 +277,7 @@ class InstallerTests(unittest.TestCase):
             "oh-no-parent-control-clear-session-runtime-max", script,
         )
         self.assertIn("/etc/pam.d/common-session", script)
+        self.assertIn("/etc/pam.d/common-auth", script)
 
     def test_selected_approver_polkit_rule_is_installed(self):
         script = INSTALLER.read_text(encoding="utf-8")

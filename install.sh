@@ -139,6 +139,7 @@ add-apt-repository -y universe </dev/null
     gir1.2-adw-1 \
     gir1.2-gstreamer-1.0 \
     gir1.2-gtk-4.0 \
+    gir1.2-malcontent-0 \
     gnome-kiosk \
     gstreamer1.0-plugins-base \
     gstreamer1.0-plugins-ugly \
@@ -348,6 +349,8 @@ require grep -Fq "pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-c
 require grep -Fq "pam_malcontent.so" /etc/pam.d/common-account
 require grep -Fq "pam_exec.so quiet quiet_log /usr/libexec/oh-no-parent-control-session-limit-check" \
     /etc/pam.d/common-account
+require grep -Fq "pam_exec.so quiet quiet_log /usr/libexec/oh-no-parent-control-session-limit-check --authenticate" \
+    /etc/pam.d/common-auth
 require grep -Fq "pam_exec.so quiet /usr/libexec/oh-no-parent-control-clear-session-runtime-max" \
     /etc/pam.d/common-session
 require grep -Fq "pam_succeed_if.so quiet user ingroup sudo" \

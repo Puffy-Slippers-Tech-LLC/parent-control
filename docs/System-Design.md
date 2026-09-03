@@ -215,7 +215,12 @@ temporary read failure.
 
 At zero usable time the extension invokes the public GNOME ScreenSaver `Lock`
 method and repeats enforcement if the retained desktop is unlocked without new
-time. `pam_malcontent` independently denies a fresh login at zero. Because its
+time. `pam_malcontent` independently denies a fresh login at zero. GDM unlocks
+an existing session through PAM authentication without repeating PAM account
+management, so the product PAM profile applies Malcontent's public remaining-
+time check to `gdm-password` authentication as well. This closes the retained-
+session path while preserving active one-time grants; the kiosk and Ubuntu
+administrator accounts bypass this child-only authentication check. Because its
 login-time `RuntimeMaxSec` snapshot would terminate a live session after a
 later grant, the PAM session helper clears that cap after `pam_systemd` creates
 the scope; broker startup also attempts to clear stale caps on existing managed

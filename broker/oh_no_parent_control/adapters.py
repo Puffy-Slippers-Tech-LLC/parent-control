@@ -52,6 +52,12 @@ class TimerUsageError(RuntimeError):
         self.category = category
 
 
+def _accounts_icon_file(value) -> str:
+    if not isinstance(value, str) or not value.startswith("/") or "\0" in value:
+        return ""
+    return value
+
+
 def _call(connection, name, path, interface, method, parameters, reply_type,
           timeout=CALL_TIMEOUT_MS):
     return connection.call_sync(
@@ -172,6 +178,7 @@ class AccountsService:
             is_system=properties.get("SystemAccount", True),
             is_local=properties.get("LocalAccount", False),
             is_locked=properties.get("Locked", True),
+            icon_file=_accounts_icon_file(properties.get("IconFile", "")),
         )
 
     def list_users(self) -> tuple[UserAccount, ...]:

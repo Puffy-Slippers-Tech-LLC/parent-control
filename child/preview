@@ -69,6 +69,9 @@ export XDG_CONFIG_HOME="$preview_root/config"
 export GSETTINGS_BACKEND=keyfile
 export GSETTINGS_SCHEMA_DIR="$schema_dir"
 export OH_NO_PARENT_CONTROL_PREVIEW=1
+repo_root="$(cd "$child_dir/.." && pwd)"
+export PYTHONPATH="$repo_root:$repo_root/kiosk${PYTHONPATH:+:$PYTHONPATH}"
+export OH_NO_PARENT_CONTROL_REQUEST_APP="$(command -v python3) -m oh_no_parent_control_kiosk.main --preview --child-overlay --soundtrack $repo_root/data/Gearbox_Waltz.mp3"
 # IDE sandboxes can export GDK_BACKEND=x11.  Let Mutter Devkit select the
 # active Wayland display instead of attempting to open a host Xwayland socket.
 unset GDK_BACKEND

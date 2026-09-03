@@ -37,8 +37,8 @@ ACTIVATION_MANIFEST_PATHS := \
 	/etc/gdm3/PreSession/Default
 UUID := oh-no-parent-control@tech.puffyslippers.com
 CHILD_DIR := child
-EXTENSION_SOURCES := aboutDialog.js approverClient.js branding.js logger.js previewMode.js remainingTimeIndicator.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sharedPreferencesClient.js timeCalculationClient.js timerQuery.js
-OBSOLETE_EXTENSION_SOURCES := appFilterClient.js appPolicyStore.js parentalApproval.js sessionLimitsClient.js
+EXTENSION_SOURCES := branding.js logger.js previewMode.js remainingTimeIndicator.js timeCalculationClient.js timerQuery.js
+OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
 EXTENSION_ASSETS := request-options.json
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
@@ -47,7 +47,7 @@ EXTENSION_PACK_ASSETS := $(BRANDING_ASSETS) LICENSE
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 
-.PHONY: check _install-product-files _generate-package-activation-manifest uninstall pack-extension install-extension preview-kiosk preview-parent preview-child
+.PHONY: check _install-product-files _generate-package-activation-manifest uninstall pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 check:
 	@bash -n install.sh
@@ -61,6 +61,10 @@ check:
 preview-kiosk:
 	# The preview watches kiosk assets and source files; no manual relaunch is needed.
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview --soundtrack "$(CURDIR)/data/Gearbox_Waltz.mp3"
+
+preview-child-overlay:
+	# The child overlay is the kiosk GUI in overlay mode, with the current child locked.
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview --child-overlay --soundtrack "$(CURDIR)/data/Gearbox_Waltz.mp3"
 
 preview-parent:
 	# The preview watches parent source and CSS files; no backend or installation is needed.

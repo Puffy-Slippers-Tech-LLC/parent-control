@@ -34,7 +34,8 @@ class BrokerServiceUnitTests(unittest.TestCase):
     def test_broker_starts_with_and_can_reload_execution_policy(self):
         source = BROKER_UNIT.read_text(encoding="utf-8")
 
-        self.assertIn("Requires=fapolicyd.service", source)
+        self.assertIn("Wants=fapolicyd.service", source)
+        self.assertNotIn("Requires=fapolicyd.service", source)
         self.assertIn("After=fapolicyd.service", source)
         self.assertIn("ReadWritePaths=/etc/fapolicyd", source)
 

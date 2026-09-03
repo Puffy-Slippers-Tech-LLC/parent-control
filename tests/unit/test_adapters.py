@@ -62,6 +62,25 @@ class PolkitAdapterTests(unittest.TestCase):
             "tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access",
         )
 
+    def test_accounts_service_exposes_the_system_user_icon_file(self):
+        accounts = AccountsService(object())
+        reply = mock.Mock()
+        reply.unpack.return_value = ({
+            "Uid": 1001,
+            "UserName": "child",
+            "RealName": "Child",
+            "AccountType": 0,
+            "SystemAccount": False,
+            "LocalAccount": True,
+            "Locked": False,
+            "IconFile": "/var/lib/AccountsService/icons/child",
+        },)
+        with mock.patch.object(accounts, "_user_path", return_value="/org/freedesktop/Accounts/User1001"), \
+                mock.patch("oh_no_parent_control.adapters._call", return_value=reply):
+            user = accounts.get_user(1001)
+
+        self.assertEqual(user.icon_file, "/var/lib/AccountsService/icons/child")
+
     def test_user_listing_uses_fresh_nss_candidates(self):
         accounts = AccountsService(object())
         entries = [

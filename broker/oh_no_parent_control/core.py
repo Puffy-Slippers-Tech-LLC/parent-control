@@ -63,6 +63,7 @@ class UserAccount:
     is_system: bool
     is_local: bool
     is_locked: bool = False
+    icon_file: str = ""
 
 
 @dataclass(frozen=True)
@@ -96,7 +97,8 @@ class Preferences(Protocol):
     def load(self, uid: int) -> dict: ...
     def save(self, uid: int, preferences: object) -> dict: ...
     def update_request(self, uid: int, selected: str, custom: float,
-                       allow_soft: bool) -> dict: ...
+                       allow_soft: bool, last_selected_approver_uid: int = 0) -> dict: ...
+    def update_request_muted(self, uid: int, surface: str, muted: bool) -> dict: ...
 
 
 class Extensions(Protocol):
@@ -330,6 +332,17 @@ class Broker:
         users = (user for user in self._accounts.list_users() if self._eligible(config, user))
         return tuple(sorted(users, key=lambda user: (user.label.casefold(), user.uid)))
 
+    def get_own_account(self, caller_uid: int) -> UserAccount:
+        """Return the managed child identity of the calling session."""
+        config = self._load_config()
+        try:
+            user = self._accounts.get_user(caller_uid)
+        except Exception as error:
+            raise BackendFailure("caller account is unavailable") from error
+        if not self._eligible(config, user):
+            raise AccessDenied("caller is not a managed child")
+        return user
+
     @staticmethod
     def _eligible_approver(config: Configuration, user: UserAccount) -> bool:
         return (
@@ -500,7 +513,8 @@ class Broker:
 
     def update_request_preferences(self, caller_uid: int, target_uid: int,
                                    selected: str, custom: float,
-                                   allow_soft: bool) -> dict:
+                                   allow_soft: bool,
+                                   last_selected_approver_uid: int = 0) -> dict:
         config = self._load_config()
         target = self._target(config, target_uid)
         if caller_uid != target.uid and not self._can_manage_or_kiosk(config, caller_uid):
@@ -510,7 +524,21 @@ class Broker:
         try:
             return self._preferences.update_request(
                 target.uid, selected, custom, allow_soft,
+                last_selected_approver_uid,
             )
+        except PreferencesError as error:
+            raise InvalidRequest(str(error)) from error
+
+    def set_request_muted(self, caller_uid: int, target_uid: int, surface: str,
+                          muted: bool) -> dict:
+        config = self._load_config()
+        target = self._target(config, target_uid)
+        if caller_uid != target.uid and not self._can_manage_or_kiosk(config, caller_uid):
+            raise AccessDenied("caller cannot update this account")
+        if self._preferences is None:
+            raise BackendFailure("preference store is unavailable")
+        try:
+            return self._preferences.update_request_muted(target.uid, surface, muted)
         except PreferencesError as error:
             raise InvalidRequest(str(error)) from error
 

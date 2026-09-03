@@ -21,6 +21,12 @@ MAX_CUSTOM_MINUTES = 1440
 VALID_DURATIONS = {"custom", "0", "300", "900", "1800", "3600", "7200", "14400"}
 DESKTOP_ID_RE = re.compile(r"^[^/\x00]+\.desktop$")
 _UNSAFE_PATTERN_CHARACTERS = frozenset(",\"\\\x00\r\n")
+REQUIRED_REQUEST_KEYS = {
+    "last_selected_duration", "last_custom_minutes", "allow_soft_blocked_apps",
+}
+OPTIONAL_REQUEST_KEYS = {
+    "last_selected_approver_uid", "kiosk_muted", "child_muted",
+}
 
 
 class PreferencesError(ValueError):
@@ -37,6 +43,9 @@ def default_preferences() -> dict:
             "last_selected_duration": "1800",
             "last_custom_minutes": MIN_CUSTOM_MINUTES,
             "allow_soft_blocked_apps": False,
+            "last_selected_approver_uid": 0,
+            "kiosk_muted": False,
+            "child_muted": False,
         },
     }
 
@@ -96,9 +105,8 @@ def validate_preferences(raw: object) -> dict:
             }
 
     request = raw["request"]
-    if not isinstance(request, dict) or set(request) != {
-        "last_selected_duration", "last_custom_minutes", "allow_soft_blocked_apps",
-    }:
+    if (not isinstance(request, dict) or not REQUIRED_REQUEST_KEYS <= set(request) or
+            not set(request) <= REQUIRED_REQUEST_KEYS | OPTIONAL_REQUEST_KEYS):
         raise PreferencesError("invalid request preferences")
     selected = request["last_selected_duration"]
     if selected not in VALID_DURATIONS:
@@ -109,6 +117,16 @@ def validate_preferences(raw: object) -> dict:
         raise PreferencesError("invalid custom duration")
     if type(request["allow_soft_blocked_apps"]) is not bool:
         raise PreferencesError("allow-soft state must be boolean")
+    # These request-form fields were added without changing FORMAT_VERSION.
+    # Older current-version records omit them and must keep their prior
+    # visible defaults: first approver, and unmuted sound on both surfaces.
+    approver_uid = request.get("last_selected_approver_uid", 0)
+    if type(approver_uid) is not int or not 0 <= approver_uid <= UINT32_MAX:
+        raise PreferencesError("invalid selected approver")
+    kiosk_muted = request.get("kiosk_muted", False)
+    child_muted = request.get("child_muted", False)
+    if type(kiosk_muted) is not bool or type(child_muted) is not bool:
+        raise PreferencesError("sound muted state must be boolean")
 
     return {
         "version": FORMAT_VERSION,
@@ -119,8 +137,11 @@ def validate_preferences(raw: object) -> dict:
             "last_selected_duration": selected,
             "last_custom_minutes": custom,
             "allow_soft_blocked_apps": request["allow_soft_blocked_apps"],
+            "last_selected_approver_uid": approver_uid,
+            "kiosk_muted": kiosk_muted,
+            "child_muted": child_muted,
         },
-}
+    }
 
 
 def _validate_pattern(value: object, targets: tuple[str, ...]) -> str:
@@ -201,11 +222,23 @@ class PreferenceStore:
         return normalized
 
     def update_request(self, uid: int, selected: str, custom: float,
-                       allow_soft: bool) -> dict:
+                       allow_soft: bool, last_selected_approver_uid: int = 0) -> dict:
         current = self.load(uid)
         current["request"] = {
+            **current["request"],
             "last_selected_duration": selected,
             "last_custom_minutes": custom,
             "allow_soft_blocked_apps": allow_soft,
+            "last_selected_approver_uid": last_selected_approver_uid,
         }
+        return self.save(uid, current)
+
+    def update_request_muted(self, uid: int, surface: str, muted: bool) -> dict:
+        if surface not in {"kiosk", "child"}:
+            raise PreferencesError("invalid request sound surface")
+        if type(muted) is not bool:
+            raise PreferencesError("sound muted state must be boolean")
+        current = self.load(uid)
+        key = "kiosk_muted" if surface == "kiosk" else "child_muted"
+        current["request"] = {**current["request"], key: muted}
         return self.save(uid, current)

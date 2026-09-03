@@ -35,6 +35,7 @@ INTERFACE = BUS_NAME
 REQUEST_TIMEOUT_MS = GLib.MAXINT
 # Keep the confirmation visible briefly before returning to GDM.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
+CHILD_SUCCESS_COPY = "Time granted, click here to close"
 GATEWAY_EFFECT_FRAME_MS = 33
 # The form is centered in the window while the gateway in the artwork is
 # slightly left of the image centre.  Shift the composed artwork just enough
@@ -117,10 +118,11 @@ def _gateway_inner_corners(width, height):
 
 
 class BrokerLogHandler(logging.Handler):
-    """Forward kiosk records to the broker-owned daily log."""
+    """Forward front-end records to the broker-owned daily log."""
 
-    def __init__(self):
+    def __init__(self, component="kiosk"):
         super().__init__()
+        self._component = component
         self._connection = None
 
     def emit(self, record):
@@ -129,7 +131,7 @@ class BrokerLogHandler(logging.Handler):
                 self._connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
             self._connection.call(
                 BUS_NAME, OBJECT_PATH, INTERFACE, "LogEvent",
-                GLib.Variant("(sss)", ("kiosk", record.levelname, self.format(record))),
+                GLib.Variant("(sss)", (self._component, record.levelname, self.format(record))),
                 GLib.VariantType.new("()"), Gio.DBusCallFlags.NONE, 5_000, None, None,
             )
         except Exception:
@@ -748,9 +750,9 @@ class GatewayAlignedRequest(Gtk.Widget):
         Gtk.Widget.do_dispose(self)
 
 
-def configure_logging(preview=False):
+def configure_logging(preview=False, component="kiosk"):
     """Use local logging for preview; production records belong to the broker."""
-    handler = logging.StreamHandler() if preview else BrokerLogHandler()
+    handler = logging.StreamHandler() if preview else BrokerLogHandler(component)
     handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
     root = logging.getLogger()
     root.handlers.clear()
@@ -759,14 +761,21 @@ def configure_logging(preview=False):
 
 
 class RequestWindow(Adw.ApplicationWindow):
-    def __init__(self, application, *, preview=False, soundtrack=None):
+    def __init__(self, application, *, preview=False, soundtrack=None,
+                 child_overlay=False):
         super().__init__(application=application, title=app_name())
         self.add_css_class("oh-no-parent-control-window")
+        if child_overlay:
+            self.add_css_class("oh-no-parent-control-overlay")
+            self.set_decorated(False)
+            self.set_modal(True)
         self.set_default_size(
             PREVIEW_DEFAULT_WIDTH if preview else 800,
             PREVIEW_DEFAULT_HEIGHT if preview else 600,
         )
         self._preview = preview
+        self._child_overlay = child_overlay
+        self._applying_preferences = False
         self._state = RequestState()
         self._success_logout_source_id = None
         self._system_bus = None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
@@ -774,7 +783,10 @@ class RequestWindow(Adw.ApplicationWindow):
         self._music = BackgroundMusic(soundtrack)
         self._music.start()
         self.connect("destroy", self._stop_music)
-        LOG.info("request station window initialized")
+        LOG.info(
+            "request station window initialized overlay=%s",
+            child_overlay,
+        )
         if not preview:
             self.connect("map", lambda *_args: self.fullscreen())
         self._load_users()
@@ -829,8 +841,11 @@ class RequestWindow(Adw.ApplicationWindow):
             self.set_content(drag_handle)
         else:
             self.set_content(layout)
+        self._cancel = self._close_overlay if self._child_overlay else self._logout
         self._request_content = RequestContent(
-            self._request_access, self._logout, self._load_preferences,
+            self._request_access, self._cancel, self._load_preferences,
+            lock_child_selector=self._child_overlay,
+            on_values_changed=self._persist_form_values,
         )
         self._request_surface = GatewayAlignedRequest(self._request_content)
         self._stack.add_named(self._request_surface, "request")
@@ -840,10 +855,16 @@ class RequestWindow(Adw.ApplicationWindow):
         self._result_detail = Gtk.Label(wrap=True, justify=Gtk.Justification.CENTER)
         self._result_view.append(self._result_title)
         self._result_view.append(self._result_detail)
-        return_button = Gtk.Button(label="Return to Login")
-        return_button.add_css_class("oh-no-parent-control-request-button")
-        return_button.connect("clicked", self._logout)
-        self._result_view.append(return_button)
+        self._result_action = Gtk.Button(
+            label="Close" if self._child_overlay else "Return to Login",
+        )
+        self._result_action.add_css_class("oh-no-parent-control-request-button")
+        self._result_action.connect("clicked", self._cancel)
+        self._result_view.append(self._result_action)
+        escape = Gtk.EventControllerKey()
+        escape.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        escape.connect("key-pressed", self._escape_pressed)
+        self.add_controller(escape)
         # Keep every outcome, including the post-authorization confirmation,
         # mounted in the gateway plane.  Adding this box directly to the stack
         # would bypass the yaw and perspective used by the request form.
@@ -851,15 +872,22 @@ class RequestWindow(Adw.ApplicationWindow):
         self._stack.add_named(self._result_surface, "result")
 
     def _show_about(self, *_args):
-        AboutDialog(self, links_enabled=False).present()
+        AboutDialog(self, links_enabled=self._child_overlay).present()
 
-    def _toggle_mute(self, *_args):
-        muted = self._mute_button.get_icon_name() != "audio-volume-muted-symbolic"
+    def _mute_surface(self):
+        return "child" if self._child_overlay else "kiosk"
+
+    def _apply_mute(self, muted):
         self._music.set_muted(muted)
         self._mute_button.set_icon_name(
             "audio-volume-muted-symbolic" if muted else "audio-volume-high-symbolic",
         )
         self._mute_button.set_tooltip_text("Unmute sound" if muted else "Mute sound")
+
+    def _toggle_mute(self, *_args):
+        muted = self._mute_button.get_icon_name() != "audio-volume-muted-symbolic"
+        self._apply_mute(muted)
+        self._persist_muted(muted)
 
     @staticmethod
     def _page(title):
@@ -880,6 +908,20 @@ class RequestWindow(Adw.ApplicationWindow):
         # this clean exit into a supported kiosk-session logout back to GDM.
         LOG.info("return to login requested")
         self.get_application().quit()
+
+    def _close_overlay(self, *_args):
+        LOG.info("child request overlay closed")
+        self.get_application().quit()
+
+    def _escape_pressed(self, _controller, keyval, _keycode, _state):
+        if keyval != Gdk.KEY_Escape:
+            return False
+        # Escape matches Cancel. While Polkit is prompting, leave the key
+        # for the authentication agent instead of closing or logging out.
+        if self._state.in_flight:
+            return False
+        self._cancel()
+        return True
 
     def _logout_after_success(self):
         self._success_logout_source_id = None
@@ -905,14 +947,27 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _load_users(self, *_args):
         if self._preview:
+            users = PREVIEW_USERS[:1] if self._child_overlay else PREVIEW_USERS
             self._request_content.set_loading()
-            self._request_content.set_accounts(PREVIEW_USERS)
+            self._request_content.set_accounts(users)
             self._request_content.set_approvers(PREVIEW_APPROVERS)
             return
-        LOG.info("request-account discovery started")
+        LOG.info("request-account discovery started overlay=%s", self._child_overlay)
         self._request_content.set_loading()
-        self._bus_call("ListManagedUsers", None, "(a(us))", self._users_done)
-        self._bus_call("ListApprovers", None, "(a(us))", self._approvers_done)
+        if self._child_overlay:
+            self._bus_call("GetOwnAccount", None, "(uss)", self._own_account_done)
+        else:
+            self._bus_call("ListManagedUsers", None, "(a(uss))", self._users_done)
+        self._bus_call("ListApprovers", None, "(a(uss))", self._approvers_done)
+
+    def _own_account_done(self, connection, result):
+        try:
+            uid, label, icon_file = connection.call_finish(result).unpack()
+            LOG.info("own-account discovery completed uid=%d", uid)
+            self._request_content.set_accounts(((uid, label, icon_file),))
+        except Exception as error:
+            LOG.warning("own-account outcome=unavailable error_type=%s", type(error).__name__)
+            self._show_error(error)
 
     def _users_done(self, connection, result):
         try:
@@ -934,7 +989,14 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _load_preferences(self, target_uid):
         if self._preview:
-            self._request_content.set_preferences(PREVIEW_PREFERENCES[target_uid])
+            self._applying_preferences = True
+            try:
+                self._request_content.set_preferences(PREVIEW_PREFERENCES[target_uid])
+                self._apply_mute(
+                    self._request_content.muted_for_surface(self._mute_surface()),
+                )
+            finally:
+                self._applying_preferences = False
             return
         LOG.info("preferences load started target_uid=%d", target_uid)
         self._bus_call(
@@ -949,10 +1011,67 @@ class RequestWindow(Adw.ApplicationWindow):
             encoded, = connection.call_finish(result).unpack()
             if not self._request_content.is_selected_account(target_uid):
                 return
-            self._request_content.set_preferences(json.loads(encoded))
+            self._applying_preferences = True
+            try:
+                self._request_content.set_preferences(json.loads(encoded))
+                self._apply_mute(
+                    self._request_content.muted_for_surface(self._mute_surface()),
+                )
+            finally:
+                self._applying_preferences = False
             LOG.info("preferences load completed target_uid=%d", target_uid)
         except Exception as error:
             LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
+
+    def _persist_form_values(self):
+        if self._preview or self._applying_preferences:
+            return
+        try:
+            target_uid, _label, approver_uid, _seconds, _allow_soft = (
+                self._request_content.selected()
+            )
+            selected, custom, allow_soft = self._request_content.selected_preferences()
+        except ValueError:
+            return
+        try:
+            self._bus_call(
+                "UpdateRequestPreferences",
+                GLib.Variant(
+                    "(usdbu)",
+                    (target_uid, selected, custom, allow_soft, approver_uid),
+                ),
+                "(s)", self._preferences_save_done,
+            )
+        except Exception as error:
+            LOG.warning(
+                "request preferences save failed error_type=%s",
+                type(error).__name__,
+            )
+
+    def _persist_muted(self, muted):
+        if self._preview or self._applying_preferences:
+            return
+        try:
+            target_uid, *_rest = self._request_content.selected()
+        except ValueError:
+            return
+        try:
+            self._bus_call(
+                "SetRequestMuted",
+                GLib.Variant("(usb)", (target_uid, self._mute_surface(), muted)),
+                "(s)", self._preferences_save_done,
+            )
+        except Exception as error:
+            LOG.warning("mute save failed error_type=%s", type(error).__name__)
+
+    def _preferences_save_done(self, connection, result):
+        try:
+            connection.call_finish(result)
+        except Exception as error:
+            LOG.warning(
+                "request preferences outcome=unavailable error_type=%s",
+                type(error).__name__,
+            )
 
     def _request_access(self, *_args):
         if self._preview:
@@ -961,10 +1080,14 @@ class RequestWindow(Adw.ApplicationWindow):
             except ValueError as error:
                 self._request_content.show_validation_error(str(error))
                 return
-            self._show_result(
-                "Preview request",
-                "This is a visual preview; no access was requested.",
-            )
+            if self._child_overlay:
+                self._show_result(CHILD_SUCCESS_COPY, "")
+                self._result_action.set_label(CHILD_SUCCESS_COPY)
+            else:
+                self._show_result(
+                    "Preview request",
+                    "This is a visual preview; no access was requested.",
+                )
             return
         if not self._state.begin():
             return
@@ -979,15 +1102,18 @@ class RequestWindow(Adw.ApplicationWindow):
         self._set_request_controls(False)
         self._requested_label = target_label
         LOG.info("target_uid=%d approver_uid=%d duration_seconds=%d "
-                 "allow_soft=%s stage=request", target_uid, approver_uid,
-                 duration_seconds, allow_soft)
+                 "allow_soft=%s overlay=%s stage=request", target_uid, approver_uid,
+                 duration_seconds, allow_soft, self._child_overlay)
         try:
             self._pending_request = (
                 target_uid, approver_uid, duration_seconds, allow_soft,
             )
             self._bus_call(
                 "UpdateRequestPreferences",
-                GLib.Variant("(usdb)", (target_uid, selected, custom, allow_soft)),
+                GLib.Variant(
+                    "(usdbu)",
+                    (target_uid, selected, custom, allow_soft, approver_uid),
+                ),
                 "(s)", self._preferences_saved,
             )
         except Exception as error:
@@ -997,28 +1123,46 @@ class RequestWindow(Adw.ApplicationWindow):
         try:
             connection.call_finish(result)
             target_uid, approver_uid, duration_seconds, allow_soft = self._pending_request
-            self._bus_call(
-                "RequestAccess",
-                GLib.Variant(
-                    "(uuub)",
-                    (target_uid, approver_uid, duration_seconds, allow_soft),
-                ),
-                "(ss)", self._request_done, REQUEST_TIMEOUT_MS,
-            )
+            if self._child_overlay:
+                self._bus_call(
+                    "RequestOwnAccess",
+                    GLib.Variant(
+                        "(uub)", (approver_uid, duration_seconds, allow_soft),
+                    ),
+                    "(ssu)", self._request_done, REQUEST_TIMEOUT_MS,
+                )
+            else:
+                self._bus_call(
+                    "RequestAccess",
+                    GLib.Variant(
+                        "(uuub)",
+                        (target_uid, approver_uid, duration_seconds, allow_soft),
+                    ),
+                    "(ss)", self._request_done, REQUEST_TIMEOUT_MS,
+                )
         except Exception as error:
             self._request_failed(error)
 
     def _request_done(self, connection, result):
         try:
-            correlation_id, outcome = connection.call_finish(result).unpack()
+            unpacked = connection.call_finish(result).unpack()
+            if self._child_overlay:
+                correlation_id, outcome, _granted = unpacked
+            else:
+                correlation_id, outcome = unpacked
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise ValueError("broker returned malformed result")
             LOG.info("request=%s outcome=%s", correlation_id, outcome)
             if outcome == "approved":
-                self._show_result(
-                    "Request approved", f"The requested access is ready for {self._requested_label}."
-                )
-                self._schedule_success_logout()
+                if self._child_overlay:
+                    self._show_result(CHILD_SUCCESS_COPY, "")
+                    self._result_action.set_label(CHILD_SUCCESS_COPY)
+                else:
+                    self._show_result(
+                        "Request approved",
+                        f"The requested access is ready for {self._requested_label}.",
+                    )
+                    self._schedule_success_logout()
             elif outcome == "cancelled":
                 # Cancellation is not an error or a session transition.  The
                 # administrator returns to the same kiosk request form without
@@ -1047,20 +1191,30 @@ class RequestWindow(Adw.ApplicationWindow):
         self._request_content.set_controls_sensitive(enabled)
 
     def _show_error(self, error):
-        title, detail = public_error(error)
+        title, detail = public_error(error, child_overlay=self._child_overlay)
+        if self._child_overlay:
+            self._result_action.set_label("Close")
         self._show_result(title, detail)
 
     def _show_result(self, title, detail):
         self._result_title.set_text(title)
         self._result_detail.set_text(detail)
+        self._result_detail.set_visible(bool(detail))
         self._stack.set_visible_child_name("result")
 
 
 class Application(Adw.Application):
-    def __init__(self, *, preview=False, soundtrack=None):
-        super().__init__(application_id="com.puffyslippers.OhNoParentControl")
+    def __init__(self, *, preview=False, soundtrack=None, child_overlay=False):
+        super().__init__(
+            application_id=(
+                "com.puffyslippers.OhNoParentControl.ChildRequest"
+                if child_overlay else
+                "com.puffyslippers.OhNoParentControl"
+            ),
+        )
         self._preview = preview
         self._soundtrack = soundtrack
+        self._child_overlay = child_overlay
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
         self._css_provider = None
         self._preview_monitor = None
@@ -1124,6 +1278,7 @@ class Application(Adw.Application):
     def do_activate(self):
         window = self.get_active_window() or RequestWindow(
             self, preview=self._preview, soundtrack=self._soundtrack,
+            child_overlay=self._child_overlay,
         )
         if self._css_provider is None:
             self._css_provider = Gtk.CssProvider()
@@ -1144,13 +1299,23 @@ def main(argv=None):
         help="render the kiosk UI with fixture data and no privileged services",
     )
     parser.add_argument(
+        "--child-overlay", action="store_true",
+        help="present the shared request GUI as a child-session overlay",
+    )
+    parser.add_argument(
         "--soundtrack", type=Path,
         help="soundtrack file to play instead of the installed kiosk soundtrack",
     )
     args = parser.parse_args(argv)
-    configure_logging(preview=args.preview)
-    LOG.info("kiosk app starting")
-    return Application(preview=args.preview, soundtrack=args.soundtrack).run([sys.argv[0]])
+    configure_logging(
+        preview=args.preview,
+        component="child" if args.child_overlay else "kiosk",
+    )
+    LOG.info("kiosk app starting overlay=%s", args.child_overlay)
+    return Application(
+        preview=args.preview, soundtrack=args.soundtrack,
+        child_overlay=args.child_overlay,
+    ).run([sys.argv[0]])
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""GTK counterpart of the Shell request form, using the shared choices."""
+"""Shared GTK request form used by the kiosk session and child overlay."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk
 
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
+from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
 
 
 def _load_options():
@@ -47,11 +48,15 @@ class GatewayDropDown(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self._on_selected = on_selected
         self._selected = Gtk.INVALID_LIST_POSITION
-        self._labels = ()
+        self._items = ()
 
         self._trigger = Gtk.Button()
         self._trigger.add_css_class("oh-no-parent-control-account-selector")
         trigger_content = Gtk.Box(spacing=8)
+        self._selected_icon = Gtk.Image()
+        self._selected_icon.add_css_class("oh-no-parent-control-account-avatar")
+        apply_gtk_user_icon(self._selected_icon, "")
+        trigger_content.append(self._selected_icon)
         self._selected_label = Gtk.Label(xalign=0, hexpand=True)
         trigger_content.append(self._selected_label)
         trigger_content.append(Gtk.Image.new_from_icon_name("pan-down-symbolic"))
@@ -64,26 +69,36 @@ class GatewayDropDown(Gtk.Box):
         self._choices.set_visible(False)
         self.append(self._choices)
 
-    def set_items(self, labels):
-        self._labels = tuple(labels)
+    def set_items(self, items):
+        self._items = tuple(items)
         self._selected = Gtk.INVALID_LIST_POSITION
         self._selected_label.set_text("")
+        apply_gtk_user_icon(self._selected_icon, "")
         while child := self._choices.get_first_child():
             self._choices.remove(child)
-        for index, label in enumerate(self._labels):
-            choice = Gtk.Button(label=label, halign=Gtk.Align.FILL)
+        for index, (label, icon_file) in enumerate(self._items):
+            choice = Gtk.Button(halign=Gtk.Align.FILL)
             choice.add_css_class("oh-no-parent-control-account-choice")
+            content = Gtk.Box(spacing=8)
+            icon = Gtk.Image()
+            icon.add_css_class("oh-no-parent-control-account-avatar")
+            apply_gtk_user_icon(icon, icon_file)
+            content.append(icon)
+            content.append(Gtk.Label(label=label, xalign=0, hexpand=True))
+            choice.set_child(content)
             choice.connect("clicked", self._choose, index)
             self._choices.append(choice)
         self._choices.set_visible(False)
 
     def set_selected(self, index):
-        if index >= len(self._labels):
+        if index >= len(self._items):
             raise ValueError("selector index is out of range")
         if index == self._selected:
             return
         self._selected = index
-        self._selected_label.set_text(self._labels[index])
+        label, icon_file = self._items[index]
+        self._selected_label.set_text(label)
+        apply_gtk_user_icon(self._selected_icon, icon_file)
         if self._on_selected is not None:
             self._on_selected()
 
@@ -91,7 +106,12 @@ class GatewayDropDown(Gtk.Box):
         return self._selected
 
     def _toggle_choices(self, *_args):
+        if not self._trigger.get_sensitive():
+            return
         self._choices.set_visible(not self._choices.get_visible())
+
+    def collapse(self):
+        self._choices.set_visible(False)
 
     def _choose(self, _button, index):
         self.set_selected(index)
@@ -101,7 +121,8 @@ class GatewayDropDown(Gtk.Box):
 class RequestContent(Gtk.Box):
     """Reusable request-time form used as the kiosk's primary content."""
 
-    def __init__(self, on_request, on_cancel, on_account_selected=None):
+    def __init__(self, on_request, on_cancel, on_account_selected=None, *,
+                 lock_child_selector=False, on_values_changed=None):
         super().__init__(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=16,
@@ -113,14 +134,22 @@ class RequestContent(Gtk.Box):
         self._duration_buttons = []
         self._account_uids = []
         self._account_labels = []
+        self._account_icons = []
         self._approver_uids = []
         self._approver_labels = []
+        self._approver_icons = []
         self._accounts_loaded = False
         self._approvers_loaded = False
         self._ready = False
         self._controls_enabled = True
         self._screen_time_limit_enabled = None
+        self._lock_child_selector = lock_child_selector
         self._on_account_selected = on_account_selected
+        self._on_values_changed = on_values_changed
+        self._suppress_values_changed = False
+        self._pending_approver_uid = 0
+        self._kiosk_muted = False
+        self._child_muted = False
 
         self.append(self._header())
         self._status = Gtk.Label(label="Loading request details…", wrap=True)
@@ -140,7 +169,7 @@ class RequestContent(Gtk.Box):
         approver_selector = Gtk.Grid(column_spacing=8)
         approver_selector.add_css_class("oh-no-parent-control-account-row")
         approver_selector.attach(Gtk.Label(label="Approver", xalign=0), 0, 0, 1, 1)
-        self._approvers = GatewayDropDown()
+        self._approvers = GatewayDropDown(self._approver_changed)
         self._approvers.set_hexpand(True)
         approver_selector.attach(self._approvers, 1, 0, 1, 1)
         self._request_form.append(approver_selector)
@@ -163,17 +192,23 @@ class RequestContent(Gtk.Box):
         self._custom_row.set_visible(False)
         self._request_form.append(self._custom_row)
 
-        filter_row = Gtk.Box(spacing=12)
+        filter_row = Gtk.Button()
         filter_row.add_css_class("oh-no-parent-control-app-filter-toggle")
+        filter_inner = Gtk.Box(spacing=12)
         filter_label = Gtk.Label(
             label="Allow soft blocked apps", xalign=0, hexpand=True,
             valign=Gtk.Align.CENTER,
         )
         filter_label.add_css_class("oh-no-parent-control-app-filter-label")
-        filter_row.append(filter_label)
+        filter_inner.append(filter_label)
         self._allow_soft = Gtk.Switch(valign=Gtk.Align.CENTER)
+        self._allow_soft.set_can_target(False)
+        self._allow_soft.connect("notify::active", self._emit_values_changed)
         filter_label.set_mnemonic_widget(self._allow_soft)
-        filter_row.append(self._allow_soft)
+        filter_inner.append(self._allow_soft)
+        filter_row.set_child(filter_inner)
+        filter_row.connect("clicked", self._toggle_allow_soft)
+        self._filter_row = filter_row
         self._request_form.append(filter_row)
 
         actions = Gtk.Box(spacing=10, homogeneous=True)
@@ -257,32 +292,27 @@ class RequestContent(Gtk.Box):
 
     def set_accounts(self, users):
         """Replace the selector with the broker's current eligible accounts."""
-        parsed = []
-        for uid, label in users:
-            if type(uid) is not int or not isinstance(label, str) or not label.strip():
-                raise ValueError("broker returned an invalid account")
-            parsed.append((uid, label.strip()))
-        self._account_uids = [uid for uid, _label in parsed]
-        self._account_labels = [label for _uid, label in parsed]
-        self._accounts.set_items(self._account_labels)
+        parsed = [parse_listed_user(user) for user in users]
+        self._account_uids = [uid for uid, _label, _icon in parsed]
+        self._account_labels = [label for _uid, label, _icon in parsed]
+        self._account_icons = [icon for _uid, _label, icon in parsed]
+        self._accounts.set_items(list(zip(self._account_labels, self._account_icons)))
         self._accounts_loaded = True
         if parsed:
             self._accounts.set_selected(0)
+        if self._lock_child_selector:
+            self._accounts.collapse()
         self._update_ready()
 
     def set_approvers(self, users):
         """Replace the selector with current local interactive administrators."""
-        parsed = []
-        for uid, label in users:
-            if type(uid) is not int or not isinstance(label, str) or not label.strip():
-                raise ValueError("broker returned an invalid approver")
-            parsed.append((uid, label.strip()))
-        self._approver_uids = [uid for uid, _label in parsed]
-        self._approver_labels = [label for _uid, label in parsed]
-        self._approvers.set_items(self._approver_labels)
+        parsed = [parse_listed_user(user) for user in users]
+        self._approver_uids = [uid for uid, _label, _icon in parsed]
+        self._approver_labels = [label for _uid, label, _icon in parsed]
+        self._approver_icons = [icon for _uid, _label, icon in parsed]
+        self._approvers.set_items(list(zip(self._approver_labels, self._approver_icons)))
         self._approvers_loaded = True
-        if parsed:
-            self._approvers.set_selected(0)
+        self._restore_approver()
         self._update_ready()
 
     def _update_ready(self):
@@ -313,26 +343,70 @@ class RequestContent(Gtk.Box):
             self._update_ready()
             self._on_account_selected(self._account_uids[index])
 
+    def _toggle_allow_soft(self, _button):
+        if not self._allow_soft.get_sensitive():
+            return
+        self._allow_soft.set_active(not self._allow_soft.get_active())
+
+    def _approver_changed(self, *_args):
+        self._emit_values_changed()
+
+    def _emit_values_changed(self, *_args):
+        if self._suppress_values_changed or self._on_values_changed is None:
+            return
+        self._on_values_changed()
+
+    def muted_for_surface(self, surface):
+        return self._child_muted if surface == "child" else self._kiosk_muted
+
+    def selected_approver_uid(self):
+        index = self._approvers.get_selected()
+        if index >= len(self._approver_uids):
+            return 0
+        return self._approver_uids[index]
+
+    def _restore_approver(self):
+        if not self._approvers_loaded or not self._approver_uids:
+            return
+        self._suppress_values_changed = True
+        try:
+            if self._pending_approver_uid in self._approver_uids:
+                self._approvers.set_selected(
+                    self._approver_uids.index(self._pending_approver_uid),
+                )
+            elif self._approvers.get_selected() == Gtk.INVALID_LIST_POSITION:
+                self._approvers.set_selected(0)
+        finally:
+            self._suppress_values_changed = False
+
     def set_preferences(self, preferences):
-        self._screen_time_limit_enabled = (
-            preferences.get("parent_control_enabled") is True
-        )
-        request = preferences.get("request", {})
-        selected_value = request.get("last_selected_duration", str(DEFAULT_DURATION_SECONDS))
-        selected_seconds = None if selected_value == "custom" else int(selected_value)
-        selected = next(
-            (button for button in self._duration_buttons
-             if button.duration_seconds == selected_seconds), None,
-        )
-        if selected is None:
-            selected = next(button for button in self._duration_buttons
-                            if button.duration_seconds == DEFAULT_DURATION_SECONDS)
-        selected.set_active(True)
-        self._custom_row.set_visible(selected.duration_seconds is None)
-        custom = request.get("last_custom_minutes", MIN_CUSTOM_MINUTES)
-        self._custom_entry.set_text(str(custom))
-        self._allow_soft.set_active(bool(request.get("allow_soft_blocked_apps", False)))
-        self._update_ready()
+        self._suppress_values_changed = True
+        try:
+            self._screen_time_limit_enabled = (
+                preferences.get("parent_control_enabled") is True
+            )
+            request = preferences.get("request", {})
+            selected_value = request.get("last_selected_duration", str(DEFAULT_DURATION_SECONDS))
+            selected_seconds = None if selected_value == "custom" else int(selected_value)
+            selected = next(
+                (button for button in self._duration_buttons
+                 if button.duration_seconds == selected_seconds), None,
+            )
+            if selected is None:
+                selected = next(button for button in self._duration_buttons
+                                if button.duration_seconds == DEFAULT_DURATION_SECONDS)
+            selected.set_active(True)
+            self._custom_row.set_visible(selected.duration_seconds is None)
+            custom = request.get("last_custom_minutes", MIN_CUSTOM_MINUTES)
+            self._custom_entry.set_text(str(custom))
+            self._allow_soft.set_active(bool(request.get("allow_soft_blocked_apps", False)))
+            self._pending_approver_uid = request.get("last_selected_approver_uid", 0)
+            self._kiosk_muted = bool(request.get("kiosk_muted", False))
+            self._child_muted = bool(request.get("child_muted", False))
+            self._restore_approver()
+            self._update_ready()
+        finally:
+            self._suppress_values_changed = False
 
     def is_selected_account(self, target_uid):
         """Whether an asynchronous response still belongs to the selected child."""
@@ -351,6 +425,7 @@ class RequestContent(Gtk.Box):
         if custom:
             self._custom_entry.grab_focus()
             self._custom_entry.select_region(0, -1)
+        self._emit_values_changed()
 
     def selected(self):
         account_index = self._accounts.get_selected()
@@ -416,9 +491,14 @@ class RequestContent(Gtk.Box):
         time_limit_enabled = self._screen_time_limit_enabled is True
         self._request.set_sensitive(request_available)
         self._cancel.set_sensitive(self._controls_enabled)
-        self._accounts.set_sensitive(self._controls_enabled)
+        self._accounts.set_sensitive(
+            self._controls_enabled and not self._lock_child_selector,
+        )
+        if self._lock_child_selector:
+            self._accounts.collapse()
         self._custom_entry.set_sensitive(request_available and time_limit_enabled)
         self._allow_soft.set_sensitive(request_available)
+        self._filter_row.set_sensitive(request_available)
         self._approvers.set_sensitive(request_available)
         for button in self._duration_buttons:
             button.set_sensitive(request_available and time_limit_enabled)

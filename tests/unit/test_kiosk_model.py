@@ -15,6 +15,12 @@ class KioskModelTests(unittest.TestCase):
         title, detail = public_error(RuntimeError("org.example.Secret /private/path"))
         self.assertNotIn("org.example", title + detail)
         self.assertNotIn("/private", title + detail)
+        self.assertIn("return to login", detail)
+        overlay_title, overlay_detail = public_error(
+            RuntimeError("org.example.Secret /private/path"), child_overlay=True,
+        )
+        self.assertNotIn("org.example", overlay_title + overlay_detail)
+        self.assertNotIn("return to login", overlay_detail)
 
 
 if __name__ == "__main__":

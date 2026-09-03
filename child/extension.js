@@ -2,121 +2,88 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-import {AboutDialog} from './aboutDialog.js';
-import {listApprovers} from './approverClient.js';
 import {appName} from './branding.js';
 import {isPreview} from './previewMode.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
-import {requestOwnAccess} from './requestAccessClient.js';
-import {RequestPopover} from './requestDialog.js';
-import {refreshSharedPreferences} from './sharedPreferencesClient.js';
 import {logError, logInfo, logWarning} from './logger.js';
+
+const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
+
+function requestAppArgv() {
+    const override = GLib.getenv('OH_NO_PARENT_CONTROL_REQUEST_APP');
+    if (override) {
+        const [ok, argv] = GLib.shell_parse_argv(override);
+        if (!ok || !argv.length)
+            throw new Error('OH_NO_PARENT_CONTROL_REQUEST_APP is not a command');
+        return argv;
+    }
+    return [INSTALLED_REQUEST_APP, '--child-overlay'];
+}
 
 export default class OhNoParentControlExtension extends Extension {
     enable() {
         logInfo('extension enabled');
         this._preview = isPreview();
         this._appName = appName(this);
+        this._requestProcess = null;
+        this._openingRequest = false;
         this._indicator = new RemainingTimeIndicator(
-            sourceActor => this._showDialog(sourceActor),
+            () => this._showRequest(),
             this._preview ? 45 * 60 : 0,
             this._preview,
             this._appName);
-        refreshSharedPreferences().catch(error =>
-            logWarning(`could not preload preferences: ${error.message}`));
         if (this._preview) {
             GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this._showDialog(this._indicator);
+                this._showRequest();
                 return GLib.SOURCE_REMOVE;
             });
         }
     }
 
     disable() {
-        this._dialog?.destroy();
-        this._dialog = null;
-        this._aboutDialog?.destroy();
-        this._aboutDialog = null;
+        this._stopRequest();
         this._indicator?.destroy();
         this._indicator = null;
         logInfo('extension disabled');
     }
 
-    async _showDialog(sourceActor) {
-        if (this._dialog || this._openingDialog)
-            return;
-        if (!sourceActor)
+    _showRequest() {
+        if (this._requestProcess || this._openingRequest)
             return;
 
-        this._openingDialog = true;
+        this._openingRequest = true;
+        this._indicator?.setRequestActive(true);
         try {
-            await refreshSharedPreferences();
+            const argv = requestAppArgv();
+            logInfo('request overlay opened');
+            this._requestProcess = Gio.Subprocess.new(
+                argv, Gio.SubprocessFlags.NONE);
+            this._requestProcess.wait_async(null, (process, result) => {
+                try {
+                    process.wait_finish(result);
+                } catch (error) {
+                    logWarning(`request overlay exited: ${error.message}`);
+                }
+                this._requestProcess = null;
+                this._indicator?.setRequestActive(false);
+                this._indicator?.refreshEstimate();
+            });
         } catch (error) {
-            logWarning(`could not refresh preferences: ${error.message}`);
+            logError(`could not open request overlay: ${error.message}`);
+            this._indicator?.setRequestActive(false);
         } finally {
-            this._openingDialog = false;
-        }
-        if (this._dialog)
-            return;
-
-        logInfo('request dialog opened');
-        const request = async (
-            durationSeconds, allowSoftBlockedApps, untilEndOfDay = false,
-            approverUid) => {
-            if (this._preview) {
-                this._indicator?.showGrantedTime(durationSeconds);
-                return true;
-            }
-            logInfo(`requesting ${durationSeconds} seconds of ` +
-                (untilEndOfDay ? 'remaining time' : 'additional time'));
-
-            const result = await requestOwnAccess(
-                approverUid,
-                untilEndOfDay ? 0 : durationSeconds,
-                allowSoftBlockedApps);
-            logInfo(`request=${result.correlationId} outcome=${result.outcome}`);
-            if (result.outcome !== 'approved')
-                return false;
-            this._indicator?.showGrantedTime(result.grantedDurationSeconds);
-            return true;
-        };
-        this._dialog = new RequestPopover(
-            request, sourceActor, action => this._showAbout(action), this._appName);
-        this._dialog.connect('destroy', () => {
-            sourceActor?.setRequestActive?.(false);
-            this._dialog = null;
-        });
-        if (!this._dialog.open()) {
-            logError('could not open request dialog');
-            this._dialog.destroy();
-            return;
-        }
-        try {
-            this._dialog.setApprovers(await listApprovers());
-        } catch (error) {
-            logWarning(`could not load approving administrators: ${error.message}`);
-            this._dialog?.setApprovers([]);
+            this._openingRequest = false;
         }
     }
 
-    _showAbout(action) {
-        if (action === 'help') {
-            try {
-                const [ok, contents] = GLib.file_get_contents(
-                    '/usr/share/oh-no-parent-control/brand.json');
-                if (ok) {
-                    const brand = JSON.parse(new TextDecoder().decode(contents));
-                    Gio.AppInfo.launch_default_for_uri(brand.app_url, null);
-                }
-            } catch (error) {
-                logWarning(`could not open help: ${error.message}`);
-            }
+    _stopRequest() {
+        if (!this._requestProcess)
             return;
+        try {
+            this._requestProcess.force_exit();
+        } catch (error) {
+            logWarning(`could not stop request overlay: ${error.message}`);
         }
-        if (this._aboutDialog)
-            return;
-        this._aboutDialog = new AboutDialog(this);
-        this._aboutDialog.connect('closed', () => this._aboutDialog = null);
-        this._aboutDialog.open();
+        this._requestProcess = null;
     }
 }

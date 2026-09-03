@@ -33,7 +33,7 @@ class BrokerClient:
         return result.unpack()
 
     def list_users(self):
-        users, = self._call("ListManagedUsers", None, "(a(us))")
+        users, = self._call("ListManagedUsers", None, "(a(uss))")
         return users
 
     def get_preferences(self, uid):

@@ -113,13 +113,22 @@ class Preferences:
         self.values[uid] = validate_preferences(value)
         return self.load(uid)
 
-    def update_request(self, uid, selected, custom, allow_soft):
+    def update_request(self, uid, selected, custom, allow_soft,
+                       last_selected_approver_uid=0):
         value = self.load(uid)
         value["request"] = {
+            **value["request"],
             "last_selected_duration": selected,
             "last_custom_minutes": custom,
             "allow_soft_blocked_apps": allow_soft,
+            "last_selected_approver_uid": last_selected_approver_uid,
         }
+        return self.save(uid, value)
+
+    def update_request_muted(self, uid, surface, muted):
+        value = self.load(uid)
+        key = "kiosk_muted" if surface == "kiosk" else "child_muted"
+        value["request"] = {**value["request"], key: muted}
         return self.save(uid, value)
 
 
@@ -519,11 +528,33 @@ class CoreTests(unittest.TestCase):
     def test_child_and_kiosk_share_request_menu_values(self):
         preferences = Preferences()
         broker = make_broker(preferences=preferences)
-        broker.update_request_preferences(1001, 1001, "custom", 22.5, True)
+        broker.update_request_preferences(1001, 1001, "custom", 22.5, True, 1003)
         request = broker.get_preferences(991, 1001)["request"]
         self.assertEqual(request["last_selected_duration"], "custom")
         self.assertEqual(request["last_custom_minutes"], 22.5)
         self.assertTrue(request["allow_soft_blocked_apps"])
+        self.assertEqual(request["last_selected_approver_uid"], 1003)
+
+    def test_kiosk_and_child_mutes_are_independent(self):
+        preferences = Preferences()
+        broker = make_broker(preferences=preferences)
+        broker.set_request_muted(991, 1001, "kiosk", True)
+        broker.set_request_muted(1001, 1001, "child", False)
+        request = broker.get_preferences(1001, 1001)["request"]
+        self.assertTrue(request["kiosk_muted"])
+        self.assertFalse(request["child_muted"])
+        broker.set_request_muted(1001, 1001, "child", True)
+        request = broker.get_preferences(991, 1001)["request"]
+        self.assertTrue(request["kiosk_muted"])
+        self.assertTrue(request["child_muted"])
+
+    def test_managed_child_can_read_its_own_account(self):
+        user = make_broker().get_own_account(1001)
+        self.assertEqual((user.uid, user.label), (1001, "Child"))
+        with self.assertRaises(AccessDenied):
+            make_broker().get_own_account(991)
+        with self.assertRaises(AccessDenied):
+            make_broker().get_own_account(1003)
 
     def test_managed_child_request_is_broker_owned_and_targets_caller(self):
         auth, accounts, preferences = Authorizer(), Accounts(), Preferences()

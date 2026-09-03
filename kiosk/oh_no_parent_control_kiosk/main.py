@@ -33,8 +33,10 @@ INTERFACE = BUS_NAME
 # An authorization prompt remains open until the administrator responds.
 # G_MAXINT is GIO's supported no-timeout value.
 REQUEST_TIMEOUT_MS = GLib.MAXINT
-# Keep the confirmation visible briefly before returning to GDM.
+# Keep the confirmation visible briefly before returning to GDM or
+# closing the child overlay.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
+CHILD_SUCCESS_TITLE = "Time granted"
 CHILD_SUCCESS_COPY = "Time granted, click here to close"
 GATEWAY_EFFECT_FRAME_MS = 33
 # The form is centered in the window while the gateway in the artwork is
@@ -782,7 +784,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._build()
         self._music = BackgroundMusic(soundtrack)
         self._music.start()
-        self.connect("destroy", self._stop_music)
+        self.connect("destroy", self._on_destroy)
         LOG.info(
             "request station window initialized overlay=%s",
             child_overlay,
@@ -791,7 +793,8 @@ class RequestWindow(Adw.ApplicationWindow):
             self.connect("map", lambda *_args: self.fullscreen())
         self._load_users()
 
-    def _stop_music(self, *_args):
+    def _on_destroy(self, *_args):
+        self._cancel_success_dismiss()
         if self._music is not None:
             self._music.close()
             self._music = None
@@ -850,7 +853,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._request_surface = GatewayAlignedRequest(self._request_content)
         self._stack.add_named(self._request_surface, "request")
 
-        self._result_view = self._page("Request result")
+        self._result_view = self._page()
         self._result_title = Gtk.Label(css_classes=["oh-no-parent-control-page-title"])
         self._result_detail = Gtk.Label(wrap=True, justify=Gtk.Justification.CENTER)
         self._result_view.append(self._result_title)
@@ -870,6 +873,12 @@ class RequestWindow(Adw.ApplicationWindow):
         # would bypass the yaw and perspective used by the request form.
         self._result_surface = GatewayAlignedRequest(self._result_view)
         self._stack.add_named(self._result_surface, "result")
+        if self._child_overlay:
+            # The gateway yaw can miss Gtk.Button hit-testing on the result
+            # board. Close from the untransformed surface as well as the button.
+            close_click = Gtk.GestureClick()
+            close_click.connect("released", self._close_overlay)
+            self._result_surface.add_controller(close_click)
 
     def _show_about(self, *_args):
         AboutDialog(self, links_enabled=self._child_overlay).present()
@@ -890,17 +899,17 @@ class RequestWindow(Adw.ApplicationWindow):
         self._persist_muted(muted)
 
     @staticmethod
-    def _page(title):
+    def _page():
         box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL, spacing=24,
             halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
         )
         box.add_css_class("oh-no-parent-control-dialog")
         box.add_css_class("oh-no-parent-control-secondary-page")
-        box.append(Gtk.Label(label=title, css_classes=["oh-no-parent-control-page-title"]))
         return box
 
     def _logout(self, *_args):
+        self._cancel_success_dismiss()
         if self._preview:
             self._stack.set_visible_child_name("request")
             return
@@ -910,8 +919,12 @@ class RequestWindow(Adw.ApplicationWindow):
         self.get_application().quit()
 
     def _close_overlay(self, *_args):
+        self._cancel_success_dismiss()
         LOG.info("child request overlay closed")
-        self.get_application().quit()
+        application = self.get_application()
+        self.close()
+        if application is not None:
+            application.quit()
 
     def _escape_pressed(self, _controller, keyval, _keycode, _state):
         if keyval != Gdk.KEY_Escape:
@@ -923,17 +936,26 @@ class RequestWindow(Adw.ApplicationWindow):
         self._cancel()
         return True
 
-    def _logout_after_success(self):
+    def _dismiss_after_success(self):
         self._success_logout_source_id = None
-        LOG.info("approved request acknowledged; returning to login")
-        self._logout()
+        if self._child_overlay:
+            LOG.info("approved request acknowledged; closing overlay")
+            self._close_overlay()
+        else:
+            LOG.info("approved request acknowledged; returning to login")
+            self._logout()
         return GLib.SOURCE_REMOVE
 
+    def _cancel_success_dismiss(self):
+        if self._success_logout_source_id is None:
+            return
+        GLib.source_remove(self._success_logout_source_id)
+        self._success_logout_source_id = None
+
     def _schedule_success_logout(self):
-        if self._success_logout_source_id is not None:
-            GLib.source_remove(self._success_logout_source_id)
+        self._cancel_success_dismiss()
         self._success_logout_source_id = GLib.timeout_add(
-            SUCCESS_LOGOUT_DELAY_MS, self._logout_after_success,
+            SUCCESS_LOGOUT_DELAY_MS, self._dismiss_after_success,
         )
 
     def _bus_call(self, method, parameters, reply_signature, callback, timeout=30_000):
@@ -1081,8 +1103,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._request_content.show_validation_error(str(error))
                 return
             if self._child_overlay:
-                self._show_result(CHILD_SUCCESS_COPY, "")
-                self._result_action.set_label(CHILD_SUCCESS_COPY)
+                self._show_child_success()
             else:
                 self._show_result(
                     "Preview request",
@@ -1155,8 +1176,7 @@ class RequestWindow(Adw.ApplicationWindow):
             LOG.info("request=%s outcome=%s", correlation_id, outcome)
             if outcome == "approved":
                 if self._child_overlay:
-                    self._show_result(CHILD_SUCCESS_COPY, "")
-                    self._result_action.set_label(CHILD_SUCCESS_COPY)
+                    self._show_child_success()
                 else:
                     self._show_result(
                         "Request approved",
@@ -1195,6 +1215,11 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._child_overlay:
             self._result_action.set_label("Close")
         self._show_result(title, detail)
+
+    def _show_child_success(self):
+        self._result_action.set_label(CHILD_SUCCESS_COPY)
+        self._show_result(CHILD_SUCCESS_TITLE, "")
+        self._schedule_success_logout()
 
     def _show_result(self, title, detail):
         self._result_title.set_text(title)

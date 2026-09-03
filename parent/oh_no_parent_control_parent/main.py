@@ -373,6 +373,12 @@ class ParentWindow(Adw.ApplicationWindow):
         self._revoke.connect("clicked", self._confirm_revoke)
         account_actions.append(self._revoke)
         account_section.append(account_actions)
+        self._no_users_message = Gtk.Label(
+            label="No interactive non-administrator account was found.",
+            xalign=0, wrap=True, visible=False,
+            css_classes=["account-empty-message"],
+        )
+        account_section.append(self._no_users_message)
         content.append(Adw.Clamp(
             child=account_section,
             maximum_size=CONTENT_MAX_WIDTH,
@@ -1186,6 +1192,7 @@ class ParentWindow(Adw.ApplicationWindow):
         if self._users:
             self._load_selected()
         else:
+            self._no_users_message.set_visible(True)
             self._toast("No interactive non-admin users were found")
 
     def _selected_uid(self):

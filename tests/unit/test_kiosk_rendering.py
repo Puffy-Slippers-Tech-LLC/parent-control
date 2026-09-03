@@ -45,7 +45,8 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn('def set_muted(self, muted):', source)
         self.assertIn('self._player.set_property("mute", muted)', source)
-        self.assertIn("self._mute_icon = PixelIcon(SPEAKER, display_size=46, label=\"\")", source)
+        self.assertIn("self._mute_icon = PixelIcon(SPEAKER, display_size=28, label=\"\")", source)
+        self.assertIn("menu_icon = PixelIcon(MENU, display_size=31, label=\"\")", source)
         self.assertIn('armor_kind="hud", tooltip_text="Mute sound"', source)
         self.assertIn('self._mute_button.connect("clicked", self._toggle_mute)', source)
         self.assertIn('self._music.set_muted(muted)', source)
@@ -104,6 +105,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("oh-no-parent-control-hud-button", source)
         self.assertIn("oh-no-parent-control-hud-menu", source)
         self.assertIn("popover_content.append(HudMenuStem())", source)
+        self.assertIn("menu_board.append(menu_actions)", source)
         self.assertIn("menu_button.connect(\"notify::active\", self._menu_state_changed)", source)
         self.assertIn('"request-screen menu expanded=%s overlay=%s"', source)
         self.assertNotIn("open-menu-symbolic", source)
@@ -120,6 +122,15 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("self._request.set_margin_end(10)", content)
         self.assertIn("self._cancel.set_margin_start(10)", content)
         self.assertIn("self._cancel.set_margin_end(10)", content)
+
+    def test_result_title_reserves_space_for_pixel_font_ink(self):
+        css = (ROOT / "kiosk/oh_no_parent_control_kiosk/style.css").read_text(
+            encoding="utf-8",
+        )
+
+        title_rule = css.split(".oh-no-parent-control-page-title {", 1)[1]
+        title_rule = title_rule.split("}", 1)[0]
+        self.assertIn("padding-top: 5px;", title_rule)
 
     def test_escape_matches_the_cancel_action_when_no_auth_prompt_is_open(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
@@ -252,7 +263,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("class MetalPanel(Gtk.Box):", chrome)
         self.assertIn("class ArmoredButton(Gtk.Button):", chrome)
         self.assertIn("class ArmoredMenuButton(Gtk.MenuButton):", chrome)
-        self.assertIn("class HudIconFrame(Gtk.Box):", chrome)
+        self.assertIn("class HudIconFrame(Gtk.Overlay):", chrome)
         self.assertIn("class HudMenuStem(Gtk.Widget):", chrome)
         self.assertIn("class HudMenuBoard(Gtk.Box):", chrome)
         self.assertIn("SPEAKER = _parse_sprite(", chrome)
@@ -260,14 +271,19 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("MENU = _parse_sprite(", chrome)
         self.assertIn("def set_pixels(self, pixels):", chrome)
         self.assertIn('kind == "hud"', chrome)
+        self.assertIn("context.scale(0.5, 0.5)", chrome)
+        self.assertIn("width * 2, height * 2, fill_face=False", chrome)
         self.assertIn("def paint_board_frame(", chrome)
         self.assertIn("def paint_button_hardware(", chrome)
         self.assertIn("button.oh-no-parent-control-hud-button", css)
         self.assertIn("menubutton.oh-no-parent-control-hud-button > button", css)
         self.assertIn("popover.oh-no-parent-control-hud-menu", css)
         self.assertIn("button.oh-no-parent-control-hud-menu-item", css)
-        self.assertIn("min-width: 110px;", css)
+        self.assertIn("min-width: 66px;", css)
+        self.assertIn("min-height: 66px;", css)
         self.assertIn("oh-no-parent-control-hud-menu-icon", css)
+        self.assertIn("oh-no-parent-control-hud-menu-actions", css)
+        self.assertIn("width - source_width + stem_width / 2", chrome)
         self.assertNotIn("border-radius: 18px;", css)
         from oh_no_parent_control_kiosk.chrome import (
             ABOUT, HELP, MENU, SPEAKER, SPEAKER_MUTED,

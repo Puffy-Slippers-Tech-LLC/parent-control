@@ -22,6 +22,8 @@ class ScriptedParentBroker:
     def __init__(self):
         self._mode = os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO", "normal")
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
+        if self._mode == "custom-limit":
+            self._preferences[1001]["daily_time_limit_minutes"] = 73
         self._status_attempts = 0
         self._events_path = os.environ.get("ONPC_PARENT_COMPONENT_EVENTS_PATH")
 

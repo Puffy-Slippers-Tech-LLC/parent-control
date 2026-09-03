@@ -1426,7 +1426,8 @@ class ParentWindow(Adw.ApplicationWindow):
         dialog = Adw.MessageDialog.new(
             self, "Revoke one-time grant?",
             "This will revoke one-time screen time and access to soft blocked apps "
-            f"granted to {child_name}, and lock their desktop when no time remains. "
+            f"granted to {child_name}, close their running blocked apps, and "
+            "lock their desktop when no time remains. "
             "Their remaining daily time allowance is not impacted.",
         )
         dialog.add_response("cancel", "Cancel")

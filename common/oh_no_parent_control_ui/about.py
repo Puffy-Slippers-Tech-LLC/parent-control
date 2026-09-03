@@ -130,9 +130,20 @@ class AboutDialog(Gtk.Window):
         content.append(_detail_row("text-x-generic-symbolic", "License",
                                    "GNU General Public License v3.0",
                                    license_path.as_uri(), links_enabled=links_enabled))
+        notices_path = _data_dir() / "NOTICE"
+        content.append(_detail_row("dialog-information-symbolic", "Legal notices",
+                                   "Malcontent integration and bundled-font notices",
+                                   notices_path.as_uri(), links_enabled=links_enabled))
+        content.append(Gtk.Label(
+            label=("Uses the separately installed Malcontent parental-controls "
+                   "service through public system APIs. Not affiliated with or "
+                   "endorsed by the Malcontent authors or GNOME."),
+            wrap=True, justify=Gtk.Justification.CENTER, halign=Gtk.Align.FILL,
+            css_classes=["dim-label"], margin_top=4,
+        ))
         content.append(Gtk.Box(vexpand=True))
         content.append(Gtk.Label(
-            label=f"© 2026 {values['vendor_name']}\nAll rights reserved.",
+            label=f"© 2026 {values['vendor_name']}\nGPL-3.0-only · No warranty.",
             justify=Gtk.Justification.CENTER, css_classes=["dim-label"],
             halign=Gtk.Align.CENTER,
         ))

@@ -19,6 +19,7 @@ from .adapters import (
     ACCOUNTS_NAME, APP_FILTER_INTERFACE, PROPERTIES_INTERFACE,
     AccountsService, CallerCredentials, PolkitAuthorizer, TimerUsage,
 )
+from .app_termination import RunningAppTerminator
 from .catalog import list_apps
 from .core import Broker, BrokerError, InvalidRequest
 from .extension_manager import ExtensionManager
@@ -141,6 +142,7 @@ class Service:
             self.accounts, preferences, ExtensionManager(),
             TimerUsage(connection),
             application_catalog=list_apps,
+            running_apps=RunningAppTerminator(),
             caller_alive=self.credentials.alive,
         )
         refreshed_uids = self.broker.refresh_enabled_extensions()

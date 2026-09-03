@@ -1,0 +1,37 @@
+# Oh No! Parent Control notices
+
+Copyright (C) 2026 Puffy Slippers Tech LLC
+
+## This product
+
+Oh No! Parent Control is free software licensed under the GNU General Public
+License, version 3.0 only (GPL-3.0-only).  The complete license text is in
+`LICENSE`.  Corresponding source, including the scripts used to build and
+install the Debian package, is available at:
+
+<https://github.com/Puffy-Slippers-Tech-LLC/parent-control>
+
+There is no warranty for this software, to the extent permitted by law.  See
+sections 15 and 16 of the GPL for the complete warranty and liability terms.
+
+## Malcontent integration
+
+This product interoperates with the separately installed Malcontent parental
+controls service through documented public D-Bus and AccountsService APIs.  It
+does not include, modify, or redistribute Malcontent source code or libraries.
+Malcontent is a system dependency supplied by the operating-system
+distribution and is licensed LGPL-2.1-or-later.  Its copyright notices, source
+code, and license are provided by that distribution.  Oh No! Parent Control is
+not affiliated with, endorsed by, or sponsored by the Malcontent authors or
+the GNOME project.
+
+Malcontent is one enforcement component, not a guarantee that every possible
+way of using a computer or application is blocked.  Administrators remain
+responsible for configuring the computer appropriately for their family and
+for reviewing the product documentation before relying on a restriction.
+
+## Bundled font
+
+The bundled `Monocraft.ttf` font is copyright (C) 2022 Idrees Hassan and is
+licensed under the SIL Open Font License, version 1.1.  The complete license
+and required notices are shipped beside the font in `fonts/OFL.txt`.

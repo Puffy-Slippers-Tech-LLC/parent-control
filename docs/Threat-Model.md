@@ -2,51 +2,25 @@
 
 ## Scope and attacker
 
-Oh No! Parent Control manages time and application policy for a local,
-non-administrator child account.  The product's target security architecture
-assigns policy decisions, authorization scoping, transactions, reconciliation,
-and health reporting to the privileged system D-Bus broker.  Supported
-operating-system services supply enforcement mechanisms behind that boundary.
-Launcher visibility is not enforcement, and Malcontent alone is not a hard
-security boundary.
+Oh No! Parent Control manages time and application policy for a local, non-administrator child account. The product's target security architecture assigns policy decisions, authorization scoping, transactions, reconciliation, and health reporting to the privileged system D-Bus broker. Supported operating-system services supply enforcement mechanisms behind that boundary. Launcher visibility is not enforcement, and Malcontent alone is not a hard security boundary.
 
 The in-scope attacker is a managed child who can:
 
 - use a terminal and run arbitrary code as their own UID;
 - create, edit, and directly open desktop launchers;
-- copy, rename, replace, hard-link, and execute files wherever their account
-  has permission;
-- construct arbitrary public system D-Bus calls, including calls which bypass
-  all product front ends; and
-- invoke product and backend Polkit actions and control the lifetime of their
-  own processes and D-Bus connections.
+- copy, rename, replace, hard-link, and execute files wherever their account has permission;
+- construct arbitrary public system D-Bus calls, including calls which bypass all product front ends; and
+- invoke product and backend Polkit actions and control the lifetime of their own processes and D-Bus connections.
 
-Copying a binary, constructing a D-Bus call, and invoking a Polkit action are
-therefore explicitly in scope.  None of those acts is proof of authorization.
-A successful parent authentication may authorize only the child, duration,
-end-of-day mode, and conditional-app choice displayed for that request.  It
-must not confer a reusable or general AccountsService capability.
+Copying a binary, constructing a D-Bus call, and invoking a Polkit action are therefore explicitly in scope. None of those acts is proof of authorization. A successful parent authentication may authorize only the child, duration, end-of-day mode, and conditional-app choice displayed for that request. It must not confer a reusable or general AccountsService capability.
 
-The attacker does **not** possess administrator credentials, cannot become
-root, cannot modify the boot chain, and cannot exploit kernel vulnerabilities.
-Compromised or voluntarily disclosed administrator credentials, existing root
-access, offline disk modification, alternate boot media, boot-chain compromise,
-firmware compromise, and kernel exploits are out of scope.  A flaw in an
-integrated service that an ordinary user can exercise through an in-scope
-operation is not excluded; H-40 specifically covers the Malcontent timer-storage
-vulnerability.  Parent credentials remain an asset: the product must not
-collect, persist, log, or expose credentials entered into the trusted Polkit
-agent.
+The attacker does **not** possess administrator credentials, cannot become root, cannot modify the boot chain, and cannot exploit kernel vulnerabilities. Compromised or voluntarily disclosed administrator credentials, existing root access, offline disk modification, alternate boot media, boot-chain compromise, firmware compromise, and kernel exploits are out of scope. A flaw in an integrated service that an ordinary user can exercise through an in-scope operation is not excluded; H-40 specifically covers the Malcontent timer-storage vulnerability. Parent credentials remain an asset: the product must not collect, persist, log, or expose credentials entered into the trusted Polkit agent.
 
-Remote administration, web filtering, GUI appearance, physical denial of
-service, and replacement of Malcontent as a whole are outside this hardening
-program.
+Remote administration, web filtering, GUI appearance, physical denial of service, and replacement of Malcontent as a whole are outside this hardening program.
 
 ## Assets and authorities
 
-The authority column identifies the intended source of truth after the
-hardening plan is complete.  It does not imply that all later-phase behavior is
-already implemented.
+The authority column identifies the intended source of truth after the hardening plan is complete. It does not imply that all later-phase behavior is already implemented.
 
 | Asset | Authority | Required protection |
 | --- | --- | --- |
@@ -58,13 +32,10 @@ already implemented.
 | Preference records | Root-owned `/var/lib/oh-no-parent-control/preferences/<uid>.json` | Front ends cannot access records directly; the broker schema-validates and atomically writes them. |
 | Timer usage | `malcontent-timerd` | Only validated usage obtained through the authorized public parent interface contributes to grant calculation. |
 | Generated execution rules | Broker-derived fapolicyd rule file | Rules are a verified, atomic projection of canonical app policy and apply only to the intended UID. |
+| Running blocked applications | Broker-derived app identities and kernel process ownership | An approved no-soft-app request or parent revocation terminates matching processes only for its validated selected child UID; identical applications owned by other UIDs are untouched. |
 | Audit logs | Root broker daily log writer | Logs are access-controlled, bounded, redacted, attributable to the correct component, and never writable directly by a child. |
 
-Preferences are canonical only for configured product policy.  AccountsService
-policy and fapolicyd rules are derived enforcement state,
-`malcontent-timerd` is authoritative for measured usage, and AccountsService
-`ActiveExtension` is authoritative for a live grant.  External or derived
-state must never be imported silently into preferences.
+Preferences are canonical only for configured product policy. AccountsService policy and fapolicyd rules are derived enforcement state, `malcontent-timerd` is authoritative for measured usage, and AccountsService `ActiveExtension` is authoritative for a live grant. External or derived state must never be imported silently into preferences.
 
 ## Trust boundaries
 
@@ -81,16 +52,11 @@ state must never be imported silently into preferences.
 | Broker -> Flatpak through Malcontent | Documented Malcontent/Flatpak application IDs are the only claimed Flatpak primitive. | Misleading desktop metadata, wrapper ambiguity, and launch routes not covered by that public integration. |
 | Broker -> fapolicyd | Broker derives product-owned rules, atomically replaces them, verifies reload, and rolls back. | Missing daemon, reload timeout/failure, rule collision, unsupported file identity, and paths with special characters. |
 
-The parent app, child extension, and kiosk are all untrusted front ends at the
-broker boundary.  Code started by the child has the same authority as the
-extension.  The kiosk account is not an approver.  Adapters are trusted to
-translate supported APIs, but they do not decide policy or expand an
-authorization.
+The parent app, child extension, and kiosk are all untrusted front ends at the broker boundary. Code started by the child has the same authority as the extension. The kiosk account is not an approver. Adapters are trusted to translate supported APIs, but they do not decide policy or expand an authorization.
 
 ## Required failure behavior
 
-These are target requirements.  Rows owned by incomplete hardening tasks are
-not current guarantees and cannot be advertised as such.
+These are target requirements. Rows owned by incomplete hardening tasks are not current guarantees and cannot be advertised as such.
 
 | Condition | Required behavior |
 | --- | --- |
@@ -100,7 +66,8 @@ not current guarantees and cannot be advertised as such.
 | Caller disconnects or caller, child, or approver changes identity, role, eligibility, or enabled state | Revalidate at the specified transaction boundaries; fail closed without a write, or restore the old state if a write already began. |
 | Concurrent, repeated, or duplicate-completion request | Serialize the transaction for the target; never double-count a grant or replay relaxation. |
 | Usage query is unavailable, busy beyond bounded retry, malformed, excessive, or made under the wrong parent identity | Do not grant time or relax an app filter. |
-| Any write, read-back, execution-policy activation, or rollback step fails | Never report approval.  Restore the complete old state, or publish a distinct critical inconsistency if restoration cannot be verified. |
+| Any write, read-back, execution-policy activation, or rollback step fails | Never report approval. Restore the complete old state, or publish a distinct critical inconsistency if restoration cannot be verified. |
+| Blocked-app discovery, ownership verification, signalling, or exit verification fails | Do not activate a new grant or report a revocation as successful. If termination may have begun, keep the selected child's complete canonical block filter while restoring reversible time state; never signal an unverified or different UID. |
 | fapolicyd is unavailable or cannot load verified rules | Keep unrelated broker reads available; mark app enforcement degraded/inconsistent; fail closed for app mutations and app-relaxing requests until reconciliation succeeds. |
 | AccountsService, extension, or execution state drifts from canonical policy | Recompute from validated preferences and reconcile idempotently without importing drift or unintentionally clearing a valid grant. |
 | Preference data is malformed, unsafe, belongs to a deleted identity, or is incompatible | Do not replace it with defaults or attach it to a reused UID; surface a redacted failure and require migration/reconciliation. |
@@ -108,52 +75,27 @@ not current guarantees and cannot be advertised as such.
 
 ## Supported claims, limitations, and release blockers
 
-No application restriction may be called enforceable merely because its
-launcher is hidden.  A desktop ID is not a process identity.  H-31 must assign
-each catalog entry a stable supported identity or an explicit unsupported or
-shared-runtime classification; H-32 implements that design and H-33 proves it
-on a disposable VM.  Until those tasks pass, alternate-path resistance is not
-a product guarantee.
+No application restriction may be called enforceable merely because its launcher is hidden. A desktop ID is not a process identity. H-31 must assign each catalog entry a stable supported identity or an explicit unsupported or shared-runtime classification; H-32 implements that design and H-33 proves it on a disposable VM. Until those tasks pass, alternate-path resistance is not a product guarantee.
 
-The following are explicit product limitations until H-31 classifies them and
-H-32/H-33 provide passing evidence: copied, renamed, replaced, or hard-linked
-binaries; scripts and interpreters; shared wrappers; application updates;
-Snap, Steam, and Waydroid applications; and any path whose fapolicyd identity
-cannot be represented safely.  Such entries must be grouped honestly or not
-offered as independently enforceable.  Flatpak protection is limited to the
-documented Malcontent/Flatpak mechanism and must also pass the VM matrix.
+The following are explicit product limitations until H-31 classifies them and H-32/H-33 provide passing evidence: copied, renamed, replaced, or hard-linked binaries; scripts and interpreters; shared wrappers; application updates; Snap, Steam, and Waydroid applications; and any path whose fapolicyd identity cannot be represented safely. Such entries must be grouped honestly or not offered as independently enforceable. Flatpak protection is limited to the documented Malcontent/Flatpak mechanism and must also pass the VM matrix.
 
-GNOME Shell 50 exposes no supported extension API for adding a custom request
-control to its stock parental-controls lock screen.  Requests are therefore
-in-session only.  The product must not claim custom lock-screen request UI or
-use private `TimeLimitsManager`, `AuthPrompt`, `ScreenShield`, or Polkit state.
+GNOME Shell 50 exposes no supported extension API for adding a custom request control to its stock parental-controls lock screen. Requests are therefore in-session only. The product must not claim custom lock-screen request UI or use private `TimeLimitsManager`, `AuthPrompt`, `ScreenShield`, or Polkit state.
 
 The following are release blockers, not acceptable limitations:
 
-- a denied, cancelled, disconnected, invalid, or partially failed request can
-  grant time or relax policy;
-- one authorization can be reused for a different operation or as a direct
-  general AccountsService capability;
+- a denied, cancelled, disconnected, invalid, or partially failed request can grant time or relax policy;
+- one authorization can be reused for a different operation or as a direct general AccountsService capability;
 - a permanent block is relaxed by any failed or conditional request;
 - an application advertised as enforceable has a demonstrated in-scope bypass;
-- an exhausted managed child can obtain a usable session through a tested
-  supported-platform timer or login race;
+- an exhausted managed child can obtain a usable session through a tested supported-platform timer or login race;
 - CVE-2026-44931 remains exploitable on the selected supported package; or
 - the required clean-VM matrix has not passed for the release.
 
-Known current gaps are tracked rather than hidden: live VM coverage of the
-broker-mediated child request remains part of H-51; fapolicyd availability is
-still coupled to broker startup until H-22/H-30; backend drift reconciliation
-and health reporting await H-20 through H-22; and no automated live VM harness
-exists until H-50.  These are hardening work items, not completed guarantees.
+Known current gaps are tracked rather than hidden: live VM coverage of the broker-mediated child request remains part of H-51; fapolicyd availability is still coupled to broker startup until H-22/H-30; backend drift reconciliation and health reporting await H-20 through H-22; and no automated live VM harness exists until H-50. These are hardening work items, not completed guarantees.
 
 ## Requirements-to-test matrix
 
-`Unit` means a host-safe automated unit or source-contract test.  `VM` means a
-test inside the guarded disposable Ubuntu integration environment created by
-H-50.  “Existing” describes current test evidence; a planned test is not proof
-that its guarantee is implemented today.  H-51 assembles the end-to-end rows,
-and H-52 prevents release without their passing artifacts.
+`Unit` means a host-safe automated unit or source-contract test. `VM` means a test inside the guarded disposable Ubuntu integration environment created by H-50. “Existing” describes current test evidence; a planned test is not proof that its guarantee is implemented today. H-51 assembles the end-to-end rows, and H-52 prevents release without their passing artifacts.
 
 | ID | In-scope bypass or requirement | Required evidence | Status / owner |
 | --- | --- | --- | --- |
@@ -183,6 +125,4 @@ and H-52 prevents release without their passing artifacts.
 | TM-24 | Private GNOME APIs create an unsupported lock-screen or session guarantee. | Source-contract rejection plus supported-image VM behavior. | Existing source contract; H-41/H-51. |
 | TM-25 | Install, upgrade, activation, migration, or uninstall leaves unsafe/stale policy. | Unit installer/migration/activation/uninstall tests; clean-install and upgrade VM jobs. | Existing unit coverage; H-50/H-51/H-52. |
 
-Every in-scope bypass above has both an owning implementation/design task and a
-required test destination.  No row requiring VM evidence is complete until its
-artifact is captured on the supported image and accepted by H-52.
+Every in-scope bypass above has both an owning implementation/design task and a required test destination. No row requiring VM evidence is complete until its artifact is captured on the supported image and accepted by H-52.

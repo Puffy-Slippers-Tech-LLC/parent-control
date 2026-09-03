@@ -475,6 +475,7 @@ class ParentWindowTests(unittest.TestCase):
     def test_revoke_confirmation_discloses_that_the_child_is_locked(self):
         source = inspect.getsource(ParentWindow._confirm_revoke)
 
+        self.assertIn("close their running blocked apps", source)
         self.assertIn("lock their desktop when no time remains", source)
 
     def test_revoke_is_disabled_when_authoritative_remaining_time_is_zero(self):

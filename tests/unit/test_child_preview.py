@@ -87,3 +87,11 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn(".screen-time-request-button {", stylesheet)
         self.assertNotIn(".oh-no-parent-control-content {", stylesheet)
         self.assertNotIn(".oh-no-parent-control-choice {", stylesheet)
+
+    def test_request_icon_spins_during_the_final_ten_seconds(self):
+        indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
+
+        self.assertIn("if (remainingSecs > 10)", indicator)
+        self.assertIn("rotation_angle_z: 360", indicator)
+        self.assertIn("repeatCount: -1", indicator)
+        self.assertIn("animationRequired: true", indicator)

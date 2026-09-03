@@ -23,6 +23,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     _init(onRequest, approvedGrantRemaining = 0, preview = false,
         appName = 'Parent Control') {
         super._init(0.0, 'Screen Time Remaining');
+        // Drop the default panel menu. A second menu with this source actor
+        // steals hover and press from the request popover, including the
+        // header overflow control.
+        this.setMenu(null);
 
         this._onRequest = onRequest;
         this._preview = preview;
@@ -206,6 +210,12 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
     _remainingSeconds(currentTime) {
         return Math.ceil(this._calculatedEnd - currentTime);
+    }
+
+    refreshEstimate() {
+        if (this._preview || this._destroyed)
+            return;
+        this._refreshEstimate();
     }
 
     async _refreshEstimate() {

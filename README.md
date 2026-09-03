@@ -57,6 +57,13 @@ production fullscreen session.
 While it is open, saving the kiosk stylesheet or background artwork updates the
 window in place; saving kiosk Python source automatically relaunches the preview.
 
+Preview the same GUI as a child-session overlay, with the child selector locked
+to the current account:
+
+```sh
+make preview-child-overlay
+```
+
 Preview the Parent App with in-memory fixture accounts and preferences. This
 does not need the broker, system D-Bus, Polkit, an installed package, or any
 account changes:
@@ -76,10 +83,10 @@ broker, system D-Bus writes, Polkit, or account changes:
 make preview-child
 ```
 
-The request dialog opens automatically. Selecting a duration and requesting it
-updates the indicator locally; it never grants real time or changes an app
-filter. Saving child JavaScript, CSS, or request-option data restarts only the
-nested preview session.
+Clicking the remaining-time notification launches the shared kiosk request GUI
+as a fullscreen overlay. Selecting a duration and requesting it updates the
+indicator locally; it never grants real time or changes an app filter. Saving
+child JavaScript or CSS restarts only the nested preview session.
 
 Exercise packaging in a disposable directory:
 

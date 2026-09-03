@@ -1,11 +1,14 @@
-/* GTK counterpart to the supported St styles in ../../child/stylesheet.css.
- * Keep the shared class names and visual values aligned.  Shell widgets are
- * intentionally not imported: a kiosk application is a separate GTK client. */
+/* Shared request GUI used by the kiosk session and the child-session overlay. */
 
 window.oh-no-parent-control-window {
   color: rgba(255, 255, 255, 0.90);
   background-color: #202630;
   background-image: linear-gradient(to bottom, #4a5667, #232a35);
+}
+
+window.oh-no-parent-control-overlay {
+  background-color: transparent;
+  background-image: none;
 }
 
 .oh-no-parent-control-gateway-background {
@@ -85,6 +88,11 @@ window.oh-no-parent-control-window {
 .oh-no-parent-control-account-row {
   min-width: 350px;
   min-height: 38px;
+}
+
+.oh-no-parent-control-account-avatar {
+  min-width: 22px;
+  min-height: 22px;
 }
 
 button.oh-no-parent-control-account-selector {
@@ -173,19 +181,29 @@ button.oh-no-parent-control-choice:checked:hover {
   background-image: linear-gradient(to right, rgba(92, 214, 148, 0.94), rgba(43, 194, 120, 0.88));
 }
 
-.oh-no-parent-control-app-filter-toggle {
+button.oh-no-parent-control-app-filter-toggle {
   min-width: 350px;
   min-height: 36px;
   padding: 7px 11px;
   border: 2px solid #1a2530;
   border-top-color: #667783;
   border-radius: 2px;
+  color: rgba(255, 255, 255, 0.88);
   background-color: #26323d;
   box-shadow: 0 3px 0 #111820, inset 0 1px rgba(255, 255, 255, 0.08);
+  transition: 150ms ease;
+}
+
+button.oh-no-parent-control-app-filter-toggle:hover,
+button.oh-no-parent-control-app-filter-toggle:focus-visible {
+  color: white;
+  border-color: rgba(255, 255, 255, 0.18);
+  background-color: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .oh-no-parent-control-app-filter-label {
-  color: rgba(255, 255, 255, 0.88);
+  color: inherit;
   font-weight: 600;
 }
 

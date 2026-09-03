@@ -17,9 +17,10 @@ class AboutDialogTests(unittest.TestCase):
         self.assertNotIn("logo.set_size_request(", source)
         self.assertNotIn("logo.set_content_fit(", source)
 
-    def test_child_about_logo_has_no_css_size_override(self):
-        source = (ROOT / "child/stylesheet.css").read_text(encoding="utf-8")
-        rule = source.split(".oh-no-parent-control-about-logo {", 1)[1].split("}", 1)[0]
+    def test_child_session_uses_the_shared_gtk_about_dialog(self):
+        stylesheet = (ROOT / "child/stylesheet.css").read_text(encoding="utf-8")
+        kiosk = (ROOT / "kiosk/oh_no_parent_control_kiosk/main.py").read_text(
+            encoding="utf-8")
 
-        self.assertNotIn("width:", rule)
-        self.assertNotIn("height:", rule)
+        self.assertNotIn(".oh-no-parent-control-about-logo", stylesheet)
+        self.assertIn("AboutDialog(self, links_enabled=self._child_overlay)", kiosk)

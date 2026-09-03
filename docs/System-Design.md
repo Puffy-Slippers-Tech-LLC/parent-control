@@ -63,7 +63,8 @@ parent_control_enabled
 daily_time_limit_minutes
 apps[desktop-id] = { state, targets[], patterns[] }
 request = { last_selected_duration, last_custom_minutes,
-            allow_soft_blocked_apps }
+            allow_soft_blocked_apps, last_selected_approver_uid,
+            kiosk_muted, child_muted }
 ```
 
 App states are `allowed` (omitted when normalized), `permanent` (hard blocked),
@@ -78,12 +79,14 @@ the kiosk UID and request rate limit. It must not duplicate child preferences.
 | --- | --- | --- | --- |
 | `ListManagedUsers` | — | yes | yes |
 | `ListApprovers` | yes | yes | yes |
+| `GetOwnAccount` | own | — | — |
 | `GetPreferences` | own | selected child | selected child |
 | `ListApplications` | — | — | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
 | `CalculateOwnRemainingTime` | own | — | — |
 | `UpdateRequestPreferences` | own | selected child | selected child |
+| `SetRequestMuted` | own | selected child | selected child |
 | `SetPreferences` | — | — | selected child |
 | `SetParentControl` | — | — | selected child |
 | `RequestOwnAccess` | own | — | — |
@@ -192,14 +195,19 @@ reads the current ActiveExtension through the broker.
    Extension lifecycle and
    Malcontent account state succeed before preferences are committed; any
    failure restores the affected state.
-2. **Child request:** Extension refreshes its own record -> selects a local
-   interactive administrator returned by `ListApprovers` -> calls
-   `RequestOwnAccess` -> broker derives the child from the caller, validates the
-   request, authorizes only the selected administrator, and commits the verified
-   time/app transaction.
+2. **Child request:** The panel notification is unchanged. Clicking it launches
+   the shared kiosk request GUI as a fullscreen overlay. The overlay locks the
+   child selector to the signed-in account from `GetOwnAccount`, shares
+   duration/approver/app-filter choices through the child's preference record,
+   keeps a separate mute value from the kiosk station, and calls
+   `RequestOwnAccess`. The broker derives the child from the caller, validates
+   the request, authorizes only the selected administrator, and commits the
+   verified time/app transaction. Cancel or Escape closes it.
 3. **Kiosk request:** Kiosk selects a child and approving administrator, then
    loads/updates the child's request values -> calls `RequestAccess` -> broker
-   authorizes the selected administrator and updates AccountsService.
+   authorizes the selected administrator and updates AccountsService. Escape
+   matches Cancel and returns to the login screen when no authorization prompt
+   is showing.
 
 ## Installed layout
 
@@ -267,3 +275,5 @@ an extension switch which was already off remains off.
 - Parent Control state changes only after extension lifecycle success.
 - Kiosk behavior remains request-only; parent behavior remains management-only.
 - The child extension has no independent preferences UI.
+- The kiosk GTK request GUI is the single request form. The child session
+  invokes that same GUI as an overlay; only the session backend differs.

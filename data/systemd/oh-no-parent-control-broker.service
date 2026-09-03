@@ -1,7 +1,7 @@
 [Unit]
 Description=Oh No! Parent Control request broker
 ConditionPathExists=!/var/lib/oh-no-parent-control/migration-in-progress
-Requires=fapolicyd.service
+Wants=fapolicyd.service
 After=fapolicyd.service
 
 [Service]

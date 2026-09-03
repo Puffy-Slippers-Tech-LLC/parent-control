@@ -47,7 +47,7 @@ class InstallerTests(unittest.TestCase):
         script = INSTALLER.read_text(encoding="utf-8")
         control = (ROOT / "debian/control").read_text(encoding="utf-8")
 
-        self.assertIn("    python3-gi-cairo\n", script)
+        self.assertIn("    python3-gi-cairo \\\n", script)
         runtime_dependencies = next(
             line.removeprefix("Depends: ")
             for line in control.splitlines()
@@ -65,7 +65,7 @@ class InstallerTests(unittest.TestCase):
             line for line in control.splitlines() if line.startswith("Depends: ")
         ).split(", "))
         self.assertIn("data/fapolicyd/99-oh-no-parent-control-allow.rules", makefile)
-        self.assertIn("systemctl is-active --quiet fapolicyd.service", script)
+        self.assertIn("require_active fapolicyd.service", script)
         self.assertIn("oh-no-parent-control-execution-policy-ready", makefile)
         self.assertIn("oh-no-parent-control-execution-policy-probe", makefile)
         self.assertIn("display-manager.service.d", makefile)
@@ -266,10 +266,17 @@ class InstallerTests(unittest.TestCase):
         )
 
         for obsolete in (
+            "aboutDialog.js",
             "appFilterClient.js",
             "appPolicyStore.js",
+            "approverClient.js",
             "parentalApproval.js",
+            "requestAccessClient.js",
+            "requestDialog.js",
+            "requestOptions.js",
+            "requestPreferencesStore.js",
             "sessionLimitsClient.js",
+            "sharedPreferencesClient.js",
         ):
             self.assertIn(obsolete, obsolete_sources)
         self.assertIn(
@@ -317,14 +324,37 @@ class InstallerTests(unittest.TestCase):
             '/usr/libexec/oh-no-parent-control-provision "${provision_args[@]}"'
         )
         restart = script.index(
-            "systemctl restart oh-no-parent-control-broker.service"
+            "start_unit oh-no-parent-control-broker.service", provision,
         )
 
         self.assertLess(provision, restart)
-        self.assertIn(
-            "systemctl is-active --quiet oh-no-parent-control-broker.service",
-            script,
+        self.assertIn("require_active oh-no-parent-control-broker.service", script)
+
+    def test_malcontent_timer_units_must_start_but_may_idle(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+        verify = (ROOT / "tests/integration/guest/verify").read_text(
+            encoding="utf-8",
         )
+
+        self.assertIn("require_startable() {", script)
+        self.assertIn("require_startable malcontent-timerd.service", script)
+        self.assertIn(
+            "require_startable malcontent-timer-extension-agent.service", script,
+        )
+        self.assertNotIn("require_active malcontent-timerd.service", script)
+        self.assertNotIn(
+            "require_active malcontent-timer-extension-agent.service", script,
+        )
+        self.assertIn("require_active fapolicyd.service", script)
+        self.assertIn("require_active oh-no-parent-control-broker.service", script)
+        self.assertIn("systemctl start \"$unit\"", script)
+        self.assertIn("systemctl start \"$unit\"", verify)
+        resident = verify[
+            verify.index("for unit in accounts-daemon.service"):
+            verify.index("for unit in malcontent-timerd.service")
+        ]
+        self.assertNotIn("malcontent-timerd.service", resident)
+        self.assertIn("fapolicyd.service", resident)
 
     def test_package_session_renewal_restarts_broker_to_publish_child_payload(self):
         postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
@@ -351,28 +381,47 @@ class InstallerTests(unittest.TestCase):
         baseline_copy = script.index(
             "cp /usr/share/oh-no-parent-control/package-activation.json"
         )
+        first_install = script.index("first_installation=1", baseline_copy)
         missing_baseline = script.index(
-            'rm -f "$previous_activation_manifest"', baseline_copy
+            'rm -f "$previous_activation_manifest"', first_install
         )
         comparison = script.index(
             'changed-impacts --old "$previous_activation_manifest"'
         )
+        reboot_gate = script.index(
+            '[[ "$first_installation" -eq 1 || "$activation_impacts" == *reboot* ]]'
+        )
 
-        self.assertLess(baseline_copy, missing_baseline)
+        self.assertLess(baseline_copy, first_install)
+        self.assertLess(first_install, missing_baseline)
         self.assertLess(missing_baseline, comparison)
+        self.assertLess(comparison, reboot_gate)
 
     def test_reboot_activation_prompts_interactively_after_signaling_system(self):
         script = INSTALLER.read_text(encoding="utf-8")
 
         marker = script.index("touch /run/reboot-required.pkgs")
-        terminal_guard = script.index('if [[ -t 0 && -t 1 ]]')
-        prompt = script.index("Reboot now? [y/N]")
+        preserve = script.index("--schedule-uid", marker)
+        prompt = script.index("Reboot now? [y/N]", preserve)
+        stdin_guard = script.index('if [[ -t 0 ]]', prompt)
+        tty_open = script.index("exec 3<>/dev/tty", stdin_guard)
         reboot = script.index("systemctl reboot", prompt)
 
-        self.assertLess(marker, terminal_guard)
-        self.assertLess(terminal_guard, prompt)
-        self.assertLess(prompt, reboot)
+        self.assertLess(marker, preserve)
+        self.assertIn(
+            "could not preserve GNOME extension state for reboot",
+            script[preserve:prompt],
+        )
+        self.assertLess(preserve, prompt)
+        self.assertLess(prompt, stdin_guard)
+        self.assertLess(stdin_guard, tty_open)
+        self.assertLess(tty_open, reboot)
         self.assertIn('y|Y|yes|YES|Yes)', script[prompt:reboot])
+        self.assertIn("</dev/null", script)
+        self.assertIn("install: required check failed:", script)
+        accounts_restart = script.index("start_unit accounts-daemon.service")
+        fapolicyd_now = script.index("systemctl enable --now")
+        self.assertLess(accounts_restart, fapolicyd_now)
 
     def test_both_install_paths_migrate_saved_data_before_starting_broker(self):
         script = INSTALLER.read_text(encoding="utf-8")

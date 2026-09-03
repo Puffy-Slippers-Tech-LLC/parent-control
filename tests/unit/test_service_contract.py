@@ -52,6 +52,46 @@ class ServiceContractTests(unittest.TestCase):
         ))
         self.assertNotIn("target_uid", [name for name, _type, _direction in method])
 
+    def test_user_lists_include_the_accounts_service_icon_file(self):
+        self.assertEqual(
+            signatures(INTROSPECTION_XML)["ListManagedUsers"],
+            (("users", "a(uss)", "out"),),
+        )
+        self.assertEqual(
+            signatures(INTROSPECTION_XML)["ListApprovers"],
+            (("users", "a(uss)", "out"),),
+        )
+
+    def test_own_account_and_mute_are_explicit_child_overlay_contracts(self):
+        self.assertEqual(
+            signatures(INTROSPECTION_XML)["GetOwnAccount"],
+            (
+                ("uid", "u", "out"),
+                ("label", "s", "out"),
+                ("icon_file", "s", "out"),
+            ),
+        )
+        self.assertEqual(
+            signatures(INTROSPECTION_XML)["SetRequestMuted"],
+            (
+                ("target_uid", "u", "in"),
+                ("surface", "s", "in"),
+                ("muted", "b", "in"),
+                ("saved_json", "s", "out"),
+            ),
+        )
+        self.assertEqual(
+            signatures(INTROSPECTION_XML)["UpdateRequestPreferences"],
+            (
+                ("target_uid", "u", "in"),
+                ("selected_duration", "s", "in"),
+                ("custom_minutes", "d", "in"),
+                ("allow_soft_blocked_apps", "b", "in"),
+                ("last_selected_approver_uid", "u", "in"),
+                ("saved_json", "s", "out"),
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

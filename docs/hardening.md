@@ -34,7 +34,7 @@ Before changing code, read these files in order:
 9. `broker/oh_no_parent_control/adapters.py`
 10. `broker/oh_no_parent_control/service.py`
 11. `broker/oh_no_parent_control/execution_policy.py`
-12. `child/extension.js` and `child/requestAccessClient.js`
+12. `child/extension.js` and `kiosk/oh_no_parent_control_kiosk/main.py`
 
 Then run:
 

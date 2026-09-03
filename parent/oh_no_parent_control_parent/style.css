@@ -118,9 +118,6 @@
 .account-avatar {
   min-width: 50px;
   min-height: 50px;
-  border-radius: 50%;
-  background: linear-gradient(145deg, #eeeaff, #dcd6ff);
-  font-size: 27px;
 }
 
 .account-name {

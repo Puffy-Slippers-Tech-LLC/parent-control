@@ -13,10 +13,12 @@ from pathlib import Path
 import gi
 
 gi.require_version("Adw", "1")
+gi.require_version("Gdk", "4.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gio, GLib, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
+from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
 from .client import BrokerClient, configure_logging
 
@@ -558,15 +560,13 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["app-limits-clamp"],
         ))
 
-    @staticmethod
-    def _account_factory():
+    def _account_factory(self):
         factory = Gtk.SignalListItemFactory()
 
         def setup(_factory, item):
             row = Gtk.Box(spacing=14, valign=Gtk.Align.CENTER)
-            row.append(Gtk.Label(
-                label="👦🏻",
-                css_classes=["account-avatar"],
+            row.append(Adw.Avatar(
+                size=50, show_initials=True, css_classes=["account-avatar"],
             ))
             row.append(Gtk.Label(
                 xalign=0, hexpand=True, ellipsize=3,
@@ -575,7 +575,22 @@ class ParentWindow(Adw.ApplicationWindow):
             item.set_child(row)
 
         def bind(_factory, item):
-            item.get_child().get_last_child().set_label(item.get_item().get_string())
+            row = item.get_child()
+            avatar = row.get_first_child()
+            name = item.get_item().get_string()
+            row.get_last_child().set_label(name)
+            avatar.set_text(name)
+            icon_file = ""
+            position = item.get_position()
+            if position < len(self._users):
+                icon_file = self._users[position][2]
+            texture = None
+            if icon_file:
+                try:
+                    texture = Gdk.Texture.new_from_filename(icon_file)
+                except GLib.Error:
+                    texture = None
+            avatar.set_custom_image(texture)
 
         factory.connect("setup", setup)
         factory.connect("bind", bind)
@@ -945,12 +960,12 @@ class ParentWindow(Adw.ApplicationWindow):
         return GLib.SOURCE_REMOVE
 
     def _users_loaded(self, users):
-        self._users = list(users)
+        self._users = [parse_listed_user(user) for user in users]
         LOG.info("managed-user discovery completed count=%d", len(self._users))
         self._account.handler_block(self._account_changed_handler)
         try:
             self._account.set_model(Gtk.StringList.new(
-                [label for _uid, label in self._users]
+                [label for _uid, label, _icon in self._users]
             ))
             if self._users:
                 self._account.set_selected(0)

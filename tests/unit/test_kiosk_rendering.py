@@ -45,13 +45,54 @@ class KioskRenderingTests(unittest.TestCase):
             source.index("top_controls.append(menu_button)"),
         )
 
+    def test_child_overlay_reuses_the_fullscreen_kiosk_gui(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+        content = KIOSK_CONTENT.read_text(encoding="utf-8")
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        css = (ROOT / "kiosk/oh_no_parent_control_kiosk/style.css").read_text(
+            encoding="utf-8",
+        )
+
+        self.assertNotIn("OVERLAY_SCALE", source)
+        self.assertNotIn("class OverlayViewport", source)
+        self.assertIn('parser.add_argument(\n        "--child-overlay"', source)
+        self.assertIn("lock_child_selector=self._child_overlay", source)
+        self.assertIn(
+            '"com.puffyslippers.OhNoParentControl.ChildRequest"', source,
+        )
+        self.assertIn('self._bus_call("GetOwnAccount"', source)
+        self.assertIn('"RequestOwnAccess"', source)
+        self.assertIn('CHILD_SUCCESS_COPY = "Time granted, click here to close"', source)
+        self.assertIn("muted_for_surface", content)
+        self.assertIn("window.oh-no-parent-control-overlay", css)
+        self.assertIn("preview-child-overlay:", makefile)
+        self.assertIn("--preview --child-overlay", makefile)
+
+    def test_escape_matches_the_cancel_action_when_no_auth_prompt_is_open(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+
+        self.assertIn("self._cancel = self._close_overlay if self._child_overlay else self._logout", source)
+        self.assertIn("escape.connect(\"key-pressed\", self._escape_pressed)", source)
+        self.assertIn("Gdk.KEY_Escape", source)
+        self.assertLess(
+            source.index("if self._state.in_flight"),
+            source.index("self._cancel()"),
+        )
+        self.assertIn("def _escape_pressed(self, _controller, keyval, _keycode, _state):", source)
+        self.assertIn("if self._state.in_flight:\n            return False", source)
+        self.assertIn("self._cancel()\n        return True", source)
+
     def test_preview_uses_the_production_window_without_privileged_services(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertIn('parser.add_argument(\n        "--preview"', source)
-        self.assertIn("self, preview=self._preview, soundtrack=self._soundtrack", source)
+        self.assertIn(
+            "self, preview=self._preview, soundtrack=self._soundtrack,\n"
+            "            child_overlay=self._child_overlay,",
+            source,
+        )
         self.assertIn("self._system_bus = None if preview", source)
-        self.assertIn("self._request_content.set_accounts(PREVIEW_USERS)", source)
+        self.assertIn("PREVIEW_USERS[:1] if self._child_overlay else PREVIEW_USERS", source)
         self.assertIn("This is a visual preview; no access was requested.", source)
         self.assertIn("PREVIEW_DEFAULT_WIDTH = 1918", source)
         self.assertIn("PREVIEW_DEFAULT_HEIGHT = 1443", source)
@@ -107,8 +148,29 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("class GatewayDropDown(Gtk.Box):", source)
         self.assertIn("outside the request form's snapshot", source)
         self.assertIn("self._accounts = GatewayDropDown(self._account_changed)", source)
-        self.assertIn("self._approvers = GatewayDropDown()", source)
+        self.assertIn("self._approvers = GatewayDropDown(self._approver_changed)", source)
+        self.assertIn("apply_gtk_user_icon", source)
+        self.assertIn("parse_listed_user", source)
         self.assertNotIn("Gtk.DropDown", source)
+
+    def test_allow_soft_row_is_a_full_width_toggle_button(self):
+        source = KIOSK_CONTENT.read_text(encoding="utf-8")
+        css = (ROOT / "kiosk/oh_no_parent_control_kiosk/style.css").read_text(
+            encoding="utf-8",
+        )
+
+        self.assertIn("filter_row = Gtk.Button()", source)
+        self.assertIn("self._allow_soft.set_can_target(False)", source)
+        self.assertIn('filter_row.connect("clicked", self._toggle_allow_soft)', source)
+        self.assertIn("def _toggle_allow_soft(self, _button):", source)
+        self.assertIn(
+            "self._allow_soft.set_active(not self._allow_soft.get_active())",
+            source,
+        )
+        self.assertIn(
+            "button.oh-no-parent-control-app-filter-toggle:hover",
+            css,
+        )
 
     def test_screen_limit_off_disables_the_request_form_without_a_footer_error(self):
         source = KIOSK_CONTENT.read_text(encoding="utf-8")
@@ -135,6 +197,7 @@ class KioskRenderingTests(unittest.TestCase):
             source,
         )
         self.assertIn("self._allow_soft.set_sensitive(request_available)", source)
+        self.assertIn("self._filter_row.set_sensitive(request_available)", source)
         self.assertIn("self._approvers.set_sensitive(request_available)", source)
         self.assertIn("self._cancel.set_sensitive(self._controls_enabled)", source)
         self.assertIn("self._status.remove_css_class(\"oh-no-parent-control-error\")", source)

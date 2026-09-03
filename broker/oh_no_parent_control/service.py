@@ -35,10 +35,15 @@ INTROSPECTION_XML = f"""
 <node>
   <interface name="{INTERFACE}">
     <method name="ListManagedUsers">
-      <arg name="users" type="a(us)" direction="out"/>
+      <arg name="users" type="a(uss)" direction="out"/>
     </method>
     <method name="ListApprovers">
-      <arg name="users" type="a(us)" direction="out"/>
+      <arg name="users" type="a(uss)" direction="out"/>
+    </method>
+    <method name="GetOwnAccount">
+      <arg name="uid" type="u" direction="out"/>
+      <arg name="label" type="s" direction="out"/>
+      <arg name="icon_file" type="s" direction="out"/>
     </method>
     <method name="RequestAccess">
       <arg name="target_uid" type="u" direction="in"/>
@@ -93,6 +98,13 @@ INTROSPECTION_XML = f"""
       <arg name="selected_duration" type="s" direction="in"/>
       <arg name="custom_minutes" type="d" direction="in"/>
       <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
+      <arg name="last_selected_approver_uid" type="u" direction="in"/>
+      <arg name="saved_json" type="s" direction="out"/>
+    </method>
+    <method name="SetRequestMuted">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="surface" type="s" direction="in"/>
+      <arg name="muted" type="b" direction="in"/>
       <arg name="saved_json" type="s" direction="out"/>
     </method>
     <method name="SetParentControl">
@@ -183,12 +195,19 @@ class Service:
             if method == "ListManagedUsers":
                 users = self.broker.list_managed_users(caller_uid)
                 invocation.return_value(GLib.Variant(
-                    "(a(us))", ([(user.uid, user.label) for user in users],),
+                    "(a(uss))",
+                    ([(user.uid, user.label, user.icon_file) for user in users],),
                 ))
             elif method == "ListApprovers":
                 users = self.broker.list_approvers(caller_uid)
                 invocation.return_value(GLib.Variant(
-                    "(a(us))", ([(user.uid, user.label) for user in users],),
+                    "(a(uss))",
+                    ([(user.uid, user.label, user.icon_file) for user in users],),
+                ))
+            elif method == "GetOwnAccount":
+                user = self.broker.get_own_account(caller_uid)
+                invocation.return_value(GLib.Variant(
+                    "(uss)", (user.uid, user.label, user.icon_file),
                 ))
             elif method == "RequestAccess":
                 target_uid, approver_uid, duration_seconds, allow_soft = parameters.unpack()
@@ -250,9 +269,16 @@ class Service:
                 saved = self.broker.set_preferences(caller_uid, target_uid, value)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
             elif method == "UpdateRequestPreferences":
-                target_uid, selected, custom, allow_soft = parameters.unpack()
+                target_uid, selected, custom, allow_soft, approver_uid = parameters.unpack()
                 saved = self.broker.update_request_preferences(
                     caller_uid, target_uid, selected, custom, allow_soft,
+                    approver_uid,
+                )
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method == "SetRequestMuted":
+                target_uid, surface, muted = parameters.unpack()
+                saved = self.broker.set_request_muted(
+                    caller_uid, target_uid, surface, muted,
                 )
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
             elif method == "SetParentControl":

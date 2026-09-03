@@ -37,8 +37,15 @@ assert config['kiosk_uid'] == 2002
 PY
 
 for unit in accounts-daemon.service fapolicyd.service \
-        malcontent-timerd.service malcontent-timer-extension-agent.service \
         oh-no-parent-control-broker.service; do
+    systemctl is-active --quiet "$unit"
+done
+# malcontent-timerd is D-Bus activated and exits after 30s of inactivity
+# when no child session is submitting usage. Prove enablement and start,
+# not that the daemon is still resident.
+for unit in malcontent-timerd.service malcontent-timer-extension-agent.service; do
+    systemctl is-enabled --quiet "$unit"
+    systemctl start "$unit"
     systemctl is-active --quiet "$unit"
 done
 

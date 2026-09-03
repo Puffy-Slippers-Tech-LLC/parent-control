@@ -224,6 +224,10 @@ class ParentWindowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn('self._account.set_factory(self._account_factory())', source)
+        factory = inspect.getsource(ParentWindow._account_factory)
+        self.assertIn("Adw.Avatar(", factory)
+        self.assertIn("Gdk.Texture.new_from_filename(icon_file)", factory)
+        self.assertNotIn("👦🏻", factory)
         self.assertIn('self._time_status = Adw.ExpanderRow(', source)
         self.assertIn('self._time_status.add_suffix(self._time_status_value)', source)
         self.assertIn('self._time_status.add_row(self._time_calculation_panel())', source)

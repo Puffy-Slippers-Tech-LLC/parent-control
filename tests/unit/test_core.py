@@ -557,11 +557,13 @@ class CoreTests(unittest.TestCase):
 
     def test_saving_app_policy_applies_filter_when_daily_limit_is_disabled(self):
         accounts, preferences = Accounts(), Preferences()
+        running_apps = RunningApps(accounts.events, terminated=2)
         value = preferences.load(1001)
         self.assertFalse(value["parent_control_enabled"])
 
         saved = make_broker(
             accounts=accounts, preferences=preferences,
+            running_apps=running_apps,
         ).set_preferences(1003, 1001, value)
 
         self.assertFalse(saved["parent_control_enabled"])
@@ -569,6 +571,97 @@ class CoreTests(unittest.TestCase):
             accounts.filter,
             (False, ("/usr/bin/game", "org.example.Game")),
         )
+        self.assertEqual(running_apps.calls, [])
+
+    def test_new_hard_block_stops_app_for_selected_child_uid(self):
+        accounts, preferences = Accounts(), Preferences()
+        preferences.values[1001]["apps"] = {
+            "thunderbird.desktop": {
+                "state": "conditional",
+                "targets": ["/snap/bin/thunderbird"],
+                "patterns": [],
+                "user_saved_match_rule": False,
+            },
+        }
+        value = preferences.load(1001)
+        value["apps"]["thunderbird.desktop"] = {
+            "state": "permanent",
+            "targets": ["/snap/bin/thunderbird"],
+            "patterns": [],
+            "user_saved_match_rule": False,
+        }
+        running_apps = RunningApps(accounts.events, terminated=1)
+
+        make_broker(
+            accounts=accounts, preferences=preferences,
+            running_apps=running_apps,
+        ).set_preferences(1003, 1001, value)
+
+        expected_targets = ("/snap/bin/thunderbird",)
+        self.assertEqual(running_apps.calls, [
+            ("preflight", 1001, expected_targets, ()),
+            ("terminate", 1001, expected_targets, ()),
+        ])
+        names = [event[0] for event in accounts.events]
+        self.assertLess(names.index("set_filter"), names.index("terminate_apps"))
+
+    def test_app_policy_preflight_failure_makes_no_policy_writes(self):
+        accounts, preferences = Accounts(), Preferences()
+        running_apps = RunningApps()
+        running_apps.preflight = mock.Mock(side_effect=RuntimeError("unsupported"))
+        value = preferences.load(1001)
+        value["apps"]["new.desktop"] = {
+            "state": "permanent",
+            "targets": ["/usr/bin/new-app"],
+            "patterns": [],
+            "user_saved_match_rule": False,
+        }
+        current = preferences.load(1001)
+
+        with self.assertRaises(BackendFailure):
+            make_broker(
+                accounts=accounts, preferences=preferences,
+                running_apps=running_apps,
+            ).set_preferences(1003, 1001, value)
+
+        self.assertEqual(preferences.load(1001), current)
+        self.assertFalse(any(event[0] == "set_filter" for event in accounts.events))
+
+    def test_app_policy_termination_failure_keeps_new_strict_policy(self):
+        accounts, preferences = Accounts(), Preferences()
+        value = preferences.load(1001)
+        value["apps"]["new.desktop"] = {
+            "state": "permanent",
+            "targets": ["/usr/bin/new-app"],
+            "patterns": [],
+            "user_saved_match_rule": False,
+        }
+        running_apps = RunningApps(error=RuntimeError("partial termination"))
+
+        with self.assertRaises(BackendFailure):
+            make_broker(
+                accounts=accounts, preferences=preferences,
+                running_apps=running_apps,
+            ).set_preferences(1003, 1001, value)
+
+        self.assertEqual(preferences.load(1001), value)
+        self.assertEqual(
+            accounts.filter,
+            (False, ("/usr/bin/game", "/usr/bin/new-app", "org.example.Game")),
+        )
+
+    def test_app_policy_save_with_no_blocks_skips_process_enumeration(self):
+        accounts, preferences = Accounts(), Preferences()
+        value = preferences.load(1001)
+        value["apps"] = {}
+        running_apps = RunningApps()
+
+        make_broker(
+            accounts=accounts, preferences=preferences,
+            running_apps=running_apps,
+        ).set_preferences(1003, 1001, value)
+
+        self.assertEqual(running_apps.calls, [])
 
     def test_saving_app_policy_refreshes_target_after_app_self_update(self):
         accounts, preferences = Accounts(), Preferences()
@@ -1098,6 +1191,10 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(entered.wait(1))
         with self.assertRaises(Busy):
             broker.request_access(991, ":1.3", 1001, 1003, 900, False)
+        with self.assertRaises(Busy):
+            broker.set_preferences(
+                1003, 1001, broker.get_preferences(1003, 1001),
+            )
         release.set()
         thread.join()
 

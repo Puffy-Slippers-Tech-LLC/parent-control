@@ -19,6 +19,7 @@ from pathlib import Path
 FLATPAK = "/usr/bin/flatpak"
 PROC_ROOT = Path("/proc")
 RUNTIME_ROOT = Path("/run/user")
+SNAP_COMMAND_DIRS = (Path("/snap/bin"), Path("/var/lib/snapd/snap/bin"))
 MAX_FLATPAK_OUTPUT_BYTES = 1024 * 1024
 FLATPAK_TIMEOUT_SECONDS = 5
 PROCESS_EXIT_TIMEOUT_SECONDS = 2
@@ -29,6 +30,10 @@ FLATPAK_ID_RE = re.compile(
     r"^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+$"
 )
 FLATPAK_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+SNAP_INSTANCE_RE = re.compile(
+    r"^[a-z0-9](?:-?[a-z0-9])*(?:_[a-z0-9](?:-?[a-z0-9])*)?$"
+)
+SNAP_APP_RE = re.compile(r"^[a-z0-9](?:-?[a-z0-9])*$")
 
 
 class AppTerminationError(RuntimeError):
@@ -36,7 +41,31 @@ class AppTerminationError(RuntimeError):
 
 
 def _native_targets(targets: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(target for target in targets if target.startswith("/"))
+    return tuple(
+        target for target in targets
+        if target.startswith("/") and Path(target).parent not in SNAP_COMMAND_DIRS
+    )
+
+
+def _snap_security_labels(targets: tuple[str, ...]) -> tuple[str, ...]:
+    """Project public Snap command paths to their kernel security labels."""
+    labels = []
+    for target in targets:
+        command = Path(target)
+        if command.parent not in SNAP_COMMAND_DIRS:
+            continue
+        instance, separator, app = command.name.partition(".")
+        if not SNAP_INSTANCE_RE.fullmatch(instance):
+            continue
+        if not separator:
+            # Snap exposes the short command when the app and base snap names
+            # are equal. Parallel instances append ``_<instance-key>`` only
+            # to the instance portion of the security label.
+            app = instance.partition("_")[0]
+        if not SNAP_APP_RE.fullmatch(app):
+            continue
+        labels.append(f"snap.{instance}.{app}")
+    return tuple(sorted(set(labels)))
 
 
 def _flatpak_targets(targets: tuple[str, ...]) -> tuple[str, ...]:
@@ -60,9 +89,15 @@ class RunningAppTerminator:
                   patterns: tuple[str, ...]) -> None:
         """Reject an unsupported termination request before policy is changed."""
         identity = self._identity(target_uid)
-        LOG.info("blocked-app termination preflight native_target_count=%d flatpak_target_count=%d pattern_count=%d",
-                 len(_native_targets(targets)), len(_flatpak_targets(targets)), len(patterns))
-        if (_native_targets(targets) or patterns) and (
+        native_targets = _native_targets(targets)
+        snap_labels = _snap_security_labels(targets)
+        LOG.info(
+            "blocked-app termination preflight native_target_count=%d "
+            "flatpak_target_count=%d snap_target_count=%d pattern_count=%d",
+            len(native_targets), len(_flatpak_targets(targets)),
+            len(snap_labels), len(patterns),
+        )
+        if (native_targets or snap_labels or patterns) and (
                 self._pidfd_open is None or self._pidfd_send_signal is None):
             raise AppTerminationError("pidfd signaling is unavailable")
         if (_flatpak_targets(targets) and
@@ -81,6 +116,7 @@ class RunningAppTerminator:
         )
         terminated += self._terminate_native(
             target_uid, _native_targets(targets), patterns,
+            _snap_security_labels(targets),
         )
         LOG.info("blocked-app termination outcome=accepted terminated_count=%d", terminated)
         return terminated
@@ -99,7 +135,8 @@ class RunningAppTerminator:
 
     def _matching_native_processes(
             self, target_uid: int, targets: tuple[str, ...],
-            patterns: tuple[str, ...]) -> list[tuple[int, int]]:
+            patterns: tuple[str, ...],
+            snap_security_labels: tuple[str, ...] = ()) -> list[tuple[int, int]]:
         matches = []
         try:
             entries = tuple(self._proc_root.iterdir())
@@ -128,9 +165,20 @@ class RunningAppTerminator:
                     executable = os.readlink(entry / "exe")
                     if executable.endswith(" (deleted)"):
                         executable = executable.removesuffix(" (deleted)")
-                    if executable not in targets and not any(
+                    native_match = executable in targets or any(
                             self._matches_native_pattern(executable, pattern)
-                            for pattern in patterns):
+                            for pattern in patterns)
+                    snap_match = False
+                    if not native_match and snap_security_labels:
+                        security_label = self._process_security_label(
+                            entry / "attr/current"
+                        )
+                        snap_match = any(
+                            security_label == label or
+                            security_label.startswith(f"{label}//")
+                            for label in snap_security_labels
+                        )
+                    if not native_match and not snap_match:
                         os.close(pidfd)
                         continue
                 except FileNotFoundError:
@@ -181,13 +229,35 @@ class RunningAppTerminator:
             raise AppTerminationError("process ownership is unavailable") from error
         raise AppTerminationError("process ownership is unavailable")
 
+    @staticmethod
+    def _process_security_label(attribute_path: Path) -> str:
+        """Read the kernel-applied AppArmor identity for one Snap process."""
+        try:
+            value = attribute_path.read_text(
+                encoding="ascii", errors="strict"
+            ).strip()
+        except OSError as error:
+            if error.errno in {errno.ENOENT, errno.ESRCH}:
+                raise
+            raise AppTerminationError(
+                "process security identity is unavailable"
+            ) from error
+        except UnicodeError as error:
+            raise AppTerminationError(
+                "process security identity is unavailable"
+            ) from error
+        return value.partition(" ")[0]
+
     def _terminate_native(self, target_uid: int, targets: tuple[str, ...],
-                          patterns: tuple[str, ...]) -> int:
-        if not targets and not patterns:
+                          patterns: tuple[str, ...],
+                          snap_security_labels: tuple[str, ...] = ()) -> int:
+        if not targets and not patterns and not snap_security_labels:
             return 0
         terminated = 0
         for _pass in range(MAX_NATIVE_TERMINATION_PASSES):
-            matches = self._matching_native_processes(target_uid, targets, patterns)
+            matches = self._matching_native_processes(
+                target_uid, targets, patterns, snap_security_labels,
+            )
             if not matches:
                 return terminated
             signaled = []
@@ -207,7 +277,9 @@ class RunningAppTerminator:
             finally:
                 for _pid, pidfd in matches:
                     os.close(pidfd)
-        remaining = self._matching_native_processes(target_uid, targets, patterns)
+        remaining = self._matching_native_processes(
+            target_uid, targets, patterns, snap_security_labels,
+        )
         for _pid, pidfd in remaining:
             os.close(pidfd)
         if remaining:

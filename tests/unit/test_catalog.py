@@ -104,3 +104,66 @@ class CatalogTests(unittest.TestCase):
             catalog[0]["targets"],
             ("app/com.mojang.Minecraft/x86_64/stable",),
         )
+
+    def test_snap_launcher_preserves_its_public_command_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            snap_binary = root / "usr/bin/snap"
+            snap_binary.parent.mkdir(parents=True)
+            snap_binary.touch()
+            command_directory = root / "snap/bin"
+            command_directory.mkdir(parents=True)
+            command = command_directory / "thunderbird"
+            command.symlink_to(snap_binary)
+            launcher = root / "thunderbird_thunderbird.desktop"
+            launcher.write_text(
+                "[Desktop Entry]\nType=Application\nName=Thunderbird Mail\n"
+                "X-SnapInstanceName=thunderbird\nX-SnapAppName=thunderbird\n"
+                f"Exec={command} %u\n",
+                encoding="utf-8",
+            )
+
+            with patch(
+                    "oh_no_parent_control.catalog.SNAP_COMMAND_DIRS",
+                    (command_directory,),
+            ), patch(
+                    "oh_no_parent_control.catalog.SNAP_LAUNCHERS",
+                    {str(snap_binary)},
+            ):
+                application = _application(
+                    launcher, "thunderbird_thunderbird.desktop", root,
+                )
+
+        self.assertEqual(application["name"], "Thunderbird Mail")
+        self.assertEqual(application["targets"], (str(command),))
+
+    def test_snap_metadata_does_not_bless_an_unrelated_symlink(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            unrelated_binary = root / "usr/bin/unrelated"
+            unrelated_binary.parent.mkdir(parents=True)
+            unrelated_binary.touch()
+            command_directory = root / "snap/bin"
+            command_directory.mkdir(parents=True)
+            command = command_directory / "thunderbird"
+            command.symlink_to(unrelated_binary)
+            launcher = root / "thunderbird_thunderbird.desktop"
+            launcher.write_text(
+                "[Desktop Entry]\nType=Application\nName=Thunderbird Mail\n"
+                "X-SnapInstanceName=thunderbird\nX-SnapAppName=thunderbird\n"
+                f"Exec={command} %u\n",
+                encoding="utf-8",
+            )
+
+            with patch(
+                    "oh_no_parent_control.catalog.SNAP_COMMAND_DIRS",
+                    (command_directory,),
+            ), patch(
+                    "oh_no_parent_control.catalog.SNAP_LAUNCHERS",
+                    {str(root / 'usr/bin/snap')},
+            ):
+                application = _application(
+                    launcher, "thunderbird_thunderbird.desktop", root,
+                )
+
+        self.assertIsNone(application)

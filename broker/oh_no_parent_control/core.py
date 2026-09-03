@@ -579,6 +579,15 @@ class Broker:
             raise BackendFailure("application catalog is unavailable") from error
 
     def set_preferences(self, caller_uid: int, target_uid: int, value: object) -> dict:
+        if not self._request_lock.acquire(blocking=False):
+            raise Busy("another request is already in progress")
+        try:
+            return self._set_preferences_locked(caller_uid, target_uid, value)
+        finally:
+            self._request_lock.release()
+
+    def _set_preferences_locked(
+            self, caller_uid: int, target_uid: int, value: object) -> dict:
         config = self._load_config()
         if not self._is_admin(caller_uid):
             raise AccessDenied("administrator access is required")
@@ -605,9 +614,46 @@ class Broker:
         except Exception as error:
             raise BackendFailure("app filter is unavailable") from error
         desired_filter = (False, blocked_targets(requested, False))
-        LOG.info("app-policy update stage=started blocked_target_count=%d",
-                 len(desired_filter[1]))
+        current_hard_targets = set(blocked_targets(current, True))
+        current_blocked_targets = set(blocked_targets(current, False))
+        requested_hard_targets = set(blocked_targets(requested, True))
+        requested_blocked_targets = set(desired_filter[1])
+        termination_targets = tuple(sorted(
+            (requested_hard_targets - current_hard_targets) |
+            ((requested_blocked_targets - requested_hard_targets) -
+             current_blocked_targets)
+        ))
+        current_hard_patterns = set(blocked_patterns(current, True))
+        current_blocked_patterns = set(blocked_patterns(current, False))
+        requested_hard_patterns = set(blocked_patterns(requested, True))
+        requested_blocked_patterns = set(blocked_patterns(requested, False))
+        termination_patterns = tuple(sorted(
+            (requested_hard_patterns - current_hard_patterns) |
+            ((requested_blocked_patterns - requested_hard_patterns) -
+             current_blocked_patterns)
+        ))
+        terminate_blocked_apps = bool(termination_targets or termination_patterns)
+        if terminate_blocked_apps:
+            if self._running_apps is None:
+                raise BackendFailure("blocked application termination is unavailable")
+            try:
+                self._running_apps.preflight(
+                    target.uid, termination_targets, termination_patterns,
+                )
+            except Exception as error:
+                raise BackendFailure(
+                    "blocked applications could not be stopped"
+                ) from error
+        LOG.info(
+            "app-policy update stage=started blocked_target_count=%d "
+            "newly_blocked_target_count=%d newly_blocked_pattern_count=%d "
+            "terminate_blocked_apps=%s",
+            len(desired_filter[1]), len(termination_targets),
+            len(termination_patterns),
+            terminate_blocked_apps,
+        )
         preferences_saved = False
+        termination_started = False
         try:
             # Persist first so AccountsService's synchronous execution-policy
             # reconciliation compiles the matching canonical patterns with the
@@ -620,10 +666,40 @@ class Broker:
             sync = getattr(self._accounts, "sync_execution_policy", None)
             if sync is not None:
                 sync()
+            if terminate_blocked_apps:
+                termination_started = True
+                terminated = self._running_apps.terminate(
+                    target.uid, termination_targets, termination_patterns,
+                )
+                if type(terminated) is not int or terminated < 0:
+                    raise BackendFailure("blocked application termination failed")
+                LOG.info(
+                    "app-policy update target=[Child user] "
+                    "stage=blocked-app-termination outcome=accepted count=%d",
+                    terminated,
+                )
             LOG.info("app-policy update outcome=accepted")
             return saved
         except Exception as error:
-            LOG.warning("app-policy update stage=rollback error_type=%s", type(error).__name__)
+            # Once termination starts, an exited process cannot be restored.
+            # Retain the requested canonical policy so every requested block
+            # remains enforced and its patterns remain available to the
+            # execution-policy reconciler.
+            if termination_started:
+                LOG.warning(
+                    "app-policy update outcome=failed error_type=%s "
+                    "strict_policy=true",
+                    type(error).__name__,
+                )
+                if isinstance(error, BrokerError):
+                    raise
+                raise BackendFailure(
+                    "blocked applications could not be stopped"
+                ) from error
+            LOG.warning(
+                "app-policy update stage=rollback error_type=%s",
+                type(error).__name__,
+            )
             try:
                 if preferences_saved:
                     self._preferences.save(target.uid, current)

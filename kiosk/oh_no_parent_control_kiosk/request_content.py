@@ -13,6 +13,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk
 
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
+from common.oh_no_parent_control_ui.accessibility import describe_control
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
 from .chrome import (
     APPROVER_HEAD, CHILD_HEAD, LOCK, POINTER, SHIELD, ArmoredButton,
@@ -246,6 +247,10 @@ class RequestContent(MetalBoard):
         self._status.add_css_class("oh-no-parent-control-status")
 
         self._accounts = GatewayDropDown(self._account_changed)
+        describe_control(
+            self._accounts._trigger, "Child account",
+            "Choose the child requesting more time.",
+        )
         self._accounts.set_hexpand(True)
         child_selector = self._account_row("Child", CHILD_HEAD, self._accounts)
         self.append(child_selector)
@@ -254,6 +259,10 @@ class RequestContent(MetalBoard):
             orientation=Gtk.Orientation.VERTICAL, spacing=5,
         )
         self._approvers = GatewayDropDown(self._approver_changed)
+        describe_control(
+            self._approvers._trigger, "Approving parent",
+            "Choose the administrator who can approve this request.",
+        )
         self._approvers.set_hexpand(True)
         approver_selector = self._account_row(
             "Approver", APPROVER_HEAD, self._approvers,
@@ -290,6 +299,10 @@ class RequestContent(MetalBoard):
             input_purpose=Gtk.InputPurpose.NUMBER,
             width_chars=8,
         )
+        describe_control(
+            self._custom_entry, "Custom duration in minutes",
+            "Enter a requested duration from 0.1 through 1440 minutes.",
+        )
         self._custom_entry.add_css_class("oh-no-parent-control-custom-entry")
         self._custom_row.append(self._custom_entry)
         self._custom_row.append(Gtk.Label(label="minutes"))
@@ -313,6 +326,10 @@ class RequestContent(MetalBoard):
         filter_label.add_css_class("oh-no-parent-control-app-filter-label")
         filter_inner.append(filter_label)
         self._allow_soft = Gtk.Switch(valign=Gtk.Align.CENTER)
+        describe_control(
+            self._allow_soft, "Allow soft blocked apps",
+            "Include temporarily allowed soft blocked applications with this request.",
+        )
         self._allow_soft.set_can_target(False)
         self._allow_soft.connect("notify::active", self._emit_values_changed)
         filter_label.set_mnemonic_widget(self._allow_soft)
@@ -326,6 +343,10 @@ class RequestContent(MetalBoard):
         actions.add_css_class("oh-no-parent-control-actions")
         self._request = ArmoredButton(
             label="REQUEST", hexpand=True, armor_kind="request",
+        )
+        describe_control(
+            self._request, "Request access",
+            "Submit the selected duration and app access choice for approval.",
         )
         self._request.add_css_class("oh-no-parent-control-request-button")
         self._request.set_margin_start(10)
@@ -350,6 +371,10 @@ class RequestContent(MetalBoard):
 
         self._cancel = ArmoredButton(
             label="CANCEL", hexpand=True, armor_kind="cancel",
+        )
+        describe_control(
+            self._cancel, "Cancel request",
+            "Close this request screen without requesting additional time.",
         )
         self._cancel.add_css_class("oh-no-parent-control-cancel-button")
         self._cancel.set_margin_start(10)
@@ -461,6 +486,10 @@ class RequestContent(MetalBoard):
         for label, seconds in DURATIONS:
             button = Gtk.ToggleButton(hexpand=True)
             button.duration_seconds = seconds
+            describe_control(
+                button, f"Request {label}",
+                f"Select {label} as the requested extra screen time duration.",
+            )
             button.add_css_class("oh-no-parent-control-choice")
             overlay = Gtk.Overlay()
             overlay.set_child(Gtk.Label(label=label, hexpand=True))

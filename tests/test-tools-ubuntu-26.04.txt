@@ -7,5 +7,11 @@ python3-pytest-cov=5.0.0-1
 python3-coverage=7.13.5+dfsg1-0ubuntu1
 python3-hypothesis=6.151.5-1
 python3-dbusmock=0.38.1-1
+gnome-ponytail-daemon=0.0.11-1build1
+mutter=50.1-0ubuntu2.2
 libpam0g-dev=1.7.0-5ubuntu3.2
 shellcheck=0.11.0-2
+
+# Isolated UI runner; setup.sh installs this hash-pinned wheel in
+# .venv/onpc-ui-tests with --system-site-packages for PyGObject.
+dogtail==2.1.0 --hash=sha256:5cc9e097d20b4cb287b840381697df5e1565cca97571111c60d984f8d74edb53

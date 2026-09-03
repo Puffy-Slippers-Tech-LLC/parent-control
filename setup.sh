@@ -57,12 +57,14 @@ fi
 "${apt_get[@]}" update
 "${apt_get[@]}" install -y \
     dbus-user-session \
+    gnome-ponytail-daemon=0.0.11-1build1 \
     gir1.2-adw-1 \
     gir1.2-gtk-4.0 \
     gnome-shell \
     libpam0g-dev=1.7.0-5ubuntu3.2 \
     libglib2.0-bin \
     make \
+    mutter=50.1-0ubuntu2.2 \
     mutter-dev-bin \
     nodejs \
     python3 \
@@ -70,6 +72,12 @@ fi
     python3-gi \
     python3-gi-cairo \
     python3-hypothesis=6.151.5-1 \
-    python3-pytest=9.0.2-4
+    python3-pytest=9.0.2-4 \
+    python3-venv
 
-echo "Development dependencies installed. Run: make check"
+ui_venv="$script_dir/.venv/onpc-ui-tests"
+"/usr/bin/python3" -m venv --system-site-packages "$ui_venv"
+"$ui_venv/bin/python" -m pip install --disable-pip-version-check --no-deps \
+    --require-hashes -r "$script_dir/tests/ui/requirements.txt"
+
+echo "Development dependencies installed. Run: make check or make check-component"

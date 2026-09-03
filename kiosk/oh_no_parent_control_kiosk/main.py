@@ -23,12 +23,14 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gst, Gtk
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
+from common.oh_no_parent_control_ui.accessibility import describe_control
 
 from .model import RequestState, public_error
 from .request_content import RequestContent
 from .chrome import (
-    BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, ArmoredButton,
-    MetalBoard,
+    BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, MENU,
+    SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, MetalBoard,
+    PixelIcon,
 )
 
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
@@ -975,28 +977,59 @@ class RequestWindow(Adw.ApplicationWindow):
         layout = Gtk.Overlay()
         layout.set_child(self._background)
         layout.add_overlay(self._stack)
-        menu = Gio.Menu()
-        actions = Gio.SimpleActionGroup()
-        self.insert_action_group("win", actions)
+        help_popover = Gtk.Popover()
+        help_popover.set_has_arrow(False)
+        help_popover.add_css_class("oh-no-parent-control-hud-menu")
+        menu_board = MetalBoard(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        menu_board.add_css_class("oh-no-parent-control-dialog")
+        menu_board.add_css_class("oh-no-parent-control-hud-menu-board")
         if self._child_overlay:
-            menu.append("Help", "win.help")
-            help_action = Gio.SimpleAction.new("help", None)
-            help_action.connect("activate", lambda *_args: open_help())
-            actions.add_action(help_action)
-        menu.append("About", "win.about")
-        about_action = Gio.SimpleAction.new("about", None)
-        about_action.connect("activate", self._show_about)
-        actions.add_action(about_action)
-        self._mute_button = Gtk.Button(
-            icon_name="audio-volume-high-symbolic",
-            tooltip_text="Mute sound",
+            help_item = self._hud_menu_item("HELP")
+            describe_control(
+                help_item, "Help",
+                "Open the product website in the browser.",
+            )
+            help_item.connect(
+                "clicked",
+                lambda *_args: self._activate_help_menu(help_popover, open_help),
+            )
+            menu_board.append(help_item)
+        about_item = self._hud_menu_item("ABOUT")
+        describe_control(
+            about_item, "About",
+            "Show product name, version, and legal information.",
         )
-        self._mute_button.add_css_class("oh-no-parent-control-menu-button")
+        about_item.connect(
+            "clicked",
+            lambda *_args: self._activate_help_menu(help_popover, self._show_about),
+        )
+        menu_board.append(about_item)
+        help_popover.set_child(menu_board)
+        self._muted = False
+        self._mute_icon = PixelIcon(SPEAKER, display_size=24, label="")
+        self._mute_button = ArmoredButton(
+            armor_kind="hud", tooltip_text="Mute sound",
+        )
+        describe_control(
+            self._mute_button, "Mute request-screen sound",
+            "Turn the request-screen soundtrack on or off.",
+        )
+        self._mute_button.set_child(self._mute_icon)
+        self._mute_button.add_css_class("oh-no-parent-control-hud-button")
         self._mute_button.connect("clicked", self._toggle_mute)
-        menu_button = Gtk.MenuButton(
-            icon_name="open-menu-symbolic", menu_model=menu,
+        menu_icon = PixelIcon(MENU, display_size=24, label="")
+        menu_button = ArmoredMenuButton(
+            armor_kind="hud",
             tooltip_text="Menu",
+            always_show_arrow=False,
+            popover=help_popover,
         )
+        describe_control(
+            menu_button, "Request-screen menu",
+            "Open help and product information for this request screen.",
+        )
+        menu_button.set_child(menu_icon)
+        menu_button.add_css_class("oh-no-parent-control-hud-button")
         menu_button.add_css_class("oh-no-parent-control-menu-button")
         top_controls = Gtk.Box(
             spacing=8, halign=Gtk.Align.END, valign=Gtk.Align.START,
@@ -1031,6 +1064,10 @@ class RequestWindow(Adw.ApplicationWindow):
             label="Close" if self._child_overlay else "Return to Login",
             hexpand=True, armor_kind="request",
         )
+        describe_control(
+            self._result_action, "Request result action",
+            "Close the result screen or return to the sign-in screen.",
+        )
         self._result_action.add_css_class("oh-no-parent-control-request-button")
         self._result_action.set_margin_start(10)
         self._result_action.set_margin_end(10)
@@ -1055,20 +1092,34 @@ class RequestWindow(Adw.ApplicationWindow):
     def _show_about(self, *_args):
         AboutDialog(self, links_enabled=self._child_overlay).present()
 
+    @staticmethod
+    def _hud_menu_item(label):
+        item = ArmoredButton(label=label, hexpand=True, armor_kind="cancel")
+        item.add_css_class("oh-no-parent-control-hud-menu-item")
+        return item
+
+    @staticmethod
+    def _activate_help_menu(popover, action):
+        popover.popdown()
+        action()
+
     def _mute_surface(self):
         return "child" if self._child_overlay else "kiosk"
 
     def _apply_mute(self, muted):
+        self._muted = muted
         self._music.set_muted(muted)
-        self._mute_button.set_icon_name(
-            "audio-volume-muted-symbolic" if muted else "audio-volume-high-symbolic",
-        )
+        self._mute_icon.set_pixels(SPEAKER_MUTED if muted else SPEAKER)
         self._mute_button.set_tooltip_text("Unmute sound" if muted else "Mute sound")
+        if muted:
+            self._mute_button.add_css_class("oh-no-parent-control-hud-muted")
+        else:
+            self._mute_button.remove_css_class("oh-no-parent-control-hud-muted")
+        LOG.info("soundtrack muted=%s overlay=%s", muted, self._child_overlay)
 
     def _toggle_mute(self, *_args):
-        muted = self._mute_button.get_icon_name() != "audio-volume-muted-symbolic"
-        self._apply_mute(muted)
-        self._persist_muted(muted)
+        self._apply_mute(not self._muted)
+        self._persist_muted(self._muted)
 
     @staticmethod
     def _page():

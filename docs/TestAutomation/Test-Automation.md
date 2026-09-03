@@ -50,7 +50,7 @@ record.
 - [x] Task 03 — Establish test categories, static checks, and coverage reporting
 - [x] Task 04 — Add broker property and state-machine testing
 - [x] Task 05 — Add a real private-D-Bus broker component harness
-- [ ] Task 06 — Establish modern hermetic GTK automation
+- [x] Task 06 — Establish modern hermetic GTK automation
 - [ ] Task 07 — Automate the Parent App as a local component
 - [ ] Task 08 — Automate the shared kiosk and child request form locally
 - [ ] Task 09 — Add executable unit tests for child-extension JavaScript
@@ -164,7 +164,7 @@ item.
 - [x] [Task 03 — Establish test categories, static checks, and coverage reporting](Task-03.md)
 - [x] [Task 04 — Add broker property and state-machine testing](Task-04.md)
 - [x] [Task 05 — Add a real private-D-Bus broker component harness](Task-05.md)
-- [ ] [Task 06 — Establish modern hermetic GTK automation](Task-06.md)
+- [x] [Task 06 — Establish modern hermetic GTK automation](Task-06.md)
 - [ ] [Task 07 — Automate the Parent App as a local component](Task-07.md)
 - [ ] [Task 08 — Automate the shared kiosk and child request form locally](Task-08.md)
 - [ ] [Task 09 — Add executable unit tests for child-extension JavaScript](Task-09.md)
@@ -228,4 +228,10 @@ Append one entry only after its checklist item has been changed to `[x]`:
 
 - Result: Added injectable broker service construction and a real Gio component harness on python-dbusmock private session and test-system buses, covering every public method, asynchronous dispatch, cancellation, caller disappearance, public errors, redacted logging, and lifecycle cleanup.
 - Verification: `make check-component` (repeated within one process and in three fresh processes); `python3 tools/verify_test_traceability.py --mode stage`; `make check`; `git diff --check`
+- Commit: not committed
+
+### Task 06 completed — 2026-09-03
+
+- Result: Added hash-pinned Dogtail 2.x hermetic GTK automation with private D-Bus/AT-SPI, deterministic bare-Mutter previews, accessible control metadata, and parameterized request-surface smokes.
+- Verification: `make check-component` (three consecutive clean runs); `make check`; `git diff --check`
 - Commit: not committed

@@ -57,7 +57,7 @@ record.
 - [x] Task 10A — Refactor the child preview into reusable orchestration
 - [x] Task 10B — Add the isolated nested-Shell lifecycle smoke
 - [x] Task 10C — Automate child indicator request interaction
-- [ ] Task 10D — Verify reload, preserve artifacts, and finish integration
+- [x] Task 10D — Verify reload, preserve artifacts, and finish integration
 - [ ] Task 11 — Build deterministic native and Flatpak test applications
 - [ ] Task 12 — Add safe immutable VM baselines and disposable overlay clones
 - [ ] Task 13 — Add Debian-package autopkgtest infrastructure
@@ -182,7 +182,7 @@ item.
 - [x] [Task 10A — Refactor the child preview into reusable orchestration](Task-10A.md)
 - [x] [Task 10B — Add the isolated nested-Shell lifecycle smoke](Task-10B.md)
 - [x] [Task 10C — Automate child indicator request interaction](Task-10C.md)
-- [ ] [Task 10D — Verify reload, preserve artifacts, and finish integration](Task-10D.md)
+- [x] [Task 10D — Verify reload, preserve artifacts, and finish integration](Task-10D.md)
 - [ ] [Task 11 — Build deterministic native and Flatpak test applications](Task-11.md)
 - [ ] [Task 12 — Add safe immutable VM baselines and disposable overlay clones](Task-12.md)
 - [ ] [Task 13 — Add Debian-package autopkgtest infrastructure](Task-13.md)
@@ -284,4 +284,10 @@ Append one entry only after its checklist item has been changed to `[x]`:
 
 - Result: Added supported virtual-keyboard interaction with the real nested-Shell indicator, a preview-only initially-closed scenario, observable single-flight process/window/accessibility assertions while opening and running, shared child-overlay close/reopen coverage, redacted diagnostics, and deterministic teardown.
 - Verification: `python3 -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`; `tools/run-ui-tests --timeout 180 tests/ui/test_child_shell_lifecycle.py::test_child_indicator_opens_one_shared_overlay_and_can_reopen -q` (three consecutive fresh processes); `make check-component`; `make check`; `git diff --check`
+- Commit: not committed
+
+### Task 10D completed — 2026-09-04
+
+- Result: Added controlled-copy nested-Shell reload evidence with observable generations, per-attempt and stable log/PNG artifacts captured through GNOME Shell's public Screenshot D-Bus service, lifecycle/error-category records, extension-attributable diagnostic scans, and truthful child component requirement mapping.
+- Verification: `python3 -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`; `tools/run-ui-tests --timeout 360s tests/ui/test_child_shell_lifecycle.py -m ui -q` (three consecutive fresh processes: 80.02s, 80.39s, 80.03s); `python3 tools/verify_test_traceability.py --mode stage`; `make check-component`; `make check`; `git diff --check`
 - Commit: not committed

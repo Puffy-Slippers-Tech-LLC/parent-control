@@ -30,7 +30,7 @@ const SCREEN_SAVER_INTERFACE = 'org.gnome.ScreenSaver';
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
     _init(onRequest, approvedGrantRemaining = 0, preview = false,
-        appName = 'Parent Control') {
+        appName = 'Parent Control', previewMarker = '', logoPath = '') {
         super._init(0.0, 'Screen Time Remaining');
         // Drop the default panel menu. A second menu with this source actor
         // steals hover and press from the request popover, including the
@@ -39,6 +39,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._onRequest = onRequest;
         this._preview = preview;
+        this._previewMarker = preview ? previewMarker : '';
 
         const content = new St.BoxLayout({
             style_class: 'screen-time-remaining-content',
@@ -50,22 +51,19 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        this._requestIcon = new St.Widget({
-            style_class: 'screen-time-request-icon',
-            layout_manager: new Clutter.BinLayout(),
+        if (!logoPath)
+            throw new Error('could not read app_logo.png');
+        this._requestIcon = new St.Icon({
+            gicon: new Gio.FileIcon({file: Gio.File.new_for_path(logoPath)}),
+            style_class: 'screen-time-request-logo',
+            icon_size: 20,
+            y_align: Clutter.ActorAlign.CENTER,
+            // Keep the rounded-square mark visible while it spins in the
+            // final ten seconds; St clips painted overflow by default.
+            clip_to_allocation: false,
         });
         this._requestIcon.set_pivot_point(0.5, 0.5);
         this._requestIconSpinning = false;
-        this._requestIcon.add_child(new St.Icon({
-            icon_name: 'hourglass-symbolic',
-            style_class: 'screen-time-request-hourglass',
-        }));
-        this._requestIcon.add_child(new St.Label({
-            text: '+',
-            style_class: 'screen-time-request-plus',
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.START,
-        }));
 
         this._buttonContent = new St.BoxLayout({
             style_class: 'screen-time-request-button-content',
@@ -442,8 +440,9 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         }
 
         this._updateRequestIcon(remainingSecs);
+        const marker = this._previewMarker ? `, ${this._previewMarker}` : '';
         this._requestButton.accessible_name =
-            `Request time, ${this._label.text}`;
+            `Request time, ${this._label.text}${marker}`;
     }
 
     _updateRequestIcon(remainingSecs) {

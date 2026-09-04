@@ -2,8 +2,12 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-import {appName} from './branding.js';
-import {isPreview, previewStartsWithRequestOpen} from './previewMode.js';
+import {appLogoPath, appName} from './branding.js';
+import {
+    isPreview,
+    previewGenerationMarker,
+    previewStartsWithRequestOpen,
+} from './previewMode.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
 import {logError, logInfo, logWarning} from './logger.js';
 import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
@@ -32,7 +36,9 @@ export default class OhNoParentControlExtension extends Extension {
             () => this._showRequest(),
             this._preview ? 45 * 60 : 0,
             this._preview,
-            this._appName);
+            this._appName,
+            previewGenerationMarker(),
+            appLogoPath(this));
         if (previewStartsWithRequestOpen()) {
             GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
                 this._showRequest();

@@ -9,6 +9,8 @@ python3-hypothesis=6.151.5-1
 python3-dbusmock=0.38.1-1
 gnome-ponytail-daemon=0.0.11-1build1
 gnome-shell=50.1-0ubuntu1.2
+# Provides the public org.gnome.Shell.Screenshot D-Bus interface used only on
+# the private nested Shell in check-child-shell.
 mutter=50.1-0ubuntu2.2
 mutter-dev-bin=50.1-0ubuntu2.2
 at-spi2-core=2.60.4-0ubuntu0.1

@@ -78,9 +78,15 @@ The unit and private-D-Bus component suites use pytest. On Ubuntu 26.04,
 `python3-dbusmock=0.38.1-1`. Run `make check-unit` for unit and contract tests,
 or `make check-component` for private-bus, JavaScript (Node and GJS), hermetic
 GTK, and isolated GNOME Shell component tests. `make check-child-shell` runs
-only the GNOME Shell 50 child-extension lifecycle smoke.
+the GNOME Shell 50 child-extension lifecycle, indicator interaction, and
+controlled-source reload component suite.
 The latter creates a disposable Wayland compositor, private D-Bus, and private
 AT-SPI bus for each test process; it never uses the developer's desktop session.
+Each preview captures its complete nested-Shell logs and a PNG through GNOME
+Shell's public Screenshot D-Bus interface. Per-run diagnostics stay in the
+ignored `artifacts/ui/child-shell/` tree; the most recent successful evidence
+is also copied to `artifacts/ui/child-shell/latest/` by scenario. These images
+are of the private nested compositor, never the host desktop.
 `make check-child-node` runs the platform-neutral child-extension tests with
 Node's built-in runner. `make check-child-gjs` runs the GJS adapter tests and
 writes LCOV coverage to `artifacts/coverage/gjs-child/coverage.lcov`.
@@ -138,6 +144,9 @@ Shell command, generation logs, readiness deadline, source-change reload, and
 process-group cleanup to `child/preview-orchestration.sh`. Component automation
 can source that boundary and provide an observable readiness probe; it must not
 duplicate setup or cleanup logic or inspect the developer's desktop settings.
+The reload component test changes only its copied extension payload, records the
+two observed generations, and leaves the checkout and any developer extension
+installation unchanged.
 
 Inspect the built package payload without installing it:
 

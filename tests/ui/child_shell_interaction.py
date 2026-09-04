@@ -15,7 +15,7 @@ from gi.repository import Atspi, GLib
 
 from dogtail.hermetic.mutter import MutterInputBackend
 
-from child_shell_probe import is_expected_accessible_name
+from child_shell_screenshot import capture_screenshot
 
 
 EVENTS = (
@@ -89,7 +89,12 @@ def _find_request_button():
         if "gnome-shell" not in _node_name(application).lower():
             continue
         for node in _walk(application):
-            if is_expected_accessible_name(_node_name(node)):
+            # The interaction scenario verifies the production action itself;
+            # generation markers belong to the separate reload probe. Keeping
+            # this predicate independent prevents a prior probe environment
+            # from changing which real Shell actor receives virtual input.
+            name = _node_name(node)
+            if name.startswith("Request time, ") and " left" in name:
                 return node
     return None
 
@@ -187,7 +192,10 @@ def _wait(predicate, description):
             value = predicate()
         except (AttributeError, GLib.Error):
             value = None
-        if value:
+        # Atspi.Accessible proxies may be falsey even when they reference a
+        # real actor. Predicates use None/False as their only not-ready values,
+        # so retain a discovered accessible object without asking its truthiness.
+        if value is not None and value is not False:
             result["value"] = value
             loop.quit()
         return GLib.SOURCE_CONTINUE
@@ -302,6 +310,7 @@ def main():
         _wait(lambda: len(_launch_records()) == 1, "one opening request process")
         print("interaction stage=opening-single-flight", flush=True)
         overlay = _wait(lambda: _one_overlay(1), "one visible child request overlay")
+        capture_screenshot(Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]))
         print("interaction stage=overlay-visible", flush=True)
 
         # Exercise the same guard after the shared request form is fully mapped.

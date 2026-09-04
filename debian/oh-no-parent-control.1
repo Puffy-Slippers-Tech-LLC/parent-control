@@ -1,0 +1,34 @@
+.TH OH-NO-PARENT-CONTROL 1 "September 2026" "Oh No! Parent Control" "User Commands"
+.SH NAME
+oh-no-parent-control \- run the parent-control request station
+.SH SYNOPSIS
+.B oh-no-parent-control
+.RI [ options ]
+.SH DESCRIPTION
+.B oh-no-parent-control
+starts the full-screen request station used by the dedicated kiosk session.
+It normally obtains managed-user information and submits access requests
+through the privileged Oh No! Parent Control broker.
+.SH OPTIONS
+.TP
+.B \-\-preview
+Render representative fixture data without contacting privileged services.
+.TP
+.B \-\-child-overlay
+Present the shared request interface for the current child account instead of
+showing the kiosk account selector.
+.TP
+.BI \-\-soundtrack " file"
+Play the specified audio file instead of the installed request-station
+soundtrack.
+.TP
+.BR \-h , " " \-\-help
+Show command-line help and exit.
+.SH FILES
+.TP
+.I /etc/oh-no-parent-control/config.json
+Root-owned machine configuration generated during package installation.
+.SH SEE ALSO
+.BR oh-no-parent-control-parent (1)
+.SH AUTHOR
+Puffy Slippers Tech LLC.

@@ -51,7 +51,7 @@ record.
 - [x] Task 04 — Add broker property and state-machine testing
 - [x] Task 05 — Add a real private-D-Bus broker component harness
 - [x] Task 06 — Establish modern hermetic GTK automation
-- [ ] Task 07 — Automate the Parent App as a local component
+- [x] Task 07 — Automate the Parent App as a local component
 - [ ] Task 08 — Automate the shared kiosk and child request form locally
 - [ ] Task 09 — Add executable unit tests for child-extension JavaScript
 - [ ] Task 10 — Automate the nested GNOME Shell child preview
@@ -165,7 +165,7 @@ item.
 - [x] [Task 04 — Add broker property and state-machine testing](Task-04.md)
 - [x] [Task 05 — Add a real private-D-Bus broker component harness](Task-05.md)
 - [x] [Task 06 — Establish modern hermetic GTK automation](Task-06.md)
-- [ ] [Task 07 — Automate the Parent App as a local component](Task-07.md)
+- [x] [Task 07 — Automate the Parent App as a local component](Task-07.md)
 - [ ] [Task 08 — Automate the shared kiosk and child request form locally](Task-08.md)
 - [ ] [Task 09 — Add executable unit tests for child-extension JavaScript](Task-09.md)
 - [ ] [Task 10 — Automate the nested GNOME Shell child preview](Task-10.md)
@@ -234,4 +234,10 @@ Append one entry only after its checklist item has been changed to `[x]`:
 
 - Result: Added hash-pinned Dogtail 2.x hermetic GTK automation with private D-Bus/AT-SPI, deterministic bare-Mutter previews, accessible control metadata, and parameterized request-surface smokes.
 - Verification: `make check-component` (three consecutive clean runs); `make check`; `git diff --check`
+- Commit: not committed
+
+### Task 07 completed — 2026-09-03
+
+- Result: Added scripted broker injection and executable Parent UI coverage for startup failures, account and loading state, status retries, screen-time controls, app policies, save ordering and rollback, revocation, and the absence of time-grant controls.
+- Verification: `.venv/onpc-ui-tests/bin/python -m pytest tests/ui -m ui -k parent` (three consecutive clean runs); `make check-component`; `make check`; `git diff --check`
 - Commit: not committed

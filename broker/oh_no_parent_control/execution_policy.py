@@ -195,6 +195,45 @@ class FapolicydPolicy:
                 raise ExecutionPolicyError("execution policy could not be activated") from error
             LOG.info("execution policy reconcile outcome=accepted")
 
+    def remove(self) -> None:
+        """Remove the product rule file and activate that absence safely."""
+        with self._lock:
+            try:
+                previous = self._rules_path.read_bytes()
+            except FileNotFoundError:
+                previous = None
+            except OSError as error:
+                raise ExecutionPolicyError(
+                    "could not read current execution policy"
+                ) from error
+
+            LOG.info(
+                "execution policy removal stage=activate had_rule_file=%s",
+                previous is not None,
+            )
+            try:
+                self._rules_path.unlink(missing_ok=True)
+                self._reload()
+            except Exception as error:
+                LOG.error(
+                    "execution policy removal outcome=activation-failed error_type=%s",
+                    type(error).__name__,
+                )
+                if previous is not None:
+                    try:
+                        self._replace(previous)
+                        self._reload()
+                    except Exception as rollback_error:
+                        raise ExecutionPolicyError(
+                            "execution-policy removal rollback could not be activated"
+                        ) from rollback_error
+                if isinstance(error, ExecutionPolicyError):
+                    raise
+                raise ExecutionPolicyError(
+                    "execution policy removal could not be activated"
+                ) from error
+            LOG.info("execution policy removal outcome=accepted")
+
     def _replace(self, contents: bytes) -> None:
         try:
             self._rules_path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)

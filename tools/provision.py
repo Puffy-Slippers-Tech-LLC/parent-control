@@ -25,7 +25,7 @@ def account(name, role):
     try:
         entry = pwd.getpwnam(name)
     except KeyError:
-        fail(f"{role} account does not exist: {name}")
+        fail(f"{role} account does not exist: [user]")
     if entry.pw_uid == 0:
         fail(f"{role} account must not be root")
     memberships = {
@@ -54,23 +54,39 @@ def atomic_write(path, contents, mode=0o644):
             os.unlink(temporary)
 
 
-def accounts_service_language(user):
+def accounts_service_user_path(user):
+    """Resolve and load an NSS account through the AccountsService manager."""
+    result = subprocess.run([
+        "busctl", "--system", "call", "org.freedesktop.Accounts",
+        "/org/freedesktop/Accounts", "org.freedesktop.Accounts",
+        "FindUserById", "x", str(user.pw_uid),
+    ], check=True, stdout=subprocess.PIPE, text=True)
+    fields = shlex.split(result.stdout)
+    expected_path = f"/org/freedesktop/Accounts/User{user.pw_uid}"
+    if fields != ["o", expected_path]:
+        fail("AccountsService returned an invalid object for [user]")
+    return expected_path
+
+
+def accounts_service_language(user, user_path=None):
+    user_path = user_path or accounts_service_user_path(user)
     result = subprocess.run([
         "busctl", "--system", "get-property", "org.freedesktop.Accounts",
-        f"/org/freedesktop/Accounts/User{user.pw_uid}",
+        user_path,
         "org.freedesktop.Accounts.User", "Language",
     ], check=True, stdout=subprocess.PIPE, text=True)
     fields = shlex.split(result.stdout)
     if len(fields) != 2 or fields[0] != "s":
-        fail(f"AccountsService returned an invalid language for {user.pw_name}")
+        fail("AccountsService returned an invalid language for [user]")
     return fields[1]
 
 
-def accounts_service_set_icon_file(user, icon_file=KIOSK_ICON_FILE):
+def accounts_service_set_icon_file(user, icon_file=KIOSK_ICON_FILE, user_path=None):
     """Make the kiosk account use the product's AccountsService-safe artwork."""
+    user_path = user_path or accounts_service_user_path(user)
     subprocess.run([
         "busctl", "--system", "call", "org.freedesktop.Accounts",
-        f"/org/freedesktop/Accounts/User{user.pw_uid}",
+        user_path,
         "org.freedesktop.Accounts.User", "SetIconFile", "s", icon_file,
     ], check=True)
 
@@ -109,13 +125,16 @@ def main():
     atomic_write(policy_path, policy.replace("@KIOSK_USER@", kiosk.pw_name), 0o644)
 
     if prefix == Path("/"):
-        accounts_service_set_icon_file(kiosk)
+        print("Resolving AccountsService object for [Kiosk user]", file=sys.stderr)
+        kiosk_path = accounts_service_user_path(kiosk)
+        print("Applying AccountsService properties for [Kiosk user]", file=sys.stderr)
+        accounts_service_set_icon_file(kiosk, user_path=kiosk_path)
         language = ""
         if args.language_source_user:
             try:
                 language_source = pwd.getpwnam(args.language_source_user)
             except KeyError:
-                fail(f"language source account does not exist: {args.language_source_user}")
+                fail("language source account does not exist: [user]")
             if language_source.pw_uid == 0:
                 fail("language source account must not be root")
             language = accounts_service_language(language_source)
@@ -125,21 +144,20 @@ def main():
         if language:
             subprocess.run([
                 "busctl", "--system", "call", "org.freedesktop.Accounts",
-                f"/org/freedesktop/Accounts/User{kiosk.pw_uid}",
+                kiosk_path,
                 "org.freedesktop.Accounts.User", "SetLanguage", "s", language,
             ], check=True)
         subprocess.run([
             "busctl", "--system", "set-property", "org.freedesktop.Accounts",
-            f"/org/freedesktop/Accounts/User{kiosk.pw_uid}",
+            kiosk_path,
             "com.endlessm.ParentalControls.SessionLimits", "LimitType", "u", "0",
         ], check=True)
         subprocess.run([
             "busctl", "--system", "call", "org.freedesktop.Accounts",
-            f"/org/freedesktop/Accounts/User{kiosk.pw_uid}",
+            kiosk_path,
             "org.freedesktop.Accounts.User", "SetSession", "s", "oh-no-parent-control",
         ], check=True)
-        subprocess.run(["systemctl", "reload", "dbus.service"], check=True)
-    print(f"Provisioned kiosk UID {kiosk.pw_uid}")
+    print("Provisioned [Kiosk user]")
     return 0
 
 

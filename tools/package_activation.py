@@ -22,7 +22,11 @@ def activation_for(path: str) -> str:
     """Return the activation required when an installed path changes."""
     # This command is run unconditionally by postinst before activation is
     # calculated; changing the command itself needs no later activation.
-    if path == "usr/libexec/oh-no-parent-control-migrate-state":
+    if path in {
+        "usr/libexec/oh-no-parent-control-migrate-state",
+        "usr/libexec/oh-no-parent-control-uninstall",
+        "usr/lib/oh-no-parent-control/broker/oh_no_parent_control/uninstall.py",
+    }:
         return "none"
     if path.startswith((
         "etc/gdm3/",
@@ -35,6 +39,9 @@ def activation_for(path: str) -> str:
         "usr/libexec/oh-no-parent-control-execution-policy-probe",
         "usr/libexec/oh-no-parent-control-session-limit-check",
         "usr/libexec/oh-no-parent-control-clear-session-runtime-max",
+        "usr/libexec/oh-no-parent-control-login-check",
+        "usr/libexec/oh-no-parent-control-preserve-extension-state",
+        "usr/lib/systemd/system/oh-no-parent-control-restore-extension-state.service",
     } or path.endswith("/security/pam_oh_no_parent_control.so"):
         return "reboot"
     # polkitd monitors its action and rule directories and evaluates them for

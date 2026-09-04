@@ -15,14 +15,15 @@ class AboutDialogTests(unittest.TestCase):
         self.assertIn('_detail_row("web-browser-symbolic", "Website"', source)
         self.assertNotIn('icon_filename="company_logo.png"', source)
 
-    def test_gtk_about_logo_uses_its_intrinsic_size(self):
+    def test_gtk_about_logo_uses_launcher_art_at_the_original_display_size(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
             encoding="utf-8")
 
-        self.assertIn('Gtk.Picture.new_for_filename(str(branding_asset_path("app_logo.png")))',
-                      source)
-        self.assertNotIn("logo.set_size_request(", source)
-        self.assertNotIn("logo.set_content_fit(", source)
+        self.assertIn('branding_asset_path("app_logo_gnome_launcher.png")', source)
+        self.assertIn("_ABOUT_LOGO_WIDTH = 126", source)
+        self.assertIn("_ABOUT_LOGO_HEIGHT = 128", source)
+        self.assertIn("Gsk.ScalingFilter.TRILINEAR", source)
+        self.assertIn("logo = _AboutLogo()", source)
 
     def test_child_session_uses_the_shared_gtk_about_dialog(self):
         stylesheet = (ROOT / "child/stylesheet.css").read_text(encoding="utf-8")

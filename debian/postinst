@@ -1,7 +1,18 @@
 #!/bin/sh
 set -e
 
+if [ "$1" = abort-remove ]; then
+    /usr/libexec/oh-no-parent-control-uninstall --restore
+    pam-auth-update --package \
+        --disable malcontent \
+        --enable oh-no-parent-control-session-limits \
+        --enable oh-no-parent-control-kiosk-only </dev/null
+fi
+
 if [ "$1" = configure ]; then
+    if [ -f /var/lib/oh-no-parent-control/uninstall-enforcement.json ]; then
+        /usr/libexec/oh-no-parent-control-uninstall --restore
+    fi
     /usr/libexec/oh-no-parent-control-migrate-state
     rm -f /var/lib/oh-no-parent-control/migration-in-progress
 
@@ -9,11 +20,43 @@ if [ "$1" = configure ]; then
     if ! getent passwd "$kiosk_user" >/dev/null; then
         adduser --disabled-password --gecos "Oh No! Parent Control" \
             --home "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
+        kiosk_uid=$(id -u "$kiosk_user")
+        printf '%s\n' "$kiosk_uid" \
+            > /var/lib/oh-no-parent-control/package-created-kiosk-uid
+        chown root:root \
+            /var/lib/oh-no-parent-control/package-created-kiosk-uid
+        chmod 0600 \
+            /var/lib/oh-no-parent-control/package-created-kiosk-uid
+    elif [ ! -f /var/lib/oh-no-parent-control/package-created-kiosk-uid ]; then
+        echo 'oh-no-parent-control: dedicated kiosk account already exists without package ownership' >&2
+        exit 1
+    elif [ "$(id -u "$kiosk_user")" != \
+           "$(cat /var/lib/oh-no-parent-control/package-created-kiosk-uid)" ]; then
+        echo 'oh-no-parent-control: kiosk account no longer matches package ownership' >&2
+        exit 1
     fi
     /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"
-    systemctl daemon-reload >/dev/null || true
-    systemctl reload dbus.service >/dev/null || true
-    systemctl enable --now fapolicyd.service >/dev/null
+
+    kiosk_gid=$(id -g "$kiosk_user")
+    install -d -o "$kiosk_user" -g "$kiosk_gid" -m 0700 \
+        "/home/$kiosk_user/.config" \
+        "/home/$kiosk_user/.config/gnome-initial-setup"
+    install -o "$kiosk_user" -g "$kiosk_gid" -m 0644 /dev/null \
+        "/home/$kiosk_user/.config/gnome-initial-setup-done"
+    install -o "$kiosk_user" -g "$kiosk_gid" -m 0644 /dev/null \
+        "/home/$kiosk_user/.config/gnome-initial-setup/upgrade-26.04-done"
+
+    pam-auth-update --package \
+        --disable malcontent \
+        --enable oh-no-parent-control-session-limits \
+        --enable oh-no-parent-control-kiosk-only </dev/null
+    chown root:sudo \
+        /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
+    chmod 0640 \
+        /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
+    deb-systemd-invoke daemon-reload >/dev/null || true
+    invoke-rc.d dbus reload >/dev/null || true
+    deb-systemd-invoke start fapolicyd.service >/dev/null
 
     pending=/var/lib/oh-no-parent-control/package-activation-pending
     if [ -f "$pending" ]; then
@@ -28,7 +71,7 @@ if [ "$1" = configure ]; then
                 # Starting the broker reasserts per-child activation. A
                 # running Shell keeps its loaded code; the next session reads
                 # the updated immutable system extension payload.
-                systemctl restart oh-no-parent-control-broker.service >/dev/null || true
+                deb-systemd-invoke restart oh-no-parent-control-broker.service >/dev/null
                 ;;
         esac
         case "$impacts" in

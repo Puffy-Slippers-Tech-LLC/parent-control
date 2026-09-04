@@ -930,7 +930,7 @@ def configure_logging(preview=False, component="kiosk"):
 
 class RequestWindow(Adw.ApplicationWindow):
     def __init__(self, application, *, preview=False, soundtrack=None,
-                 child_overlay=False):
+                 child_overlay=False, broker_connection=None):
         super().__init__(application=application, title=app_name())
         self.add_css_class("oh-no-parent-control-window")
         if child_overlay:
@@ -942,13 +942,20 @@ class RequestWindow(Adw.ApplicationWindow):
             PREVIEW_DEFAULT_HEIGHT if preview else 600,
         )
         self._preview = preview
+        # The normal application obtains its connection from the system bus.
+        # Tests may inject an API-compatible private connection without
+        # changing which production request paths the window executes.
+        self._interactive_preview = broker_connection is not None
         self._child_overlay = child_overlay
         self._applying_preferences = False
         self._state = RequestState()
         self._success_logout_source_id = None
         self._success_countdown_remaining = None
         self._success_action_label = None
-        self._system_bus = None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        self._system_bus = (
+            broker_connection if broker_connection is not None else
+            (None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None))
+        )
         self._build()
         self._music = BackgroundMusic(soundtrack)
         self._music.start()
@@ -1242,7 +1249,7 @@ class RequestWindow(Adw.ApplicationWindow):
         )
 
     def _load_users(self, *_args):
-        if self._preview:
+        if self._preview and not self._interactive_preview:
             users = PREVIEW_USERS[:1] if self._child_overlay else PREVIEW_USERS
             self._request_content.set_loading()
             self._request_content.set_accounts(users)
@@ -1284,7 +1291,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._show_error(error)
 
     def _load_preferences(self, target_uid):
-        if self._preview:
+        if self._preview and not self._interactive_preview:
             self._applying_preferences = True
             try:
                 self._request_content.set_preferences(PREVIEW_PREFERENCES[target_uid])
@@ -1321,7 +1328,7 @@ class RequestWindow(Adw.ApplicationWindow):
             LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
 
     def _persist_form_values(self):
-        if self._preview or self._applying_preferences:
+        if (self._preview and not self._interactive_preview) or self._applying_preferences:
             return
         try:
             target_uid, _label, approver_uid, _seconds, _allow_soft = (
@@ -1346,7 +1353,7 @@ class RequestWindow(Adw.ApplicationWindow):
             )
 
     def _persist_muted(self, muted):
-        if self._preview or self._applying_preferences:
+        if (self._preview and not self._interactive_preview) or self._applying_preferences:
             return
         try:
             target_uid, *_rest = self._request_content.selected()
@@ -1371,7 +1378,7 @@ class RequestWindow(Adw.ApplicationWindow):
             )
 
     def _request_access(self, *_args):
-        if self._preview:
+        if self._preview and not self._interactive_preview:
             try:
                 self._request_content.selected()
             except ValueError as error:
@@ -1388,7 +1395,7 @@ class RequestWindow(Adw.ApplicationWindow):
         if not self._state.begin():
             return
         try:
-            target_uid, target_label, approver_uid, duration_seconds, allow_soft = \
+            target_uid, _target_label, approver_uid, duration_seconds, allow_soft = \
                 self._request_content.selected()
             selected, custom, allow_soft = self._request_content.selected_preferences()
         except ValueError as error:
@@ -1396,7 +1403,6 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_content.show_validation_error(str(error))
             return
         self._set_request_controls(False)
-        self._requested_label = target_label
         LOG.info("target=[Child user] approver=[Administrator] duration_seconds=%d "
                  "allow_soft=%s overlay=%s stage=request",
                  duration_seconds, allow_soft, self._child_overlay)
@@ -1453,10 +1459,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 if self._child_overlay:
                     self._show_child_success()
                 else:
-                    self._show_result(
-                        "Request approved",
-                        f"The requested access is ready for {self._requested_label}.",
-                    )
+                    self._show_result("Request approved", "")
                     self._schedule_success_logout()
             elif outcome == "cancelled":
                 # Cancellation is not an error or a session transition.  The
@@ -1500,11 +1503,20 @@ class RequestWindow(Adw.ApplicationWindow):
         self._result_title.set_text(title)
         self._result_detail.set_text(detail)
         self._result_detail.set_visible(bool(detail))
+        if detail:
+            self._result_view.remove_css_class(
+                "oh-no-parent-control-compact-result",
+            )
+        else:
+            self._result_view.add_css_class(
+                "oh-no-parent-control-compact-result",
+            )
         self._stack.set_visible_child_name("result")
 
 
 class Application(Adw.Application):
-    def __init__(self, *, preview=False, soundtrack=None, child_overlay=False):
+    def __init__(self, *, preview=False, soundtrack=None, child_overlay=False,
+                 window_factory=None):
         super().__init__(
             application_id=(
                 "com.puffyslippers.OhNoParentControl.ChildRequest"
@@ -1515,6 +1527,7 @@ class Application(Adw.Application):
         self._preview = preview
         self._soundtrack = soundtrack
         self._child_overlay = child_overlay
+        self._window_factory = window_factory or RequestWindow
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
         self._css_provider = None
         self._preview_monitor = None
@@ -1576,7 +1589,7 @@ class Application(Adw.Application):
         return GLib.SOURCE_REMOVE
 
     def do_activate(self):
-        window = self.get_active_window() or RequestWindow(
+        window = self.get_active_window() or self._window_factory(
             self, preview=self._preview, soundtrack=self._soundtrack,
             child_overlay=self._child_overlay,
         )

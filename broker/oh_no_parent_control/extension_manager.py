@@ -273,3 +273,31 @@ class ExtensionManager:
                 ) from rollback_error
             raise
         LOG.info("child extension update outcome=accepted enabled=%s", enabled)
+
+    def remove(self, uid: int) -> None:
+        """Disable the product extension and remove its per-user list entries."""
+        LOG.info("child extension removal stage=started")
+        account, home = self._account(uid)
+        if home.is_symlink() or not home.is_dir() or home.stat().st_uid != uid:
+            raise RuntimeError("child home directory has unsafe ownership")
+
+        shell_available = self._shell_is_available(account)
+        if shell_available:
+            configured, active = self._runtime_state(account)
+            if configured or active:
+                self._set_live(account, False)
+
+        enabled = self._list(account, ENABLED_KEY)
+        disabled = self._list(account, DISABLED_KEY)
+        desired_enabled = [value for value in enabled if value != UUID]
+        desired_disabled = [value for value in disabled if value != UUID]
+        if desired_enabled != enabled:
+            self._set_list(account, ENABLED_KEY, desired_enabled)
+        if desired_disabled != disabled:
+            self._set_list(account, DISABLED_KEY, desired_disabled)
+        if (self._list(account, ENABLED_KEY) != desired_enabled or
+                self._list(account, DISABLED_KEY) != desired_disabled):
+            raise RuntimeError("GNOME extension removal verification failed")
+        if shell_available and self._runtime_state(account) != (False, False):
+            raise RuntimeError("GNOME extension runtime removal verification failed")
+        LOG.info("child extension removal outcome=accepted")

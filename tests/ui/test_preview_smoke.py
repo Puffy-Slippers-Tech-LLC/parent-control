@@ -14,9 +14,10 @@ def _assert_preview_controls(application, wait_for_accessible_node, capture_ui_s
                              collect_application_logs, log_path, controls, snapshot_name):
     snapshot = capture_ui_snapshot(application, snapshot_name)
     assert snapshot.read_text(encoding="utf-8")
-    for label, role in controls:
+    for control in controls:
+        label, role, *options = control
         try:
-            wait_for_accessible_node(application, label, role)
+            wait_for_accessible_node(application, label, role, labelled=bool(options))
         except AssertionError as error:
             raise AssertionError(
                 f"{error}\nApplication log:\n{collect_application_logs(log_path)}",
@@ -34,7 +35,7 @@ def test_parent_preview_smoke(launch_ui, wait_for_accessible_node,
         collect_application_logs, log_path,
         (
             ("Screen time limit", "switch"),
-            ("Daily Time Allowance", "combo box"),
+            ("Daily time allowance", "button"),
             ("Revoke one-time access", "button"),
         ),
         "parent-preview",
@@ -52,7 +53,9 @@ def test_parent_component_scripted_broker_behavior(launch_ui, wait_for_accessibl
     try:
         wait_for_accessible_node(application, "Child account", "combo box", labelled=True)
         wait_for_accessible_node(application, "Screen time limit", "switch")
-        wait_for_accessible_node(application, "Daily Time Allowance", "combo box")
+        wait_for_accessible_node(
+            application, "Daily time allowance", "button",
+        )
         wait_for_accessible_node(application, "Revoke one-time access", "button")
     except AssertionError as error:
         snapshot = capture_ui_snapshot(application, "parent-scripted-broker")
@@ -91,7 +94,9 @@ def test_parent_loading_state_disables_conflicting_controls(launch_ui,
         environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "loading"},
     )
     enabled = wait_for_accessible_node(loading, "Screen time limit", "switch")
-    allowance = wait_for_accessible_node(loading, "Daily Time Allowance", "combo box")
+    allowance = wait_for_accessible_node(
+        loading, "Daily time allowance", "button",
+    )
     assert not enabled.sensitive
     assert not allowance.sensitive
     wait_for_accessible_state(lambda: enabled.sensitive, "loaded screen-time switch")
@@ -152,14 +157,64 @@ def test_parent_screen_time_change_autosaves_and_never_offers_a_grant(
     assert "Approve time" not in tree
 
 
-def test_parent_daily_preset_and_custom_limit_are_exposed(launch_ui,
-                                                          wait_for_accessible_node):
+def test_parent_failed_save_restores_visible_value(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path):
+    events_path = tmp_path / "failed-save-events.jsonl"
     application, _log_path = launch_ui(
         "parent_component_preview",
-        environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "custom-limit"},
+        environment_overrides={
+            "ONPC_PARENT_COMPONENT_SCENARIO": "save-fails",
+            "ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events_path),
+        },
     )
-    wait_for_accessible_node(application, "Daily Time Allowance", "combo box")
-    wait_for_accessible_node(application, "Custom daily allowance", "text")
+    enabled = wait_for_accessible_node(application, "Screen time limit", "switch")
+    assert enabled.checked
+    assert enabled.do_action(0)
+    wait_for_accessible_state(
+        lambda: events_path.exists() and "set_parent_control" in events_path.read_text(),
+        "failed preference save request",
+    )
+    wait_for_accessible_state(lambda: enabled.checked, "restored screen-time setting")
+
+
+def test_parent_daily_preset_and_custom_limit_autosave(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path):
+    events_path = tmp_path / "daily-limit-events.jsonl"
+    application, _log_path = launch_ui(
+        "parent_component_preview",
+        environment_overrides={
+            "ONPC_PARENT_COMPONENT_SCENARIO": "custom-limit",
+            "ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events_path),
+        },
+    )
+    allowance = wait_for_accessible_node(
+        application, "Daily time allowance", "button",
+    )
+    custom = wait_for_accessible_node(application, "Custom daily allowance", "text")
+    custom.text = "73"
+    wait_for_accessible_state(
+        lambda: any(
+            record["event"] == "set_parent_control" and
+            record["daily_limit_minutes"] == 73
+            for record in (json.loads(line) for line in events_path.read_text(
+                encoding="utf-8",
+            ).splitlines())
+        ),
+        "custom daily-limit auto-save",
+    )
+    assert allowance.child(role_name="toggle button", retry=False).do_action(0)
+    preset = wait_for_accessible_node(application, "45 minutes", "button")
+    assert preset.do_action(0)
+    wait_for_accessible_state(
+        lambda: any(
+            record["event"] == "set_parent_control" and
+            record["daily_limit_minutes"] == 45
+            for record in (json.loads(line) for line in events_path.read_text(
+                encoding="utf-8",
+            ).splitlines())
+        ),
+        "daily preset auto-save",
+    )
 
 
 def test_parent_app_search_rule_edit_and_revocation_confirmation(

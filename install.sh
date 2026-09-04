@@ -230,25 +230,8 @@ pam-auth-update --disable malcontent </dev/null
 # request-station account and members of Ubuntu's administrator group are
 # intentionally unlimited.
 install -o root -g root -m 0644 \
-    "$SCRIPT_DIR/data/pam-configs/oh-no-parent-control-session-limits" \
-    /usr/share/pam-configs/oh-no-parent-control-session-limits
-
-install -o root -g root -m 0644 \
     "$SCRIPT_DIR/data/polkit-1/rules.d/00-oh-no-parent-control-session.rules" \
     /etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules
-
-install -d -o root -g root -m 0755 /etc/gdm3/PreSession
-install -o root -g root -m 0755 \
-    "$SCRIPT_DIR/data/gdm3/PreSession/Default" \
-    /etc/gdm3/PreSession/Default
-
-install -o root -g root -m 0755 \
-    "$SCRIPT_DIR/tools/oh-no-parent-control-login-check" \
-    /usr/local/sbin/oh-no-parent-control-login-check
-
-install -o root -g root -m 0644 \
-    "$SCRIPT_DIR/data/pam-configs/oh-no-parent-control-kiosk-only" \
-    /usr/share/pam-configs/oh-no-parent-control-kiosk-only
 
 pam-auth-update --enable oh-no-parent-control-session-limits </dev/null
 pam-auth-update --enable oh-no-parent-control-kiosk-only </dev/null
@@ -350,7 +333,7 @@ require test "$(stat -c %U \
 require grep -Fq "\"kiosk_uid\": $kiosk_uid" /etc/oh-no-parent-control/config.json
 require grep -Fq '<allow send_destination="com.puffyslippers.OhNoParentControl1"' \
     /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
-require grep -Fq "pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-check" \
+require grep -Fq "pam_exec.so quiet /usr/libexec/oh-no-parent-control-login-check" \
     /etc/pam.d/common-account
 require grep -Fq "pam_malcontent.so" /etc/pam.d/common-account
 require grep -Fq "pam_exec.so quiet quiet_log /usr/libexec/oh-no-parent-control-session-limit-check" \

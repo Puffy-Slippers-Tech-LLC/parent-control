@@ -1,0 +1,93 @@
+#!/bin/sh
+set -e
+
+remove_package_created_kiosk() {
+    kiosk_user=oh-no-parent-control
+    marker=/var/lib/oh-no-parent-control/package-created-kiosk-uid
+    if [ ! -f "$marker" ]; then
+        return
+    fi
+    marker_uid=$(cat "$marker")
+    case "$marker_uid" in
+        ''|*[!0-9]*|0)
+            echo 'oh-no-parent-control: refusing to remove kiosk account: invalid ownership marker' >&2
+            rm -f "$marker"
+            return
+            ;;
+    esac
+    entry=$(getent passwd "$kiosk_user" || true)
+    if [ -z "$entry" ]; then
+        rm -f "$marker"
+        return
+    fi
+    account_name=$(printf '%s\n' "$entry" | cut -d: -f1)
+    account_uid=$(printf '%s\n' "$entry" | cut -d: -f3)
+    account_home=$(printf '%s\n' "$entry" | cut -d: -f6)
+    if [ "$account_name" != "$kiosk_user" ] || \
+       [ "$account_uid" != "$marker_uid" ] || \
+       [ "$account_home" != "/home/$kiosk_user" ]; then
+        echo 'oh-no-parent-control: preserving kiosk account whose identity was changed' >&2
+        rm -f "$marker"
+        return
+    fi
+    if command -v loginctl >/dev/null 2>&1 && \
+       loginctl show-user "$kiosk_user" >/dev/null 2>&1; then
+        loginctl terminate-user "$kiosk_user"
+    fi
+    deluser --remove-home "$kiosk_user"
+    rm -f "$marker"
+}
+
+if [ "$1" = remove ]; then
+    # These paths are generated or are security integration snippets. Leaving
+    # them in dpkg's config-files state would keep policy active without the
+    # broker that owns it.
+    rm -f \
+        /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules \
+        /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
+        /etc/gdm3/PreSession/Default \
+        /etc/oh-no-parent-control/config.json \
+        /etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
+        /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf \
+        /var/lib/oh-no-parent-control/extension-state-restore.json \
+        /var/lib/oh-no-parent-control/migration-in-progress \
+        /var/lib/oh-no-parent-control/package-activation-pending \
+        /var/lib/oh-no-parent-control/previous-package-activation.json \
+        /var/lib/oh-no-parent-control/uninstall-enforcement.json
+
+    # The prerm already activated removal of the generated deny file. Reload
+    # once more after dpkg leaves the /etc fallback conffile behind.
+    if [ -x /usr/sbin/fagenrules ]; then
+        /usr/sbin/fagenrules --load
+    fi
+    invoke-rc.d dbus reload >/dev/null || true
+    remove_package_created_kiosk
+fi
+
+if [ "$1" = purge ]; then
+    # Defensive cleanup also covers a purge retried from config-files state.
+    rm -f \
+        /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules \
+        /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
+        /etc/gdm3/PreSession/Default \
+        /etc/oh-no-parent-control/config.json \
+        /etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
+        /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf \
+        /var/lib/oh-no-parent-control/extension-state-restore.json \
+        /var/lib/oh-no-parent-control/migration-in-progress \
+        /var/lib/oh-no-parent-control/package-activation-pending \
+        /var/lib/oh-no-parent-control/previous-package-activation.json \
+        /var/lib/oh-no-parent-control/uninstall-enforcement.json
+    if [ -x /usr/sbin/fagenrules ]; then
+        /usr/sbin/fagenrules --load
+    fi
+    invoke-rc.d dbus reload >/dev/null || true
+    remove_package_created_kiosk
+fi
+
+rmdir /etc/oh-no-parent-control 2>/dev/null || true
+rmdir /var/lib/oh-no-parent-control 2>/dev/null || true
+
+#DEBHELPER#
+
+exit 0

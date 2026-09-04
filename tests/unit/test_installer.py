@@ -38,7 +38,8 @@ class InstallerTests(unittest.TestCase):
         self.assertLessEqual(width, 128)
         self.assertLessEqual(height, 128)
         self.assertIn(
-            "config/config.example.json $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "
+            "config/config.example.json $(BRANDING_ASSETS) "
+            "data/app_logo_gnome_launcher.png LICENSE COPYRIGHT NOTICE "
             "\"$(DESTDIR)$(DATADIR)/oh-no-parent-control/\"",
             makefile,
         )
@@ -455,14 +456,74 @@ class InstallerTests(unittest.TestCase):
 
         self.assertIn("*process-restart*|*session-renewal*)", postinst)
         self.assertIn(
-            "systemctl restart oh-no-parent-control-broker.service", postinst,
+            "deb-systemd-invoke restart oh-no-parent-control-broker.service",
+            postinst,
         )
+
+    def test_debian_removal_clears_enforcement_before_pam_helpers_disappear(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        prerm = (ROOT / "debian/prerm").read_text(encoding="utf-8")
+
+        self.assertIn("broker/oh-no-parent-control-uninstall", makefile)
+        stop = prerm.index("deb-systemd-invoke stop")
+        stopped = prerm.index("systemctl is-active --quiet")
+        cleanup = prerm.index("/usr/libexec/oh-no-parent-control-uninstall --remove")
+        pam = prerm.index("pam-auth-update --package")
+        self.assertLess(stop, stopped)
+        self.assertLess(stopped, cleanup)
+        self.assertLess(cleanup, pam)
+
+        postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+        abort = postinst.index('if [ "$1" = abort-remove ]')
+        restore = postinst.index(
+            "/usr/libexec/oh-no-parent-control-uninstall --restore", abort,
+        )
+        restart_marker = postinst.index("#DEBHELPER#", restore)
+        self.assertLess(abort, restore)
+        self.assertLess(restore, restart_marker)
+        configure = postinst.index('if [ "$1" = configure ]')
+        retry_restore = postinst.index(
+            "/usr/libexec/oh-no-parent-control-uninstall --restore", configure,
+        )
+        migrate = postinst.index(
+            "/usr/libexec/oh-no-parent-control-migrate-state", configure,
+        )
+        self.assertLess(retry_restore, migrate)
+
+    def test_debian_removal_cleans_generated_security_integration(self):
+        postrm = (ROOT / "debian/postrm").read_text(encoding="utf-8")
+
+        for path in (
+            "/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules",
+            "/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules",
+            "/etc/gdm3/PreSession/Default",
+            "/etc/oh-no-parent-control/config.json",
+            "/etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules",
+            "/usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf",
+        ):
+            self.assertIn(path, postrm)
+        self.assertIn("/usr/sbin/fagenrules --load", postrm)
+        self.assertIn("invoke-rc.d dbus reload", postrm)
+
+    def test_package_removes_only_the_kiosk_account_it_created(self):
+        postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+        postrm = (ROOT / "debian/postrm").read_text(encoding="utf-8")
+        marker = "/var/lib/oh-no-parent-control/package-created-kiosk-uid"
+
+        self.assertIn(marker, postinst)
+        self.assertIn(marker, postrm)
+        self.assertIn("already exists without package ownership", postinst)
+        self.assertIn('account_uid" != "$marker_uid', postrm)
+        self.assertIn('account_home" != "/home/$kiosk_user', postrm)
+        self.assertIn('deluser --remove-home "$kiosk_user"', postrm)
+        self.assertNotIn("/var/log/oh-no-parent-control", postrm)
+        self.assertNotIn("/var/lib/oh-no-parent-control/preferences", postrm)
 
     def test_activation_manifest_is_generated_after_direct_pam_and_gdm_setup(self):
         script = INSTALLER.read_text(encoding="utf-8")
 
         pam_install = script.index(
-            "/usr/share/pam-configs/oh-no-parent-control-session-limits"
+            "pam-auth-update --enable oh-no-parent-control-session-limits"
         )
         manifest = script.index("_generate-package-activation-manifest")
 
@@ -533,7 +594,9 @@ class InstallerTests(unittest.TestCase):
         self.assertIn(marker, preinst)
         self.assertLess(
             preinst.index(marker),
-            preinst.index("systemctl stop oh-no-parent-control-broker.service"),
+            preinst.index(
+                "deb-systemd-invoke stop oh-no-parent-control-broker.service"
+            ),
         )
         self.assertLess(postinst.index(command), postinst.index(f"rm -f {marker}"))
         self.assertLess(script.index(command), script.index(f"rm -f {marker}"))

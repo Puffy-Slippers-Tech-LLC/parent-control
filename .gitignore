@@ -4,6 +4,14 @@ __pycache__/
 *.py[cod]
 .coverage
 .hypothesis/
+.pytest_cache/
 artifacts/coverage/
 .venv/
 artifacts/ui/
+/debian/.debhelper/
+/debian/debhelper-build-stamp
+/debian/files
+/debian/oh-no-parent-control/
+/debian/oh-no-parent-control.debhelper.log
+/debian/oh-no-parent-control.substvars
+output/

@@ -56,13 +56,20 @@ fi
 "${add_repository[@]}"
 "${apt_get[@]}" update
 "${apt_get[@]}" install -y \
+    build-essential \
     dbus-user-session \
+    debhelper \
+    devscripts \
+    dh-python \
+    dput \
     gnome-ponytail-daemon=0.0.11-1build1 \
+    gnupg \
     gir1.2-adw-1 \
     gir1.2-gtk-4.0 \
     gnome-shell \
     libpam0g-dev=1.7.0-5ubuntu3.2 \
     libglib2.0-bin \
+    lintian \
     make \
     mutter=50.1-0ubuntu2.2 \
     mutter-dev-bin \

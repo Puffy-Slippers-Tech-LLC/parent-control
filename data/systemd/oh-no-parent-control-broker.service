@@ -1,5 +1,6 @@
 [Unit]
 Description=Oh No! Parent Control request broker
+Documentation=https://github.com/Puffy-Slippers-Tech-LLC/parent-control/blob/main/docs/System-Design.md
 ConditionPathExists=!/var/lib/oh-no-parent-control/migration-in-progress
 Wants=fapolicyd.service
 After=fapolicyd.service

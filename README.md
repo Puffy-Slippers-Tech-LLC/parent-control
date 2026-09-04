@@ -37,6 +37,14 @@ Install the Debian package with:
 sudo apt install oh-no-parent-control
 ```
 
+See [docs/Publishing.md](docs/Publishing.md) for the complete package build and
+Launchpad PPA release workflow.
+
+Removing the Debian package disables and verifies all product-derived child
+restrictions, removes the dedicated kiosk account and generated system
+integration, and leaves canonical child preferences and redacted product logs
+available for a later reinstall or administrator-directed archival.
+
 ## Development
 
 On a clean Ubuntu Desktop development machine, install the dependencies for

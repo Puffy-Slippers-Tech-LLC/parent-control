@@ -75,7 +75,7 @@ class KioskRenderingTests(unittest.TestCase):
         )
         self.assertIn('self._bus_call("GetOwnAccount"', source)
         self.assertIn('"RequestOwnAccess"', source)
-        self.assertIn('CHILD_SUCCESS_COPY = "Time granted, click here to close"', source)
+        self.assertIn('CHILD_SUCCESS_COPY = "Time granted, Close"', source)
         self.assertIn('CHILD_SUCCESS_TITLE = "Time granted"', source)
         self.assertIn("self._show_child_success()", source)
         self.assertIn("SUCCESS_LOGOUT_DELAY_MS = 3_000", source)
@@ -130,7 +130,40 @@ class KioskRenderingTests(unittest.TestCase):
 
         title_rule = css.split(".oh-no-parent-control-page-title {", 1)[1]
         title_rule = title_rule.split("}", 1)[0]
-        self.assertIn("padding-top: 5px;", title_rule)
+        self.assertIn("min-height: 24px;", title_rule)
+        self.assertIn("margin-top: 8px;", title_rule)
+        self.assertIn("padding: 12px 0 3px;", title_rule)
+
+    def test_kiosk_success_omits_redundant_child_detail(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+
+        self.assertIn('self._show_result("Request approved", "")', source)
+        self.assertNotIn("The requested access is ready for", source)
+        self.assertNotIn("self._requested_label", source)
+
+    def test_results_without_detail_use_compact_board_height(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+        css = (ROOT / "kiosk/oh_no_parent_control_kiosk/style.css").read_text(
+            encoding="utf-8",
+        )
+
+        self.assertIn("if detail:", source)
+        self.assertIn(
+            'self._result_view.remove_css_class(\n'
+            '                "oh-no-parent-control-compact-result",',
+            source,
+        )
+        self.assertIn(
+            'self._result_view.add_css_class(\n'
+            '                "oh-no-parent-control-compact-result",',
+            source,
+        )
+        compact_rule = css.split(
+            ".oh-no-parent-control-secondary-page."
+            "oh-no-parent-control-compact-result {",
+            1,
+        )[1].split("}", 1)[0]
+        self.assertIn("min-height: 144px;", compact_rule)
 
     def test_escape_matches_the_cancel_action_when_no_auth_prompt_is_open(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
@@ -146,6 +179,15 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("if self._state.in_flight:\n            return False", source)
         self.assertIn("self._cancel()\n        return True", source)
 
+    def test_screen_time_disabled_never_enables_request_submission(self):
+        content = KIOSK_CONTENT.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "self._controls_enabled and self._ready and\n"
+            "            self._screen_time_limit_enabled is True",
+            content,
+        )
+
     def test_preview_uses_the_production_window_without_privileged_services(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
@@ -155,7 +197,9 @@ class KioskRenderingTests(unittest.TestCase):
             "            child_overlay=self._child_overlay,",
             source,
         )
-        self.assertIn("self._system_bus = None if preview", source)
+        self.assertIn("self._interactive_preview = broker_connection is not None", source)
+        self.assertIn("broker_connection if broker_connection is not None else", source)
+        self.assertIn("(None if preview else Gio.bus_get_sync", source)
         self.assertIn("PREVIEW_USERS[:1] if self._child_overlay else PREVIEW_USERS", source)
         self.assertIn("This is a visual preview; no access was requested.", source)
         self.assertIn("PREVIEW_DEFAULT_WIDTH = 1918", source)
@@ -173,7 +217,11 @@ class KioskRenderingTests(unittest.TestCase):
     def test_preview_content_is_a_window_drag_handle(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
-        self.assertIn("if self._preview:\n            # The production kiosk", source)
+        self.assertIn(
+            "if self._preview:\n"
+            "            # The production kiosk",
+            source,
+        )
         self.assertIn("drag_handle = Gtk.WindowHandle()", source)
         self.assertIn("drag_handle.set_child(layout)", source)
         self.assertIn("self.set_content(drag_handle)", source)
@@ -391,13 +439,11 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("filter_row = Gtk.Button(hexpand=True)", source)
         self.assertIn("filter_row.set_margin_start(10)", source)
         self.assertIn("filter_row.set_margin_end(10)", source)
+        self.assertIn('self._allow_soft, "Allow soft blocked apps",', source)
+        self.assertIn("self._allow_soft = Gtk.Switch(valign=Gtk.Align.CENTER)", source)
         self.assertIn("self._allow_soft.set_can_target(False)", source)
         self.assertIn('filter_row.connect("clicked", self._toggle_allow_soft)', source)
         self.assertIn("def _toggle_allow_soft(self, _button):", source)
-        self.assertIn(
-            "self._allow_soft.set_active(not self._allow_soft.get_active())",
-            source,
-        )
         self.assertIn(
             "button.oh-no-parent-control-app-filter-toggle:hover",
             css,
@@ -450,7 +496,7 @@ class KioskRenderingTests(unittest.TestCase):
             source.index("self.append(self._screen_limit_overlay)"),
             source.index("self.append(self._cancel)"),
         )
-        self.assertIn("self._screen_time_limit_enabled is not None", source)
+        self.assertIn("self._screen_time_limit_enabled is True", source)
         self.assertIn(
             "self._custom_entry.set_sensitive(request_available and time_limit_enabled)",
             source,

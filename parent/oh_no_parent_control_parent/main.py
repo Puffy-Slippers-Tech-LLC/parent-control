@@ -17,7 +17,9 @@ gi.require_version("Gdk", "4.0")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
-from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
+from common.oh_no_parent_control_ui.about import (
+    AboutDialog, app_name, branding_asset_path, open_help,
+)
 from common.oh_no_parent_control_ui.accessibility import describe_control
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
@@ -72,6 +74,7 @@ CONTENT_MAX_WIDTH = 1046
 DEFAULT_WINDOW_WIDTH = CONTENT_MAX_WIDTH + 2 * 24
 TIME_STATUS_RETRY_DELAY_SECONDS = 1
 MAX_TIME_STATUS_RETRIES = 3
+CUSTOM_DAILY_LIMIT_SAVE_DELAY_MS = 350
 # Building every app row on the GTK thread in one burst freezes the window.
 # Yield between small batches so the App Limits tab can switch immediately
 # and the loading mask can keep animating.
@@ -233,6 +236,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._save_in_progress = False
         self._pending_saves = []
         self._restore_preferences_uid = None
+        self._custom_daily_limit_save_id = 0
         self._time_status_loading = False
         self._time_status_refresh_pending = False
         self._time_status_retry_id = 0
@@ -261,9 +265,27 @@ class ParentWindow(Adw.ApplicationWindow):
     def _build(self):
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar(css_classes=["parent-header"])
-        header.set_title_widget(Adw.WindowTitle(
+        # Use the same installed branding asset as the About dialog, rather
+        # than a themed icon, so the Parent App has a consistent product mark
+        # in development and after packaging.
+        title_brand = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=10,
+            valign=Gtk.Align.CENTER,
+            css_classes=["parent-title-brand"],
+        )
+        title_logo = Gtk.Image.new_from_file(
+            str(branding_asset_path("app_logo_gnome_launcher.png")),
+        )
+        title_logo.set_pixel_size(48)
+        title_logo.update_property(
+            [Gtk.AccessibleProperty.LABEL], [f"{app_name()} logo"],
+        )
+        title_brand.append(title_logo)
+        title_brand.append(Adw.WindowTitle(
             title=app_name(), css_classes=["parent-window-title"],
         ))
+        header.set_title_widget(title_brand)
         menu = Gio.Menu()
         menu.append("Help", "win.help")
         menu.append("About", "win.about")
@@ -456,22 +478,26 @@ class ParentWindow(Adw.ApplicationWindow):
         self._enabled.connect("notify::active", self._enabled_changed)
         control_row.add_suffix(self._enabled)
         screen_limit_rows.append(control_row)
-        self._daily_limit = Adw.ComboRow(
+        daily_limit_row = Adw.ActionRow(
             title="Daily Time Allowance",
-            model=Gtk.StringList.new([
-                *[_daily_limit_label(minutes) for minutes in DAILY_LIMIT_PRESETS],
-                "Custom value",
-            ]),
-            sensitive=False,
             css_classes=["daily-limit-row"],
         )
+        daily_limit_row.add_prefix(self._setting_icon("x-office-calendar-symbolic"))
+        # Expose each choice as a named button in a Gtk.Popover. Gtk.DropDown
+        # presents a combo-box role here but no AT-SPI selection or action
+        # interface, which prevents assistive technology from selecting a
+        # daily allowance.
+        self._daily_limit_selected = 0
+        self._daily_limit = Gtk.MenuButton(label=_daily_limit_label(0))
+        self._daily_limit.set_sensitive(False)
+        self._daily_limit.set_valign(Gtk.Align.CENTER)
         describe_control(
             self._daily_limit, "Daily time allowance",
             "Choose the selected child's daily screen-time allowance.",
         )
-        self._daily_limit.add_prefix(self._setting_icon("x-office-calendar-symbolic"))
-        self._daily_limit.connect("notify::selected", self._daily_limit_changed)
-        screen_limit_rows.append(self._daily_limit)
+        self._daily_limit.set_popover(self._daily_limit_popover())
+        daily_limit_row.add_suffix(self._daily_limit)
+        screen_limit_rows.append(daily_limit_row)
         self._custom_daily_limit = Adw.ActionRow(
             title="Custom daily allowance",
             subtitle="Enter a whole number from 0 to 1439.",
@@ -491,6 +517,9 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         self._custom_daily_limit_entry.connect(
             "activate", self._custom_daily_limit_changed,
+        )
+        self._custom_daily_limit_entry.connect(
+            "changed", self._custom_daily_limit_text_changed,
         )
         custom_daily_limit_focus = Gtk.EventControllerFocus.new()
         custom_daily_limit_focus.connect("leave", self._custom_daily_limit_changed)
@@ -1450,29 +1479,29 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _close_requested(self, *_args):
         self._cancel_time_status_retry()
+        self._cancel_custom_daily_limit_save()
         if self._time_status_refresh_id:
             GLib.source_remove(self._time_status_refresh_id)
             self._time_status_refresh_id = 0
         return False
 
     def _set_apps_sensitive(self, sensitive):
-        sensitive = bool(
-            sensitive and not self._loading and self._selected_uid() is not None
-        )
-        self._account.set_sensitive(not self._loading)
+        idle = not self._loading and not getattr(self, "_save_in_progress", False)
+        sensitive = bool(sensitive and idle and self._selected_uid() is not None)
+        self._account.set_sensitive(idle)
         self._revoke.set_sensitive(
-            not self._loading and self._selected_uid() is not None and
+            idle and self._selected_uid() is not None and
             getattr(self, "_remaining_time_seconds", None) is not None and
             self._remaining_time_seconds > 0
         )
-        self._enabled.set_sensitive(not self._loading and self._selected_uid() is not None)
+        self._enabled.set_sensitive(idle and self._selected_uid() is not None)
         self._daily_limit.set_sensitive(
-            not self._loading and self._selected_uid() is not None and
+            idle and self._selected_uid() is not None and
             self._enabled.get_active()
         )
         if hasattr(self, "_custom_daily_limit"):
             self._custom_daily_limit.set_sensitive(
-                not self._loading and self._selected_uid() is not None and
+                idle and self._selected_uid() is not None and
                 self._enabled.get_active()
             )
         table_ready = getattr(self, "_apps_table_ready", True)
@@ -1529,17 +1558,41 @@ class ParentWindow(Adw.ApplicationWindow):
         self._daily_limit.set_sensitive(switch.get_active())
         self._save_parent_control(switch.get_active())
 
-    def _daily_limit_changed(self, row, _param):
+    def _daily_limit_popover(self):
+        choices = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        for index, minutes in enumerate(DAILY_LIMIT_PRESETS):
+            choice = Gtk.Button(label=_daily_limit_label(minutes), hexpand=True)
+            describe_control(
+                choice, _daily_limit_label(minutes),
+                f"Set the selected child's daily allowance to {_daily_limit_label(minutes)}.",
+            )
+            choice.connect("clicked", self._daily_limit_changed, index)
+            choices.append(choice)
+        custom = Gtk.Button(label="Custom value", hexpand=True)
+        describe_control(custom, "Custom value", "Enter a custom daily allowance in minutes.")
+        custom.connect("clicked", self._daily_limit_changed, CUSTOM_DAILY_LIMIT_INDEX)
+        choices.append(custom)
+        return Gtk.Popover(child=Gtk.ScrolledWindow(
+            child=choices, min_content_height=360, min_content_width=220,
+        ))
+
+    def _daily_limit_changed(self, _button, selected):
         if self._loading or self._selected_uid() is None:
             return
-        is_custom = row.get_selected() == CUSTOM_DAILY_LIMIT_INDEX
+        self._daily_limit_selected = selected
+        is_custom = selected == CUSTOM_DAILY_LIMIT_INDEX
+        self._daily_limit.set_label("Custom value" if is_custom else _daily_limit_label(
+            DAILY_LIMIT_PRESETS[selected],
+        ))
         self._custom_daily_limit.set_visible(is_custom)
+        self._daily_limit.popdown()
         if is_custom:
             self._custom_daily_limit_entry.grab_focus()
             return
         self._save_parent_control(self._enabled.get_active())
 
     def _custom_daily_limit_changed(self, *_args):
+        self._cancel_custom_daily_limit_save()
         if self._loading or self._selected_uid() is None:
             return False
         text = self._custom_daily_limit_entry.get_text().strip()
@@ -1554,17 +1607,37 @@ class ParentWindow(Adw.ApplicationWindow):
         self._save_parent_control(self._enabled.get_active())
         return False
 
+    def _custom_daily_limit_text_changed(self, *_args):
+        """Debounce custom-value edits before persisting the complete number."""
+        self._cancel_custom_daily_limit_save()
+        if self._loading or self._selected_uid() is None:
+            return
+        self._custom_daily_limit_save_id = GLib.timeout_add(
+            CUSTOM_DAILY_LIMIT_SAVE_DELAY_MS, self._save_debounced_custom_daily_limit,
+        )
+
+    def _save_debounced_custom_daily_limit(self):
+        self._custom_daily_limit_save_id = 0
+        self._custom_daily_limit_changed()
+        return GLib.SOURCE_REMOVE
+
+    def _cancel_custom_daily_limit_save(self):
+        if self._custom_daily_limit_save_id:
+            GLib.source_remove(self._custom_daily_limit_save_id)
+            self._custom_daily_limit_save_id = 0
+
     def _set_daily_limit_value(self, minutes):
         """Load a saved value into either a preset or the Custom value row."""
         selected, is_custom = _daily_limit_selection(minutes)
-        self._daily_limit.set_selected(selected)
+        self._daily_limit_selected = selected
+        self._daily_limit.set_label("Custom value" if is_custom else _daily_limit_label(minutes))
         self._custom_daily_limit.set_visible(is_custom)
         if is_custom:
             self._custom_daily_limit_entry.set_text(str(minutes))
 
     def _daily_limit_minutes(self):
-        if self._daily_limit.get_selected() != CUSTOM_DAILY_LIMIT_INDEX:
-            return DAILY_LIMIT_PRESETS[self._daily_limit.get_selected()]
+        if self._daily_limit_selected != CUSTOM_DAILY_LIMIT_INDEX:
+            return DAILY_LIMIT_PRESETS[self._daily_limit_selected]
         text = self._custom_daily_limit_entry.get_text().strip()
         if text.isdecimal() and 0 <= int(text) <= MAX_CUSTOM_DAILY_LIMIT_MINUTES:
             return int(text)
@@ -1739,6 +1812,10 @@ class ParentWindow(Adw.ApplicationWindow):
     def _start_save(self, save):
         kind, uid, arguments = save
         self._save_in_progress = True
+        # A preference document is written as one record.  Freeze controls
+        # that can change it until this write has an authoritative outcome.
+        # This prevents a second click from racing the saved snapshot.
+        self._set_apps_sensitive(False)
         if kind == "app-policy":
             self._start_app_policy_save(uid, *arguments)
         else:
@@ -1754,6 +1831,8 @@ class ParentWindow(Adw.ApplicationWindow):
         if refresh_time_status:
             self._load_time_status()
         self._start_next_save()
+        if not self._save_in_progress and hasattr(self, "_set_apps_sensitive"):
+            self._set_apps_sensitive(True)
 
     def _save_failed(self, uid, setting, error):
         self._save_in_progress = False
@@ -1763,6 +1842,8 @@ class ParentWindow(Adw.ApplicationWindow):
         if uid == self._selected_uid():
             self._restore_preferences_uid = uid
         self._start_next_save()
+        if not self._save_in_progress and hasattr(self, "_set_apps_sensitive"):
+            self._set_apps_sensitive(True)
 
     def _start_next_save(self):
         if self._pending_saves:

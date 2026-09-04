@@ -90,6 +90,36 @@ class ExecutionPolicyTests(unittest.TestCase):
 
             self.assertEqual(rules_path.read_text(encoding="utf-8"), "old\n")
 
+    def test_remove_deletes_rules_and_loads_the_result(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            rules_path = Path(temporary) / "89-oh-no-parent-control.rules"
+            rules_path.write_text("old\n", encoding="utf-8")
+            policy = FapolicydPolicy(rules_path, ("fagenrules", "--load"))
+            completed = SimpleNamespace(returncode=0, stdout="", stderr="")
+            with mock.patch(
+                    "oh_no_parent_control.execution_policy.subprocess.run",
+                    return_value=completed) as run:
+                policy.remove()
+
+            self.assertFalse(rules_path.exists())
+            self.assertEqual(run.call_args.args[0], ("fagenrules", "--load"))
+
+    def test_failed_remove_reload_restores_previous_rules(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            rules_path = Path(temporary) / "89-oh-no-parent-control.rules"
+            rules_path.write_text("old\n", encoding="utf-8")
+            policy = FapolicydPolicy(rules_path)
+            outcomes = [
+                SimpleNamespace(returncode=1, stdout="", stderr="bad"),
+                SimpleNamespace(returncode=0, stdout="", stderr=""),
+            ]
+            with mock.patch(
+                    "oh_no_parent_control.execution_policy.subprocess.run",
+                    side_effect=outcomes), self.assertRaises(ExecutionPolicyError):
+                policy.remove()
+
+            self.assertEqual(rules_path.read_text(encoding="utf-8"), "old\n")
+
 
 if __name__ == "__main__":
     unittest.main()

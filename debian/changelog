@@ -1,5 +1,9 @@
-oh-no-parent-control (1.0.0) unstable; urgency=medium
+oh-no-parent-control (1.0.0) resolute; urgency=medium
 
-  * Initial Debian package.
+  * Initial Ubuntu 26.04 package.
+  * Add clean-build metadata and a documented Launchpad PPA release workflow.
+  * Harden maintainer scripts and classify package-update activation.
+  * Resolve new kiosk accounts through AccountsService before provisioning.
+  * Remove and verify derived enforcement during Debian package uninstall.
 
- -- Puffy Slippers <support@puffyslippers.com>  Mon, 31 Aug 2026 12:00:00 -0700
+ -- Puffy Slippers <support@puffyslippers.com>  Thu, 03 Sep 2026 15:11:16 -0700

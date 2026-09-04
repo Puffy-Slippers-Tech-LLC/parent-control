@@ -333,6 +333,62 @@ class ExtensionManagerTests(unittest.TestCase):
             mock.call(account, DISABLED_KEY, []),
         ])
 
+    def test_remove_clears_both_extension_lists_offline(self):
+        account = SimpleNamespace(
+            pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name="child",
+            pw_dir="unused",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            manager = ExtensionManager(
+                runtime_root=Path(directory) / "missing-runtime"
+            )
+            with (
+                mock.patch.object(
+                    manager, "_account", return_value=(account, Path(directory))
+                ),
+                mock.patch.object(
+                    manager, "_list",
+                    side_effect=[
+                        ["existing@example.com", UUID],
+                        [UUID, "disabled@example.com"],
+                        ["existing@example.com"],
+                        ["disabled@example.com"],
+                    ],
+                ),
+                mock.patch.object(manager, "_set_list") as set_list,
+            ):
+                manager.remove(account.pw_uid)
+
+        self.assertEqual(set_list.call_args_list, [
+            mock.call(account, ENABLED_KEY, ["existing@example.com"]),
+            mock.call(account, DISABLED_KEY, ["disabled@example.com"]),
+        ])
+
+    def test_remove_does_not_disable_an_already_inactive_live_extension(self):
+        account = SimpleNamespace(
+            pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name="child",
+            pw_dir="unused",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            manager = ExtensionManager()
+            with (
+                mock.patch.object(
+                    manager, "_account", return_value=(account, Path(directory))
+                ),
+                mock.patch.object(manager, "_shell_is_available", return_value=True),
+                mock.patch.object(
+                    manager, "_runtime_state",
+                    side_effect=[(False, False), (False, False)],
+                ),
+                mock.patch.object(manager, "_list", side_effect=[[], [], [], []]),
+                mock.patch.object(manager, "_set_live") as set_live,
+                mock.patch.object(manager, "_set_list") as set_list,
+            ):
+                manager.remove(account.pw_uid)
+
+        set_live.assert_not_called()
+        set_list.assert_not_called()
+
     def test_activation_readback_failure_restores_original_settings(self):
         account = SimpleNamespace(
             pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name="child",

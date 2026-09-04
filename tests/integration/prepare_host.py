@@ -21,6 +21,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -223,13 +224,15 @@ class LibvirtSource:
 
     def shutdown(self, revalidate, requested, timeout=180):
         expired = False
+        changed = threading.Event()
 
         def deadline(_timer, _opaque):
             nonlocal expired
             expired = True
+            changed.set()
 
         callback = self.connection.domainEventRegisterAny(
-            self.domain, self.api.VIR_DOMAIN_EVENT_ID_LIFECYCLE, lambda *_args: None, None)
+            self.domain, self.api.VIR_DOMAIN_EVENT_ID_LIFECYCLE, lambda *_args: changed.set(), None)
         timer = self.api.virEventAddTimeout(timeout * 1000, deadline, None)
         try:
             revalidate()
@@ -239,7 +242,9 @@ class LibvirtSource:
                 self.domain.shutdownFlags(self.api.VIR_DOMAIN_SHUTDOWN_ACPI_POWER_BTN)
             while not self.snapshot()[1]:
                 require(not expired, "shutdown:timeout")
-                self.api.virEventRunDefaultImpl()
+                require(changed.wait(timeout), "shutdown:timeout")
+                changed.clear()
+                require(not expired, "shutdown:timeout")
             revalidate()
         finally:
             self.api.virEventRemoveTimeout(timer)
@@ -249,12 +254,10 @@ class LibvirtSource:
         self.connection.close()
 
     def baseline(self):
-        try:
-            return self.domain.snapshotLookupByName(SNAPSHOT, 0).getXMLDesc(0)
-        except self.api.libvirtError as error:
-            if error.get_error_code() == self.api.VIR_ERR_NO_DOMAIN_SNAPSHOT:
-                return None
-            raise
+        for snapshot in self.domain.listAllSnapshots(0):
+            if snapshot.getName() == SNAPSHOT:
+                return snapshot.getXMLDesc(0)
+        return None
 
     def create_baseline(self, layout, description):
         current, off = self.snapshot()
@@ -556,12 +559,14 @@ class Capture:
             require(self.state["script_digest"] == self.script_digest, "guest:script-digest")
             if self.state["phase"] == "snapshot-requested":
                 self.revalidate(off=True, hashes=True)
+            log("stage:source-digests")
             self.state["source_digests"] = [digest(item["path"]) for item in self.state["source"]["chain"]]
             log("stage:offline-inspection")
             observed = self.inspect(top, self.script_digest)
             if self.state["guest"] is not None:
                 require(observed == self.state["guest"], "guest:changed")
             self.state["guest"] = observed
+            log("stage:disk-verification")
             self.commands.check(top)
             self.revalidate(off=True, hashes=True)
             self.save("snapshot-requested")
@@ -594,6 +599,19 @@ def main(argv=None):
             log("tools:available")
             return 0
         require(os.geteuid() == os.getegid() == 0, "guard:root; enter a root shell on the development host")
+        # libvirt requires continuous event dispatch to answer server keepalives,
+        # including during hashing, libguestfs inspection and QEMU checks.
+        # The process-lifetime daemon also drains callbacks after close().
+        api = modules["libvirt"]
+        api.virEventRegisterDefaultImpl()
+        def dispatch_events():
+            while True:
+                try:
+                    api.virEventRunDefaultImpl()
+                except Exception:
+                    log("connection:event-loop-failed")
+                    return
+        threading.Thread(target=dispatch_events, name="libvirt-events", daemon=True).start()
         source = LibvirtSource(modules["libvirt"])
         capture = Capture(source, Commands(), lambda disk, sha: inspect_guest(modules["guestfs"], disk, sha))
         capture.run()

@@ -49,8 +49,8 @@ SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
 MUSIC_FADE_TICK_MS = 50
 # Keep the soundtrack comfortably behind form interaction and let a live bolt
 # read as a deliberate electrical event rather than background texture.
-BACKGROUND_MUSIC_VOLUME = 0.18
-LIGHTNING_SIZZLE_VOLUME = 0.70
+BACKGROUND_MUSIC_VOLUME = 0.12
+LIGHTNING_SIZZLE_VOLUME = 0.90
 CHILD_SUCCESS_TITLE = "Time granted"
 CHILD_SUCCESS_COPY = "Time granted, Close"
 GATEWAY_EFFECT_FRAME_MS = 33

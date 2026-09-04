@@ -63,6 +63,7 @@ fi
     devscripts \
     dh-python \
     dput \
+    flatpak=1.16.6-1 \
     gnome-ponytail-daemon=0.0.11-1build1 \
     gnupg \
     gir1.2-adw-1 \

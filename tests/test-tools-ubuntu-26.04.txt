@@ -15,6 +15,7 @@ mutter=50.1-0ubuntu2.2
 mutter-dev-bin=50.1-0ubuntu2.2
 at-spi2-core=2.60.4-0ubuntu0.1
 dbus-daemon=1.16.2-2ubuntu4
+flatpak=1.16.6-1
 pipewire=1.6.2-1ubuntu1.1
 libpam0g-dev=1.7.0-5ubuntu3.2
 shellcheck=0.11.0-2

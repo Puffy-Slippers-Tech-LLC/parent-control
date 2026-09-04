@@ -75,7 +75,7 @@ make check
 The unit and private-D-Bus component suites use pytest. On Ubuntu 26.04,
 `setup.sh` installs the reviewed archive versions listed in
 `tests/test-tools-ubuntu-26.04.txt`, including `python3-pytest=9.0.2-4` and
-`python3-dbusmock=0.38.1-1`. Run `make check-unit` for unit and contract tests,
+`python3-dbusmock=0.38.1-1`, and `flatpak=1.16.6-1`. Run `make check-unit` for unit and contract tests,
 or `make check-component` for private-bus, JavaScript (Node and GJS), hermetic
 GTK, and isolated GNOME Shell component tests. `make check-child-shell` runs
 the GNOME Shell 50 child-extension lifecycle, indicator interaction, and
@@ -93,6 +93,21 @@ writes LCOV coverage to `artifacts/coverage/gjs-child/coverage.lcov`.
 `setup.sh` creates its isolated Dogtail 2.1.0 environment from the hash-pinned
 wheel in `tests/ui/requirements.txt` and installs Ubuntu's maintained
 `gnome-ponytail-daemon` package for real Wayland runs that need input injection.
+
+`make check-test-fixtures` builds deterministic native and Flatpak enforcement
+targets, launches them as the current unprivileged UID, and verifies their
+digests. It gives Flatpak an isolated temporary `HOME` and XDG tree, never uses
+the developer's user or system Flatpak installation, and removes the whole
+temporary tree after the test. To retain a payload for a guarded disposable-VM
+test, provide an explicit empty directory beneath `/tmp`:
+
+```sh
+make build-test-fixtures OUTPUT_DIR="$(mktemp -d /tmp/onpc-test-fixtures-XXXXXX)/payload"
+```
+
+This command only builds an image payload; it does not install an application,
+create an account, alter application policy, or start a VM. Later system tests
+may copy that payload only after their guest guard has verified a disposable VM.
 
 Preview the kiosk UI from the checkout, with representative fixture data and
 without a kiosk login, broker, D-Bus calls, Polkit, or account changes:

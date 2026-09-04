@@ -137,6 +137,18 @@ profile. Re-run them, including committed regression examples, with:
 make check-unit
 ```
 
+### Deterministic application fixtures
+
+`tests/fixtures/build_test_applications.py` source-builds a static
+long-running native target, deterministic AppImage-style copies and desktop
+entries, plus a local Flatpak repository and bundle. `make check-test-fixtures`
+builds and launches them in an unprivileged temporary directory with a private
+Flatpak user installation. It cannot access the development user's real
+Flatpak installation or the system installation. `make build-test-fixtures`
+requires an explicit empty output below `/tmp` and creates only a payload; it
+does not install the fixtures. A later guest-mutating task must copy that
+payload only after the guest guard validates the disposable VM marker.
+
 ### Disposable VM integration tests
 
 Do not run `make installdeb` on a development workstation. Running `make check`

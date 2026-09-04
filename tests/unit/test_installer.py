@@ -118,6 +118,14 @@ class PackageDeploymentTests(unittest.TestCase):
         branding = ROOT / "data/brand.json"
         values = json.loads(branding.read_text(encoding="utf-8"))
         self.assertIn("BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_logo.png", makefile)
+        self.assertIn(
+            "EXTENSION_BRANDING_ASSETS := $(BRANDING_ASSETS) data/app_logo_gnome_launcher.png",
+            makefile,
+        )
+        self.assertIn(
+            "EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%)",
+            makefile,
+        )
         with (ROOT / "data/app_logo_gnome_launcher.png").open("rb") as source:
             source.read(16)
             self.assertEqual(struct.unpack(">II", source.read(8)), (512, 512))

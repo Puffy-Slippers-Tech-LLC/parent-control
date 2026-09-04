@@ -58,7 +58,7 @@ record.
 - [x] Task 10B — Add the isolated nested-Shell lifecycle smoke
 - [x] Task 10C — Automate child indicator request interaction
 - [x] Task 10D — Verify reload, preserve artifacts, and finish integration
-- [ ] Task 11 — Build deterministic native and Flatpak test applications
+- [x] Task 11 — Build deterministic native and Flatpak test applications
 - [ ] Task 12 — Add safe immutable VM baselines and disposable overlay clones
 - [ ] Task 13 — Add Debian-package autopkgtest infrastructure
 - [ ] Task 14 — Test installed broker identity and authorization boundaries
@@ -290,4 +290,10 @@ Append one entry only after its checklist item has been changed to `[x]`:
 
 - Result: Added controlled-copy nested-Shell reload evidence with observable generations, per-attempt and stable log/PNG artifacts captured through GNOME Shell's public Screenshot D-Bus service, lifecycle/error-category records, extension-attributable diagnostic scans, and truthful child component requirement mapping.
 - Verification: `python3 -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`; `tools/run-ui-tests --timeout 360s tests/ui/test_child_shell_lifecycle.py -m ui -q` (three consecutive fresh processes: 80.02s, 80.39s, 80.03s); `python3 tools/verify_test_traceability.py --mode stage`; `make check-component`; `make check`; `git diff --check`
+- Commit: not committed
+
+### Task 11 completed — 2026-09-04
+
+- Result: Added source-built static native test targets, exact/space/version-pattern AppImage-style copies, deterministic child and system desktop entries, a self-contained minimal Flatpak repository and bundle, digest verification, and UID-recorded launch/cleanup helpers. The builder accepts only explicit empty output beneath `/tmp`; Flatpak smoke state is isolated below that temporary payload.
+- Verification: `make check-test-fixtures`; `python3 -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`; `make check`; `git diff --check`
 - Commit: not committed

@@ -418,6 +418,37 @@ class Capture:
                 stat.S_IMODE(info.st_mode) == 0o700, "guard:baseline-directory")
         return {"device": info.st_dev, "inode": info.st_ino}
 
+    def prepare_private_directory(self):
+        """Create, or safely repair, the empty controller-state directory.
+
+        A source guest can expose the host's ``/Data`` share and maps its root
+        user to an unprivileged host identity.  A mistaken guest-side invocation
+        can therefore leave an empty directory at the fixed state path.  It has
+        no controller state to preserve, so the host controller repairs only
+        that exact empty directory.  Any entry remains evidence and is refused.
+        """
+        canonical(self.directory.parent)
+        if not os.path.lexists(self.directory):
+            self.refuse_existing_snapshot()
+            self.directory.mkdir(mode=0o700)
+            sync_directory(self.directory.parent)
+
+        canonical(self.directory)
+        descriptor = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(descriptor)
+            require(stat.S_ISDIR(info.st_mode), "guard:baseline-directory")
+            if (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) != (os.geteuid(), os.getegid(), 0o700):
+                require(not os.listdir(descriptor), "guard:baseline-directory")
+                os.fchown(descriptor, os.geteuid(), os.getegid())
+                os.fchmod(descriptor, 0o700)
+                os.fsync(descriptor)
+                log("state:repaired-empty-baseline-directory")
+        finally:
+            os.close(descriptor)
+        sync_directory(self.directory.parent)
+        return self.private_directory()
+
     def save(self, phase):
         require(phase in PHASES, "state:phase")
         require(self.private_directory() == self.directory_identity, "guard:directory-changed")
@@ -463,12 +494,7 @@ class Capture:
     def run(self):
         # Resolve the existing disk and chain before filesystem writes/shutdown.
         inventory, _off = self.inventory()
-        canonical(self.directory.parent)
-        if not os.path.lexists(self.directory):
-            self.refuse_existing_snapshot()
-            self.directory.mkdir(mode=0o700)
-            sync_directory(self.directory.parent)
-        self.directory_identity = self.private_directory()
+        self.directory_identity = self.prepare_private_directory()
         fd = os.open(self.directory / ".lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
             identity(self.directory / ".lock", private=True, mode=0o600)

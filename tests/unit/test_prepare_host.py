@@ -144,6 +144,28 @@ def test_capture_creates_named_internal_snapshot_without_copy(rig):
     assert "password" not in json.dumps(state(rig))
 
 
+def test_capture_repairs_an_empty_misowned_or_moded_state_directory(rig):
+    rig.directory.mkdir(mode=0o700)
+    rig.directory.chmod(0o2700)
+
+    rig.capture().run()
+
+    assert stat.S_IMODE(rig.directory.stat().st_mode) == 0o700
+    assert state(rig)["phase"] == "finalized"
+
+
+def test_capture_preserves_nonempty_invalid_state_directory(rig):
+    rig.directory.mkdir(mode=0o700)
+    (rig.directory / "untrusted-state").write_text("retain")
+    rig.directory.chmod(0o2700)
+
+    with pytest.raises(host.CaptureError, match="baseline-directory"):
+        rig.capture().run()
+
+    assert (rig.directory / "untrusted-state").read_text() == "retain"
+    assert rig.source.shutdown_calls == 0
+
+
 @pytest.mark.parametrize("running", [False, True])
 def test_repeat_preserves_baseline_after_product_testing(rig, running):
     rig.capture().run()

@@ -15,9 +15,23 @@ Files: kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf
 Copyright: 2022 Idrees Hassan <https://github.com/IdreesInc/Monocraft>
 License: OFL-1.1
 
+Files: parent/oh_no_parent_control_parent/thunderbird-default128.png
+       parent/oh_no_parent_control_parent/THUNDERBIRD-BRANDING-LICENSE
+Copyright: Mozilla Foundation
+License: MPL-2.0
+Comment:
+ The bundled Thunderbird icon is an unmodified copy from
+ https://hg.mozilla.org/comm-central/raw-file/tip/mail/branding/thunderbird/default128.png
+ Its accompanying license notice reserves Mozilla trademark rights. The icon
+ identifies Thunderbird in the parent-preview fixture only.
+
 License: GPL-3.0-only
  On Debian systems, the complete text of the GNU General Public License
  version 3 is in /usr/share/common-licenses/GPL-3.
+
+License: MPL-2.0
+ The complete text of the Mozilla Public License, version 2.0, is available at
+ https://www.mozilla.org/MPL/2.0/.
 
 License: OFL-1.1
  The complete text of the SIL Open Font License version 1.1 is shipped in

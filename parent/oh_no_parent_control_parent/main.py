@@ -79,27 +79,28 @@ CUSTOM_DAILY_LIMIT_SAVE_DELAY_MS = 350
 # Yield between small batches so the App Limits tab can switch immediately
 # and the loading mask can keep animating.
 CATALOG_ROW_BATCH_SIZE = 8
-PREVIEW_USERS = ((1001, "Alex Morgan"), (1002, "Sam Rivera"))
+PREVIEW_USERS = ((1001, "Riley Parker"), (1002, "Jordan Parker"))
+PREVIEW_THUNDERBIRD_ICON = str(Path(__file__).with_name("thunderbird-default128.png"))
 PREVIEW_PREFERENCES = {
     1001: {
         "parent_control_enabled": True,
         "daily_time_limit_minutes": 90,
         "apps": {
-            "org.gnome.Software.desktop": {
+            "thunderbird_thunderbird.desktop": {
                 "state": "allowed",
-                "targets": ["/usr/lib/gnome-software/gnome-software-46.0"],
-                "patterns": ["/usr/lib/gnome-software/gnome-software-*.0"],
+                "targets": ["/snap/bin/thunderbird"],
+                "patterns": ["ABC"],
                 "user_saved_match_rule": True,
             },
-            "org.gnome.Epiphany.desktop": {
+            "lunarclient.desktop": {
                 "state": "permanent",
-                "targets": ["/usr/lib/epiphany/epiphany-46.0"],
-                "patterns": ["/usr/lib/epiphany/epiphany-*.0"],
+                "targets": ["/home/riley/Applications/Lunar Client-3.8.0.AppImage"],
+                "patterns": ["/home/riley/Applications/Lunar Client-*.AppImage"],
                 "user_saved_match_rule": True,
             },
-            "org.gnome.Calculator.desktop": {
+            "com.mojang.Minecraft.desktop": {
                 "state": "conditional",
-                "targets": ["/usr/bin/gnome-calculator"],
+                "targets": ["app/com.mojang.Minecraft/x86_64/stable"],
                 "patterns": [],
                 "user_saved_match_rule": False,
             },
@@ -115,27 +116,27 @@ PREVIEW_PREFERENCES = {
 }
 PREVIEW_APPS = (
     {
-        "id": "org.gnome.Software.desktop",
-        "name": "Software",
-        "description": "Install and update applications",
-        "icon": "org.gnome.Software",
-        "targets": ["/usr/lib/gnome-software/gnome-software-46.0"],
-        "suggested_patterns": ["/usr/lib/gnome-software/gnome-software-*.0"],
+        "id": "thunderbird_thunderbird.desktop",
+        "name": "Thunderbird",
+        "description": "Email and calendar",
+        "icon": PREVIEW_THUNDERBIRD_ICON,
+        "targets": ["/snap/bin/thunderbird"],
+        "suggested_patterns": ["ABC"],
     },
     {
-        "id": "org.gnome.Epiphany.desktop",
-        "name": "Web",
-        "description": "Browse the web",
-        "icon": "org.gnome.Epiphany",
-        "targets": ["/usr/lib/epiphany/epiphany-46.0"],
-        "suggested_patterns": ["/usr/lib/epiphany/epiphany-*.0"],
+        "id": "lunarclient.desktop",
+        "name": "Lunar Client",
+        "description": "Play Minecraft",
+        "icon": "lunar-client",
+        "targets": ["/home/riley/Applications/Lunar Client-3.8.0.AppImage"],
+        "suggested_patterns": ["/home/riley/Applications/Lunar Client-*.AppImage"],
     },
     {
-        "id": "org.gnome.Calculator.desktop",
-        "name": "Calculator",
-        "description": "Perform arithmetic",
-        "icon": "accessories-calculator-symbolic",
-        "targets": ["/usr/bin/gnome-calculator"],
+        "id": "com.mojang.Minecraft.desktop",
+        "name": "Minecraft",
+        "description": "Play Minecraft",
+        "icon": "com.mojang.Minecraft",
+        "targets": ["app/com.mojang.Minecraft/x86_64/stable"],
         "suggested_patterns": [],
     },
 )
@@ -920,11 +921,11 @@ class ParentWindow(Adw.ApplicationWindow):
         )
 
         header_content = Gtk.Box(spacing=16, valign=Gtk.Align.CENTER)
-        book = Gtk.Box(
+        book = Gtk.CenterBox(
             valign=Gtk.Align.CENTER,
             css_classes=["policy-legend-book"],
         )
-        book.append(Gtk.Image(
+        book.set_center_widget(Gtk.Image(
             icon_name="accessories-dictionary-symbolic", pixel_size=22,
         ))
         header_content.append(book)

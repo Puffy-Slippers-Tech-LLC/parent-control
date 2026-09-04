@@ -75,16 +75,12 @@ GATEWAY_FORM_CENTERING_OFFSET = 0.019
 PREVIEW_DEFAULT_WIDTH = 1918
 PREVIEW_DEFAULT_HEIGHT = 1443
 PREVIEW_USERS = (
-    (1001, "Alex Morgan"),
-    (1002, "Sam Rivera"),
-    (1003, "Jordan Hale"),
-    (1004, "Riley Chen"),
-    (1005, "Casey Brooks"),
+    (1001, "Riley Parker"),
+    (1002, "Jordan Parker"),
 )
 PREVIEW_APPROVERS = (
-    (1000, "Taylor Morgan"),
-    (1010, "Avery Quinn"),
-    (1011, "Morgan Blake"),
+    (1000, "Jamie Parker"),
+    (1010, "Casey Parker"),
 )
 PREVIEW_PREFERENCES = {
     1001: {

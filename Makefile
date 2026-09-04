@@ -39,6 +39,7 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop \
 	$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png \
 	$(DATADIR)/oh-no-parent-control/app_logo.png \
+	$(DATADIR)/oh-no-parent-control/app_logo_titlebar.png \
 	$(DATADIR)/oh-no-parent-control/app_logo_gnome_launcher.png \
 	$(DATADIR)/pam-configs/oh-no-parent-control-session-limits \
 	$(DATADIR)/pam-configs/oh-no-parent-control-kiosk-only \
@@ -51,6 +52,7 @@ EXTENSION_ASSETS := request-options.json
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
 BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_logo.png
+PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png
 EXTENSION_BRANDING_ASSETS := $(BRANDING_ASSETS) data/app_logo_gnome_launcher.png
 # gnome-extensions resolves extra sources relative to CHILD_DIR.
 EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../LICENSE ../COPYRIGHT ../NOTICE
@@ -263,7 +265,7 @@ _install-product-files:
 	# maintainer script assigns this file to Ubuntu's administrator group.
 	install -m 0640 data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	install -d "$(DESTDIR)$(DATADIR)/oh-no-parent-control" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control"
-	install -m 0644 config/config.example.json $(BRANDING_ASSETS) data/app_logo_gnome_launcher.png LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
+	install -m 0644 config/config.example.json $(BRANDING_ASSETS) $(PARENT_TITLEBAR_ASSET) data/app_logo_gnome_launcher.png LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf.in "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0755 tools/provision.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision"
 	install -m 0644 README.md LICENSE COPYRIGHT NOTICE docs/Compliance.md docs/System-Design.md docs/Package-Update.md docs/Publishing.md docs/Data-Migration.md docs/malcontent014-integration.md "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"

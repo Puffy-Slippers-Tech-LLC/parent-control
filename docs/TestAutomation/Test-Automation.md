@@ -10,10 +10,14 @@
 - Preserve the existing guarded VM provisioning and redacted artifact collection.
   Do not turn the existing SSH/libvirt harness into a custom screen automation
   framework.
-- Never execute tests in the protected golden VM. Produce a new QCOW2 overlay and
-  a uniquely named domain for every installed-system or end-to-end run. Test VMs
-  must not expose a writable host filesystem such as the current `/Data` virtiofs
-  share.
+- Task 12 has one explicit preparation exception for the existing
+  `ubuntu26.04` VM: an operator runs `make prep-vm` there once to create the
+  fixed test accounts, without installing the product, and then runs
+  `make prep-host` manually on the development host to capture a powered-off,
+  pre-install baseline. Never execute product tests in that source VM. Later
+  installed-system and end-to-end runs must use disposable guests derived from
+  the captured baseline and must not expose a writable host filesystem such as
+  the source VM's `/Data` virtiofs share.
 - Test the exact Debian package artifact as the sole release path. Record the
   artifact digest in every VM result.
 - Give every normative statement in `Specification.md` a stable requirement ID
@@ -59,7 +63,9 @@ record.
 - [x] Task 10C — Automate child indicator request interaction
 - [x] Task 10D — Verify reload, preserve artifacts, and finish integration
 - [x] Task 11 — Build deterministic native and Flatpak test applications
-- [ ] Task 12 — Add safe immutable VM baselines and disposable overlay clones
+- [ ] Task 12A — Add guarded in-VM test-account preparation
+- [ ] Task 12B — Add host-only pre-install baseline capture
+- [ ] Task 12C — Capture and verify the prepared VM baseline
 - [ ] Task 13 — Add Debian-package autopkgtest infrastructure
 - [ ] Task 14 — Test installed broker identity and authorization boundaries
 - [ ] Task 15 — Test installed catalog, fapolicyd, and process termination
@@ -89,6 +95,9 @@ record.
    Tasks 10A through 10D are separate tasks for this rule: complete and record
    exactly one of them in a session, then stop so a fresh session can select
    that next task's recommended model and reasoning effort.
+   Tasks 12A through 12C are likewise separate tasks: implement the two commands
+   in separate sessions, then stop for the manual preparation and read-only
+   acceptance session.
 2. Inspect the current worktree before editing. Preserve user changes and avoid
    unrelated cleanup.
 3. Use `docs/System-Design.md` for architecture and trust boundaries. Preserve
@@ -184,7 +193,9 @@ item.
 - [x] [Task 10C — Automate child indicator request interaction](Task-10C.md)
 - [x] [Task 10D — Verify reload, preserve artifacts, and finish integration](Task-10D.md)
 - [ ] [Task 11 — Build deterministic native and Flatpak test applications](Task-11.md)
-- [ ] [Task 12 — Add safe immutable VM baselines and disposable overlay clones](Task-12.md)
+- [ ] [Task 12A — Add guarded in-VM test-account preparation](Task-12A.md)
+- [ ] [Task 12B — Add host-only pre-install baseline capture](Task-12B.md)
+- [ ] [Task 12C — Capture and verify the prepared VM baseline](Task-12C.md)
 - [ ] [Task 13 — Add Debian-package autopkgtest infrastructure](Task-13.md)
 - [ ] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md)
 - [ ] [Task 15 — Test installed catalog, fapolicyd, and process termination](Task-15.md)

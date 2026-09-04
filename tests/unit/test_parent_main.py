@@ -1,5 +1,6 @@
 import unittest
 import inspect
+import struct
 from pathlib import Path
 from unittest import mock
 
@@ -201,10 +202,17 @@ class ParentWindowTests(unittest.TestCase):
             / "parent/oh_no_parent_control_parent/style.css"
         ).read_text(encoding="utf-8")
 
-        self.assertIn('branding_asset_path("app_logo_gnome_launcher.png")', source)
+        self.assertIn('branding_asset_path("app_logo_titlebar.png")', source)
         self.assertIn("title_logo.set_pixel_size(48)", source)
         self.assertIn('css_classes=["parent-title-brand"]', source)
         self.assertIn(".parent-title-brand image {", stylesheet)
+
+        logo = (
+            Path(__file__).resolve().parents[2] / "data/app_logo_titlebar.png"
+        )
+        with logo.open("rb") as source_file:
+            source_file.read(16)
+            self.assertEqual(struct.unpack(">II", source_file.read(8)), (48, 48))
 
     def test_match_rule_states_use_the_new_rule_icons_and_selected_button_classes(self):
         self.assertEqual(

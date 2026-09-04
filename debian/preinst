@@ -3,6 +3,26 @@ set -e
 
 if [ "$1" = install ] || [ "$1" = upgrade ]; then
     install -d -o root -g root -m 0700 /var/lib/oh-no-parent-control
+    # Capture before our fallback rule is unpacked or any service is started.
+    # Keep this across upgrades and remove/reinstall until postrm restores it.
+    baseline=/var/lib/oh-no-parent-control/fapolicyd-before-install
+    if [ ! -d "$baseline" ]; then
+        baseline_pending=/var/lib/oh-no-parent-control/fapolicyd-before-install.pending
+        install -d -o root -g root -m 0700 "$baseline_pending"
+        for policy_file in compiled.rules compiled.rules.prev; do
+            if [ -f "/etc/fapolicyd/$policy_file" ]; then
+                cp -p "/etc/fapolicyd/$policy_file" "$baseline_pending/$policy_file"
+            fi
+        done
+        if systemctl is-active --quiet fapolicyd.service; then
+            touch "$baseline_pending/active"
+        fi
+        if systemctl is-enabled --quiet fapolicyd.service; then
+            touch "$baseline_pending/enabled"
+        fi
+        touch "$baseline_pending/complete"
+        mv "$baseline_pending" "$baseline"
+    fi
     touch /var/lib/oh-no-parent-control/migration-in-progress
     if systemctl is-active --quiet oh-no-parent-control-broker.service; then
         deb-systemd-invoke stop oh-no-parent-control-broker.service >/dev/null

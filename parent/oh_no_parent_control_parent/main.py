@@ -22,6 +22,7 @@ from common.oh_no_parent_control_ui.about import (
 )
 from common.oh_no_parent_control_ui.accessibility import describe_control
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
+from common.oh_no_parent_control_ui.test_identities import preview_users
 
 from .client import BrokerClient, configure_logging
 
@@ -79,7 +80,7 @@ CUSTOM_DAILY_LIMIT_SAVE_DELAY_MS = 350
 # Yield between small batches so the App Limits tab can switch immediately
 # and the loading mask can keep animating.
 CATALOG_ROW_BATCH_SIZE = 8
-PREVIEW_USERS = ((1001, "Riley Parker"), (1002, "Jordan Parker"))
+PREVIEW_USERS = preview_users("child")
 PREVIEW_THUNDERBIRD_ICON = str(Path(__file__).with_name("thunderbird-default128.png"))
 PREVIEW_PREFERENCES = {
     1001: {

@@ -6,6 +6,8 @@ import json
 
 import pytest
 
+from common.oh_no_parent_control_ui.test_identities import preview_users
+
 
 pytestmark = pytest.mark.ui
 
@@ -248,7 +250,7 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     confirmation = wait_for_accessible_node(application, "Revoke one-time grant?", "dialog")
     warning = confirmation.child(
         "This will revoke one-time screen time and access to soft blocked apps "
-        "granted to Riley Parker, close their running blocked apps, and lock their desktop "
+        f"granted to {preview_users('child')[0][1]}, close their running blocked apps, and lock their desktop "
         "when no time remains. Their remaining daily time allowance is not impacted.",
         role_name="label", retry=False,
     )

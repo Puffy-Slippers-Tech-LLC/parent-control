@@ -24,9 +24,11 @@ from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gst, Gtk
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
 from common.oh_no_parent_control_ui.accessibility import describe_control
+from common.oh_no_parent_control_ui.test_identities import preview_users
 
 from .model import RequestState, public_error
 from .request_content import RequestContent
+from .selection_store import SelectionStore
 from .chrome import (
     ABOUT, BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, HELP,
     MENU, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
@@ -74,14 +76,8 @@ GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0
 GATEWAY_FORM_CENTERING_OFFSET = 0.019
 PREVIEW_DEFAULT_WIDTH = 1918
 PREVIEW_DEFAULT_HEIGHT = 1443
-PREVIEW_USERS = (
-    (1001, "Riley Parker"),
-    (1002, "Jordan Parker"),
-)
-PREVIEW_APPROVERS = (
-    (1000, "Jamie Parker"),
-    (1010, "Casey Parker"),
-)
+PREVIEW_USERS = preview_users("child")
+PREVIEW_APPROVERS = preview_users("parent")
 PREVIEW_PREFERENCES = {
     1001: {
         "parent_control_enabled": True,
@@ -1066,6 +1062,10 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_access, self._cancel, self._load_preferences,
             lock_child_selector=self._child_overlay,
             on_values_changed=self._persist_form_values,
+            selection_store=(None if self._preview else SelectionStore(
+                Path(GLib.get_user_state_dir()) / "oh-no-parent-control" / "request-selections.json",
+                child_overlay=self._child_overlay,
+            )),
         )
         self._request_surface = GatewayAlignedRequest(self._request_content)
         self._stack.add_named(self._request_surface, "request")

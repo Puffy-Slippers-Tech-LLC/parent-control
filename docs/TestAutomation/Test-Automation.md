@@ -13,11 +13,14 @@
 - Task 12 has one explicit preparation exception for the existing
   `ubuntu26.04` VM: an operator runs `make prep-vm` there once to create the
   fixed test accounts, without installing the product, and then runs
-  `make prep-host` manually on the development host to capture a powered-off,
-  pre-install baseline. Never execute product tests in that source VM. Later
-  installed-system and end-to-end runs must use disposable guests derived from
-  the captured baseline and must not expose a writable host filesystem such as
-  the source VM's `/Data` virtiofs share.
+  `make prep-host` manually on the development host to create the internal
+  snapshot `oh-no-parent-control-baseline` on that same VM. Later tests use
+  the existing VM and restore this snapshot between runs. No VM copy or
+  disposable overlay is created by preparation. Tests must not expose a
+  writable host filesystem such as the VM's `/Data` virtiofs share.
+  This snapshot workflow supersedes the older disposable-image assumptions in
+  pending runner tasks; adapt their public runner interfaces before execution,
+  serialize use of the existing VM, and preserve its named baseline.
 - The Task 12 source VM already exists and uses
   `/Data/virt-manager/ubuntu26.04.qcow2`; its repository checkout is available
   at `/Data/Code/PST/parent-control`, the same path as on the development host.
@@ -79,7 +82,7 @@ requiring a model-switch pause. Preserve completed tasks and completion records.
 - [x] Task 10D — Verify reload, preserve artifacts, and finish integration
 - [x] Task 11 — Build deterministic native and Flatpak test applications
 - [x] Task 12A — Add guarded in-VM test-account preparation
-- [ ] Task 12B — Add host-only pre-install baseline capture
+- [x] Task 12B — Add host-only pre-install baseline capture
 - [ ] Task 12C — Capture and verify the prepared VM baseline
 - [ ] Task 13A — Build reproducible package and fixture artifacts
 - [ ] Task 13B — Add the guarded autopkgtest QEMU runner and install smoke
@@ -116,8 +119,9 @@ requiring a model-switch pause. Preserve completed tasks and completion records.
 
 ## Rules for every task
 
-1. Default computer running the task is dev machine, and the app is not allowed
-   to be installed. The dev machine is also a host of a test VM where app is to be
+1. Default computer running the task is the dev machine. Tasks must not install
+   the app there; an existing installation is allowed and ignored by `prep-host`.
+   The dev machine is also a host of a test VM where the app is to be
    installed and tested. If the task or any steps in it requires test machine (VM),
    clarify and wait for confirmation before proceeding to ensure the right change job
    is done on the right machine.
@@ -281,7 +285,7 @@ the recommendations in those sections.
 - [x] [Task 10D — Verify reload, preserve artifacts, and finish integration](Task-10D.md)
 - [x] [Task 11 — Build deterministic native and Flatpak test applications](Task-11.md)
 - [x] [Task 12A — Add guarded in-VM test-account preparation](Task-12A.md)
-- [ ] [Task 12B — Add host-only pre-install baseline capture](Task-12B.md) — `gpt-6-astra` / `high`
+- [x] [Task 12B — Add host-only pre-install baseline capture](Task-12B.md) — `gpt-6-astra` / `high`
 - [ ] [Task 12C — Capture and verify the prepared VM baseline](Task-12C.md) — `gpt-5.6-terra` / `medium`
 - [ ] [Task 13A — Build reproducible package and fixture artifacts](Task-13.md#task-13a) — `gpt-5.6-terra` / `medium`
 - [ ] [Task 13B — Add the guarded autopkgtest QEMU runner and install smoke](Task-13.md#task-13b) — `gpt-6-astra` / `high`
@@ -417,3 +421,22 @@ Append one entry only after its checklist item has been changed to `[x]`:
 - Result: Added a fixed-path, fail-closed `make prep-vm` workflow that prepares and verifies exactly two test parents and two test children with one shared password prompt, refuses product installation or residue, and writes a secret-free root-owned baseline record without installing the product.
 - Verification: `python3 -m pytest tests/unit/test_prepare_vm.py tests/unit/test_prepare_vm_contract.py -q`; `bash -n tests/integration/prepare-vm`; `python3 -m py_compile tests/integration/prepare_vm.py tests/unit/test_prepare_vm.py tests/unit/test_prepare_vm_contract.py`; `make check`; `git diff --check`
 - Commit: not committed
+
+### Task 12B completed — 2026-09-04
+
+- Result: Added fixed-source `make prep-host`, pinned libvirt/QEMU/libguestfs development dependencies, read-only preparation verification, source-chain identity/digest guards, event-driven clean shutdown, durable capture phases, pidfd-confined subprocess cleanup, restart-only interrupted conversions, and atomic no-overwrite publication of immutable image/provenance/digest files. Removed the cloud-image setup entry point while retaining reusable guarded SSH, redaction, archive, and owned-VM helpers. Package activation is `none`; no product saved-data migration applies.
+- Verification: `python3 -m pytest tests/unit/test_prepare_host_cleanup_safety.py -q` (5 passed, isolated); `python3 -m pytest tests/unit/test_prepare_host_cleanup_safety.py tests/unit/test_child_preview_cleanup_safety.py -q` (16 passed and 3 subtests, before the final host-integrated check); `python3 -m pytest tests/unit/test_prepare_host.py -q` (140 passed, all VM/image operations mocked); `make check` (533 unit/contract and 17 component tests passed); `/usr/bin/python3 tests/integration/prepare_host.py --help`; `bash -n setup.sh`; `git diff --check`.
+- Verification environment: The sandboxed compound-command runs failed in the existing Flatpak fixture's Glycin SVG validation. The approved standalone `make check` outside the sandbox passed without changing that fixture or weakening assertions. `--check-tools` correctly refused the missing `python3-guestfs` dependency and directed the operator to `./setup.sh`; it made no VM connection or capture writes.
+- Handoff: `tests/integration/prepare_host.py` exposes `Capture(source, commands, inspect)` for mocked tests, with fixed production resources selected only by `main()`. `LibvirtSource` validates active/persistent layouts and waits for clean shutdown; `Commands` pins directly spawned children with pidfds and passes the controller lock into QEMU; `inspect_guest` reuses Task 12A's marker/residue contract with explicit read-only QCOW2 access. The two exact focused selectors are the complete test modules listed above.
+- Artifacts: The manual command writes only beneath `/Data/virt-manager/oh-no-parent-control-baselines/`: `ubuntu26.04.qcow2`, `provenance.json`, `SHA256SUMS`, atomic `phase.json`, and recorded hidden working-file hard links. Finalized image and sidecars are mode `0444`; controller state is private. The integration README documents the operator sequence and phase-specific recovery. No real capture artifacts were created in this task.
+- Remaining: Task 12C owns manual account preparation/capture and read-only acceptance. Install the pinned host tooling through `./setup.sh` as needed; prepare the source guest using the current checkout before capture so its marker matches the preparation-script digest. No `make prep-vm`, `make prep-host`, source shutdown, or product installation was performed in this task.
+- Commit: not committed
+
+### Task 12B follow-up — reusable snapshot — 2026-09-04
+
+- User correction: replace the copied baseline image with the internal libvirt snapshot `oh-no-parent-control-baseline` on the existing `ubuntu26.04` VM. The snapshot is retained for repeated resets and testing on that same VM. An installed product on the development host is allowed and ignored.
+- Result: Removed disk conversion and image publication. The controller requests clean shutdown, validates the prepared guest, creates an internal snapshot through the public libvirt API, and records its identity in `/Data/virt-manager/oh-no-parent-control-baseline-state/phase.json`. Interrupted creation reconciles the recorded snapshot without replacing it. Completed repeats preserve it after test writes or product installation, including while the VM runs. Existing copy-workflow artifacts are not used or deleted. This supersedes the image/artifact and conversion handoff above.
+- Documentation: Updated Task 12B, Task 12C, and the integration README for creation, recovery, and repeated `virsh snapshot-revert` on the existing VM. The master workflow supersedes pending tasks' older disposable-image assumptions. Shared host files are outside the snapshot; runner adaptation must remove the writable share before each test boot.
+- Verification: 144 focused snapshot/inspection tests passed; 5 isolated controller cleanup-safety tests passed; the combined controller/child cleanup prerequisites passed (16 tests and 3 subtests). Command help, Python syntax, 17 component tests, and `git diff --check` passed. VM operations were mocked; no real snapshot creation, shutdown, or revert occurred.
+- Broader checks: `make check` reached 550 passing tests and 11 failures in the concurrently added `tests/unit/test_package_removal.py`. Its `/bin/sh` mock fixture rejected hyphenated function names with `Syntax error: Bad function name`; these files are outside this change. Component tests passed separately using the Makefile's import environment and approved execution outside the socket-restricted sandbox.
+- Remaining: Task 12C is still unchecked and owns real snapshot acceptance. No commit was created.

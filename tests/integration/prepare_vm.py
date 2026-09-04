@@ -20,6 +20,10 @@ from typing import Callable, Sequence
 
 
 CHECKOUT = Path("/Data/Code/PST/parent-control")
+if str(CHECKOUT) not in sys.path:
+    sys.path.insert(0, str(CHECKOUT))
+
+from common.oh_no_parent_control_ui.test_identities import TEST_IDENTITIES
 MARKER = Path("/etc/oh-no-parent-control-test-baseline.json")
 HOSTNAME = "ubuntu26.04"
 UBUNTU_VERSION = "26.04"
@@ -34,20 +38,7 @@ SCRIPT_FILES = (
 )
 
 
-@dataclasses.dataclass(frozen=True)
-class Identity:
-    label: str
-    username: str
-    display_name: str
-    role: str
-
-
-IDENTITIES = (
-    Identity("[Test parent 1]", "onpc-parent-jamie", "Jamie Parker", "administrator"),
-    Identity("[Test parent 2]", "onpc-parent-casey", "Casey Parker", "administrator"),
-    Identity("[Test child 1]", "onpc-child-riley", "Riley Parker", "standard"),
-    Identity("[Test child 2]", "onpc-child-jordan", "Jordan Parker", "standard"),
-)
+IDENTITIES = TEST_IDENTITIES
 
 REQUIRED_CHECKOUT_ENTRIES = (
     ".git",
@@ -277,7 +268,7 @@ def validate_environment(
 ) -> GuestIdentity:
     runner = runner or Runner()
     if (os.geteuid() if euid is None else euid) != 0:
-        raise PreparationError("guard:root", "enter a root shell before running make prep-vm")
+        raise PreparationError("guard:root", "root privileges required; run make prep-vm to request sudo")
 
     virtual = runner.run(["systemd-detect-virt", "--vm"], check=False)
     virtualization = virtual.stdout.strip()
@@ -458,6 +449,14 @@ def reconcile_accounts(
         entry = lookup_user(identity.username)
         path = _accounts_path(runner, identity.username)
         _set_accounts_property(runner, path, "SetRealName", "s", identity.display_name)
+        _set_accounts_property(runner, path, "SetIconFile", "s", identity.icon_file)
+        icon_file = _get_property(runner, path, "IconFile", "s")
+        try:
+            icon_matches = Path(icon_file).read_bytes() == Path(identity.icon_file).read_bytes()
+        except OSError as error:
+            raise PreparationError("verify:account-icon", f"{identity.label} icon is unreadable") from error
+        if not icon_matches:
+            raise PreparationError("verify:account-icon", f"{identity.label} icon differs from the shared asset")
         _set_accounts_property(runner, path, "SetShell", "s", INTERACTIVE_SHELL)
         _set_accounts_property(
             runner, path, "SetAccountType", "i",

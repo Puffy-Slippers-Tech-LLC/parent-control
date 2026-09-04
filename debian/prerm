@@ -2,6 +2,32 @@
 set -e
 
 if [ "$1" = remove ]; then
+    # A running kiosk may recreate files after deluser removes its home. Do not
+    # terminate a user's processes based on account identity. Require logout.
+    marker=/var/lib/oh-no-parent-control/package-created-kiosk-uid
+    if [ -f "$marker" ]; then
+        kiosk_uid=$(cat "$marker")
+        case "$kiosk_uid" in
+            ''|*[!0-9]*|0) exit 1 ;;
+        esac
+        if [ -d /run/systemd/system ] && \
+           systemctl is-active --quiet "user@$kiosk_uid.service"; then
+            echo 'oh-no-parent-control: log out of the kiosk session before removal' >&2
+            exit 1
+        fi
+    fi
+    # Stopping a D-Bus service does not prevent clients from activating it again.
+    # Record ownership so abort-remove never removes an administrator's mask.
+    if [ -d /run/systemd/system ]; then
+        if [ ! -e /run/systemd/system/oh-no-parent-control-broker.service ] && \
+           [ ! -L /run/systemd/system/oh-no-parent-control-broker.service ]; then
+            touch /var/lib/oh-no-parent-control/uninstall-broker-mask
+            systemctl mask --runtime oh-no-parent-control-broker.service >/dev/null
+        elif [ "$(readlink /run/systemd/system/oh-no-parent-control-broker.service)" != /dev/null ]; then
+            echo 'oh-no-parent-control: cannot guard removal over a runtime unit override' >&2
+            exit 1
+        fi
+    fi
     # Stop the broker before clearing derived state so its reconciliation loop
     # cannot restore a restriction while package removal is in progress.
     deb-systemd-invoke stop oh-no-parent-control-broker.service >/dev/null

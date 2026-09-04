@@ -253,8 +253,8 @@ button.about-link > label {
 }
 
 .oh-no-parent-control-account-row-inner {
-  /* Top inset clears the painted metal bevel so CHILD/APPROVER sit below it. */
-  margin: 11px 12px 6px 10px;
+  /* Keep matching top and bottom insets inside the painted metal bevel. */
+  margin: 6px 12px 6px 10px;
 }
 
 .oh-no-parent-control-account-caption {

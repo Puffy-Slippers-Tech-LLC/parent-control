@@ -161,12 +161,21 @@ onpc_preview_prepare_environment() {
 }
 
 onpc_preview_build_shell_command() {
+    local -a nested_x11_policy=()
+    if [[ $onpc_preview_host_gdk_backend == x11 ]]; then
+        # Preserve the host DISPLAY/XAUTHORITY pair for an X11 Devkit viewer.
+        # Wayland-hosted and hermetic runs retain nested Xwayland because the
+        # supported virtual-input lifecycle currently exercises that path.
+        nested_x11_policy=(--no-x11)
+    fi
     if [[ -n ${onpc_preview_bus_address:-} ]]; then
-        onpc_preview_shell_command=(gnome-shell --devkit --wayland --no-x11 \
+        onpc_preview_shell_command=(gnome-shell --devkit --wayland \
+            "${nested_x11_policy[@]}" \
             --wayland-display "$onpc_preview_nested_wayland_display" \
             --virtual-monitor 1280x720 --force-animations)
     else
-        onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland --no-x11 \
+        onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland \
+            "${nested_x11_policy[@]}" \
             --wayland-display "$onpc_preview_nested_wayland_display" \
             --virtual-monitor 1280x720 --force-animations)
     fi
@@ -536,17 +545,28 @@ onpc_preview_record_mutter_devkit() {
             "${onpc_preview_shell_pid:-}" "${onpc_preview_shell_start_time:-}"; do
         if candidate=$(onpc_preview_find_mutter_devkit_descendant); then
             onpc_preview_devkit_pid=$candidate
-            onpc_preview_record_owned_process "$onpc_preview_devkit_pid" \
-                onpc_preview_devkit_start_time 'Mutter Devkit' \
-                "$((onpc_preview_ready_timeout * 20 + 1))" 0.05 || return
+            # Devkit calls setsid() after its remote-desktop context is ready,
+            # but GTK's host backend can map the viewer before that happens.
+            # Record the already ancestry-verified child immediately by exact
+            # PID and kernel start time. Cleanup will use its process group if
+            # it later becomes the leader, or signal only this recorded PID.
+            onpc_preview_record_owned_child_process \
+                "$onpc_preview_devkit_pid" onpc_preview_devkit_start_time \
+                'Mutter Devkit' || return
             if ! [[ /proc/$onpc_preview_devkit_pid/exe -ef "$onpc_preview_devkit_path" ]] \
                     || ! onpc_preview_process_is_descendant_of \
                         "$onpc_preview_devkit_pid" "$onpc_preview_shell_pid"; then
                 printf '%s\n' 'Refusing Mutter Devkit ownership because its executable or Shell ancestry changed during registration.' >&2
                 return 1
             fi
-            printf 'Recorded owned Mutter Devkit process group %s from the GNOME Shell descendant tree.\n' \
-                "$onpc_preview_devkit_pid" >&2
+            if onpc_preview_owned_process_is_group_leader \
+                    "$onpc_preview_devkit_pid" "$onpc_preview_devkit_start_time"; then
+                printf 'Recorded owned Mutter Devkit process group %s from the GNOME Shell descendant tree.\n' \
+                    "$onpc_preview_devkit_pid" >&2
+            else
+                printf 'Recorded owned Mutter Devkit process %s by exact identity from the GNOME Shell descendant tree.\n' \
+                    "$onpc_preview_devkit_pid" >&2
+            fi
             return 0
         else
             discovery_status=$?

@@ -122,8 +122,13 @@ installdeb:
 		esac; \
 	fi
 
-# Preparation-only source-VM entry point. It intentionally has no sudo wrapper
-# and no variable-driven target: enter a root shell in the documented guest.
+# Preparation-only host entry point; run from a root shell on the host.
+prep-host:
+	@/usr/bin/python3 tests/integration/prepare_host.py
+
+.PHONY: prep-host
+
+# Preparation-only source-VM entry point; the launcher requests sudo as needed.
 prep-vm:
 	@tests/integration/prepare-vm
 
@@ -229,6 +234,8 @@ _install-product-files:
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui"
 	install -m 0644 common/__init__.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/"
 	install -m 0644 common/oh_no_parent_control_ui/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
+	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons"
+	install -m 0644 common/oh_no_parent_control_ui/test_user_icons/*.png "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons/"
 	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg data/Gearbox_Waltz.mp3 child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts"
 	install -m 0644 kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/"

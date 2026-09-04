@@ -1,86 +1,174 @@
 #!/bin/sh
 set -e
 
+remove_tree() {
+    # Only fixed product paths below. Never follow links or cross filesystems.
+    if [ -L "$1" ]; then
+        echo 'oh-no-parent-control: refusing cleanup of a substituted directory' >&2
+        exit 1
+    fi
+    if [ -d "$1" ]; then
+        # -xdev alone does not detect a bind mount on the same filesystem.
+        # Check mount points before deleting any content, including the root.
+        mounted=$(find "$1" -xdev -type d -exec mountpoint -q {} \; -print -quit)
+        if [ -n "$mounted" ]; then
+            echo 'oh-no-parent-control: refusing cleanup of a mounted directory' >&2
+            exit 1
+        fi
+        find "$1" -xdev -depth -delete
+    fi
+}
+
 remove_package_created_kiosk() {
     kiosk_user=oh-no-parent-control
     marker=/var/lib/oh-no-parent-control/package-created-kiosk-uid
     if [ ! -f "$marker" ]; then
         return
     fi
+    if [ -L "$marker" ] || [ "$(stat -c '%u:%a' "$marker")" != 0:600 ]; then
+        echo 'oh-no-parent-control: unsafe kiosk ownership marker' >&2
+        exit 1
+    fi
     marker_uid=$(cat "$marker")
     case "$marker_uid" in
         ''|*[!0-9]*|0)
-            echo 'oh-no-parent-control: refusing to remove kiosk account: invalid ownership marker' >&2
-            rm -f "$marker"
-            return
-            ;;
+            echo 'oh-no-parent-control: invalid kiosk ownership marker' >&2
+            exit 1 ;;
     esac
     entry=$(getent passwd "$kiosk_user" || true)
-    if [ -z "$entry" ]; then
-        rm -f "$marker"
-        return
+    if [ -n "$entry" ]; then
+        account_uid=$(printf '%s\n' "$entry" | cut -d: -f3)
+        account_home=$(printf '%s\n' "$entry" | cut -d: -f6)
+        if [ "$account_uid" != "$marker_uid" ] ||
+           [ "$account_home" != /home/oh-no-parent-control ]; then
+            echo 'oh-no-parent-control: preserving changed kiosk identity' >&2
+            exit 1
+        fi
+    elif getent passwd "$marker_uid" >/dev/null; then
+        echo 'oh-no-parent-control: preserving reassigned kiosk identity' >&2
+        exit 1
     fi
-    account_name=$(printf '%s\n' "$entry" | cut -d: -f1)
-    account_uid=$(printf '%s\n' "$entry" | cut -d: -f3)
-    account_home=$(printf '%s\n' "$entry" | cut -d: -f6)
-    if [ "$account_name" != "$kiosk_user" ] || \
-       [ "$account_uid" != "$marker_uid" ] || \
-       [ "$account_home" != "/home/$kiosk_user" ]; then
-        echo 'oh-no-parent-control: preserving kiosk account whose identity was changed' >&2
-        rm -f "$marker"
-        return
+    if [ -d /run/systemd/system ] &&
+       systemctl is-active --quiet "user@$marker_uid.service"; then
+        echo 'oh-no-parent-control: log out of the kiosk session before removal' >&2
+        exit 1
     fi
-    if command -v loginctl >/dev/null 2>&1 && \
-       loginctl show-user "$kiosk_user" >/dev/null 2>&1; then
-        loginctl terminate-user "$kiosk_user"
+    if [ -L /home/oh-no-parent-control ] ||
+       { [ -d /home/oh-no-parent-control ] &&
+         [ "$(stat -c %u /home/oh-no-parent-control)" != "$marker_uid" ]; }; then
+        echo 'oh-no-parent-control: preserving substituted kiosk home' >&2
+        exit 1
     fi
-    deluser --remove-home "$kiosk_user"
+    if [ -n "$entry" ]; then
+        # Use AccountsService's public API while the identity still exists so
+        # the kiosk's cached icon/session metadata is removed as well.
+        busctl --system call org.freedesktop.Accounts /org/freedesktop/Accounts \
+            org.freedesktop.Accounts UncacheUser s "$kiosk_user"
+        # Keep filesystem deletion in remove_tree so a mounted subtree cannot
+        # be traversed by an account-management tool.
+        deluser "$kiosk_user"
+    fi
+    # deluser can leave files owned by other UIDs in the package-created home.
+    # Retain the marker until the entire verified home is gone, including retries.
+    remove_tree /home/oh-no-parent-control
+    if [ -f /var/mail/oh-no-parent-control ] && \
+       [ "$(stat -c %u /var/mail/oh-no-parent-control)" = "$marker_uid" ]; then
+        rm -f /var/mail/oh-no-parent-control
+    fi
     rm -f "$marker"
+    echo 'oh-no-parent-control: kiosk cleanup outcome=accepted' >&2
 }
 
-if [ "$1" = remove ]; then
-    # These paths are generated or are security integration snippets. Leaving
-    # them in dpkg's config-files state would keep policy active without the
-    # broker that owns it.
+restore_execution_policy() {
+    baseline=/var/lib/oh-no-parent-control/fapolicyd-before-install
+    if [ ! -d "$baseline" ]; then
+        return
+    fi
+    if [ ! -f "$baseline/complete" ]; then
+        echo 'oh-no-parent-control: incomplete execution-policy baseline' >&2
+        exit 1
+    fi
+    remaining_rules=0
+    for rule in /etc/fapolicyd/rules.d/*.rules; do
+        if [ -f "$rule" ]; then remaining_rules=1; break; fi
+    done
+    if [ "$remaining_rules" -eq 1 ]; then
+        # Preserve rules belonging to other software/admins and their service.
+        /usr/sbin/fagenrules
+        if [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
+            /usr/sbin/fapolicyd-cli --reload-rules
+        fi
+    else
+        # fagenrules leaves compiled and live policy unchanged for an empty
+        # source directory. Restore the pre-install policy explicitly.
+        if [ ! -f "$baseline/active" ] && [ -d /run/systemd/system ]; then
+            deb-systemd-invoke stop fapolicyd.service >/dev/null
+            if systemctl is-active --quiet fapolicyd.service; then
+                echo 'oh-no-parent-control: execution-policy service did not stop' >&2
+                exit 1
+            fi
+        fi
+        if [ -f "$baseline/compiled.rules" ]; then
+            cp -p "$baseline/compiled.rules" /etc/fapolicyd/compiled.rules
+        else
+            rm -f /etc/fapolicyd/compiled.rules
+        fi
+        if [ -f "$baseline/active" ] && [ -d /run/systemd/system ]; then
+            /usr/sbin/fapolicyd-cli --reload-rules
+        fi
+        if [ ! -f "$baseline/enabled" ] && [ -d /run/systemd/system ]; then
+            systemctl disable fapolicyd.service >/dev/null
+        fi
+    fi
+    # fagenrules creates this backup as well as the compiled file.
+    if [ -f "$baseline/compiled.rules.prev" ]; then
+        cp -p "$baseline/compiled.rules.prev" /etc/fapolicyd/compiled.rules.prev
+    else
+        rm -f /etc/fapolicyd/compiled.rules.prev
+    fi
+    remove_tree /var/lib/oh-no-parent-control/fapolicyd-before-install
+    echo 'oh-no-parent-control: execution-policy cleanup outcome=accepted' >&2
+}
+
+if [ "$1" = remove ] || [ "$1" = purge ]; then
     rm -f \
         /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules \
         /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /etc/gdm3/PreSession/Default \
         /etc/oh-no-parent-control/config.json \
         /etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
-        /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf \
+        /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
+    # dpkg has removed our display-manager Requires=fapolicyd drop-in. Forget
+    # it before stopping fapolicyd or systemd would also stop the desktop.
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload
+    fi
+    restore_execution_policy
+    invoke-rc.d dbus reload >/dev/null || true
+    remove_package_created_kiosk
+    if [ -f /var/lib/oh-no-parent-control/uninstall-broker-mask ]; then
+        if [ "$(readlink /run/systemd/system/oh-no-parent-control-broker.service)" = /dev/null ]; then
+            systemctl unmask --runtime oh-no-parent-control-broker.service >/dev/null
+        fi
+        rm -f /var/lib/oh-no-parent-control/uninstall-broker-mask
+    fi
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload
+        if systemctl is-failed --quiet oh-no-parent-control-broker.service; then
+            systemctl reset-failed oh-no-parent-control-broker.service
+        fi
+    fi
+    rm -f \
         /var/lib/oh-no-parent-control/migration-in-progress \
         /var/lib/oh-no-parent-control/package-activation-pending \
         /var/lib/oh-no-parent-control/previous-package-activation.json \
         /var/lib/oh-no-parent-control/uninstall-enforcement.json
-
-    # The prerm already activated removal of the generated deny file. Reload
-    # once more after dpkg leaves the /etc fallback conffile behind.
-    if [ -x /usr/sbin/fagenrules ]; then
-        /usr/sbin/fagenrules --load
-    fi
-    invoke-rc.d dbus reload >/dev/null || true
-    remove_package_created_kiosk
 fi
 
 if [ "$1" = purge ]; then
-    # Defensive cleanup also covers a purge retried from config-files state.
-    rm -f \
-        /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules \
-        /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
-        /etc/gdm3/PreSession/Default \
-        /etc/oh-no-parent-control/config.json \
-        /etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
-        /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf \
-        /var/lib/oh-no-parent-control/migration-in-progress \
-        /var/lib/oh-no-parent-control/package-activation-pending \
-        /var/lib/oh-no-parent-control/previous-package-activation.json \
-        /var/lib/oh-no-parent-control/uninstall-enforcement.json
-    if [ -x /usr/sbin/fagenrules ]; then
-        /usr/sbin/fagenrules --load
-    fi
-    invoke-rc.d dbus reload >/dev/null || true
-    remove_package_created_kiosk
+    remove_tree /var/lib/oh-no-parent-control
+    remove_tree /var/log/oh-no-parent-control
+    echo 'oh-no-parent-control: saved-state purge outcome=accepted' >&2
 fi
 
 rmdir /etc/oh-no-parent-control 2>/dev/null || true

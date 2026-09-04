@@ -188,13 +188,27 @@ class UninstallCleaner:
             })
         return _validate_snapshot({"version": 1, "accounts": accounts})
 
+    def _set_time_state(self, uid: int, limit_type: int, daily_limit: int,
+                        active_extension) -> None:
+        # Malcontent observes each property write separately. Never publish an
+        # active extension with LimitType=0, even briefly or after a failed write.
+        self._accounts.set_extension(uid, (0, 0))
+        if self._accounts.get_extension(uid) != (0, 0):
+            raise UninstallCleanupError("grant clearing verification failed")
+        self._accounts.set_daily_limit(uid, daily_limit)
+        self._accounts.set_limit_type(uid, limit_type)
+        if self._accounts.get_limit_type(uid) != limit_type:
+            raise UninstallCleanupError("limit write verification failed")
+        if any(active_extension):
+            if limit_type == 0:
+                raise UninstallCleanupError("cannot restore a grant without a limit")
+            self._accounts.set_extension(uid, active_extension)
+
     def _clear_account(self, uid: int) -> list[Exception]:
         errors = []
         operations = (
             ("extension", lambda: self._extensions.remove(uid)),
-            ("limit-type", lambda: self._accounts.set_limit_type(uid, 0)),
-            ("daily-limit", lambda: self._accounts.set_daily_limit(uid, 0)),
-            ("active-extension", lambda: self._accounts.set_extension(uid, (0, 0))),
+            ("time-state", lambda: self._set_time_state(uid, 0, 0, (0, 0))),
             ("app-filter", lambda: self._accounts.set_filter(uid, (False, ()))),
         )
         for operation, callback in operations:
@@ -295,17 +309,13 @@ class UninstallCleaner:
         for state in snapshot["accounts"]:
             uid = state["uid"]
             operations = (
-                ("limit-disable", lambda: self._accounts.set_limit_type(uid, 0)),
-                ("daily-limit", lambda: self._accounts.set_daily_limit(
-                    uid, state["daily_limit"])),
-                ("active-extension", lambda: self._accounts.set_extension(
-                    uid, state["active_extension"])),
+                ("time-state", lambda: self._set_time_state(
+                    uid, state["limit_type"], state["daily_limit"],
+                    state["active_extension"])),
                 ("app-filter", lambda: self._accounts.set_filter(
                     uid, state["app_filter"])),
                 ("extension", lambda: self._extensions.set_enabled(
                     uid, state["extension_enabled"])),
-                ("limit-restore", lambda: self._accounts.set_limit_type(
-                    uid, state["limit_type"])),
             )
             for operation, callback in operations:
                 try:

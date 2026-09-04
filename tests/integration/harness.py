@@ -1,19 +1,17 @@
 #!/usr/bin/python3
 """Host controller for the guarded H-50 disposable Ubuntu VM.
 
-This program never installs the product on the host.  ``setup`` creates one
-explicitly named libvirt guest; all product and account changes are performed
-over SSH only after the guest's marker has been verified.
+The supported baseline is captured by make prep-host from the existing source
+VM. This module retains guarded SSH, artifact, and ownership helpers for later
+installed-system runners; it cannot create a second source/baseline.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
-import secrets
 import shlex
 import shutil
 import stat
@@ -30,12 +28,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 CONNECT_URI = "qemu:///system"
 STATE_ROOT = Path("/var/lib/oh-no-parent-control-integration")
 IMAGE_ROOT = Path("/var/lib/libvirt/images")
-CACHE_ROOT = Path("/var/cache/oh-no-parent-control-integration")
 ARTIFACT_ROOT = REPOSITORY / "tests/integration/artifacts"
-RELEASE_URL = (
-    "https://cloud-images.ubuntu.com/releases/resolute/release-20260823"
-)
-IMAGE_NAME = "ubuntu-26.04-server-cloudimg-amd64.img"
 VM_NAME_RE = re.compile(r"onpc-h50-[a-z0-9](?:[a-z0-9-]{0,45}[a-z0-9])?")
 DESCRIPTION_PREFIX = "oh-no-parent-control-h50-disposable token="
 REMOTE_USER = "onpc-admin"
@@ -128,88 +121,6 @@ def _domain_exists(name: str) -> bool:
     result = _virsh("dominfo", name, check=False, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL)
     return result.returncode == 0
-
-
-def _download_verified_image() -> Path:
-    CACHE_ROOT.mkdir(parents=True, exist_ok=True, mode=0o755)
-    image = CACHE_ROOT / IMAGE_NAME
-    sums = CACHE_ROOT / "SHA256SUMS.release-20260823"
-    if not sums.exists():
-        temporary = sums.with_suffix(".tmp")
-        _run([
-            "curl", "--fail", "--location", "--proto", "=https", "--tlsv1.2",
-            "--output", str(temporary), f"{RELEASE_URL}/SHA256SUMS",
-        ])
-        os.replace(temporary, sums)
-    expected = None
-    for line in sums.read_text(encoding="utf-8").splitlines():
-        fields = line.split()
-        if len(fields) == 2 and fields[1].lstrip("*") == IMAGE_NAME:
-            expected = fields[0]
-            break
-    if expected is None or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
-        fail("official SHA256SUMS does not contain the selected Ubuntu image")
-    if not image.exists():
-        temporary = image.with_suffix(".download")
-        _run([
-            "curl", "--fail", "--location", "--proto", "=https", "--tlsv1.2",
-            "--output", str(temporary), f"{RELEASE_URL}/{IMAGE_NAME}",
-        ])
-        os.replace(temporary, image)
-    digest = hashlib.sha256()
-    with image.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    if not secrets.compare_digest(digest.hexdigest(), expected):
-        fail("downloaded Ubuntu image does not match the official SHA-256 manifest")
-    return image
-
-
-def _cloud_init(name: str, token: str, public_key: str) -> tuple[str, str, str]:
-    marker = json.dumps({
-        "purpose": "oh-no-parent-control-integration",
-        "name": name,
-        "token": token,
-        "ubuntu_version": "26.04",
-    }, separators=(",", ":"))
-    user_data = f"""#cloud-config
-hostname: {name}
-manage_etc_hosts: true
-users:
-  - name: {REMOTE_USER}
-    uid: 2000
-    gecos: Oh No Parent Control Test Administrator
-    groups: [adm, sudo]
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    shell: /bin/bash
-    lock_passwd: true
-    ssh_authorized_keys:
-      - {public_key}
-ssh_pwauth: false
-package_update: true
-packages:
-  - qemu-guest-agent
-write_files:
-  - path: {MARKER_PATH}
-    owner: root:root
-    permissions: '0600'
-    content: '{marker}'
-runcmd:
-  - [systemctl, enable, --now, qemu-guest-agent.service]
-final_message: H-50 disposable VM ready
-"""
-    meta_data = f"instance-id: {name}-{token}\nlocal-hostname: {name}\n"
-    # Ubuntu 26.04 requires cloud-init's boot network to be non-optional when
-    # first-boot provisioning depends on the network.
-    network_data = """version: 2
-ethernets:
-  integration:
-    match:
-      name: "en*"
-    dhcp4: true
-    optional: false
-"""
-    return user_data, meta_data, network_data
 
 
 def _ip_address(name: str, timeout: int = 600) -> str:
@@ -354,86 +265,6 @@ def _reboot_and_wait(metadata: dict) -> None:
     _save_metadata(state_directory(metadata["name"]), metadata)
 
 
-def setup(args) -> None:
-    _require_root()
-    _require_commands(
-        "virsh", "virt-install", "qemu-img", "cloud-localds", "ssh-keygen",
-        "ssh", "scp", "curl",
-    )
-    name = validate_vm_name(args.name)
-    directory = state_directory(name)
-    disk = IMAGE_ROOT / f"{name}.qcow2"
-    seed = IMAGE_ROOT / f"{name}-seed.iso"
-    if directory.exists() or disk.exists() or seed.exists() or _domain_exists(name):
-        fail(f"refusing to overwrite existing VM state for {name}")
-
-    STATE_ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
-    state_root_status = STATE_ROOT.stat(follow_symlinks=False)
-    if not stat.S_ISDIR(state_root_status.st_mode) or state_root_status.st_uid != 0:
-        fail("H-50 state root must be a root-owned directory")
-    STATE_ROOT.chmod(0o700)
-    directory.mkdir(mode=0o700)
-    IMAGE_ROOT.mkdir(parents=True, exist_ok=True)
-    token = secrets.token_hex(16)
-    private_key = directory / "ssh_key"
-    known_hosts = directory / "known_hosts"
-    metadata = {
-        "name": name,
-        "token": token,
-        "description": DESCRIPTION_PREFIX + token,
-        "disk": str(disk),
-        "seed": str(seed),
-        "ssh_private_key": str(private_key),
-        "known_hosts": str(known_hosts),
-        "release_url": RELEASE_URL,
-        "image_name": IMAGE_NAME,
-        "created": False,
-    }
-    _save_metadata(directory, metadata)
-    _run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(private_key)])
-    known_hosts.touch(mode=0o600)
-    credentials = {
-        "onpc-admin": secrets.token_urlsafe(24),
-        "onpc-child": secrets.token_urlsafe(24),
-        "onpc-unrelated": secrets.token_urlsafe(24),
-    }
-    _write_private(directory / "credentials.json", json.dumps(credentials, indent=2) + "\n")
-
-    image = _download_verified_image()
-    _run(["qemu-img", "create", "-q", "-f", "qcow2", "-F", "qcow2",
-          "-b", str(image), str(disk), f"{args.disk_gib}G"])
-    public_key = private_key.with_suffix(".pub").read_text(encoding="utf-8").strip()
-    user_data, meta_data, network_data = _cloud_init(name, token, public_key)
-    _write_private(directory / "user-data", user_data)
-    _write_private(directory / "meta-data", meta_data)
-    _write_private(directory / "network-config", network_data)
-    _run(["cloud-localds", "--network-config", str(directory / "network-config"),
-          str(seed), str(directory / "user-data"), str(directory / "meta-data")])
-    _run([
-        "virt-install", "--connect", CONNECT_URI, "--name", name,
-        "--description", metadata["description"], "--memory", str(args.memory_mib),
-        "--vcpus", str(args.vcpus), "--import", "--noautoconsole",
-        "--osinfo", "detect=on,require=off",
-        "--disk", f"path={disk},format=qcow2,bus=virtio",
-        "--disk", f"path={seed},device=cdrom,readonly=on",
-        "--network", "network=default,model=virtio",
-        "--graphics", "spice,listen=none", "--video", "virtio",
-    ])
-    metadata["created"] = True
-    metadata["ip_address"] = _ip_address(name)
-    _save_metadata(directory, metadata)
-    _wait_for_ssh(metadata)
-    _ssh(metadata, ["sudo", "cloud-init", "status", "--wait"])
-    _verify_remote_marker(metadata)
-    _sync_checkout(metadata)
-    remote_credentials = f"/tmp/onpc-h50-credentials-{token}.json"
-    _scp_to(metadata, directory / "credentials.json", remote_credentials)
-    _ssh(metadata, ["sudo", str(REMOTE_CHECKOUT / "tests/integration/guest/setup"),
-                    name, remote_credentials])
-    _reboot_and_wait(metadata)
-    print(f"Disposable VM {name} is ready. No product files were installed on the host.")
-
-
 def run_tests(args) -> None:
     _require_root()
     _require_commands("virsh", "ssh", "scp")
@@ -559,12 +390,6 @@ def destroy(args) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    setup_parser = subparsers.add_parser("setup", help="create and provision a clean VM")
-    setup_parser.add_argument("--name", required=True)
-    setup_parser.add_argument("--memory-mib", type=int, default=8192)
-    setup_parser.add_argument("--vcpus", type=int, default=4)
-    setup_parser.add_argument("--disk-gib", type=int, default=80)
-    setup_parser.set_defaults(function=setup)
     run_parser = subparsers.add_parser("run", help="run checks and the real installer in the VM")
     run_parser.add_argument("--name", required=True)
     run_parser.set_defaults(function=run_tests)
@@ -582,14 +407,6 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     try:
         args = _parser().parse_args(argv)
-        if args.command == "setup":
-            for value, label, minimum in (
-                (args.memory_mib, "memory", 4096),
-                (args.vcpus, "vCPU count", 2),
-                (args.disk_gib, "disk size", 40),
-            ):
-                if value < minimum:
-                    fail(f"{label} is below the supported integration minimum {minimum}")
         args.function(args)
     except (HarnessError, OSError, subprocess.SubprocessError) as error:
         print(f"h50-harness: {error}", file=sys.stderr)

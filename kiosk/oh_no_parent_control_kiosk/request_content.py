@@ -16,7 +16,7 @@ from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
 from common.oh_no_parent_control_ui.accessibility import describe_control
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
 from .chrome import (
-    APPROVER_HEAD, CHILD_HEAD, LOCK, POINTER, SHIELD, ArmoredButton,
+    LOCK, POINTER, SHIELD, ArmoredButton,
     MetalBoard, MetalPanel, PixelIcon,
 )
 
@@ -63,6 +63,8 @@ class GatewayDropDown(Gtk.Box):
         self._trigger = Gtk.Button()
         self._trigger.add_css_class("oh-no-parent-control-account-selector")
         trigger_content = Gtk.Box(spacing=8)
+        self.account_icon = Gtk.Image()
+        apply_gtk_user_icon(self.account_icon, "", pixel_size=52)
         self._selected_icon = Gtk.Image()
         self._selected_icon.add_css_class("oh-no-parent-control-account-avatar")
         apply_gtk_user_icon(self._selected_icon, "")
@@ -103,6 +105,7 @@ class GatewayDropDown(Gtk.Box):
         self._scroll_offset = 0
         self._selected_label.set_text("")
         apply_gtk_user_icon(self._selected_icon, "")
+        apply_gtk_user_icon(self.account_icon, "", pixel_size=self.account_icon.get_pixel_size())
         self._choice_buttons = []
         while child := self._choice_list.get_first_child():
             self._choice_list.remove(child)
@@ -130,6 +133,7 @@ class GatewayDropDown(Gtk.Box):
         label, icon_file = self._items[index]
         self._selected_label.set_text(label)
         apply_gtk_user_icon(self._selected_icon, icon_file)
+        apply_gtk_user_icon(self.account_icon, icon_file, pixel_size=self.account_icon.get_pixel_size())
         if self._on_selected is not None:
             self._on_selected()
 
@@ -206,7 +210,7 @@ class RequestContent(MetalBoard):
     """Reusable request-time form used as the kiosk's primary content."""
 
     def __init__(self, on_request, on_cancel, on_account_selected=None, *,
-                 lock_child_selector=False, on_values_changed=None):
+                 lock_child_selector=False, on_values_changed=None, selection_store=None):
         super().__init__(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=2,
@@ -228,6 +232,7 @@ class RequestContent(MetalBoard):
         self._controls_enabled = True
         self._screen_time_limit_enabled = None
         self._lock_child_selector = lock_child_selector
+        self._selection_store = selection_store
         self._on_account_selected = on_account_selected
         self._on_values_changed = on_values_changed
         self._suppress_values_changed = False
@@ -257,7 +262,7 @@ class RequestContent(MetalBoard):
             "Choose the child requesting more time.",
         )
         self._accounts.set_hexpand(True)
-        child_selector = self._account_row("Child", CHILD_HEAD, self._accounts)
+        child_selector = self._account_row("Child", self._accounts)
         self.append(child_selector)
 
         self._request_form = Gtk.Box(
@@ -270,7 +275,7 @@ class RequestContent(MetalBoard):
         )
         self._approvers.set_hexpand(True)
         approver_selector = self._account_row(
-            "Approver", APPROVER_HEAD, self._approvers,
+            "Approver", self._approvers,
         )
         self._request_form.append(approver_selector)
 
@@ -456,7 +461,7 @@ class RequestContent(MetalBoard):
         return (name.upper(),)
 
     @staticmethod
-    def _account_row(caption, icon_pixels, dropdown):
+    def _account_row(caption, dropdown):
         row = MetalPanel(spacing=0, panel_kind="metal", hexpand=True)
         row.add_css_class("oh-no-parent-control-account-row")
         row.set_margin_start(10)
@@ -465,14 +470,15 @@ class RequestContent(MetalBoard):
         # shrinks the painted face. Child margins keep labels off the bevel.
         inner = Gtk.Box(spacing=8, hexpand=True)
         inner.add_css_class("oh-no-parent-control-account-row-inner")
-        inner.set_margin_top(11)
+        inner.set_margin_top(6)
         inner.set_margin_end(12)
         inner.set_margin_bottom(6)
         inner.set_margin_start(10)
-        icon = PixelIcon(icon_pixels, display_size=24, label=caption)
+        icon = dropdown.account_icon
         icon.add_css_class("oh-no-parent-control-role-icon")
         icon.set_valign(Gtk.Align.START)
-        icon.set_margin_top(3)
+        # Match the caption offset, including its CSS top margin and padding.
+        icon.set_margin_top(7)
         inner.append(icon)
         detail = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True,
@@ -486,6 +492,17 @@ class RequestContent(MetalBoard):
         detail.append(label)
         dropdown.set_valign(Gtk.Align.START)
         detail.append(dropdown)
+
+        def size_portrait(_widget):
+            # Measure only the collapsed trigger so opening the choices never
+            # enlarges the portrait. GTK measurements include caption CSS.
+            caption_height = label.measure(Gtk.Orientation.VERTICAL, -1)[1]
+            trigger_height = dropdown._trigger.measure(Gtk.Orientation.VERTICAL, -1)[1]
+            # The portrait starts 4px below detail and has 8px of CSS border
+            # and padding; its framed bottom meets the trigger's bottom.
+            icon.set_pixel_size(max(1, caption_height + trigger_height + detail.get_spacing() - 12))
+
+        row.connect("map", size_portrait)
         inner.append(detail)
         row.append(inner)
         return row
@@ -537,7 +554,11 @@ class RequestContent(MetalBoard):
         self._accounts.set_items(list(zip(self._account_labels, self._account_icons)))
         self._accounts_loaded = True
         if parsed:
-            self._accounts.set_selected(0)
+            remembered = (self._selection_store.preferred("child_uid")
+                          if self._selection_store and not self._lock_child_selector else 0)
+            self._accounts.set_selected(
+                self._account_uids.index(remembered) if remembered in self._account_uids else 0,
+            )
         if self._lock_child_selector:
             self._accounts.collapse()
         self._update_ready()
@@ -575,6 +596,9 @@ class RequestContent(MetalBoard):
 
     def _account_changed(self, *_args):
         index = self._accounts.get_selected()
+        if (self._accounts_loaded and index < len(self._account_uids)
+                and self._selection_store and not self._lock_child_selector):
+            self._selection_store.remember("child_uid", self._account_uids[index])
         if (self._accounts_loaded and index < len(self._account_uids) and
                 self._on_account_selected is not None):
             self._screen_time_limit_enabled = None
@@ -587,6 +611,10 @@ class RequestContent(MetalBoard):
         self._allow_soft.set_active(not self._allow_soft.get_active())
 
     def _approver_changed(self, *_args):
+        if not self._suppress_values_changed and self._selection_store:
+            uid = self.selected_approver_uid()
+            if uid:
+                self._selection_store.remember("approver_uid", uid)
         self._emit_values_changed()
 
     def _emit_values_changed(self, *_args):
@@ -608,9 +636,11 @@ class RequestContent(MetalBoard):
             return
         self._suppress_values_changed = True
         try:
-            if self._pending_approver_uid in self._approver_uids:
+            preferred = (self._selection_store.preferred("approver_uid")
+                         if self._selection_store else self._pending_approver_uid)
+            if preferred in self._approver_uids:
                 self._approvers.set_selected(
-                    self._approver_uids.index(self._pending_approver_uid),
+                    self._approver_uids.index(preferred),
                 )
             elif self._approvers.get_selected() == Gtk.INVALID_LIST_POSITION:
                 self._approvers.set_selected(0)

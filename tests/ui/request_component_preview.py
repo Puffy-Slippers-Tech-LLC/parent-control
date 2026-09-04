@@ -10,6 +10,7 @@ import sys
 from gi.repository import GLib
 
 from kiosk.oh_no_parent_control_kiosk.main import Application, RequestWindow, configure_logging
+from kiosk.oh_no_parent_control_kiosk.selection_store import SelectionStore
 
 
 USERS = ((1001, "Alex Morgan", ""), (1002, "Sam Rivera", ""))
@@ -118,6 +119,16 @@ BROKER = Broker()
 
 
 class ComponentWindow(RequestWindow):
+    def _build(self):
+        super()._build()
+        # Explicit test-local storage exercises the production form's persistence
+        # without enabling writes to the developer's normal preview state.
+        path = os.environ.get("ONPC_REQUEST_COMPONENT_SELECTIONS_PATH")
+        if path:
+            self._request_content._selection_store = SelectionStore(
+                path, child_overlay=self._child_overlay,
+            )
+
     def __init__(self, application, **kwargs):
         super().__init__(application, broker_connection=BROKER, **kwargs)
         # Bare Mutter has no shell to activate a windowed preview.  Exercise

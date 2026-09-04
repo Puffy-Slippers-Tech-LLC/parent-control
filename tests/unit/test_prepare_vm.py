@@ -56,14 +56,10 @@ def guest_root(tmp_path, *, version="26.04"):
 
 
 def test_exact_fixed_identity_map():
-    assert [
-        (value.label, value.username, value.display_name, value.role)
-        for value in prepare.IDENTITIES
-    ] == [
-        ("[Test parent 1]", "onpc-parent-jamie", "Jamie Parker", "administrator"),
-        ("[Test parent 2]", "onpc-parent-casey", "Casey Parker", "administrator"),
-        ("[Test child 1]", "onpc-child-riley", "Riley Parker", "standard"),
-        ("[Test child 2]", "onpc-child-jordan", "Jordan Parker", "standard"),
+    assert prepare.IDENTITIES is prepare.TEST_IDENTITIES
+    assert [identity.display_name for identity in prepare.IDENTITIES] == [
+        f"{identity.given_name} ({identity.display_role})"
+        for identity in prepare.IDENTITIES
     ]
 
 
@@ -256,6 +252,7 @@ class AccountRunner:
                 "Uid": ("t", str(uid)),
                 "UserName": ("s", username),
                 "RealName": ("s", identity.display_name),
+                "IconFile": ("s", identity.icon_file),
                 "LocalAccount": ("b", "true"),
                 "SystemAccount": ("b", "false"),
                 "AccountType": ("i", "1" if identity.role == "administrator" else "0"),
@@ -292,6 +289,7 @@ def test_reconciliation_verifies_roles_and_passes_one_shared_secret_only_on_stdi
     assert all(secret not in argument for command in runner.commands for argument in command)
     assert sum("SetAccountType" in command for command in runner.commands) == 4
     assert sum("SetLocked" in command for command in runner.commands) == 4
+    assert {command[-1] for command in runner.commands if "SetIconFile" in command} == {identity.icon_file for identity in prepare.IDENTITIES}
     assert sum("SetShell" in command for command in runner.commands) == 4
     assert sum(command[0] == "install" for command in runner.commands) == 4
 

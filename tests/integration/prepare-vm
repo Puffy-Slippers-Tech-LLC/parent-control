@@ -14,4 +14,9 @@ if [[ "$PWD" != "$CHECKOUT" ]]; then
     exit 1
 fi
 
+if (( EUID != 0 )); then
+    echo 'prep-vm: [stage:sudo] requesting root privileges for source-VM preparation' >&2
+    exec sudo -- /usr/bin/python3 "$PREPARER"
+fi
+
 exec /usr/bin/python3 "$PREPARER"

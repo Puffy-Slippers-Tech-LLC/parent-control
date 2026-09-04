@@ -18,6 +18,9 @@ During an APT install or upgrade, `debian/preinst` records that an activation co
 The uninstall helper is `none`: it is invoked only while removing the package
 and cannot affect an installed update. It is therefore intentionally excluded
 from the activation digest manifest even though it is shipped in the package.
+The maintainer-script removal guard and execution-policy baseline likewise
+activate in the install/remove lifecycle (`none`); they add no running service,
+session integration, or saved-preference schema change.
 
 The package never clears `/run/reboot-required` or removes package names from `/run/reboot-required.pkgs`: either may have been created by Ubuntu or another package. It only adds its own package name when this package's comparison finds the `reboot` level.
 

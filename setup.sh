@@ -61,6 +61,7 @@ fi
     dbus-user-session \
     debhelper \
     devscripts \
+    dpkg-dev \
     dh-python \
     dput \
     flatpak=1.16.6-1 \

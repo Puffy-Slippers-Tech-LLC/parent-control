@@ -6,6 +6,11 @@ The supported target is Ubuntu 26.04 LTS (`resolute`). Launchpad accepts a
 signed source upload and builds the architecture-specific `.deb`; do not upload
 the locally built binary package.
 
+Run checkout commands from the repository root on Ubuntu 26.04, in the same
+shell. Replace uppercase placeholders
+before running commands. Run each build and inspection step separately and stop
+on failure; the snippets are not an unattended publishing script.
+
 ## One-time publisher setup
 
 1. Create or sign in to the Launchpad account that will own the archive:
@@ -33,15 +38,17 @@ the locally built binary package.
 5. Open the Launchpad account's **OpenPGP keys** page, import that fingerprint,
    decrypt Launchpad's confirmation email, and follow its confirmation link.
 6. Create a public PPA named `oh-no-parent-control` from the Launchpad web UI.
-   Record the exact owner name shown in its URL. Enable only architectures on
-   which this application will be supported and tested; `amd64` is the initial
-   supported package architecture.
+   Record the exact owner name shown in its URL. For a team-owned PPA, use the
+   team's owner name and ensure the signing account has upload permission.
+   Enable only architectures on which this application will be supported;
+   `amd64` is the initial supported package architecture.
 7. Configure the release checkout to use the same confirmed identity and key,
    substituting the publisher's values:
 
    ```sh
    git config user.name 'PUBLISHER NAME'
    git config user.email 'CONFIRMED_LAUNCHPAD_EMAIL'
+   git config gpg.format openpgp
    git config user.signingkey 'FULL_OPENPGP_FINGERPRINT'
    ```
 
@@ -50,7 +57,9 @@ Canonical's current setup instructions are:
 
 ## Prepare each release
 
-1. Install the repository-recorded development and publishing tools:
+1. Use a dedicated clean release checkout and install the repository-recorded
+   development and publishing tools. `setup.sh` installs development
+   dependencies, not the product itself:
 
    ```sh
    ./setup.sh
@@ -77,11 +86,13 @@ Canonical's current setup instructions are:
    ```
 
    The command rejects a reused or decreasing version. Product versions do not
-   control saved-data compatibility: follow `Data-Migration.md` whenever a
-   code change makes saved application data incompatible.
+   control saved-data compatibility: follow [Data-Migration.md](Data-Migration.md)
+   whenever a code change makes saved application data incompatible.
 
    The unreleased tree is already initialized at `1.0`; omit this step when
    publishing that initial release without changing its version.
+   Also omit it for a packaging-only rebuild of an already published product
+   version; increment the PPA revision in the next step instead.
 
 4. Add the PPA build revision to the changelog. This is a `3.0 (native)`
    package, so the package version must not contain a Debian revision separated
@@ -91,39 +102,57 @@ Canonical's current setup instructions are:
    ```sh
    product_version=$(/usr/bin/python3 -c \
        'import json; print(json.load(open("data/app.json"))["version"])')
-   dch --newversion "${product_version}+ppa1~ubuntu26.04.1" \
+   ppa_revision=1
+   dch --newversion "${product_version}+ppa${ppa_revision}~ubuntu26.04.1" \
        --distribution resolute \
        "Build Oh No! Parent Control ${product_version} for the PPA."
    ```
 
-   Increment `ppa1` for another upload of the same product version. Never reuse
-   a version already accepted by this PPA, even if that publication was later
-   deleted.
-5. Review `Compliance.md`, including the source-availability and third-party
-   attribution checklist.
+   Set `ppa_revision` to the next unused integer for another upload of the same
+   product version. Never reuse a version already accepted by this PPA, even if
+   that publication was later deleted.
+5. Review [Compliance.md](Compliance.md), including the source-availability and
+   third-party attribution checklist. Publish the exact source tags before the
+   public PPA upload, as described below.
 6. Commit the release state and confirm there are no uncommitted or untracked
    files:
 
    ```sh
-   git status --short
+   make check-release-version
+   git diff --check
+   git status --short --untracked-files=all
    ```
 
-   This command must produce no output. The release must not be built from a
-   dirty checkout.
-7. Create the signed product-version tag locally, but do not push it until the
-   uploaded package passes acceptance:
+   The status command must produce no output. Git status does not report
+   ignored files by default, and `dpkg-source` does not use `.gitignore` as its
+   archive exclusion list. Review `git status --short --ignored` and
+   `debian/source/options`; keep unrelated files and prior build artifacts
+   outside this checkout. In particular, the ignored `output/` directory is
+   not excluded by the current source options.
+7. Create a signed tag for this exact Debian package version:
 
    ```sh
-   git tag -s "v${product_version}" \
-       -m "Oh No! Parent Control ${product_version}"
+   version=$(dpkg-parsechangelog -S Version)
+   source_tag="v${version}"
+   git tag -s "$source_tag" -m "Oh No! Parent Control ${version} source"
+   git verify-tag "$source_tag"
    ```
 
-   If any release input changes after this point, delete and recreate the
-   unpushed local tag after committing the correction. Never move a tag that
-   has already been pushed.
+   For the first upload of a new product version, also create its signed
+   product tag:
 
-8. Build and inspect the binary package using the next section. A release build
-   must not set `DEB_BUILD_OPTIONS=nocheck`.
+   ```sh
+   product_tag="v${product_version}"
+   git tag -s "$product_tag" -m "Oh No! Parent Control ${product_version}"
+   git verify-tag "$product_tag"
+   ```
+
+   A packaging-only rebuild retains the existing product tag and receives a
+   new package-version tag. If inputs change before publication, commit the
+   correction, recreate only the affected unpushed tags, and repeat validation.
+   Never move a pushed tag; use a new version and tag for a correction.
+
+8. Build and inspect the binary package using the next section.
 
 ## Build and inspect a local binary
 
@@ -139,14 +168,7 @@ sudo apt build-dep .
 dpkg-buildpackage --build=binary --no-sign
 ```
 
-For packaging development only, a build can omit the test phase using Debian's
-standard `nocheck` option:
-
-```sh
-DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage --build=binary --no-sign
-```
-
-Never use `nocheck` for a release candidate. The `.deb`, `.changes`, and
+The `.deb`, `.changes`, and
 `.buildinfo` files are written to the parent of the source directory. Inspect
 the actual version and architecture rather than assuming an artifact name:
 
@@ -162,12 +184,7 @@ dpkg-deb --contents "$deb"
 sha256sum "$deb"
 ```
 
-Install and exercise the local package only in a disposable Ubuntu 26.04 VM.
-It provisions an account and integrates with PAM, GDM, fapolicyd, systemd,
-D-Bus, Polkit, and GNOME sessions. A first installation intentionally creates
-Ubuntu's reboot-required marker.
-
-## Create and upload the signed source package
+## Create and inspect the signed source package
 
 Set shell variables to the publisher-specific values, then build the signed
 source upload:
@@ -178,13 +195,34 @@ ppa_name='oh-no-parent-control'
 signing_key='FULL_OPENPGP_FINGERPRINT'
 
 make check-release-version
+test "$(dpkg-parsechangelog -S Distribution)" = resolute
 debuild -S -sa -k"$signing_key"
+```
+
+After a successful source build, inspect the upload artifacts:
+
+```sh
 version=$(dpkg-parsechangelog -S Version)
 source_changes="../oh-no-parent-control_${version}_source.changes"
-test -f "$source_changes"
+source_dsc="../oh-no-parent-control_${version}.dsc"
+source_archive="../oh-no-parent-control_${version}.tar.xz"
+test -f "$source_changes" && test -f "$source_dsc" && test -f "$source_archive"
+gpg --verify "$source_changes"
+gpg --verify "$source_dsc"
 lintian "$source_changes"
-dput "ppa:${launchpad_owner}/${ppa_name}" "$source_changes"
+tar -tf "$source_archive"
+sha256sum "$source_changes" "$source_dsc" "$source_archive"
+git status --short --untracked-files=all
+test "$(git rev-parse HEAD)" = "$(git rev-parse "${source_tag}^{commit}")"
 ```
+
+Verify both signatures belong to the registered publisher key. Review the
+native source tarball for complete corresponding source and unintended files,
+including local build output, credentials, and other generated artifacts. The archive
+exclusions are controlled by `debian/source/options`, as described in the
+[dpkg-source manual](https://manpages.debian.org/testing/dpkg-dev/dpkg-source.1.en.html).
+Keep all files listed by `_source.changes` together in the parent directory;
+`dput` uploads the files referenced there.
 
 Do not continue if the source build, signature, or Lintian review reports an
 unexplained error. Warnings must either be fixed or reviewed and documented;
@@ -197,6 +235,36 @@ specific warning is reviewed; do not lower the field merely to silence an
 older Lintian data file. Recheck the current policy before each release:
 <https://www.debian.org/doc/debian-policy/>.
 
+## Publish the source and upload
+
+After artifact review passes, publish the release commit
+and the signed package-version tag to the public source repository:
+
+```sh
+git push origin HEAD
+git push origin "$source_tag"
+```
+
+For a new product version, also push its product tag:
+
+```sh
+git push origin "$product_tag"
+```
+
+Confirm the exact tags and corresponding source are publicly accessible at the
+location in [Compliance.md](Compliance.md#product-license-and-corresponding-source).
+Then upload the reviewed signed source package:
+
+```sh
+dput "ppa:${launchpad_owner}/${ppa_name}" "$source_changes"
+```
+
+This changes a public archive: successful builds may be published automatically
+and become available to existing PPA subscribers immediately.
+If a problem is found after upload, stop promotion, investigate, and publish a
+corrected newer package version. Deleting a PPA publication does not roll back
+packages already installed by consumers or make its version reusable.
+
 Launchpad's upload instructions are:
 <https://documentation.ubuntu.com/launchpad/user/how-to/packaging/ppa-package-upload/>.
 
@@ -207,46 +275,12 @@ Launchpad's upload instructions are:
    architecture show **Successfully built** and then **Published**.
 2. Open the published source entry and verify that its version equals the local
    `debian/changelog` version.
-3. On a clean, disposable Ubuntu 26.04 Desktop VM, install from the public PPA:
+3. Record both source and product tags alongside the published PPA version.
+4. Publish these consumer commands, replacing the owner if necessary:
 
    ```sh
-   sudo add-apt-repository universe
-   sudo add-apt-repository \
-       "ppa:${launchpad_owner}/${ppa_name}"
    sudo apt update
-   apt-cache policy oh-no-parent-control
-   sudo apt install oh-no-parent-control
-   ```
-
-4. Confirm `apt-cache policy` selects the intended PPA version. Reboot when the
-   package requests it, then verify the required services and login integration:
-
-   ```sh
-   systemctl is-active fapolicyd.service
-   systemctl is-active oh-no-parent-control-broker.service
-   grep -F 'pam_oh_no_parent_control.so' /etc/pam.d/common-auth
-   grep -F 'oh-no-parent-control-session-limit-check' /etc/pam.d/common-account
-   test -x /usr/libexec/oh-no-parent-control-login-check
-   test -r /usr/share/wayland-sessions/oh-no-parent-control.desktop
-   ```
-
-   Open the Parent application as an administrator and save a test child's
-   screen-time and application policy. Confirm that the child session enforces
-   it, that the child overlay can submit a request, and that the dedicated
-   **Oh No! Parent Control** login session can submit a request. Perform this
-   acceptance only with disposable test accounts and data.
-5. After the PPA artifact has passed acceptance, push the commit and the signed
-   source tag created earlier. The tag names the product version, not the PPA
-   revision:
-
-   ```sh
-   git push origin HEAD
-   git push origin "v${product_version}"
-   ```
-
-6. Publish these consumer commands, replacing the owner if necessary:
-
-   ```sh
+   sudo apt install software-properties-common
    sudo add-apt-repository universe
    sudo add-apt-repository ppa:YOUR_LAUNCHPAD_OWNER/oh-no-parent-control
    sudo apt update
@@ -259,8 +293,11 @@ Canonical's consumer instructions are:
 ## Publish an update
 
 For every update, create a new changelog entry and a strictly newer unique
-package version, rebuild and inspect both binary and signed source artifacts,
-upload the new `_source.changes`, wait for publication, and test an APT upgrade
-from the previously published version. Follow `Package-Update.md` when deciding
-whether changed integration requires a process restart, session renewal, or
-reboot.
+package version, create a new signed package-version tag, rebuild and inspect
+both binary and signed source artifacts, upload the new `_source.changes`, wait
+for publication. Follow [Package-Update.md](Package-Update.md) when
+deciding whether changed integration requires a process restart, session
+renewal, or reboot.
+
+If saved-data meaning changes, ship the migration required by
+[Data-Migration.md](Data-Migration.md).

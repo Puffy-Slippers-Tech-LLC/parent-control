@@ -83,8 +83,8 @@ requiring a model-switch pause. Preserve completed tasks and completion records.
 - [x] Task 11 — Build deterministic native and Flatpak test applications
 - [x] Task 12A — Add guarded in-VM test-account preparation
 - [x] Task 12B — Add host-only pre-install baseline capture
-- [ ] Task 12C — Capture and verify the prepared VM baseline
-- [ ] Task 13A — Build reproducible package and fixture artifacts
+- [x] Task 12C — Capture and verify the prepared VM baseline
+- [x] Task 13A — Build reproducible package and fixture artifacts
 - [ ] Task 13B — Add the guarded autopkgtest QEMU runner and install smoke
 - [ ] Task 14 — Test installed broker identity and authorization boundaries
 - [ ] Task 15A — Test installed catalog and application launch enforcement
@@ -286,8 +286,8 @@ the recommendations in those sections.
 - [x] [Task 11 — Build deterministic native and Flatpak test applications](Task-11.md)
 - [x] [Task 12A — Add guarded in-VM test-account preparation](Task-12A.md)
 - [x] [Task 12B — Add host-only pre-install baseline capture](Task-12B.md) — `gpt-6-astra` / `high`
-- [ ] [Task 12C — Capture and verify the prepared VM baseline](Task-12C.md) — `gpt-5.6-terra` / `medium`
-- [ ] [Task 13A — Build reproducible package and fixture artifacts](Task-13.md#task-13a) — `gpt-5.6-terra` / `medium`
+- [x] [Task 12C — Capture and verify the prepared VM baseline](Task-12C.md) — `gpt-5.6-terra` / `medium`
+- [x] [Task 13A — Build reproducible package and fixture artifacts](Task-13.md#task-13a) — `gpt-5.6-terra` / `medium`
 - [ ] [Task 13B — Add the guarded autopkgtest QEMU runner and install smoke](Task-13.md#task-13b) — `gpt-6-astra` / `high`
 - [ ] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md) — `gpt-6-astra` / `high`
 - [ ] [Task 15A — Test installed catalog and application launch enforcement](Task-15.md#task-15a) — `gpt-5.6-terra` / `high`
@@ -440,3 +440,20 @@ Append one entry only after its checklist item has been changed to `[x]`:
 - Verification: 144 focused snapshot/inspection tests passed; 5 isolated controller cleanup-safety tests passed; the combined controller/child cleanup prerequisites passed (16 tests and 3 subtests). Command help, Python syntax, 17 component tests, and `git diff --check` passed. VM operations were mocked; no real snapshot creation, shutdown, or revert occurred.
 - Broader checks: `make check` reached 550 passing tests and 11 failures in the concurrently added `tests/unit/test_package_removal.py`. Its `/bin/sh` mock fixture rejected hyphenated function names with `Syntax error: Bad function name`; these files are outside this change. Component tests passed separately using the Makefile's import environment and approved execution outside the socket-restricted sandbox.
 - Remaining: Task 12C is still unchecked and owns real snapshot acceptance. No commit was created.
+
+### Task 12C completed — 2026-09-04
+
+- Result: Accepted the operator-created internal `oh-no-parent-control-baseline` snapshot on the existing powered-off `ubuntu26.04` VM. The root-owned mode-0600 journal is finalized; its directory and disk device/inode identities match live metadata. Libvirt records the saved domain configuration and shutoff state. QCOW2 snapshot ID `1`, creation time `1788557532`, nanoseconds `538670000`, and zero VM-memory size match the journal. The existing active disk `/Data/virt-manager/ubuntu26.04.1788555805` retains its backing file `/Data/virt-manager/ubuntu26.04.qcow2`; this pre-existing chain is supported and was not replaced. No separate baseline-copy directory exists.
+- Preparation evidence: The finalized inspection records Ubuntu 26.04, two administrator and two standard test accounts, preparation-script digest `b85d7a4ddb62e1edc3516fd82e50921561b3db9db9d490274be7d39743218406`, and preparation-record digest `79a8c4d562eb5379110e35903c820fdf8e96bb5ec50fa8ffeefdfdcd986cbe19`. Completion of the controller's offline inspection verifies product absence. No secrets occur in the preparation evidence.
+- Repairs during operator execution: Added empty-directory ownership/mode repair, continuous libvirt event dispatch to prevent journal-confirmed keepalive timeouts during inspection, quiet absent-snapshot discovery, and hashing/inspection/check progress stages. Existing controller state and snapshots remain preserved on interrupted runs.
+- Verification: `/usr/bin/python3 -m pytest tests/unit/test_prepare_host_cleanup_safety.py tests/unit/test_child_preview_cleanup_safety.py -q` (16 passed, 3 subtests); `/usr/bin/python3 -m pytest tests/unit/test_prepare_host.py tests/unit/test_prepare_vm.py tests/unit/test_prepare_vm_contract.py -q` (161 passed); `make check` (576 unit/contract and 17 component tests passed); `git diff --check`. Read-only acceptance used `virsh --connect qemu:///system domstate`, `snapshot-dumpxml`, and `domblklist`, plus graphically authenticated root reads of `phase.json`, `stat`, directory listings, and `qemu-img info -f qcow2 --backing-chain --output=json` on the recorded active disk. The absent copy-directory listing returned the expected not-found result.
+- Handoff: The reusable baseline and fixed `make prep-vm` / `make prep-host` interfaces are ready. Evidence remains in `/Data/virt-manager/oh-no-parent-control-baseline-state/phase.json`, libvirt snapshot metadata, and the active QCOW2's internal snapshot. Later runner work must serialize use of this existing VM, preserve the baseline, and detach the writable `/Data` share before test boots. Acceptance performed no restore, product installation, or later system test. Stop before Task 13A.
+- Commit: not committed.
+
+### Task 13A completed — 2026-09-04
+
+- Result: Added isolated `make build-test-artifacts` and repeatable `make verify-test-artifacts` interfaces. Each output contains the exact Debian package, Task 11 fixture payload, and `artifact-manifest.json` with source revision/content digest, source date epoch, architecture, build command, package/tool versions, package digest, and canonical fixture-payload digest. The package is built in a temporary source copy and is never installed on the development host.
+- Verification: `make verify-test-artifacts FIRST_OUTPUT=/tmp/onpc-task13a-artifacts/final2-first SECOND_OUTPUT=/tmp/onpc-task13a-artifacts/final2-second`; `/usr/bin/python3 -m pytest tests/unit/test_build_test_artifacts.py -q`; `make check`; `git diff --check`
+- Handoff: Task 13B consumes a completed `artifact-manifest.json`, verifies the recorded package and fixture digests before guest transfer, and uses `package/<named .deb>` plus `fixtures/`. The Flatpak repository's generated delivery summary and `.flatpak` container include host-clock metadata; the manifest's fixture digest covers the stable application/runtime payload and still requires the generated bundle to exist. The builder records `DEB_BUILD_OPTIONS=nocheck` because Task 12's host-controller tests require the fixed development-checkout path; `make check` executes them from that path separately.
+- Artifacts: verified outputs remain at `/tmp/onpc-task13a-artifacts/final2-first/` and `/tmp/onpc-task13a-artifacts/final2-second/` for this session.
+- Commit: not committed

@@ -60,7 +60,7 @@ EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
-.PHONY: bump-version build installdeb prep-vm check-release-version check check-unit check-component check-test-fixtures build-test-fixtures check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: bump-version build installdeb prep-vm check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -153,6 +153,20 @@ check-test-fixtures:
 build-test-fixtures:
 	@test -n "$(OUTPUT_DIR)" || (echo 'Usage: make build-test-fixtures OUTPUT_DIR=/tmp/onpc-test-fixtures-.../payload' >&2; exit 2)
 	@$(PYTHON) tests/fixtures/build_test_applications.py --output "$(OUTPUT_DIR)"
+
+# Produces the exact .deb and fixture payload consumed by check-system in Task
+# 13B. The explicit output directory must be empty and outside this checkout.
+build-test-artifacts:
+	@test -n "$(OUTPUT_DIR)" || (echo 'Usage: make build-test-artifacts OUTPUT_DIR=/tmp/onpc-test-artifacts-.../first' >&2; exit 2)
+	@$(PYTHON) tools/build_test_artifacts.py --output "$(OUTPUT_DIR)"
+
+# Build twice in separate explicit directories, then compare package bytes,
+# package metadata/contents, fixture digests, and recorded source inputs.
+verify-test-artifacts:
+	@test -n "$(FIRST_OUTPUT)" && test -n "$(SECOND_OUTPUT)" || (echo 'Usage: make verify-test-artifacts FIRST_OUTPUT=/tmp/onpc-test-artifacts-.../first SECOND_OUTPUT=/tmp/onpc-test-artifacts-.../second' >&2; exit 2)
+	@$(MAKE) --no-print-directory build-test-artifacts OUTPUT_DIR="$(FIRST_OUTPUT)"
+	@$(MAKE) --no-print-directory build-test-artifacts OUTPUT_DIR="$(SECOND_OUTPUT)"
+	@$(PYTHON) tools/build_test_artifacts.py --compare "$(FIRST_OUTPUT)" "$(SECOND_OUTPUT)"
 
 check-child-shell:
 	@tools/run-ui-tests --timeout 360s tests/ui/test_child_shell_lifecycle.py -m ui -q

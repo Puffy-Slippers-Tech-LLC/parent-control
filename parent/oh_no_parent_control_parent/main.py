@@ -266,9 +266,9 @@ class ParentWindow(Adw.ApplicationWindow):
     def _build(self):
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar(css_classes=["parent-header"])
-        # Use the same installed branding asset as the About dialog, rather
-        # than a themed icon, so the Parent App has a consistent product mark
-        # in development and after packaging.
+        # Use a title-bar-specific raster at its native display size. Shrinking
+        # the detailed 512 px launcher artwork here makes its fine neon edges
+        # visibly soft, while the pre-rendered asset stays crisp at 48 px.
         title_brand = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL,
             spacing=10,
@@ -276,7 +276,7 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["parent-title-brand"],
         )
         title_logo = Gtk.Image.new_from_file(
-            str(branding_asset_path("app_logo_gnome_launcher.png")),
+            str(branding_asset_path("app_logo_titlebar.png")),
         )
         title_logo.set_pixel_size(48)
         title_logo.update_property(

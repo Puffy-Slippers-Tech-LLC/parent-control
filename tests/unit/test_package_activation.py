@@ -89,6 +89,14 @@ class PackageActivationTests(unittest.TestCase):
             "none",
         )
 
+    def test_parent_titlebar_logo_needs_no_session_restart(self):
+        self.assertEqual(
+            activation_for(
+                "usr/share/oh-no-parent-control/app_logo_titlebar.png"
+            ),
+            "none",
+        )
+
     def test_session_payload_change_does_not_signal_reboot(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

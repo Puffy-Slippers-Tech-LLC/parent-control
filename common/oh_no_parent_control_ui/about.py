@@ -19,6 +19,7 @@ _INSTALLED_DATA_DIR = Path("/usr/share/oh-no-parent-control")
 _SOURCE_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 _ABOUT_LOGO_WIDTH = 126
 _ABOUT_LOGO_HEIGHT = 128
+_PRIVACY_URL = "https://tech.puffyslippers.com/oh-no-parent-control/privacy/"
 
 
 def _data_dir() -> Path:
@@ -42,7 +43,7 @@ def _load_json(name: str) -> dict:
 def branding() -> dict:
     """Return the product's shared, package-installed branding data."""
     values = _load_json("brand.json")
-    for name in ("app_name", "vendor_name", "app_url", "contact"):
+    for name in ("app_name", "vendor_name", "app_url", "help_url", "contact"):
         if not isinstance(values.get(name), str) or not values[name]:
             raise ValueError(f"brand.json {name} must be a non-empty string")
     return values
@@ -161,6 +162,9 @@ class AboutDialog(Gtk.Window):
         content.append(_detail_row("web-browser-symbolic", "Website", values["app_url"],
                                    values["app_url"],
                                    links_enabled=links_enabled))
+        content.append(_detail_row("security-high-symbolic", "Privacy",
+                                   "Privacy policy", _PRIVACY_URL,
+                                   links_enabled=links_enabled))
         subject = f"{values['app_name']}: Feedbacks"
         # Some mail clients display '+' from form-style query encoding
         # literally. Percent encoding is unambiguous for a mailto URI.
@@ -192,5 +196,5 @@ class AboutDialog(Gtk.Window):
 
 
 def open_help() -> None:
-    """Open the product website in the registered browser."""
-    _launch_uri(branding()["app_url"])
+    """Open the product help page in the registered browser."""
+    _launch_uri(branding()["help_url"])

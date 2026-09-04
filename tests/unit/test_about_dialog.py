@@ -8,12 +8,34 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class AboutDialogTests(unittest.TestCase):
+    def test_help_opens_the_help_page_without_changing_the_about_website(self):
+        source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
+            encoding="utf-8")
+        branding = (ROOT / "data/brand.json").read_text(encoding="utf-8")
+
+        self.assertIn('_launch_uri(branding()["help_url"])', source)
+        self.assertIn('"app_url": "https://tech.puffyslippers.com/oh-no-parent-control"',
+                      branding)
+        self.assertIn('"help_url": "https://tech.puffyslippers.com/oh-no-parent-control/help"',
+                      branding)
+
     def test_website_row_uses_a_generic_web_browser_icon(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
             encoding="utf-8")
 
         self.assertIn('_detail_row("web-browser-symbolic", "Website"', source)
         self.assertNotIn('icon_filename="company_logo.png"', source)
+
+    def test_privacy_row_uses_the_published_privacy_policy(self):
+        source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
+            encoding="utf-8")
+
+        self.assertIn(
+            '_PRIVACY_URL = "https://tech.puffyslippers.com/oh-no-parent-control/privacy/"',
+            source,
+        )
+        self.assertIn('"security-high-symbolic", "Privacy"', source)
+        self.assertIn('"Privacy policy", _PRIVACY_URL', source)
 
     def test_gtk_about_logo_uses_launcher_art_at_the_original_display_size(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(

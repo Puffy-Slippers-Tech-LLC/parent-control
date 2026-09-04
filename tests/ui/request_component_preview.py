@@ -56,6 +56,8 @@ class Broker:
                     0.09 if self.scenario == "custom-too-small" else 1440.1
                 ),
             })
+        elif self.scenario == "rest-of-day":
+            self.preferences[1001]["request"]["last_selected_duration"] = "0"
 
     def record(self, event, **details):
         if self.path:
@@ -118,6 +120,10 @@ BROKER = Broker()
 class ComponentWindow(RequestWindow):
     def __init__(self, application, **kwargs):
         super().__init__(application, broker_connection=BROKER, **kwargs)
+        # Bare Mutter has no shell to activate a windowed preview.  Exercise
+        # the production request-surface state so RemoteDesktop keyboard input
+        # has an active fullscreen target in both request modes.
+        self.fullscreen()
 
     def _logout(self, *_args):
         BROKER.record("logout", overlay=self._child_overlay)

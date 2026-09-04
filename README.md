@@ -41,9 +41,10 @@ See [docs/Publishing.md](docs/Publishing.md) for the complete package build and
 Launchpad PPA release workflow.
 
 Removing the Debian package disables and verifies all product-derived child
-restrictions, removes the dedicated kiosk account and generated system
-integration, and leaves canonical child preferences and redacted product logs
-available for a later reinstall or administrator-directed archival.
+restrictions, removes a dedicated kiosk account created by the package and all
+generated system integration, and leaves a pre-existing kiosk account,
+canonical child preferences, and redacted product logs available for a later
+reinstall or administrator-directed archival.
 
 ## Development
 

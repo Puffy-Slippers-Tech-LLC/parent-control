@@ -5,5 +5,6 @@ oh-no-parent-control (1.0.0) resolute; urgency=medium
   * Harden maintainer scripts and classify package-update activation.
   * Resolve new kiosk accounts through AccountsService before provisioning.
   * Remove and verify derived enforcement during Debian package uninstall.
+  * Reuse but do not claim ownership of a pre-existing kiosk account.
 
  -- Puffy Slippers <support@puffyslippers.com>  Thu, 03 Sep 2026 15:11:16 -0700

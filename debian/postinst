@@ -28,8 +28,11 @@ if [ "$1" = configure ]; then
         chmod 0600 \
             /var/lib/oh-no-parent-control/package-created-kiosk-uid
     elif [ ! -f /var/lib/oh-no-parent-control/package-created-kiosk-uid ]; then
-        echo 'oh-no-parent-control: dedicated kiosk account already exists without package ownership' >&2
-        exit 1
+        # A source deployment or an administrator may already have created the
+        # reserved kiosk account. Provision validates that it is non-root and
+        # non-administrative. Do not create the ownership marker here: postrm
+        # must preserve an account that this package did not create.
+        echo 'oh-no-parent-control: using existing dedicated kiosk account; package removal will preserve it' >&2
     elif [ "$(id -u "$kiosk_user")" != \
            "$(cat /var/lib/oh-no-parent-control/package-created-kiosk-uid)" ]; then
         echo 'oh-no-parent-control: kiosk account no longer matches package ownership' >&2

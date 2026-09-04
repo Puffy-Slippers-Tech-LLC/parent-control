@@ -33,6 +33,10 @@ LAST_EXTENSION_INFO: object = "not queried"
 LAST_ACCESSIBLE_NAME = "not found"
 
 
+def is_expected_accessible_name(name):
+    return any(name.startswith(expected) for expected in EXPECTED_ACCESSIBLE_NAMES)
+
+
 def _extension_is_active(connection: Gio.DBusConnection) -> bool:
     global LAST_EXTENSION_INFO
     try:
@@ -81,7 +85,7 @@ def _find_indicator():
             visible = states.contains(Atspi.StateType.VISIBLE)
             if name == "Screen Time Remaining" and visible:
                 indicator_visible = True
-            if name in EXPECTED_ACCESSIBLE_NAMES:
+            if is_expected_accessible_name(name):
                 LAST_ACCESSIBLE_NAME = name
                 request_named = True
             if indicator_visible and request_named:

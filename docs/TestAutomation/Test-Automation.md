@@ -56,7 +56,7 @@ record.
 - [x] Task 09 — Add executable unit tests for child-extension JavaScript
 - [x] Task 10A — Refactor the child preview into reusable orchestration
 - [x] Task 10B — Add the isolated nested-Shell lifecycle smoke
-- [ ] Task 10C — Automate child indicator request interaction
+- [x] Task 10C — Automate child indicator request interaction
 - [ ] Task 10D — Verify reload, preserve artifacts, and finish integration
 - [ ] Task 11 — Build deterministic native and Flatpak test applications
 - [ ] Task 12 — Add safe immutable VM baselines and disposable overlay clones
@@ -79,7 +79,12 @@ record.
 
 ## Rules for every task
 
-1. Execute tasks strictly in checklist order. Do not skip, combine, reorder, or
+1. Default computer running the task is dev machine, and the app is not allowed
+   to be installed. The dev machine is also a host of a test VM where app is to be
+   installed and tested. If the task or any steps in it requires test machine (VM),
+   clarify and wait for confirmation before proceeding to ensure the right change job
+   is done on the right machine.
+3. Execute tasks strictly in checklist order. Do not skip, combine, reorder, or
    begin a later task.
    Tasks 10A through 10D are separate tasks for this rule: complete and record
    exactly one of them in a session, then stop so a fresh session can select
@@ -176,7 +181,7 @@ item.
 - [x] [Task 09 — Add executable unit tests for child-extension JavaScript](Task-09.md)
 - [x] [Task 10A — Refactor the child preview into reusable orchestration](Task-10A.md)
 - [x] [Task 10B — Add the isolated nested-Shell lifecycle smoke](Task-10B.md)
-- [ ] [Task 10C — Automate child indicator request interaction](Task-10C.md)
+- [x] [Task 10C — Automate child indicator request interaction](Task-10C.md)
 - [ ] [Task 10D — Verify reload, preserve artifacts, and finish integration](Task-10D.md)
 - [ ] [Task 11 — Build deterministic native and Flatpak test applications](Task-11.md)
 - [ ] [Task 12 — Add safe immutable VM baselines and disposable overlay clones](Task-12.md)
@@ -273,4 +278,10 @@ Append one entry only after its checklist item has been changed to `[x]`:
 
 - Result: Added the GNOME Shell 50 Mutter Devkit lifecycle smoke with a copied packaged extension, private XDG/settings/D-Bus/AT-SPI/PipeWire state, bounded semantic readiness, complete extension-attributable log checks, and identity-recorded deterministic teardown; also removed deprecated indicator construction and made extension shutdown idempotent.
 - Verification: `python3 -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`; `tools/run-ui-tests --timeout 120s tests/ui/test_child_shell_lifecycle.py -m ui -q` (three consecutive fresh processes); `make check-component`; `make check`; `git diff --check`
+- Commit: not committed
+
+### Task 10C completed — 2026-09-04
+
+- Result: Added supported virtual-keyboard interaction with the real nested-Shell indicator, a preview-only initially-closed scenario, observable single-flight process/window/accessibility assertions while opening and running, shared child-overlay close/reopen coverage, redacted diagnostics, and deterministic teardown.
+- Verification: `python3 -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`; `tools/run-ui-tests --timeout 180 tests/ui/test_child_shell_lifecycle.py::test_child_indicator_opens_one_shared_overlay_and_can_reopen -q` (three consecutive fresh processes); `make check-component`; `make check`; `git diff --check`
 - Commit: not committed

@@ -52,7 +52,7 @@ class ChildPreviewTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary) / "runtime"
             result = self.run_orchestration(
-                "source child/preview-orchestration.sh; "
+                "export GDK_BACKEND=x11; source child/preview-orchestration.sh; "
                 f"onpc_preview_configure '{ROOT / 'child'}' '{root}'; "
                 "onpc_preview_nested_wayland_display=onpc-preview-test; "
                 "onpc_preview_build_shell_command; "
@@ -125,7 +125,7 @@ class ChildPreviewTests(unittest.TestCase):
 
     def test_private_bus_shell_command_does_not_create_a_second_bus(self):
         result = self.run_orchestration(
-            "source child/preview-orchestration.sh; "
+            "export GDK_BACKEND=x11; source child/preview-orchestration.sh; "
             "onpc_preview_configure child /tmp/onpc-preview-test; "
             "onpc_preview_bus_address=unix:path=/tmp/private-test-bus; "
             "onpc_preview_nested_wayland_display=onpc-preview-test; "
@@ -136,6 +136,22 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertEqual(
             result.stdout.strip(),
             "gnome-shell --devkit --wayland --no-x11 --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
+        )
+
+    def test_wayland_host_keeps_nested_xwayland_for_virtual_input(self):
+        result = self.run_orchestration(
+            "unset GDK_BACKEND; "
+            "source child/preview-orchestration.sh; "
+            "onpc_preview_configure child /tmp/onpc-preview-test; "
+            "onpc_preview_nested_wayland_display=onpc-preview-test; "
+            "onpc_preview_build_shell_command; "
+            "printf '%s\\n' \"${onpc_preview_shell_command[*]}\"",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.strip(),
+            "dbus-run-session -- gnome-shell --devkit --wayland --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
         )
 
     def test_private_bus_uses_the_preview_runtime_socket(self):
@@ -243,6 +259,27 @@ class ChildPreviewTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_devkit_registration_accepts_an_exact_owned_child_before_setsid(self):
+        result = self.run_orchestration(
+            "source child/preview-orchestration.sh; "
+            "onpc_preview_configure child /tmp/onpc-preview-devkit-child; "
+            "onpc_preview_shell_pid=$$; "
+            "onpc_preview_record_owned_child_process \"$$\" "
+            "onpc_preview_shell_start_time 'GNOME Shell'; "
+            "sleep 20 & helper=$!; "
+            "onpc_preview_devkit_path=/proc/$helper/exe; "
+            "onpc_preview_find_mutter_devkit_descendant() { printf '%s\\n' \"$helper\"; }; "
+            "onpc_preview_record_mutter_devkit; "
+            "test \"$onpc_preview_devkit_pid\" = \"$helper\"; "
+            "test -n \"$onpc_preview_devkit_start_time\"; "
+            "onpc_preview_stop_owned_process \"$onpc_preview_devkit_pid\" "
+            "\"$onpc_preview_devkit_start_time\" 'Mutter Devkit'; "
+            "! kill -0 \"$helper\" 2>/dev/null",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("by exact identity", result.stderr)
 
     def test_preview_mode_uses_fixture_ui_behavior_without_privileged_clients(self):
         extension = (ROOT / "child" / "extension.js").read_text()

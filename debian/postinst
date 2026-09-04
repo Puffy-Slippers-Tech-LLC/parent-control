@@ -9,12 +9,26 @@ if [ "$1" = abort-remove ]; then
         --enable oh-no-parent-control-kiosk-only </dev/null
 fi
 
+release_removal_guard() {
+    if [ -f /var/lib/oh-no-parent-control/uninstall-broker-mask ]; then
+        if [ "$(readlink /run/systemd/system/oh-no-parent-control-broker.service)" = /dev/null ]; then
+            systemctl unmask --runtime oh-no-parent-control-broker.service >/dev/null
+        fi
+        rm -f /var/lib/oh-no-parent-control/uninstall-broker-mask
+    fi
+}
+
+if [ "$1" = abort-remove ]; then
+    release_removal_guard
+fi
+
 if [ "$1" = configure ]; then
     if [ -f /var/lib/oh-no-parent-control/uninstall-enforcement.json ]; then
         /usr/libexec/oh-no-parent-control-uninstall --restore
     fi
     /usr/libexec/oh-no-parent-control-migrate-state
     rm -f /var/lib/oh-no-parent-control/migration-in-progress
+    release_removal_guard
 
     kiosk_user=oh-no-parent-control
     package_created_kiosk=0

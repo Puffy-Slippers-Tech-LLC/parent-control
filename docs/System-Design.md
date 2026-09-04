@@ -145,6 +145,16 @@ The ownership of runtime state is deliberately split:
 No measured usage, grant expiry, or generated execution state is imported into
 the preference record.
 
+Request selector defaults are non-authoritative UI state stored per operating
+system user at `$XDG_STATE_HOME/oh-no-parent-control/request-selections.json`
+(normally `~/.local/state/oh-no-parent-control/request-selections.json`). Kiosk
+remembers the last child and approver; the child overlay remembers only the
+approver and always obtains its child from `GetOwnAccount`. Remembered UIDs
+are matched against current broker account lists, with the first eligible
+account used when a remembered account is unavailable. Local approver selection
+takes precedence over the broker's per-child request preference, including when
+preferences arrive asynchronously. Preview windows do not persist selections.
+
 ## Broker interface and roles
 
 `own` means that the broker derives or verifies the child identity against the
@@ -442,17 +452,20 @@ new child/kiosk session, or a reboot at the PAM/display-manager boundary. See
 
 ## Package removal lifecycle
 
-Debian package removal stops the broker before changing enforcement so its
-reconciliation loop cannot restore policy during the operation. While the
+Debian package removal temporarily masks and stops the broker before changing
+enforcement, preventing D-Bus clients from restarting it during removal. While the
 packaged code and dependencies are still available, the removal helper finds
 the extant accounts named by securely owned preference records and disables the
-product extension, clears `LimitType`, `DailyLimit`, `ActiveExtension`, and
+product extension, clears and verifies `ActiveExtension` before disabling time
+limits, clears `DailyLimit`, `LimitType`, and
 `AppFilter`, verifies each result, and transactionally removes and reloads the
 generated fapolicyd policy. It attempts every managed account before reporting
 failure, and package removal stops if any final state cannot be verified.
 A mode-`0600` transient snapshot records the exact derived values before the
 first write. If `prerm` is aborted, `postinst abort-remove` restores and
-verifies that snapshot before debhelper restarts the still-installed service.
+verifies that snapshot before releasing the removal mask. Rollback enables and
+verifies time limits before restoring a grant, so every intermediate state also
+satisfies Malcontent's requirement that an active grant has an enabled limit.
 The snapshot is removed after either a successful rollback or successful
 package removal.
 
@@ -462,11 +475,26 @@ markers, and the dedicated kiosk account only when a root-owned marker proves
 that this package created the unchanged account identity. Installation can
 reuse an existing reserved kiosk account after the provisioning checks reject
 root or administrative identities, but it does not claim ownership of that
-account, so later package removal preserves it. It reloads D-Bus and fapolicyd
-after their policy files disappear. Canonical child preferences and
-redacted product logs are deliberately retained for a later reinstall or
-administrator-directed archival; neither can enforce policy without the
-cleared derived state.
+account, so later package removal preserves it. Removal requires the kiosk's
+user service to be inactive; it never terminates processes by username. The
+verified package-created home is removed without following symlinks or crossing
+mounted filesystems, including files left behind by account deletion. The
+ownership marker is retained until cleanup succeeds, allowing safe retries.
+
+Before unpacking the first installation, `preinst` saves the original fapolicyd
+compiled policy, its backup, and the service's active/enabled state. Removal
+rebuilds policy from any remaining administrator rule files. If none remain,
+it restores the original compiled policy and undoes the package's service
+activation. This explicitly handles fagenrules leaving compiled rules unchanged
+when its source directory is empty. Reloads use fapolicyd's supported CLI.
+The baseline is retained across upgrades and until successful removal.
+
+After removing its D-Bus activation files, the package releases only its own
+temporary mask and clears only its obsolete failed broker unit. Ordinary remove
+retains canonical preferences and redacted logs for reinstall. Purge deletes
+the product's `/var/lib/oh-no-parent-control` and
+`/var/log/oh-no-parent-control` directories. System journals, Ubuntu crash reports,
+other packages' state, and reboot markers are not product-owned purge targets.
 
 ## Logging
 

@@ -298,9 +298,8 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('branding_asset_path("app_logo.png")', content)
         self.assertIn("icon.set_pixel_size(48)", content)
         self.assertIn("oh-no-parent-control-logo-plate", content)
-        self.assertIn("CHILD_HEAD", content)
-        self.assertIn("APPROVER_HEAD", content)
-        self.assertIn("icon.set_margin_top(3)", content)
+        self.assertIn("icon = dropdown.account_icon", content)
+        self.assertIn("icon.set_margin_top(7)", content)
         self.assertIn("detail.set_margin_top(3)", content)
         self.assertIn("SHIELD, display_size=20", content)
         self.assertIn("PixelIcon(LOCK, display_size=16", content)
@@ -361,7 +360,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("font-size: 0.92em;", css)
         self.assertIn("oh-no-parent-control-account-row-inner", content)
         self.assertIn("inner.set_margin_bottom(6)", content)
-        self.assertIn("margin: 11px 12px 6px 10px;", css)
+        self.assertIn("margin: 6px 12px 6px 10px;", css)
         self.assertIn("padding: 2px 0 0;", css)
         self.assertIn("oh-no-parent-control-choices-inner", content)
         self.assertIn("self._duration_box.set_margin_bottom(6)", content)
@@ -457,9 +456,8 @@ class KioskRenderingTests(unittest.TestCase):
         )
         self.assertIn(
             ".oh-no-parent-control-account-row-inner {\n"
-            "  /* Top inset clears the painted metal bevel so CHILD/APPROVER "
-            "sit below it. */\n"
-            "  margin: 11px 12px 6px 10px;",
+            "  /* Keep matching top and bottom insets inside the painted metal bevel. */\n"
+            "  margin: 6px 12px 6px 10px;",
             css,
         )
         self.assertIn(".oh-no-parent-control-choices {\n  min-width: 0;", css)

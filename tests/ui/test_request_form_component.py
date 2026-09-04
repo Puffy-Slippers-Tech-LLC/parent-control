@@ -14,12 +14,13 @@ def records(path):
     return [] if not path.exists() else [json.loads(line) for line in path.read_text().splitlines()]
 
 
-def launch_request(launch_ui, tmp_path, *, overlay, scenario="normal"):
+def launch_request(launch_ui, tmp_path, *, overlay, scenario="normal", selections_path=None):
     path = tmp_path / f"request-{overlay}-{scenario}.jsonl"
     application, _log = launch_ui("request_component_preview", environment_overrides={
         "ONPC_REQUEST_COMPONENT_EVENTS_PATH": str(path),
         "ONPC_REQUEST_COMPONENT_OVERLAY": "1" if overlay else "0",
         "ONPC_REQUEST_COMPONENT_SCENARIO": scenario,
+        "ONPC_REQUEST_COMPONENT_SELECTIONS_PATH": str(selections_path or ""),
     })
     return application, path
 
@@ -144,6 +145,65 @@ def test_kiosk_child_selection_reloads_that_childs_preferences(
         lambda: any(call["values"] == [1002] for call in calls(_path, "GetPreferences")),
         "selected child's preferences",
     )
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+@pytest.mark.parametrize("stale", (False, True), ids=("remembered", "removed-accounts"))
+def test_local_selections_restore_only_eligible_accounts(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state,
+        tmp_path, overlay, stale):
+    selections = tmp_path / "request-selections.json"
+    selections.write_text(json.dumps({
+        "child_uid": 9999 if stale else 1002,
+        "approver_uid": 9998 if stale else 1010,
+    }))
+    application, path = launch_request(
+        launch_ui, tmp_path, overlay=overlay, selections_path=selections,
+    )
+    request = wait_for_accessible_node(application, "REQUEST", "button")
+    wait_for_accessible_state(lambda: request.sensitive, "restored local selections")
+    target = 1001 if overlay or stale else 1002
+    approver = 1000 if stale else 1010
+    assert calls(path, "GetPreferences")[0]["values"] == [target]
+    if overlay:
+        assert not wait_for_accessible_node(application, "Child account", "button").sensitive
+        assert not calls(path, "ListManagedUsers")
+        assert json.loads(selections.read_text())["child_uid"] == (9999 if stale else 1002)
+    assert request.do_action(0)
+    method = "RequestOwnAccess" if overlay else "RequestAccess"
+    wait_for_accessible_state(lambda: bool(calls(path, method)), "request with local selections")
+    assert calls(path, method)[0]["values"] == (
+        [approver, 1800, False] if overlay else [target, approver, 1800, False]
+    )
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_local_selection_changes_are_saved_before_submission(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
+    selections = tmp_path / "request-selections.json"
+    application, path = launch_request(
+        launch_ui, tmp_path, overlay=overlay, selections_path=selections,
+    )
+    request = wait_for_accessible_node(application, "REQUEST", "button")
+    wait_for_accessible_state(lambda: request.sensitive, "loaded request form")
+    assert wait_for_accessible_node(application, "Approving parent", "button").do_action(0)
+    assert wait_for_accessible_node(application, "Avery Quinn", "button").do_action(0)
+    wait_for_accessible_state(
+        lambda: selections.exists() and json.loads(selections.read_text()).get("approver_uid") == 1010,
+        "locally saved approver",
+    )
+    if not overlay:
+        assert wait_for_accessible_node(application, "Child account", "button").do_action(0)
+        assert wait_for_accessible_node(application, "Sam Rivera", "button").do_action(0)
+        wait_for_accessible_state(
+            lambda: json.loads(selections.read_text()).get("child_uid") == 1002,
+            "locally saved child",
+        )
+        wait_for_accessible_state(lambda: request.sensitive, "second child's preferences")
+    stored = json.loads(selections.read_text())
+    assert stored == ({"approver_uid": 1010} if overlay else
+                      {"child_uid": 1002, "approver_uid": 1010})
+    assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
 
 
 def test_kiosk_no_child_explains_how_to_continue(launch_ui, wait_for_accessible_node, tmp_path):

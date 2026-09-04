@@ -21,7 +21,8 @@ def test_launcher_syntax_fixed_path_and_secret_handling_source_contract():
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
     assert "CHECKOUT=/Data/Code/PST/parent-control" in launcher
     assert 'exec /usr/bin/python3 "$PREPARER"' in launcher
-    assert "sudo" not in launcher
+    assert 'if (( EUID != 0 )); then' in launcher
+    assert 'exec sudo -- /usr/bin/python3 "$PREPARER"' in launcher
     assert "prep-vm:" in makefile
     assert source.count("getpass.getpass(") == 1
     assert 'runner.run(["chpasswd"], input_text=password_input)' in source

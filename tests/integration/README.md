@@ -153,23 +153,28 @@ payload only after the guest guard validates the disposable VM marker.
 
 The existing `ubuntu26.04` source VM exposes this development checkout at the
 fixed path `/Data/Code/PST/parent-control` through its `/Data` virtiofs share.
-That writable share is a preparation convenience for the source VM only. It is
-not part of the captured QCOW2 and must not be attached to disposable guests
-created from the eventual baseline.
+That writable share is a preparation convenience. Its host files are outside
+the VM snapshot and are not restored by a baseline reset. Automated test runs
+must detach it before booting the existing VM for testing.
 
 Before product installation or baseline capture, open a terminal inside that
-VM, acquire a root shell, and run the following from the fixed checkout:
+VM and run the following from the fixed checkout:
 
 ```sh
 cd /Data/Code/PST/parent-control
 make prep-vm
 ```
 
+The launcher requests root privileges through sudo when needed, which may prompt
+for your sudo password. This is separate from the shared test-account password
+prompt below. Running as root skips sudo.
+
 The command accepts no VM, image, UUID, checkout, or output arguments. It first
 verifies root, virtualization, Ubuntu 26.04, hostname `ubuntu26.04`, the complete
 fixed checkout, and the absence of every product installation/residue category.
-It then prompts exactly once for a shared test-only password and prepares Jamie
-and Casey as local administrators and Riley and Jordan as standard users. The
+It then prompts exactly once for a shared test-only password and prepares the
+two shared parent preview identities as local administrators and the two shared
+child preview identities as standard users. The
 password is sent only to `chpasswd` on standard input and is not stored in the
 preparation record.
 
@@ -184,82 +189,112 @@ This test-only preparation adds no packaged system integration, so its package
 update activation classification is `none`. It changes no product saved-data
 schema, so no data migration applies.
 
-### Disposable VM integration tests
+### Reusable baseline snapshot on the existing VM
 
-Do not run `make installdeb` on a development workstation. Running `make check`
-does not create or start a VM. The VM exists only if an operator explicitly
-invokes the `setup` command below.
+`make prep-host` creates the libvirt-managed internal snapshot
+`oh-no-parent-control-baseline` on the existing `ubuntu26.04` VM at
+`qemu:///system`. It stores the saved disk state inside the VM's current QCOW2.
+It does not copy the VM, convert its image, create an external overlay, or
+define another domain. Normal testing writes to the existing VM; reverting
+the named snapshot restores the clean baseline repeatedly.
 
-The controller uses the system libvirt connection and requires these existing
-host tools: `virsh`, `virt-install`, `qemu-img`, `cloud-localds`, `ssh-keygen`,
-`ssh`, `scp`, and `curl`.  It reports missing tools and stops; it never installs
-host packages.  The libvirt `default` NAT network must already be available.
-The default guest is a sparse 80-GiB disk with 8 GiB RAM and four vCPUs.
+The exact operator sequence is:
 
-The base is Canonical's official, pinned Ubuntu 26.04 release image
-`release-20260823/ubuntu-26.04-server-cloudimg-amd64.img`.  Before use, the
-controller downloads the release's `SHA256SUMS` over HTTPS and verifies the
-image digest.  Guest setup installs the supported Ubuntu Desktop environment,
-then the test run requires the exact reviewed versions in
-`expected-packages.tsv`.  Package drift fails with an instruction to review
-and recapture the supported matrix; it is never silently accepted.
+1. On the development host, run `./setup.sh` if the pinned tools are missing.
+2. Inside `ubuntu26.04`, run `make prep-vm` from
+   `/Data/Code/PST/parent-control`.
+3. On the development/libvirt host, enter a root shell, change to that checkout,
+   and run `make prep-host`.
+4. Let the controller shut down the VM cleanly, inspect it read-only, and create
+   the snapshot. Do not start the VM or change its storage concurrently.
+5. Start the same VM for testing. Preserve the named snapshot.
 
-Choose a unique name with the required `onpc-h50-` prefix and repeat that
-literal name in every command:
+The controller resolves the active disk and verifies its QCOW2 chain ends at
+`/Data/virt-manager/ubuntu26.04.qcow2`. Existing backing files and unrelated
+snapshots are supported. The shutdown deadline is 180 seconds; it never
+force-stops the VM. Offline libguestfs inspection explicitly uses read-only
+QCOW2 access and verifies the preparation marker, accounts, and absence of the
+product in the guest. An installed product on the host is allowed and ignored.
+
+Plain `make prep-host` accepts no resource overrides and installs no packages.
+Dependency diagnostics do not connect to libvirt or write files:
 
 ```sh
-sudo python3 tests/integration/harness.py setup \
-  --name onpc-h50-clean-20260901
-sudo python3 tests/integration/harness.py run \
-  --name onpc-h50-clean-20260901
-sudo python3 tests/integration/harness.py collect \
-  --name onpc-h50-clean-20260901
-sudo python3 tests/integration/harness.py destroy \
-  --name onpc-h50-clean-20260901 \
-  --confirm onpc-h50-clean-20260901
+/usr/bin/python3 tests/integration/prepare_host.py --help
+/usr/bin/python3 tests/integration/prepare_host.py --check-tools
 ```
 
-`setup` creates only that libvirt guest.  Cloud-init creates the administrator
-as UID 2000, and the guarded guest setup deterministically provisions the child
-(2001), kiosk (2002), and unrelated standard user (2003).  Test passwords are
-random per VM and remain in the root-only file
-`/var/lib/oh-no-parent-control-integration/VM_NAME/credentials.json` on the
-host. The product is not installed until `run` transfers the current worktree,
-builds its Debian package, and installs that artifact inside the guest. `run`
-first executes `make check`, performs a clean install, reboots, and verifies services,
-AccountsService roles, D-Bus access, PAM account results, and fapolicyd rules.
+The controller stores only its private lock and atomic `phase.json` under
+`/Data/virt-manager/oh-no-parent-control-baseline-state/` (root-owned, directory
+mode 0700 and files mode 0600). The record contains the domain and disk
+identities, preparation evidence, backing-chain digests, snapshot creation
+identity, and recovery phase. Libvirt owns the snapshot metadata; there is no
+separate baseline image, image checksum sidecar, or copied provenance artifact.
+Files left by an earlier copy-based workflow are not used or deleted.
 
-Every guest command begins with the same fail-closed guard.  It requires all
-of the following before any mutation:
+Phases are validation, shutdown requested, source off, snapshot requested,
+and finalized. After interruption, rerun `make prep-host`. If libvirt already
+created the snapshot, the controller validates its recorded operation identity,
+domain layout, and internal disk snapshot before finishing. A partial or
+unrelated same-name snapshot is refused and preserved for inspection.
+Completed runs verify and preserve the original baseline even while the VM is
+running or has the product installed for testing. They neither recapture nor
+revert it. Missing/replaced snapshots and changed backing files are refused.
+Diagnostics contain categories, not raw account records or credentials.
 
-- effective UID 0 inside the guest;
-- a root-owned, mode-`0600`, regular
-  `/etc/oh-no-parent-control-integration-vm` marker;
-- the marker's exact purpose and selected VM name;
-- a VM reported by `systemd-detect-virt --vm`;
-- Ubuntu `VERSION_ID=26.04`; and
-- a hostname equal to the selected VM name.
+To restore the baseline between tests, first shut down the test guest cleanly:
 
-The host controller additionally compares the marker's random identity token
-with its root-only state before uploading or invoking guest code.  Merely
-copying a guest script onto a development host therefore cannot authorize it.
+```sh
+virsh --connect qemu:///system shutdown ubuntu26.04
+virsh --connect qemu:///system domstate ubuntu26.04
+```
 
-`collect` retrieves a timestamped directory under
-`tests/integration/artifacts/VM_NAME/`.  It contains package/platform versions,
-service status and journals, D-Bus replies, fapolicyd source and compiled rule
-snapshots, PAM/login results, `make check` and clean-install output, and the
-product logs from `/var/log/oh-no-parent-control/`.  The guest removes marker
-tokens, password-like values, bearer values, and SSH/private keys before
-creating `SHA256SUMS`; the controller rejects archive links, devices, and path
-traversal during extraction.
+Wait until the state is `shut off`. Then restore and boot the same VM:
 
-`destroy` requires `--name` and an identical `--confirm`.  It then compares the
-saved random token with the libvirt domain description and requires the domain
-to reference exactly the saved qcow2 disk and cloud-init seed.  Only after all
-checks pass does it stop and undefine that domain and remove those two named
-images and that VM's state.  The checksum-verified shared Ubuntu image cache is
-retained.  No wildcard, default VM name, or `--remove-all-storage` operation is
-used.
+```sh
+virsh --connect qemu:///system snapshot-revert ubuntu26.04 oh-no-parent-control-baseline
+virsh --connect qemu:///system start ubuntu26.04
+```
 
-H-50 adds no packaged product integration, so its update activation is `none`.
-It changes no application-owned saved data, so no migration is required.
+Revert discards guest disk changes made since the baseline, including test
+installations. The saved snapshot remains available for the next reset. The
+host's shared `/Data` files are outside the VM disk and are not restored.
+Automated test runners must detach that writable host share while the VM is
+off before booting a test run; reverting restores the saved domain definition,
+so runners must repeat that step after each reset. The snapshot also does not
+cover external firmware NVRAM or TPM state; such devices are refused.
+
+This tooling is development-only: activation classification is `none`, and no
+product saved-data migration applies. Task 12C verifies the actual snapshot;
+later runner work uses this existing VM with serialized baseline resets.
+
+### Reusable integration guards and evidence
+
+The previous cloud-image setup command has been removed.
+`tests/integration/harness.py` retains the existing identity guards, SSH
+transport, redaction, archive validation, and explicit owned-VM cleanup for
+later runners. These helpers are not another supported baseline path.
+Later runners must use the existing VM and restore its named baseline between
+runs. The retained disposable-VM helpers do not yet implement that lifecycle.
+
+The guest guard requires root, virtualization, Ubuntu 26.04, the exact
+hostname, and a root-owned mode-0600 marker whose random token also matches
+the controller's private state. Artifact collection redacts tokens,
+credentials, and private keys before checksumming. Extraction rejects links,
+devices, and path traversal. Existing owned-VM cleanup requires matching
+name/confirmation, token, domain description, and exact recorded disk paths.
+
+The host-controller regressions use mocked libvirt, inspection, and image
+operations; they require neither a running VM nor root:
+
+```sh
+python3 -m pytest tests/unit/test_prepare_host_cleanup_safety.py -q
+python3 -m pytest tests/unit/test_prepare_host.py -q
+make check
+git diff --check
+```
+
+Public tool contracts: [libguestfs Python API](https://libguestfs.org/guestfs-python.3.html),
+[libvirt event API](https://libvirt.org/html/libvirt-libvirt-event.html),
+[libvirt snapshots](https://libvirt.org/formatsnapshot.html),
+and [qemu-img](https://www.qemu.org/docs/master/tools/qemu-img.html).

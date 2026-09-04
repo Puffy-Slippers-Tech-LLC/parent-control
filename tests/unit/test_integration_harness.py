@@ -67,17 +67,10 @@ class IntegrationHarnessTests(unittest.TestCase):
                 xml.replace("</devices>", '<disk><source file="/dev/sda"/></disk></devices>'),
             )
 
-    def test_cloud_init_creates_only_the_vm_admin_and_root_owned_marker(self):
-        user_data, meta_data, network_data = harness._cloud_init(
-            "onpc-h50-clean", "b" * 32, "ssh-ed25519 AAAAtest integration"
-        )
-        self.assertIn("name: onpc-admin", user_data)
-        self.assertIn("uid: 2000", user_data)
-        self.assertNotIn("onpc-child", user_data)
-        self.assertIn("permissions: '0600'", user_data)
-        self.assertIn("oh-no-parent-control-integration", user_data)
-        self.assertIn("optional: false", network_data)
-        self.assertIn("onpc-h50-clean", meta_data)
+    def test_cloud_image_setup_is_no_longer_an_operator_entry_point(self):
+        with self.assertRaises(SystemExit):
+            harness._parser().parse_args(["setup", "--name", "onpc-h50-clean"])
+        self.assertFalse(hasattr(harness, "_download_verified_image"))
 
     def test_ssh_places_the_quoted_command_after_the_destination(self):
         metadata = {

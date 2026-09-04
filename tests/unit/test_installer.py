@@ -110,8 +110,9 @@ class PackageDeploymentTests(unittest.TestCase):
         for path in ("/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules", "/etc/oh-no-parent-control/config.json", "/etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules"):
             self.assertIn(path, postrm)
         self.assertIn("package-created-kiosk-uid", postrm)
-        self.assertIn('deluser --remove-home "$kiosk_user"', postrm)
-        self.assertNotIn("/var/log/oh-no-parent-control", postrm)
+        self.assertIn('deluser "$kiosk_user"', postrm)
+        self.assertIn("remove_tree /home/oh-no-parent-control", postrm)
+        self.assertIn("remove_tree /var/log/oh-no-parent-control", postrm)
 
     def test_branding_and_policies_are_packaged_from_shared_sources(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")

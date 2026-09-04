@@ -13,15 +13,10 @@
 - Objective: provide one idempotent, guarded command that prepares the existing
   Ubuntu VM with the same two parent and two child identities shown by the
   preview applications, ready for a pre-product-install baseline capture.
-- Fixed test identities:
-  - `onpc-parent-jamie`, display name `Jamie Parker`, is a local interactive
-    administrator.
-  - `onpc-parent-casey`, display name `Casey Parker`, is a local interactive
-    administrator.
-  - `onpc-child-riley`, display name `Riley Parker`, is a local interactive
-    standard user.
-  - `onpc-child-jordan`, display name `Jordan Parker`, is a local interactive
-    standard user.
+- Fixed test identities are defined once in
+  `common/oh_no_parent_control_ui/test_identities.py`. The two parent identities
+  are local interactive administrators; the two child identities are local
+  interactive standard users.
   The preview-only numeric UIDs are not an installed-system contract. The
   preparation script records the real UIDs allocated in this VM, and later
   tests resolve the accounts by their stable usernames and verify their live
@@ -43,8 +38,9 @@
      hostname is not an identity prerequisite. This preparation-only change
      activates immediately and is not shipped in the Debian package, so it
      requires no package activation classification or development-host setup.
-  2. Require the operator to acquire a root shell before invoking the target so
-     the target itself presents exactly one password prompt. Read the shared
+  2. Request root privileges through sudo when the operator invokes the target
+     as a non-root user. Sudo may prompt for authentication separately from the
+     single shared test-account password prompt. Read the shared
      test-account password once without echo or confirmation and apply that same
      value to all four accounts through standard input. Never place it in an
      argument, environment variable, command trace, log, repository file,

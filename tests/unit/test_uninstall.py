@@ -30,6 +30,11 @@ class Accounts:
         if uid == self.fail_uid and key == "daily_limit":
             raise RuntimeError("fixture failure")
         self.values[uid][key] = value
+        # Model Malcontent's assertion after *every* property notification,
+        # rather than only checking the final state after uninstall/rollback.
+        if (self.values[uid]["limit_type"] == 0 and
+                any(self.values[uid]["extension"])):
+            raise AssertionError("active grant without time limits")
 
     def set_limit_type(self, uid, value):
         self._set(uid, "limit_type", value)
@@ -187,6 +192,47 @@ class UninstallTests(unittest.TestCase):
         })
         self.assertEqual(extensions.events[-1], (1001, True))
         self.assertEqual(accounts.sync_count, 1)
+
+    @mock.patch("oh_no_parent_control.uninstall.os.geteuid", return_value=0)
+    def test_failed_grant_clear_does_not_disable_limits(self, _geteuid):
+        accounts = Accounts((1001,))
+        accounts.set_extension = mock.Mock(side_effect=RuntimeError("write failed"))
+        with tempfile.TemporaryDirectory() as temporary:
+            cleaner = UninstallCleaner(
+                accounts, Extensions(), Policy(), Preferences(),
+                Path(temporary) / "snapshot", snapshot_owner=os.getuid(),
+            )
+            with self.assertRaises(UninstallCleanupError):
+                cleaner.remove((1001,))
+        self.assertEqual(accounts.get_limit_type(1001), 1)
+        self.assertEqual(accounts.get_filter(1001), (False, ()))
+
+    @mock.patch("oh_no_parent_control.uninstall.os.geteuid", return_value=0)
+    def test_unverified_grant_clear_does_not_disable_limits(self, _geteuid):
+        accounts = Accounts((1001,))
+        accounts.set_extension = mock.Mock()  # Simulate an ignored write.
+        with tempfile.TemporaryDirectory() as temporary:
+            cleaner = UninstallCleaner(
+                accounts, Extensions(), Policy(), Preferences(),
+                Path(temporary) / "snapshot", snapshot_owner=os.getuid(),
+            )
+            with self.assertRaises(UninstallCleanupError):
+                cleaner.remove((1001,))
+        self.assertEqual(accounts.get_limit_type(1001), 1)
+
+    @mock.patch("oh_no_parent_control.uninstall.os.geteuid", return_value=0)
+    def test_failed_limit_restore_never_reintroduces_grant(self, _geteuid):
+        accounts = Accounts((1001,))
+        with tempfile.TemporaryDirectory() as temporary:
+            cleaner = UninstallCleaner(
+                accounts, Extensions(), Policy(), Preferences(),
+                Path(temporary) / "snapshot", snapshot_owner=os.getuid(),
+            )
+            cleaner.remove((1001,))
+            accounts.set_limit_type = mock.Mock(side_effect=RuntimeError("write failed"))
+            with self.assertRaises(UninstallCleanupError):
+                cleaner.restore()
+        self.assertEqual(accounts.get_extension(1001), (0, 0))
 
 
 if __name__ == "__main__":

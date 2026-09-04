@@ -73,6 +73,7 @@ fi
     gjs=1.88.0-1 \
     libpam0g-dev=1.7.0-5ubuntu3.2 \
     libglib2.0-bin \
+    libvirt-clients=12.0.0-1ubuntu5.3 \
     lintian \
     make \
     mutter=50.1-0ubuntu2.2 \
@@ -84,8 +85,11 @@ fi
     python3-gi \
     python3-gi-cairo \
     python3-hypothesis=6.151.5-1 \
+    python3-libvirt=12.0.0-1build1 \
+    python3-guestfs=1:1.58.1-3ubuntu3 \
     python3-pytest=9.0.2-4 \
-    python3-venv
+    python3-venv \
+    qemu-utils=1:10.2.1+ds-1ubuntu3.2
 
 # GNOME Shell 50 supplies the public org.gnome.Shell.Screenshot interface used
 # by isolated child component evidence capture; no host screenshot tool or

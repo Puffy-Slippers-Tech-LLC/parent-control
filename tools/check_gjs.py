@@ -12,6 +12,7 @@ JS_FILES = [
     ROOT / "child" / name
     for name in (
         "branding.js",
+        "indicatorLogic.mjs",
         "logger.js",
         "previewMode.js",
         "sessionPreparationClient.js",

@@ -47,7 +47,7 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(SYSCONFDIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
 	/etc/gdm3/PreSession/Default
 CHILD_DIR := child
-EXTENSION_SOURCES := branding.js logger.js previewMode.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
+EXTENSION_SOURCES := branding.js indicatorLogic.mjs logger.js previewMode.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
 EXTENSION_ASSETS := request-options.json
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
@@ -58,9 +58,16 @@ EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
-.PHONY: build check check-unit check-component check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest uninstall pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: bump-version build installdeb check-release-version check check-unit check-component check-child-node check-child-gjs check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest uninstall pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
+
+bump-version:
+	@test -n "$(VERSION)" || (echo 'Usage: make bump-version VERSION=x.y [CHANGE="description"]' >&2; exit 2)
+	@$(PYTHON) tools/bump_version.py "$(VERSION)" $(if $(CHANGE),--change "$(CHANGE)",)
+
+check-release-version:
+	@$(PYTHON) tools/bump_version.py --check
 
 ifeq ($(shell id -u),0)
 APT := apt
@@ -68,7 +75,7 @@ else
 APT := sudo apt
 endif
 
-build:
+build: check-release-version
 	$(APT) update
 	$(APT) build-dep .
 	dpkg-buildpackage --build=binary --no-sign -a$(DEB_HOST_ARCH)
@@ -80,6 +87,13 @@ build:
 	mv "../oh-no-parent-control_$${version}_$${architecture}.changes" "$$output_dir/"; \
 	mv "../oh-no-parent-control_$${version}_$${architecture}.buildinfo" "$$output_dir/"
 
+installdeb:
+	@deb_files="$$(find "$(CURDIR)/output" -maxdepth 1 -type f -name '*.deb' -print)"; \
+	deb_count="$$(printf '%s\n' "$$deb_files" | sed '/^$$/d' | wc -l)"; \
+	test "$$deb_count" -eq 1 || (echo "Expected exactly one .deb file in $(CURDIR)/output, found $$deb_count" >&2; exit 1); \
+	echo "Installing $$deb_files"; \
+	$(APT) install "$$deb_files"
+
 TEST_ENV = PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$${PYTHONPATH:-}
 PYTEST = $(TEST_ENV) $(PYTHON) -m pytest
 UI_TEST_PYTHON ?= $(CURDIR)/.venv/onpc-ui-tests/bin/python
@@ -89,6 +103,8 @@ check-unit:
 
 check-component:
 	@$(PYTEST) tests/component -m component
+	@$(MAKE) --no-print-directory check-child-node
+	@$(MAKE) --no-print-directory check-child-gjs
 	@test -x "$(UI_TEST_PYTHON)" || (echo 'UI test environment missing; run ./setup.sh' >&2; exit 1)
 	@PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$(CURDIR):$${PYTHONPATH:-} \
 		"$(UI_TEST_PYTHON)" -m pytest tests/ui -m ui
@@ -113,7 +129,7 @@ check-static: check-shell check-gjs
 check:
 	@bash -n install.sh
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -Wall -Wextra -Werror -fsyntax-only tools/pam_oh_no_parent_control.c
-	@for file in extension.js $(filter %.js,$(EXTENSION_SOURCES)); do node --check "$(CHILD_DIR)/$$file"; done
+	@for file in extension.js $(filter %.js %.mjs,$(EXTENSION_SOURCES)); do node --check "$(CHILD_DIR)/$$file"; done
 	@$(PYTHON) tools/verify_test_traceability.py --mode stage
 	@$(MAKE) --no-print-directory check-unit
 	@$(PYTEST) tests/component -m component
@@ -246,3 +262,11 @@ uninstall:
 	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/Gearbox_Waltz.mp3" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/request-options.json" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"*.py
 	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/common/__init__.py" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.js "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.json "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/stylesheet.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/app_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/company_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/LICENSE" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/COPYRIGHT" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/NOTICE"
 	@echo 'Product files removed. Accounts and managed-account policies were not changed.'
+
+check-child-node:
+	@node --test tests/child/indicator_logic.test.mjs
+
+check-child-gjs:
+	@rm -rf artifacts/coverage/gjs-child
+	@mkdir -p artifacts/coverage/gjs-child
+	@gjs --coverage-prefix="$(CURDIR)/child" --coverage-output="$(CURDIR)/artifacts/coverage/gjs-child" -m tests/child/gjs_adapters_test.js

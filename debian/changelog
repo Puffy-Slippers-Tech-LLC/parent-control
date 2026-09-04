@@ -1,4 +1,4 @@
-oh-no-parent-control (1.0.0) resolute; urgency=medium
+oh-no-parent-control (1.0) resolute; urgency=medium
 
   * Initial Ubuntu 26.04 package.
   * Add clean-build metadata and a documented Launchpad PPA release workflow.

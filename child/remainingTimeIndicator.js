@@ -11,6 +11,14 @@ import {queryEstimatedTimes} from './timerQuery.js';
 import {calculateOwnRemainingTime} from './timeCalculationClient.js';
 import {prepareOwnSession} from './sessionPreparationClient.js';
 import {logDebug, logInfo, logWarning} from './logger.js';
+import {
+    displayState,
+    effectiveAllowanceRemaining,
+    formatRemainingTime,
+    nextEstimateState,
+    remainingSeconds,
+    shouldPrepareSession,
+} from './indicatorLogic.mjs';
 const ROLE = 'screenTimeRemaining';
 const TIMER_BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const TIMER_OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
@@ -212,7 +220,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _remainingSeconds(currentTime) {
-        return Math.ceil(this._calculatedEnd - currentTime);
+        return remainingSeconds(this._calculatedEnd, currentTime);
     }
 
     refreshEstimate() {
@@ -236,20 +244,22 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 return;
 
             const estimate = estimates[''];
-            const sessionEnd = estimate ? Number(estimate[2]) : 0;
             const currentTime = Main.timeLimitsManager.getCurrentTime();
             const managerLimit = Number(
                 Main.timeLimitsManager.dailyLimitTime ?? 0);
-            const effectiveAllowanceRemaining = Math.max(
-                0, Math.ceil(Math.max(managerLimit, sessionEnd) - currentTime));
+            const effectiveAllowance = effectiveAllowanceRemaining(
+                estimate, currentTime, managerLimit);
             const calculated = await calculateOwnRemainingTime(
-                effectiveAllowanceRemaining);
+                effectiveAllowance);
             if (this._destroyed)
                 return;
-            this._calculatedEnd = currentTime + calculated;
-            this._statusLoaded = true;
+            const next = nextEstimateState(
+                {calculatedEnd: this._calculatedEnd, statusLoaded: this._statusLoaded},
+                calculated, currentTime);
+            this._calculatedEnd = next.calculatedEnd;
+            this._statusLoaded = next.statusLoaded;
             logInfo('timer estimate loaded; ' +
-                `session end=${sessionEnd}; calculated remaining=${calculated}`);
+                `calculated remaining=${calculated}`);
         } catch (error) {
             if (!this._destroyed) {
                 // A transient daemon/database failure says nothing about the
@@ -271,9 +281,14 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     async _prepareSession() {
-        if (this._preview || this._destroyed || this._sessionPreparePending ||
-            this._sessionPrepared || Main.sessionMode.isLocked ||
-            Main.sessionMode.isGreeter)
+        if (!shouldPrepareSession({
+            preview: this._preview,
+            destroyed: this._destroyed,
+            pending: this._sessionPreparePending,
+            prepared: this._sessionPrepared,
+            locked: Main.sessionMode.isLocked,
+            greeter: Main.sessionMode.isGreeter,
+        }))
             return;
 
         this._sessionPreparePending = true;
@@ -321,28 +336,31 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._prepareSession();
         if (this._activeExtensionEnd <= currentTime)
             this._activeExtensionEnd = 0;
-        const remainingSecs = this._remainingSeconds(currentTime);
+        const state = displayState({
+            calculatedEnd: this._calculatedEnd,
+            currentTime,
+            locked: Main.sessionMode.isLocked,
+            greeter: Main.sessionMode.isGreeter,
+        });
+        const remainingSecs = state.remaining;
         // Ubuntu uses a primary session mode named "ubuntu", while upstream
         // GNOME commonly uses "user".  Test the session semantics instead of
         // assuming the distribution-specific primary mode name.
-        const visible = !Main.sessionMode.isLocked &&
-            !Main.sessionMode.isGreeter &&
-            remainingSecs > 0;
+        const visible = state.visible;
 
         if (!visible || remainingSecs <= 0) {
             this._clearTimeout();
             this._stopRequestIconSpin();
             this._setShown(false);
             if (!this._preview && this._statusLoaded &&
-                manager.dailyLimitEnabled && !Main.sessionMode.isLocked &&
-                !Main.sessionMode.isGreeter)
+                manager.dailyLimitEnabled && state.shouldLock)
                 this._lockSession();
             return;
         }
 
         this._setShown(true);
         this._updateLabel(remainingSecs);
-        this._schedule(remainingSecs);
+        this._schedule(state.nextUpdateSeconds);
     }
 
     _lockSession() {
@@ -402,18 +420,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._clearCountdownWarning();
 
         const compact = this._syncOrientation();
-        if (remainingSecs > 60) {
-            const totalMinutes = Math.floor(remainingSecs / 60);
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-            const time = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-            if (compact)
-                this._label.text = hours > 0 ? `${hours}h` : `${minutes}m`;
-            else
-                this._label.text = `${time} left`;
-        } else {
-            this._label.text = compact ? `${remainingSecs}` : `${remainingSecs} left`;
-        }
+        this._label.text = formatRemainingTime(remainingSecs, compact);
 
         if (remainingSecs < 60) {
             this._label.add_style_pseudo_class('countdown');
@@ -458,16 +465,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             });
     }
 
-    _schedule(remainingSecs) {
+    _schedule(delay) {
         this._clearTimeout();
-
-        let delay;
-        if (remainingSecs > 60) {
-            const remainder = remainingSecs % 60;
-            delay = remainder === 0 ? 60 : remainder;
-        } else {
-            delay = 1;
-        }
 
         this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, delay, () => {
             this._timeoutId = 0;

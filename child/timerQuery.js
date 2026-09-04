@@ -1,12 +1,12 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
+import {busyRetryDelay} from './indicatorLogic.mjs';
+
 const BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
 const INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
 const ESTIMATE_REPLY_TYPE = '(ta{s(btttt)})';
-const BUSY_RETRY_DELAYS_MS = Object.freeze([100, 250, 500, 1000, 2000]);
-
 let _queue = Promise.resolve();
 
 function enqueue(task) {
@@ -21,10 +21,10 @@ export function queryEstimatedTimes() {
             try {
                 return await callEstimatedTimes();
             } catch (error) {
-                const retryDelay = BUSY_RETRY_DELAYS_MS[attempt];
-                if (!isDatabaseBusy(error) || retryDelay === undefined)
+                const retryDelay = busyRetryDelay(remoteErrorName(error), attempt);
+                if (retryDelay === undefined)
                     throw error;
-                await wait(retryDelay);
+                await waitForRetry(retryDelay);
             }
         }
     });
@@ -48,11 +48,11 @@ function callEstimatedTimes() {
     });
 }
 
-function isDatabaseBusy(error) {
-    return Gio.DBusError.get_remote_error(error)?.endsWith('.Error.Busy') ?? false;
+function remoteErrorName(error) {
+    return Gio.DBusError.get_remote_error(error);
 }
 
-function wait(delayMs) {
+export function waitForRetry(delayMs) {
     return new Promise(resolve => {
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, delayMs, () => {
             resolve();

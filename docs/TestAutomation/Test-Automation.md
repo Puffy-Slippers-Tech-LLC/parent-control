@@ -53,8 +53,11 @@ record.
 - [x] Task 06 — Establish modern hermetic GTK automation
 - [x] Task 07 — Automate the Parent App as a local component
 - [x] Task 08 — Automate the shared kiosk and child request form locally
-- [ ] Task 09 — Add executable unit tests for child-extension JavaScript
-- [ ] Task 10 — Automate the nested GNOME Shell child preview
+- [x] Task 09 — Add executable unit tests for child-extension JavaScript
+- [x] Task 10A — Refactor the child preview into reusable orchestration
+- [ ] Task 10B — Add the isolated nested-Shell lifecycle smoke
+- [ ] Task 10C — Automate child indicator request interaction
+- [ ] Task 10D — Verify reload, preserve artifacts, and finish integration
 - [ ] Task 11 — Build deterministic native and Flatpak test applications
 - [ ] Task 12 — Add safe immutable VM baselines and disposable overlay clones
 - [ ] Task 13 — Add Debian-package autopkgtest infrastructure
@@ -78,6 +81,9 @@ record.
 
 1. Execute tasks strictly in checklist order. Do not skip, combine, reorder, or
    begin a later task.
+   Tasks 10A through 10D are separate tasks for this rule: complete and record
+   exactly one of them in a session, then stop so a fresh session can select
+   that next task's recommended model and reasoning effort.
 2. Inspect the current worktree before editing. Preserve user changes and avoid
    unrelated cleanup.
 3. Use `docs/System-Design.md` for architecture and trust boundaries. Preserve
@@ -109,7 +115,7 @@ record.
 13. Mark the task complete only after all task deliverables exist, focused tests
     pass, `make check` passes, documentation reflects the new commands, and
     `git diff --check` passes.
-14. The completion record must contain the task number, completion date, short
+14. The completion record must contain the task identifier, completion date, short
     result, verification commands, and relevant commit hash when a commit exists.
 
 ## Requirement-ID and traceability maintenance
@@ -167,8 +173,11 @@ item.
 - [x] [Task 06 — Establish modern hermetic GTK automation](Task-06.md)
 - [x] [Task 07 — Automate the Parent App as a local component](Task-07.md)
 - [x] [Task 08 — Automate the shared kiosk and child request form locally](Task-08.md)
-- [ ] [Task 09 — Add executable unit tests for child-extension JavaScript](Task-09.md)
-- [ ] [Task 10 — Automate the nested GNOME Shell child preview](Task-10.md)
+- [x] [Task 09 — Add executable unit tests for child-extension JavaScript](Task-09.md)
+- [x] [Task 10A — Refactor the child preview into reusable orchestration](Task-10A.md)
+- [ ] [Task 10B — Add the isolated nested-Shell lifecycle smoke](Task-10B.md)
+- [ ] [Task 10C — Automate child indicator request interaction](Task-10C.md)
+- [ ] [Task 10D — Verify reload, preserve artifacts, and finish integration](Task-10D.md)
 - [ ] [Task 11 — Build deterministic native and Flatpak test applications](Task-11.md)
 - [ ] [Task 12 — Add safe immutable VM baselines and disposable overlay clones](Task-12.md)
 - [ ] [Task 13 — Add Debian-package autopkgtest infrastructure](Task-13.md)
@@ -246,4 +255,16 @@ Append one entry only after its checklist item has been changed to `[x]`:
 
 - Result: Added deterministic shared request-form component automation for kiosk and child-overlay modes, including real bare-Mutter Escape input, mode-specific identity and exit behavior, remembered choices and mute state, all request outcomes, and accessible locked controls.
 - Verification: `tools/run-ui-tests --timeout 900s tests/ui/test_request_form_component.py -m ui -q -k kiosk` (three consecutive clean runs); `tools/run-ui-tests --timeout 900s tests/ui/test_request_form_component.py -m ui -q -k 'not kiosk'` (three consecutive clean runs); `tools/run-ui-tests --timeout 900s tests/ui/test_request_form_component.py -m ui -q` (three consecutive clean runs); `make check-component`; `make check`; `git diff --check`
+- Commit: not committed
+
+### Task 09 completed — 2026-09-03
+
+- Result: Extracted platform-neutral child countdown, display, estimate, retry, request-overlay, and session-preparation decisions; added Node logic tests, GJS Gio/GLib adapter tests, LCOV artifacts, and component-runner integration.
+- Verification: `make check-child-node`; `make check-child-gjs`; `make check-component`; `make check`; `python3 tools/verify_test_traceability.py --mode stage`; `git diff --check`
+- Commit: not committed
+
+### Task 10A completed — 2026-09-03
+
+- Result: Refactored the child preview into a sourceable orchestration boundary with isolated environment setup, generation logs, bounded readiness, event-driven reloads, and process-group cleanup.
+- Verification: `python3 -m pytest tests/unit/test_child_preview.py -m contract -q`; `make check`; `git diff --check`
 - Commit: not committed

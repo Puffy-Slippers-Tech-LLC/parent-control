@@ -512,7 +512,13 @@ class InstallerTests(unittest.TestCase):
 
         self.assertIn(marker, postinst)
         self.assertIn(marker, postrm)
-        self.assertIn("already exists without package ownership", postinst)
+        reuse_start = postinst.index(f"elif [ ! -f {marker} ]")
+        reuse_end = postinst.index("elif [ \"$(id -u", reuse_start)
+        reuse = postinst[reuse_start:reuse_end]
+        self.assertIn("using existing dedicated kiosk account", reuse)
+        self.assertIn("package removal will preserve it", reuse)
+        self.assertNotIn("exit 1", reuse)
+        self.assertIn("kiosk account no longer matches package ownership", postinst)
         self.assertIn('account_uid" != "$marker_uid', postrm)
         self.assertIn('account_home" != "/home/$kiosk_user', postrm)
         self.assertIn('deluser --remove-home "$kiosk_user"', postrm)

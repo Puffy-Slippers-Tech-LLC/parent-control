@@ -463,8 +463,11 @@ package removal.
 After dpkg removes the payload, `postrm` removes generated D-Bus and machine
 configuration, the product's security-integration conffiles, transient package
 markers, and the dedicated kiosk account only when a root-owned marker proves
-that this package created the unchanged account identity. It reloads D-Bus and
-fapolicyd after their policy files disappear. Canonical child preferences and
+that this package created the unchanged account identity. Installation can
+reuse an existing reserved kiosk account after the provisioning checks reject
+root or administrative identities, but it does not claim ownership of that
+account, so later package removal preserves it. It reloads D-Bus and fapolicyd
+after their policy files disappear. Canonical child preferences and
 redacted product logs are deliberately retained for a later reinstall or
 administrator-directed archival; neither can enforce policy without the
 cleared derived state.

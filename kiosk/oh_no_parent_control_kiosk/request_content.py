@@ -136,6 +136,11 @@ class GatewayDropDown(Gtk.Box):
     def get_selected(self):
         return self._selected
 
+    def set_interaction_enabled(self, enabled):
+        """Keep the selector and its exposed trigger accessibility state aligned."""
+        self.set_sensitive(enabled)
+        self._trigger.set_sensitive(enabled)
+
     def _toggle_choices(self, *_args):
         if not self._trigger.get_sensitive():
             return
@@ -310,6 +315,10 @@ class RequestContent(MetalBoard):
         self._request_form.append(self._custom_row)
 
         filter_row = Gtk.Button(hexpand=True)
+        describe_control(
+            filter_row, "Allow soft blocked apps",
+            "Choose whether this request temporarily allows soft blocked apps.",
+        )
         filter_row.add_css_class("oh-no-parent-control-app-filter-toggle")
         filter_row.set_margin_start(10)
         filter_row.set_margin_end(10)
@@ -720,9 +729,12 @@ class RequestContent(MetalBoard):
         time_limit_enabled = self._screen_time_limit_enabled is True
         self._request.set_sensitive(request_available)
         self._cancel.set_sensitive(self._controls_enabled)
-        self._accounts.set_sensitive(
-            self._controls_enabled and not self._lock_child_selector,
-        )
+        accounts_enabled = self._controls_enabled and not self._lock_child_selector
+        self._accounts.set_interaction_enabled(accounts_enabled)
+        # Expose the effective locked state on the actionable descendant too.
+        # AT-SPI reports a widget's own state rather than inferring sensitivity
+        # from a disabled ancestor, so disabling only the selector container
+        # made the child-overlay trigger appear interactive to assistive tools.
         if self._lock_child_selector:
             self._accounts.collapse()
         self._custom_entry.set_sensitive(request_available and time_limit_enabled)

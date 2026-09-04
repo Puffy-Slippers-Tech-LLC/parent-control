@@ -52,7 +52,7 @@ record.
 - [x] Task 05 — Add a real private-D-Bus broker component harness
 - [x] Task 06 — Establish modern hermetic GTK automation
 - [x] Task 07 — Automate the Parent App as a local component
-- [ ] Task 08 — Automate the shared kiosk and child request form locally
+- [x] Task 08 — Automate the shared kiosk and child request form locally
 - [ ] Task 09 — Add executable unit tests for child-extension JavaScript
 - [ ] Task 10 — Automate the nested GNOME Shell child preview
 - [ ] Task 11 — Build deterministic native and Flatpak test applications
@@ -166,7 +166,7 @@ item.
 - [x] [Task 05 — Add a real private-D-Bus broker component harness](Task-05.md)
 - [x] [Task 06 — Establish modern hermetic GTK automation](Task-06.md)
 - [x] [Task 07 — Automate the Parent App as a local component](Task-07.md)
-- [ ] [Task 08 — Automate the shared kiosk and child request form locally](Task-08.md)
+- [x] [Task 08 — Automate the shared kiosk and child request form locally](Task-08.md)
 - [ ] [Task 09 — Add executable unit tests for child-extension JavaScript](Task-09.md)
 - [ ] [Task 10 — Automate the nested GNOME Shell child preview](Task-10.md)
 - [ ] [Task 11 — Build deterministic native and Flatpak test applications](Task-11.md)
@@ -240,4 +240,10 @@ Append one entry only after its checklist item has been changed to `[x]`:
 
 - Result: Added scripted broker injection and executable Parent UI coverage for startup failures, account and loading state, status retries, screen-time controls, app policies, save ordering and rollback, revocation, and the absence of time-grant controls.
 - Verification: `.venv/onpc-ui-tests/bin/python -m pytest tests/ui -m ui -k parent` (three consecutive clean runs); `make check-component`; `make check`; `git diff --check`
+- Commit: not committed
+
+### Task 08 completed — 2026-09-03
+
+- Result: Added deterministic shared request-form component automation for kiosk and child-overlay modes, including real bare-Mutter Escape input, mode-specific identity and exit behavior, remembered choices and mute state, all request outcomes, and accessible locked controls.
+- Verification: `tools/run-ui-tests --timeout 900s tests/ui/test_request_form_component.py -m ui -q -k kiosk` (three consecutive clean runs); `tools/run-ui-tests --timeout 900s tests/ui/test_request_form_component.py -m ui -q -k 'not kiosk'` (three consecutive clean runs); `tools/run-ui-tests --timeout 900s tests/ui/test_request_form_component.py -m ui -q` (three consecutive clean runs); `make check-component`; `make check`; `git diff --check`
 - Commit: not committed

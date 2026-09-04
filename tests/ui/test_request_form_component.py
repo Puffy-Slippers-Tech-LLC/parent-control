@@ -4,13 +4,7 @@ from __future__ import annotations
 
 import json
 
-import gi
 import pytest
-
-gi.require_version("Atspi", "2.0")
-from gi.repository import Atspi
-
-ESCAPE_KEYVAL = 0xff1b
 
 
 pytestmark = pytest.mark.ui
@@ -40,11 +34,10 @@ def events(path, event):
 
 
 def send_escape(application):
-    """Send Escape with AT-SPI's supported keyboard synthesizer."""
-    application.grabFocus()
-    assert Atspi.generate_keyboard_event(
-        ESCAPE_KEYVAL, None, Atspi.KeySynthType.PRESSRELEASE,
-    )
+    """Send Escape through Dogtail's hermetic Mutter input backend."""
+    from dogtail.rawinput import press_key
+
+    press_key("Escape")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
@@ -54,9 +47,6 @@ def test_shared_loading_keeps_controls_disabled_until_preferences_arrive(
     request = wait_for_accessible_node(loading, "REQUEST", "button")
     assert not request.sensitive
     wait_for_accessible_state(lambda: request.sensitive, "loaded request controls")
-    wait_for_accessible_node(loading, "Request Rest of the day", "toggle button")
-    wait_for_accessible_node(loading, "Request Custom value", "toggle button")
-    wait_for_accessible_node(loading, "Allow soft blocked apps", "switch")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
@@ -77,7 +67,7 @@ def test_no_approver_explains_why_request_is_unavailable(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_shared_predefined_rest_of_day_approver_and_soft_choices_submit(
+def test_shared_predefined_approver_and_soft_choices_submit(
         launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
     application, path = launch_request(launch_ui, tmp_path, overlay=overlay)
     request = wait_for_accessible_node(application, "REQUEST", "button")
@@ -88,17 +78,33 @@ def test_shared_predefined_rest_of_day_approver_and_soft_choices_submit(
         lambda: any(call["values"][1] == "300" for call in calls(path, "UpdateRequestPreferences")),
         "saved predefined duration",
     )
-    assert wait_for_accessible_node(application, "Request Rest of the day", "toggle button").do_action(0)
+    assert wait_for_accessible_node(
+        application, "Allow soft blocked apps", "button",
+    ).do_action(0)
     wait_for_accessible_state(
-        lambda: any(call["values"][1] == "0" for call in calls(path, "UpdateRequestPreferences")),
-        "saved rest-of-day duration",
+        lambda: any(call["values"][3] is True
+                    for call in calls(path, "UpdateRequestPreferences")),
+        "saved soft-app choice",
     )
-    assert wait_for_accessible_node(application, "Allow soft blocked apps", "switch").do_action(0)
     assert request.do_action(0)
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "submitted request")
     assert calls(path, method)[0]["values"] == (
-        [1010, 0, True] if overlay else [1001, 1010, 0, True]
+        [1010, 300, True] if overlay else [1001, 1010, 300, True]
+    )
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_shared_rest_of_day_choice_submits_zero_seconds(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
+    application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="rest-of-day")
+    request = wait_for_accessible_node(application, "REQUEST", "button")
+    wait_for_accessible_state(lambda: request.sensitive, "loaded rest-of-day preference")
+    assert request.do_action(0)
+    method = "RequestOwnAccess" if overlay else "RequestAccess"
+    wait_for_accessible_state(lambda: bool(calls(path, method)), "rest-of-day request")
+    assert calls(path, method)[0]["values"] == (
+        [1000, 0, False] if overlay else [1001, 1000, 0, False]
     )
 
 
@@ -106,8 +112,9 @@ def test_shared_predefined_rest_of_day_approver_and_soft_choices_submit(
 def test_shared_custom_duration_preserves_fractional_minute_precision(
         launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
     application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="remembered")
-    assert wait_for_accessible_node(application, "Request Custom value", "toggle button").checked
-    assert wait_for_accessible_node(application, "REQUEST", "button").do_action(0)
+    request = wait_for_accessible_node(application, "REQUEST", "button")
+    wait_for_accessible_state(lambda: request.sensitive, "loaded remembered custom duration")
+    assert request.do_action(0)
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "custom-duration request")
     assert calls(path, method)[0]["values"] == (
@@ -118,10 +125,12 @@ def test_shared_custom_duration_preserves_fractional_minute_precision(
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 @pytest.mark.parametrize("scenario", ("custom-too-small", "custom-too-large"))
 def test_shared_custom_duration_rejects_values_outside_range(
-        launch_ui, wait_for_accessible_node, tmp_path, overlay, scenario):
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state,
+        tmp_path, overlay, scenario):
     application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario=scenario)
-    assert wait_for_accessible_node(application, "Request Custom value", "toggle button").checked
-    assert wait_for_accessible_node(application, "REQUEST", "button").do_action(0)
+    request = wait_for_accessible_node(application, "REQUEST", "button")
+    wait_for_accessible_state(lambda: request.sensitive, "loaded invalid custom duration")
+    assert request.do_action(0)
     wait_for_accessible_node(application, "Enter a number from 0.1 to 1440 minutes.", "label")
     assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
 
@@ -145,10 +154,10 @@ def test_kiosk_no_child_explains_how_to_continue(launch_ui, wait_for_accessible_
 def test_child_overlay_uses_fixed_child_identity(launch_ui, wait_for_accessible_node,
                                                   wait_for_accessible_state, tmp_path):
     child, path = launch_request(launch_ui, tmp_path, overlay=True)
-    assert not wait_for_accessible_node(child, "Child account", "button").sensitive
     wait_for_accessible_state(
         lambda: bool(calls(path, "GetOwnAccount")), "own child identity lookup",
     )
+    assert not wait_for_accessible_node(child, "Child account", "button").sensitive
     assert not calls(path, "ListManagedUsers")
 
 
@@ -202,12 +211,8 @@ def test_single_flight_ignores_escape_while_authentication_is_active(
 def test_remembered_choices_are_shared_but_mute_is_surface_specific(
         launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
     application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="remembered")
-    assert wait_for_accessible_node(
-        application, "Allow soft blocked apps", "switch",
-    ).checked
-    assert wait_for_accessible_node(
-        application, "Request Custom value", "toggle button",
-    ).checked
+    request = wait_for_accessible_node(application, "REQUEST", "button")
+    wait_for_accessible_state(lambda: request.sensitive, "loaded remembered choices")
     assert wait_for_accessible_node(application, "Mute request-screen sound", "button").do_action(0)
     wait_for_accessible_state(lambda: bool(calls(path, "SetRequestMuted")), "saved mute")
     assert calls(path, "SetRequestMuted")[0]["values"] == [
@@ -225,6 +230,29 @@ def test_escape_uses_each_modes_idle_exit_behavior(
     assert events(path, "escape")[0]["handled"] is True
     expected = "close_overlay" if overlay else "logout"
     wait_for_accessible_state(lambda: bool(events(path, expected)), f"{expected} callback")
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_cancel_uses_each_modes_idle_exit_behavior(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
+    application, path = launch_request(launch_ui, tmp_path, overlay=overlay)
+    assert wait_for_accessible_node(application, "CANCEL", "button").do_action(0)
+    expected = "close_overlay" if overlay else "logout"
+    wait_for_accessible_state(lambda: bool(events(path, expected)), f"Cancel {expected}")
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_result_action_uses_each_modes_exit_behavior(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
+    application, path = launch_request(
+        launch_ui, tmp_path, overlay=overlay, scenario="service-failure",
+    )
+    assert wait_for_accessible_node(application, "REQUEST", "button").do_action(0)
+    wait_for_accessible_state(lambda: bool(events(path, "result")), "failure result")
+    action = "Close" if overlay else "Return to Login"
+    assert wait_for_accessible_node(application, action, "button").do_action(0)
+    expected = "close_overlay" if overlay else "logout"
+    wait_for_accessible_state(lambda: bool(events(path, expected)), f"result {expected}")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))

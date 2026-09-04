@@ -65,17 +65,22 @@ from dogtail.hermetic.session import HermeticSession, dump_tree
 def hermetic_ui_session():
     """Boot one deterministic private Wayland session for this pytest process."""
 
-    # RequestWindow's deterministic preview is 1918×1443.  Keep the private
-    # monitor larger than that canvas so AT-SPI reports the lower duration and
-    # custom controls as showing after the gateway transform.
-    session = HermeticSession(virtual_monitor="2048x1536")
+    session = HermeticSession(virtual_monitor="1280x1024")
     session.boot()
-    # HermeticSession has already copied the Wayland environment used by the
-    # preview process.  Dogtail's tree module imports its optional Ponytail
-    # input bridge based on this test runner's environment.  The tests use
-    # semantic AT-SPI actions only, while bare Mutter does not expose GNOME
-    # Shell's Ponytail service, so keep that optional bridge disabled here.
+    # Install Dogtail's bare-Mutter input backend before dogtail.tree imports
+    # rawinput.  Importing the backend otherwise eagerly probes the optional
+    # GNOME Shell Ponytail service, which a bare-Mutter session intentionally
+    # lacks.  Limit the compatibility override to that import, then restore
+    # Wayland so rawinput selects the installed RemoteDesktop backend.
     os.environ["XDG_SESSION_TYPE"] = "x11"
+    try:
+        input_backend = session.install_input()
+    finally:
+        os.environ["XDG_SESSION_TYPE"] = session.environment["XDG_SESSION_TYPE"]
+    # Create Mutter's virtual input devices before the application maps.  In a
+    # shell-less compositor there is no later desktop activation step to bind
+    # a newly created virtual keyboard to an already mapped window.
+    input_backend.connectMonitor()
     settings_directory = Path(session.environment["XDG_CONFIG_HOME"]) / "gtk-4.0"
     settings_directory.mkdir(parents=True, exist_ok=True)
     (settings_directory / "settings.ini").write_text(

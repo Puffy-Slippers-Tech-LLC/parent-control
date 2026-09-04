@@ -268,6 +268,7 @@ def test_kiosk_accessibility_tree_is_populated(launch_ui, capture_ui_snapshot):
     assert "Child account" in tree_text
     assert "Approving parent" in tree_text
     assert "Allow soft blocked apps" in tree_text
+    assert "switch: 'Allow soft blocked apps'" in tree_text
     assert "REQUEST" in tree_text
     assert "CANCEL" in tree_text
 

@@ -67,13 +67,15 @@ fi
     gir1.2-adw-1 \
     gir1.2-gtk-4.0 \
     gnome-shell \
+    inotify-tools=4.25.9.0-1 \
+    gjs=1.88.0-1 \
     libpam0g-dev=1.7.0-5ubuntu3.2 \
     libglib2.0-bin \
     lintian \
     make \
     mutter=50.1-0ubuntu2.2 \
     mutter-dev-bin \
-    nodejs \
+    nodejs=22.22.1+dfsg+~cs22.19.15-1ubuntu1 \
     python3 \
     python3-dbusmock=0.38.1-1 \
     python3-gi \

@@ -12,6 +12,13 @@ INSTALLER = ROOT / "install.sh"
 
 
 class InstallerTests(unittest.TestCase):
+    def test_make_installdeb_uses_apt_to_resolve_runtime_dependencies(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
+
+        self.assertIn('$(APT) install "$$deb_files"', recipe)
+        self.assertNotIn("dpkg --install", recipe)
+
     def test_product_and_company_branding_assets_are_packaged(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 

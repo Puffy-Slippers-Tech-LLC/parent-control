@@ -1,104 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly uuid='oh-no-parent-control@tech.puffyslippers.com'
-readonly child_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly system_schema_dir='/usr/share/glib-2.0/schemas'
+child_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 preview_root="$(mktemp -d)"
-shell_pid=''
+# shellcheck source=preview-orchestration.sh
+source "$child_dir/preview-orchestration.sh"
 
-cleanup() {
-    if [[ -n "$shell_pid" ]] && kill -0 "$shell_pid" 2>/dev/null; then
-        kill "$shell_pid" 2>/dev/null || true
-        wait "$shell_pid" 2>/dev/null || true
-    fi
-    rm -rf "$preview_root"
-}
-trap cleanup EXIT INT TERM
-
-command -v gnome-shell >/dev/null || {
-    echo 'gnome-shell is required for the child preview.' >&2
-    exit 1
-}
-command -v gsettings >/dev/null || {
-    echo 'gsettings is required for the child preview.' >&2
-    exit 1
-}
-command -v dbus-run-session >/dev/null || {
-    echo 'dbus-run-session is required for the child preview.' >&2
-    exit 1
-}
-command -v glib-compile-schemas >/dev/null || {
-    echo 'glib-compile-schemas is required for the child preview.' >&2
-    exit 1
-}
-[[ -x /usr/libexec/mutter-devkit ]] || {
-    echo 'Mutter Devkit is required for the child preview (install mutter-dev-bin on Ubuntu).' >&2
-    exit 1
-}
-[[ -d "$system_schema_dir" ]] || {
-    echo "GNOME settings schemas are missing from $system_schema_dir." >&2
-    exit 1
-}
-
-extension_dir="$preview_root/data/gnome-shell/extensions/$uuid"
-mkdir -p "$extension_dir" "$preview_root/config"
-# Mirror the packaged extension layout while keeping source edits live. A
-# directory symlink makes import.meta.url point into the temporary tree without
-# exposing the branding files that are bundled beside the installed modules.
-for source in "$child_dir"/*.js "$child_dir"/*.css "$child_dir"/*.json; do
-    ln -s "$source" "$extension_dir/${source##*/}"
-done
-for source in "$child_dir"/../data/{app_logo.png,company_logo.png,brand.json,app.json} \
-        "$child_dir"/../LICENSE; do
-    ln -s "$source" "$extension_dir/${source##*/}"
-done
-
-# Build a private schema cache from the installed sources. This keeps preview
-# settings isolated and avoids inheriting an outdated system cache after a
-# GNOME package upgrade.
-schema_dir="$preview_root/schemas"
-mkdir -p "$schema_dir"
-cp -a "$system_schema_dir/." "$schema_dir/"
-glib-compile-schemas "$schema_dir"
-
-# Keep extension discovery and enabled-extensions settings out of the host
-# session. The symlink lets GNOME Shell execute the checkout directly.
-export XDG_DATA_HOME="$preview_root/data"
-export XDG_CONFIG_HOME="$preview_root/config"
-export GSETTINGS_BACKEND=keyfile
-export GSETTINGS_SCHEMA_DIR="$schema_dir"
-export OH_NO_PARENT_CONTROL_PREVIEW=1
-repo_root="$(cd "$child_dir/.." && pwd)"
-export PYTHONPATH="$repo_root:$repo_root/kiosk${PYTHONPATH:+:$PYTHONPATH}"
-export OH_NO_PARENT_CONTROL_REQUEST_APP="$(command -v python3) -m oh_no_parent_control_kiosk.main --preview --child-overlay --soundtrack $repo_root/data/Gearbox_Waltz.mp3"
-# IDE sandboxes can export GDK_BACKEND=x11.  Let Mutter Devkit select the
-# active Wayland display instead of attempting to open a host Xwayland socket.
-unset GDK_BACKEND
-gsettings set org.gnome.shell enabled-extensions "['$uuid']"
+onpc_preview_configure "$child_dir" "$preview_root"
+trap onpc_preview_cleanup EXIT HUP INT TERM
+onpc_preview_require_dependencies
+onpc_preview_prepare_environment
 
 echo 'Starting child preview in a nested GNOME Shell. Edit child files to reload.'
 while true; do
-    reload_stamp="$preview_root/reload-stamp"
-    touch "$reload_stamp"
-    # GNOME Shell 49+ replaced the legacy --nested backend with Mutter's
-    # development kit.  Its own D-Bus session keeps the preview isolated from
-    # the host Shell and avoids attempting to claim the active login session.
-    dbus-run-session -- gnome-shell --devkit --wayland --force-animations &
-    shell_pid=$!
-    reloading=false
-
-    while kill -0 "$shell_pid" 2>/dev/null; do
-        sleep 1
-        if find "$child_dir" -type f \( -name '*.js' -o -name '*.css' -o -name '*.json' \) \
-            -newer "$reload_stamp" -print -quit | grep -q .; then
-            reloading=true
-            kill "$shell_pid" 2>/dev/null || true
-            break
-        fi
-    done
-
-    wait "$shell_pid" || true
-    shell_pid=''
-    "$reloading" || break
+    onpc_preview_generation=$((onpc_preview_generation + 1))
+    onpc_preview_start "$onpc_preview_generation"
+    # Task 10A's interactive wrapper uses the process-liveness readiness
+    # contract. Task 10B replaces it with an observable Shell readiness probe.
+    ONPC_PREVIEW_READY_PROBE=onpc_preview_process_is_running \
+        onpc_preview_wait_for_readiness "$onpc_preview_shell_pid" "$onpc_preview_generation"
+    if onpc_preview_wait_for_reload "$onpc_preview_shell_pid"; then
+        onpc_preview_stop_shell
+        continue
+    fi
+    onpc_preview_stop_shell
+    break
 done

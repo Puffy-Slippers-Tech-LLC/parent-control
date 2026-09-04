@@ -6,6 +6,7 @@ import {appName} from './branding.js';
 import {isPreview} from './previewMode.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
 import {logError, logInfo, logWarning} from './logger.js';
+import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
 
@@ -48,7 +49,7 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     _showRequest() {
-        if (this._requestProcess || this._openingRequest)
+        if (!canOpenRequest(Boolean(this._requestProcess), this._openingRequest))
             return;
 
         this._openingRequest = true;
@@ -65,8 +66,10 @@ export default class OhNoParentControlExtension extends Extension {
                     logWarning(`request overlay exited: ${error.message}`);
                 }
                 this._requestProcess = null;
-                this._indicator?.setRequestActive(false);
-                this._indicator?.refreshEstimate();
+                const completion = requestCompletionState();
+                this._indicator?.setRequestActive(completion.requestActive);
+                if (completion.refreshEstimate)
+                    this._indicator?.refreshEstimate();
             });
         } catch (error) {
             logError(`could not open request overlay: ${error.message}`);

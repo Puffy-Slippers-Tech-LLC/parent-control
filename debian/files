@@ -1,3 +1,3 @@
-oh-no-parent-control-dbgsym_1.0.0_amd64.ddeb debug optional architecture=amd64 automatic=yes
-oh-no-parent-control_1.0.0_amd64.buildinfo admin optional
-oh-no-parent-control_1.0.0_amd64.deb admin optional architecture=amd64
+oh-no-parent-control-dbgsym_1.0_amd64.ddeb debug optional architecture=amd64 automatic=yes
+oh-no-parent-control_1.0_amd64.buildinfo admin optional
+oh-no-parent-control_1.0_amd64.deb admin optional architecture=amd64

@@ -76,9 +76,12 @@ The unit and private-D-Bus component suites use pytest. On Ubuntu 26.04,
 `setup.sh` installs the reviewed archive versions listed in
 `tests/test-tools-ubuntu-26.04.txt`, including `python3-pytest=9.0.2-4` and
 `python3-dbusmock=0.38.1-1`. Run `make check-unit` for unit and contract tests,
-or `make check-component` for private-bus and hermetic GTK component tests.
+or `make check-component` for private-bus, JavaScript (Node and GJS), and hermetic GTK component tests.
 The latter creates a disposable Wayland compositor, private D-Bus, and private
 AT-SPI bus for each test process; it never uses the developer's desktop session.
+`make check-child-node` runs the platform-neutral child-extension tests with
+Node's built-in runner. `make check-child-gjs` runs the GJS adapter tests and
+writes LCOV coverage to `artifacts/coverage/gjs-child/coverage.lcov`.
 `setup.sh` creates its isolated Dogtail 2.1.0 environment from the hash-pinned
 wheel in `tests/ui/requirements.txt` and installs Ubuntu's maintained
 `gnome-ponytail-daemon` package for real Wayland runs that need input injection.
@@ -127,6 +130,12 @@ Clicking the remaining-time notification launches the shared kiosk request GUI
 as a fullscreen overlay. Selecting a duration and requesting it updates the
 indicator locally; it never grants real time or changes an app filter. Saving
 child JavaScript or CSS restarts only the nested preview session.
+
+The interactive wrapper delegates its isolated runtime directories, environment,
+Shell command, generation logs, readiness deadline, source-change reload, and
+process-group cleanup to `child/preview-orchestration.sh`. Component automation
+can source that boundary and provide an observable readiness probe; it must not
+duplicate setup or cleanup logic or inspect the developer's desktop settings.
 
 Exercise packaging in a disposable directory:
 

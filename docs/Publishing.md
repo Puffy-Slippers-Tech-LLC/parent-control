@@ -56,24 +56,44 @@ Canonical's current setup instructions are:
    ./setup.sh
    ```
 
-2. Set the product version in `data/app.json`. Keep it as the public product
-   version, such as `1.0.0`; do not add the PPA suffix there.
-3. Export the Debian publisher identity for this terminal. The email must be a
-   confirmed address on the Launchpad account:
+2. Export the Debian publisher identity for this terminal. The email must be a
+   confirmed address on the Launchpad account. The release command uses this
+   identity for the changelog entry:
 
    ```sh
    export DEBFULLNAME='PUBLISHER NAME'
    export DEBEMAIL='CONFIRMED_LAUNCHPAD_EMAIL'
    ```
 
-4. Add a new changelog entry. This is a `3.0 (native)` package, so the package
-   version must not contain a Debian revision separated by a hyphen. For the
-   first PPA build of product version `1.0.0`, use:
+3. Prepare the product release with the repository command. Product versions
+   have exactly two components: `x` identifies a major, potentially
+   incompatible release and `y` identifies a smaller, compatible update that
+   does not change saved-data meaning. The command updates the single
+   authoritative release record in `data/app.json` and adds the required
+   Debian changelog entry:
 
    ```sh
-   dch --newversion '1.0.0+ppa1~ubuntu26.04.1' \
+   make bump-version VERSION=1.1 CHANGE='Describe the user-visible changes.'
+   ```
+
+   The command rejects a reused or decreasing version. Product versions do not
+   control saved-data compatibility: follow `Data-Migration.md` whenever a
+   code change makes saved application data incompatible.
+
+   The unreleased tree is already initialized at `1.0`; omit this step when
+   publishing that initial release without changing its version.
+
+4. Add the PPA build revision to the changelog. This is a `3.0 (native)`
+   package, so the package version must not contain a Debian revision separated
+   by a hyphen. Derive the product version from its authoritative record rather
+   than typing it again. For the first PPA build, use:
+
+   ```sh
+   product_version=$(/usr/bin/python3 -c \
+       'import json; print(json.load(open("data/app.json"))["version"])')
+   dch --newversion "${product_version}+ppa1~ubuntu26.04.1" \
        --distribution resolute \
-       'Describe the user-visible changes.'
+       "Build Oh No! Parent Control ${product_version} for the PPA."
    ```
 
    Increment `ppa1` for another upload of the same product version. Never reuse
@@ -94,7 +114,8 @@ Canonical's current setup instructions are:
    uploaded package passes acceptance:
 
    ```sh
-   git tag -s v1.0.0 -m 'Oh No! Parent Control 1.0.0'
+   git tag -s "v${product_version}" \
+       -m "Oh No! Parent Control ${product_version}"
    ```
 
    If any release input changes after this point, delete and recreate the
@@ -156,6 +177,7 @@ launchpad_owner='YOUR_LAUNCHPAD_OWNER'
 ppa_name='oh-no-parent-control'
 signing_key='FULL_OPENPGP_FINGERPRINT'
 
+make check-release-version
 debuild -S -sa -k"$signing_key"
 version=$(dpkg-parsechangelog -S Version)
 source_changes="../oh-no-parent-control_${version}_source.changes"
@@ -220,7 +242,7 @@ Launchpad's upload instructions are:
 
    ```sh
    git push origin HEAD
-   git push origin v1.0.0
+   git push origin "v${product_version}"
    ```
 
 6. Publish these consumer commands, replacing the owner if necessary:

@@ -17,15 +17,14 @@
      package status, installed file ownership and modes, service readiness,
      D-Bus activation, PAM registration, Polkit files, session descriptors,
      generated execution rules, and reboot marker behavior.
-  5. Add a separate direct-installer system test using a fresh overlay. Never let
-     direct-installer success substitute for package success.
+  5. Run clean package-install tests using a fresh overlay. Never assemble
+     product files manually.
   6. Export xUnit/TAP results and guest artifacts through the existing redacted
      collector.
   7. Add the guarded `make check-system VM_IMAGE=...` entry point.
 - Verification:
   - Run package build twice and compare package contents and recorded inputs.
-  - Run the clean package and direct-installer tests on fresh overlays.
+  - Run clean package-install tests on fresh overlays.
   - Run `make check` and `git diff --check`.
 - Completion criteria: installed-system tests exercise the real package lifecycle
   and leave the baseline and host unchanged.
-

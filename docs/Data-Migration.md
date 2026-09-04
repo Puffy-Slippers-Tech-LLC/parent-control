@@ -1,14 +1,14 @@
 # Saved-data migration
 
-Oh No! Parent Control migrates application-owned persistent data automatically during package configuration and direct installation. Data schema versions are independent of Debian package versions: package releases may leave a schema unchanged, and one release may migrate more than one saved-data family.
+Oh No! Parent Control migrates application-owned persistent data automatically during package configuration. Data schema versions are independent of Debian package versions: package releases may leave a schema unchanged, and one release may migrate more than one saved-data family.
 
 The current framework migrates the per-child records in `/var/lib/oh-no-parent-control/preferences/`. Machine configuration, transient markers, logs, AccountsService, Malcontent, and files managed as Debian conffiles are not preference data and must not be added to that migration chain. If another application-owned data family later needs versioning, give it its own current-version constant, migration registry, validation, and migration pass in `migrate_all_state()`.
 
-## Package and installer lifecycle
+## Package lifecycle
 
 `debian/preinst` creates `/var/lib/oh-no-parent-control/migration-in-progress` before a new payload is unpacked. Both the broker launcher and its systemd unit refuse to start while that marker exists. `preinst` explicitly stops a running broker before package files or saved records can change.
 
-After unpacking, `debian/postinst` runs the newly installed `/usr/libexec/oh-no-parent-control-migrate-state`. It removes the marker only after all migrations and current-schema validation succeed, then continues with provisioning and package-update activation. The direct `install.sh` path uses the same marker and installed migration command before restarting the broker.
+After unpacking, `debian/postinst` runs the newly installed `/usr/libexec/oh-no-parent-control-migrate-state`. It removes the marker only after all migrations and current-schema validation succeed, then continues with provisioning and package-update activation.
 
 The maintainer script deliberately fails if migration fails. The marker then keeps the broker unavailable and APT leaves the package unconfigured. Fixing the underlying record or migration and running `dpkg --configure -a` retries the operation. A successfully migrated record is skipped on retry, so an interruption between records is safe.
 
@@ -21,7 +21,7 @@ The implementation is in `broker/oh_no_parent_control/data_migration.py`. When a
 3. Register it under key `N` in `PREFERENCE_MIGRATIONS`.
 4. Update current-schema defaults and `validate_preferences()`.
 5. Add unit fixtures for realistic version-N records, boundary values, malformed input, direct multi-version upgrades, and interrupted retries.
-6. Ensure the new broker behavior is deployed only after the migration code is packaged and invoked by both installation paths.
+6. Ensure the new broker behavior is deployed only after the migration code is packaged and invoked during package configuration.
 
 Every migration advances exactly one integer version and returns a new object. Released migrations are an on-disk compatibility contract: never change or remove an existing migration. Append the next step instead. The runner applies all required steps in order, so a direct `1 -> 4` package upgrade executes `1 -> 2 -> 3 -> 4`.
 

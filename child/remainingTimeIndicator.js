@@ -132,8 +132,9 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         // Panel extensions may rewrite nested BoxLayout orientations while
         // rebuilding. Reconcile our layout without inspecting their private
         // actor data.
-        this._connect(this._buttonContent, 'notify::vertical',
+        this._connect(this._buttonContent, 'notify::orientation',
             () => this._queueLayoutSync());
+        this._actorDestroyId = this.connect('destroy', () => this._disposeResources());
 
         this._sync();
         this._queueLayoutSync();
@@ -150,6 +151,15 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     destroy() {
+        if (this._destroyed)
+            return;
+        this._disposeResources();
+        super.destroy();
+    }
+
+    _disposeResources() {
+        if (this._destroyed)
+            return;
         this._destroyed = true;
         this._onRequest = null;
 
@@ -174,8 +184,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         if (this._timerSignalId)
             Gio.DBus.system.signal_unsubscribe(this._timerSignalId);
         this._timerSignalId = 0;
-
-        super.destroy();
+        this._actorDestroyId = 0;
+        logDebug('remaining time indicator lifecycle stopped');
     }
 
     _clearTimeout() {
@@ -397,10 +407,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
     _syncOrientation() {
         const vertical = this._compactLabel();
+        const orientation = vertical
+            ? Clutter.Orientation.VERTICAL
+            : Clutter.Orientation.HORIZONTAL;
         // Another panel extension can mutate the BoxLayout after our cached
         // orientation was set, so always compare against the actor too.
-        if (this._buttonContent.vertical !== vertical)
-            this._buttonContent.vertical = vertical;
+        if (this._buttonContent.orientation !== orientation)
+            this._buttonContent.orientation = orientation;
 
         if (this._vertical !== vertical) {
             this._vertical = vertical;

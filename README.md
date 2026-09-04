@@ -56,7 +56,7 @@ checks and all three previews:
 ```
 
 This does not install the product or configure accounts, services, or Polkit.
-Use `sudo ./install.sh` only to deploy the product to a machine.
+Build and install the Debian package to deploy the product to a machine.
 
 The repository is organized by runtime component:
 
@@ -76,7 +76,9 @@ The unit and private-D-Bus component suites use pytest. On Ubuntu 26.04,
 `setup.sh` installs the reviewed archive versions listed in
 `tests/test-tools-ubuntu-26.04.txt`, including `python3-pytest=9.0.2-4` and
 `python3-dbusmock=0.38.1-1`. Run `make check-unit` for unit and contract tests,
-or `make check-component` for private-bus, JavaScript (Node and GJS), and hermetic GTK component tests.
+or `make check-component` for private-bus, JavaScript (Node and GJS), hermetic
+GTK, and isolated GNOME Shell component tests. `make check-child-shell` runs
+only the GNOME Shell 50 child-extension lifecycle smoke.
 The latter creates a disposable Wayland compositor, private D-Bus, and private
 AT-SPI bus for each test process; it never uses the developer's desktop session.
 `make check-child-node` runs the platform-neutral child-extension tests with
@@ -161,15 +163,14 @@ The system installation below installs the extension's Polkit policy.
 
 ## Deployment
 
-On a clean Ubuntu 26.04 Desktop computer, extract the release and run its one
-root installer:
+On a clean Ubuntu 26.04 Desktop computer, build and install the package:
 
 ```sh
-sudo ./install.sh
+make build
+make installdeb
 ```
 
-It installs dependencies and product files, creates and confines the kiosk
-account, provisions the broker, and validates the installation. It marks the
-system as requiring a reboot and, when run interactively, asks whether to
-reboot now. It never reboots without confirmation. No managed account is
-required.
+APT installs runtime dependencies and the package creates and confines the
+kiosk account, provisions the broker, and activates system integration. It
+marks the system as requiring a reboot when needed; `make installdeb` offers an
+interactive reboot on a terminal. No managed account is required.

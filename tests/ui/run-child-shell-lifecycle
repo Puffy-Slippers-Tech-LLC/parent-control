@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+artifact_root=${ONPC_CHILD_SHELL_ARTIFACT_DIR:?ONPC_CHILD_SHELL_ARTIFACT_DIR is required}
+
+# shellcheck source=../../child/preview-orchestration.sh
+source "$repo_root/child/preview-orchestration.sh"
+onpc_preview_configure "$repo_root/child" "$artifact_root"
+ONPC_PREVIEW_PAYLOAD_MODE=copy
+export ONPC_PREVIEW_PAYLOAD_MODE
+
+cleanup() {
+    local status=$?
+    trap - EXIT HUP INT TERM
+    onpc_preview_stop_shell || status=1
+    onpc_preview_stop_private_services || status=1
+    exit "$status"
+}
+trap cleanup EXIT HUP INT TERM
+
+onpc_preview_require_lifecycle_dependencies
+onpc_preview_require_supported_shell_version
+onpc_preview_prepare_environment
+export NO_AT_BRIDGE=0
+export OH_NO_PARENT_CONTROL_REQUEST_APP=/bin/true
+onpc_preview_start_private_bus
+onpc_preview_start_accessibility
+onpc_preview_start_pipewire
+onpc_preview_start 1
+
+if ! "${ONPC_CHILD_SHELL_PYTHON:-python3}" "$repo_root/tests/ui/child_shell_probe.py"; then
+    gsettings get org.gnome.shell enabled-extensions >&2 || true
+    gsettings get org.gnome.shell disable-user-extensions >&2 || true
+    gnome-extensions info "$onpc_preview_uuid" >&2 || true
+    exit 1
+fi
+onpc_preview_record_mutter_devkit
+onpc_preview_stop_shell

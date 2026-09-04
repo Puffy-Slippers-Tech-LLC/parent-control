@@ -464,7 +464,7 @@ Actions:
 
 1. Recheck current Ubuntu security status and package changelog at execution time; do not assume the vulnerability remains unfixed.
 2. Reproduce bounded disk growth in a disposable VM, never on the development host.
-3. Prefer a distribution-fixed package and enforce its minimum version in both Debian dependencies and `install.sh`.
+3. Prefer a distribution-fixed package and enforce its minimum version in Debian dependencies.
 4. If no supported fix exists, prepare a minimal API-compatible downstream patch based on upstream source, including caller validation and per-user bounds. Do not add a broad D-Bus deny rule that breaks GNOME Shell usage reporting.
 5. Add abuse, legitimate high-volume reporting, upgrade, restart, and existing timer-store compatibility tests.
 6. Block release if neither a fixed package nor a reviewed compatible patch is available.
@@ -520,7 +520,7 @@ Actions:
 1. Create `tests/integration/` with an Ubuntu 26.04 VM workflow matching the supported GNOME, Malcontent, AccountsService, PAM, Flatpak, and fapolicyd versions.
 2. Make all host-altering tests refuse to run unless an explicit disposable-VM marker is present.
 3. Provision administrator, child, kiosk, and unrelated standard-user accounts deterministically.
-4. Install through the real package or `install.sh`; do not assemble product files manually.
+4. Install through the real package; do not assemble product files manually.
 5. Capture service status, D-Bus replies, rule snapshots, login results, and product logs as test artifacts with secrets redacted.
 6. Provide `setup`, `run`, `collect`, and `destroy` commands. Destruction must target only an explicitly named disposable test VM.
 

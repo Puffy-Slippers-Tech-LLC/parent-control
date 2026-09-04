@@ -77,7 +77,6 @@ coverage and records without executable evidence.
 the product or modify users, services, PAM, Polkit, AccountsService, or the
 host app filter.  It runs:
 
-- shell syntax validation for `install.sh`;
 - JavaScript syntax checks for the child extension;
 - Python unit tests in `tests/unit/` covering broker core, generated broker
   properties and state-machine transactions, adapters, preferences and
@@ -140,9 +139,9 @@ make check-unit
 
 ### Disposable VM integration tests
 
-Do not run `sudo ./install.sh` on a development workstation.  Running
-`make check` does not create or start a VM.  The VM exists only if an operator
-explicitly invokes the `setup` command below.
+Do not run `make installdeb` on a development workstation. Running `make check`
+does not create or start a VM. The VM exists only if an operator explicitly
+invokes the `setup` command below.
 
 The controller uses the system libvirt connection and requires these existing
 host tools: `virsh`, `virt-install`, `qemu-img`, `cloud-localds`, `ssh-keygen`,
@@ -178,9 +177,9 @@ as UID 2000, and the guarded guest setup deterministically provisions the child
 (2001), kiosk (2002), and unrelated standard user (2003).  Test passwords are
 random per VM and remain in the root-only file
 `/var/lib/oh-no-parent-control-integration/VM_NAME/credentials.json` on the
-host.  The product is not installed until `run` transfers the current worktree
-and invokes its real `install.sh` inside the guest.  `run` first executes
-`make check`, performs a clean install, reboots, and verifies services,
+host. The product is not installed until `run` transfers the current worktree,
+builds its Debian package, and installs that artifact inside the guest. `run`
+first executes `make check`, performs a clean install, reboots, and verifies services,
 AccountsService roles, D-Bus access, PAM account results, and fapolicyd rules.
 
 Every guest command begins with the same fail-closed guard.  It requires all

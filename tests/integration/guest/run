@@ -19,7 +19,12 @@ runuser -u onpc-admin -- env HOME=/home/onpc-admin \
     make -C "$CHECKOUT" check 2>&1 | \
     tee /var/tmp/onpc-h50-results/make-check.txt
 
-SUDO_USER=onpc-admin /bin/bash "$CHECKOUT/install.sh" 2>&1 | \
+apt-get update
+apt-get build-dep -y "$CHECKOUT"
+runuser -u onpc-admin -- env HOME=/home/onpc-admin \
+    make -C "$CHECKOUT" APT=true build 2>&1 | \
+    tee /var/tmp/onpc-h50-results/package-build.txt
+make -C "$CHECKOUT" installdeb 2>&1 | \
     tee /var/tmp/onpc-h50-results/clean-install.txt
 
 "$SCRIPT_DIR/verify_packages.py" \

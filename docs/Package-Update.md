@@ -27,6 +27,4 @@ The package never clears `/run/reboot-required` or removes package names from `/
 
 For a normal UI or broker update, do not assign `reboot` merely for caution: the manifest comparison must be able to avoid a reboot prompt. Conversely, any new PAM, GDM, or pre-session file must be classified as `reboot` before it ships.
 
-The full-machine `install.sh` uses the same manifest comparison. It therefore marks a clean installation for reboot, but does not unconditionally mark an ordinary later deployment.
-
-Saved-data migration happens before this activation comparison and has its own retry and failure contract. The migration runner is therefore classified `none`: `postinst` and `install.sh` invoke it unconditionally rather than as a later activation action. See `Data-Migration.md`.
+Saved-data migration happens before this activation comparison and has its own retry and failure contract. The migration runner is therefore classified `none`: `postinst` invokes it unconditionally rather than as a later activation action. See `Data-Migration.md`.

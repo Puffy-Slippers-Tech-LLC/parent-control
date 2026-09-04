@@ -58,7 +58,7 @@ EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
-.PHONY: bump-version build installdeb check-release-version check check-unit check-component check-child-node check-child-gjs check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest uninstall pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: bump-version build installdeb check-release-version check check-unit check-component check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest uninstall pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -88,11 +88,34 @@ build: check-release-version
 	mv "../oh-no-parent-control_$${version}_$${architecture}.buildinfo" "$$output_dir/"
 
 installdeb:
-	@deb_files="$$(find "$(CURDIR)/output" -maxdepth 1 -type f -name '*.deb' -print)"; \
+	@set -e; \
+	deb_files="$$(find "$(CURDIR)/output" -maxdepth 1 -type f -name '*.deb' -print)"; \
 	deb_count="$$(printf '%s\n' "$$deb_files" | sed '/^$$/d' | wc -l)"; \
 	test "$$deb_count" -eq 1 || (echo "Expected exactly one .deb file in $(CURDIR)/output, found $$deb_count" >&2; exit 1); \
 	echo "Installing $$deb_files"; \
-	$(APT) install "$$deb_files"
+	$(APT) --fix-broken install; \
+	$(APT) install "$$deb_files"; \
+	if test -r /run/reboot-required.pkgs && \
+		grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs; then \
+		printf '\n*** REBOOT REQUIRED: reboot before using the kiosk session. ***\n'; \
+		printf '\nReboot now? [y/N] '; \
+		reboot_answer=''; \
+		if test -t 0; then \
+			read -r reboot_answer || reboot_answer=''; \
+		elif { exec 3<>/dev/tty; } 2>/dev/null; then \
+			read -r reboot_answer <&3 || reboot_answer=''; \
+			exec 3>&-; \
+		fi; \
+		case "$$reboot_answer" in \
+			y|Y|yes|YES|Yes) \
+				if test "$$(id -u)" -eq 0; then \
+					systemctl reboot; \
+				else \
+					sudo systemctl reboot; \
+				fi \
+				;; \
+		esac; \
+	fi
 
 TEST_ENV = PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$${PYTHONPATH:-}
 PYTEST = $(TEST_ENV) $(PYTHON) -m pytest
@@ -105,9 +128,12 @@ check-component:
 	@$(PYTEST) tests/component -m component
 	@$(MAKE) --no-print-directory check-child-node
 	@$(MAKE) --no-print-directory check-child-gjs
-	@test -x "$(UI_TEST_PYTHON)" || (echo 'UI test environment missing; run ./setup.sh' >&2; exit 1)
-	@PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$(CURDIR):$${PYTHONPATH:-} \
-		"$(UI_TEST_PYTHON)" -m pytest tests/ui -m ui
+	@$(MAKE) --no-print-directory check-child-shell
+	@tools/run-ui-tests --timeout 900s tests/ui -m ui \
+		--ignore=tests/ui/test_child_shell_lifecycle.py
+
+check-child-shell:
+	@tools/run-ui-tests --timeout 120s tests/ui/test_child_shell_lifecycle.py -m ui -q
 
 check-marker:
 	@test -n "$(MARKER)" || (echo 'Usage: make check-marker MARKER=unit' >&2; exit 2)
@@ -127,7 +153,6 @@ check-gjs:
 check-static: check-shell check-gjs
 
 check:
-	@bash -n install.sh
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -Wall -Wextra -Werror -fsyntax-only tools/pam_oh_no_parent_control.c
 	@for file in extension.js $(filter %.js %.mjs,$(EXTENSION_SOURCES)); do node --check "$(CHILD_DIR)/$$file"; done
 	@$(PYTHON) tools/verify_test_traceability.py --mode stage
@@ -164,8 +189,8 @@ install-extension:
 	install -m 0644 $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
 	@echo "Installed $(UUID) to $(EXTENSION_DIR)"
 
-# Internal target used by install.sh. Keep privileged host orchestration in the
-# shell installer and declarative product-file installation in the Makefile.
+# Internal target used by Debian package staging. Keep product-file
+# installation declarative so the package has one authoritative payload map.
 _install-product-files:
 	install -d "$(DESTDIR)$(PREFIX)/bin" "$(DESTDIR)$(LIBEXECDIR)" "$(DESTDIR)$(PAM_MODULE_DIR)"
 	install -m 0755 kiosk/oh-no-parent-control "$(DESTDIR)$(PREFIX)/bin/"
@@ -199,7 +224,7 @@ _install-product-files:
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	install -m 0644 $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
-	# Clean the obsolete broker source copy during a direct upgrade.
+	# Clean the obsolete broker source copy during a package upgrade.
 	rm -rf "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension"
 	install -m 0644 broker/oh_no_parent_control/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"
 	install -d "$(DESTDIR)$(DATADIR)/dbus-1/system-services" "$(DESTDIR)$(DATADIR)/dbus-1/interfaces"
@@ -207,7 +232,7 @@ _install-product-files:
 	install -m 0644 data/dbus-1/com.puffyslippers.OhNoParentControl1.xml "$(DESTDIR)$(DATADIR)/dbus-1/interfaces/"
 	install -d "$(DESTDIR)$(DATADIR)/polkit-1/actions" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)"
 	# The broker is the trusted Polkit mechanism for both request front ends.
-	# Remove the obsolete child-owned meta-action during direct installations.
+	# Remove the obsolete child-owned meta-action during package upgrades.
 	rm -f "$(DESTDIR)$(DATADIR)/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy"
 	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy"
 	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy"
@@ -232,7 +257,7 @@ _install-product-files:
 	install -m 0644 data/app_logo_gnome_launcher.png "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png"
 	install -m 0644 data/applications/com.puffyslippers.OhNoParentControl.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	# GNOME only indexes desktop entries the signed-in user can read.  The
-	# installer/package assigns this file to Ubuntu's administrator group.
+	# The package maintainer script assigns this file to Ubuntu's administrator group.
 	install -m 0640 data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	install -d "$(DESTDIR)$(DATADIR)/oh-no-parent-control" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control"
 	install -m 0644 config/config.example.json $(BRANDING_ASSETS) data/app_logo_gnome_launcher.png LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Installs only the tools needed to develop and preview this checkout.  Product
-# deployment, account provisioning, and system-service configuration remain the
-# responsibility of install.sh.
+# Installs only the tools needed to develop and preview this checkout. Product
+# deployment is exclusively through the Debian package.
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly apt_lock_timeout_seconds=300
 
@@ -57,6 +56,8 @@ fi
 "${apt_get[@]}" update
 "${apt_get[@]}" install -y \
     build-essential \
+    at-spi2-core=2.60.4-0ubuntu0.1 \
+    dbus-daemon=1.16.2-2ubuntu4 \
     dbus-user-session \
     debhelper \
     devscripts \
@@ -66,7 +67,7 @@ fi
     gnupg \
     gir1.2-adw-1 \
     gir1.2-gtk-4.0 \
-    gnome-shell \
+    gnome-shell=50.1-0ubuntu1.2 \
     inotify-tools=4.25.9.0-1 \
     gjs=1.88.0-1 \
     libpam0g-dev=1.7.0-5ubuntu3.2 \
@@ -74,8 +75,9 @@ fi
     lintian \
     make \
     mutter=50.1-0ubuntu2.2 \
-    mutter-dev-bin \
+    mutter-dev-bin=50.1-0ubuntu2.2 \
     nodejs=22.22.1+dfsg+~cs22.19.15-1ubuntu1 \
+    pipewire=1.6.2-1ubuntu1.1 \
     python3 \
     python3-dbusmock=0.38.1-1 \
     python3-gi \

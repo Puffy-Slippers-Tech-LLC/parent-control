@@ -14,8 +14,8 @@
   a uniquely named domain for every installed-system or end-to-end run. Test VMs
   must not expose a writable host filesystem such as the current `/Data` virtiofs
   share.
-- Test the exact Debian package artifact as the primary release path. Test the
-  direct installer separately. Record the artifact digest in every VM result.
+- Test the exact Debian package artifact as the sole release path. Record the
+  artifact digest in every VM result.
 - Give every normative statement in `Specification.md` a stable requirement ID
   and maintain machine-checked traceability from each ID to executable tests and
   collected evidence.

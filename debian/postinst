@@ -38,6 +38,14 @@ if [ "$1" = configure ]; then
         echo 'oh-no-parent-control: kiosk account no longer matches package ownership' >&2
         exit 1
     fi
+    # The kiosk account is product-owned while installed.  Reassert its
+    # noninteractive identity on upgrades and when reusing the reserved
+    # account, so a previous configuration cannot turn it into a normal
+    # desktop account.
+    echo 'oh-no-parent-control: reasserting kiosk account identity' >&2
+    usermod --comment "Oh No! Parent Control" \
+        --home "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
+    passwd --delete "$kiosk_user"
     /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"
 
     kiosk_gid=$(id -g "$kiosk_user")
@@ -57,9 +65,44 @@ if [ "$1" = configure ]; then
         /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
     chmod 0640 \
         /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
-    deb-systemd-invoke daemon-reload >/dev/null || true
+
+    # Ubuntu's Malcontent package ships sysusers definitions, but its service
+    # startup can run before those accounts exist on a clean installation.
+    # Create exactly the dependency-owned accounts required by its installed
+    # units before retrying those units.
+    echo 'oh-no-parent-control: provisioning Malcontent service accounts' >&2
+    systemd-sysusers \
+        malcontent-timer-extension-agent.conf \
+        malcontent-timerd.conf \
+        malcontent-webd.conf
+    for service_user in \
+            malcontent-timer-ext-agent \
+            malcontent-timerd \
+            malcontent-webd; do
+        if ! getent passwd "$service_user" >/dev/null; then
+            echo "oh-no-parent-control: required Malcontent service account was not created: $service_user" >&2
+            exit 1
+        fi
+    done
+
+    echo 'oh-no-parent-control: reloading systemd and D-Bus configuration' >&2
+    systemctl --system daemon-reload
     invoke-rc.d dbus reload >/dev/null || true
-    deb-systemd-invoke start fapolicyd.service >/dev/null
+
+    # fapolicyd does not enable itself when first installed. Enable every
+    # persistent enforcement dependency, then let deb-systemd-invoke honor the
+    # host's package-service start policy. A real startup failure must fail
+    # package configuration instead of leaving enforcement silently absent.
+    echo 'oh-no-parent-control: enabling and starting enforcement services' >&2
+    systemctl enable \
+        fapolicyd.service \
+        malcontent-timerd.service \
+        malcontent-timer-extension-agent.service \
+        oh-no-parent-control-restore-extension-state.service >/dev/null
+    deb-systemd-invoke start \
+        fapolicyd.service \
+        malcontent-timerd.service \
+        malcontent-timer-extension-agent.service >/dev/null
 
     pending=/var/lib/oh-no-parent-control/package-activation-pending
     if [ -f "$pending" ]; then

@@ -19,6 +19,7 @@ while true; do
     # contract. Task 10B replaces it with an observable Shell readiness probe.
     ONPC_PREVIEW_READY_PROBE=onpc_preview_process_is_running \
         onpc_preview_wait_for_readiness "$onpc_preview_shell_pid" "$onpc_preview_generation"
+    onpc_preview_record_mutter_devkit
     if onpc_preview_wait_for_reload "$onpc_preview_shell_pid"; then
         onpc_preview_stop_shell
         continue

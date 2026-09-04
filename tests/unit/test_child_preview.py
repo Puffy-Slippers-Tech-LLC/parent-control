@@ -25,6 +25,7 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn('source "$child_dir/preview-orchestration.sh"', wrapper)
         self.assertIn("onpc_preview_prepare_environment", wrapper)
         self.assertIn("onpc_preview_start", wrapper)
+        self.assertIn("onpc_preview_record_mutter_devkit", wrapper)
         self.assertIn("onpc_preview_wait_for_reload", wrapper)
         self.assertIn("trap onpc_preview_cleanup EXIT HUP INT TERM", wrapper)
         self.assertIn("inotifywait", orchestration)
@@ -78,6 +79,50 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.splitlines(), [f"{runtime}/data", f"{runtime}/schemas"])
 
+    def test_automated_environment_copies_the_packaged_payload(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_path = pathlib.Path(temporary)
+            fake_bin = temporary_path / "bin"
+            fake_bin.mkdir()
+            for command in ("gsettings", "glib-compile-schemas"):
+                executable = fake_bin / command
+                executable.write_text("#!/usr/bin/env bash\nexit 0\n")
+                executable.chmod(0o755)
+            schema_source = temporary_path / "schemas-source"
+            schema_source.mkdir()
+            runtime = temporary_path / "runtime"
+            result = self.run_orchestration(
+                f"PATH='{fake_bin}':$PATH "
+                "ONPC_PREVIEW_PAYLOAD_MODE=copy "
+                f"ONPC_PREVIEW_SYSTEM_SCHEMA_DIR='{schema_source}' "
+                "bash -c 'source child/preview-orchestration.sh; "
+                f"onpc_preview_configure \"{ROOT / 'child'}\" \"{runtime}\"; "
+                "onpc_preview_prepare_environment; "
+                "extension=\"$XDG_DATA_HOME/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/extension.js\"; "
+                "test -f \"$extension\"; test ! -L \"$extension\"; "
+                "printf \"%s\\n\" \"$XDG_CACHE_HOME\" \"$XDG_STATE_HOME\" \"$XDG_RUNTIME_DIR\"'"
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.splitlines(),
+            [f"{runtime}/cache", f"{runtime}/state", f"{runtime}/runtime"],
+        )
+
+    def test_private_bus_shell_command_does_not_create_a_second_bus(self):
+        result = self.run_orchestration(
+            "source child/preview-orchestration.sh; "
+            "onpc_preview_configure child /tmp/onpc-preview-test; "
+            "onpc_preview_bus_address=unix:path=/tmp/private-test-bus; "
+            "onpc_preview_build_shell_command; printf '%s\\n' \"${onpc_preview_shell_command[*]}\""
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.strip(),
+            "gnome-shell --devkit --wayland --force-animations",
+        )
+
     def test_readiness_timeout_reports_generation_and_log(self):
         result = self.run_orchestration(
             "source child/preview-orchestration.sh; "
@@ -109,6 +154,8 @@ class ChildPreviewTests(unittest.TestCase):
             "source child/preview-orchestration.sh; "
             "onpc_preview_configure child /tmp/onpc-preview-owned-process; "
             "setsid sleep 20 & onpc_preview_shell_pid=$!; pid=$onpc_preview_shell_pid; "
+            "onpc_preview_record_owned_process \"$onpc_preview_shell_pid\" "
+            "onpc_preview_shell_start_time 'GNOME Shell'; "
             "onpc_preview_stop_shell; ! kill -0 \"$pid\" 2>/dev/null"
         )
 

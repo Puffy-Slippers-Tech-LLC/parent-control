@@ -20,7 +20,7 @@ Vcs-Git: https://github.com/Puffy-Slippers-Tech-LLC/parent-control.git
 
 Package: oh-no-parent-control
 Architecture: any
-Depends: ${misc:Depends}, ${python3:Depends}, ${shlibs:Depends}, accountsservice, adduser, dbus-user-session, fapolicyd, gdm3, gir1.2-adw-1, gir1.2-gstreamer-1.0, gir1.2-gtk-4.0, gir1.2-malcontent-0, gnome-kiosk, gnome-shell, gstreamer1.0-plugins-base, gstreamer1.0-plugins-ugly, gtk-update-icon-cache, libglib2.0-bin, libpam-malcontent, libpam-runtime, malcontent, mate-polkit-bin, polkitd, python3, python3-gi, python3-gi-cairo, sudo
+Depends: ${misc:Depends}, ${python3:Depends}, ${shlibs:Depends}, accountsservice, adduser, dbus-user-session, fapolicyd, gdm3, gir1.2-adw-1, gir1.2-gstreamer-1.0, gir1.2-gtk-4.0, gir1.2-malcontent-0, gnome-kiosk, gnome-shell, gstreamer1.0-plugins-base, gstreamer1.0-plugins-ugly, gtk-update-icon-cache, libglib2.0-bin, libpam-malcontent, libpam-runtime, malcontent, mate-polkit-bin, polkitd, python3, python3-gi, python3-gi-cairo, sudo, systemd-sysusers
 Description: parent controls and extra-time requests for GNOME
  Oh No! Parent Control provides an administrator app, a per-child GNOME Shell
  extension, and a kiosk request station backed by shared per-account settings.

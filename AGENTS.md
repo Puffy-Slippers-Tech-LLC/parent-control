@@ -9,3 +9,4 @@
 - Whenever touching the child app form or the kiosk app, keep in mind the GUI is shared between them, make sure changes are compatible in both apps.
 - If the dev machine needs a change, make sure to update @setup.sh
 - For non-VM UI pytest runs, always use `tools/run-ui-tests --timeout <duration> [pytest arguments...]`; never inline its environment setup or invoke it through another shell command. This launcher is approved for arbitrary timeout durations and pytest selectors.
+- Process cleanup must signal only processes explicitly spawned and identity-recorded by the test or application. Never infer ownership from process names, environment variables, runtime directories, or host-wide `/proc` scans. Before running any host-integrated test that terminates processes, run its cleanup-safety regressions in isolation and proceed only if they pass.

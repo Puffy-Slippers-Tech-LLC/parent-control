@@ -161,11 +161,14 @@ class IntegrationHarnessTests(unittest.TestCase):
             self.assertNotIn(secret, result)
         self.assertIn("<redacted", result)
 
-    def test_real_installer_and_required_artifacts_are_wired(self):
+    def test_real_package_install_and_required_artifacts_are_wired(self):
         run_script = (INTEGRATION / "guest/run").read_text(encoding="utf-8")
         collect_script = (INTEGRATION / "guest/collect").read_text(encoding="utf-8")
         self.assertIn('make -C "$CHECKOUT" check', run_script)
-        self.assertIn('"$CHECKOUT/install.sh"', run_script)
+        self.assertIn('apt-get build-dep -y "$CHECKOUT"', run_script)
+        self.assertIn('make -C "$CHECKOUT" APT=true build', run_script)
+        self.assertIn('make -C "$CHECKOUT" installdeb', run_script)
+        self.assertNotIn("install.sh", run_script)
         self.assertNotIn("_install-product-files", run_script)
         for artifact in (
             "service-status.txt", "dbus-replies.txt", "fapolicyd-rules.txt",

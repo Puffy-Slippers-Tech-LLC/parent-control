@@ -405,18 +405,15 @@ For other accounts, the public AccountsService `LimitType` helper skips
 unknown or malformed state continues through the enforcing module. The kiosk
 account is additionally confined to the dedicated GNOME session.
 
-APT and the full-machine installer stop the broker and run the packaged,
-version-stepped migration framework before newly installed readers can access
+APT stops the broker and runs the packaged, version-stepped migration framework
+before newly installed readers can access
 saved preferences. A migration-in-progress marker also prevents systemd from
 starting the broker. See `Data-Migration.md` for the schema contract.
 
 Package activation is selected from a generated digest manifest. Depending on
 the installed file that changed, an update needs no action, a broker restart, a
 new child/kiosk session, or a reboot at the PAM/display-manager boundary. See
-`Package-Update.md` for the classification rules. The direct installer uses the
-same comparison. It also snapshots the invoking administrator's global GNOME
-extension switch and restores that exact value before GDM after a required
-reboot.
+`Package-Update.md` for the classification rules.
 
 ## Installed layout
 

@@ -17,6 +17,7 @@ if [ "$1" = configure ]; then
     rm -f /var/lib/oh-no-parent-control/migration-in-progress
 
     kiosk_user=oh-no-parent-control
+    package_created_kiosk=0
     if ! getent passwd "$kiosk_user" >/dev/null; then
         adduser --disabled-password --gecos "Oh No! Parent Control" \
             --home "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
@@ -27,25 +28,29 @@ if [ "$1" = configure ]; then
             /var/lib/oh-no-parent-control/package-created-kiosk-uid
         chmod 0600 \
             /var/lib/oh-no-parent-control/package-created-kiosk-uid
+        package_created_kiosk=1
     elif [ ! -f /var/lib/oh-no-parent-control/package-created-kiosk-uid ]; then
-        # A source deployment or an administrator may already have created the
-        # reserved kiosk account. Provision validates that it is non-root and
-        # non-administrative. Do not create the ownership marker here: postrm
-        # must preserve an account that this package did not create.
+        # An administrator may already have created the reserved kiosk account.
+        # Provision validates that it is non-root and non-administrative. Do
+        # not create the ownership marker here: postrm must preserve an account
+        # that this package did not create.
         echo 'oh-no-parent-control: using existing dedicated kiosk account; package removal will preserve it' >&2
     elif [ "$(id -u "$kiosk_user")" != \
            "$(cat /var/lib/oh-no-parent-control/package-created-kiosk-uid)" ]; then
         echo 'oh-no-parent-control: kiosk account no longer matches package ownership' >&2
         exit 1
+    else
+        package_created_kiosk=1
     fi
-    # The kiosk account is product-owned while installed.  Reassert its
-    # noninteractive identity on upgrades and when reusing the reserved
-    # account, so a previous configuration cannot turn it into a normal
-    # desktop account.
-    echo 'oh-no-parent-control: reasserting kiosk account identity' >&2
-    usermod --comment "Oh No! Parent Control" \
-        --home "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
-    passwd --delete "$kiosk_user"
+    if [ "$package_created_kiosk" -eq 1 ]; then
+        # Reassert only package-owned account properties. A pre-existing
+        # account is deliberately preserved on removal, so installation must
+        # not irreversibly replace its password or identity fields.
+        echo 'oh-no-parent-control: configuring package-owned kiosk account' >&2
+        usermod --comment "Oh No! Parent Control" \
+            --home "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
+        passwd --delete "$kiosk_user"
+    fi
     /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"
 
     kiosk_gid=$(id -g "$kiosk_user")
@@ -97,8 +102,7 @@ if [ "$1" = configure ]; then
     systemctl enable \
         fapolicyd.service \
         malcontent-timerd.service \
-        malcontent-timer-extension-agent.service \
-        oh-no-parent-control-restore-extension-state.service >/dev/null
+        malcontent-timer-extension-agent.service >/dev/null
     deb-systemd-invoke start \
         fapolicyd.service \
         malcontent-timerd.service \

@@ -4,9 +4,7 @@ set -e
 if [ "$1" = remove ]; then
     # Stop the broker before clearing derived state so its reconciliation loop
     # cannot restore a restriction while package removal is in progress.
-    deb-systemd-invoke stop \
-        oh-no-parent-control-broker.service \
-        oh-no-parent-control-restore-extension-state.service >/dev/null
+    deb-systemd-invoke stop oh-no-parent-control-broker.service >/dev/null
     if [ -d /run/systemd/system ] && \
        systemctl is-active --quiet oh-no-parent-control-broker.service; then
         echo 'oh-no-parent-control: broker remained active; refusing unsafe removal' >&2

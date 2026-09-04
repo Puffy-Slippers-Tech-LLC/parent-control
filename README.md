@@ -139,13 +139,11 @@ process-group cleanup to `child/preview-orchestration.sh`. Component automation
 can source that boundary and provide an observable readiness probe; it must not
 duplicate setup or cleanup logic or inspect the developer's desktop settings.
 
-Exercise packaging in a disposable directory:
+Inspect the built package payload without installing it:
 
 ```sh
-stage="$(mktemp -d)"
-make _install-product-files DESTDIR="$stage"
-find "$stage" -type f -print
-make uninstall DESTDIR="$stage"
+make build
+dpkg-deb --contents output/oh-no-parent-control_*.deb
 ```
 
 Unit tests use mocked Polkit and AccountsService adapters and never modify real

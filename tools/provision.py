@@ -68,19 +68,6 @@ def accounts_service_user_path(user):
     return expected_path
 
 
-def accounts_service_language(user, user_path=None):
-    user_path = user_path or accounts_service_user_path(user)
-    result = subprocess.run([
-        "busctl", "--system", "get-property", "org.freedesktop.Accounts",
-        user_path,
-        "org.freedesktop.Accounts.User", "Language",
-    ], check=True, stdout=subprocess.PIPE, text=True)
-    fields = shlex.split(result.stdout)
-    if len(fields) != 2 or fields[0] != "s":
-        fail("AccountsService returned an invalid language for [user]")
-    return fields[1]
-
-
 def accounts_service_set_icon_file(user, icon_file=KIOSK_ICON_FILE, user_path=None):
     """Make the kiosk account use the product's AccountsService-safe artwork."""
     user_path = user_path or accounts_service_user_path(user)
@@ -94,7 +81,6 @@ def accounts_service_set_icon_file(user, icon_file=KIOSK_ICON_FILE, user_path=No
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--kiosk-user", required=True)
-    parser.add_argument("--language-source-user")
     parser.add_argument("--prefix", default="/")
     args = parser.parse_args()
     if os.geteuid() != 0:
@@ -129,24 +115,6 @@ def main():
         kiosk_path = accounts_service_user_path(kiosk)
         print("Applying AccountsService properties for [Kiosk user]", file=sys.stderr)
         accounts_service_set_icon_file(kiosk, user_path=kiosk_path)
-        language = ""
-        if args.language_source_user:
-            try:
-                language_source = pwd.getpwnam(args.language_source_user)
-            except KeyError:
-                fail("language source account does not exist: [user]")
-            if language_source.pw_uid == 0:
-                fail("language source account must not be root")
-            language = accounts_service_language(language_source)
-        # AccountsService rejects an empty SetLanguage value on current
-        # Ubuntu releases.  An empty source language means "use the machine
-        # default", which is already the account's state, so leave it alone.
-        if language:
-            subprocess.run([
-                "busctl", "--system", "call", "org.freedesktop.Accounts",
-                kiosk_path,
-                "org.freedesktop.Accounts.User", "SetLanguage", "s", language,
-            ], check=True)
         subprocess.run([
             "busctl", "--system", "set-property", "org.freedesktop.Accounts",
             kiosk_path,

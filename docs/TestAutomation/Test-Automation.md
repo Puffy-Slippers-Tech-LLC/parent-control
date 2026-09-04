@@ -55,7 +55,7 @@ record.
 - [x] Task 08 — Automate the shared kiosk and child request form locally
 - [x] Task 09 — Add executable unit tests for child-extension JavaScript
 - [x] Task 10A — Refactor the child preview into reusable orchestration
-- [ ] Task 10B — Add the isolated nested-Shell lifecycle smoke
+- [x] Task 10B — Add the isolated nested-Shell lifecycle smoke
 - [ ] Task 10C — Automate child indicator request interaction
 - [ ] Task 10D — Verify reload, preserve artifacts, and finish integration
 - [ ] Task 11 — Build deterministic native and Flatpak test applications
@@ -175,7 +175,7 @@ item.
 - [x] [Task 08 — Automate the shared kiosk and child request form locally](Task-08.md)
 - [x] [Task 09 — Add executable unit tests for child-extension JavaScript](Task-09.md)
 - [x] [Task 10A — Refactor the child preview into reusable orchestration](Task-10A.md)
-- [ ] [Task 10B — Add the isolated nested-Shell lifecycle smoke](Task-10B.md)
+- [x] [Task 10B — Add the isolated nested-Shell lifecycle smoke](Task-10B.md)
 - [ ] [Task 10C — Automate child indicator request interaction](Task-10C.md)
 - [ ] [Task 10D — Verify reload, preserve artifacts, and finish integration](Task-10D.md)
 - [ ] [Task 11 — Build deterministic native and Flatpak test applications](Task-11.md)
@@ -267,4 +267,10 @@ Append one entry only after its checklist item has been changed to `[x]`:
 
 - Result: Refactored the child preview into a sourceable orchestration boundary with isolated environment setup, generation logs, bounded readiness, event-driven reloads, and process-group cleanup.
 - Verification: `python3 -m pytest tests/unit/test_child_preview.py -m contract -q`; `make check`; `git diff --check`
+- Commit: not committed
+
+### Task 10B completed — 2026-09-03
+
+- Result: Added the GNOME Shell 50 Mutter Devkit lifecycle smoke with a copied packaged extension, private XDG/settings/D-Bus/AT-SPI/PipeWire state, bounded semantic readiness, complete extension-attributable log checks, and identity-recorded deterministic teardown; also removed deprecated indicator construction and made extension shutdown idempotent.
+- Verification: `python3 -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`; `tools/run-ui-tests --timeout 120s tests/ui/test_child_shell_lifecycle.py -m ui -q` (three consecutive fresh processes); `make check-component`; `make check`; `git diff --check`
 - Commit: not committed

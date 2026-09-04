@@ -5,7 +5,7 @@ from unittest import mock
 
 from parent.oh_no_parent_control_parent.main import (
     APPLICATION_ICON_NAME, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _duration_label, _minutes_label,
-    _time_status_subtitle,
+    PREVIEW_THUNDERBIRD_ICON, _time_status_subtitle,
 )
 
 
@@ -111,19 +111,29 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(
             [(app_id, policies[app_id]["state"], bool(policies[app_id]["patterns"]))
              for app_id in (
-                 "org.gnome.Software.desktop",
-                 "org.gnome.Epiphany.desktop",
-                 "org.gnome.Calculator.desktop",
+                 "thunderbird_thunderbird.desktop",
+                 "lunarclient.desktop",
+                 "com.mojang.Minecraft.desktop",
              )],
             [
-                ("org.gnome.Software.desktop", "allowed", True),
-                ("org.gnome.Epiphany.desktop", "permanent", True),
-                ("org.gnome.Calculator.desktop", "conditional", False),
+                ("thunderbird_thunderbird.desktop", "allowed", True),
+                ("lunarclient.desktop", "permanent", True),
+                ("com.mojang.Minecraft.desktop", "conditional", False),
             ],
         )
         self.assertEqual(
-            applications["org.gnome.Calculator.desktop"]["suggested_patterns"], [],
+            applications["com.mojang.Minecraft.desktop"]["suggested_patterns"], [],
         )
+
+    def test_preview_uses_the_bundled_thunderbird_icon(self):
+        client = PreviewBrokerClient()
+        applications = {app["id"]: app for app in client.list_apps(1001)}
+
+        self.assertEqual(
+            applications["thunderbird_thunderbird.desktop"]["icon"],
+            PREVIEW_THUNDERBIRD_ICON,
+        )
+        self.assertTrue(Path(PREVIEW_THUNDERBIRD_ICON).is_file())
 
     def test_loading_an_exact_match_policy_accepts_an_empty_pattern_list(self):
         class SettableToggle:
@@ -466,6 +476,13 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('orientation=Gtk.Orientation.VERTICAL', source)
         self.assertIn('card.add_css_class("expanded")', toggled)
         self.assertIn('.policy-legend.expanded {', stylesheet)
+
+    def test_legend_book_icon_is_centered_in_its_tile(self):
+        source = inspect.getsource(ParentWindow._legend_card)
+
+        self.assertIn("book = Gtk.CenterBox(", source)
+        self.assertIn("book.set_center_widget(Gtk.Image(", source)
+        self.assertNotIn("hexpand=True, halign=Gtk.Align.CENTER", source)
 
     def test_daily_limit_labels_use_singular_only_for_one_minute(self):
         self.assertEqual(_minutes_label(0), "0 minutes")

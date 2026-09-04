@@ -248,7 +248,7 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     confirmation = wait_for_accessible_node(application, "Revoke one-time grant?", "dialog")
     warning = confirmation.child(
         "This will revoke one-time screen time and access to soft blocked apps "
-        "granted to Alex Morgan, close their running blocked apps, and lock their desktop "
+        "granted to Riley Parker, close their running blocked apps, and lock their desktop "
         "when no time remains. Their remaining daily time allowance is not impacted.",
         role_name="label", retry=False,
     )

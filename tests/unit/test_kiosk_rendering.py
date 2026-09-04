@@ -27,6 +27,12 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT', source)
         self.assertIn('str(soundtrack or Path(__file__).with_name("Gearbox_Waltz.mp3"))', source)
         self.assertIn('self._music = BackgroundMusic(soundtrack)', source)
+        self.assertIn('class LightningSizzle:', source)
+        self.assertIn('wave=white-noise', source)
+        self.assertIn('BACKGROUND_MUSIC_VOLUME = 0.18', source)
+        self.assertIn('LIGHTNING_SIZZLE_VOLUME = 0.70', source)
+        self.assertIn('self._sizzle = LightningSizzle()', source)
+        self.assertIn('self._background.set_lightning_sizzle(self._sizzle.play)', source)
         self.assertIn('self._music.start()', source)
         self.assertIn('if preview and not child_overlay:', source)
         self.assertIn('self._apply_mute(True)', source)
@@ -35,6 +41,7 @@ class KioskRenderingTests(unittest.TestCase):
             source.index("if preview and not child_overlay:"),
         )
         self.assertIn('self._music.close()', source)
+        self.assertIn('self._sizzle.close()', source)
         self.assertIn('def fade_out(self, duration_ms):', source)
         self.assertIn('self._music.fade_out(SUCCESS_LOGOUT_DELAY_MS)', source)
         self.assertIn('self._music.cancel_fade()', source)
@@ -50,6 +57,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('armor_kind="hud", tooltip_text="Mute sound"', source)
         self.assertIn('self._mute_button.connect("clicked", self._toggle_mute)', source)
         self.assertIn('self._music.set_muted(muted)', source)
+        self.assertIn('self._sizzle.set_muted(muted)', source)
         self.assertIn("SPEAKER_MUTED if muted else SPEAKER", source)
         self.assertNotIn("audio-volume-high-symbolic", source)
         self.assertNotIn("audio-volume-muted-symbolic", source)
@@ -599,6 +607,20 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("snapshot.append_cairo(bounds)", source)
         self.assertIn("random.SystemRandom()", source)
         self.assertIn("def _new_lightning_bolt", source)
+        self.assertIn("CRYSTAL_LIGHTNING_TIPS", source)
+        self.assertIn(
+            'source_x, source_y = self._random.choice(CRYSTAL_LIGHTNING_TIPS)',
+            source,
+        )
+        self.assertIn("def _launch_lightning_burst", source)
+        self.assertIn('ejection_count = self._random.randint(1, 4)', source)
+        self.assertIn('starts_at += self._random.uniform(0.12, 0.38)', source)
+        self.assertIn('if elapsed >= self._next_lightning_burst_at:', source)
+        self.assertIn('def set_lightning_sizzle(self, play_sizzle):', source)
+        self.assertIn(
+            'self._lightning_sizzle(bolt["duration"], bolt["fade_rate"])',
+            source,
+        )
         self.assertIn("randomly sourced lightning moving into the gateway", source)
         self.assertIn('"branches": tuple(', source)
         self.assertIn("for _branch in range(self._random.randint(0, 4))", source)

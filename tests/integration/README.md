@@ -237,6 +237,10 @@ and finalized. After interruption, rerun `make prep-host`. If libvirt already
 created the snapshot, the controller validates its recorded operation identity,
 domain layout, and internal disk snapshot before finishing. A partial or
 unrelated same-name snapshot is refused and preserved for inspection.
+If the fixed controller directory exists but is empty with guest-mapped
+ownership or an incorrect mode, the host controller repairs it to host-root
+ownership and mode `0700`; any directory containing an entry remains refused
+and unchanged for inspection.
 Completed runs verify and preserve the original baseline even while the VM is
 running or has the product installed for testing. They neither recapture nor
 revert it. Missing/replaced snapshots and changed backing files are refused.

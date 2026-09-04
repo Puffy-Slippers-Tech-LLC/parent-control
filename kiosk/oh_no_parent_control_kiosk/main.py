@@ -47,6 +47,10 @@ REQUEST_TIMEOUT_MS = GLib.MAXINT
 SUCCESS_LOGOUT_DELAY_MS = 3_000
 SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
 MUSIC_FADE_TICK_MS = 50
+# Keep the soundtrack comfortably behind form interaction and let a live bolt
+# read as a deliberate electrical event rather than background texture.
+BACKGROUND_MUSIC_VOLUME = 0.18
+LIGHTNING_SIZZLE_VOLUME = 0.70
 CHILD_SUCCESS_TITLE = "Time granted"
 CHILD_SUCCESS_COPY = "Time granted, Close"
 GATEWAY_EFFECT_FRAME_MS = 33
@@ -60,6 +64,18 @@ GATEWAY_CENTERING_OFFSET = 0.03125
 # scaling and crop as the painted texture.
 GATEWAY_ARTWORK_WIDTH = 3_840
 GATEWAY_ARTWORK_HEIGHT = 2_160
+# The six intended formations in the supplied artwork: four on the left and
+# two on the right. Each point is the visible tip of a crystal, in source-image
+# fractions, so an ejection visibly starts at its crystal rather than in the
+# surrounding cluster. These source-image coordinates also survive cover crop.
+CRYSTAL_LIGHTNING_TIPS = (
+    (0.154, 0.096),  # floating upper-left formation
+    (0.099, 0.342),  # left pedestal formation
+    (0.178, 0.618),  # lower-left pedestal formation
+    (0.077, 0.873),  # foreground bottom-left formation
+    (0.783, 0.383),  # right pedestal formation
+    (0.827, 0.644),  # lower-right formation
+)
 GATEWAY_INNER_CORNERS = (
     (1_374 / GATEWAY_ARTWORK_WIDTH, 347 / GATEWAY_ARTWORK_HEIGHT),
     (2_276 / GATEWAY_ARTWORK_WIDTH, 405 / GATEWAY_ARTWORK_HEIGHT),
@@ -234,7 +250,7 @@ class BackgroundMusic:
         self._bus.connect("message::eos", self._restart)
         self._bus.connect("message::error", self._error)
         self._fade_source_id = None
-        self._nominal_volume = 1.0
+        self._nominal_volume = BACKGROUND_MUSIC_VOLUME
 
     def start(self):
         self._player.set_property("volume", self._nominal_volume)
@@ -293,6 +309,118 @@ class BackgroundMusic:
         LOG.warning("kiosk background music playback failed")
 
 
+class LightningSizzle:
+    """Brief, quiet electrical noise mixed independently with the soundtrack."""
+
+    def __init__(self):
+        self._pipeline = None
+        self._gain = None
+        self._stop_source_id = None
+        self._fade_source_id = None
+        self._active_bolts = []
+        self._sizzle_level = 0.0
+        self._dismissal_level = 1.0
+        self._muted = False
+        try:
+            self._pipeline = Gst.parse_launch(
+                "audiotestsrc is-live=true wave=white-noise ! "
+                "audioconvert ! audioresample ! "
+                "volume name=lightning_sizzle_gain ! autoaudiosink",
+            )
+            self._gain = self._pipeline.get_by_name("lightning_sizzle_gain")
+            self._apply_volume()
+        except GLib.Error as error:
+            LOG.warning(
+                "lightning sizzle unavailable error_type=%s", type(error).__name__,
+            )
+            self._pipeline = None
+
+    def _apply_volume(self):
+        if self._gain is not None:
+            volume = (
+                LIGHTNING_SIZZLE_VOLUME
+                * self._sizzle_level
+                * self._dismissal_level
+            )
+            self._gain.set_property("volume", 0.0 if self._muted else volume)
+
+    def play(self, duration_seconds, fade_rate):
+        """Fade this bolt's sizzle with its matching visual lightning fade."""
+        if self._pipeline is None:
+            return
+        now_us = GLib.get_monotonic_time()
+        duration_us = int(max(0.0, duration_seconds) * 1_000_000)
+        self._active_bolts.append(
+            (now_us + duration_us, duration_us, fade_rate),
+        )
+        self._pipeline.set_state(Gst.State.PLAYING)
+        LOG.debug(
+            "lightning sizzle started duration_ms=%d", int(duration_seconds * 1_000),
+        )
+        if self._stop_source_id is None:
+            self._stop_source_id = GLib.timeout_add(MUSIC_FADE_TICK_MS, self._stop_if_idle)
+
+    def _stop_if_idle(self):
+        now_us = GLib.get_monotonic_time()
+        self._active_bolts = [
+            bolt for bolt in self._active_bolts if now_us < bolt[0]
+        ]
+        if self._active_bolts:
+            self._sizzle_level = max(
+                ((ends_at_us - now_us) / duration_us) ** fade_rate
+                for ends_at_us, duration_us, fade_rate in self._active_bolts
+                if duration_us > 0
+            )
+            self._apply_volume()
+            return GLib.SOURCE_CONTINUE
+        self._sizzle_level = 0.0
+        self._apply_volume()
+        self._pipeline.set_state(Gst.State.READY)
+        self._stop_source_id = None
+        return GLib.SOURCE_REMOVE
+
+    def set_muted(self, muted):
+        """Apply the request screen's persisted sound control to the sizzle."""
+        self._muted = muted
+        self._apply_volume()
+
+    def fade_out(self, duration_ms):
+        """Fade the effect with the soundtrack during successful dismissal."""
+        self.cancel_fade(restore=False)
+        started_us = GLib.get_monotonic_time()
+        duration_us = max(1, duration_ms) * 1_000
+
+        def tick():
+            elapsed_us = GLib.get_monotonic_time() - started_us
+            if elapsed_us >= duration_us:
+                self._dismissal_level = 0.0
+                self._apply_volume()
+                self._fade_source_id = None
+                return GLib.SOURCE_REMOVE
+            self._dismissal_level = 1 - elapsed_us / duration_us
+            self._apply_volume()
+            return GLib.SOURCE_CONTINUE
+
+        self._fade_source_id = GLib.timeout_add(MUSIC_FADE_TICK_MS, tick)
+
+    def cancel_fade(self, restore=True):
+        if self._fade_source_id is not None:
+            GLib.source_remove(self._fade_source_id)
+            self._fade_source_id = None
+        if restore:
+            self._dismissal_level = 1.0
+            self._apply_volume()
+
+    def close(self):
+        self.cancel_fade(restore=False)
+        if self._stop_source_id is not None:
+            GLib.source_remove(self._stop_source_id)
+            self._stop_source_id = None
+        if self._pipeline is not None:
+            self._pipeline.set_state(Gst.State.NULL)
+            self._pipeline = None
+
+
 class GatewayBackground(Gtk.Widget):
     """Static kiosk artwork with animated energy travelling through its gateway."""
 
@@ -302,6 +430,8 @@ class GatewayBackground(Gtk.Widget):
         self._texture = self._load_texture()
         self._random = random.SystemRandom()
         self._lightning_bolts = []
+        self._next_lightning_burst_at = 0.0
+        self._lightning_sizzle = None
         self._frame_source_id = GLib.timeout_add(
             GATEWAY_EFFECT_FRAME_MS, self._next_frame,
         )
@@ -332,6 +462,10 @@ class GatewayBackground(Gtk.Widget):
             GLib.source_remove(self._frame_source_id)
             self._frame_source_id = None
 
+    def set_lightning_sizzle(self, play_sizzle):
+        """Connect bolt starts to the window-owned, muteable audio effect."""
+        self._lightning_sizzle = play_sizzle
+
     def do_snapshot(self, snapshot):
         width = self.get_width()
         height = self.get_height()
@@ -358,13 +492,8 @@ class GatewayBackground(Gtk.Widget):
         self._append_gateway_energy(snapshot, width, height, now)
 
     def _new_lightning_bolt(self, starts_at):
-        """Create one non-repeating bolt from the background into the gate."""
-        while True:
-            source_x = self._random.uniform(0.03, 0.97)
-            source_y = self._random.uniform(0.03, 0.97)
-            # Keep origins out of the gateway and its foreground form.
-            if abs(source_x - 0.5) > 0.27 or abs(source_y - 0.49) > 0.34:
-                break
+        """Create one non-repeating bolt from a crystal into the gate."""
+        source_x, source_y = self._random.choice(CRYSTAL_LIGHTNING_TIPS)
         return {
             "starts_at": starts_at,
             "duration": self._random.uniform(0.85, 1.35),
@@ -405,6 +534,17 @@ class GatewayBackground(Gtk.Widget):
             ),
         }
 
+    def _launch_lightning_burst(self, elapsed):
+        """Queue a staggered, randomly sized set of crystal ejections."""
+        ejection_count = self._random.randint(1, 4)
+        starts_at = elapsed + self._random.uniform(0.06, 0.28)
+        for _ejection in range(ejection_count):
+            self._lightning_bolts.append(self._new_lightning_bolt(starts_at))
+            # Each ejection gets its own moment; later bolts can still overlap
+            # a fading earlier bolt without appearing simultaneously.
+            starts_at += self._random.uniform(0.12, 0.38)
+        self._next_lightning_burst_at = starts_at + self._random.uniform(0.45, 1.25)
+
     def _new_winding_offsets(self):
         """Build gentle, irregular turns that resolve at the gateway."""
         anchors = [0.0]
@@ -442,23 +582,27 @@ class GatewayBackground(Gtk.Widget):
         bounds = Graphene.Rect().init(0, 0, width, height)
         context = snapshot.append_cairo(bounds)
 
-        if not self._lightning_bolts:
-            self._lightning_bolts = [
-                self._new_lightning_bolt(-index * 0.27)
-                for index in range(4)
-            ]
+        self._lightning_bolts = [
+            bolt for bolt in self._lightning_bolts
+            if elapsed < bolt["starts_at"] + bolt["duration"]
+        ]
+        if elapsed >= self._next_lightning_burst_at:
+            self._launch_lightning_burst(elapsed)
 
-        for index, bolt in enumerate(self._lightning_bolts):
-            if elapsed >= bolt["starts_at"] + bolt["duration"]:
-                self._lightning_bolts[index] = self._new_lightning_bolt(
-                    elapsed + self._random.uniform(0.08, 0.42),
-                )
+        image_x, image_y, image_width, image_height = _gateway_artwork_geometry(
+            width, height,
+        )
 
         for bolt in self._lightning_bolts:
             progress = (elapsed - bolt["starts_at"]) / bolt["duration"]
             if not 0 <= progress <= 1:
                 continue
-            source_x, source_y = bolt["source_x"] * width, bolt["source_y"] * height
+            if not bolt.get("sizzle_started"):
+                bolt["sizzle_started"] = True
+                if self._lightning_sizzle is not None:
+                    self._lightning_sizzle(bolt["duration"], bolt["fade_rate"])
+            source_x = image_x + bolt["source_x"] * image_width
+            source_y = image_y + bolt["source_y"] * image_height
             target_x, target_y = bolt["target_x"] * width, bolt["target_y"] * height
             vector_x, vector_y = target_x - source_x, target_y - source_y
             vector_length = math.hypot(vector_x, vector_y)
@@ -950,6 +1094,8 @@ class RequestWindow(Adw.ApplicationWindow):
         )
         self._build()
         self._music = BackgroundMusic(soundtrack)
+        self._sizzle = LightningSizzle()
+        self._background.set_lightning_sizzle(self._sizzle.play)
         self._music.start()
         if preview and not child_overlay:
             self._apply_mute(True)
@@ -967,6 +1113,9 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._music is not None:
             self._music.close()
             self._music = None
+        if self._sizzle is not None:
+            self._sizzle.close()
+            self._sizzle = None
 
     def _build(self):
         self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
@@ -1135,13 +1284,14 @@ class RequestWindow(Adw.ApplicationWindow):
     def _apply_mute(self, muted):
         self._muted = muted
         self._music.set_muted(muted)
+        self._sizzle.set_muted(muted)
         self._mute_icon.set_pixels(SPEAKER_MUTED if muted else SPEAKER)
         self._mute_button.set_tooltip_text("Unmute sound" if muted else "Mute sound")
         if muted:
             self._mute_button.add_css_class("oh-no-parent-control-hud-muted")
         else:
             self._mute_button.remove_css_class("oh-no-parent-control-hud-muted")
-        LOG.info("soundtrack muted=%s overlay=%s", muted, self._child_overlay)
+        LOG.info("request-screen sound muted=%s overlay=%s", muted, self._child_overlay)
 
     def _toggle_mute(self, *_args):
         self._apply_mute(not self._muted)
@@ -1162,6 +1312,8 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._preview:
             if self._music is not None:
                 self._music.cancel_fade()
+            if self._sizzle is not None:
+                self._sizzle.cancel_fade()
             self._stack.set_visible_child_name("request")
             return
         # OnSuccess=gnome-session-shutdown.target on the application unit turns
@@ -1213,6 +1365,8 @@ class RequestWindow(Adw.ApplicationWindow):
     def _cancel_success_dismiss(self):
         if self._music is not None:
             self._music.cancel_fade(restore=False)
+        if self._sizzle is not None:
+            self._sizzle.cancel_fade(restore=False)
         if self._success_action_label is not None:
             self._result_action.set_label(self._success_action_label)
             self._success_action_label = None
@@ -1231,6 +1385,8 @@ class RequestWindow(Adw.ApplicationWindow):
         )
         if self._music is not None:
             self._music.fade_out(SUCCESS_LOGOUT_DELAY_MS)
+        if self._sizzle is not None:
+            self._sizzle.fade_out(SUCCESS_LOGOUT_DELAY_MS)
         self._success_logout_source_id = GLib.timeout_add(
             1_000, self._tick_success_countdown,
         )

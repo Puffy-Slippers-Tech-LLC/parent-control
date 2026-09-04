@@ -456,13 +456,16 @@ def libvirt_fixture(rig):
     domain.state.return_value = (1, 0)
     domain.XMLDesc.return_value = xml(rig.top)
     domain.blockJobInfo.return_value = {}
+    existing = Mock()
+    existing.getName.return_value = host.SNAPSHOT
+    domain.listAllSnapshots.return_value = [existing]
     return api, domain
 
 
 def test_libvirt_creates_offline_internal_snapshot_with_metadata(rig):
     api, domain = libvirt_fixture(rig)
     domain.state.return_value = (5, 0)
-    domain.snapshotLookupByName.side_effect = api.libvirtError(api.VIR_ERR_NO_DOMAIN_SNAPSHOT)
+    domain.listAllSnapshots.return_value = []
     source = host.LibvirtSource(api)
     source.create_baseline(rig.source.layout, "preparation record")
     document, flags = domain.snapshotCreateXML.call_args.args
@@ -483,7 +486,7 @@ def test_libvirt_refuses_unsafe_snapshot_creation(rig, condition):
     if condition != "running":
         domain.state.return_value = (5, 0)
     if condition == "lookup-error":
-        domain.snapshotLookupByName.side_effect = api.libvirtError(1)
+        domain.listAllSnapshots.side_effect = api.libvirtError(1)
     with pytest.raises((host.CaptureError, api.libvirtError)):
         host.LibvirtSource(api).create_baseline(rig.source.layout, "record")
     domain.snapshotCreateXML.assert_not_called()
@@ -533,7 +536,7 @@ def test_libvirt_refusals(rig, kind):
 
 
 @pytest.mark.parametrize("timeout", [False, True])
-def test_shutdown_uses_bounded_libvirt_event_loop(rig, timeout):
+def test_shutdown_uses_bounded_libvirt_event_loop(rig, timeout, monkeypatch):
     api, domain = libvirt_fixture(rig)
     source = host.LibvirtSource(api)
     timer_callback = None
@@ -544,14 +547,17 @@ def test_shutdown_uses_bounded_libvirt_event_loop(rig, timeout):
         timer_callback = callback
         return 11
 
-    def dispatch():
+    def dispatch(_timeout):
         if timeout:
             timer_callback(11, None)
         else:
             domain.state.return_value = (5, 0)
+        return True
 
     api.virEventAddTimeout.side_effect = add_timer
-    api.virEventRunDefaultImpl.side_effect = dispatch
+    event = Mock()
+    event.wait.side_effect = dispatch
+    monkeypatch.setattr(host.threading, "Event", Mock(return_value=event))
     if timeout:
         with pytest.raises(host.CaptureError, match="shutdown:timeout"):
             source.shutdown(Mock(), requested=False)
@@ -582,6 +588,8 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
 
 
 def test_capture_accepts_installed_product_on_host(monkeypatch):
+    worker = Mock()
+    monkeypatch.setattr(host.threading, "Thread", Mock(return_value=worker))
     monkeypatch.setattr(host.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(host.importlib, "import_module", Mock())
     monkeypatch.setattr(host.os, "geteuid", lambda: 0)
@@ -591,12 +599,49 @@ def test_capture_accepts_installed_product_on_host(monkeypatch):
     source = Mock()
     monkeypatch.setattr(host, "LibvirtSource", Mock(return_value=source))
     capture = Mock()
+    capture.run.side_effect = lambda: worker.start.assert_called_once_with()
     monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
 
     assert host.main([]) == 0
     residue.assert_not_called()
     capture.run.assert_called_once_with()
     source.close.assert_called_once_with()
+
+
+def test_absent_baseline_is_listed_without_error_lookup(rig):
+    api, domain = libvirt_fixture(rig)
+    domain.listAllSnapshots.return_value = []
+    assert host.LibvirtSource(api).baseline() is None
+    domain.snapshotLookupByName.assert_not_called()
+
+
+def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
+    api = Mock()
+    request = host.threading.Event()
+    answered = host.threading.Event()
+    finished = host.threading.Event()
+    def dispatch():
+        if not request.wait(5):
+            raise RuntimeError("test deadline")
+        answered.set()
+        finished.wait(5)
+        raise RuntimeError("test loop finished")
+    api.virEventRunDefaultImpl.side_effect = dispatch
+    monkeypatch.setattr(host.importlib, "import_module", lambda _name: api)
+    monkeypatch.setattr(host.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(host.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(host.os, "getegid", lambda: 0)
+    monkeypatch.setattr(host, "LibvirtSource", Mock())
+    capture = Mock()
+    def blocked_capture():
+        request.set()
+        assert answered.wait(5), "libvirt dispatch stopped during capture"
+    capture.run.side_effect = blocked_capture
+    monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
+    try:
+        assert host.main([]) == 0
+    finally:
+        finished.set()
 
 
 def test_resource_arguments_are_not_operator_overrides():

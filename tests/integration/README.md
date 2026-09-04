@@ -245,6 +245,10 @@ Completed runs verify and preserve the original baseline even while the VM is
 running or has the product installed for testing. They neither recapture nor
 revert it. Missing/replaced snapshots and changed backing files are refused.
 Diagnostics contain categories, not raw account records or credentials.
+The libvirt event loop remains active throughout hashing, offline inspection,
+and disk checks so server keepalives are answered during long operations.
+An absent baseline is discovered by listing snapshots and is a normal creation
+case. Progress distinguishes source hashing, offline inspection, and disk checks.
 
 To restore the baseline between tests, first shut down the test guest cleanly:
 

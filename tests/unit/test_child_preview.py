@@ -163,11 +163,13 @@ class ChildPreviewTests(unittest.TestCase):
 
     def test_preview_mode_uses_fixture_ui_behavior_without_privileged_clients(self):
         extension = (ROOT / "child" / "extension.js").read_text()
+        preview_mode = (ROOT / "child" / "previewMode.js").read_text()
 
         self.assertIn('this._preview = isPreview()', extension)
         self.assertIn('this._preview ? 45 * 60', extension)
-        self.assertIn('if (this._preview) {', extension)
         self.assertIn("OH_NO_PARENT_CONTROL_REQUEST_APP", extension)
+        self.assertIn("if (previewStartsWithRequestOpen()) {", extension)
+        self.assertIn("'indicator-interaction'", preview_mode)
 
     def test_child_invokes_the_shared_kiosk_request_gui(self):
         extension = (ROOT / "child" / "extension.js").read_text()
@@ -224,12 +226,16 @@ class ChildPreviewTests(unittest.TestCase):
     def test_notification_keeps_the_panel_indicator_without_a_shell_form(self):
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
         stylesheet = (ROOT / "child" / "stylesheet.css").read_text()
+        interaction = (ROOT / "tests" / "ui" / "child_shell_interaction.py").read_text()
 
         self.assertIn("super._init(0.0, 'Screen Time Remaining');", indicator)
         self.assertIn('this.setMenu(null);', indicator)
         self.assertNotIn('view-more-symbolic', indicator)
         self.assertIn("refreshEstimate()", indicator)
         self.assertIn(".screen-time-request-button {", stylesheet)
+        self.assertIn("MutterInputBackend", interaction)
+        self.assertIn("button.grab_focus()", interaction)
+        self.assertIn("_press_key(input_backend, X_KEYCODE_SPACE)", interaction)
         self.assertNotIn(".oh-no-parent-control-content {", stylesheet)
         self.assertNotIn(".oh-no-parent-control-choice {", stylesheet)
 

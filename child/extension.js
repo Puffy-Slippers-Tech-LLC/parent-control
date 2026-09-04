@@ -3,7 +3,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
 import {appName} from './branding.js';
-import {isPreview} from './previewMode.js';
+import {isPreview, previewStartsWithRequestOpen} from './previewMode.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
 import {logError, logInfo, logWarning} from './logger.js';
 import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
@@ -33,7 +33,7 @@ export default class OhNoParentControlExtension extends Extension {
             this._preview ? 45 * 60 : 0,
             this._preview,
             this._appName);
-        if (this._preview) {
+        if (previewStartsWithRequestOpen()) {
             GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
                 this._showRequest();
                 return GLib.SOURCE_REMOVE;

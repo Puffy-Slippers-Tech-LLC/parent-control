@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+events_path=${ONPC_CHILD_OVERLAY_EVENTS_PATH:?ONPC_CHILD_OVERLAY_EVENTS_PATH is required}
+log_path=${ONPC_CHILD_OVERLAY_LOG_PATH:?ONPC_CHILD_OVERLAY_LOG_PATH is required}
+python=${ONPC_CHILD_SHELL_PYTHON:-python3}
+
+printf 'request-launch\t%s\n' "$$" >>"$events_path"
+exec >>"$log_path" 2>&1
+printf '%s\n' 'child request overlay launcher stage=start surface=[Request surface]'
+exec "$python" -m oh_no_parent_control_kiosk.main --preview --child-overlay

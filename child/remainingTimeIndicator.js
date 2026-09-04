@@ -143,7 +143,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     setRequestActive(active) {
-        this._requestButton?.set_checked(active);
+        if (!this._destroyed)
+            this._requestButton?.set_checked(active);
     }
 
     _connect(object, signal, callback) {

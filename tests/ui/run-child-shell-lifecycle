@@ -23,13 +23,31 @@ onpc_preview_require_lifecycle_dependencies
 onpc_preview_require_supported_shell_version
 onpc_preview_prepare_environment
 export NO_AT_BRIDGE=0
-export OH_NO_PARENT_CONTROL_REQUEST_APP=/bin/true
+if [[ ${ONPC_CHILD_SHELL_SCENARIO:-lifecycle} == indicator-interaction ]]; then
+    export OH_NO_PARENT_CONTROL_PREVIEW_SCENARIO=indicator-interaction
+    export ONPC_CHILD_OVERLAY_EVENTS_PATH="$artifact_root/request-overlay-events.tsv"
+    export ONPC_CHILD_OVERLAY_LOG_PATH="$onpc_preview_log_dir/request-overlay.log"
+    export ONPC_CHILD_OVERLAY_A11Y_PATH="$artifact_root/request-overlay.a11y-tree.txt"
+    : >"$ONPC_CHILD_OVERLAY_EVENTS_PATH"
+    : >"$ONPC_CHILD_OVERLAY_LOG_PATH"
+    export OH_NO_PARENT_CONTROL_REQUEST_APP="bash $repo_root/tests/ui/run-child-request-overlay"
+else
+    export OH_NO_PARENT_CONTROL_REQUEST_APP=/bin/true
+fi
 onpc_preview_start_private_bus
 onpc_preview_start_accessibility
 onpc_preview_start_pipewire
 onpc_preview_start 1
 
-if ! "${ONPC_CHILD_SHELL_PYTHON:-python3}" "$repo_root/tests/ui/child_shell_probe.py"; then
+if [[ ${ONPC_CHILD_SHELL_SCENARIO:-lifecycle} == indicator-interaction ]]; then
+    onpc_preview_wait_for_bus_name org.gnome.Mutter.RemoteDesktop \
+        "$onpc_preview_log_path"
+    if ! "${ONPC_CHILD_SHELL_PYTHON:-python3}" \
+            "$repo_root/tests/ui/child_shell_interaction.py"; then
+        exit 1
+    fi
+elif ! "${ONPC_CHILD_SHELL_PYTHON:-python3}" \
+        "$repo_root/tests/ui/child_shell_probe.py"; then
     gsettings get org.gnome.shell enabled-extensions >&2 || true
     gsettings get org.gnome.shell disable-user-extensions >&2 || true
     gnome-extensions info "$onpc_preview_uuid" >&2 || true

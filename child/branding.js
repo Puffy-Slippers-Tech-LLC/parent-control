@@ -24,8 +24,11 @@ export function appName(extension) {
 }
 
 export function appLogoPath(extension) {
-    const path = brandingAssetPath(extension, 'app_logo.png');
+    // The panel scales this source down to its physical icon size. Start with
+    // the full-resolution artwork so fractional display scaling does not
+    // magnify the 128 px AccountsService variant.
+    const path = brandingAssetPath(extension, 'app_logo_gnome_launcher.png');
     if (!GLib.file_test(path, GLib.FileTest.IS_REGULAR))
-        throw new Error('could not read app_logo.png');
+        throw new Error('could not read app_logo_gnome_launcher.png');
     return path;
 }

@@ -52,11 +52,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         });
 
         if (!logoPath)
-            throw new Error('could not read app_logo.png');
+            throw new Error('could not read app logo');
         this._requestIcon = new St.Icon({
             gicon: new Gio.FileIcon({file: Gio.File.new_for_path(logoPath)}),
             style_class: 'screen-time-request-logo',
-            icon_size: 20,
+            icon_size: 28,
             y_align: Clutter.ActorAlign.CENTER,
             // Keep the rounded-square mark visible while it spins in the
             // final ten seconds; St clips painted overflow by default.

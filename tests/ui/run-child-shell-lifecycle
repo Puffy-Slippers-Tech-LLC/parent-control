@@ -82,6 +82,7 @@ fi
 onpc_preview_start_private_bus
 onpc_preview_start_accessibility
 onpc_preview_start_pipewire
+onpc_preview_enable_host_devkit_viewer
 onpc_preview_start 1
 
 if [[ $scenario == indicator-interaction ]]; then

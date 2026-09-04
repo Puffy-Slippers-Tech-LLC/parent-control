@@ -51,12 +51,14 @@ EXTENSION_ASSETS := request-options.json
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
 BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_logo.png
-EXTENSION_PACK_ASSETS := $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE
+EXTENSION_BRANDING_ASSETS := $(BRANDING_ASSETS) data/app_logo_gnome_launcher.png
+# gnome-extensions resolves extra sources relative to CHILD_DIR.
+EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../LICENSE ../COPYRIGHT ../NOTICE
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
-.PHONY: bump-version build installdeb check-release-version check check-unit check-component check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: bump-version build installdeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -133,6 +135,13 @@ check-component:
 	@tools/run-ui-tests --timeout 900s tests/ui -m ui \
 		--ignore=tests/ui/test_child_shell_lifecycle.py
 
+check-test-fixtures:
+	@$(PYTEST) tests/unit/test_test_applications.py -q
+
+build-test-fixtures:
+	@test -n "$(OUTPUT_DIR)" || (echo 'Usage: make build-test-fixtures OUTPUT_DIR=/tmp/onpc-test-fixtures-.../payload' >&2; exit 2)
+	@$(PYTHON) tests/fixtures/build_test_applications.py --output "$(OUTPUT_DIR)"
+
 check-child-shell:
 	@tools/run-ui-tests --timeout 360s tests/ui/test_child_shell_lifecycle.py -m ui -q
 
@@ -187,7 +196,7 @@ install-extension:
 	install -d "$(EXTENSION_DIR)"
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(EXTENSION_DIR)/"
-	install -m 0644 $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
+	install -m 0644 $(EXTENSION_BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
 	@echo "Installed $(UUID) to $(EXTENSION_DIR)"
 
 # Internal target used by Debian package staging. Keep product-file
@@ -222,7 +231,7 @@ _install-product-files:
 	# one immutable system payload discoverable in every session; the broker
 	# controls per-child activation through that child's GNOME settings.
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
-	install -m 0644 $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
+	install -m 0644 $(EXTENSION_BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	install -m 0644 broker/oh_no_parent_control/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"
 	install -d "$(DESTDIR)$(DATADIR)/dbus-1/system-services" "$(DESTDIR)$(DATADIR)/dbus-1/interfaces"
 	install -m 0644 data/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service "$(DESTDIR)$(DATADIR)/dbus-1/system-services/"

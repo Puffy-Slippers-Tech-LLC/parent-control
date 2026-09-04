@@ -22,6 +22,9 @@ onpc_preview_configure() {
     onpc_preview_pipewire_pid=''
     onpc_preview_pipewire_start_time=''
     onpc_preview_bus_address=''
+    onpc_preview_host_runtime_dir=${XDG_RUNTIME_DIR:-}
+    onpc_preview_private_runtime_dir=''
+    onpc_preview_nested_wayland_display="onpc-preview-$$"
     onpc_preview_stop_attempts=50
     onpc_preview_stop_interval=0.1
     onpc_preview_log_dir="$onpc_preview_root/logs"
@@ -119,7 +122,7 @@ onpc_preview_prepare_environment() {
             [[ -e "$source" ]] || continue
             ln -s "$source" "$extension_dir/${source##*/}"
         done
-        for source in "$repo_root"/data/{app_logo.png,company_logo.png,brand.json,app.json} \
+        for source in "$repo_root"/data/{app_logo.png,app_logo_gnome_launcher.png,company_logo.png,brand.json,app.json} \
                 "$repo_root"/{LICENSE,COPYRIGHT,NOTICE}; do
             ln -s "$source" "$extension_dir/${source##*/}"
         done
@@ -139,11 +142,13 @@ onpc_preview_prepare_environment() {
     export GSETTINGS_SCHEMA_DIR="$schema_dir"
     export OH_NO_PARENT_CONTROL_PREVIEW=1
     export PYTHONPATH="$repo_root:$repo_root/kiosk${PYTHONPATH:+:$PYTHONPATH}"
-    export OH_NO_PARENT_CONTROL_REQUEST_APP="$(command -v python3) -m oh_no_parent_control_kiosk.main --preview --child-overlay --soundtrack $repo_root/data/Gearbox_Waltz.mp3"
-    # Do not inherit an IDE's X11 setting into Mutter Devkit's Wayland display.
+    # The child overlay targets the explicitly named nested Wayland socket.
+    # Mutter Devkit reserves the host display variables for its own viewer.
+    export OH_NO_PARENT_CONTROL_REQUEST_APP="env WAYLAND_DISPLAY=$onpc_preview_nested_wayland_display $(command -v python3) -m oh_no_parent_control_kiosk.main --preview --child-overlay --soundtrack $repo_root/data/Gearbox_Waltz.mp3"
+    # An IDE's forced GDK backend can override Mutter Devkit's host-display
+    # selection; retain only the normal host display variables above.
     unset GDK_BACKEND GI_TYPELIB_PATH GTK_EXE_PREFIX GTK_IM_MODULE \
         GTK_IM_MODULE_FILE GTK_MODULES GTK_PATH
-    unset DISPLAY WAYLAND_DISPLAY
     gsettings set org.gnome.desktop.interface toolkit-accessibility true
     # The public Shell Screenshot D-Bus service honors this policy. Keep the
     # private component session explicitly permitted to save its evidence PNGs.
@@ -154,10 +159,29 @@ onpc_preview_prepare_environment() {
 
 onpc_preview_build_shell_command() {
     if [[ -n ${onpc_preview_bus_address:-} ]]; then
-        onpc_preview_shell_command=(gnome-shell --devkit --wayland --virtual-monitor 1280x720 --force-animations)
+        onpc_preview_shell_command=(gnome-shell --devkit --wayland \
+            --wayland-display "$onpc_preview_nested_wayland_display" \
+            --virtual-monitor 1280x720 --force-animations)
     else
-        onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland --virtual-monitor 1280x720 --force-animations)
+        onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland \
+            --wayland-display "$onpc_preview_nested_wayland_display" \
+            --virtual-monitor 1280x720 --force-animations)
     fi
+}
+
+onpc_preview_enable_host_devkit_viewer() {
+    onpc_preview_private_runtime_dir=$XDG_RUNTIME_DIR
+    if [[ -z $onpc_preview_host_runtime_dir \
+            || ! -d $onpc_preview_host_runtime_dir \
+            || ! -O $onpc_preview_host_runtime_dir ]]; then
+        printf '%s\n' 'A user-owned XDG runtime directory is required to present the Mutter Devkit viewer.' >&2
+        return 1
+    fi
+    # Mutter forwards WAYLAND_DISPLAY to its viewer but resolves that name
+    # through the runtime directory it inherited. Give the viewer the host
+    # runtime, while keeping PipeWire on the preview's private runtime.
+    export XDG_RUNTIME_DIR=$onpc_preview_host_runtime_dir
+    export PIPEWIRE_RUNTIME_DIR=$onpc_preview_private_runtime_dir
 }
 
 onpc_preview_start_private_bus() {
@@ -248,7 +272,10 @@ onpc_preview_start() {
 }
 
 onpc_preview_process_is_running() {
-    kill -0 "$1" 2>/dev/null
+    local process_group session start_time state
+    IFS=' ' read -r state process_group session start_time \
+        < <(onpc_preview_read_process_identity "$1") || return 1
+    [[ $state != Z ]]
 }
 
 onpc_preview_wait_for_readiness() {

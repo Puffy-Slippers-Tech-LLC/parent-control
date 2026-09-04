@@ -27,16 +27,22 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("onpc_preview_start_private_bus", wrapper)
         self.assertIn("onpc_preview_start_accessibility", wrapper)
         self.assertIn("onpc_preview_start_pipewire", wrapper)
+        self.assertIn("onpc_preview_enable_host_devkit_viewer", wrapper)
         self.assertIn("onpc_preview_start", wrapper)
         self.assertIn("onpc_preview_record_mutter_devkit", wrapper)
         self.assertIn("onpc_preview_wait_for_reload", wrapper)
-        self.assertIn("trap onpc_preview_cleanup EXIT HUP INT TERM", wrapper)
+        self.assertIn("Nested GNOME Shell is running.", wrapper)
+        self.assertIn("trap onpc_preview_exit EXIT", wrapper)
+        self.assertIn("trap 'onpc_preview_exit_on_signal INT' INT", wrapper)
+        self.assertIn("Received %s; stopping the nested child preview.", wrapper)
         self.assertIn("inotifywait", orchestration)
         self.assertIn("child-preview-generation-$generation.log", orchestration)
         self.assertIn("setsid", orchestration)
         self.assertIn('"$onpc_preview_source_dir"/*.mjs', orchestration)
         self.assertNotIn('gnome-shell --nested', wrapper)
         self.assertIn('--child-overlay', orchestration)
+        self.assertIn('env WAYLAND_DISPLAY=$onpc_preview_nested_wayland_display', orchestration)
+        self.assertIn('PIPEWIRE_RUNTIME_DIR=$onpc_preview_private_runtime_dir', orchestration)
         self.assertIn("onpc_preview_require_accessibility_registry", orchestration)
 
     def test_environment_and_command_construction_are_explicit(self):
@@ -45,6 +51,7 @@ class ChildPreviewTests(unittest.TestCase):
             result = self.run_orchestration(
                 "source child/preview-orchestration.sh; "
                 f"onpc_preview_configure '{ROOT / 'child'}' '{root}'; "
+                "onpc_preview_nested_wayland_display=onpc-preview-test; "
                 "onpc_preview_build_shell_command; "
                 "printf '%s\\n' \"$onpc_preview_log_dir\" \"${onpc_preview_shell_command[*]}\""
             )
@@ -54,7 +61,7 @@ class ChildPreviewTests(unittest.TestCase):
             result.stdout.splitlines(),
             [
                 f"{root}/logs",
-                "dbus-run-session -- gnome-shell --devkit --wayland --virtual-monitor 1280x720 --force-animations",
+                "dbus-run-session -- gnome-shell --devkit --wayland --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
             ],
         )
 
@@ -118,13 +125,14 @@ class ChildPreviewTests(unittest.TestCase):
             "source child/preview-orchestration.sh; "
             "onpc_preview_configure child /tmp/onpc-preview-test; "
             "onpc_preview_bus_address=unix:path=/tmp/private-test-bus; "
+            "onpc_preview_nested_wayland_display=onpc-preview-test; "
             "onpc_preview_build_shell_command; printf '%s\\n' \"${onpc_preview_shell_command[*]}\""
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.strip(),
-            "gnome-shell --devkit --wayland --virtual-monitor 1280x720 --force-animations",
+            "gnome-shell --devkit --wayland --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
         )
 
     def test_private_bus_uses_the_preview_runtime_socket(self):
@@ -144,6 +152,18 @@ class ChildPreviewTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("generation 7 did not become ready within 0s; log: /tmp/preview.log", result.stderr)
+
+    def test_zombie_process_is_not_considered_running(self):
+        result = self.run_orchestration(
+            "source child/preview-orchestration.sh; "
+            "(exit 0) & pid=$!; "
+            "while [[ ! -r /proc/$pid/stat ]]; do sleep 0.01; done; "
+            "sleep 0.05; "
+            "! onpc_preview_process_is_running \"$pid\"; "
+            "wait \"$pid\""
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_reload_choices_and_cleanup_are_controlled(self):
         with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
@@ -256,16 +276,21 @@ class ChildPreviewTests(unittest.TestCase):
         extension = (ROOT / "child" / "extension.js").read_text()
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
         stylesheet = (ROOT / "child" / "stylesheet.css").read_text()
+        orchestration = (ROOT / "child" / "preview-orchestration.sh").read_text()
 
         self.assertIn("export function appLogoPath(extension)", branding)
-        self.assertIn("app_logo.png", branding)
+        self.assertIn("app_logo_gnome_launcher.png", branding)
+        self.assertIn("app_logo_gnome_launcher.png", orchestration)
         self.assertIn("appLogoPath(this)", extension)
         self.assertIn("Gio.FileIcon", indicator)
         self.assertIn("screen-time-request-logo", indicator)
         self.assertNotIn("hourglass-symbolic", indicator)
         self.assertNotIn("screen-time-request-plus", indicator)
         self.assertIn(".screen-time-request-logo {", stylesheet)
-        self.assertIn("icon-size: 20px;", stylesheet)
+        self.assertIn("icon_size: 28", indicator)
+        self.assertIn("icon-size: 28px;", stylesheet)
+        self.assertIn("width: 28px;", stylesheet)
+        self.assertIn("height: 28px;", stylesheet)
         self.assertIn("icon-shadow:", stylesheet)
         self.assertNotIn(".screen-time-request-hourglass", stylesheet)
         self.assertNotIn(".screen-time-request-plus", stylesheet)

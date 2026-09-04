@@ -59,7 +59,7 @@ def _run(command: list[str], *, environment: Mapping[str, str] | None = None) ->
 def _require_empty_output(output: Path) -> Path:
     resolved = output.resolve(strict=False)
     temporary_root = Path(tempfile.gettempdir()).resolve()
-    if temporary_root not in resolved.parents:
+    if resolved == ROOT or ROOT in resolved.parents or temporary_root not in resolved.parents:
         raise FixtureError("fixture output must be below the system temporary directory")
     if resolved.exists():
         if not resolved.is_dir() or any(resolved.iterdir()):
@@ -92,7 +92,17 @@ def _digest(path: Path) -> str:
 def _write_manifest(output: Path) -> None:
     files = {}
     for item in sorted(output.rglob("*")):
-        if item.is_file() and item.name != "SHA256SUMS.json":
+        relative = item.relative_to(output).as_posix()
+        # Flatpak's public export API writes a wall-clock timestamp into these
+        # delivery indexes. They do not alter the application/runtime commits.
+        # The bundle is made from that index, so it has the same container-only
+        # variation. Verify its presence, while hashing the stable payload.
+        volatile = relative in {
+            "flatpak-repository/summary",
+            "flatpak-repository/summary.idx",
+            "onpc-test-application.flatpak",
+        }
+        if item.is_file() and item.name != "SHA256SUMS.json" and not volatile:
             files[item.relative_to(output).as_posix()] = _digest(item)
     _write_text(
         output / "SHA256SUMS.json",
@@ -239,11 +249,9 @@ def _build_flatpak(output: Path, native: Path) -> None:
         app / f"export/share/applications/{APP_ID}.desktop",
         f"[Desktop Entry]\nType=Application\nName=ONPC Flatpak Test Application\nIcon={APP_ID}\nExec=onpc-test-application --stay-alive\n",
     )
-    _write_text(
-        app / f"export/share/icons/hicolor/scalable/apps/{APP_ID}.svg",
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"64\" height=\"64\">"
-        "<rect width=\"64\" height=\"64\" fill=\"#205493\"/></svg>\n",
-    )
+    # The fixture exercises Flatpak application identity and launch behavior;
+    # it deliberately has no icon payload, avoiding an unrelated host decoder
+    # dependency during hermetic repository construction.
     _set_reproducible_times(app)
     # Icon validation's sandbox needs unprivileged user namespaces, which are
     # intentionally unavailable in some test runners.  The checked-in SVG is

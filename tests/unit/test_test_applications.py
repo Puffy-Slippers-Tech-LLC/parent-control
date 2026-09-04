@@ -34,6 +34,7 @@ class TestApplicationFixtures(unittest.TestCase):
             targets = (output / "fixture-targets.json").read_text(encoding="utf-8")
             self.assertIn("Lunar Client-*.AppImage", targets)
             self.assertTrue((output / "onpc-test-application.flatpak").is_file())
+            self.assertGreater((output / "onpc-test-application.flatpak").stat().st_size, 0)
             self.assertTrue((output / "flatpak-repository").is_dir())
             self.assertTrue(
                 (output / "image-root/usr/share/applications/"

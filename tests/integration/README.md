@@ -149,6 +149,40 @@ requires an explicit empty output below `/tmp` and creates only a payload; it
 does not install the fixtures. A later guest-mutating task must copy that
 payload only after the guest guard validates the disposable VM marker.
 
+### Reproducible system-test artifacts
+
+Task 13A defines the package input for later installed-system tests. Build it
+without installing the product on the development host, using an explicit empty
+directory outside this checkout:
+
+```sh
+make build-test-artifacts OUTPUT_DIR=/tmp/onpc-test-artifacts/first
+```
+
+The directory contains `artifact-manifest.json`, the named Debian package at
+`package/`, and the Task 11 payload at `fixtures/`. The manifest records the
+source revision and digest, `SOURCE_DATE_EPOCH`, architecture, tool versions,
+package digest, and fixture-bundle digest. Task 13B consumes this manifest and
+copies only its digest-verified files into a guarded guest.
+
+To establish repeatability, use two new empty directories:
+
+```sh
+make verify-test-artifacts \
+  FIRST_OUTPUT=/tmp/onpc-test-artifacts/first \
+  SECOND_OUTPUT=/tmp/onpc-test-artifacts/second
+```
+
+The command builds from isolated temporary source copies, then compares the
+package file name and SHA-256, package metadata and contents, fixture digest,
+and recorded source/build inputs. It leaves the product uninstalled. Its
+manifest records `DEB_BUILD_OPTIONS=nocheck`: the Task 12 host-controller
+checks require the fixed development-checkout path and run separately through
+the required `make check` validation. The fixture digest covers its stable
+application and runtime payload. Flatpak's generated delivery summary and its
+bundle container carry a host-clock timestamp, so the builder verifies the
+bundle is present without treating that container timestamp as package input.
+
 ### Source-VM account preparation
 
 The existing `ubuntu26.04` source VM exposes this development checkout at the

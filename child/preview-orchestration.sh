@@ -23,6 +23,7 @@ onpc_preview_configure() {
     onpc_preview_pipewire_start_time=''
     onpc_preview_bus_address=''
     onpc_preview_host_runtime_dir=${XDG_RUNTIME_DIR:-}
+    onpc_preview_host_gdk_backend=${GDK_BACKEND:-}
     onpc_preview_private_runtime_dir=''
     onpc_preview_nested_wayland_display="onpc-preview-$$"
     onpc_preview_stop_attempts=50
@@ -144,9 +145,11 @@ onpc_preview_prepare_environment() {
     export PYTHONPATH="$repo_root:$repo_root/kiosk${PYTHONPATH:+:$PYTHONPATH}"
     # The child overlay targets the explicitly named nested Wayland socket.
     # Mutter Devkit reserves the host display variables for its own viewer.
-    export OH_NO_PARENT_CONTROL_REQUEST_APP="env WAYLAND_DISPLAY=$onpc_preview_nested_wayland_display $(command -v python3) -m oh_no_parent_control_kiosk.main --preview --child-overlay --soundtrack $repo_root/data/Gearbox_Waltz.mp3"
-    # An IDE's forced GDK backend can override Mutter Devkit's host-display
-    # selection; retain only the normal host display variables above.
+    export OH_NO_PARENT_CONTROL_REQUEST_APP="env GDK_BACKEND=wayland WAYLAND_DISPLAY=$onpc_preview_nested_wayland_display $(command -v python3) -m oh_no_parent_control_kiosk.main --preview --child-overlay --soundtrack $repo_root/data/Gearbox_Waltz.mp3"
+    # Select the host-facing Devkit backend only after the private services are
+    # running. The child overlay is pinned to the nested Wayland display
+    # independently, so a host backend preference cannot send it to the
+    # developer's desktop.
     unset GDK_BACKEND GI_TYPELIB_PATH GTK_EXE_PREFIX GTK_IM_MODULE \
         GTK_IM_MODULE_FILE GTK_MODULES GTK_PATH
     gsettings set org.gnome.desktop.interface toolkit-accessibility true
@@ -159,11 +162,11 @@ onpc_preview_prepare_environment() {
 
 onpc_preview_build_shell_command() {
     if [[ -n ${onpc_preview_bus_address:-} ]]; then
-        onpc_preview_shell_command=(gnome-shell --devkit --wayland \
+        onpc_preview_shell_command=(gnome-shell --devkit --wayland --no-x11 \
             --wayland-display "$onpc_preview_nested_wayland_display" \
             --virtual-monitor 1280x720 --force-animations)
     else
-        onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland \
+        onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland --no-x11 \
             --wayland-display "$onpc_preview_nested_wayland_display" \
             --virtual-monitor 1280x720 --force-animations)
     fi
@@ -182,6 +185,23 @@ onpc_preview_enable_host_devkit_viewer() {
     # runtime, while keeping PipeWire on the preview's private runtime.
     export XDG_RUNTIME_DIR=$onpc_preview_host_runtime_dir
     export PIPEWIRE_RUNTIME_DIR=$onpc_preview_private_runtime_dir
+    if [[ $onpc_preview_host_gdk_backend == x11 && -n ${DISPLAY:-} ]]; then
+        # The nested Shell runs with --no-x11, so it leaves the host's DISPLAY
+        # and XAUTHORITY pair intact for the Devkit process. This lets an
+        # explicitly X11-hosted developer environment retain its working
+        # window activation behavior without exposing X11 inside the preview.
+        export GDK_BACKEND=x11
+        printf '%s\n' 'Mutter Devkit viewer using the host X11 display; child overlay remains on nested Wayland.' >&2
+    elif [[ -n ${WAYLAND_DISPLAY:-} ]]; then
+        export GDK_BACKEND=wayland
+        printf '%s\n' 'Mutter Devkit viewer using the host Wayland display; child overlay remains on nested Wayland.' >&2
+    elif [[ -n ${DISPLAY:-} ]]; then
+        export GDK_BACKEND=x11
+        printf '%s\n' 'Mutter Devkit viewer using the host X11 display; child overlay remains on nested Wayland.' >&2
+    else
+        printf '%s\n' 'A host Wayland or X11 display is required to present the Mutter Devkit viewer.' >&2
+        return 1
+    fi
 }
 
 onpc_preview_start_private_bus() {

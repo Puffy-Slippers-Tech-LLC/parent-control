@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SHELL_FILES = [
     ROOT / "setup.sh",
+    ROOT / "tests/integration/prepare-vm",
     *(ROOT / "tests/integration/guest" / name for name in ("collect", "run", "setup", "verify")),
 ]
 

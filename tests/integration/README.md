@@ -149,6 +149,41 @@ requires an explicit empty output below `/tmp` and creates only a payload; it
 does not install the fixtures. A later guest-mutating task must copy that
 payload only after the guest guard validates the disposable VM marker.
 
+### Source-VM account preparation
+
+The existing `ubuntu26.04` source VM exposes this development checkout at the
+fixed path `/Data/Code/PST/parent-control` through its `/Data` virtiofs share.
+That writable share is a preparation convenience for the source VM only. It is
+not part of the captured QCOW2 and must not be attached to disposable guests
+created from the eventual baseline.
+
+Before product installation or baseline capture, open a terminal inside that
+VM, acquire a root shell, and run the following from the fixed checkout:
+
+```sh
+cd /Data/Code/PST/parent-control
+make prep-vm
+```
+
+The command accepts no VM, image, UUID, checkout, or output arguments. It first
+verifies root, virtualization, Ubuntu 26.04, hostname `ubuntu26.04`, the complete
+fixed checkout, and the absence of every product installation/residue category.
+It then prompts exactly once for a shared test-only password and prepares Jamie
+and Casey as local administrators and Riley and Jordan as standard users. The
+password is sent only to `chpasswd` on standard input and is not stored in the
+preparation record.
+
+This command prepares accounts only. It does not install Oh No! Parent Control,
+change libvirt state, capture an image, or run product tests. It must never be
+run on the development host. Repeating it in the guarded source VM reasserts the
+same account properties and changes only the shared password. The resulting
+root-owned mode-`0600` record is
+`/etc/oh-no-parent-control-test-baseline.json`.
+
+This test-only preparation adds no packaged system integration, so its package
+update activation classification is `none`. It changes no product saved-data
+schema, so no data migration applies.
+
 ### Disposable VM integration tests
 
 Do not run `make installdeb` on a development workstation. Running `make check`

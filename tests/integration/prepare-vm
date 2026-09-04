@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+
+readonly CHECKOUT=/Data/Code/PST/parent-control
+readonly PREPARER="$CHECKOUT/tests/integration/prepare_vm.py"
+
+if (( $# != 0 )); then
+    echo 'prep-vm: no arguments are accepted' >&2
+    exit 2
+fi
+
+if [[ "$PWD" != "$CHECKOUT" ]]; then
+    echo 'prep-vm: [guard:checkout] run from the fixed source-VM checkout' >&2
+    exit 1
+fi
+
+exec /usr/bin/python3 "$PREPARER"

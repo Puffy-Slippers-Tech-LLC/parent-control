@@ -4,10 +4,12 @@
   shared password, but it does not install the product or alter libvirt state.
 - Recommended Codex model: `gpt-5.6-sol`
 - Recommended reasoning effort: `high`
-- Execution location: the repository is already copied into the existing
-  Ubuntu 26.04 guest. Implementation and host-safe tests happen on the
-  development computer; a later operator step runs `make prep-vm` inside the
-  guest.
+- Execution location: the existing Ubuntu 26.04 guest exposes the development
+  checkout at `/Data/Code/PST/parent-control`, the same path used on the host.
+  Implementation and host-safe tests happen on the development computer; a
+  later operator step runs `make prep-vm` from that path inside the guest. This
+  preparation-only `/Data` virtiofs share is not part of the captured QCOW2 and
+  must not be exposed to later disposable test guests.
 - Objective: provide one idempotent, guarded command that prepares the existing
   Ubuntu VM with the same two parent and two child identities shown by the
   preview applications, ready for a pre-product-install baseline capture.
@@ -28,9 +30,19 @@
   1. Add a `make prep-vm` entry point backed by a repository script intended to
      run only inside the existing `ubuntu26.04` guest. It must fail before any
      mutation unless it is running as root in a virtual machine, the guest is
-     Ubuntu 26.04, the hostname is `ubuntu26.04`, and the repository checkout is
-     complete. It must also refuse to run if the Oh No! Parent Control package
-     or installed product payload is present.
+     Ubuntu 26.04, and the repository checkout is
+     the complete checkout at `/Data/Code/PST/parent-control`. Report which
+     identity or environment check failed in a clear, redacted error. These
+     fixed checks require no VM name, UUID, image, or path argument. It must also
+     refuse to run if the Oh No! Parent Control package, installed product
+     payload, configuration, saved state, service or session integration, PAM or
+     Polkit integration, GNOME extension payload, log tree, or product-created
+     kiosk account is present. Repository source and build artifacts under the
+     checkout do not count as an installation. After preflight, set the guest
+     hostname to `ubuntu26.04` using `hostnamectl set-hostname`; the existing
+     hostname is not an identity prerequisite. This preparation-only change
+     activates immediately and is not shipped in the Debian package, so it
+     requires no package activation classification or development-host setup.
   2. Require the operator to acquire a root shell before invoking the target so
      the target itself presents exactly one password prompt. Read the shared
      test-account password once without echo or confirmation and apply that same
@@ -57,13 +69,15 @@
      such as `[Test parent 1]` and `[Test child 1]`; do not log account passwords
      or raw account records.
   7. Add host-safe unit and source-contract tests for the environment guard,
-     exact identity map, role validation, idempotent command construction,
-     secret-handling boundary, marker schema and permissions, and refusal when
-     product files are installed. Do not run `make prep-vm` as part of this
+     exact checkout path, clear guard failures, exact identity map, role
+     validation, idempotent command construction, secret-handling boundary,
+     marker schema and permissions, and refusal for each category of installed
+     product payload or residue. Do not run `make prep-vm` as part of this
      subtask.
   8. Document the guest prerequisite and command in the integration README,
-     including that the checkout must already exist in the VM and that this
-     command prepares accounts only; it does not install the product.
+     including the shared `/Data/Code/PST/parent-control` checkout, that the
+     share exists only on the source VM, and that this command prepares accounts
+     only; it does not install the product.
 - Verification:
   - Run the focused host-safe preparation-script unit tests.
   - Run shell syntax and source-contract checks for the new script.
@@ -72,4 +86,3 @@
   on the development host, provisions exactly the four preview identities with
   one shared password prompt, records no secret, and never installs the product.
   Do not run the command or mark Task 12B complete in this session.
-

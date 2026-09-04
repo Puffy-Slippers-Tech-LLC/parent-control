@@ -1,36 +1,67 @@
-### Task 26 — Automate failure, concurrency, persistence, and recovery scenarios
+# Task 26 — Failure, concurrency, persistence, and recovery
 
-- Complexity: very high. Failures must occur at controlled real boundaries
-  without adding production backdoors.
-- Recommended Codex model: `gpt-5.6-sol`
+Execute 26A and 26B separately. Reuse existing failure controls; add a new control
+only at a maintained public guest OS boundary. No hidden production injection
+method or authorization bypass is permitted.
+
+## Task 26A
+
+- Title: Prove adversarial transaction races and failure recovery.
+- Depends on: Task 25B.
+- Complexity: very high. Controlling stale identities, concurrent requests, and
+  irreversible side effects across real services is the hardest remaining
+  cross-component correctness task.
+- Recommended Codex model: `gpt-6-astra`
 - Recommended reasoning effort: `xhigh`
-- Objective: prove fail-closed and rollback guarantees across restarts and user
-  interactions.
 - Work:
-  1. Exercise invalid and unauthorized calls, Polkit denial and cancellation,
-     requester disconnect, account and preference changes during authentication,
-     usage-query failure, broker restart, authentication-agent failure,
-     fapolicyd reload failure, and process-termination failure.
-  2. Use disposable-guest service and process controls at public OS boundaries.
-     Do not add a hidden failure-injection method to production.
-  3. Verify each reversible failure restores the complete prior state and reports
-     rollback failure distinctly when read-back cannot be verified.
-  4. Verify irreversible partial process termination keeps strict blocks and old
-     time while leaving other users untouched.
-  5. Submit concurrent and rapid repeat requests and revocations and prove single-
-     flight serialization, exactly-once grant changes, and correct rate-interval
-     consumption.
-  6. Restart Parent, request surfaces, broker, affected user sessions, package
-     services, and the whole VM; verify preferences, remembered choices, grants,
-     extension publication, and enforcement at each documented boundary.
-  7. Verify all displayed failures are actionable and reveal no internal path,
-     service name, account PII, or backend detail.
-  8. Update failure, concurrency, persistence, and recovery requirement mappings.
+  1. Inventory existing evidence and complete the matrix for invalid/unauthorized
+     calls, Polkit denial/cancel, requester disconnect, account/role/preference
+     changes during authentication, usage-query failure, broker restart, agent
+     failure, fapolicyd reload failure, and process-termination failure.
+  2. Synchronize at observable public boundaries with bounded deadlines. Prove
+     each intended failure actually occurred, rather than inferring it from a
+     generic error or using a timing sleep.
+  3. Verify reversible failures restore prior state and failed rollback read-back
+     is reported distinctly. After partial process termination, keep strict
+     blocks and required prior time while other users remain untouched.
+  4. Interleave policy saves, approvals, revocations, and session preparation.
+     Prove single-flight serialization, exactly-once grant changes, replacement-
+     grant precedence, and repeat-interval consumption only after success.
+  5. Verify displayed failures are actionable and expose no internal paths,
+     service names, account PII, or backend details on both request surfaces.
+  6. Publish a failure-case/evidence matrix and reusable assertions for 26B.
+     Update failure, concurrency, and rollback mappings.
 - Verification:
-  - Run each destructive failure from its own fresh overlay.
-  - Compare before/after authoritative state snapshots and review redacted logs.
-  - Run `make check-e2e` for these scenarios, `make check`, and
-    `git diff --check`.
-- Completion criteria: every specified failure class has a deterministic
-  fail-closed scenario and all persistence boundaries are exercised.
+  - Run each new controller's cleanup-safety regressions in isolation first.
+  - Run each destructive failure/race from a separate fresh overlay; compare
+    authoritative before/after snapshots and redacted evidence.
+  - Run `make check-e2e VM_IMAGE=<verified-baseline> SCENARIO=<transaction-failures>`,
+    `make check`, and `git diff --check`.
+- Completion criteria: the failure/race matrix is deterministic, fail-closed,
+  and supported by evidence of the actual triggered boundary.
 
+## Task 26B
+
+- Title: Complete restart and persistence scenarios.
+- Depends on: Task 26A.
+- Complexity: medium. Restart boundaries and expected state are specified and
+  reusable failure/guest controls now exist.
+- Recommended Codex model: `gpt-5.6-terra`
+- Recommended reasoning effort: `medium`
+- Work:
+  1. Restart Parent, both request surfaces, the broker, affected user sessions,
+     package services, and the VM using the established guest controllers.
+  2. At each boundary verify per-child preferences, shared choices, separate
+     mute values, grants, extension publication, and enforcement. Distinguish
+     durable data from derived state using `System-Design.md`.
+  3. Verify recovery from a prior safe denial without retaining authorization or
+     applying an obsolete grant/policy. Reuse 26A's state assertions.
+  4. Update persistence/restart mappings and the boundary/evidence matrix.
+- Verification:
+  - Run cleanup-safety regressions in isolation before restart controllers.
+  - Run restart cases in fresh overlays; correlate visible results with
+    authoritative state and boot/session identities.
+  - Run `make check-e2e VM_IMAGE=<verified-baseline> SCENARIO=<persistence>`,
+    `make check`, and `git diff --check`.
+- Completion criteria: every specified persistence boundary is exercised with
+  independent child state and correct recovery.

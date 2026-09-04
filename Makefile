@@ -60,7 +60,7 @@ EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
-.PHONY: bump-version build installdeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: bump-version build installdeb prep-vm check-release-version check check-unit check-component check-test-fixtures build-test-fixtures check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -121,6 +121,11 @@ installdeb:
 				;; \
 		esac; \
 	fi
+
+# Preparation-only source-VM entry point. It intentionally has no sudo wrapper
+# and no variable-driven target: enter a root shell in the documented guest.
+prep-vm:
+	@tests/integration/prepare-vm
 
 TEST_ENV = PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$${PYTHONPATH:-}
 PYTEST = $(TEST_ENV) $(PYTHON) -m pytest

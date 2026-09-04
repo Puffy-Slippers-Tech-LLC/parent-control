@@ -1,35 +1,67 @@
-### Task 22 — Automate child countdown, expiry, lock, and login scenarios
+# Task 22 — Child countdown, expiry, lock, and login
 
-- Complexity: very high. This crosses GNOME Shell, Malcontent, logind, lock
-  screen, PAM, retained sessions, and foreground-user isolation.
-- Recommended Codex model: `gpt-5.6-sol`
-- Recommended reasoning effort: `xhigh`
-- Objective: prove the complete child time-enforcement experience.
+Execute 22A and 22B separately. Reuse Tasks 16B and 17B's backend assertions.
+Expiry and session-entry behavior must follow the current specification:
+expiry locks without closing apps, and a current replacement grant wins over
+an earlier expired grant during session preparation.
+
+## Task 22A
+
+- Title: Prove lock, retained-session unlock, and fresh-login enforcement.
+- Depends on: Task 21B.
+- Complexity: very high. GNOME Shell, PAM, logind, active-user isolation, and
+  broker reconciliation must agree across retained and new sessions.
+- Recommended Codex model: `gpt-6-astra`
+- Recommended reasoning effort: `high`
 - Work:
-  1. Configure the child through Parent, log out, log in as that child, and verify
-     extension installation, panel visibility, and minute countdown.
-  2. Use the minimum real grant duration to verify the final-minute seconds
-     display without a production clock hook.
-  3. Wait for real expiry and verify the GNOME lock screen appears, the child
-     session remains live, and another foreground user's session remains active.
-  4. Attempt to unlock without time and verify the `gdm-password`
-     authentication path denies it. Separately use public `loginctl` test
-     orchestration to expose the retained desktop without new time and verify
-     the extension immediately locks it again.
-  5. End the retained session, attempt a fresh GDM login, and verify PAM denial.
-  6. Grant time, then prove both retained-session unlock and fresh login succeed
-     during a grant.
-  7. Verify the panel control appears only in the unlocked child desktop and never
-     on GDM or the lock screen; verify no custom lock-screen control exists.
-  8. Verify a temporary Malcontent read failure preserves the last display and a
-     later verified refresh recovers.
-  9. Update child time, lock, login, and isolation requirement mappings.
+  1. Configure the child through Parent, log out, and log in as the child.
+     Verify packaged extension activation in the real Shell.
+  2. Let a real short grant expire. Verify lock, preservation of the child
+     session and its running apps, and no disruption to another foreground user.
+  3. Attempt zero-time unlock and verify the GDM time-limit explanation and
+     `gdm-password` denial. Use public `loginctl` orchestration separately to
+     expose a retained desktop without time and prove immediate relocking.
+  4. Verify expired-grant session preparation restores canonical blocks before
+     blocked-app termination. Correlate screens with Task 17B's real-caller
+     assertions; no child-side grant authority or timer hook is permitted.
+  5. Grant replacement time before unlock, testing both soft-app choices.
+     Verify unlock succeeds and preparation preserves the policy/process state
+     established by that current grant, including all open apps when allowed.
+  6. End the retained session, prove fresh GDM login is denied at zero, then
+     prove a fresh login succeeds during a valid grant.
+  7. Publish reusable login/lock/session-state helpers and update time, login,
+     reconciliation, and isolation mappings.
 - Verification:
-  - Run the scenario twice from fresh installed overlays.
-  - Correlate screenshots with logind sessions, PAM results, Malcontent usage,
-    ActiveExtension, and PII-safe component logs.
-  - Run `make check-e2e` for this scenario, `make check`, and `git diff --check`.
-- Completion criteria: the child is locked rather than logged out, retained-
-  session unlock and fresh login are denied at zero, grants restore both paths,
-  and no other user is disturbed.
+  - Run cleanup-safety regressions in isolation before session/process controls.
+  - Run the lock/login cases twice from fresh installed overlays. Correlate
+    screenshots, logind sessions, PAM results, usage, grants, filters, processes,
+    and PII-safe logs.
+  - Run `make check-e2e VM_IMAGE=<verified-baseline> SCENARIO=<child-lock-login>`,
+    `make check`, and `git diff --check`.
+- Completion criteria: zero-time login/unlock denial, lock without logout,
+  replacement-grant precedence, and other-user isolation are proven graphically.
 
+## Task 22B
+
+- Title: Automate countdown display, visibility, and estimate recovery.
+- Depends on: Task 22A.
+- Complexity: medium. Established session helpers isolate panel presentation
+  from the security-boundary implementation.
+- Recommended Codex model: `gpt-5.6-terra`
+- Recommended reasoning effort: `medium`
+- Work:
+  1. Verify minute countdown and final-minute seconds with the minimum real
+     grant; do not add a production clock hook.
+  2. Verify the control appears only on the unlocked managed child's desktop
+     while usable time remains, never on GDM or the lock screen. Assert no
+     independent child settings or custom lock-screen controls.
+  3. Use established guest service controls for temporary Malcontent read
+     failure; verify the last verified estimate remains and refresh recovers.
+  4. Update countdown, visibility, and estimate-recovery mappings.
+- Verification:
+  - Run the display cases twice from fresh installed overlays with bounded
+    screen waits and backend time evidence.
+  - Run `make check-e2e VM_IMAGE=<verified-baseline> SCENARIO=<child-countdown>`,
+    `make check`, and `git diff --check`.
+- Completion criteria: display and recovery requirements have visible evidence
+  without duplicating lock/login transaction infrastructure.

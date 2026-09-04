@@ -1,37 +1,63 @@
-### Task 19 — Establish the os-autoinst end-to-end test distribution
+# Task 19 — os-autoinst end-to-end test distribution
 
-- Complexity: high. The framework owns QEMU, VNC, serial consoles, screen
-  matching, secrets, and result artifacts.
-- Recommended Codex model: `gpt-5.6-sol`
+Execute 19A and 19B separately. Reuse Task 13B's baseline validation and artifact
+contract; os-autoinst owns its own QEMU guest through its supported backend.
+
+## Task 19A
+
+- Title: Add the guarded os-autoinst worker and console transport.
+- Depends on: Task 18B.
+- Complexity: very high. Guest ownership, storage, secrets, console transport,
+  and cleanup must be correct before any graphical scenario can be trusted.
+- Recommended Codex model: `gpt-6-astra`
 - Recommended reasoning effort: `high`
-- Objective: create the outside-the-VM driver required for GDM and lock-screen
-  acceptance.
 - Work:
-  1. Add a repository-local os-autoinst test distribution under `tests/e2e` with
-     `main.pm`, a small distribution class, public console definitions, scenario
-     modules, needles, configuration templates, and a guarded launcher.
-  2. Use Ubuntu 26.04's maintained `os-autoinst` package and the QEMU backend.
-     Pin and record the worker tool versions. Do not attach to the protected
-     libvirt domain and do not use the svirt root-password workflow.
-  3. Use stable Perl test modules for os-autoinst orchestration. Keep complex
-     backend assertions in versioned guest scripts and pytest tests.
-  4. Configure a VNC graphical console plus virtio serial terminal. Use the
-     graphical console only for real user actions and visible assertions; use the
-     serial console for setup, state assertions, and artifact collection.
-  5. Store passwords in os-autoinst secret variables and enter them with the
-     secret-safe password API. Never put them in screenshots, command output, or
-     vars artifacts.
-  6. Use small stable screen-match regions, accessible text, explicit click
-     points, and excluded dynamic areas. Never match a whole animated screen.
-  7. Add one smoke scenario that boots a disposable Task 12 overlay, recognizes
-     GDM, switches to serial, executes a harmless command, switches back, records
-     a screenshot, and shuts down.
-  8. Add the guarded `make check-e2e VM_IMAGE=... SCENARIO=...` command.
+  1. Add `tests/e2e` with `main.pm`, a small distribution class, public console
+     definitions, configuration templates, guest assertion scripts, and launcher.
+  2. Pin Ubuntu 26.04's maintained os-autoinst/QEMU tooling through `setup.sh`
+     and the test-tool list. Use the stable public Perl API and QEMU backend;
+     never attach to the protected domain or use svirt's root-password workflow.
+  3. Validate the Task 12 baseline and create a fresh backend-owned disposable
+     overlay. Transfer digest-verified assets through supported channels without
+     writable host shares. Add `make check-e2e VM_IMAGE=... SCENARIO=...`.
+  4. Configure VNC graphics and virtio serial. Keep complex backend checks in
+     versioned guest scripts/pytest; reserve graphical input for user actions.
+  5. Pass credentials through os-autoinst secret variables and its secret-safe
+     password API. Exclude them from screenshots, output, and vars artifacts.
+  6. Implement bounded startup, shutdown, interruption, copied-artifact
+     collection, and ownership-recorded cleanup. Add guard and cleanup-safety
+     regressions, including identity replacement and rejected source disks.
+  7. Prove one fresh guest boots, executes a harmless serial command, returns
+     evidence, and shuts down. Document console, secret, asset, and helper
+     contracts for 19B and later scenarios.
 - Verification:
-  - Run the smoke scenario three consecutive times from fresh overlays.
-  - Review screenshots, video, serial output, secrets redaction, and overlay
-    cleanup.
+  - Run cleanup-safety regressions in isolation before starting a guest.
+  - Run host-safe guard/refusal tests and the fresh-guest serial smoke.
+  - Check baseline/source/host preservation and secret exclusion.
   - Run `make check` and `git diff --check`.
-- Completion criteria: os-autoinst reliably controls boot, graphical input, and
-  serial assertions without touching the protected domain or host data.
+- Completion criteria: a guarded outside-guest runner provides working graphical
+  and serial transports, owned cleanup, and redacted artifacts.
 
+## Task 19B
+
+- Title: Add stable screen matching and graphical smoke.
+- Depends on: Task 19A.
+- Complexity: medium. This uses the established runner and console contracts.
+- Recommended Codex model: `gpt-5.6-terra`
+- Recommended reasoning effort: `medium`
+- Work:
+  1. Add reusable login/GDM, console-switching, and screenshot helpers and initial
+     needles. Match small stable regions/text, use explicit click points, and
+     exclude clocks and animation instead of matching entire screens.
+  2. Add the smoke scenario: boot a fresh product-free guest, recognize GDM,
+     switch to serial, execute a harmless command, switch back, record a
+     screenshot, and shut down.
+  3. Document helper usage, match deadlines, failure artifacts, and exact smoke
+     invocation for later scenario tasks.
+- Verification:
+  - Run cleanup-safety regressions in isolation, then run the graphical smoke
+    three consecutive times on fresh overlays.
+  - Review screenshots, video, serial output, secret exclusion, and cleanup.
+  - Run `make check` and `git diff --check`.
+- Completion criteria: stable public-API graphical/serial automation is ready
+  for user journeys, without host-window automation or protected-domain access.

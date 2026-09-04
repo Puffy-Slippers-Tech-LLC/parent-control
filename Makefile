@@ -14,7 +14,6 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(LIBEXECDIR)/oh-no-parent-control-broker \
 	$(LIBEXECDIR)/oh-no-parent-control-migrate-state \
 	$(LIBEXECDIR)/oh-no-parent-control-login-check \
-	$(LIBEXECDIR)/oh-no-parent-control-preserve-extension-state \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe \
 	$(LIBEXECDIR)/oh-no-parent-control-session-limit-check \
@@ -25,7 +24,6 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(DATADIR)/gnome-shell/extensions/$(UUID) \
 	$(PRODUCT_LIBDIR)/kiosk \
 	$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-broker.service \
-	$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-restore-extension-state.service \
 	$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/oh-no-parent-control-readiness.conf \
 	$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/oh-no-parent-control.conf \
 	$(SYSTEMD_USER_DIR)/oh-no-parent-control-app.service \
@@ -58,7 +56,7 @@ EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
-.PHONY: bump-version build installdeb check-release-version check check-unit check-component check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest uninstall pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: bump-version build installdeb check-release-version check check-unit check-component check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -84,17 +82,20 @@ build: check-release-version
 	output_dir="$(CURDIR)/output"; \
 	mkdir -p "$$output_dir"; \
 	mv "../oh-no-parent-control_$${version}_$${architecture}.deb" "$$output_dir/"; \
+	ddeb_file="../oh-no-parent-control-dbgsym_$${version}_$${architecture}.ddeb"; \
+	if test -f "$$ddeb_file"; then mv "$$ddeb_file" "$$output_dir/"; fi; \
 	mv "../oh-no-parent-control_$${version}_$${architecture}.changes" "$$output_dir/"; \
 	mv "../oh-no-parent-control_$${version}_$${architecture}.buildinfo" "$$output_dir/"
 
 installdeb:
 	@set -e; \
-	deb_files="$$(find "$(CURDIR)/output" -maxdepth 1 -type f -name '*.deb' -print)"; \
-	deb_count="$$(printf '%s\n' "$$deb_files" | sed '/^$$/d' | wc -l)"; \
-	test "$$deb_count" -eq 1 || (echo "Expected exactly one .deb file in $(CURDIR)/output, found $$deb_count" >&2; exit 1); \
-	echo "Installing $$deb_files"; \
+	version="$$(dpkg-parsechangelog -S Version)"; \
+	architecture="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
+	deb_file="$(CURDIR)/output/oh-no-parent-control_$${version}_$${architecture}.deb"; \
+	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
+	echo "Installing $$deb_file"; \
 	$(APT) --fix-broken install; \
-	$(APT) install "$$deb_files"; \
+	$(APT) install "$$deb_file"; \
 	if test -r /run/reboot-required.pkgs && \
 		grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs; then \
 		printf '\n*** REBOOT REQUIRED: reboot before using the kiosk session. ***\n'; \
@@ -202,7 +203,6 @@ _install-product-files:
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"
 	install -m 0755 tools/execution_policy_probe "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe"
 	install -m 0755 broker/oh-no-parent-control-query-usage "$(DESTDIR)$(LIBEXECDIR)/"
-	install -m 0755 tools/preserve_extension_state.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-preserve-extension-state"
 	install -m 0755 tools/session_limit_check.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-session-limit-check"
 	$(CC) $(CPPFLAGS) $(CFLAGS) -Wall -Wextra -Werror -fPIC -shared $(LDFLAGS) -Wl,-z,defs \
 		-o "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so" \
@@ -221,19 +221,14 @@ _install-product-files:
 	# GNOME Shell discovers extensions only when the Shell process starts. Keep
 	# one immutable system payload discoverable in every session; the broker
 	# controls per-child activation through that child's GNOME settings.
-	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	install -m 0644 $(BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
-	# Clean the obsolete broker source copy during a package upgrade.
-	rm -rf "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension"
 	install -m 0644 broker/oh_no_parent_control/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"
 	install -d "$(DESTDIR)$(DATADIR)/dbus-1/system-services" "$(DESTDIR)$(DATADIR)/dbus-1/interfaces"
 	install -m 0644 data/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service "$(DESTDIR)$(DATADIR)/dbus-1/system-services/"
 	install -m 0644 data/dbus-1/com.puffyslippers.OhNoParentControl1.xml "$(DESTDIR)$(DATADIR)/dbus-1/interfaces/"
 	install -d "$(DESTDIR)$(DATADIR)/polkit-1/actions" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)"
 	# The broker is the trusted Polkit mechanism for both request front ends.
-	# Remove the obsolete child-owned meta-action during package upgrades.
-	rm -f "$(DESTDIR)$(DATADIR)/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy"
 	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy"
 	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy"
 	install -d "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d"
@@ -244,7 +239,6 @@ _install-product-files:
 	install -d "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d"
 	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/"
 	install -m 0644 data/systemd/oh-no-parent-control-broker.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
-	install -m 0644 data/systemd/oh-no-parent-control-restore-extension-state.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d"
 	install -m 0644 data/systemd/fapolicyd.service.d/oh-no-parent-control-readiness.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/"
 	install -m 0644 data/systemd/display-manager.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/"
@@ -256,8 +250,8 @@ _install-product-files:
 	install -m 0644 data/wayland-sessions/oh-no-parent-control.desktop "$(DESTDIR)$(DATADIR)/wayland-sessions/"
 	install -m 0644 data/app_logo_gnome_launcher.png "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png"
 	install -m 0644 data/applications/com.puffyslippers.OhNoParentControl.desktop "$(DESTDIR)$(DATADIR)/applications/"
-	# GNOME only indexes desktop entries the signed-in user can read.  The
-	# The package maintainer script assigns this file to Ubuntu's administrator group.
+	# GNOME only indexes desktop entries the signed-in user can read. The package
+	# maintainer script assigns this file to Ubuntu's administrator group.
 	install -m 0640 data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	install -d "$(DESTDIR)$(DATADIR)/oh-no-parent-control" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control"
 	install -m 0644 config/config.example.json $(BRANDING_ASSETS) data/app_logo_gnome_launcher.png LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
@@ -270,23 +264,6 @@ endif
 
 _generate-package-activation-manifest:
 	$(PYTHON) tools/package_activation.py generate --root "$(if $(strip $(DESTDIR)),$(DESTDIR),/)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json" $(foreach path,$(ACTIVATION_MANIFEST_PATHS),--include "$(patsubst /%,%,$(path))")
-
-uninstall:
-	rm -f "$(DESTDIR)$(PREFIX)/bin/oh-no-parent-control" "$(DESTDIR)$(PREFIX)/bin/oh-no-parent-control-parent" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-broker" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-migrate-state" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-uninstall" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-query-usage" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-login-check" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-preserve-extension-state" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-session-limit-check" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-clear-session-runtime-max" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-activation" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready" "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe" "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so"
-	rm -f "$(DESTDIR)$(DATADIR)/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service" "$(DESTDIR)$(DATADIR)/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml" "$(DESTDIR)$(DATADIR)/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf"
-	rm -f "$(DESTDIR)$(DATADIR)/polkit-1/actions/org.gnome.shell.extensions.oh-no-parent-control.policy" "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy" "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-broker.service" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-restore-extension-state.service" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/oh-no-parent-control-readiness.conf" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/oh-no-parent-control.conf"
-	rm -f "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules"
-	rm -f "$(DESTDIR)$(DATADIR)/pam-configs/oh-no-parent-control-session-limits" "$(DESTDIR)$(DATADIR)/pam-configs/oh-no-parent-control-kiosk-only" "$(DESTDIR)$(SYSCONFDIR)/gdm3/PreSession/Default"
-	rm -f "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/89-oh-no-parent-control.rules" "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules"
-	rm -f "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-app.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/oh-no-parent-control-polkit-agent.service" "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/session.conf"
-	rm -f "$(DESTDIR)$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session" "$(DESTDIR)$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop" "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.desktop" "$(DESTDIR)$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.Parent.desktop"
-	rm -f "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"*.js "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"*.json "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/stylesheet.css" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/app_logo.png" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/company_logo.png" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/LICENSE" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/COPYRIGHT" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/NOTICE"
-	rm -f "$(DESTDIR)$(DATADIR)/oh-no-parent-control/config.example.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/brand.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app.json" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/app_logo_gnome_launcher.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/company_logo.png" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/COPYRIGHT" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/NOTICE" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/com.puffyslippers.OhNoParentControl1.conf.in" "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json"
-	rm -f "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/README.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/LICENSE" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/COPYRIGHT" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/NOTICE" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Compliance.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/System-Design.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Package-Update.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Publishing.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/Data-Migration.md" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/malcontent014-integration.md"
-	rm -f "$(DESTDIR)$(SYSCONFDIR)/oh-no-parent-control/config.json"
-	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/Gearbox_Waltz.mp3" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/request-options.json" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf" "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"*.py
-	rm -f "$(DESTDIR)$(PRODUCT_LIBDIR)/common/__init__.py" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/style.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.js "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/"*.json "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/stylesheet.css" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/app_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/company_logo.png" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/LICENSE" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/COPYRIGHT" "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension/NOTICE"
-	@echo 'Product files removed. Accounts and managed-account policies were not changed.'
 
 check-child-node:
 	@node --test tests/child/indicator_logic.test.mjs

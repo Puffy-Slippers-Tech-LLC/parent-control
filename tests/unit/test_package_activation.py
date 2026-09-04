@@ -155,21 +155,6 @@ class PackageActivationTests(unittest.TestCase):
             "reboot",
         )
 
-    def test_pre_display_manager_extension_restore_requires_reboot(self):
-        self.assertEqual(
-            activation_for(
-                "usr/lib/systemd/system/"
-                "oh-no-parent-control-restore-extension-state.service"
-            ),
-            "reboot",
-        )
-        self.assertEqual(
-            activation_for(
-                "usr/libexec/oh-no-parent-control-preserve-extension-state"
-            ),
-            "reboot",
-        )
-
     def test_removed_file_keeps_its_old_activation_requirement(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

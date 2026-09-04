@@ -49,7 +49,6 @@ if [ "$1" = remove ]; then
         /etc/oh-no-parent-control/config.json \
         /etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
         /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf \
-        /var/lib/oh-no-parent-control/extension-state-restore.json \
         /var/lib/oh-no-parent-control/migration-in-progress \
         /var/lib/oh-no-parent-control/package-activation-pending \
         /var/lib/oh-no-parent-control/previous-package-activation.json \
@@ -73,7 +72,6 @@ if [ "$1" = purge ]; then
         /etc/oh-no-parent-control/config.json \
         /etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
         /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf \
-        /var/lib/oh-no-parent-control/extension-state-restore.json \
         /var/lib/oh-no-parent-control/migration-in-progress \
         /var/lib/oh-no-parent-control/package-activation-pending \
         /var/lib/oh-no-parent-control/previous-package-activation.json \

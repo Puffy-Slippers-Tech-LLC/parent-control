@@ -427,7 +427,6 @@ new child/kiosk session, or a reboot at the PAM/display-manager boundary. See
 /usr/libexec/oh-no-parent-control-clear-session-runtime-max
 /usr/libexec/oh-no-parent-control-login-check         kiosk PAM service gate
 /usr/libexec/oh-no-parent-control-execution-policy-{ready,probe}
-/usr/libexec/oh-no-parent-control-preserve-extension-state
 /usr/libexec/oh-no-parent-control-uninstall            verified removal helper
 /usr/libexec/oh-no-parent-control-{provision,package-activation}
 /usr/lib/oh-no-parent-control/{broker,parent,kiosk,common}/

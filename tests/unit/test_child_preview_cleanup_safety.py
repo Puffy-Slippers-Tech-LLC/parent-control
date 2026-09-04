@@ -104,10 +104,15 @@ class ChildPreviewCleanupSafetyTests(unittest.TestCase):
 
     def test_cleanup_contains_no_ambient_runtime_process_discovery(self):
         source = ORCHESTRATION.read_text()
+        lifecycle_test = (
+            ROOT / "tests" / "ui" / "test_child_shell_lifecycle.py"
+        ).read_text()
 
         self.assertNotIn("/proc/[0-9]*/environ", source)
         self.assertNotIn("onpc_preview_runtime_helper_pids", source)
         self.assertNotIn("onpc_preview_stop_runtime_helpers", source)
+        self.assertNotIn('Path("/proc").glob', lifecycle_test)
+        self.assertNotIn("XDG_RUNTIME_DIR=", lifecycle_test)
 
     def test_cleanup_after_configuration_signals_nothing_for_unsafe_runtimes(self):
         runtime_setups = {

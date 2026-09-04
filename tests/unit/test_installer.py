@@ -15,15 +15,42 @@ class PackageDeploymentTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
         repair = recipe.index("$(APT) --fix-broken install")
-        install = recipe.index('$(APT) install "$$deb_files"')
+        install = recipe.index('$(APT) install "$$deb_file"')
         marker = recipe.index("grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs")
         prompt = recipe.index("Reboot now? [y/N]", marker)
         self.assertIn("@set -e", recipe)
+        self.assertIn("dpkg-parsechangelog -S Version", recipe)
+        self.assertIn("dpkg-architecture -qDEB_HOST_ARCH", recipe)
+        self.assertIn("run make build first", recipe)
         self.assertLess(repair, install)
         self.assertLess(install, marker)
         self.assertLess(marker, prompt)
         self.assertIn("exec 3<>/dev/tty", recipe[prompt:])
         self.assertNotIn("dpkg --install", recipe)
+
+    def test_make_build_keeps_changes_file_artifacts_together(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        recipe = makefile.split("build: check-release-version\n", 1)[1].split(
+            "\n\ninstalldeb:", 1
+        )[0]
+
+        self.assertIn(
+            'mv "../oh-no-parent-control_$${version}_$${architecture}.deb"',
+            recipe,
+        )
+        self.assertIn(
+            'ddeb_file="../oh-no-parent-control-dbgsym_$${version}_$${architecture}.ddeb"',
+            recipe,
+        )
+        self.assertIn('if test -f "$$ddeb_file"; then mv', recipe)
+        self.assertIn(
+            'mv "../oh-no-parent-control_$${version}_$${architecture}.changes"',
+            recipe,
+        )
+        self.assertIn(
+            'mv "../oh-no-parent-control_$${version}_$${architecture}.buildinfo"',
+            recipe,
+        )
 
     def test_package_payload_contains_product_assets_and_system_integration(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
@@ -37,7 +64,11 @@ class PackageDeploymentTests(unittest.TestCase):
             self.assertIn(source, makefile)
         self.assertIn('SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)', makefile)
         self.assertIn('"$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"', makefile)
-        self.assertIn('rm -rf "$(DESTDIR)$(PRODUCT_LIBDIR)/child/extension"', makefile)
+        product_files = makefile.split("_install-product-files:\n", 1)[1].split(
+            "\n_generate-package-activation-manifest:", 1
+        )[0]
+        self.assertNotIn("rm -f", product_files)
+        self.assertNotIn("rm -rf", product_files)
 
     def test_package_has_all_runtime_dependencies(self):
         control = (ROOT / "debian/control").read_text(encoding="utf-8")
@@ -50,12 +81,14 @@ class PackageDeploymentTests(unittest.TestCase):
         provision = postinst.index("/usr/libexec/oh-no-parent-control-provision")
         enable = postinst.index("systemctl enable")
         start = postinst.index("deb-systemd-invoke start", enable)
+        owned_guard = postinst.index('if [ "$package_created_kiosk" -eq 1 ]')
         self.assertIn("usermod --comment \"Oh No! Parent Control\"", postinst)
         self.assertIn("passwd --delete \"$kiosk_user\"", postinst)
+        self.assertLess(owned_guard, postinst.index("passwd --delete"))
         self.assertLess(postinst.index("passwd --delete"), provision)
         self.assertLess(provision, enable)
         self.assertLess(enable, start)
-        for unit in ("fapolicyd.service", "malcontent-timerd.service", "malcontent-timer-extension-agent.service", "oh-no-parent-control-restore-extension-state.service"):
+        for unit in ("fapolicyd.service", "malcontent-timerd.service", "malcontent-timer-extension-agent.service"):
             self.assertIn(unit, postinst[enable:start])
         for account in ("malcontent-timer-ext-agent", "malcontent-timerd", "malcontent-webd"):
             self.assertIn(account, postinst)

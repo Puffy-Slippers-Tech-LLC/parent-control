@@ -40,8 +40,6 @@ def activation_for(path: str) -> str:
         "usr/libexec/oh-no-parent-control-session-limit-check",
         "usr/libexec/oh-no-parent-control-clear-session-runtime-max",
         "usr/libexec/oh-no-parent-control-login-check",
-        "usr/libexec/oh-no-parent-control-preserve-extension-state",
-        "usr/lib/systemd/system/oh-no-parent-control-restore-extension-state.service",
     } or path.endswith("/security/pam_oh_no_parent_control.so"):
         return "reboot"
     # polkitd monitors its action and rule directories and evaluates them for

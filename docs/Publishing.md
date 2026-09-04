@@ -224,7 +224,6 @@ Launchpad's upload instructions are:
    ```sh
    systemctl is-active fapolicyd.service
    systemctl is-active oh-no-parent-control-broker.service
-   systemctl is-enabled oh-no-parent-control-restore-extension-state.service
    grep -F 'pam_oh_no_parent_control.so' /etc/pam.d/common-auth
    grep -F 'oh-no-parent-control-session-limit-check' /etc/pam.d/common-account
    test -x /usr/libexec/oh-no-parent-control-login-check

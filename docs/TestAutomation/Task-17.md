@@ -1,39 +1,77 @@
-### Task 17 — Implement and test broker-owned natural grant-expiry reconciliation
+# Task 17 — Expired-grant reconciliation at session entry
 
-- Complexity: very high. This is a privileged transactional scheduler with
-  startup, timer, race, and rollback behavior.
-- Recommended Codex model: `gpt-5.6-sol`
-- Recommended reasoning effort: `xhigh`
-- Objective: close the documented implementation gap before release E2E tests
-  rely on natural expiry.
+The current specification (`ONPC-CORE-APPS-011`,
+`ONPC-COMP-CHILD-005`, and `ONPC-COMP-BROKER-009`) and
+`System-Design.md` require reconciliation at new-session entry and unlock.
+`Broker.prepare_own_session` already implements this path. Expiry locks the
+desktop without immediately closing apps; the broker re-reads the grant under
+the transaction lock before restoring policy and terminating apps at session
+entry. A current replacement grant makes preparation a no-op. The former
+timer-scheduler task described obsolete behavior and must not be implemented.
+
+## Task 17A
+
+- Title: Complete session-entry transaction and race regressions.
+- Depends on: Task 16B.
+- Complexity: very high. A stale expiry observation must never override a
+  replacement grant or weaken rollback and process ownership guarantees.
+- Recommended Codex model: `gpt-6-astra`
+- Recommended reasoning effort: `high`
 - Work:
-  1. Implement the broker-owned design already specified in
-     `System-Design.md`: read ActiveExtension at startup, schedule the verified
-     expiry, re-read authoritative state at the deadline, restore the canonical
-     hard-and-soft filter only when no grant remains, and activate fapolicyd
-     transactionally.
-  2. Reschedule safely after approval, extension changes, revocation, parent-
-     control changes, clock changes, broker restart, and child removal.
-  3. Serialize expiry with approval and revocation so stale timers cannot undo a
-     newer grant or policy.
-  4. Add PII-safe logs for schedule, cancellation, wake, stale deadline, filter
-     restore, accepted outcome, backend failure, and rollback failure.
-  5. Add deterministic fake-clock unit tests, private-D-Bus component tests, and
-     installed-system tests with real short grants.
-  6. Prove hard blocks never relax, soft blocks restore on natural expiry, and
-     unrelated children remain unchanged.
-  7. Update `System-Design.md` to remove the implementation-gap statement and
-     describe the completed lifecycle.
-  8. Verify the existing package-activation classification for changed broker
-     files and update activation tests in the same change.
-  9. Update all natural-expiry requirement mappings. Do not mark the behavior
-     skipped or expected-failing.
+  1. Review the existing broker method, D-Bus worker, and child startup/unlock
+     calls against the current specification. Reuse working behavior; fix only
+     demonstrated gaps, with PII-safe stage/outcome/error logs.
+  2. Add deterministic unit and private-D-Bus component cases for expired,
+     cleared, malformed, unreadable, and active replacement grants. Read the
+     authoritative grant after acquiring the shared transaction lock.
+  3. Cover contention with policy save, approval, revocation, and parent-control
+     changes; ensure a stale child observation cannot restore an old policy.
+     Cover changed/removed accounts and broker restart without inventing a timer.
+  4. Verify canonical hard/soft targets and patterns, termination preflight,
+     filter/fapolicyd verification before termination, rollback before side
+     effects, and strict-policy retention after partial termination.
+  5. Verify child calls at extension startup and unlock, with no child-owned
+     grant decisions or process signalling. Run shared form regressions in
+     both modes if those files change.
+  6. Update architecture documentation only where actual behavior changes.
+     Classify changed packaged files and update activation tests in the same
+     change; migrate saved data first if an incompatible change is necessary.
+  7. Map proven unit/component behavior; leave installed and graphical evidence
+     pending for 17B and Task 22.
 - Verification:
-  - Run focused scheduler race and rollback tests repeatedly.
-  - Run the installed short-grant expiry scenario.
-  - Run `make check-component`, `make check-system`, `make check`, and
-    `git diff --check`.
-- Completion criteria: natural expiry restores canonical application enforcement
-  after startup and at runtime, with transactional failure behavior and no stale-
-  timer race.
+  - Run focused deterministic transaction, race, and rollback tests.
+  - Run cleanup-safety regressions before host-integrated component tests.
+  - Run `make check-component`, `make check`, and `git diff --check`.
+- Completion criteria: the existing session-entry contract has executable race
+  and failure coverage, and any demonstrated implementation gaps are fixed.
 
+## Task 17B
+
+- Title: Prove expired and replacement grants on the installed system.
+- Depends on: Task 17A.
+- Complexity: high. Reuse the established transaction and guest controls to
+  verify real AccountsService, fapolicyd, and process results.
+- Recommended Codex model: `gpt-5.6-sol`
+- Recommended reasoning effort: `high`
+- Work:
+  1. Use real short grants and identity-recorded apps. Prove expiry alone does
+     not terminate retained-session applications.
+  2. Call `PrepareOwnSession` as the actual child after expiry; verify complete
+     policy activation precedes child-only blocked-app termination.
+  3. Approve a replacement grant between expiry and preparation. For a grant
+     allowing soft apps, prove the hard-only filter and all running apps remain.
+     For a grant keeping soft blocks, prove preparation preserves the completed
+     approval transaction instead of repeating it.
+  4. Verify cleared grants, broker restart, authoritative read failure, and
+     controlled transaction contention using 17A's contract and public guest
+     boundaries. Observe a second child and unrelated users in every case.
+  5. Update installed reconciliation mappings; keep graphical entry/unlock
+     assertions assigned to Task 22.
+- Verification:
+  - Run fixture cleanup-safety regressions in isolation before live cases.
+  - Run installed short-grant/replacement-grant cases in fresh testbeds and
+    record filters, process identities, grants, and redacted logs.
+  - Run `make check-system VM_IMAGE=<verified-baseline>`, `make check`, and
+    `git diff --check`.
+- Completion criteria: installed evidence proves expired-grant reconciliation
+  and replacement-grant precedence without adding deadline-driven termination.

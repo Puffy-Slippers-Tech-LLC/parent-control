@@ -41,7 +41,10 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn('"$onpc_preview_source_dir"/*.mjs', orchestration)
         self.assertNotIn('gnome-shell --nested', wrapper)
         self.assertIn('--child-overlay', orchestration)
-        self.assertIn('env WAYLAND_DISPLAY=$onpc_preview_nested_wayland_display', orchestration)
+        self.assertIn(
+            'env GDK_BACKEND=wayland WAYLAND_DISPLAY=$onpc_preview_nested_wayland_display',
+            orchestration,
+        )
         self.assertIn('PIPEWIRE_RUNTIME_DIR=$onpc_preview_private_runtime_dir', orchestration)
         self.assertIn("onpc_preview_require_accessibility_registry", orchestration)
 
@@ -61,7 +64,7 @@ class ChildPreviewTests(unittest.TestCase):
             result.stdout.splitlines(),
             [
                 f"{root}/logs",
-                "dbus-run-session -- gnome-shell --devkit --wayland --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
+                "dbus-run-session -- gnome-shell --devkit --wayland --no-x11 --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
             ],
         )
 
@@ -132,7 +135,7 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.strip(),
-            "gnome-shell --devkit --wayland --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
+            "gnome-shell --devkit --wayland --no-x11 --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
         )
 
     def test_private_bus_uses_the_preview_runtime_socket(self):
@@ -140,6 +143,56 @@ class ChildPreviewTests(unittest.TestCase):
 
         self.assertIn('socket_path="$onpc_preview_root/runtime/session-bus"', orchestration)
         self.assertIn('--address="$onpc_preview_bus_address"', orchestration)
+
+    def test_host_viewer_honors_explicit_x11_without_affecting_child_overlay(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.run_orchestration(
+                f"export XDG_RUNTIME_DIR='{temporary}'; "
+                "export GDK_BACKEND=x11; "
+                "export DISPLAY=:0; export WAYLAND_DISPLAY=wayland-0; "
+                "source child/preview-orchestration.sh; "
+                f"onpc_preview_configure child '{temporary}'; "
+                "unset GDK_BACKEND; "
+                "export XDG_RUNTIME_DIR=/tmp/private-preview-runtime; "
+                "onpc_preview_enable_host_devkit_viewer; "
+                "printf '%s\\n' \"$GDK_BACKEND\" \"$XDG_RUNTIME_DIR\"",
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["x11", temporary])
+        self.assertIn("child overlay remains on nested Wayland", result.stderr)
+
+    def test_host_viewer_prefers_wayland_when_no_backend_was_configured(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.run_orchestration(
+                f"export XDG_RUNTIME_DIR='{temporary}'; "
+                "unset GDK_BACKEND; export DISPLAY=:0; export WAYLAND_DISPLAY=wayland-0; "
+                "source child/preview-orchestration.sh; "
+                f"onpc_preview_configure child '{temporary}'; "
+                "export XDG_RUNTIME_DIR=/tmp/private-preview-runtime; "
+                "onpc_preview_enable_host_devkit_viewer; "
+                "printf '%s\\n' \"$GDK_BACKEND\" \"$XDG_RUNTIME_DIR\"",
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["wayland", temporary])
+        self.assertIn("host Wayland display", result.stderr)
+
+    def test_host_viewer_uses_x11_only_when_wayland_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.run_orchestration(
+                f"export XDG_RUNTIME_DIR='{temporary}'; "
+                "unset GDK_BACKEND WAYLAND_DISPLAY; export DISPLAY=:0; "
+                "source child/preview-orchestration.sh; "
+                f"onpc_preview_configure child '{temporary}'; "
+                "export XDG_RUNTIME_DIR=/tmp/private-preview-runtime; "
+                "onpc_preview_enable_host_devkit_viewer; "
+                "printf '%s\\n' \"$GDK_BACKEND\" \"$XDG_RUNTIME_DIR\"",
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["x11", temporary])
+        self.assertIn("host X11 display", result.stderr)
 
     def test_readiness_timeout_reports_generation_and_log(self):
         result = self.run_orchestration(

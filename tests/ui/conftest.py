@@ -65,7 +65,10 @@ from dogtail.hermetic.session import HermeticSession, dump_tree
 def hermetic_ui_session():
     """Boot one deterministic private Wayland session for this pytest process."""
 
-    session = HermeticSession(virtual_monitor="1280x1024")
+    # RequestWindow's deterministic preview is 1918×1443.  Keep the private
+    # monitor larger than that canvas so AT-SPI reports the lower duration and
+    # custom controls as showing after the gateway transform.
+    session = HermeticSession(virtual_monitor="2048x1536")
     session.boot()
     # HermeticSession has already copied the Wayland environment used by the
     # preview process.  Dogtail's tree module imports its optional Ponytail

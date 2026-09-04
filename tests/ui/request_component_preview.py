@@ -67,9 +67,11 @@ class Broker:
         values = () if parameters is None else parameters.unpack()
         self.record("call", method=method, values=values)
         reply = self.reply(method, values)
-        delay = 1_500 if self.scenario in {"loading", "slow-request"} and (
-            method == "GetPreferences" or method.startswith("Request")
-        ) else 0
+        delay = (
+            12_000 if self.scenario == "loading" and method == "GetPreferences"
+            else 1_500 if self.scenario == "slow-request" and method.startswith("Request")
+            else 0
+        )
         source = GLib.timeout_add if delay else GLib.idle_add
         source(delay, lambda: (callback(self, reply), GLib.SOURCE_REMOVE)[1]) if delay else source(
             lambda: (callback(self, reply), GLib.SOURCE_REMOVE)[1],

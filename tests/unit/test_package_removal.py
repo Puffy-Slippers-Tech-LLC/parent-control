@@ -312,3 +312,11 @@ def test_purge_refuses_nested_bind_mount_before_deleting_any_content(machine):
     assert result.returncode != 0
     assert "mounted directory" in result.stderr
     assert path.read_text() == "{}"
+
+
+def test_upgrade_never_claims_product_policy_as_original_baseline(machine):
+    machine.write("etc/fapolicyd/compiled.rules", "installed product policy")
+    result = machine.run("preinst", "upgrade")
+    assert result.returncode != 0
+    assert "baseline is missing" in result.stderr
+    assert not (machine.root / "var/lib/oh-no-parent-control/fapolicyd-before-install").exists()

@@ -477,6 +477,8 @@ reuse an existing reserved kiosk account after the provisioning checks reject
 root or administrative identities, but it does not claim ownership of that
 account, so later package removal preserves it. Removal requires the kiosk's
 user service to be inactive; it never terminates processes by username. The
+public AccountsService `UncacheUser` method clears the package-owned kiosk's
+cached icon and session metadata before deleting the account. The
 verified package-created home is removed without following symlinks or crossing
 mounted filesystems, including files left behind by account deletion. The
 ownership marker is retained until cleanup succeeds, allowing safe retries.
@@ -488,6 +490,10 @@ it restores the original compiled policy and undoes the package's service
 activation. This explicitly handles fagenrules leaving compiled rules unchanged
 when its source directory is empty. Reloads use fapolicyd's supported CLI.
 The baseline is retained across upgrades and until successful removal.
+An upgrade with a missing baseline fails rather than treating the installed
+product's enforcement as pre-existing administrator policy. Systemd reloads
+the removed display-manager dependency before stopping fapolicyd, so dependency
+stop propagation cannot end the desktop session.
 
 After removing its D-Bus activation files, the package releases only its own
 temporary mask and clears only its obsolete failed broker unit. Ordinary remove

@@ -3,18 +3,61 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 artifact_root=${ONPC_CHILD_SHELL_ARTIFACT_DIR:?ONPC_CHILD_SHELL_ARTIFACT_DIR is required}
+scenario=${ONPC_CHILD_SHELL_SCENARIO:-lifecycle}
+
+record_stage() {
+    local stage=$1 outcome=$2 category=$3
+    printf 'stage=%s outcome=%s error_category=%s\n' "$stage" "$outcome" "$category" \
+        >>"$artifact_root/lifecycle-events.log"
+}
+
+capture_screenshot() {
+    local generation=$1
+    if ! "${ONPC_CHILD_SHELL_PYTHON:-python3}" \
+            "$repo_root/tests/ui/child_shell_screenshot.py" \
+            "$artifact_root/screenshots/generation-$generation.png"; then
+        record_stage screenshot failed screenshot
+        return 1
+    fi
+    record_stage screenshot success none
+}
+
+probe_generation() {
+    local marker=$1
+    if ! ONPC_CHILD_SHELL_EXPECTED_MARKER="$marker" \
+            "${ONPC_CHILD_SHELL_PYTHON:-python3}" \
+            "$repo_root/tests/ui/child_shell_probe.py"; then
+        record_stage startup failed readiness
+        return 1
+    fi
+    record_stage startup success none
+}
 
 # shellcheck source=../../child/preview-orchestration.sh
 source "$repo_root/child/preview-orchestration.sh"
-onpc_preview_configure "$repo_root/child" "$artifact_root"
+if [[ $scenario == reload ]]; then
+    controlled_source="$artifact_root/controlled-extension"
+    cp -a "$repo_root/child/." "$controlled_source"
+    export ONPC_PREVIEW_REPOSITORY_ROOT="$repo_root"
+    export ONPC_PREVIEW_EXTENSION_SOURCE_DIR="$controlled_source"
+    onpc_preview_configure "$controlled_source" "$artifact_root"
+else
+    onpc_preview_configure "$repo_root/child" "$artifact_root"
+fi
 ONPC_PREVIEW_PAYLOAD_MODE=copy
 export ONPC_PREVIEW_PAYLOAD_MODE
 
 cleanup() {
     local status=$?
     trap - EXIT HUP INT TERM
+    record_stage shutdown starting none
     onpc_preview_stop_shell || status=1
     onpc_preview_stop_private_services || status=1
+    if (( status == 0 )); then
+        record_stage shutdown success none
+    else
+        record_stage shutdown failed lifecycle
+    fi
     exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
@@ -22,12 +65,14 @@ trap cleanup EXIT HUP INT TERM
 onpc_preview_require_lifecycle_dependencies
 onpc_preview_require_supported_shell_version
 onpc_preview_prepare_environment
+record_stage setup success none
 export NO_AT_BRIDGE=0
-if [[ ${ONPC_CHILD_SHELL_SCENARIO:-lifecycle} == indicator-interaction ]]; then
+if [[ $scenario == indicator-interaction ]]; then
     export OH_NO_PARENT_CONTROL_PREVIEW_SCENARIO=indicator-interaction
     export ONPC_CHILD_OVERLAY_EVENTS_PATH="$artifact_root/request-overlay-events.tsv"
     export ONPC_CHILD_OVERLAY_LOG_PATH="$onpc_preview_log_dir/request-overlay.log"
     export ONPC_CHILD_OVERLAY_A11Y_PATH="$artifact_root/request-overlay.a11y-tree.txt"
+    export ONPC_CHILD_SHELL_SCREENSHOT_PATH="$artifact_root/screenshots/generation-1.png"
     : >"$ONPC_CHILD_OVERLAY_EVENTS_PATH"
     : >"$ONPC_CHILD_OVERLAY_LOG_PATH"
     export OH_NO_PARENT_CONTROL_REQUEST_APP="bash $repo_root/tests/ui/run-child-request-overlay"
@@ -39,19 +84,53 @@ onpc_preview_start_accessibility
 onpc_preview_start_pipewire
 onpc_preview_start 1
 
-if [[ ${ONPC_CHILD_SHELL_SCENARIO:-lifecycle} == indicator-interaction ]]; then
+if [[ $scenario == indicator-interaction ]]; then
     onpc_preview_wait_for_bus_name org.gnome.Mutter.RemoteDesktop \
         "$onpc_preview_log_path"
     if ! "${ONPC_CHILD_SHELL_PYTHON:-python3}" \
             "$repo_root/tests/ui/child_shell_interaction.py"; then
+        record_stage interaction failed interaction
         exit 1
     fi
-elif ! "${ONPC_CHILD_SHELL_PYTHON:-python3}" \
-        "$repo_root/tests/ui/child_shell_probe.py"; then
+    # A passing interaction necessarily observed and activated the real
+    # extension actor; record that semantic readiness with its test evidence.
+    record_stage startup success none
+    record_stage interaction success none
+    record_stage screenshot success none
+elif [[ $scenario == reload ]]; then
+    probe_generation generation-one
+    capture_screenshot 1
+    onpc_preview_record_mutter_devkit
+    reload_ready="$artifact_root/reload-watcher-ready"
+    export ONPC_PREVIEW_RELOAD_READY_PATH="$reload_ready"
+    onpc_preview_wait_for_reload "$onpc_preview_shell_pid" &
+    reload_waiter=$!
+    while [[ ! -e $reload_ready ]]; do
+        if ! kill -0 "$reload_waiter" 2>/dev/null; then
+            wait "$reload_waiter"
+            exit 1
+        fi
+        read -r -t 0.05 _ || true
+    done
+    sed -i "s/'generation-one'/'generation-two'/" \
+        "$controlled_source/previewMode.js"
+    printf 'source=controlled-copy marker=generation-two\n' \
+        >"$artifact_root/reload-evidence.log"
+    wait "$reload_waiter"
+    record_stage reload success none
+    onpc_preview_stop_shell
+    onpc_preview_install_payload
+    onpc_preview_start 2
+    probe_generation generation-two
+    capture_screenshot 2
+elif ! probe_generation generation-one; then
     gsettings get org.gnome.shell enabled-extensions >&2 || true
     gsettings get org.gnome.shell disable-user-extensions >&2 || true
     gnome-extensions info "$onpc_preview_uuid" >&2 || true
     exit 1
 fi
 onpc_preview_record_mutter_devkit
-onpc_preview_stop_shell
+if [[ $scenario != reload ]]; then
+    capture_screenshot 1
+    onpc_preview_stop_shell
+fi

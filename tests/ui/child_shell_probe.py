@@ -23,6 +23,7 @@ EXPECTED_ACCESSIBLE_NAMES = {
     "Request time, 00:45 left",
     "Request time, 00:44 left",
 }
+EXPECTED_MARKER = os.environ.get("ONPC_CHILD_SHELL_EXPECTED_MARKER", "")
 EVENTS = (
     "object:children-changed",
     "object:property-change:accessible-name",
@@ -34,7 +35,8 @@ LAST_ACCESSIBLE_NAME = "not found"
 
 
 def is_expected_accessible_name(name):
-    return any(name.startswith(expected) for expected in EXPECTED_ACCESSIBLE_NAMES)
+    return any(name.startswith(expected) for expected in EXPECTED_ACCESSIBLE_NAMES) \
+        and (not EXPECTED_MARKER or name.endswith(EXPECTED_MARKER))
 
 
 def _extension_is_active(connection: Gio.DBusConnection) -> bool:

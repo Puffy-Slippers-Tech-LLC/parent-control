@@ -134,7 +134,7 @@ check-component:
 		--ignore=tests/ui/test_child_shell_lifecycle.py
 
 check-child-shell:
-	@tools/run-ui-tests --timeout 120s tests/ui/test_child_shell_lifecycle.py -m ui -q
+	@tools/run-ui-tests --timeout 360s tests/ui/test_child_shell_lifecycle.py -m ui -q
 
 check-marker:
 	@test -n "$(MARKER)" || (echo 'Usage: make check-marker MARKER=unit' >&2; exit 2)

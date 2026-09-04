@@ -29,7 +29,8 @@ onpc_preview_configure() {
 
 onpc_preview_require_dependencies() {
     local dependency
-    for dependency in gnome-shell gsettings dbus-run-session glib-compile-schemas inotifywait setsid; do
+    for dependency in dbus-daemon gdbus gnome-shell gsettings glib-compile-schemas \
+            inotifywait pipewire setsid; do
         command -v "$dependency" >/dev/null || {
             printf '%s is required for the child preview.\n' "$dependency" >&2
             return 1
@@ -43,12 +44,27 @@ onpc_preview_require_dependencies() {
         printf 'GNOME settings schemas are missing from %s.\n' "$onpc_preview_schema_source" >&2
         return 1
     }
+    onpc_preview_require_accessibility_registry
+}
+
+onpc_preview_require_accessibility_registry() {
+    local candidate
+    onpc_preview_registry_path=''
+    for candidate in /usr/lib/at-spi2-core/at-spi2-registryd \
+            /usr/libexec/at-spi2-registryd /usr/lib/at-spi2-registryd; do
+        if [[ -x "$candidate" ]]; then
+            onpc_preview_registry_path=$candidate
+            return 0
+        fi
+    done
+    printf '%s\n' 'AT-SPI registryd is required (install at-spi2-core on Ubuntu).' >&2
+    return 1
 }
 
 onpc_preview_require_lifecycle_dependencies() {
     local dependency
     for dependency in dbus-daemon gdbus gnome-extensions gnome-shell gsettings \
-            glib-compile-schemas pipewire setsid; do
+            glib-compile-schemas inotifywait pipewire setsid; do
         command -v "$dependency" >/dev/null || {
             printf '%s is required for the child Shell lifecycle smoke.\n' "$dependency" >&2
             return 1
@@ -58,18 +74,7 @@ onpc_preview_require_lifecycle_dependencies() {
         printf '%s\n' 'Mutter Devkit is required (install mutter-dev-bin on Ubuntu).' >&2
         return 1
     }
-    onpc_preview_registry_path=''
-    for dependency in /usr/lib/at-spi2-core/at-spi2-registryd \
-            /usr/libexec/at-spi2-registryd /usr/lib/at-spi2-registryd; do
-        if [[ -x "$dependency" ]]; then
-            onpc_preview_registry_path=$dependency
-            break
-        fi
-    done
-    [[ -n "$onpc_preview_registry_path" ]] || {
-        printf '%s\n' 'AT-SPI registryd is required (install at-spi2-core on Ubuntu).' >&2
-        return 1
-    }
+    onpc_preview_require_accessibility_registry
 }
 
 onpc_preview_require_supported_shell_version() {
@@ -82,22 +87,30 @@ onpc_preview_require_supported_shell_version() {
     esac
 }
 
+onpc_preview_install_payload() {
+    local repo_root=${ONPC_PREVIEW_REPOSITORY_ROOT:-"$(cd "$onpc_preview_source_dir/.." && pwd)"}
+    local payload_source_dir=${ONPC_PREVIEW_EXTENSION_SOURCE_DIR:-$onpc_preview_source_dir}
+    make --no-print-directory -C "$repo_root" install-extension \
+        CHILD_DIR="$payload_source_dir" \
+        EXTENSION_BASE="$onpc_preview_root/data" >/dev/null
+}
+
 onpc_preview_prepare_environment() {
-    local extension_dir source repo_root schema_dir
+    local extension_dir source repo_root schema_dir payload_source_dir
     extension_dir="$onpc_preview_root/data/gnome-shell/extensions/$onpc_preview_uuid"
     schema_dir="$onpc_preview_root/schemas"
-    repo_root="$(cd "$onpc_preview_source_dir/.." && pwd)"
+    repo_root=${ONPC_PREVIEW_REPOSITORY_ROOT:-"$(cd "$onpc_preview_source_dir/.." && pwd)"}
+    payload_source_dir=${ONPC_PREVIEW_EXTENSION_SOURCE_DIR:-$onpc_preview_source_dir}
 
     mkdir -p "$extension_dir" "$onpc_preview_root/config" "$onpc_preview_root/cache" \
         "$onpc_preview_root/state" "$onpc_preview_root/runtime" "$onpc_preview_root/home" \
-        "$schema_dir" "$onpc_preview_log_dir"
-    chmod 0700 "$onpc_preview_root/runtime"
+        "$onpc_preview_root/tmp" "$schema_dir" "$onpc_preview_log_dir"
+    chmod 0700 "$onpc_preview_root/runtime" "$onpc_preview_root/tmp"
     if [[ ${ONPC_PREVIEW_PAYLOAD_MODE:-symlink} == copy ]]; then
         # Exercise the same immutable payload list as installation.  In
         # particular, automated runs must not follow edits in the checkout
         # after Shell has started.
-        make --no-print-directory -C "$repo_root" install-extension \
-            EXTENSION_BASE="$onpc_preview_root/data" >/dev/null
+        onpc_preview_install_payload
     else
         # Keep source edits live for the interactive preview while limiting
         # Shell discovery to the temporary extension tree.
@@ -121,6 +134,7 @@ onpc_preview_prepare_environment() {
     export XDG_STATE_HOME="$onpc_preview_root/state"
     export XDG_RUNTIME_DIR="$onpc_preview_root/runtime"
     export HOME="$onpc_preview_root/home"
+    export TMPDIR="$onpc_preview_root/tmp"
     export GSETTINGS_BACKEND=keyfile
     export GSETTINGS_SCHEMA_DIR="$schema_dir"
     export OH_NO_PARENT_CONTROL_PREVIEW=1
@@ -131,23 +145,29 @@ onpc_preview_prepare_environment() {
         GTK_IM_MODULE_FILE GTK_MODULES GTK_PATH
     unset DISPLAY WAYLAND_DISPLAY
     gsettings set org.gnome.desktop.interface toolkit-accessibility true
+    # The public Shell Screenshot D-Bus service honors this policy. Keep the
+    # private component session explicitly permitted to save its evidence PNGs.
+    gsettings set org.gnome.desktop.lockdown disable-save-to-disk false
     gsettings set org.gnome.shell disable-user-extensions false
     gsettings set org.gnome.shell enabled-extensions "['$onpc_preview_uuid']"
 }
 
 onpc_preview_build_shell_command() {
     if [[ -n ${onpc_preview_bus_address:-} ]]; then
-        onpc_preview_shell_command=(gnome-shell --devkit --wayland --force-animations)
+        onpc_preview_shell_command=(gnome-shell --devkit --wayland --virtual-monitor 1280x720 --force-animations)
     else
-        onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland --force-animations)
+        onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland --virtual-monitor 1280x720 --force-animations)
     fi
 }
 
 onpc_preview_start_private_bus() {
-    local deadline
+    local deadline socket_path
     onpc_preview_bus_log_path="$onpc_preview_log_dir/session-bus.log"
+    socket_path="$onpc_preview_root/runtime/session-bus"
+    onpc_preview_bus_address="unix:path=$socket_path"
     : >"$onpc_preview_bus_log_path"
-    setsid dbus-daemon --session --nofork --print-address=1 \
+    setsid dbus-daemon --session --nofork --address="$onpc_preview_bus_address" \
+        --print-address=1 \
         >>"$onpc_preview_bus_log_path" 2>&1 &
     onpc_preview_bus_pid=$!
     onpc_preview_record_owned_process "$onpc_preview_bus_pid" \
@@ -259,15 +279,54 @@ onpc_preview_source_event_is_reloadable() {
 }
 
 onpc_preview_wait_for_reload() {
-    local pid=$1 event
-    while onpc_preview_process_is_running "$pid"; do
-        # inotifywait supplies an event-driven bounded wait. Checking the
-        # process after every one-second deadline also reports a Shell exit.
-        event="$(inotifywait --quiet --recursive --event close_write,moved_to,create,delete \
-            --format '%w%f' --timeout 1 "$onpc_preview_source_dir" 2>/dev/null)" || true
-        [[ -n "$event" ]] && onpc_preview_source_event_is_reloadable "$event" && return 0
+    local pid=$1 event monitor_pid='' monitor_start_time='' setup_log event_pipe event_fd
+    local deadline status=1
+    setup_log="$onpc_preview_log_dir/reload-watcher.log"
+    event_pipe="$onpc_preview_root/reload-events.pipe"
+    rm -f -- "$event_pipe"
+    mkfifo "$event_pipe"
+    # Keep one read/write descriptor open before the watcher starts. Otherwise
+    # its stdout redirection blocks at FIFO open and it can never write the
+    # diagnostic that confirms kernel watches are established.
+    exec {event_fd}<>"$event_pipe"
+    inotifywait --monitor --recursive \
+        --event close_write,moved_to,create,delete --format '%w%f' \
+        "$onpc_preview_source_dir" >"$event_pipe" 2>"$setup_log" &
+    monitor_pid=$!
+    onpc_preview_record_owned_child_process "$monitor_pid" monitor_start_time \
+        'child preview reload watcher' || return
+    deadline=$((SECONDS + onpc_preview_ready_timeout))
+    while ! { [[ -f $setup_log ]] && grep -q '^Watches established\.$' "$setup_log"; }; do
+        if ! onpc_preview_owned_process_is_running "$monitor_pid" "$monitor_start_time"; then
+            printf 'Child preview reload watcher exited before establishing watches; log: %s\n' \
+                "$setup_log" >&2
+            break
+        fi
+        if (( SECONDS >= deadline )); then
+            printf 'Child preview reload watcher did not establish watches within %ss; log: %s\n' \
+                "$onpc_preview_ready_timeout" "$setup_log" >&2
+            break
+        fi
+        read -r -t 0.05 _ || true
     done
-    return 1
+    if [[ -f $setup_log ]] && grep -q '^Watches established\.$' "$setup_log"; then
+        if [[ -n ${ONPC_PREVIEW_RELOAD_READY_PATH:-} ]]; then
+            : >"$ONPC_PREVIEW_RELOAD_READY_PATH"
+        fi
+        while onpc_preview_process_is_running "$pid"; do
+            if IFS= read -r -t 1 -u "$event_fd" event; then
+                if onpc_preview_source_event_is_reloadable "$event"; then
+                    status=0
+                    break
+                fi
+            fi
+        done
+    fi
+    onpc_preview_stop_owned_process "$monitor_pid" "$monitor_start_time" \
+        'child preview reload watcher' || status=1
+    exec {event_fd}>&-
+    rm -f -- "$event_pipe"
+    return "$status"
 }
 
 onpc_preview_stop_shell() {
@@ -337,6 +396,30 @@ onpc_preview_record_owned_process() {
         sleep "$retry_interval"
     done
     printf '%s process %s did not become its expected session and process-group leader.\n' \
+        "$label" "$pid" >&2
+    return 1
+}
+
+onpc_preview_record_owned_child_process() {
+    local pid=$1 start_time_variable=$2 label=$3
+    local max_attempts=${4:-50} retry_interval=${5:-0.01}
+    local attempt process_group session start_time state
+    printf -v "$start_time_variable" '%s' ''
+    for (( attempt = 0; attempt < max_attempts; attempt++ )); do
+        if IFS=' ' read -r state process_group session start_time \
+                < <(onpc_preview_read_process_identity "$pid"); then
+            if [[ $state != Z && -n $start_time ]]; then
+                printf -v "$start_time_variable" '%s' "$start_time"
+                return 0
+            fi
+        else
+            printf '%s process %s exited before ownership could be recorded.\n' \
+                "$label" "$pid" >&2
+            return 1
+        fi
+        sleep "$retry_interval"
+    done
+    printf '%s process %s did not remain running while ownership was recorded.\n' \
         "$label" "$pid" >&2
     return 1
 }

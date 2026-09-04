@@ -86,6 +86,10 @@ fi
     python3-pytest=9.0.2-4 \
     python3-venv
 
+# GNOME Shell 50 supplies the public org.gnome.Shell.Screenshot interface used
+# by isolated child component evidence capture; no host screenshot tool or
+# desktop-session access is used.
+
 ui_venv="$script_dir/.venv/onpc-ui-tests"
 "/usr/bin/python3" -m venv --system-site-packages "$ui_venv"
 "$ui_venv/bin/python" -m pip install --disable-pip-version-check --no-deps \

@@ -10,6 +10,12 @@ onpc_preview_configure "$child_dir" "$preview_root"
 trap onpc_preview_cleanup EXIT HUP INT TERM
 onpc_preview_require_dependencies
 onpc_preview_prepare_environment
+# Mutter Devkit requires a PipeWire context.  Keep it, the session bus, and
+# accessibility registry private to this disposable preview so it cannot
+# connect to or alter the developer's desktop services.
+onpc_preview_start_private_bus
+onpc_preview_start_accessibility
+onpc_preview_start_pipewire
 
 echo 'Starting child preview in a nested GNOME Shell. Edit child files to reload.'
 while true; do

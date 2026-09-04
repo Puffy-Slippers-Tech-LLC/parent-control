@@ -24,6 +24,9 @@ class ChildPreviewTests(unittest.TestCase):
 
         self.assertIn('source "$child_dir/preview-orchestration.sh"', wrapper)
         self.assertIn("onpc_preview_prepare_environment", wrapper)
+        self.assertIn("onpc_preview_start_private_bus", wrapper)
+        self.assertIn("onpc_preview_start_accessibility", wrapper)
+        self.assertIn("onpc_preview_start_pipewire", wrapper)
         self.assertIn("onpc_preview_start", wrapper)
         self.assertIn("onpc_preview_record_mutter_devkit", wrapper)
         self.assertIn("onpc_preview_wait_for_reload", wrapper)
@@ -34,6 +37,7 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn('"$onpc_preview_source_dir"/*.mjs', orchestration)
         self.assertNotIn('gnome-shell --nested', wrapper)
         self.assertIn('--child-overlay', orchestration)
+        self.assertIn("onpc_preview_require_accessibility_registry", orchestration)
 
     def test_environment_and_command_construction_are_explicit(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -50,7 +54,7 @@ class ChildPreviewTests(unittest.TestCase):
             result.stdout.splitlines(),
             [
                 f"{root}/logs",
-                "dbus-run-session -- gnome-shell --devkit --wayland --force-animations",
+                "dbus-run-session -- gnome-shell --devkit --wayland --virtual-monitor 1280x720 --force-animations",
             ],
         )
 
@@ -100,13 +104,13 @@ class ChildPreviewTests(unittest.TestCase):
                 "onpc_preview_prepare_environment; "
                 "extension=\"$XDG_DATA_HOME/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/extension.js\"; "
                 "test -f \"$extension\"; test ! -L \"$extension\"; "
-                "printf \"%s\\n\" \"$XDG_CACHE_HOME\" \"$XDG_STATE_HOME\" \"$XDG_RUNTIME_DIR\"'"
+                "printf \"%s\\n\" \"$XDG_CACHE_HOME\" \"$XDG_STATE_HOME\" \"$XDG_RUNTIME_DIR\" \"$TMPDIR\"'"
             )
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.splitlines(),
-            [f"{runtime}/cache", f"{runtime}/state", f"{runtime}/runtime"],
+            [f"{runtime}/cache", f"{runtime}/state", f"{runtime}/runtime", f"{runtime}/tmp"],
         )
 
     def test_private_bus_shell_command_does_not_create_a_second_bus(self):
@@ -120,8 +124,14 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.strip(),
-            "gnome-shell --devkit --wayland --force-animations",
+            "gnome-shell --devkit --wayland --virtual-monitor 1280x720 --force-animations",
         )
+
+    def test_private_bus_uses_the_preview_runtime_socket(self):
+        orchestration = (ROOT / "child" / "preview-orchestration.sh").read_text()
+
+        self.assertIn('socket_path="$onpc_preview_root/runtime/session-bus"', orchestration)
+        self.assertIn('--address="$onpc_preview_bus_address"', orchestration)
 
     def test_readiness_timeout_reports_generation_and_log(self):
         result = self.run_orchestration(
@@ -170,6 +180,8 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("OH_NO_PARENT_CONTROL_REQUEST_APP", extension)
         self.assertIn("if (previewStartsWithRequestOpen()) {", extension)
         self.assertIn("'indicator-interaction'", preview_mode)
+        self.assertIn("previewGenerationMarker", extension)
+        self.assertIn("'generation-one'", preview_mode)
 
     def test_child_invokes_the_shared_kiosk_request_gui(self):
         extension = (ROOT / "child" / "extension.js").read_text()
@@ -238,6 +250,42 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("_press_key(input_backend, X_KEYCODE_SPACE)", interaction)
         self.assertNotIn(".oh-no-parent-control-content {", stylesheet)
         self.assertNotIn(".oh-no-parent-control-choice {", stylesheet)
+
+    def test_request_icon_uses_the_product_logo(self):
+        branding = (ROOT / "child" / "branding.js").read_text()
+        extension = (ROOT / "child" / "extension.js").read_text()
+        indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
+        stylesheet = (ROOT / "child" / "stylesheet.css").read_text()
+
+        self.assertIn("export function appLogoPath(extension)", branding)
+        self.assertIn("app_logo.png", branding)
+        self.assertIn("appLogoPath(this)", extension)
+        self.assertIn("Gio.FileIcon", indicator)
+        self.assertIn("screen-time-request-logo", indicator)
+        self.assertNotIn("hourglass-symbolic", indicator)
+        self.assertNotIn("screen-time-request-plus", indicator)
+        self.assertIn(".screen-time-request-logo {", stylesheet)
+        self.assertIn("icon-size: 20px;", stylesheet)
+        self.assertIn("icon-shadow:", stylesheet)
+        self.assertNotIn(".screen-time-request-hourglass", stylesheet)
+        self.assertNotIn(".screen-time-request-plus", stylesheet)
+
+    def test_component_preview_uses_only_private_payload_and_screenshot_evidence(self):
+        orchestration = (ROOT / "child" / "preview-orchestration.sh").read_text()
+        runner = (ROOT / "tests" / "ui" / "run-child-shell-lifecycle").read_text()
+        screenshot = (ROOT / "tests" / "ui" / "child_shell_screenshot.py").read_text()
+
+        self.assertIn("ONPC_PREVIEW_EXTENSION_SOURCE_DIR", orchestration)
+        self.assertIn("onpc_preview_install_payload", orchestration)
+        self.assertIn("controlled-extension", runner)
+        self.assertIn("onpc_preview_wait_for_reload", runner)
+        self.assertIn("probe_generation generation-one", runner)
+        self.assertIn("Watches established", orchestration)
+        self.assertIn("child preview reload watcher", orchestration)
+        self.assertIn("onpc_preview_record_owned_child_process", orchestration)
+        self.assertIn("exec {event_fd}<>", orchestration)
+        self.assertIn("org.gnome.Shell.Screenshot", screenshot)
+        self.assertIn('"Screenshot"', screenshot)
 
     def test_request_icon_spins_during_the_final_ten_seconds(self):
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()

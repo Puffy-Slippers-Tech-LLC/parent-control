@@ -7,6 +7,10 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
     # Keep this across upgrades and remove/reinstall until postrm restores it.
     baseline=/var/lib/oh-no-parent-control/fapolicyd-before-install
     if [ ! -d "$baseline" ]; then
+        if [ "$1" = upgrade ]; then
+            echo 'oh-no-parent-control: original execution-policy baseline is missing; refusing to snapshot installed product policy' >&2
+            exit 1
+        fi
         baseline_pending=/var/lib/oh-no-parent-control/fapolicyd-before-install.pending
         install -d -o root -g root -m 0700 "$baseline_pending"
         for policy_file in compiled.rules compiled.rules.prev; do

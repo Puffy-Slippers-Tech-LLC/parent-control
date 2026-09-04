@@ -1,0 +1,26 @@
+.TH OH-NO-PARENT-CONTROL-PARENT 1 "September 2026" "Oh No! Parent Control" "User Commands"
+.SH NAME
+oh-no-parent-control-parent \- configure controls for managed users
+.SH SYNOPSIS
+.B oh-no-parent-control-parent
+.RI [ options ]
+.SH DESCRIPTION
+.B oh-no-parent-control-parent
+starts the administrator application for screen-time and application-access
+policy. The application authorizes management operations through the
+privileged Oh No! Parent Control broker.
+.SH OPTIONS
+.TP
+.B \-\-preview
+Render representative fixture data without contacting privileged services.
+.TP
+.BR \-h , " " \-\-help
+Show command-line help and exit.
+.SH FILES
+.TP
+.I /var/lib/oh-no-parent-control/preferences/
+Root-owned per-child preferences maintained by the broker.
+.SH SEE ALSO
+.BR oh-no-parent-control (1)
+.SH AUTHOR
+Puffy Slippers Tech LLC.

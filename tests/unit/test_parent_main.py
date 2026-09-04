@@ -41,6 +41,14 @@ class FakeSensitiveWidget:
         self.sensitive = sensitive
 
 
+class FakeVisibleWidget:
+    def __init__(self):
+        self.visible = False
+
+    def set_visible(self, visible):
+        self.visible = visible
+
+
 class FakeToggleButton:
     def __init__(self, active):
         self.active = active
@@ -57,6 +65,7 @@ class ParentWindowHarness:
         self._users = []
         self._account_changed_handler = 1
         self._account = FakeDropDown(self)
+        self._no_users_message = FakeVisibleWidget()
         self.load_count = 0
         self.apps_load_uids = []
         self.toasts = []
@@ -174,6 +183,18 @@ class ParentWindowTests(unittest.TestCase):
                 ("conditional", "dialog-warning-symbolic", "policy-soft-blocked"),
             ],
         )
+
+    def test_parent_title_bar_uses_the_shared_product_logo(self):
+        source = inspect.getsource(ParentWindow._build)
+        stylesheet = (
+            Path(__file__).resolve().parents[2]
+            / "parent/oh_no_parent_control_parent/style.css"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('branding_asset_path("app_logo_gnome_launcher.png")', source)
+        self.assertIn("title_logo.set_pixel_size(48)", source)
+        self.assertIn('css_classes=["parent-title-brand"]', source)
+        self.assertIn(".parent-title-brand image {", stylesheet)
 
     def test_match_rule_states_use_the_new_rule_icons_and_selected_button_classes(self):
         self.assertEqual(
@@ -594,6 +615,7 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(window.load_count, 0)
         self.assertEqual(window.apps_load_uids, [])
+        self.assertTrue(window._no_users_message.visible)
         self.assertEqual(window.toasts, ["No interactive non-admin users were found"])
 
     def test_app_settings_stay_enabled_when_daily_limit_is_off(self):

@@ -47,6 +47,14 @@ class PackageActivationTests(unittest.TestCase):
             "none",
         )
 
+    def test_uninstall_only_code_needs_no_installed_update_activation(self):
+        for path in (
+            "usr/libexec/oh-no-parent-control-uninstall",
+            "usr/lib/oh-no-parent-control/broker/oh_no_parent_control/uninstall.py",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(activation_for(path), "none")
+
     def test_execution_rule_change_reloads_with_broker_restart(self):
         self.assertEqual(
             activation_for(
@@ -110,6 +118,10 @@ class PackageActivationTests(unittest.TestCase):
             "reboot",
         )
         self.assertEqual(
+            activation_for("usr/libexec/oh-no-parent-control-login-check"),
+            "reboot",
+        )
+        self.assertEqual(
             activation_for(
                 "usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so"
             ),
@@ -139,6 +151,21 @@ class PackageActivationTests(unittest.TestCase):
         self.assertEqual(
             activation_for(
                 "usr/libexec/oh-no-parent-control-execution-policy-ready"
+            ),
+            "reboot",
+        )
+
+    def test_pre_display_manager_extension_restore_requires_reboot(self):
+        self.assertEqual(
+            activation_for(
+                "usr/lib/systemd/system/"
+                "oh-no-parent-control-restore-extension-state.service"
+            ),
+            "reboot",
+        )
+        self.assertEqual(
+            activation_for(
+                "usr/libexec/oh-no-parent-control-preserve-extension-state"
             ),
             "reboot",
         )

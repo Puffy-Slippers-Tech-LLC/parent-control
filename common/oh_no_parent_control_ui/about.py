@@ -8,12 +8,17 @@ from urllib.parse import quote
 
 import gi
 
+gi.require_version("Gdk", "4.0")
+gi.require_version("Graphene", "1.0")
+gi.require_version("Gsk", "4.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, Gtk
+from gi.repository import Gdk, Gio, Graphene, Gsk, Gtk
 
 
 _INSTALLED_DATA_DIR = Path("/usr/share/oh-no-parent-control")
 _SOURCE_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+_ABOUT_LOGO_WIDTH = 126
+_ABOUT_LOGO_HEIGHT = 128
 
 
 def _data_dir() -> Path:
@@ -86,6 +91,43 @@ def _detail_row(icon_name: str | None, label: str, value: str, uri: str | None, 
     return row
 
 
+class _AboutLogo(Gtk.Widget):
+    """Render the full-resolution launcher artwork at the original logo size."""
+
+    __gtype_name__ = "OhNoAboutLogo"
+
+    def __init__(self):
+        super().__init__()
+        self._texture = Gdk.Texture.new_from_filename(
+            str(branding_asset_path("app_logo_gnome_launcher.png")),
+        )
+
+    def do_measure(self, orientation, _for_size):
+        size = (_ABOUT_LOGO_WIDTH if orientation == Gtk.Orientation.HORIZONTAL
+                else _ABOUT_LOGO_HEIGHT)
+        return size, size, -1, -1
+
+    def do_snapshot(self, snapshot):
+        width = self.get_width()
+        height = self.get_height()
+        if width <= 0 or height <= 0:
+            return
+        texture_width = self._texture.get_width()
+        texture_height = self._texture.get_height()
+        scale = min(width / texture_width, height / texture_height)
+        paint_width = texture_width * scale
+        paint_height = texture_height * scale
+        bounds = Graphene.Rect().init(
+            (width - paint_width) / 2,
+            (height - paint_height) / 2,
+            paint_width,
+            paint_height,
+        )
+        snapshot.append_scaled_texture(
+            self._texture, Gsk.ScalingFilter.TRILINEAR, bounds,
+        )
+
+
 class AboutDialog(Gtk.Window):
     """A modal product About dialog.
 
@@ -104,7 +146,7 @@ class AboutDialog(Gtk.Window):
                           margin_top=18, margin_bottom=18,
                           margin_start=24, margin_end=24)
 
-        logo = Gtk.Picture.new_for_filename(str(branding_asset_path("app_logo.png")))
+        logo = _AboutLogo()
         logo.set_halign(Gtk.Align.CENTER)
         logo.set_margin_top(16)
         content.append(logo)

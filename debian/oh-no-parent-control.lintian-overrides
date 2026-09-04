@@ -1,0 +1,3 @@
+# The parent launcher is deliberately administrator-only. postinst changes its
+# group from the package-safe root group to the target machine's sudo group.
+oh-no-parent-control: non-standard-file-perm 0640 != 0644 [usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop]

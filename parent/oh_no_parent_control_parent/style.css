@@ -23,6 +23,11 @@ button.about-link > label {
   font-weight: 750;
 }
 
+.parent-title-brand image {
+  min-width: 48px;
+  min-height: 48px;
+}
+
 .parent-header windowcontrols button {
   min-width: 40px;
   min-height: 40px;

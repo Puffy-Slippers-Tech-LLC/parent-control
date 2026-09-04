@@ -3,4 +3,4 @@ Default: yes
 Priority: 1000
 Account-Type: Additional
 Account:
- required pam_exec.so quiet /usr/local/sbin/oh-no-parent-control-login-check
+ required pam_exec.so quiet /usr/libexec/oh-no-parent-control-login-check

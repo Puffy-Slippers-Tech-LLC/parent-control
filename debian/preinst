@@ -5,7 +5,7 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
     install -d -o root -g root -m 0700 /var/lib/oh-no-parent-control
     touch /var/lib/oh-no-parent-control/migration-in-progress
     if systemctl is-active --quiet oh-no-parent-control-broker.service; then
-        systemctl stop oh-no-parent-control-broker.service
+        deb-systemd-invoke stop oh-no-parent-control-broker.service >/dev/null
     fi
     touch /var/lib/oh-no-parent-control/package-activation-pending
     if [ "$1" = upgrade ] && [ -f /usr/share/oh-no-parent-control/package-activation.json ]; then
@@ -16,5 +16,7 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
         rm -f /var/lib/oh-no-parent-control/previous-package-activation.json
     fi
 fi
+
+#DEBHELPER#
 
 exit 0

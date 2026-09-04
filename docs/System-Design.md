@@ -428,8 +428,10 @@ reboot.
 /usr/libexec/oh-no-parent-control-migrate-state       saved-data migration runner
 /usr/libexec/oh-no-parent-control-session-limit-check PAM limit-state gate
 /usr/libexec/oh-no-parent-control-clear-session-runtime-max
+/usr/libexec/oh-no-parent-control-login-check         kiosk PAM service gate
 /usr/libexec/oh-no-parent-control-execution-policy-{ready,probe}
 /usr/libexec/oh-no-parent-control-preserve-extension-state
+/usr/libexec/oh-no-parent-control-uninstall            verified removal helper
 /usr/libexec/oh-no-parent-control-{provision,package-activation}
 /usr/lib/oh-no-parent-control/{broker,parent,kiosk,common}/
 /usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/
@@ -441,6 +443,31 @@ reboot.
 /usr/lib/systemd/system/{fapolicyd,display-manager}.service.d/
                                                        boot readiness ordering
 ```
+
+## Package removal lifecycle
+
+Debian package removal stops the broker before changing enforcement so its
+reconciliation loop cannot restore policy during the operation. While the
+packaged code and dependencies are still available, the removal helper finds
+the extant accounts named by securely owned preference records and disables the
+product extension, clears `LimitType`, `DailyLimit`, `ActiveExtension`, and
+`AppFilter`, verifies each result, and transactionally removes and reloads the
+generated fapolicyd policy. It attempts every managed account before reporting
+failure, and package removal stops if any final state cannot be verified.
+A mode-`0600` transient snapshot records the exact derived values before the
+first write. If `prerm` is aborted, `postinst abort-remove` restores and
+verifies that snapshot before debhelper restarts the still-installed service.
+The snapshot is removed after either a successful rollback or successful
+package removal.
+
+After dpkg removes the payload, `postrm` removes generated D-Bus and machine
+configuration, the product's security-integration conffiles, transient package
+markers, and the dedicated kiosk account only when a root-owned marker proves
+that this package created the unchanged account identity. It reloads D-Bus and
+fapolicyd after their policy files disappear. Canonical child preferences and
+redacted product logs are deliberately retained for a later reinstall or
+administrator-directed archival; neither can enforce policy without the
+cleared derived state.
 
 ## Logging
 

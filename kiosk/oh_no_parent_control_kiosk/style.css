@@ -590,12 +590,20 @@ button.oh-no-parent-control-request-button:disabled {
   min-height: 240px;
 }
 
+.oh-no-parent-control-secondary-page.oh-no-parent-control-compact-result {
+  min-height: 144px;
+}
+
 .oh-no-parent-control-page-title {
   color: rgba(255, 255, 255, 0.98);
   font-family: "Monocraft", "Ubuntu Mono", monospace;
   font-size: 1.28em;
   font-weight: 700;
-  /* Monocraft's capitals paint above Pango's nominal line box. Reserve that
-   * ink space so MetalBoard's foreground rail cannot cover the result title. */
-  padding-top: 5px;
+  /* Monocraft's capitals paint substantially above Pango's nominal line box
+   * at this larger size. Give the label its own full-height content area so
+   * GTK does not clip the upper pixels before MetalBoard composites it. The
+   * margin keeps the complete glyph below the board's foreground top rail. */
+  min-height: 24px;
+  margin-top: 8px;
+  padding: 12px 0 3px;
 }

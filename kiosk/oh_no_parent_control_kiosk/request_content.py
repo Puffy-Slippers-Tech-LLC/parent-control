@@ -315,7 +315,7 @@ class RequestContent(MetalBoard):
         filter_row.set_margin_end(10)
         filter_inner = Gtk.Box(spacing=12)
         filter_icon = PixelIcon(
-            SHIELD, display_size=20, label="Allow soft blocked apps",
+            SHIELD, display_size=20, label="",
         )
         filter_icon.add_css_class("oh-no-parent-control-filter-icon")
         filter_inner.append(filter_icon)
@@ -328,7 +328,7 @@ class RequestContent(MetalBoard):
         self._allow_soft = Gtk.Switch(valign=Gtk.Align.CENTER)
         describe_control(
             self._allow_soft, "Allow soft blocked apps",
-            "Include temporarily allowed soft blocked applications with this request.",
+            "Choose whether this request temporarily allows soft blocked apps.",
         )
         self._allow_soft.set_can_target(False)
         self._allow_soft.connect("notify::active", self._emit_values_changed)
@@ -715,7 +715,7 @@ class RequestContent(MetalBoard):
         """Apply request availability while always preserving the exit path."""
         request_available = (
             self._controls_enabled and self._ready and
-            self._screen_time_limit_enabled is not None
+            self._screen_time_limit_enabled is True
         )
         time_limit_enabled = self._screen_time_limit_enabled is True
         self._request.set_sensitive(request_available)

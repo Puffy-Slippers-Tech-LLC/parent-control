@@ -1,17 +1,25 @@
 #!/usr/bin/make -f
 
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
 %:
 	dh $@
 
 override_dh_auto_build:
 
+override_dh_clean:
+	dh_clean -X.venv
+
 override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	$(MAKE) check
+else
+	@:
+endif
 
 override_dh_auto_install:
 	$(MAKE) _install-product-files DESTDIR=$(CURDIR)/debian/oh-no-parent-control PREFIX=/usr SYSCONFDIR=/etc
 
 override_dh_fixperms:
 	dh_fixperms
-	chown root:sudo debian/oh-no-parent-control/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
 	chmod 0640 debian/oh-no-parent-control/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop

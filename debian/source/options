@@ -1,0 +1,12 @@
+tar-ignore = .coverage
+tar-ignore = .agents
+tar-ignore = .codex
+tar-ignore = .git
+tar-ignore = .hypothesis
+tar-ignore = .pytest_cache
+tar-ignore = .venv
+tar-ignore = artifacts
+tar-ignore = __pycache__
+tar-ignore = *.py[cod]
+tar-ignore = *.zip
+tar-ignore = schemas/gschemas.compiled

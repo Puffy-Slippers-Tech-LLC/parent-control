@@ -58,6 +58,59 @@ checks and all three previews:
 This does not install the product or configure accounts, services, or Polkit.
 Build and install the Debian package to deploy the product to a machine.
 
+### Restore the publisher OpenPGP key
+
+The release-signing backup is stored outside this repository in
+`[GNU-Private-Key-Backup-Folder]` and contains:
+
+- `oh-no-parent-control-private-key.asc`, the passphrase-protected private-key
+  export;
+- `4449F02C3E57F8215261A57958109B593907EFDE.rev`, the revocation certificate;
+- `dot-gnupg.7z`, an encrypted backup of the complete original GnuPG directory.
+
+Keep this folder and its passphrase in protected storage. Never copy any of
+these files into the repository. On a clean development machine, run
+`./setup.sh` first, then restore the signing key from the portable armored
+export:
+
+```sh
+GNU_PRIVATE_KEY_BACKUP_FOLDER='[GNU-Private-Key-Backup-Folder]'
+SIGNING_KEY_FINGERPRINT='4449F02C3E57F8215261A57958109B593907EFDE'
+
+gpg --import \
+    "$GNU_PRIVATE_KEY_BACKUP_FOLDER/oh-no-parent-control-private-key.asc"
+install -d -m 700 "$HOME/.gnupg/openpgp-revocs.d"
+install -m 600 \
+    "$GNU_PRIVATE_KEY_BACKUP_FOLDER/$SIGNING_KEY_FINGERPRINT.rev" \
+    "$HOME/.gnupg/openpgp-revocs.d/$SIGNING_KEY_FINGERPRINT.rev"
+gpg --list-secret-keys --keyid-format LONG "$SIGNING_KEY_FINGERPRINT"
+gpg --fingerprint "$SIGNING_KEY_FINGERPRINT"
+```
+
+Verify that the final two commands show the exact fingerprint above and a
+`sec` entry. The imported private key retains its existing passphrase. Follow
+[docs/Publishing.md](docs/Publishing.md) to configure Git and register the
+public key with Launchpad.
+
+`dot-gnupg.7z` is a disaster-recovery alternative to the portable import. It
+contains the entire original keyring, so restore it only on a clean machine
+where `$HOME/.gnupg` does not exist. Inspect the archive before extraction and
+confirm that it contains one top-level `.gnupg/` directory:
+
+```sh
+GNU_PRIVATE_KEY_BACKUP_FOLDER='[GNU-Private-Key-Backup-Folder]'
+
+test ! -e "$HOME/.gnupg"
+7z l "$GNU_PRIVATE_KEY_BACKUP_FOLDER/dot-gnupg.7z"
+7z x "$GNU_PRIVATE_KEY_BACKUP_FOLDER/dot-gnupg.7z" -o"$HOME"
+chmod -R go-rwx "$HOME/.gnupg"
+gpg --list-secret-keys --keyid-format LONG \
+    '4449F02C3E57F8215261A57958109B593907EFDE'
+```
+
+Do not use the archive path after importing into an existing keyring: archive
+extraction is a whole-directory recovery and can replace newer GnuPG state.
+
 The repository is organized by runtime component:
 
 - `parent/` contains the administrator application.

@@ -37,20 +37,52 @@ on failure; the snippets are not an unattended publishing script.
 
 5. Open the Launchpad account's **OpenPGP keys** page, import that fingerprint,
    decrypt Launchpad's confirmation email, and follow its confirmation link.
+
+   If Thunderbird cannot decrypt the email, use GnuPG directly on the computer
+   and under the OS user account where you created or imported the private key
+   in step 3. Thunderbird normally uses its own key storage; creating a key
+   with `gpg` does not automatically make it available to Thunderbird.
+
+   Copy the encrypted block from `-----BEGIN PGP MESSAGE-----` through
+   `-----END PGP MESSAGE-----`, including both marker lines, into a plain-text
+   file named `launchpad-confirmation.asc` in your Downloads directory. If the
+   email presents the encrypted payload as an attachment instead, save that
+   attachment and use its actual path below. Decrypt the saved payload:
+
+   ```sh
+   gpg --decrypt "$HOME/Downloads/launchpad-confirmation.asc"
+   ```
+
+   Enter the key's passphrase if prompted, then open the confirmation link
+   printed in the terminal and complete confirmation in Launchpad. If GnuPG
+   reports `decryption failed: No secret key`, check
+   `gpg --list-secret-keys --keyid-format LONG` and verify that the private key
+   corresponding to the fingerprint submitted in step 5 is available to this
+   OS user. Use the computer holding that key or restore it from your secure
+   backup; downloading the public key from the keyserver cannot supply the
+   private key needed for decryption.
+
+   See [Launchpad's key-import instructions](https://ubuntu.com/docs/launchpad/user/how-to/import-openpgp-key/)
+   and [Thunderbird's OpenPGP documentation](https://support.mozilla.org/en-US/kb/openpgp-thunderbird-howto-and-faq).
 6. Create a public PPA named `oh-no-parent-control` from the Launchpad web UI.
    Record the exact owner name shown in its URL. For a team-owned PPA, use the
    team's owner name and ensure the signing account has upload permission.
    Enable only architectures on which this application will be supported;
    `amd64` is the initial supported package architecture.
-7. Configure the release checkout to use the same confirmed identity and key,
-   substituting the publisher's values:
+7. Run development setup in the release checkout to configure its public Git
+   identity and OpenPGP signing key and install the publishing tools:
 
    ```sh
-   git config user.name 'PUBLISHER NAME'
-   git config user.email 'CONFIRMED_LAUNCHPAD_EMAIL'
-   git config gpg.format openpgp
-   git config user.signingkey 'FULL_OPENPGP_FINGERPRINT'
+   ./setup.sh
    ```
+
+   Setup configures `Puffy Slippers Tech LLC`, `dev@tech.puffyslippers.com`,
+   OpenPGP signing, and fingerprint
+   `4449F02C3E57F8215261A57958109B593907EFDE` only for this checkout.
+   Confirm the public development email on Launchpad and register that key;
+   keep the private administrative email out of Git and package metadata.
+   Setup does not import the private key. It must be available to the OS user
+   creating the signed tags and source upload.
 
 Canonical's current setup instructions are:
 <https://documentation.ubuntu.com/project/contributors/new-package/upload-packages-to-a-ppa/>.

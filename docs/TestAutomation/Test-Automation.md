@@ -3,10 +3,14 @@
 ## Summary
 
 - Use a layered test system. `pytest` owns host-safe unit, property, contract,
-  and component tests; `autopkgtest` owns installed Debian-package and operating-
+  and component tests plus guarded installed Debian-package and operating-
   system integration tests; `os-autoinst` with its QEMU backend owns graphical
   end-to-end scenarios across installation, reboot, GDM, parent, child, kiosk,
   lock, and unlock screens.
+- User-approved Task 13B revision (2026-09-04): use the guarded pytest system
+  runner instead of autopkgtest, whose stock cleanup conflicts with the
+  project's process-ownership rule. Later system tasks consume this runner;
+  any older autopkgtest wording in pending task sections is superseded.
 - Preserve the existing guarded VM provisioning and redacted artifact collection.
   Do not turn the existing SSH/libvirt harness into a custom screen automation
   framework.
@@ -85,7 +89,7 @@ requiring a model-switch pause. Preserve completed tasks and completion records.
 - [x] Task 12B — Add host-only pre-install baseline capture
 - [x] Task 12C — Capture and verify the prepared VM baseline
 - [x] Task 13A — Build reproducible package and fixture artifacts
-- [ ] Task 13B — Add the guarded autopkgtest QEMU runner and install smoke
+- [x] Task 13B — Add the guarded pytest system runner and install smoke
 - [ ] Task 14 — Test installed broker identity and authorization boundaries
 - [ ] Task 15A — Test installed catalog and application launch enforcement
 - [ ] Task 15B — Test process confinement and execution-policy rollback
@@ -116,6 +120,10 @@ requiring a model-switch pause. Preserve completed tasks and completion records.
 - [ ] Task 28A — Install CI jobs and the serial release command
 - [ ] Task 28B — Audit executable traceability and pass the release gate
 - [ ] Task 28C — Finish the operator runbook and evidence index
+
+Task 13B acceptance is complete. Reuse its
+[accepted handoff](Task-13.md#accepted-handoff--task-13b-completed-2026-09-04)
+and completion record below when beginning Task 14 in a later session.
 
 ## Rules for every task
 
@@ -181,6 +189,10 @@ requiring a model-switch pause. Preserve completed tasks and completion records.
     a deeper defect, preserve evidence and reassess the affected implementation
     work; never lower acceptance criteria to fit a cheaper model. All tasks
     remain mandatory regardless of the model used.
+18. 18. **IMPORTANT RULE**: For a long running task, whenever it's been running over 10 minutes, if there's a clean checkpoint to interrupt the task,
+    update the current task as clean handoff book, update recommended model and effort as appropriate in the current task. complex and hard ones need advanced model
+     and higher efforts, simpler ones need simpler model and lower effort to save tokens, remove anything that's completed and no longer needed
+    for the future, and pause the task, and tell the user that you wrote handoff, and they can quit the session and start a new one.
 
 ## Requirement-ID and traceability maintenance
 
@@ -213,8 +225,9 @@ The completed plan exposes these stable entry points:
   at the current plan stage, and host-safe unit tests.
 - `make check-component`: host-safe private-D-Bus, hermetic GTK, JavaScript, and
   nested-shell component tests.
-- `make check-system VM_IMAGE=<explicit-path>`: installed-package tests in a
-  guarded disposable QEMU overlay.
+- `make check-system ARTIFACT_DIR=<13A-output>`: installed-package tests on the
+  fixed existing libvirt/QEMU VM, reset using its retained Task 12 snapshot.
+  `VM_IMAGE` is refused; this workflow creates no VM copy or overlay.
 - `make check-e2e VM_IMAGE=<explicit-path> SCENARIO=<explicit-name>`: one
   graphical os-autoinst scenario in a disposable QEMU overlay.
 - `make check-release VM_IMAGE=<explicit-path>`: the final serial release gate,
@@ -288,7 +301,7 @@ the recommendations in those sections.
 - [x] [Task 12B — Add host-only pre-install baseline capture](Task-12B.md) — `gpt-6-astra` / `high`
 - [x] [Task 12C — Capture and verify the prepared VM baseline](Task-12C.md) — `gpt-5.6-terra` / `medium`
 - [x] [Task 13A — Build reproducible package and fixture artifacts](Task-13.md#task-13a) — `gpt-5.6-terra` / `medium`
-- [ ] [Task 13B — Add the guarded autopkgtest QEMU runner and install smoke](Task-13.md#task-13b) — `gpt-6-astra` / `high`
+- [x] [Task 13B — Add the guarded pytest system runner and install smoke](Task-13.md#task-13b) — `gpt-5.6-terra` / `medium` for remaining acceptance work
 - [ ] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md) — `gpt-6-astra` / `high`
 - [ ] [Task 15A — Test installed catalog and application launch enforcement](Task-15.md#task-15a) — `gpt-5.6-terra` / `high`
 - [ ] [Task 15B — Test process confinement and execution-policy rollback](Task-15.md#task-15b) — `gpt-6-astra` / `high`
@@ -457,3 +470,44 @@ Append one entry only after its checklist item has been changed to `[x]`:
 - Handoff: Task 13B consumes a completed `artifact-manifest.json`, verifies the recorded package and fixture digests before guest transfer, and uses `package/<named .deb>` plus `fixtures/`. The Flatpak repository's generated delivery summary and `.flatpak` container include host-clock metadata; the manifest's fixture digest covers the stable application/runtime payload and still requires the generated bundle to exist. The builder records `DEB_BUILD_OPTIONS=nocheck` because Task 12's host-controller tests require the fixed development-checkout path; `make check` executes them from that path separately.
 - Artifacts: verified outputs remain at `/tmp/onpc-task13a-artifacts/final2-first/` and `/tmp/onpc-task13a-artifacts/final2-second/` for this session.
 - Commit: not committed
+
+### Task 13B completed — 2026-09-04
+
+- Result: Accepted the guarded pytest installed-package runner on the existing
+  `ubuntu26.04` VM. The exact package installed successfully; both pre-reboot
+  cases and both post-reboot cases passed with no failures, errors or skips.
+  SSH readiness recovered through reboot; systemd boot completion preceded
+  service assertions. First-phase evidence was retrieved before reboot.
+- Preservation: Aggregate `outcome=passed`, `category=all-checks-passed`,
+  `cleanup_phase=complete`. The runner verified snapshot metadata, immutable
+  backing digests, product-free offline inspection and unchanged host product/PAM
+  fingerprints, restored prior persistent domain XML, and left the VM off.
+  A separate `virsh --connect qemu:///system domstate ubuntu26.04` confirmed
+  `shut off`. The historical failed attempt remains preserved.
+- Verification: `/usr/bin/python3 -B -m pytest tests/unit/test_system_runner_cleanup_safety.py tests/unit/test_prepare_host_cleanup_safety.py -q`
+  (18 passed in isolation), then `/usr/bin/python3 -B -m pytest tests/unit/test_system_runner.py tests/unit/test_vm_transport.py tests/unit/test_system_guest.py -q`
+  (75 passed); `make build-test-artifacts OUTPUT_DIR=/tmp/onpc-task13b-acceptance-ndbI8L/input`;
+  `pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=/tmp/onpc-task13b-acceptance-ndbI8L/input`
+  (exit 0, four guest cases passed); `make check` (667 unit/contract and 17
+  component tests passed, no bytecode permission warning); `git diff --check`.
+- Artifacts: `/tmp/onpc-task13b-acceptance-ndbI8L/input/`; evidence:
+  `/tmp/onpc-system-g33ljzev/evidence/` contains aggregate JSON/xUnit/TAP and
+  `guest/installed.xml`, `guest/rebooted.xml`, plus redacted diagnostics.
+  Package SHA-256 `8ffcb30b038a11b50fdf289fcffc2ff13130baa810e1171b16dc83d100755e8d`;
+  fixture SHA-256 `df246e00b5300837ce34bbb67ad73f843fcd3a64bc31d3fa85b707d69aba271a`;
+  baseline provenance SHA-256 `cffe72b4c77004a010d2b0341b415853c0afce838efe4762bb84a52665ca0eb5`;
+  source digest `c05fb02fd93f886426503b3110e99499df6fdaefd4b52e13d263f860983cc5e8`,
+  revision `6f0bcaa5811678090b6a42e762d04c1749c77741` with uncommitted changes.
+- Handoff: Reuse `system_runner.Lease` and Task 12's lock/provenance for the
+  fixed VM, `vm_transport.Transport` for pinned SSH and bounded readiness/reboot,
+  `owned_commands.Commands` for explicitly recorded process cleanup,
+  `system_guest.guard` for guest identity/digest checks, and `stage_assets` for
+  frozen inputs and transfer hashes. Guest pytest uses isolated collection;
+  all phases must supply complete unskipped evidence. Full contracts and focused
+  selectors are in `tests/integration/README.md`. Task 14 owns real installed
+  broker identity/authorization tests; no later task was executed.
+- Model review: Remaining acceptance was recommended for Terra/medium;
+  continuation was user-authorized in this GPT-6 session. Exact deployment
+  variant/reasoning setting is unavailable; this is not evidence of a Terra run.
+- Commit: not committed. No product runtime or saved-data changes; test-only
+  integration activation is `none`.

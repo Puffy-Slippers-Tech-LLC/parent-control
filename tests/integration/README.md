@@ -183,6 +183,121 @@ application and runtime payload. Flatpak's generated delivery summary and its
 bundle container carry a host-clock timestamp, so the builder verifies the
 bundle is present without treating that container timestamp as package input.
 
+### Installed-package runner (Task 13B)
+
+Build the Task 13A artifact without installing it, then run the host controller
+from a root shell at the development checkout:
+
+```sh
+make check-system ARTIFACT_DIR=/tmp/onpc-task13a-artifacts/final2-first
+```
+
+From a graphical administrator session, use
+`pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=<output>`.
+Both the Makefile entry point and direct controller execution disable Python
+bytecode writes so root runs cannot leave private caches in the checkout.
+Before installed-system assertions, the guest waits up to 600 seconds for
+`systemctl is-system-running --wait` to report boot completion. SSH availability
+alone does not establish fapolicyd or display-manager readiness. A degraded
+boot still undergoes every required service assertion; no service is restarted
+by this wait and no failed assertion is retried.
+Development dependencies are in `setup.sh`; bootstrap installs the pinned
+`python3-pytest=9.0.2-4` and `openssh-server=1:10.2p1-2ubuntu3.6` only in the
+reset guest. Before installation, guarded offline libguestfs access normalizes
+official Ubuntu archive/security URIs in the prepared guest's Deb822
+`ubuntu.sources` to `https://archive.ubuntu.com/ubuntu/`. Suites, components,
+signing settings and unrelated repositories are preserved. This avoids the
+unreachable regional HTTP mirror; APT authentication stays enabled. The handle
+closes before `virt-customize` installs tools, and a separate read-only handle
+then obtains the pinned SSH host key. Snapshot cleanup restores the original
+APT sources as well as all other guest changes.
+
+This command shuts down the existing `ubuntu26.04` VM, discards changes since
+`oh-no-parent-control-baseline`, and removes its writable `/Data` share and
+SPICE transfer channels before boot. It creates no replacement VM, disk copy or
+overlay. At the end, it restores the baseline and prior persistent domain XML
+and leaves the VM off. The named snapshot is retained unchanged.
+
+The host installs no product. The guest validates its root-private run marker,
+prepared machine identity distinct from the host, DMI domain UUID, Ubuntu
+release, absence of host shares, and package/transfer digests. Only after these
+checks does APT install the exact transferred `.deb`. Guest pytest checks
+installed version/content, file ownership/modes, private configuration, service
+readiness, real D-Bus activation, PAM, Polkit, session registration, generated
+and loaded execution rules, and first-install reboot markers. The host requests
+an actual reboot; a changed boot ID and a second pytest phase verify activation.
+A failed assertion is never retried, and skipped/missing tests cannot pass.
+The static broker is activated through its public system D-Bus service before
+readiness is asserted. Installed-file expectations include the Parent launcher's
+`root:sudo` restriction and Ubuntu fapolicyd's explicit tmpfiles assignment of
+its configuration tree to `root:fapolicyd`; other packaged files remain root-owned.
+
+The implementation contracts are:
+
+- `system_runner.Lease`: the existing Task 12 lock spans validation, reset,
+  bootstrap, tests and cleanup. VM cleanup is bound to the recorded UUID,
+  libvirt domain ID, run marker, disk identities and snapshot metadata.
+- `vm_transport.Transport`: pinned-key SSH, quoted argument transfer,
+  constrained archive extraction, bounded readiness and actual reboot. Fixed
+  read-only readiness probes wait through SSH connection/handshake failures
+  using the controller's libvirt timer events and one 330-second deadline.
+  Every probe revalidates VM identity; guest guard failures and a successfully
+  read but unchanged boot ID fail immediately. Installation and pytest calls
+  never repeat. The first phase's evidence is retrieved before reboot so a
+  later loss of SSH cannot erase its result.
+- `owned_commands.Commands`: the same host/guest command implementation;
+  interruption signals only pidfds opened for directly spawned children.
+  It never discovers signal targets by process name, environment, runtime path,
+  ancestry or a system-wide process scan.
+- `system_guest` and `tests/system/test_install_smoke.py`: guard, real APT
+  installation and guest pytest checks. The guest suite is excluded from
+  default host collection and runs with plugin autoload disabled and its own
+  pytest configuration.
+- `stage_assets`: a private frozen copy of the Task 13A package/fixture
+  manifest, verified canonical fixture payload, and exact transfer hashes for
+  all bytes, including Flatpak's variable container and the executed test code.
+
+Before any live system run, execute the cleanup prerequisite separately:
+
+```sh
+/usr/bin/python3 -m pytest tests/unit/test_system_runner_cleanup_safety.py tests/unit/test_prepare_host_cleanup_safety.py -q
+/usr/bin/python3 -m pytest tests/unit/test_system_runner.py tests/unit/test_vm_transport.py tests/unit/test_system_guest.py -q
+```
+
+The root-private `system-run.json` is separate from Task 12's immutable
+`phase.json`. An incomplete previous run is refused: preserve its state and
+artifacts for identity-checked recovery, without deleting state or signalling
+guessed processes. A changed VM, disk, or snapshot identity prevents cleanup
+from touching a replacement. Normal failure/interruption restores the owned
+guest and still reports a failed attempt.
+
+Every attempt retains a unique `/tmp/onpc-system-*/` directory. Its public
+`evidence/` contains aggregate `result.json`, xUnit `results.xml`, TAP
+`results.tap`, and redacted guest logs plus pytest `installed.xml` and
+`rebooted.xml`. Raw command diagnostics and the temporary SSH key remain
+root-private. Only diagnostic copies are redacted using the existing
+`guest/redact.py` helper; source logs and journals are read only.
+
+Results record the exact package SHA-256, stable fixture digest, and
+`baseline_provenance_sha256`. The last value hashes the finalized Task 12
+record, including preparation/source digests and snapshot identity; it is not a
+hash of the writable active QCOW2. Cleanup independently checks immutable
+backing hashes, snapshot metadata, and product-free offline inspection. Host
+product/PAM fingerprints are checked even after failure.
+
+Task 13B passed live acceptance on 2026-09-04: both pre-reboot and post-reboot
+phases passed (four cases, no skips), followed by verified baseline restoration,
+unchanged host product/PAM fingerprints, restored domain configuration and VM off.
+See its [accepted handoff](../../docs/TestAutomation/Task-13.md#accepted-handoff--task-13b-completed-2026-09-04).
+Evidence is retained at `/tmp/onpc-system-g33ljzev/evidence/`; input artifacts
+are at `/tmp/onpc-task13b-acceptance-ndbI8L/input/`. Recheck temporary paths before
+reuse. Preserve failed attempts separately. The bytecode access warning is
+resolved, and SSH readiness plus guest boot-completion waits passed live testing.
+
+This is test-only integration: activation is `none`, with no product saved-data
+migration. Later tasks own detailed authorization, policy, usage and graphical
+coverage; this lifecycle smoke alone does not fully cover those requirements.
+
 ### Source-VM account preparation
 
 The existing `ubuntu26.04` source VM exposes this development checkout at the

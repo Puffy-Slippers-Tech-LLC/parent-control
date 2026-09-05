@@ -33,14 +33,19 @@ does not launch a desktop process from the root maintainer script. If the hook
 defers marker creation for Livepatch, `postinst` still records the reboot needed
 by our PAM/display-manager integration. Configuration retries avoid duplicate
 entries and retain the activation comparison if the hook fails.
-After configuration succeeds, `postinst` also prints a prominent terminal
-notice telling the administrator to reboot before using the kiosk session.
+After APT succeeds, `make installdeb` prints a prominent terminal notice
+telling the administrator to reboot before using the kiosk session.
 The notice checks for this package's exact name in `/run/reboot-required.pkgs`,
 so reinstalls, updates, and configuration reruns retain an outstanding reminder
 until reboot clears the marker. Requests belonging only to other packages do
 not trigger the kiosk notice.
-Because the notice belongs to the package maintainer script, installing a local
-build and installing the published package through APT have the same behavior.
+The package ships a read-only `oh-no-parent-control-reboot-notice` helper for
+this notice. Only `make installdeb` calls it, after APT succeeds, so the reminder
+appears once, following dependency triggers and other APT output. Direct APT
+or dpkg installs use Ubuntu's reboot notification and markers; `postinst` does
+not print the terminal prompt.
+The helper activates on invocation (`none`) and is excluded from the activation
+digest manifest. It introduces no saved-data changes or migration.
 
 This follows [Ubuntu's package reboot-notification guidance](https://discourse.ubuntu.com/t/ubuntu-deb-package-maintainer-scripts-hooks-triggers-tips-tricks/36174).
 The notification wiring activates during package configuration (`none`); it

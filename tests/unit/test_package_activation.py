@@ -50,6 +50,7 @@ class PackageActivationTests(unittest.TestCase):
     def test_uninstall_only_code_needs_no_installed_update_activation(self):
         for path in (
             "usr/libexec/oh-no-parent-control-uninstall",
+            "usr/libexec/oh-no-parent-control-reboot-notice",
             "usr/lib/oh-no-parent-control/broker/oh_no_parent_control/uninstall.py",
         ):
             with self.subTest(path=path):

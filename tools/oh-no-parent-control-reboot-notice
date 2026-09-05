@@ -1,0 +1,14 @@
+#!/bin/sh
+# Read-only reminder printed by the local installer after APT finishes.
+set -eu
+
+if [ -r /run/reboot-required.pkgs ] && \
+        grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs; then
+    if [ -t 2 ] && [ "${TERM:-dumb}" != dumb ]; then
+        printf '\n\033[1;31m%s\033[0m\n' \
+            '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
+    else
+        printf '\n%s\n' \
+            '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
+    fi
+fi

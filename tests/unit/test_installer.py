@@ -1,8 +1,12 @@
 import json
+import os
 import struct
+import subprocess
 import unittest
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
+
+import pytest
 
 from tools.render_polkit_policy import render
 
@@ -10,8 +14,57 @@ from tools.render_polkit_policy import render
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@pytest.mark.parametrize("apt_status", [0, 1])
+def test_installer_output_ends_with_notice_only_after_success(tmp_path, apt_status):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, source in {
+        "dpkg-parsechangelog": "#!/bin/sh\necho 1.0\n",
+        "dpkg-architecture": "#!/bin/sh\necho amd64\n",
+        "apt": (
+            "#!/bin/sh\n"
+            'if [ "$1" = --fix-broken ]; then exit 0; fi\n'
+            "echo 'Processing triggers for desktop-file-utils ...'\n"
+            "echo 'Processing triggers for libc-bin ...'\n"
+            f"exit {apt_status}\n"
+        ),
+    }.items():
+        command = bin_dir / name
+        command.write_text(source)
+        command.chmod(0o755)
+    output = tmp_path / "output"
+    output.mkdir()
+    (output / "oh-no-parent-control_1.0_amd64.deb").touch()
+    marker = tmp_path / "reboot-required.pkgs"
+    marker.write_text("oh-no-parent-control\n")
+    helper = bin_dir / "oh-no-parent-control-reboot-notice"
+    helper.write_text(
+        (ROOT / "tools/oh-no-parent-control-reboot-notice").read_text().replace(
+            "/run/reboot-required.pkgs", str(marker)
+        )
+    )
+    helper.chmod(0o755)
+    result = subprocess.run(
+        ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
+         "installdeb", f"CURDIR={tmp_path}", f"LIBEXECDIR={bin_dir}",
+         f"APT={bin_dir / 'apt'}"],
+        env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"},
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10,
+    )
+    assert "Processing triggers for libc-bin" in result.stdout
+    if apt_status == 0:
+        assert result.returncode == 0, result.stdout
+        assert result.stdout.rstrip().endswith(
+            "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
+        )
+        assert result.stdout.count("REBOOT REQUIRED") == 1
+    else:
+        assert result.returncode != 0
+        assert "REBOOT REQUIRED" not in result.stdout
+
+
 class PackageDeploymentTests(unittest.TestCase):
-    def test_make_installdeb_only_repairs_dependencies_and_installs_package(self):
+    def test_make_installdeb_prints_reminder_after_apt_finishes(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
         repair = recipe.index("$(APT) --fix-broken install")
@@ -21,6 +74,7 @@ class PackageDeploymentTests(unittest.TestCase):
         self.assertIn("dpkg-architecture -qDEB_HOST_ARCH", recipe)
         self.assertIn("run make build first", recipe)
         self.assertLess(repair, install)
+        self.assertLess(install, recipe.index('"$(LIBEXECDIR)/oh-no-parent-control-reboot-notice"'))
         self.assertNotIn("reboot-required", recipe)
         self.assertNotIn("REBOOT REQUIRED", recipe)
         self.assertNotIn("Reboot now?", recipe)
@@ -31,14 +85,13 @@ class PackageDeploymentTests(unittest.TestCase):
 
     def test_reboot_notice_is_owned_by_the_debian_package(self):
         postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+        helper = (ROOT / "tools/oh-no-parent-control-reboot-notice").read_text(encoding="utf-8")
         notice = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
-        self.assertIn(notice, postinst)
-        self.assertIn('[ -t 2 ] && [ "${TERM:-dumb}" != dumb ]', postinst)
-        self.assertIn("'\\n\\033[1;31m%s\\033[0m\\n'", postinst)
-        self.assertLess(
-            postinst.index('activate_broker "$broker_action"'),
-            postinst.index(notice),
-        )
+        self.assertIn(notice, helper)
+        self.assertIn('[ -t 2 ] && [ "${TERM:-dumb}" != dumb ]', helper)
+        self.assertIn("'\\n\\033[1;31m%s\\033[0m\\n'", helper)
+        self.assertNotIn('/usr/libexec/oh-no-parent-control-reboot-notice', postinst)
+        self.assertNotIn(notice, postinst)
 
     def test_make_build_keeps_changes_file_artifacts_together(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")

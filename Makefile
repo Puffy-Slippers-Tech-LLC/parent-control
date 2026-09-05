@@ -100,7 +100,8 @@ installdeb:
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
 	$(APT) --fix-broken install; \
-	$(APT) install --reinstall "$$deb_file"
+	$(APT) install --reinstall "$$deb_file"; \
+	"$(LIBEXECDIR)/oh-no-parent-control-reboot-notice"
 
 uninstalldeb:
 	$(APT) remove oh-no-parent-control
@@ -228,6 +229,7 @@ _install-product-files:
 	install -m 0755 broker/oh-no-parent-control-broker "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-migrate-state "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-uninstall "$(DESTDIR)$(LIBEXECDIR)/"
+	install -m 0755 tools/oh-no-parent-control-reboot-notice "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"
 	install -m 0755 tools/execution_policy_probe "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe"

@@ -5,7 +5,7 @@ import random
 import pytest
 
 from oh_no_parent_control_kiosk.floating_islands import (
-    EXCURSION, FloatingIslands, RandomFloat,
+    EXCURSION, TURN_SECONDS, FloatingIslands, RandomFloat,
 )
 
 
@@ -23,6 +23,13 @@ def test_paths_are_bounded_visible_and_independent():
         for other in samples[index + 1:]:
             assert any((b - a) * (d - c) < 0
                        for a, b, c, d in zip(positions, positions[1:], other, other[1:]))
+
+
+def test_fastest_turn_is_limited_to_85_percent_of_the_previous_speed():
+    # The former 3.4 / 2.1 second lower bound produced the highest speed.
+    # Speed is inversely proportional to duration for the same excursion.
+    assert TURN_SECONDS[0] == pytest.approx((3.4 / 2.1) / 0.85)
+    assert TURN_SECONDS[1] == pytest.approx(6.8 / 2.1)
 
 
 def test_turn_heights_and_intervals_keep_changing():

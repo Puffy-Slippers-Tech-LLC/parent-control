@@ -14,10 +14,12 @@ remaining scene continues to use the original still texture. Both images are
 
 Each formation starts at its own randomly chosen point along a path. At every
 turn it samples a new height (6–13 pixels above or below its painted position
-at an artwork height of 1080 pixels) and travel time (about 1.62–3.24 seconds to
-the next turn). Quintic interpolation keeps position, velocity and acceleration
-continuous through each reversal. There is no sine/cosine oscillator or repeated
-animation clip. Monotonic elapsed time keeps speed independent of frame rate.
+at an artwork height of 1080 pixels) and travel time (about 1.90–3.24 seconds to
+the next turn). The 1.90-second shortest turn caps the maximum float speed at
+85% of the prior limit. Quintic interpolation keeps position, velocity, and
+acceleration continuous through each reversal. There is no sine/cosine
+oscillator or repeated animation clip. Monotonic elapsed time keeps speed
+independent of frame rate.
 
 Lightning stores its source formation index and adds that formation's live
 vertical offset on each frame, keeping the bolt attached to the moving tip.

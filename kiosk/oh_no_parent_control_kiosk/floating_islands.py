@@ -15,7 +15,10 @@ from gi.repository import Graphene, Gsk, Gtk
 LOG = logging.getLogger("oh-no-parent-control")
 SOURCE_WIDTH = 1672
 SOURCE_HEIGHT = 941
-TURN_SECONDS = (3.4 / 2.1, 6.8 / 2.1)
+# Increasing the shortest turn from 3.4 to 4.0 reduces the highest possible
+# float velocity to 85% of its prior limit, while retaining the existing slow
+# end of the randomized range.
+TURN_SECONDS = (4.0 / 2.4, 6.8 / 2.1)
 EXCURSION = (6 / 1080, 13 / 1080)
 
 
@@ -121,7 +124,8 @@ class FloatingIslands:
         self._background = background.to_node()
         LOG.debug(
             "gateway floating islands configured count=%d turn_seconds=%s "
-            "excursion_at_1080px=(6, 13)", len(self._sprites), TURN_SECONDS,
+            "max_speed_percent_of_previous=85 excursion_at_1080px=(6, 13)",
+            len(self._sprites), TURN_SECONDS,
         )
 
     @staticmethod

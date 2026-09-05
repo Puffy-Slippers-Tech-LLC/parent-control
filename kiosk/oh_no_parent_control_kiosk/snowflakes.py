@@ -12,7 +12,8 @@ LOG = logging.getLogger("oh-no-parent-control")
 # Bounds of the entire frame, including its neon edges, in artwork fractions.
 GATEWAY_OUTER_BOUNDS = (1104 / 3840, 72 / 2160, 2520 / 3840, 2100 / 2160)
 PIXEL_SIZE_RANGE = (0.9, 6.6)
-DRIFT_PERIOD_RANGE = (25, 165)
+COUNT_MULTIPLIER = 1.2
+DRIFT_PERIOD_RANGE = (25 / 1.2, 165 / 2)
 HALO_RADIUS_UNITS = 5
 PALETTE = (
     (0.37, 0.27, 0.95),
@@ -95,7 +96,8 @@ class SnowflakeField:
             if x2 - x1 > 2 * margin and y2 - y1 > 2 * margin
         ]
         areas = [(x2 - x1) * (y2 - y1) for x1, y1, x2, y2 in regions]
-        count = round(100 * sum(areas) / (width * height))
+        base_count = round(100 * sum(areas) / (width * height))
+        count = round(base_count * COUNT_MULTIPLIER)
         for _ in range(count):
             x1, y1, x2, y2 = self._random.choices(regions, weights=areas)[0]
             self._flakes.append(Snowflake(
@@ -107,9 +109,10 @@ class SnowflakeField:
                 self._random.choice(PIXEL_FLAKES),
             ))
         LOG.debug(
-            "gateway snowflakes configured count=%d pixel_size_range=%s "
-            "drift_period_seconds=%s",
-            len(self._flakes), PIXEL_SIZE_RANGE, DRIFT_PERIOD_RANGE,
+            "gateway snowflakes configured count=%d base_count=%d "
+            "count_multiplier=%s pixel_size_range=%s drift_period_seconds=%s",
+            len(self._flakes), base_count, COUNT_MULTIPLIER, PIXEL_SIZE_RANGE,
+            DRIFT_PERIOD_RANGE,
         )
 
     def _new_drift(self, lower, upper, maximum_amplitude):

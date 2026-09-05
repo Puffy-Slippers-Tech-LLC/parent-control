@@ -90,6 +90,7 @@ RESIDUE_PATHS = {
         "/usr/share/pam-configs/oh-no-parent-control-session-limits",
         "/usr/share/pam-configs/oh-no-parent-control-kiosk-only",
         "/etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules",
+        "/usr/share/polkit-1/rules.d/00-oh-no-parent-control-session.rules",
         "/usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy",
         "/usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy",
         "/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules",

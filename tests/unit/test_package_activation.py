@@ -56,6 +56,7 @@ class PackageActivationTests(unittest.TestCase):
                 self.assertEqual(activation_for(path), "none")
 
     def test_execution_rule_change_reloads_with_broker_restart(self):
+        self.assertEqual(activation_for("usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules"), "process-restart")
         self.assertEqual(
             activation_for(
                 "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules"
@@ -137,6 +138,7 @@ class PackageActivationTests(unittest.TestCase):
         )
 
     def test_login_stack_change_requires_reboot(self):
+        self.assertEqual(activation_for("usr/share/oh-no-parent-control/gdm-presession"), "reboot")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             pam = root / "usr/share/pam-configs/oh-no-parent-control-session-limits"

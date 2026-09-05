@@ -13,8 +13,8 @@ sys.path.pop(0)
 
 @pytest.mark.parametrize('path,group', [
     ('/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop', 'sudo'),
-    ('/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules', 'fapolicyd'),
-    ('/etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules', 'root'),
+    ('/usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules', 'root'),
+    ('/usr/share/polkit-1/rules.d/00-oh-no-parent-control-session.rules', 'root'),
     ('/usr/libexec/oh-no-parent-control-broker', 'root'),
     ('/unrelated/com.puffyslippers.OhNoParentControl.Parent.desktop', 'root'),
 ])

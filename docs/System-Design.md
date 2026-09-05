@@ -498,12 +498,12 @@ The snapshot is removed after either a successful rollback or successful
 package removal.
 
 After dpkg removes the payload, `postrm` removes generated D-Bus and machine
-configuration, the product's security-integration conffiles, transient package
+configuration, the product's generated security integrations, transient package
 markers, and the dedicated kiosk account only when a root-owned marker proves
-that this package created the unchanged account identity. Installation can
-reuse an existing reserved kiosk account after the provisioning checks reject
-root or administrative identities, but it does not claim ownership of that
-account, so later package removal preserves it. Removal requires the kiosk's
+that this package created the unchanged account identity. Installation rejects
+an existing reserved kiosk account without that ownership record before changing
+its credentials or metadata. Existing owned accounts are validated for home
+ownership and administrative privileges before reconfiguration. Removal requires the kiosk's
 user service to be inactive; it never terminates processes by username. The
 public AccountsService `UncacheUser` method clears the package-owned kiosk's
 cached icon and session metadata before deleting the account. The
@@ -529,6 +529,18 @@ retains canonical preferences and redacted logs for reinstall. Purge deletes
 the product's `/var/lib/oh-no-parent-control` and
 `/var/log/oh-no-parent-control` directories. System journals, Ubuntu crash reports,
 other packages' state, and reboot markers are not product-owned purge targets.
+
+Successful removal records Ubuntu's reboot requirement and prints a terminal
+notice so existing login-manager/PAM transactions are renewed at the next boot.
+It never restarts the desktop or reboots automatically. The generated GDM hook
+is removed only when it matches the package's ownership copy; an existing
+administrator hook blocks installation and a modified hook blocks removal.
+The fallback execution rule uses the same ownership check. Their templates live
+under `/usr/share/oh-no-parent-control`, so reinstall recreates these generated
+files without relying on dpkg to restore deleted conffiles. The Polkit rule lives
+under `/usr/share/polkit-1/rules.d` and is removed by dpkg with the payload.
+See [Package removal audit](Package-Removal.md) for the ownership inventory,
+PAM restoration, failure handling, and validation boundaries.
 
 ## Logging
 

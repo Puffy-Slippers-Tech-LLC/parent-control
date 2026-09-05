@@ -23,6 +23,13 @@ def package_machine(tmp_path):
                  "previous-package-activation.json"):
         (state / name).touch()
 
+    (state / "package-created-kiosk-uid").write_text("1006\n")
+    for name in ("gdm-presession", "99-oh-no-parent-control-allow.rules"):
+        path = tmp_path / "usr/share/oh-no-parent-control" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("product integration\n")
+    (tmp_path / "etc/pam.d").mkdir(parents=True)
+
     # Every executable used by postinst is either this stub or a filesystem
     # utility operating on the rewritten paths. PATH contains no host service
     # or account-management commands.
@@ -33,7 +40,30 @@ def package_machine(tmp_path):
 name=${0##*/}
 printf '%s\n' "$name $*" >> "$AUDIT_ROOT/commands"
 case "$name" in
-    getent) exit 0 ;;
+    getent)
+        printf 'oh-no-parent-control:x:1006:1006::%s/home/oh-no-parent-control:/bin/bash\n' "$AUDIT_ROOT"
+        ;;
+    stat) printf '0:600\n' ;;
+    debconf-communicate) printf '%s\n' "${PAM_PROFILES:-0 unix, malcontent}" ;;
+    pam-auth-update)
+        if [ "${PAM_LOCAL_CHANGES:-0}" != 1 ]; then
+            printf 'auth required pam_oh_no_parent_control.so\n' > "$AUDIT_ROOT/etc/pam.d/common-auth"
+            printf 'account required pam_exec.so %s/usr/libexec/oh-no-parent-control-login-check\n' "$AUDIT_ROOT" > "$AUDIT_ROOT/etc/pam.d/common-account"
+        fi
+        ;;
+    install)
+        directory=
+        mode=0755
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                -d) directory=-d; shift ;;
+                -o|-g) shift 2 ;;
+                -m) mode="$2"; shift 2 ;;
+                *) break ;;
+            esac
+        done
+        exec /usr/bin/install ${directory:+"$directory"} -m "$mode" "$@"
+        ;;
     id) printf '1006\n' ;;
     policy-rc.d) exit "${POLICY_STATUS:-0}" ;;
     oh-no-parent-control-migrate-state) exit "${MIGRATION_STATUS:-0}" ;;
@@ -63,16 +93,17 @@ case "$name" in
                 ;;
         esac
         ;;
-    install|chown|chmod|systemd-sysusers|invoke-rc.d|pam-auth-update|\
+    chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|runuser|\
     oh-no-parent-control-provision) ;;
     *) exit 99 ;;
 esac
 ''')
     stub.chmod(0o755)
     for name in ("getent", "id", "systemctl", "deb-systemd-invoke", "install",
-                 "chown", "chmod", "systemd-sysusers", "invoke-rc.d", "pam-auth-update"):
+                 "chown", "chmod", "systemd-sysusers", "invoke-rc.d", "pam-auth-update",
+                 "stat", "debconf-communicate", "usermod", "passwd", "runuser"):
         (bin_dir / name).symlink_to(stub)
-    for name in ("rm", "touch", "grep"):
+    for name in ("rm", "touch", "grep", "cut", "cat", "cmp"):
         (bin_dir / name).symlink_to(Path("/usr/bin") / name)
     for name in ("migrate-state", "provision", "package-activation"):
         target = tmp_path / f"usr/libexec/oh-no-parent-control-{name}"
@@ -256,3 +287,47 @@ def test_debhelper_automatic_activation_is_disabled():
     )
     assert result.returncode == 0, result.stderr
     assert "dh_installsystemd --no-start --no-stop-on-upgrade" in result.stdout
+
+
+@pytest.mark.parametrize("profiles,expected", [("0 unix, malcontent", "enabled"), ("0 unix, systemd", "disabled")])
+def test_original_pam_selection_is_saved_once(package_machine, profiles, expected):
+    _, state, run = package_machine
+    result = run(PAM_PROFILES=profiles)
+    assert result.returncode == 0, result.stderr
+    baseline = state / "malcontent-pam-before-install"
+    assert baseline.read_text() == expected + "\n"
+    result = run(PAM_PROFILES="0 unix")
+    assert result.returncode == 0, result.stderr
+    assert baseline.read_text() == expected + "\n"
+
+
+def test_unowned_kiosk_is_rejected_before_any_configuration(package_machine):
+    root, state, run = package_machine
+    (state / "package-created-kiosk-uid").unlink()
+    result = run()
+    assert result.returncode != 0
+    commands = (root / "commands").read_text()
+    assert "usermod" not in commands
+    assert not any(line.startswith("passwd ") for line in commands.splitlines())
+    assert "migrate-state" not in commands
+
+
+def test_local_pam_configuration_cannot_silently_skip_enforcement(package_machine):
+    root, _, run = package_machine
+    (root / "etc/pam.d/common-auth").write_text("auth required pam_unix.so\n")
+    result = run(PAM_LOCAL_CHANGES="1")
+    assert result.returncode != 0
+    assert "PAM integration was not activated" in result.stderr
+    assert f"systemctl --system restart {BROKER}" not in (root / "commands").read_text()
+
+
+def test_missing_generated_integrations_are_recreated_on_reinstall(package_machine):
+    root, state, run = package_machine
+    result = run()
+    assert result.returncode == 0, result.stderr
+    for target in ("etc/gdm3/PreSession/Default", "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules"):
+        (root / target).unlink()
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert (root / "etc/gdm3/PreSession/Default").read_bytes() == (state / "installed-gdm-presession").read_bytes()
+    assert (root / "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules").read_bytes() == (state / "installed-fapolicyd-fallback").read_bytes()

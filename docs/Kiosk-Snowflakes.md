@@ -6,11 +6,15 @@ background plate. `snowflakes.py` draws the floating pixel flakes independently,
 with continuous slow paths outside the full gateway frame. The original
 `kiosk-background.jpeg` remains available as the source artwork.
 
+The renderer creates 120% of the snowflakes that its former responsive
+area-based count would have produced.
+
 Flake pixel units are randomly sized from 0.9 to 6.6 pixels at 1920 × 1080,
 scaling with the viewport; the upper bound is three times the earlier 2.2-pixel
 maximum. Each flake keeps its size as it drifts. The primary drift cycles take
-25–165 seconds, with a second wave adding gentle meanders. The shortest cycle
-allows a maximum drift speed three times the previous 75-second minimum cycle.
+about 20.83–126.92 seconds, with a second wave adding gentle meanders. The shortest
+cycle sets the maximum drift speed; the longest cycle makes the minimum drift
+speed 130% of its previous value.
 Path amplitudes are chosen before their centers so flakes near the edges still
 have room to move.
 The exclusion margin includes the largest flake's halo.

@@ -260,3 +260,9 @@ This runs `sudo apt remove oh-no-parent-control` (`apt remove` when already
 root), preserving APT's normal confirmation prompt and the installed package's
 removal scripts. Log out of the kiosk session before removal. Saved application
 data and logs are retained by this removal flow.
+
+Removal prints a reboot notice; reboot to finish removing the login integration.
+For deliberate removal of saved preferences and product logs, use
+`sudo apt purge oh-no-parent-control`. Shared dependencies remain managed by APT.
+See [the installation/removal audit](docs/Package-Removal.md) for ownership,
+cleanup, and validation details.

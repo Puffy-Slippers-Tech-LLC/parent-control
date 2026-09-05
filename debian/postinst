@@ -54,6 +54,23 @@ if [ "$1" = abort-remove ]; then
 fi
 
 if [ "$1" = configure ]; then
+    marker=/var/lib/oh-no-parent-control/package-created-kiosk-uid
+    if getent passwd oh-no-parent-control >/dev/null; then
+        if [ -L "$marker" ] || [ ! -f "$marker" ] ||
+           [ "$(stat -c '%u:%a' "$marker")" != 0:600 ] ||
+           [ "$(id -u oh-no-parent-control)" != "$(cat "$marker")" ]; then
+            echo 'oh-no-parent-control: refusing to modify an unowned or changed kiosk account' >&2
+            exit 1
+        fi
+        entry=$(getent passwd oh-no-parent-control)
+        if [ "$(printf '%s\n' "$entry" | cut -d: -f6)" != /home/oh-no-parent-control ]; then
+            echo 'oh-no-parent-control: preserving changed kiosk home' >&2
+            exit 1
+        fi
+    elif [ -e /home/oh-no-parent-control ] || [ -L /home/oh-no-parent-control ]; then
+        echo 'oh-no-parent-control: reserved kiosk home already exists; preserving it' >&2
+        exit 1
+    fi
     if [ -f /var/lib/oh-no-parent-control/uninstall-enforcement.json ]; then
         /usr/libexec/oh-no-parent-control-uninstall --restore
     fi
@@ -75,11 +92,8 @@ if [ "$1" = configure ]; then
             /var/lib/oh-no-parent-control/package-created-kiosk-uid
         package_created_kiosk=1
     elif [ ! -f /var/lib/oh-no-parent-control/package-created-kiosk-uid ]; then
-        # An administrator may already have created the reserved kiosk account.
-        # Provision validates that it is non-root and non-administrative. Do
-        # not create the ownership marker here: postrm must preserve an account
-        # that this package did not create.
-        echo 'oh-no-parent-control: using existing dedicated kiosk account; package removal will preserve it' >&2
+        echo 'oh-no-parent-control: refusing an unowned kiosk account' >&2
+        exit 1
     elif [ "$(id -u "$kiosk_user")" != \
            "$(cat /var/lib/oh-no-parent-control/package-created-kiosk-uid)" ]; then
         echo 'oh-no-parent-control: kiosk account no longer matches package ownership' >&2
@@ -88,9 +102,9 @@ if [ "$1" = configure ]; then
         package_created_kiosk=1
     fi
     if [ "$package_created_kiosk" -eq 1 ]; then
-        # Reassert only package-owned account properties. A pre-existing
-        # account is deliberately preserved on removal, so installation must
-        # not irreversibly replace its password or identity fields.
+        # Reject a substituted home or administrative identity before changing
+        # credentials, even when an old ownership marker still exists.
+        /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user" --check-account
         echo 'oh-no-parent-control: configuring package-owned kiosk account' >&2
         usermod --comment "Oh No! Parent Control" \
             --home "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
@@ -98,19 +112,72 @@ if [ "$1" = configure ]; then
     fi
     /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"
 
-    kiosk_gid=$(id -g "$kiosk_user")
-    install -d -o "$kiosk_user" -g "$kiosk_gid" -m 0700 \
-        "/home/$kiosk_user/.config" \
-        "/home/$kiosk_user/.config/gnome-initial-setup"
-    install -o "$kiosk_user" -g "$kiosk_gid" -m 0644 /dev/null \
-        "/home/$kiosk_user/.config/gnome-initial-setup-done"
-    install -o "$kiosk_user" -g "$kiosk_gid" -m 0644 /dev/null \
-        "/home/$kiosk_user/.config/gnome-initial-setup/upgrade-26.04-done"
+    # These live integrations are generated, not conffiles. Deleting a
+    # conffile on remove makes dpkg preserve its absence on reinstall.
+    install_integration() {
+        integration_source="$1"
+        integration_target="$2"
+        integration_record="$3"
+        integration_mode="$4"
+        if [ -L "$integration_target" ] || [ -L "$integration_record" ]; then
+            echo 'oh-no-parent-control: refusing substituted integration path' >&2
+            exit 1
+        fi
+        if [ -e "$integration_target" ] &&
+           ! cmp -s "$integration_target" "$integration_record" &&
+           ! cmp -s "$integration_target" "$integration_source"; then
+            echo 'oh-no-parent-control: preserving modified system integration; configuration cannot continue' >&2
+            exit 1
+        fi
+        install -o root -g root -m "$integration_mode" "$integration_source" "$integration_target"
+        install -o root -g root -m 0600 "$integration_source" "$integration_record"
+    }
+    install -d -o root -g root -m 0755 /etc/gdm3/PreSession /etc/fapolicyd/rules.d
+    install_integration /usr/share/oh-no-parent-control/gdm-presession \
+        /etc/gdm3/PreSession/Default \
+        /var/lib/oh-no-parent-control/installed-gdm-presession 0755
+    install_integration /usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules \
+        /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
+        /var/lib/oh-no-parent-control/installed-fapolicyd-fallback 0644
 
+    # User-controlled home paths must never be traversed with root's write
+    # privileges. runuser also keeps these files owned by the kiosk naturally.
+    runuser -u "$kiosk_user" -- /bin/sh -c '
+        umask 077
+        mkdir -p /home/oh-no-parent-control/.config/gnome-initial-setup &&
+        touch /home/oh-no-parent-control/.config/gnome-initial-setup-done \
+            /home/oh-no-parent-control/.config/gnome-initial-setup/upgrade-26.04-done
+    '
+
+    # Query debconf through its supported protocol before changing the one
+    # dependency profile we replace. Restore only that choice on removal.
+    pam_baseline=/var/lib/oh-no-parent-control/malcontent-pam-before-install
+    if [ -L "$pam_baseline" ]; then
+        echo 'oh-no-parent-control: unsafe original PAM selection' >&2
+        exit 1
+    fi
+    if [ ! -f "$pam_baseline" ]; then
+        pam_profiles=$(printf 'GET libpam-runtime/profiles\n' | debconf-communicate libpam-runtime)
+        case "$pam_profiles" in
+            '0 '*) ;;
+            *) echo 'oh-no-parent-control: cannot capture original PAM selection' >&2; exit 1 ;;
+        esac
+        pam_choice=disabled
+        case ", ${pam_profiles#0 }, " in
+            *', malcontent, '*) pam_choice=enabled ;;
+        esac
+        printf '%s\n' "$pam_choice" > "$pam_baseline"
+        chmod 0600 "$pam_baseline"
+    fi
     pam-auth-update --package \
         --disable malcontent \
         --enable oh-no-parent-control-session-limits \
         --enable oh-no-parent-control-kiosk-only </dev/null
+    if ! grep -Eq '^[[:space:]]*[^#].*pam_oh_no_parent_control\.so' /etc/pam.d/common-auth ||
+       ! grep -Eq '^[[:space:]]*[^#].*/usr/libexec/oh-no-parent-control-login-check' /etc/pam.d/common-account; then
+        echo 'oh-no-parent-control: PAM integration was not activated; preserving local PAM configuration' >&2
+        exit 1
+    fi
     chown root:sudo \
         /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
     chmod 0640 \
@@ -157,7 +224,6 @@ if [ "$1" = configure ]; then
     # running after every configure, without restarting an already-active
     # broker unless the changed payload requires reconciliation.
     broker_action=start
-    reboot_required=0
     pending=/var/lib/oh-no-parent-control/package-activation-pending
     if [ -f "$pending" ]; then
         previous=/var/lib/oh-no-parent-control/previous-package-activation.json
@@ -193,7 +259,6 @@ if [ "$1" = configure ]; then
                     printf '%s\n' 'oh-no-parent-control' >> /run/reboot-required.pkgs
                 fi
                 chmod 0644 /run/reboot-required /run/reboot-required.pkgs
-                reboot_required=1
                 ;;
         esac
     fi
@@ -203,9 +268,17 @@ if [ "$1" = configure ]; then
     if [ -f "$pending" ]; then
         rm -f "$previous" "$pending"
     fi
-    if [ "$reboot_required" -eq 1 ]; then
-        printf '\n%s\n' \
-            '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
+    # A reinstall or update can leave an earlier reboot request outstanding.
+    # Keep reminding the administrator until reboot clears the /run marker.
+    if [ -r /run/reboot-required.pkgs ] && \
+            grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs; then
+        if [ -t 2 ] && [ "${TERM:-dumb}" != dumb ]; then
+            printf '\n\033[1;31m%s\033[0m\n' \
+                '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
+        else
+            printf '\n%s\n' \
+                '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
+        fi
     fi
 fi
 

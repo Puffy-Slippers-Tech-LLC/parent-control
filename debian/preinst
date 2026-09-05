@@ -2,17 +2,52 @@
 set -e
 
 if [ "$1" = install ] || [ "$1" = upgrade ]; then
+    # Reject collisions before unpacking can replace files or configuring can
+    # change account properties. The reserved kiosk identity must be ours.
+    state=/var/lib/oh-no-parent-control
+    if [ -L "$state" ]; then
+        echo 'oh-no-parent-control: refusing substituted package state directory' >&2
+        exit 1
+    fi
+    marker="$state/package-created-kiosk-uid"
+    if getent passwd oh-no-parent-control >/dev/null && [ ! -f "$marker" ]; then
+        echo 'oh-no-parent-control: reserved kiosk account already exists; refusing to modify an account not created by this package' >&2
+        exit 1
+    fi
+    if { [ -e /etc/gdm3/PreSession/Default ] || [ -L /etc/gdm3/PreSession/Default ]; } &&
+       [ ! -f "$state/installed-gdm-presession" ]; then
+        echo 'oh-no-parent-control: existing GDM PreSession hook must be resolved before installation; preserving it' >&2
+        exit 1
+    fi
+    if { [ -e /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules ] ||
+         [ -L /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules ]; } &&
+       [ ! -f "$state/installed-fapolicyd-fallback" ]; then
+        echo 'oh-no-parent-control: execution-policy path already exists; preserving it' >&2
+        exit 1
+    fi
     install -d -o root -g root -m 0700 /var/lib/oh-no-parent-control
     # Capture before our fallback rule is unpacked or any service is started.
     # Keep this across upgrades and remove/reinstall until postrm restores it.
     baseline=/var/lib/oh-no-parent-control/fapolicyd-before-install
+    if [ -L "$baseline" ]; then
+        echo 'oh-no-parent-control: unsafe execution-policy baseline' >&2
+        exit 1
+    fi
     if [ ! -d "$baseline" ]; then
         if [ "$1" = upgrade ]; then
             echo 'oh-no-parent-control: original execution-policy baseline is missing; refusing to snapshot installed product policy' >&2
             exit 1
         fi
         baseline_pending=/var/lib/oh-no-parent-control/fapolicyd-before-install.pending
+        if [ -L "$baseline_pending" ]; then
+            echo 'oh-no-parent-control: unsafe pending execution-policy baseline' >&2
+            exit 1
+        fi
         install -d -o root -g root -m 0700 "$baseline_pending"
+        # A failed first attempt must not contribute stale flags or policy.
+        rm -f "$baseline_pending/active" "$baseline_pending/enabled" \
+            "$baseline_pending/complete" "$baseline_pending/compiled.rules" \
+            "$baseline_pending/compiled.rules.prev"
         for policy_file in compiled.rules compiled.rules.prev; do
             if [ -f "/etc/fapolicyd/$policy_file" ]; then
                 cp -p "/etc/fapolicyd/$policy_file" "$baseline_pending/$policy_file"

@@ -2,10 +2,31 @@
 set -e
 
 if [ "$1" = remove ]; then
+    # Refuse changed shared integrations while all package files still exist.
+    check_integration() {
+        if [ -f "$2" ] && { [ -e "$1" ] || [ -L "$1" ]; }; then
+            if [ -L "$1" ] || [ -L "$2" ] || ! cmp -s "$1" "$2"; then
+                echo 'oh-no-parent-control: system integration was modified; preserving it and refusing removal' >&2
+                exit 1
+            fi
+        fi
+    }
+    check_integration /etc/gdm3/PreSession/Default \
+        /var/lib/oh-no-parent-control/installed-gdm-presession
+    check_integration /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
+        /var/lib/oh-no-parent-control/installed-fapolicyd-fallback
     # A running kiosk may recreate files after deluser removes its home. Do not
     # terminate a user's processes based on account identity. Require logout.
     marker=/var/lib/oh-no-parent-control/package-created-kiosk-uid
+    if [ -L "$marker" ]; then
+        echo 'oh-no-parent-control: unsafe kiosk ownership marker' >&2
+        exit 1
+    fi
     if [ -f "$marker" ]; then
+        if [ "$(stat -c '%u:%a' "$marker")" != 0:600 ]; then
+            echo 'oh-no-parent-control: unsafe kiosk ownership marker' >&2
+            exit 1
+        fi
         kiosk_uid=$(cat "$marker")
         case "$kiosk_uid" in
             ''|*[!0-9]*|0) exit 1 ;;
@@ -38,10 +59,31 @@ if [ "$1" = remove ]; then
     fi
     /usr/libexec/oh-no-parent-control-uninstall --remove
 
+    pam_choice=--disable
+    pam_baseline=/var/lib/oh-no-parent-control/malcontent-pam-before-install
+    if [ -f "$pam_baseline" ]; then
+        case "$(cat "$pam_baseline")" in
+            enabled) pam_choice=--enable ;;
+            disabled) ;;
+            *) echo 'oh-no-parent-control: invalid original PAM selection' >&2; exit 1 ;;
+        esac
+    else
+        # A failed configuration may never have changed PAM. Do not invent a
+        # choice for the dependency in that case.
+        pam_choice=
+    fi
     pam-auth-update --package \
         --remove oh-no-parent-control-session-limits \
-        --remove oh-no-parent-control-kiosk-only \
-        --enable malcontent </dev/null
+        --remove oh-no-parent-control-kiosk-only ${pam_choice:+$pam_choice malcontent} </dev/null
+    # pam-auth-update preserves locally edited stacks and can return success
+    # without removing references. Do not delete modules still used by PAM.
+    pam_reference_status=0
+    grep -Eq '^[[:space:]]*[^#].*(pam_oh_no_parent_control|/usr/libexec/oh-no-parent-control-)' \
+        /etc/pam.d/common-* || pam_reference_status=$?
+    case "$pam_reference_status" in
+        1) ;;
+        *) echo 'oh-no-parent-control: PAM references remain or could not be checked; resolve local PAM changes before removal' >&2; exit 1 ;;
+    esac
 fi
 
 #DEBHELPER#

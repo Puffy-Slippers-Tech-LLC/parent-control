@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Installs only the tools needed to develop and preview this checkout. Product
+# Configures Git and installs tools to develop and preview this checkout. Product
 # deployment is exclusively through the Debian package.
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly apt_lock_timeout_seconds=300
@@ -55,6 +55,7 @@ fi
 "${add_repository[@]}"
 "${apt_get[@]}" update
 "${apt_get[@]}" install -y \
+    7zip \
     build-essential \
     at-spi2-core=2.60.4-0ubuntu0.1 \
     dbus-daemon=1.16.2-2ubuntu4 \
@@ -65,6 +66,7 @@ fi
     dh-python \
     dput \
     flatpak=1.16.6-1 \
+    git \
     gnome-ponytail-daemon=0.0.11-1build1 \
     gnupg \
     gir1.2-adw-1 \
@@ -75,11 +77,13 @@ fi
     libpam0g-dev=1.7.0-5ubuntu3.2 \
     libglib2.0-bin \
     libvirt-clients=12.0.0-1ubuntu5.3 \
+    libguestfs-tools=1:1.58.1-3ubuntu3 \
     lintian \
     make \
     mutter=50.1-0ubuntu2.2 \
     mutter-dev-bin=50.1-0ubuntu2.2 \
     nodejs=22.22.1+dfsg+~cs22.19.15-1ubuntu1 \
+    openssh-client=1:10.2p1-2ubuntu3.6 \
     pipewire=1.6.2-1ubuntu1.1 \
     python3 \
     python3-dbusmock=0.38.1-1 \
@@ -91,6 +95,14 @@ fi
     python3-pytest=9.0.2-4 \
     python3-venv \
     qemu-utils=1:10.2.1+ds-1ubuntu3.2
+
+# Keep the public development identity and signing settings local to this checkout.
+# The private signing key must be restored separately before signing releases.
+git -C "$script_dir" config --local user.name 'Puffy Slippers Tech LLC'
+git -C "$script_dir" config --local user.email 'dev@tech.puffyslippers.com'
+git -C "$script_dir" config --local gpg.format openpgp
+git -C "$script_dir" config --local user.signingkey '4449F02C3E57F8215261A57958109B593907EFDE'
+echo "setup: configured checkout-local Git identity and OpenPGP signing key"
 
 # GNOME Shell 50 supplies the public org.gnome.Shell.Screenshot interface used
 # by isolated child component evidence capture; no host screenshot tool or

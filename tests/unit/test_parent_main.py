@@ -363,8 +363,8 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn(".account-picker {", stylesheet)
         self.assertIn('css_classes=["account-actions-separator"]', source)
         self.assertIn(".account-actions-separator {", stylesheet)
-        self.assertIn("margin: 35px 0;", stylesheet)
-        self.assertIn("margin: 18px 30px 18px 120px;", stylesheet)
+        self.assertIn("margin: 16px 28px;", stylesheet)
+        self.assertIn(".revoke-grant-action {", stylesheet)
         self.assertIn(".revoke-grant-button:hover {", stylesheet)
         self.assertIn(".revoke-grant-button:active {", stylesheet)
         self.assertIn('icon_name="action-unavailable-symbolic", pixel_size=40', source)
@@ -418,7 +418,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn(".match-rule-button.policy-choice:hover {", stylesheet)
         self.assertIn("border-radius: 12px;", stylesheet)
 
-    def test_app_limits_reference_layout_uses_one_wide_card(self):
+    def test_app_limits_compact_layout_starts_with_legend(self):
         source = inspect.getsource(ParentWindow._build)
         initializer = inspect.getsource(ParentWindow.__init__)
         stylesheet = (
@@ -430,13 +430,13 @@ class ParentWindowTests(unittest.TestCase):
             "self.set_default_size(DEFAULT_WINDOW_WIDTH, 1168)", initializer,
         )
         self.assertIn('css_classes=["app-limits-card"]', source)
-        self.assertIn('label="App Limits", xalign=0', source)
+        self.assertNotIn('label="App Limits", xalign=0', source)
         self.assertIn('css_classes=["apps-section"]', source)
         self.assertIn('css_classes=["apps-panel"]', source)
         self.assertIn('css_classes=["apps-table-overlay"]', source)
         self.assertIn('css_classes=["apps-loading-mask"]', source)
         self.assertIn('label="Loading installed apps…"', source)
-        self.assertIn(".app-limits-card {", stylesheet)
+        self.assertNotIn(".app-limits-card-header {", stylesheet)
         self.assertIn(".apps-section {\n  margin: 16px 29px 16px;", stylesheet)
         self.assertIn(".apps-loading-mask {", stylesheet)
         self.assertIn(".policy-choice {\n  min-width: 36px;", stylesheet)

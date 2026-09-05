@@ -229,15 +229,15 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     app_limits = wait_for_accessible_node(application, "App Limits", "page tab")
     assert app_limits.do_action(0)
     search = wait_for_accessible_node(application, "Search installed apps", "entry")
-    search.text = "calculator"
-    calculator = wait_for_accessible_node(application, "Calculator")
-    assert calculator.showing
+    search.text = "thunderbird"
+    thunderbird = wait_for_accessible_node(application, "Thunderbird")
+    assert thunderbird.showing
 
-    match_rule = wait_for_accessible_node(application, "Calculator match rule", "button")
+    match_rule = wait_for_accessible_node(application, "Thunderbird match rule", "button")
     assert match_rule.do_action(0)
     dialog = wait_for_accessible_node(application, "Edit Match Rule", "dialog")
     rule_entry = dialog.child(role_name="text", retry=False)
-    rule_entry.text = "/usr/bin/gnome-calculator"
+    rule_entry.text = "/snap/bin/thunderbird"
     save = dialog.child("Save", role_name="button", retry=False)
     assert save.do_action(0)
     wait_for_accessible_state(

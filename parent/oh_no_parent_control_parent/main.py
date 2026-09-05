@@ -326,7 +326,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # every major surface shares one visual column.
         account_section = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
-            spacing=18,
+            spacing=8,
             hexpand=True,
             css_classes=["account-section"],
         )
@@ -340,7 +340,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         self._account = Gtk.DropDown(
             model=Gtk.StringList.new([]), hexpand=True,
-            css_classes=["account-picker"],
+            valign=Gtk.Align.CENTER, css_classes=["account-picker"],
         )
         describe_control(
             self._account, "Selected child",
@@ -385,6 +385,10 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         revoke_labels.append(self._revoke_description)
         revoke_content.append(revoke_labels)
+        revoke_content.append(Gtk.Label(
+            label="Revoke", valign=Gtk.Align.CENTER,
+            css_classes=["revoke-grant-action"],
+        ))
         self._revoke = Gtk.Button(
             child=revoke_content, valign=Gtk.Align.FILL,
             width_request=320, css_classes=["revoke-grant-button"],
@@ -565,23 +569,6 @@ class ParentWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.VERTICAL,
             css_classes=["app-limits-card"],
         )
-        app_limits_header = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=3,
-            css_classes=["app-limits-card-header"],
-        )
-        app_limits_header.append(Gtk.Label(
-            label="App Limits", xalign=0,
-            css_classes=["app-limits-title"],
-        ))
-        self._app_limits_description = Gtk.Label(
-            label="Manage which apps this child can use and how they are accessed.",
-            xalign=0, wrap=True,
-            css_classes=["app-limits-description"],
-        )
-        app_limits_header.append(self._app_limits_description)
-        app_limits.append(app_limits_header)
-
         app_limits.append(self._legend_card())
         app_limits.append(Gtk.Separator(
             orientation=Gtk.Orientation.HORIZONTAL,
@@ -1242,9 +1229,6 @@ class ParentWindow(Adw.ApplicationWindow):
         child_name = self._users[selected][1].split(maxsplit=1)[0]
         self._screen_limits_description.set_label(
             f"Manage how much screen time {child_name} can have each day."
-        )
-        self._app_limits_description.set_label(
-            f"Manage which apps {child_name} can use and how they are accessed."
         )
         self._revoke_description.set_label(
             f"Revokes one-time screen time and app access grants granted to {child_name}."

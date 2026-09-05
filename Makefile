@@ -128,6 +128,15 @@ prep-host:
 
 .PHONY: prep-host
 
+# Host controller only. The package is installed and checked with pytest inside the
+# fixed snapshot-backed VM. Run from a root shell on the development/VM host.
+check-system:
+	@test -n "$(ARTIFACT_DIR)" || (echo 'Usage: make check-system ARTIFACT_DIR=/tmp/onpc-test-artifacts/first' >&2; exit 2)
+	@test -z "$(VM_IMAGE)" || (echo 'VM_IMAGE is obsolete: check-system uses the fixed ubuntu26.04 baseline snapshot' >&2; exit 2)
+	@/usr/bin/python3 -B tests/integration/system_runner.py --artifacts "$(ARTIFACT_DIR)"
+
+.PHONY: check-system
+
 # Preparation-only source-VM entry point; the launcher requests sudo as needed.
 prep-vm:
 	@tests/integration/prepare-vm

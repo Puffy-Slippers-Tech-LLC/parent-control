@@ -15,10 +15,10 @@ from gi.repository import Graphene, Gsk, Gtk
 LOG = logging.getLogger("oh-no-parent-control")
 SOURCE_WIDTH = 1672
 SOURCE_HEIGHT = 941
-# Increasing the shortest turn from 3.4 to 4.0 reduces the highest possible
-# float velocity to 85% of its prior limit, while retaining the existing slow
-# end of the randomized range.
-TURN_SECONDS = (4.0 / 2.4, 6.8 / 2.1)
+# The previous shortest turn was 3.4 / 2.1 seconds. Lengthening it by the
+# reciprocal of the 85% speed cap preserves the excursion while reducing the
+# highest possible float velocity to 85% of its prior limit.
+TURN_SECONDS = ((3.4 / 2.1) / 0.85, 6.8 / 2.1)
 EXCURSION = (6 / 1080, 13 / 1080)
 
 

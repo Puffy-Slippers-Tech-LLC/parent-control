@@ -11,6 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 BROKER = "oh-no-parent-control-broker.service"
+REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
 
 
 @pytest.fixture
@@ -119,8 +120,54 @@ def test_configure_activates_static_broker_after_migration(package_machine, impa
     assert not (state / "package-activation-pending").exists()
     assert (root / "run/reboot-required").exists() == ("reboot" in impacts)
     assert ("notify-reboot-required " in commands) == ("reboot" in impacts)
-    notice = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
-    assert (notice in result.stderr) == ("reboot" in impacts)
+    assert (REBOOT_NOTICE in result.stderr) == ("reboot" in impacts)
+
+
+@pytest.mark.parametrize("impacts", ["", "process-restart", "session-renewal", None],
+                         ids=["reinstall", "broker-update", "session-update", "reconfigure"])
+def test_reboot_notice_survives_configuration_until_reboot(package_machine, impacts):
+    root, state, run = package_machine
+    result = run(IMPACTS="reboot")
+    assert result.returncode == 0, result.stderr
+    assert result.stderr.count(REBOOT_NOTICE) == 1
+    packages = root / "run/reboot-required.pkgs"
+    original_packages = packages.read_text()
+
+    for rebooted in (False, True):
+        if rebooted:
+            # A reboot clears these files from /run; only the fixture is changed.
+            (root / "run/reboot-required").unlink()
+            packages.unlink()
+        if impacts is not None:
+            # preinst records a new comparison for each reinstall or upgrade.
+            (state / "package-activation-pending").touch()
+            (state / "previous-package-activation.json").touch()
+        result = run(IMPACTS=impacts or "")
+        assert result.returncode == 0, result.stderr
+        assert result.stderr.count(REBOOT_NOTICE) == (0 if rebooted else 1)
+        assert not (state / "package-activation-pending").exists()
+        if rebooted:
+            assert not (root / "run/reboot-required").exists()
+            assert not packages.exists()
+        else:
+            assert (root / "run/reboot-required").is_file()
+            assert packages.read_text() == original_packages
+    commands = (root / "commands").read_text().splitlines()
+    assert commands.count("notify-reboot-required ") == 1
+
+
+@pytest.mark.parametrize("packages", ["linux-base\ndbus\n", "oh-no-parent-control-extra\n"])
+def test_other_packages_do_not_trigger_kiosk_reboot_notice(package_machine, packages):
+    root, _, run = package_machine
+    (root / "run/reboot-required").write_text("*** System restart required ***\n")
+    package_marker = root / "run/reboot-required.pkgs"
+    package_marker.write_text(packages)
+    result = run(IMPACTS="")
+    assert result.returncode == 0, result.stderr
+    assert REBOOT_NOTICE not in result.stderr
+    assert (root / "run/reboot-required").is_file()
+    assert package_marker.read_text() == packages
+    assert "notify-reboot-required " not in (root / "commands").read_text().splitlines()
 
 
 @pytest.mark.parametrize("policy_status,success,activated", [

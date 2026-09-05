@@ -272,7 +272,7 @@ class KioskRenderingTests(unittest.TestCase):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertIn("directory.monitor_directory(", source)
-        self.assertIn('path.name in {"style.css", "kiosk-background.jpeg"}', source)
+        self.assertIn('"style.css", "kiosk-background-still.png", "kiosk-background-clear.png",', source)
         self.assertIn("self._load_stylesheet()", source)
         self.assertIn("window._background.reload_texture()", source)
         self.assertIn("os.execv(sys.executable, sys.orig_argv)", source)
@@ -654,7 +654,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertLess(_unit_vector((200.0, 255.0), (100.0, 100.0))[0], 0)
         self.assertLess(_unit_vector((200.0, 260.0), (140.0, 20.0))[1], 0)
 
-    def test_gateway_artwork_is_static_with_animated_gateway_energy(self):
+    def test_gateway_frame_stays_fixed_with_animated_gateway_energy(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertNotIn("zoom =", source)
@@ -664,7 +664,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("def _new_lightning_bolt", source)
         self.assertIn("CRYSTAL_LIGHTNING_TIPS", source)
         self.assertIn(
-            'source_x, source_y = self._random.choice(CRYSTAL_LIGHTNING_TIPS)',
+            'source_x, source_y = CRYSTAL_LIGHTNING_TIPS[source_index]',
             source,
         )
         self.assertIn("def _launch_lightning_burst", source)

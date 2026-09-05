@@ -33,7 +33,12 @@ class PackageDeploymentTests(unittest.TestCase):
         postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
         notice = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
         self.assertIn(notice, postinst)
-        self.assertLess(postinst.index("activate_broker"), postinst.index(notice))
+        self.assertIn('[ -t 2 ] && [ "${TERM:-dumb}" != dumb ]', postinst)
+        self.assertIn("'\\n\\033[1;31m%s\\033[0m\\n'", postinst)
+        self.assertLess(
+            postinst.index('activate_broker "$broker_action"'),
+            postinst.index(notice),
+        )
 
     def test_make_build_keeps_changes_file_artifacts_together(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
@@ -67,7 +72,7 @@ class PackageDeploymentTests(unittest.TestCase):
             "parent/oh_no_parent_control_parent/rich_editor/quill.snow.css",
             "parent/oh_no_parent_control_parent/rich_editor/quill.js.LICENSE.txt",
             "docs/parent-control-feedback.md",
-            "kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg",
+            "kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png",
             "kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf", "data/Gearbox_Waltz.mp3",
             "data/fapolicyd/99-oh-no-parent-control-allow.rules", "tools/pam_oh_no_parent_control.c",
             "tools/session_limit_check.py", "tools/clear_session_runtime_max.py",

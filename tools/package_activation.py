@@ -40,18 +40,21 @@ def activation_for(path: str) -> str:
         "usr/libexec/oh-no-parent-control-session-limit-check",
         "usr/libexec/oh-no-parent-control-clear-session-runtime-max",
         "usr/libexec/oh-no-parent-control-login-check",
+        "usr/share/oh-no-parent-control/gdm-presession",
     } or path.endswith("/security/pam_oh_no_parent_control.so"):
         return "reboot"
     # polkitd monitors its action and rule directories and evaluates them for
     # each authorization request, so no service or session restart is required.
     if path.startswith((
         "etc/polkit-1/rules.d/",
+        "usr/share/polkit-1/rules.d/",
         "usr/share/polkit-1/actions/",
     )):
         return "none"
     # The broker regenerates and reloads the aggregate execution rules during
     # startup, so a changed packaged fallback activates with a broker restart.
-    if path.startswith("etc/fapolicyd/rules.d/"):
+    if path.startswith("etc/fapolicyd/rules.d/") or path == (
+            "usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules"):
         return "process-restart"
     if path.startswith((
         "usr/lib/oh-no-parent-control/kiosk/",

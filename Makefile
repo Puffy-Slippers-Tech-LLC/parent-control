@@ -34,7 +34,7 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(DATADIR)/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf \
 	$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy \
 	$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy \
-	$(SYSCONFDIR)/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
+	$(DATADIR)/oh-no-parent-control/99-oh-no-parent-control-allow.rules \
 	$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session \
 	$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop \
 	$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png \
@@ -43,8 +43,8 @@ ACTIVATION_MANIFEST_PATHS := \
 	$(DATADIR)/oh-no-parent-control/app_logo_gnome_launcher.png \
 	$(DATADIR)/pam-configs/oh-no-parent-control-session-limits \
 	$(DATADIR)/pam-configs/oh-no-parent-control-kiosk-only \
-	$(SYSCONFDIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
-	/etc/gdm3/PreSession/Default
+	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
+	$(DATADIR)/oh-no-parent-control/gdm-presession
 CHILD_DIR := child
 EXTENSION_SOURCES := branding.js indicatorLogic.mjs logger.js previewMode.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
@@ -61,7 +61,7 @@ EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
-.PHONY: bump-version build installdeb prep-vm check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: bump-version build installdeb uninstalldeb prep-vm check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -101,6 +101,9 @@ installdeb:
 	echo "Installing $$deb_file"; \
 	$(APT) --fix-broken install; \
 	$(APT) install --reinstall "$$deb_file"
+
+uninstalldeb:
+	$(APT) remove oh-no-parent-control
 
 # Preparation-only host entry point; run from a root shell on the host.
 prep-host:
@@ -241,7 +244,7 @@ _install-product-files:
 	install -m 0644 common/oh_no_parent_control_ui/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons"
 	install -m 0644 common/oh_no_parent_control_ui/test_user_icons/*.png "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons/"
-	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg data/Gearbox_Waltz.mp3 child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
+	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png kiosk/oh_no_parent_control_kiosk/kiosk-background-clear.png data/Gearbox_Waltz.mp3 child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts"
 	install -m 0644 kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas"
@@ -263,13 +266,12 @@ _install-product-files:
 	# The broker is the trusted Polkit mechanism for both request front ends.
 	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy"
 	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy"
-	install -d "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d"
-	install -m 0644 data/polkit-1/rules.d/00-oh-no-parent-control-session.rules "$(DESTDIR)$(SYSCONFDIR)/polkit-1/rules.d/"
-	install -d "$(DESTDIR)$(DATADIR)/pam-configs" "$(DESTDIR)$(SYSCONFDIR)/gdm3/PreSession"
+	install -d "$(DESTDIR)$(DATADIR)/polkit-1/rules.d"
+	install -m 0644 data/polkit-1/rules.d/00-oh-no-parent-control-session.rules "$(DESTDIR)$(DATADIR)/polkit-1/rules.d/"
+	install -d "$(DESTDIR)$(DATADIR)/pam-configs" "$(DESTDIR)$(DATADIR)/oh-no-parent-control"
 	install -m 0644 data/pam-configs/oh-no-parent-control-session-limits data/pam-configs/oh-no-parent-control-kiosk-only "$(DESTDIR)$(DATADIR)/pam-configs/"
-	install -m 0755 data/gdm3/PreSession/Default "$(DESTDIR)$(SYSCONFDIR)/gdm3/PreSession/Default"
-	install -d "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d"
-	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(SYSCONFDIR)/fapolicyd/rules.d/"
+	install -m 0755 data/gdm3/PreSession/Default "$(DESTDIR)$(DATADIR)/oh-no-parent-control/gdm-presession"
+	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/systemd/oh-no-parent-control-broker.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d"
 	install -m 0644 data/systemd/fapolicyd.service.d/oh-no-parent-control-readiness.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/"

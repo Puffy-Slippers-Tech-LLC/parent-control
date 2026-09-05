@@ -29,6 +29,8 @@ from common.oh_no_parent_control_ui.test_identities import preview_users
 from .model import RequestState, public_error
 from .request_content import RequestContent
 from .selection_store import SelectionStore
+from .snowflakes import SnowflakeField
+from .floating_islands import FloatingIslands
 from .chrome import (
     ABOUT, BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, HELP,
     MENU, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
@@ -69,11 +71,11 @@ GATEWAY_ARTWORK_HEIGHT = 2_160
 # fractions, so an ejection visibly starts at its crystal rather than in the
 # surrounding cluster. These source-image coordinates also survive cover crop.
 CRYSTAL_LIGHTNING_TIPS = (
-    (0.154, 0.096),  # floating upper-left formation
-    (0.099, 0.342),  # left pedestal formation
-    (0.178, 0.618),  # lower-left pedestal formation
+    (272 / 1672, 90 / 941),  # floating upper-left formation
+    (164 / 1672, 314 / 941),  # left pedestal formation
+    (298 / 1672, 567 / 941),  # lower-left pedestal formation
     (0.077, 0.873),  # foreground bottom-left formation
-    (0.783, 0.383),  # right pedestal formation
+    (1320 / 1672, 358 / 941),  # right pedestal formation
     (0.827, 0.644),  # lower-right formation
 )
 GATEWAY_INNER_CORNERS = (
@@ -434,12 +436,16 @@ class LightningSizzle:
 
 
 class GatewayBackground(Gtk.Widget):
-    """Static kiosk artwork with animated energy travelling through its gateway."""
+    """Gateway artwork with floating islands, snowflakes and crystal lightning."""
 
     def __init__(self):
         super().__init__(hexpand=True, vexpand=True)
         self._started_at = GLib.get_monotonic_time() / 1_000_000
         self._texture = self._load_texture()
+        self._floating_islands = FloatingIslands(
+            self._texture, self._load_texture("kiosk-background-clear.png"),
+        )
+        self._snowflakes = SnowflakeField()
         self._random = random.SystemRandom()
         self._lightning_bolts = []
         self._next_lightning_burst_at = 0.0
@@ -451,19 +457,25 @@ class GatewayBackground(Gtk.Widget):
         self.connect("destroy", self._stop_animation)
 
     @staticmethod
-    def _load_texture():
+    def _load_texture(name="kiosk-background-still.png"):
         try:
             image_file = Gio.File.new_for_path(
-                str(Path(__file__).with_name("kiosk-background.jpeg")),
+                str(Path(__file__).with_name(name)),
             )
             return Gdk.Texture.new_from_file(image_file)
         except GLib.Error as error:
-            LOG.warning("kiosk background unavailable error_type=%s", type(error).__name__)
+            LOG.warning(
+                "kiosk background unavailable asset=%s error_type=%s",
+                name, type(error).__name__,
+            )
             return None
 
     def reload_texture(self):
         """Refresh the preview artwork without rebuilding the window."""
         self._texture = self._load_texture()
+        self._floating_islands = FloatingIslands(
+            self._texture, self._load_texture("kiosk-background-clear.png"),
+        )
         self.queue_draw()
 
     def _next_frame(self):
@@ -501,10 +513,10 @@ class GatewayBackground(Gtk.Widget):
             return
 
         now = GLib.get_monotonic_time() / 1_000_000 - self._started_at
-        image_bounds = Graphene.Rect().init(
-            *_gateway_artwork_geometry(width, height)
-        )
+        artwork = _gateway_artwork_geometry(width, height)
+        image_bounds = Graphene.Rect().init(*artwork)
         snapshot.append_texture(self._texture, image_bounds)
+        self._floating_islands.draw(snapshot, artwork, now)
 
         # A low-opacity vignette preserves legibility while allowing the
         # supplied artwork to remain prominent.
@@ -512,16 +524,20 @@ class GatewayBackground(Gtk.Widget):
             Gdk.RGBA(red=0.02, green=0.03, blue=0.09, alpha=0.24),
             bounds,
         )
+        self._snowflakes.configure(width, height, artwork)
+        self._snowflakes.draw(snapshot.append_cairo(bounds), now)
         self._append_gateway_energy(snapshot, width, height, now)
 
     def _new_lightning_bolt(self, starts_at):
         """Create one non-repeating bolt from a crystal into the gate."""
-        source_x, source_y = self._random.choice(CRYSTAL_LIGHTNING_TIPS)
+        source_index = self._random.randrange(len(CRYSTAL_LIGHTNING_TIPS))
+        source_x, source_y = CRYSTAL_LIGHTNING_TIPS[source_index]
         return {
             "starts_at": starts_at,
             "duration": self._random.uniform(0.85, 1.35),
             "source_x": source_x,
             "source_y": source_y,
+            "source_index": source_index,
             "target_x": self._random.uniform(0.44, 0.56),
             "target_y": self._random.uniform(0.42, 0.56),
             # Store a unique irregular path with the bolt so it stays stable
@@ -629,6 +645,9 @@ class GatewayBackground(Gtk.Widget):
                     self._lightning_sizzle(bolt["duration"], bolt["fade_rate"])
             source_x = image_x + bolt["source_x"] * image_width
             source_y = image_y + bolt["source_y"] * image_height
+            source_y += self._floating_islands.offset(
+                bolt["source_index"], elapsed,
+            ) * image_height
             target_x, target_y = bolt["target_x"] * width, bolt["target_y"] * height
             vector_x, vector_y = target_x - source_x, target_y - source_y
             vector_length = math.hypot(vector_x, vector_y)
@@ -1747,7 +1766,9 @@ class Application(Adw.Application):
             changed.add(Path(other_file.get_path() or ""))
         relevant = {
             path for path in changed
-            if path.name in {"style.css", "kiosk-background.jpeg"} or path.suffix == ".py"
+            if path.name in {
+                "style.css", "kiosk-background-still.png", "kiosk-background-clear.png",
+            } or path.suffix == ".py"
         }
         if not relevant:
             return
@@ -1764,7 +1785,10 @@ class Application(Adw.Application):
             self._load_stylesheet()
             LOG.info("preview stylesheet reloaded")
         window = self.get_active_window()
-        if "kiosk-background.jpeg" in names and window is not None:
+        if (
+            names & {"kiosk-background-still.png", "kiosk-background-clear.png"}
+            and window is not None
+        ):
             window._background.reload_texture()
             LOG.info("preview artwork reloaded")
         if any(path.suffix == ".py" for path in changed_paths):

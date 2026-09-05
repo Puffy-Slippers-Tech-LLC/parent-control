@@ -249,3 +249,14 @@ APT installs runtime dependencies and the package creates and confines the
 kiosk account, provisions the broker, and activates system integration. It
 marks the system as requiring a reboot when needed, and the Debian package
 prints a reboot notice before APT exits. No managed account is required.
+
+To uninstall through the same APT removal flow as the published package:
+
+```sh
+make uninstalldeb
+```
+
+This runs `sudo apt remove oh-no-parent-control` (`apt remove` when already
+root), preserving APT's normal confirmation prompt and the installed package's
+removal scripts. Log out of the kiosk session before removal. Saved application
+data and logs are retained by this removal flow.

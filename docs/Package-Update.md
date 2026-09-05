@@ -35,6 +35,10 @@ by our PAM/display-manager integration. Configuration retries avoid duplicate
 entries and retain the activation comparison if the hook fails.
 After configuration succeeds, `postinst` also prints a prominent terminal
 notice telling the administrator to reboot before using the kiosk session.
+The notice checks for this package's exact name in `/run/reboot-required.pkgs`,
+so reinstalls, updates, and configuration reruns retain an outstanding reminder
+until reboot clears the marker. Requests belonging only to other packages do
+not trigger the kiosk notice.
 Because the notice belongs to the package maintainer script, installing a local
 build and installing the published package through APT have the same behavior.
 

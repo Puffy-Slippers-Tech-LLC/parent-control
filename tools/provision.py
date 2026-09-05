@@ -82,10 +82,19 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--kiosk-user", required=True)
     parser.add_argument("--prefix", default="/")
+    parser.add_argument("--check-account", action="store_true")
     args = parser.parse_args()
     if os.geteuid() != 0:
         fail("must run as root")
     kiosk = account(args.kiosk_user, "kiosk")
+    if kiosk.pw_dir != "/home/oh-no-parent-control":
+        fail("kiosk home does not match the reserved path")
+    home = Path(args.prefix) / kiosk.pw_dir.lstrip("/")
+    if home.is_symlink() or not home.is_dir() or home.stat().st_uid != kiosk.pw_uid:
+        fail("kiosk home has unsafe ownership")
+    if args.check_account:
+        print("Validated package kiosk identity [Kiosk user]", file=sys.stderr)
+        return 0
 
     prefix = Path(args.prefix)
     example = prefix / "usr/share/oh-no-parent-control/config.example.json"

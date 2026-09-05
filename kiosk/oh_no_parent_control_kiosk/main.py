@@ -251,14 +251,25 @@ class BackgroundMusic:
         self._bus.connect("message::error", self._error)
         self._fade_source_id = None
         self._nominal_volume = BACKGROUND_MUSIC_VOLUME
+        self._started = False
 
     def start(self):
+        """Start playback once, when request-screen media becomes enabled."""
+        if self._started:
+            return
         self._player.set_property("volume", self._nominal_volume)
-        self._player.set_state(Gst.State.PLAYING)
+        outcome = self._player.set_state(Gst.State.PLAYING)
+        if outcome == Gst.StateChangeReturn.FAILURE:
+            LOG.warning("kiosk background music start failed")
+            return
+        self._started = True
+        LOG.info("kiosk background music started")
 
     def set_muted(self, muted):
-        """Mute or restore the soundtrack without interrupting its loop."""
+        """Mute the loop, or ensure playback has started before unmuting."""
         self._player.set_property("mute", muted)
+        if not muted:
+            self.start()
 
     def fade_out(self, duration_ms):
         """Lower volume to silence over duration_ms, then leave it at zero."""
@@ -294,6 +305,7 @@ class BackgroundMusic:
         self.cancel_fade(restore=False)
         self._bus.remove_signal_watch()
         self._player.set_state(Gst.State.NULL)
+        self._started = False
 
     def _restart(self, _bus, _message):
         """Seek to the start after each completed track."""
@@ -431,6 +443,7 @@ class GatewayBackground(Gtk.Widget):
         self._random = random.SystemRandom()
         self._lightning_bolts = []
         self._next_lightning_burst_at = 0.0
+        self._lightning_enabled = False
         self._lightning_sizzle = None
         self._frame_source_id = GLib.timeout_add(
             GATEWAY_EFFECT_FRAME_MS, self._next_frame,
@@ -465,6 +478,16 @@ class GatewayBackground(Gtk.Widget):
     def set_lightning_sizzle(self, play_sizzle):
         """Connect bolt starts to the window-owned, muteable audio effect."""
         self._lightning_sizzle = play_sizzle
+
+    def set_lightning_enabled(self, enabled):
+        """Show lightning only while request-screen media is enabled."""
+        self._lightning_enabled = bool(enabled)
+        self._lightning_bolts.clear()
+        # Enabling begins a fresh burst; disabling removes active and queued
+        # bolts immediately so a muted screen cannot retain a fading strike.
+        self._next_lightning_burst_at = 0.0
+        self.queue_draw()
+        LOG.info("gateway lightning enabled=%s", self._lightning_enabled)
 
     def do_snapshot(self, snapshot):
         width = self.get_width()
@@ -579,6 +602,9 @@ class GatewayBackground(Gtk.Widget):
 
     def _append_gateway_energy(self, snapshot, width, height, elapsed):
         """Draw bright, randomly sourced lightning moving into the gateway."""
+        if not self._lightning_enabled:
+            return
+
         bounds = Graphene.Rect().init(0, 0, width, height)
         context = snapshot.append_cairo(bounds)
 
@@ -1096,9 +1122,9 @@ class RequestWindow(Adw.ApplicationWindow):
         self._music = BackgroundMusic(soundtrack)
         self._sizzle = LightningSizzle()
         self._background.set_lightning_sizzle(self._sizzle.play)
-        self._music.start()
-        if preview and not child_overlay:
-            self._apply_mute(True)
+        # Start muted before playback so neither production nor either preview
+        # surface can emit audio while preferences are loading.
+        self._apply_mute(True)
         self.connect("destroy", self._on_destroy)
         LOG.info(
             "request station window initialized overlay=%s",
@@ -1160,11 +1186,11 @@ class RequestWindow(Adw.ApplicationWindow):
         self._mute_icon.set_halign(Gtk.Align.CENTER)
         self._mute_icon.set_valign(Gtk.Align.CENTER)
         self._mute_button = ArmoredButton(
-            armor_kind="hud", tooltip_text="Mute sound",
+            armor_kind="hud", tooltip_text="Mute sound and lightning",
         )
         describe_control(
             self._mute_button, "Mute request-screen sound",
-            "Turn the request-screen soundtrack on or off.",
+            "Turn the request-screen soundtrack and lightning on or off.",
         )
         self._mute_button.set_child(self._mute_icon)
         self._mute_button.add_css_class("oh-no-parent-control-hud-button")
@@ -1285,13 +1311,19 @@ class RequestWindow(Adw.ApplicationWindow):
         self._muted = muted
         self._music.set_muted(muted)
         self._sizzle.set_muted(muted)
+        self._background.set_lightning_enabled(not muted)
         self._mute_icon.set_pixels(SPEAKER_MUTED if muted else SPEAKER)
-        self._mute_button.set_tooltip_text("Unmute sound" if muted else "Mute sound")
+        self._mute_button.set_tooltip_text(
+            "Unmute sound and lightning" if muted else "Mute sound and lightning"
+        )
         if muted:
             self._mute_button.add_css_class("oh-no-parent-control-hud-muted")
         else:
             self._mute_button.remove_css_class("oh-no-parent-control-hud-muted")
-        LOG.info("request-screen sound muted=%s overlay=%s", muted, self._child_overlay)
+        LOG.info(
+            "request-screen media muted=%s lightning_enabled=%s overlay=%s",
+            muted, not muted, self._child_overlay,
+        )
 
     def _toggle_mute(self, *_args):
         self._apply_mute(not self._muted)

@@ -247,5 +247,5 @@ make installdeb
 
 APT installs runtime dependencies and the package creates and confines the
 kiosk account, provisions the broker, and activates system integration. It
-marks the system as requiring a reboot when needed; `make installdeb` offers an
-interactive reboot on a terminal. No managed account is required.
+marks the system as requiring a reboot when needed, and the Debian package
+prints a reboot notice before APT exits. No managed account is required.

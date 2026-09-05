@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -33,6 +34,10 @@ SNAPSHOT_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_A11Y_PATH"])
 X_KEYCODE_ESCAPE = 9
 X_KEYCODE_SPACE = 65
 X_KEYCODE_SUPER_L = 133
+COUNTDOWN_ANIMATION_LABEL = "One minute count down animation"
+COUNTDOWN_ANIMATION_SCHEMA = "com.puffyslippers.oh-no-parent-control.child"
+COUNTDOWN_ANIMATION_KEY = "one-minute-countdown-animation"
+EXTENSION_UUID = "oh-no-parent-control@tech.puffyslippers.com"
 
 
 def _children(node):
@@ -97,6 +102,55 @@ def _find_request_button():
             if name.startswith("Request time, ") and " left" in name:
                 return node
     return None
+
+
+def _find_countdown_animation_item():
+    for application in _applications():
+        if "gnome-shell" not in _node_name(application).lower():
+            continue
+        for node in _walk(application):
+            if _node_name(node) == COUNTDOWN_ANIMATION_LABEL \
+                    and _state(node, Atspi.StateType.SHOWING):
+                return node
+    return None
+
+
+def _countdown_animation_setting():
+    schema_dir = (
+        Path(os.environ["XDG_DATA_HOME"]) / "gnome-shell" / "extensions" /
+        EXTENSION_UUID / "schemas"
+    )
+    environment = {
+        **os.environ,
+        "GSETTINGS_SCHEMA_DIR": str(schema_dir),
+    }
+    result = subprocess.run(
+        ["gsettings", "get", COUNTDOWN_ANIMATION_SCHEMA,
+         COUNTDOWN_ANIMATION_KEY],
+        text=True,
+        capture_output=True,
+        check=False,
+        env=environment,
+    )
+    if result.returncode != 0:
+        raise AssertionError(
+            "Could not read the private countdown animation setting: "
+            f"{result.stderr.strip()}"
+        )
+    return result.stdout.strip() == "true"
+
+
+def _click(node, button, input_backend):
+    extents = node.get_extents(Atspi.CoordType.SCREEN)
+    input_backend.generateButtonEvent(
+        button,
+        extents.x + max(1, extents.width // 2),
+        extents.y + max(1, extents.height // 2),
+    )
+
+
+def _right_click(node, input_backend):
+    _click(node, 3, input_backend)
 
 
 def _overlay_surfaces():
@@ -300,6 +354,25 @@ def main():
         if _launch_records() or _overlay_surfaces():
             raise AssertionError("The interaction preview opened an overlay before activation")
         print("interaction stage=initially-closed", flush=True)
+
+        if _countdown_animation_setting():
+            raise AssertionError("Countdown animation did not default to disabled")
+        _right_click(request_button, input_backend)
+        countdown_item = _wait(
+            _find_countdown_animation_item,
+            "the secondary-click countdown animation checkbox",
+        )
+        if _state(countdown_item, Atspi.StateType.CHECKED):
+            raise AssertionError("Countdown animation checkbox did not default to unchecked")
+        _click(countdown_item, 1, input_backend)
+        _wait(
+            lambda: _find_countdown_animation_item() is None,
+            "the countdown animation menu to close after activation",
+        )
+        time.sleep(0.25)
+        if not _countdown_animation_setting():
+            raise AssertionError("Countdown animation choice was not persisted")
+        print("interaction stage=countdown-preference-persisted", flush=True)
 
         # These actions arrive after the first spawn but before its GTK window
         # is exposed. They exercise the production single-flight guard while

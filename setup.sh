@@ -71,6 +71,7 @@ fi
     gnupg \
     gir1.2-adw-1 \
     gir1.2-gtk-4.0 \
+    gir1.2-webkit-6.0 \
     gnome-shell=50.1-0ubuntu1.2 \
     inotify-tools=4.25.9.0-1 \
     gjs=1.88.0-1 \
@@ -93,6 +94,7 @@ fi
     python3-libvirt=12.0.0-1build1 \
     python3-guestfs=1:1.58.1-3ubuntu3 \
     python3-pytest=9.0.2-4 \
+    python3-requests \
     python3-venv \
     qemu-utils=1:10.2.1+ds-1ubuntu3.2
 

@@ -52,6 +52,19 @@ broker. The system-bus policy permits callers to reach the service; the broker,
 not possession of the bus name or a client executable, is the authorization
 boundary.
 
+The Parent App's feedback dialog sends directly over HTTPS to the public
+`/api/oh-no-parent-control/feedback` endpoint using an unprivileged worker.
+Its rich-text field is the pinned, locally bundled Quill editor in an ephemeral
+WebKitGTK 6 web view whose content-security policy denies network access. Plain
+text and semantic HTML are sent together; the endpoint sanitizes HTML before
+email delivery. User-selected files and the administrator-readable dated
+product-log ZIP are optional. Drafts, file bytes, reviewed archives, and
+immutable retry submissions stay in memory; closing the dialog preserves them
+until app exit. Paths, provider credentials, child preferences, and additional
+device metadata are not sent. The endpoint emails feedback to support with the
+configured seven-day retention policy. See `parent-control-feedback.md` for the
+multipart and retry contract.
+
 The broker is divided into these layers:
 
 - `service.py`: service construction, startup reconciliation, D-Bus dispatch,

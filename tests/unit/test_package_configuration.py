@@ -37,6 +37,14 @@ case "$name" in
     policy-rc.d) exit "${POLICY_STATUS:-0}" ;;
     oh-no-parent-control-migrate-state) exit "${MIGRATION_STATUS:-0}" ;;
     oh-no-parent-control-package-activation) printf '%s\n' "$IMPACTS" ;;
+    notify-reboot-required)
+        test "$DPKG_MAINTSCRIPT_PACKAGE" = oh-no-parent-control || exit 91
+        test "${NOTIFIER_STATUS:-0}" = 0 || exit "$NOTIFIER_STATUS"
+        if [ "${NOTIFIER_DEFER:-0}" != 1 ]; then
+            printf '*** System restart required ***\n' > "$AUDIT_ROOT/run/reboot-required"
+            printf '%s\n' "$DPKG_MAINTSCRIPT_PACKAGE" >> "$AUDIT_ROOT/run/reboot-required.pkgs"
+        fi
+        ;;
     systemctl)
         case "$*" in
             '--system start oh-no-parent-control-broker.service'|\
@@ -72,6 +80,9 @@ esac
     policy = tmp_path / "usr/sbin/policy-rc.d"
     policy.parent.mkdir(parents=True)
     policy.symlink_to(stub)
+    notifier = tmp_path / "usr/share/update-notifier/notify-reboot-required"
+    notifier.parent.mkdir(parents=True)
+    notifier.symlink_to(stub)
 
     source = (ROOT / "debian/postinst").read_text()
     for prefix in ("/etc/", "/var/", "/run/", "/home/", "/usr/"):
@@ -107,6 +118,9 @@ def test_configure_activates_static_broker_after_migration(package_machine, impa
     assert "inactive static unit skipped" not in result.stderr
     assert not (state / "package-activation-pending").exists()
     assert (root / "run/reboot-required").exists() == ("reboot" in impacts)
+    assert ("notify-reboot-required " in commands) == ("reboot" in impacts)
+    notice = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
+    assert (notice in result.stderr) == ("reboot" in impacts)
 
 
 @pytest.mark.parametrize("policy_status,success,activated", [
@@ -143,6 +157,30 @@ def test_startup_failure_preserves_activation_for_retry(package_machine):
     assert result.returncode == 0, result.stderr
     assert not (state / "package-activation-pending").exists()
     assert (root / "commands").read_text().count(f"systemctl --system restart {BROKER}") == 2
+    assert (root / "run/reboot-required.pkgs").read_text().splitlines() == ["oh-no-parent-control"]
+    assert (root / "commands").read_text().splitlines().count("notify-reboot-required ") == 1
+
+
+@pytest.mark.parametrize("defer", ["0", "1"])
+def test_reboot_notification_preserves_other_package_requests(package_machine, defer):
+    root, _, run = package_machine
+    (root / "run/reboot-required").write_text("*** System restart required ***\n")
+    packages = root / "run/reboot-required.pkgs"
+    packages.write_text("linux-base\ndbus\n")
+    result = run(IMPACTS="reboot", NOTIFIER_DEFER=defer)
+    assert result.returncode == 0, result.stderr
+    assert packages.read_text().splitlines() == ["linux-base", "dbus", "oh-no-parent-control"]
+    assert (root / "run/reboot-required").is_file()
+
+
+def test_notification_failure_retains_comparison_for_retry(package_machine):
+    root, state, run = package_machine
+    result = run(IMPACTS="reboot", NOTIFIER_STATUS="1")
+    assert result.returncode != 0
+    assert (state / "package-activation-pending").exists()
+    assert (state / "previous-package-activation.json").exists()
+    result = run(IMPACTS="reboot")
+    assert result.returncode == 0, result.stderr
     assert (root / "run/reboot-required.pkgs").read_text().splitlines() == ["oh-no-parent-control"]
 
 

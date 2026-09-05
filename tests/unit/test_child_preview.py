@@ -405,7 +405,31 @@ class ChildPreviewTests(unittest.TestCase):
     def test_request_icon_spins_during_the_final_ten_seconds(self):
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
 
-        self.assertIn("if (remainingSecs > 10)", indicator)
+        self.assertIn(
+            "if (!this._countdownAnimationsEnabled || remainingSecs > 10)",
+            indicator,
+        )
         self.assertIn("rotation_angle_z: 360", indicator)
         self.assertIn("repeatCount: -1", indicator)
         self.assertIn("animationRequired: true", indicator)
+
+    def test_secondary_click_menu_persists_the_countdown_animation_choice(self):
+        indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
+        extension = (ROOT / "child" / "extension.js").read_text()
+        schema = (
+            ROOT / "child" / "schemas" /
+            "com.puffyslippers.oh-no-parent-control.child.gschema.xml"
+        ).read_text()
+        makefile = (ROOT / "Makefile").read_text()
+
+        self.assertIn("'button-press-event'", indicator)
+        self.assertIn(
+            "event.get_button() !== Clutter.BUTTON_SECONDARY", indicator
+        )
+        self.assertIn("PopupMenu.PopupSwitchMenuItem", indicator)
+        self.assertIn("One minute count down animation", indicator)
+        self.assertIn("set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)", indicator)
+        self.assertIn("getSettings(SETTINGS_SCHEMA)", extension)
+        self.assertIn('<default>false</default>', schema)
+        self.assertIn('name="one-minute-countdown-animation"', schema)
+        self.assertIn("glib-compile-schemas", makefile)

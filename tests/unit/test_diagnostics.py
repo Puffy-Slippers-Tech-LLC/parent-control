@@ -1,0 +1,67 @@
+from datetime import date
+from io import BytesIO
+from zipfile import ZipFile
+
+import pytest
+
+from parent.oh_no_parent_control_parent import diagnostics
+
+
+def test_export_contains_only_three_days_of_product_logs(tmp_path):
+    component = tmp_path / "parent"
+    component.mkdir()
+    for day in (1, 2, 3, 4):
+        (component / f"2026-09-{day:02}.log").write_text(f"event {day}")
+    (component / "other.txt").write_text("excluded")
+    with ZipFile(BytesIO(diagnostics.collect_logs(tmp_path, date(2026, 9, 4)))) as archive:
+        assert archive.namelist() == [
+            f"parent/2026-09-{day:02}.log" for day in (4, 3, 2)
+        ]
+        assert archive.read("parent/2026-09-04.log") == b"event 4"
+
+
+def test_export_rejects_symlinks_and_oversized_logs(tmp_path, monkeypatch):
+    component = tmp_path / "parent"
+    component.mkdir()
+    log = component / "2026-09-04.log"
+    log.symlink_to(tmp_path / "private")
+    with pytest.raises(OSError):
+        diagnostics.collect_logs(tmp_path, date(2026, 9, 4))
+    log.unlink()
+    log.write_text("12345")
+    monkeypatch.setattr(diagnostics, "MAX_BYTES", 4)
+    with pytest.raises(ValueError, match="limit"):
+        diagnostics.collect_logs(tmp_path, date(2026, 9, 4))
+
+
+def test_export_reports_no_logs(tmp_path):
+    with pytest.raises(ValueError, match="No recent logs"):
+        diagnostics.collect_logs(tmp_path, date(2026, 9, 4))
+
+
+def test_download_saves_exact_archive_privately(tmp_path):
+    from types import SimpleNamespace
+    from gi.repository import Gio, GLib
+    from parent.oh_no_parent_control_parent.feedback import FeedbackDialog
+
+    path = tmp_path / "download.zip"
+    loop = GLib.MainLoop()
+    messages = []
+    dialog = SimpleNamespace()
+
+    def done(message):
+        messages.append(message)
+        loop.quit()
+
+    dialog._download_done = done
+    dialog._download_saved = lambda *args: FeedbackDialog._download_saved(dialog, *args)
+    chooser = SimpleNamespace(save_finish=lambda _: Gio.File.new_for_path(str(path)))
+    FeedbackDialog._download_selected(dialog, chooser, None, b"archive contents")
+    timeout = GLib.timeout_add_seconds(5, lambda: (loop.quit(), False)[1])
+    try:
+        loop.run()
+    finally:
+        GLib.source_remove(timeout)
+    assert messages == ["Downloaded · Ready to examine"]
+    assert path.read_bytes() == b"archive contents"
+    assert path.stat().st_mode & 0o777 == 0o600

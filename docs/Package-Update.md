@@ -24,6 +24,24 @@ session integration, or saved-preference schema change.
 
 The package never clears `/run/reboot-required` or removes package names from `/run/reboot-required.pkgs`: either may have been created by Ubuntu or another package. It only adds its own package name when this package's comparison finds the `reboot` level.
 
+For that level, `postinst` invokes Ubuntu's
+`/usr/share/update-notifier/notify-reboot-required` package hook with this
+package's name. The runtime dependencies include `update-notifier` (the desktop
+indicator) and `update-notifier-common` (the hook). Ubuntu owns the restart icon,
+tooltip, notification timing, and user notification preferences. The package
+does not launch a desktop process from the root maintainer script. If the hook
+defers marker creation for Livepatch, `postinst` still records the reboot needed
+by our PAM/display-manager integration. Configuration retries avoid duplicate
+entries and retain the activation comparison if the hook fails.
+After configuration succeeds, `postinst` also prints a prominent terminal
+notice telling the administrator to reboot before using the kiosk session.
+Because the notice belongs to the package maintainer script, installing a local
+build and installing the published package through APT have the same behavior.
+
+This follows [Ubuntu's package reboot-notification guidance](https://discourse.ubuntu.com/t/ubuntu-deb-package-maintainer-scripts-hooks-triggers-tips-tricks/36174).
+The notification wiring activates during package configuration (`none`); it
+does not itself change the reboot classifications or saved application data.
+
 The broker remains a static, D-Bus-activated unit. Migration stops it even for an
 unchanged reinstall, so every successful configuration requests a broker start;
 `process-restart` and `session-renewal` instead request a restart to reassert

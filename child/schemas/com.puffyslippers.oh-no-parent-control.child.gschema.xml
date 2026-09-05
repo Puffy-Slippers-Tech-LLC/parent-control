@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="com.puffyslippers.oh-no-parent-control.child"
+          path="/com/puffyslippers/oh-no-parent-control/child/">
+    <key name="one-minute-countdown-animation" type="b">
+      <default>false</default>
+      <summary>Animate the final minute of the screen-time countdown</summary>
+      <description>
+        Whether the remaining-time indicator flashes during the final minute
+        and spins its request icon during the final ten seconds.
+      </description>
+    </key>
+  </schema>
+</schemalist>

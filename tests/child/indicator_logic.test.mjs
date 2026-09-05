@@ -77,6 +77,54 @@ test('formats minute, final-minute, zero, and multi-day remaining time', () => {
     assert.equal(formatRemainingTime(49 * 60 * 60, false), '49:00 left');
 });
 
+test('countdown animation setting gates the final-minute effects', () => {
+    const source = readFileSync(
+        new URL('../../child/remainingTimeIndicator.js', import.meta.url), 'utf8')
+        .replace(/^import[\s\S]*?;\n/gm, '')
+        .replace('export const RemainingTimeIndicator',
+            'globalThis.RemainingTimeIndicator');
+    const context = vm.createContext({
+        GObject: {registerClass: klass => klass},
+        PanelMenu: {Button: class {}},
+        Clutter: {AnimationMode: {LINEAR: 'linear'}},
+        formatRemainingTime,
+    });
+    vm.runInContext(source, context);
+    const indicator = new context.RemainingTimeIndicator();
+    let clears = 0;
+    let flashes = 0;
+    let countdownStyles = 0;
+    let spins = 0;
+    let stops = 0;
+    Object.assign(indicator, {
+        _countdownAnimationsEnabled: false,
+        _previewMarker: '',
+        _requestIconSpinning: false,
+        _buttonContent: {},
+        _label: {
+            text: '',
+            add_style_pseudo_class: () => countdownStyles++,
+        },
+        _requestButton: {},
+        _requestIcon: {ease: () => spins++},
+        _clearCountdownWarning: () => clears++,
+        _stopRequestIconSpin: () => stops++,
+        _syncOrientation: () => false,
+        _flashContent: () => flashes++,
+    });
+
+    indicator._updateLabel(9);
+    assert.deepEqual(
+        {clears, flashes, countdownStyles, spins, stops},
+        {clears: 1, flashes: 0, countdownStyles: 0, spins: 0, stops: 1});
+
+    indicator._countdownAnimationsEnabled = true;
+    indicator._updateLabel(9);
+    assert.deepEqual(
+        {clears, flashes, countdownStyles, spins, stops},
+        {clears: 1, flashes: 1, countdownStyles: 1, spins: 1, stops: 1});
+});
+
 test('display state changes cadence at the final minute and locks only at zero', () => {
     assert.deepEqual(displayState({calculatedEnd: 160, currentTime: 100, locked: false, greeter: false}), {
         remaining: 60, visible: true, shouldLock: false, countdown: false,

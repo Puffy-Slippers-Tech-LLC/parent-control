@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest import mock
 
 from parent.oh_no_parent_control_parent.main import (
-    APPLICATION_ICON_NAME, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _duration_label, _minutes_label,
+    APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _duration_label, _minutes_label,
     PREVIEW_THUNDERBIRD_ICON, _time_status_subtitle,
 )
 
@@ -196,6 +196,12 @@ class ParentWindowTests(unittest.TestCase):
                 ("permanent", "window-close-symbolic", "policy-hard-blocked"),
                 ("conditional", "dialog-warning-symbolic", "policy-soft-blocked"),
             ],
+        )
+
+    def test_app_list_places_soft_block_before_hard_block(self):
+        self.assertEqual(
+            [state["id"] for state in APP_LIST_STATES],
+            ["allowed", "conditional", "permanent"],
         )
 
     def test_parent_title_bar_uses_the_shared_product_logo(self):
@@ -482,7 +488,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('label="Legend"', source)
         self.assertIn('active=False', source)
         self.assertIn('reveal_child=False', source)
-        self.assertIn('"App Access (What happens)", STATES', source)
+        self.assertIn('"App Access (What happens)", APP_LIST_STATES', source)
         self.assertIn('"Match Rule (How apps are matched)", MATCH_RULES', source)
         self.assertIn('orientation=Gtk.Orientation.VERTICAL', source)
         self.assertIn('card.add_css_class("expanded")', toggled)

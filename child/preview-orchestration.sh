@@ -127,6 +127,12 @@ onpc_preview_prepare_environment() {
                 "$repo_root"/{LICENSE,COPYRIGHT,NOTICE}; do
             ln -s "$source" "$extension_dir/${source##*/}"
         done
+        mkdir -p "$extension_dir/schemas"
+        for source in "$payload_source_dir"/schemas/*.xml; do
+            [[ -e "$source" ]] || continue
+            ln -s "$source" "$extension_dir/schemas/${source##*/}"
+        done
+        glib-compile-schemas "$extension_dir/schemas"
     fi
 
     cp -a "$onpc_preview_schema_source/." "$schema_dir/"

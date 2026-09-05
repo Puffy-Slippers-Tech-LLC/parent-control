@@ -115,16 +115,19 @@ class ParentWindowTests(unittest.TestCase):
                  "thunderbird_thunderbird.desktop",
                  "lunarclient.desktop",
                  "com.mojang.Minecraft.desktop",
+                 "steam.desktop",
              )],
             [
                 ("thunderbird_thunderbird.desktop", "allowed", True),
                 ("lunarclient.desktop", "permanent", True),
                 ("com.mojang.Minecraft.desktop", "conditional", False),
+                ("steam.desktop", "conditional", False),
             ],
         )
         self.assertEqual(
             applications["com.mojang.Minecraft.desktop"]["suggested_patterns"], [],
         )
+        self.assertEqual(applications["steam.desktop"]["targets"], ["/usr/bin/steam"])
 
     def test_preview_uses_the_bundled_thunderbird_icon(self):
         client = PreviewBrokerClient()

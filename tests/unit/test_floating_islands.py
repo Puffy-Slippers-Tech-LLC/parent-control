@@ -17,8 +17,8 @@ def test_paths_are_bounded_visible_and_independent():
         assert max(positions) <= EXCURSION[1]
         assert min(positions) >= -EXCURSION[1]
         assert max(positions) - min(positions) > 20 / 1080
-        # Less than half a screen pixel per frame even at the fastest point.
-        assert max(abs(b - a) * 1080 for a, b in zip(positions, positions[1:])) < 0.5
+        # Less than 1.5 screen pixels per frame even at the fastest point.
+        assert max(abs(b - a) * 1080 for a, b in zip(positions, positions[1:])) < 1.5
     for index, positions in enumerate(samples):
         for other in samples[index + 1:]:
             assert any((b - a) * (d - c) < 0
@@ -34,7 +34,7 @@ def test_turn_heights_and_intervals_keep_changing():
     intervals = [(b - a) / 20 for a, b in zip(turns, turns[1:])]
     heights = [abs(positions[index]) * 1080 for index in turns]
     assert len(turns) > 15
-    assert max(intervals) - min(intervals) > 2
+    assert max(intervals) - min(intervals) > 2 / 3
     assert max(heights) - min(heights) > 4
 
 
@@ -42,7 +42,9 @@ def test_turns_do_not_jump_in_position_velocity_or_acceleration():
     path = RandomFloat(random.Random(7))
     for _ in range(20):
         turn_at = path._starts_at + path._duration
-        step = 0.001
+        # Sample close to the join so faster curves' changing acceleration
+        # does not obscure continuity at the turning point itself.
+        step = 0.00005
         before = path.position(turn_at - 2 * step)
         near_before = path.position(turn_at - step)
         at_turn = path.position(turn_at)

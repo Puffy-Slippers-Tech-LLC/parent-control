@@ -22,7 +22,7 @@ The maintainer-script removal guard and execution-policy baseline likewise
 activate in the install/remove lifecycle (`none`); they add no running service,
 session integration, or saved-preference schema change.
 
-The package never clears `/run/reboot-required` or removes package names from `/run/reboot-required.pkgs`: either may have been created by Ubuntu or another package. It only adds its own package name when this package's comparison finds the `reboot` level.
+The package never clears `/run/reboot-required` or removes package names from `/run/reboot-required.pkgs`: either may have been created by Ubuntu or another package. It adds its own package name when this package's comparison finds the `reboot` level or after package removal.
 
 For that level, `postinst` invokes Ubuntu's
 `/usr/share/update-notifier/notify-reboot-required` package hook with this
@@ -59,6 +59,22 @@ These maintainer-script changes activate during package configuration (`none`);
 they introduce no boot integration or saved-data migration.
 
 ## Maintaining classifications
+
+Removal changes PAM and login-manager integration too. `postrm remove` records
+the Ubuntu reboot requirement and prints a removal-specific terminal notice.
+It uses the update-notifier hook if present, with a direct marker fallback when
+the dependency is missing, fails, or defers notification. Retry does not duplicate
+the package entry. A later `postrm purge` does not invent another reboot request;
+APT purge of an installed package already runs the removal phase first.
+
+The GDM hook template at `usr/share/oh-no-parent-control/gdm-presession` remains
+`reboot`. The generated fallback rule's template at
+`usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules` remains
+`process-restart`. The Polkit rule moved to `usr/share/polkit-1/rules.d` remains
+`none`. Ownership records, PAM baseline capture, cleanup guards, and the removal
+notice activate in the package lifecycle (`none`). They do not change any saved
+preference schema and need no data migration. These packaging changes target
+clean installations; they do not adopt untracked installations or accounts.
 
 `activation_for()` in `tools/package_activation.py` is the complete, reviewed mapping from installed path to activation level. `ACTIVATION_MANIFEST_PATHS` in the `Makefile` selects the corresponding installed files for hashing. When adding, moving, or removing a packaged integration file, update both and add a focused unit test in `tests/unit/test_package_activation.py`. Classify by the installed path, not its source directory.
 

@@ -14,8 +14,8 @@ remaining scene continues to use the original still texture. Both images are
 
 Each formation starts at its own randomly chosen point along a path. At every
 turn it samples a new height (6–13 pixels above or below its painted position
-at an artwork height of 1080 pixels) and travel time (3.4–6.8 seconds to the next
-turn). Quintic interpolation keeps position, velocity and acceleration
+at an artwork height of 1080 pixels) and travel time (about 1.62–3.24 seconds to
+the next turn). Quintic interpolation keeps position, velocity and acceleration
 continuous through each reversal. There is no sine/cosine oscillator or repeated
 animation clip. Monotonic elapsed time keeps speed independent of frame rate.
 

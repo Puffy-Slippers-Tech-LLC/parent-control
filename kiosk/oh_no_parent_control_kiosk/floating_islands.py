@@ -15,7 +15,7 @@ from gi.repository import Graphene, Gsk, Gtk
 LOG = logging.getLogger("oh-no-parent-control")
 SOURCE_WIDTH = 1672
 SOURCE_HEIGHT = 941
-TURN_SECONDS = (3.4, 6.8)
+TURN_SECONDS = (3.4 / 2.1, 6.8 / 2.1)
 EXCURSION = (6 / 1080, 13 / 1080)
 
 

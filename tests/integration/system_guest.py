@@ -116,9 +116,6 @@ def install():
 def installed_group(path):
     groups = {
         '/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop': 'sudo',
-        # The dependency's fapolicyd.conf tmpfiles Z rule recursively applies
-        # root:fapolicyd when the newly installed dependency is configured.
-        '/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules': 'fapolicyd',
     }
     return grp.getgrnam(groups.get(str(path), 'root')).gr_gid
 
@@ -183,7 +180,7 @@ def installed():
         require(bool(root.findall('action')), 'polkit-action')
     for path in ('/usr/share/wayland-sessions/oh-no-parent-control.desktop',
                  '/usr/share/gnome-session/sessions/oh-no-parent-control.session',
-                 '/etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules'):
+                 '/usr/share/polkit-1/rules.d/00-oh-no-parent-control-session.rules'):
         require(Path(path).is_file(), 'session-or-polkit-registration')
     rules = Path('/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules')
     require(rules.is_file() and rules.stat().st_uid == 0, 'generated-execution-rules')

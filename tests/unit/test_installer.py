@@ -95,7 +95,7 @@ class PackageDeploymentTests(unittest.TestCase):
 
     def test_postinst_reasserts_kiosk_identity_and_enforcement_services(self):
         postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
-        provision = postinst.index("/usr/libexec/oh-no-parent-control-provision")
+        provision = postinst.index('    /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"\n')
         enable = postinst.index("systemctl enable")
         start = postinst.index("deb-systemd-invoke start", enable)
         owned_guard = postinst.index('if [ "$package_created_kiosk" -eq 1 ]')
@@ -124,7 +124,7 @@ class PackageDeploymentTests(unittest.TestCase):
         prerm = (ROOT / "debian/prerm").read_text(encoding="utf-8")
         postrm = (ROOT / "debian/postrm").read_text(encoding="utf-8")
         self.assertLess(prerm.index("deb-systemd-invoke stop"), prerm.index("--remove"))
-        for path in ("/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules", "/etc/oh-no-parent-control/config.json", "/etc/polkit-1/rules.d/00-oh-no-parent-control-session.rules"):
+        for path in ("/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules", "/etc/oh-no-parent-control/config.json"):
             self.assertIn(path, postrm)
         self.assertIn("package-created-kiosk-uid", postrm)
         self.assertIn('deluser "$kiosk_user"', postrm)

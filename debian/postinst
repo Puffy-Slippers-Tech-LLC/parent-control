@@ -51,6 +51,7 @@ activate_broker() {
 
 if [ "$1" = abort-remove ]; then
     release_removal_guard
+    activate_broker start
 fi
 
 if [ "$1" = configure ]; then
@@ -173,8 +174,8 @@ if [ "$1" = configure ]; then
         --disable malcontent \
         --enable oh-no-parent-control-session-limits \
         --enable oh-no-parent-control-kiosk-only </dev/null
-    if ! grep -Eq '^[[:space:]]*[^#].*pam_oh_no_parent_control\.so' /etc/pam.d/common-auth ||
-       ! grep -Eq '^[[:space:]]*[^#].*/usr/libexec/oh-no-parent-control-login-check' /etc/pam.d/common-account; then
+    if ! grep -Eq '^[[:space:]]*[^#[:space:]].*pam_oh_no_parent_control\.so' /etc/pam.d/common-auth ||
+       ! grep -Eq '^[[:space:]]*[^#[:space:]].*/usr/libexec/oh-no-parent-control-login-check' /etc/pam.d/common-account; then
         echo 'oh-no-parent-control: PAM integration was not activated; preserving local PAM configuration' >&2
         exit 1
     fi
@@ -268,6 +269,7 @@ if [ "$1" = configure ]; then
     if [ -f "$pending" ]; then
         rm -f "$previous" "$pending"
     fi
+    rm -f /var/lib/oh-no-parent-control/first-install-in-progress
     # A reinstall or update can leave an earlier reboot request outstanding.
     # Keep reminding the administrator until reboot clears the /run marker.
     if [ -r /run/reboot-required.pkgs ] && \

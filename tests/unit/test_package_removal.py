@@ -19,6 +19,9 @@ class Machine:
         for path in ("etc/fapolicyd/rules.d", "run/systemd/system",
                      "var/lib/oh-no-parent-control", "usr/sbin", "var/mail"):
             (root / path).mkdir(parents=True, exist_ok=True)
+        self.write("etc/pam.d/common-auth", "auth required pam_unix.so\n")
+        for name in ("account", "password", "session", "session-noninteractive"):
+            self.write("etc/pam.d/common-" + name, "# fixture PAM stack\n")
         self.write("usr/sbin/fagenrules", """#!/bin/sh
 set -e
 printf '%s\\n' fagenrules >> "$AUDIT_ROOT/commands"
@@ -52,6 +55,10 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
             self.write("var/lib/oh-no-parent-control/fapolicyd-before-install/compiled.rules", rules)
         self.write("etc/fapolicyd/compiled.rules", "product rules\n")
         self.write("etc/fapolicyd/compiled.rules.prev", "old product rules\n")
+
+    def integration(self, name, target, contents="product integration\n"):
+        self.write("var/lib/oh-no-parent-control/installed-" + name, contents)
+        return self.write(target, contents)
 
     def kiosk(self):
         self.write("var/lib/oh-no-parent-control/package-created-kiosk-uid", "1006\n").chmod(0o600)
@@ -131,7 +138,7 @@ def test_purge_removes_saved_state_logs_and_empty_policy(machine):
     machine.baseline()
     machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
     machine.write("var/log/oh-no-parent-control/broker/day.log", "redacted fixture")
-    machine.write("etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules", "product")
+    machine.integration("fapolicyd-fallback", "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules")
     result = machine.run("postrm", "purge")
     assert result.returncode == 0, result.stderr
     assert not (machine.root / "var/lib/oh-no-parent-control").exists()
@@ -320,3 +327,148 @@ def test_upgrade_never_claims_product_policy_as_original_baseline(machine):
     assert result.returncode != 0
     assert "baseline is missing" in result.stderr
     assert not (machine.root / "var/lib/oh-no-parent-control/fapolicyd-before-install").exists()
+
+
+@pytest.mark.parametrize("notifier", ["missing", "success", "defer", "fail"])
+def test_removal_requests_reboot_without_losing_or_duplicating_requests(machine, notifier):
+    if notifier != "missing":
+        code = "exit 1" if notifier == "fail" else "exit 0"
+        if notifier == "success":
+            code = 'printf "%s\\n" "$DPKG_MAINTSCRIPT_PACKAGE" >> "$AUDIT_ROOT/run/reboot-required.pkgs"'
+        machine.write("usr/share/update-notifier/notify-reboot-required", "#!/bin/sh\n" + code + "\n").chmod(0o755)
+    packages = machine.write("run/reboot-required.pkgs", "linux-base\n")
+    for _ in range(2):
+        result = machine.run("postrm", "remove")
+        assert result.returncode == 0, result.stderr
+        assert "REBOOT REQUIRED: reboot to finish removing" in result.stderr
+        assert packages.read_text().splitlines() == ["linux-base", "oh-no-parent-control"]
+    assert (machine.root / "run/reboot-required").is_file()
+    assert "reboot" not in machine.commands
+
+
+def test_later_purge_does_not_request_another_reboot(machine):
+    result = machine.run("postrm", "purge")
+    assert result.returncode == 0, result.stderr
+    assert not (machine.root / "run/reboot-required").exists()
+
+
+def test_owned_integrations_removed_but_later_admin_hook_survives_purge(machine):
+    hook = machine.integration("gdm-presession", "etc/gdm3/PreSession/Default")
+    fallback = machine.integration("fapolicyd-fallback", "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules")
+    result = machine.run("postrm", "remove")
+    assert result.returncode == 0, result.stderr
+    assert not hook.exists()
+    assert not fallback.exists()
+    hook.write_text("administrator's new hook\n")
+    result = machine.run("postrm", "purge")
+    assert result.returncode == 0, result.stderr
+    assert hook.read_text() == "administrator's new hook\n"
+
+
+@pytest.mark.parametrize("script", ["prerm", "postrm"])
+@pytest.mark.parametrize("changed", ["contents", "symlink"])
+def test_changed_shared_hook_refuses_removal(machine, script, changed):
+    hook = machine.integration("gdm-presession", "etc/gdm3/PreSession/Default")
+    if changed == "symlink":
+        hook.unlink()
+        hook.symlink_to(machine.write("unrelated", "keep"))
+    else:
+        hook.write_text("administrator hook")
+    result = machine.run(script, "remove")
+    assert result.returncode != 0
+    assert hook.exists()
+    assert "uninstall --remove" not in machine.commands
+
+
+@pytest.mark.parametrize("collision", ["hook", "account", "fallback"])
+def test_install_rejects_unowned_resources_before_mutating_state(machine, collision):
+    if collision == "hook":
+        path = machine.write("etc/gdm3/PreSession/Default", "admin hook")
+    elif collision == "fallback":
+        path = machine.write("etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules", "admin rule")
+    else:
+        path = machine.write("account", "admin account")
+    original = path.read_text()
+    result = machine.run("preinst", "install")
+    assert result.returncode != 0
+    assert path.read_text() == original
+    assert not (machine.root / "var/lib/oh-no-parent-control/migration-in-progress").exists()
+    assert not machine.commands
+
+
+def test_mounted_kiosk_home_is_rejected_before_account_deletion(machine):
+    machine.kiosk()
+    result = machine.run("postrm", "remove", MOUNTED_PATH=str(machine.root / "home/oh-no-parent-control/.cache"))
+    assert result.returncode != 0
+    assert (machine.root / "account").exists()
+    assert "UncacheUser" not in machine.commands
+    assert "deluser" not in machine.commands
+
+
+@pytest.mark.parametrize("choice,option", [("enabled", "--enable"), ("disabled", "--disable")])
+def test_removal_restores_only_original_dependency_pam_choice(machine, choice, option):
+    machine.write("var/lib/oh-no-parent-control/malcontent-pam-before-install", choice + "\n")
+    result = machine.run("prerm", "remove")
+    assert result.returncode == 0, result.stderr
+    assert f"{option} malcontent" in machine.commands
+
+
+def test_local_pam_reference_prevents_removing_its_module(machine):
+    path = machine.write("etc/pam.d/common-auth", "auth required pam_oh_no_parent_control.so\n")
+    result = machine.run("prerm", "remove")
+    assert result.returncode != 0
+    assert "PAM references remain" in result.stderr
+    assert "pam_oh_no_parent_control.so" in path.read_text()
+
+
+def test_pam_comments_and_inactive_backups_do_not_block_removal(machine):
+    machine.write("etc/pam.d/common-auth", "  # auth required pam_oh_no_parent_control.so\n")
+    backup = machine.write("etc/pam.d/common-auth.pam-old", "auth required pam_oh_no_parent_control.so\n")
+    result = machine.run("prerm", "remove")
+    assert result.returncode == 0, result.stderr
+    assert backup.exists()
+
+
+def test_policy_restore_does_not_follow_compiled_policy_symlink(machine):
+    machine.baseline(rules="original policy")
+    outside = machine.write("unrelated", "keep")
+    target = machine.root / "etc/fapolicyd/compiled.rules"
+    target.unlink()
+    target.symlink_to(outside)
+    result = machine.run("postrm", "remove")
+    assert result.returncode != 0
+    assert outside.read_text() == "keep"
+
+
+def test_retry_discards_incomplete_baseline_flags(machine):
+    machine.write("var/lib/oh-no-parent-control/fapolicyd-before-install.pending/active")
+    machine.write("var/lib/oh-no-parent-control/fapolicyd-before-install.pending/compiled.rules", "stale")
+    result = machine.run("preinst", "install")
+    assert result.returncode == 0, result.stderr
+    baseline = machine.root / "var/lib/oh-no-parent-control/fapolicyd-before-install"
+    assert not (baseline / "active").exists()
+    assert not (baseline / "compiled.rules").exists()
+
+
+def test_remove_cleans_transient_state_but_preserves_customer_data(machine):
+    machine.write("var/lib/oh-no-parent-control/data-migration.lock")
+    machine.write("var/lib/oh-no-parent-control/fapolicyd-before-install.pending/active")
+    machine.write("var/lib/oh-no-parent-control/malcontent-pam-before-install", "disabled\n")
+    prefs = machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
+    log = machine.write("var/log/oh-no-parent-control/broker/day.log", "fixture")
+    result = machine.run("postrm", "remove")
+    assert result.returncode == 0, result.stderr
+    assert sorted(p.name for p in (machine.root / "var/lib/oh-no-parent-control").iterdir()) == ["preferences"]
+    assert prefs.exists() and log.exists()
+
+
+def test_aborted_first_unpack_cleans_only_attempt_bookkeeping(machine):
+    prefs = machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
+    policy = machine.write("etc/fapolicyd/compiled.rules", "original policy")
+    assert machine.run("preinst", "install").returncode == 0
+    result = machine.run("postrm", "abort-install")
+    assert result.returncode == 0, result.stderr
+    assert policy.read_text() == "original policy"
+    assert prefs.read_text() == "{}"
+    assert sorted(p.name for p in (machine.root / "var/lib/oh-no-parent-control").iterdir()) == ["preferences"]
+    assert "disable fapolicyd" not in machine.commands

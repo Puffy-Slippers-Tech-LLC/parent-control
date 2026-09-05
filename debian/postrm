@@ -123,6 +123,12 @@ restore_execution_policy() {
         echo 'oh-no-parent-control: incomplete execution-policy baseline' >&2
         exit 1
     fi
+    for policy_file in compiled.rules compiled.rules.prev; do
+        if [ -L "$baseline/$policy_file" ] || [ -L "/etc/fapolicyd/$policy_file" ]; then
+            echo 'oh-no-parent-control: refusing substituted compiled policy path' >&2
+            exit 1
+        fi
+    done
     remaining_rules=0
     for rule in /etc/fapolicyd/rules.d/*.rules; do
         if [ -f "$rule" ]; then remaining_rules=1; break; fi
@@ -203,7 +209,8 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
         /var/lib/oh-no-parent-control/previous-package-activation.json \
         /var/lib/oh-no-parent-control/uninstall-enforcement.json \
         /var/lib/oh-no-parent-control/malcontent-pam-before-install \
-        /var/lib/oh-no-parent-control/data-migration.lock
+        /var/lib/oh-no-parent-control/data-migration.lock \
+        /var/lib/oh-no-parent-control/first-install-in-progress
     remove_tree /var/lib/oh-no-parent-control/fapolicyd-before-install.pending
 fi
 
@@ -211,6 +218,19 @@ if [ "$1" = purge ]; then
     remove_tree /var/lib/oh-no-parent-control
     remove_tree /var/log/oh-no-parent-control
     echo 'oh-no-parent-control: saved-state purge outcome=accepted' >&2
+fi
+
+if [ "$1" = abort-install ] && [ -z "${2:-}" ] &&
+   [ -f /var/lib/oh-no-parent-control/first-install-in-progress ]; then
+    # preinst only captured policy; configuration never activated it. Remove
+    # that attempt's bookkeeping without touching saved customer preferences.
+    check_tree /var/lib/oh-no-parent-control
+    remove_tree /var/lib/oh-no-parent-control/fapolicyd-before-install.pending
+    remove_tree /var/lib/oh-no-parent-control/fapolicyd-before-install
+    rm -f /var/lib/oh-no-parent-control/first-install-in-progress \
+        /var/lib/oh-no-parent-control/migration-in-progress \
+        /var/lib/oh-no-parent-control/package-activation-pending \
+        /var/lib/oh-no-parent-control/previous-package-activation.json
 fi
 
 rmdir /etc/oh-no-parent-control 2>/dev/null || true

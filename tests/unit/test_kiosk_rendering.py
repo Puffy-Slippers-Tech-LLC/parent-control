@@ -9,6 +9,20 @@ KIOSK_CONTENT = ROOT / "kiosk/oh_no_parent_control_kiosk/request_content.py"
 
 
 class KioskRenderingTests(unittest.TestCase):
+    def test_snowflake_field_uses_120_percent_of_its_previous_count(self):
+        from oh_no_parent_control_kiosk.snowflakes import (
+            COUNT_MULTIPLIER,
+            SnowflakeField,
+        )
+
+        width, height = 1920, 1080
+        artwork = (0, 0, width, height)
+        field = SnowflakeField()
+        field.configure(width, height, artwork)
+
+        self.assertEqual(COUNT_MULTIPLIER, 1.2)
+        self.assertEqual(len(field._flakes), 59)
+
     def test_request_header_uses_the_product_logo(self):
         source = KIOSK_CONTENT.read_text(encoding="utf-8")
 

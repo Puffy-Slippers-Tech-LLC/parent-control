@@ -61,6 +61,10 @@ if [ "$1" = remove ]; then
 
     pam_choice=--disable
     pam_baseline=/var/lib/oh-no-parent-control/malcontent-pam-before-install
+    if [ -L "$pam_baseline" ]; then
+        echo 'oh-no-parent-control: unsafe original PAM selection' >&2
+        exit 1
+    fi
     if [ -f "$pam_baseline" ]; then
         case "$(cat "$pam_baseline")" in
             enabled) pam_choice=--enable ;;
@@ -78,8 +82,10 @@ if [ "$1" = remove ]; then
     # pam-auth-update preserves locally edited stacks and can return success
     # without removing references. Do not delete modules still used by PAM.
     pam_reference_status=0
-    grep -Eq '^[[:space:]]*[^#].*(pam_oh_no_parent_control|/usr/libexec/oh-no-parent-control-)' \
-        /etc/pam.d/common-* || pam_reference_status=$?
+    grep -Eq '^[[:space:]]*[^#[:space:]].*(pam_oh_no_parent_control|/usr/libexec/oh-no-parent-control-)' \
+        /etc/pam.d/common-auth /etc/pam.d/common-account \
+        /etc/pam.d/common-password /etc/pam.d/common-session \
+        /etc/pam.d/common-session-noninteractive || pam_reference_status=$?
     case "$pam_reference_status" in
         1) ;;
         *) echo 'oh-no-parent-control: PAM references remain or could not be checked; resolve local PAM changes before removal' >&2; exit 1 ;;

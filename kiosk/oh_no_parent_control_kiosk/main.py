@@ -31,6 +31,7 @@ from .request_content import RequestContent
 from .selection_store import SelectionStore
 from .snowflakes import SnowflakeField
 from .floating_islands import FloatingIslands
+from .lava import LavaBands
 from .chrome import (
     ABOUT, BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, HELP,
     MENU, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
@@ -436,12 +437,13 @@ class LightningSizzle:
 
 
 class GatewayBackground(Gtk.Widget):
-    """Gateway artwork with floating islands, snowflakes and crystal lightning."""
+    """Gateway artwork with lava heat, floating islands, snow and lightning."""
 
     def __init__(self):
         super().__init__(hexpand=True, vexpand=True)
         self._started_at = GLib.get_monotonic_time() / 1_000_000
         self._texture = self._load_texture()
+        self._lava = LavaBands(self._texture)
         self._floating_islands = FloatingIslands(
             self._texture, self._load_texture("kiosk-background-clear.png"),
         )
@@ -473,6 +475,7 @@ class GatewayBackground(Gtk.Widget):
     def reload_texture(self):
         """Refresh the preview artwork without rebuilding the window."""
         self._texture = self._load_texture()
+        self._lava = LavaBands(self._texture)
         self._floating_islands = FloatingIslands(
             self._texture, self._load_texture("kiosk-background-clear.png"),
         )
@@ -517,6 +520,7 @@ class GatewayBackground(Gtk.Widget):
         image_bounds = Graphene.Rect().init(*artwork)
         snapshot.append_texture(self._texture, image_bounds)
         self._floating_islands.draw(snapshot, artwork, now)
+        self._lava.draw(snapshot, artwork, now)
 
         # A low-opacity vignette preserves legibility while allowing the
         # supplied artwork to remain prominent.

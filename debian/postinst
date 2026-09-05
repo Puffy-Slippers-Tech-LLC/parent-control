@@ -270,18 +270,6 @@ if [ "$1" = configure ]; then
         rm -f "$previous" "$pending"
     fi
     rm -f /var/lib/oh-no-parent-control/first-install-in-progress
-    # A reinstall or update can leave an earlier reboot request outstanding.
-    # Keep reminding the administrator until reboot clears the /run marker.
-    if [ -r /run/reboot-required.pkgs ] && \
-            grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs; then
-        if [ -t 2 ] && [ "${TERM:-dumb}" != dumb ]; then
-            printf '\n\033[1;31m%s\033[0m\n' \
-                '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
-        else
-            printf '\n%s\n' \
-                '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
-        fi
-    fi
 fi
 
 #DEBHELPER#

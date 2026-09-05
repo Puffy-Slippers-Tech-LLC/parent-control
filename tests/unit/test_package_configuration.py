@@ -151,16 +151,16 @@ def test_configure_activates_static_broker_after_migration(package_machine, impa
     assert not (state / "package-activation-pending").exists()
     assert (root / "run/reboot-required").exists() == ("reboot" in impacts)
     assert ("notify-reboot-required " in commands) == ("reboot" in impacts)
-    assert (REBOOT_NOTICE in result.stderr) == ("reboot" in impacts)
+    assert REBOOT_NOTICE not in result.stderr
 
 
 @pytest.mark.parametrize("impacts", ["", "process-restart", "session-renewal", None],
                          ids=["reinstall", "broker-update", "session-update", "reconfigure"])
-def test_reboot_notice_survives_configuration_until_reboot(package_machine, impacts):
+def test_reboot_marker_survives_configuration_without_early_notice(package_machine, impacts):
     root, state, run = package_machine
     result = run(IMPACTS="reboot")
     assert result.returncode == 0, result.stderr
-    assert result.stderr.count(REBOOT_NOTICE) == 1
+    assert REBOOT_NOTICE not in result.stderr
     packages = root / "run/reboot-required.pkgs"
     original_packages = packages.read_text()
 
@@ -175,7 +175,7 @@ def test_reboot_notice_survives_configuration_until_reboot(package_machine, impa
             (state / "previous-package-activation.json").touch()
         result = run(IMPACTS=impacts or "")
         assert result.returncode == 0, result.stderr
-        assert result.stderr.count(REBOOT_NOTICE) == (0 if rebooted else 1)
+        assert REBOOT_NOTICE not in result.stderr
         assert not (state / "package-activation-pending").exists()
         if rebooted:
             assert not (root / "run/reboot-required").exists()

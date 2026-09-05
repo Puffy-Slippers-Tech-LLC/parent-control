@@ -105,6 +105,12 @@ PREVIEW_PREFERENCES = {
                 "patterns": [],
                 "user_saved_match_rule": False,
             },
+            "steam.desktop": {
+                "state": "conditional",
+                "targets": ["/usr/bin/steam"],
+                "patterns": [],
+                "user_saved_match_rule": False,
+            },
         },
         "request": {},
     },
@@ -138,6 +144,14 @@ PREVIEW_APPS = (
         "description": "Play Minecraft",
         "icon": "com.mojang.Minecraft",
         "targets": ["app/com.mojang.Minecraft/x86_64/stable"],
+        "suggested_patterns": [],
+    },
+    {
+        "id": "steam.desktop",
+        "name": "Steam",
+        "description": "Play games",
+        "icon": "steam",
+        "targets": ["/usr/bin/steam"],
         "suggested_patterns": [],
     },
 )

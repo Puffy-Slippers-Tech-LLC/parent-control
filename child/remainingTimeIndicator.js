@@ -93,6 +93,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._signals = [];
         this._timeoutId = 0;
+        this._timeoutDeadline = 0;
         this._layoutSyncId = 0;
         this._flashTimeoutId = 0;
         this._destroyed = false;
@@ -192,6 +193,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
+        this._timeoutDeadline = 0;
     }
 
     _queueLayoutSync() {
@@ -479,10 +481,18 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _schedule(delay) {
+        const deadline = GLib.get_monotonic_time() + delay * 1_000_000;
+        // Layout notifications and completed estimate queries also call _sync.
+        // They must not postpone a pending tick, especially while the final
+        // minute's flashing style repeatedly changes the actor allocation.
+        if (this._timeoutId && this._timeoutDeadline <= deadline)
+            return;
         this._clearTimeout();
 
+        this._timeoutDeadline = deadline;
         this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, delay, () => {
             this._timeoutId = 0;
+            this._timeoutDeadline = 0;
             if (!this._preview)
                 this._refreshEstimate();
             this._sync();

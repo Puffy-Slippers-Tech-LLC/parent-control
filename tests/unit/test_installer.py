@@ -15,7 +15,7 @@ class PackageDeploymentTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
         repair = recipe.index("$(APT) --fix-broken install")
-        install = recipe.index('$(APT) install "$$deb_file"')
+        install = recipe.index('$(APT) install --reinstall "$$deb_file"')
         marker = recipe.index("grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs")
         prompt = recipe.index("Reboot now? [y/N]", marker)
         self.assertIn("@set -e", recipe)

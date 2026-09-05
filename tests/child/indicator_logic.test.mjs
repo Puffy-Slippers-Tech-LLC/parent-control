@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
 
 import {
     busyRetryDelay,
@@ -12,6 +14,61 @@ import {
     requestCompletionState,
     shouldPrepareSession,
 } from '../../child/indicatorLogic.mjs';
+
+test('layout refreshes cannot postpone the countdown tick', () => {
+    // Execute the production scheduler with a deterministic GLib clock. No
+    // Shell session or system-bus connection is created by this harness.
+    const source = readFileSync(new URL('../../child/remainingTimeIndicator.js', import.meta.url), 'utf8')
+        .replace(/^import[\s\S]*?;\n/gm, '')
+        .replace('export const RemainingTimeIndicator', 'globalThis.RemainingTimeIndicator');
+    let now = 0;
+    let nextId = 0;
+    const timers = new Map();
+    const context = vm.createContext({
+        GObject: {registerClass: klass => klass},
+        PanelMenu: {Button: class {}},
+        GLib: {
+            PRIORITY_DEFAULT: 0,
+            SOURCE_REMOVE: false,
+            get_monotonic_time: () => now,
+            source_remove: id => timers.delete(id),
+            timeout_add_seconds: (_priority, delay, callback) => {
+                timers.set(++nextId, {deadline: now + delay * 1_000_000, callback});
+                return nextId;
+            },
+        },
+    });
+    vm.runInContext(source, context);
+    const indicator = new context.RemainingTimeIndicator();
+    Object.assign(indicator, {_timeoutId: 0, _timeoutDeadline: 0, _preview: true});
+    let remaining = 56;
+    indicator._sync = () => {
+        remaining = 56 - Math.floor(now / 1_000_000);
+        if (remaining > 0)
+            indicator._schedule(1);
+    };
+    indicator._sync();
+    for (now = 100_000; now <= 56_000_000; now += 100_000) {
+        indicator._sync(); // Frequent layout / estimate notifications.
+        for (const [id, timer] of [...timers]) {
+            if (timer.deadline <= now) {
+                timers.delete(id);
+                timer.callback();
+            }
+        }
+    }
+    assert.equal(remaining, 0);
+    assert.equal(nextId, 56, 'one tick per second survives repeated refreshes');
+    assert.equal(timers.size, 0);
+
+    indicator._schedule(60);
+    indicator._schedule(1);
+    assert.equal(timers.size, 1, 'an earlier deadline replaces the pending timer');
+    assert.equal([...timers.values()][0].deadline, now + 1_000_000);
+    indicator._clearTimeout();
+    assert.equal(timers.size, 0);
+    assert.equal(indicator._timeoutDeadline, 0);
+});
 
 test('formats minute, final-minute, zero, and multi-day remaining time', () => {
     assert.equal(formatRemainingTime(3661, false), '01:01 left');

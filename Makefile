@@ -99,7 +99,7 @@ installdeb:
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
 	$(APT) --fix-broken install; \
-	$(APT) install "$$deb_file"; \
+	$(APT) install --reinstall "$$deb_file"; \
 	if test -r /run/reboot-required.pkgs && \
 		grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs; then \
 		printf '\n*** REBOOT REQUIRED: reboot before using the kiosk session. ***\n'; \

@@ -67,7 +67,7 @@ The broker is divided into these layers:
 - `execution_policy.py`: aggregate UID-scoped fapolicyd rule generation,
   replacement, activation, and rollback
 - `app_termination.py`: UID-confined native, Snap, and Flatpak process discovery
-  and termination
+  and termination, including desktop application scopes and their descendants
 - `extension_manager.py`: safe per-child activation and runtime verification of
   the immutable GNOME extension payload
 - `config.py` and `logs.py`: fail-closed machine configuration and broker-owned
@@ -267,6 +267,21 @@ whose effective policy just became more restrictive. It stops only matching
 processes owned by the selected child, across all of that child's retained
 sessions. Policy saves serialize with approvals, revocations, and session
 preparation so a concurrent grant cannot relax a newly saved hard block.
+
+For native launchers, process discovery also resolves blocked targets and
+patterns back to the child's current desktop catalog. It matches the exact,
+systemd-escaped application ID in GNOME/unprefixed desktop application scopes
+and services under that child's user manager's `app.slice`. This follows
+launchers such as Steam and AppImages whose running executable differs from
+the launch target. Every selected process is still independently UID-verified
+and pinned with a pidfd; no entire session or user slice is terminated.
+Discovery records child-owned descendants before any signal, including payloads
+that move to a different application scope (such as an Electron AppImage) and
+games launched by Steam. Parent start times reject stale links to reused PIDs.
+Unrelated application scopes and other accounts remain outside this selection.
+Direct executable, Snap security-label, and Flatpak instance matching continue
+to apply. These runtime identities are derived without changing saved data;
+the broker changes activate through `process-restart`.
 
 The live AccountsService `AppFilter` is always a blocklist. Its complete form
 contains hard and soft targets. An approved request that allows soft blocked

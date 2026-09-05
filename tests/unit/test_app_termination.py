@@ -14,8 +14,14 @@ from oh_no_parent_control.app_termination import (
 
 class RunningAppTerminatorTests(unittest.TestCase):
     @staticmethod
+    def _scope(uid, unit):
+        return (f"0::/user.slice/user-{uid}.slice/user@{uid}.service/"
+                f"app.slice/{unit}\n")
+
+    @staticmethod
     def _process(proc_root: Path, pid: int, uid: int, executable: str,
-                 security_label: str | None = None):
+                 security_label: str | None = None, *, parent: int = 1,
+                 started: int = 100, cgroup: str = ""):
         directory = proc_root / str(pid)
         directory.mkdir()
         (directory / "status").write_text(
@@ -23,6 +29,11 @@ class RunningAppTerminatorTests(unittest.TestCase):
             encoding="ascii",
         )
         (directory / "exe").symlink_to(executable)
+        (directory / "stat").write_text(
+            f"{pid} (app) S {parent} " + "0 " * 17 + f"{started}\n",
+            encoding="ascii",
+        )
+        (directory / "cgroup").write_text(cgroup, encoding="utf-8")
         if security_label is not None:
             (directory / "attr").mkdir()
             (directory / "attr/current").write_text(
@@ -115,6 +126,179 @@ class RunningAppTerminatorTests(unittest.TestCase):
             _snap_security_labels(("/snap/bin/example_app.viewer",)),
             ("snap.example_app.viewer",),
         )
+
+    def test_desktop_scope_matches_steam_runtime_and_game_after_launcher_exec(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc_root = Path(directory)
+            uid = os.getuid()
+            steam_scope = self._scope(uid, "app-gnome-steam-101.scope")
+            self._process(proc_root, 101, uid, "/usr/bin/bash", cgroup=steam_scope)
+            self._process(proc_root, 102, uid, "/home/child/Steam/ubuntu12_32/steam",
+                          parent=101, cgroup=steam_scope)
+            # A game reparented inside the same application scope still belongs
+            # to Steam, even though its executable and immediate parent differ.
+            self._process(proc_root, 103, uid, "/opt/proton/wine64",
+                          cgroup=steam_scope)
+            self._process(proc_root, 104, uid + 1, "/opt/proton/wine64",
+                          cgroup=steam_scope)
+            self._process(proc_root, 105, uid, "/usr/bin/bash",
+                          cgroup=self._scope(uid, "app-gnome-terminal-105.scope"))
+            terminator = RunningAppTerminator(proc_root=proc_root)
+            terminator._pidfd_open = lambda _pid, _flags: os.open("/dev/null", os.O_RDONLY)
+            matches = terminator._matching_native_processes(
+                uid, ("/usr/lib/steam/bin_steam.sh",), (), (), ("steam",),
+            )
+            try:
+                self.assertEqual({pid for pid, _fd in matches}, {101, 102, 103})
+            finally:
+                for _pid, fd in matches:
+                    os.close(fd)
+
+    def test_appimage_descendants_follow_launcher_across_runtime_scope_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc_root = Path(directory)
+            uid = os.getuid()
+            app_id = "appimagekit_123-Lunar_Client"
+            launcher_scope = self._scope(
+                uid, r"app-gnome-appimagekit_123\x2dLunar_Client-101.scope",
+            )
+            self._process(proc_root, 101, uid, "/opt/appimagelauncher/binfmt-bypass",
+                          started=100, cgroup=launcher_scope)
+            self._process(proc_root, 102, uid, "/tmp/.mount_Lunar/client",
+                          parent=101, started=101,
+                          cgroup=self._scope(uid, "app-org.chromium.Chromium-102.scope"))
+            self._process(proc_root, 103, uid, "/opt/java/bin/java",
+                          parent=102, started=102)
+            # Unrelated Electron application and another account's process.
+            self._process(proc_root, 104, uid, "/tmp/.mount_Other/client")
+            self._process(proc_root, 105, uid + 1, "/opt/java/bin/java", parent=102)
+            # A stale PPid must not attach a process to a reused parent PID.
+            self._process(proc_root, 106, uid, "/usr/bin/other", parent=101, started=99)
+            terminator = RunningAppTerminator(proc_root=proc_root)
+            terminator._pidfd_open = lambda _pid, _flags: os.open("/dev/null", os.O_RDONLY)
+            with self.assertLogs("oh-no-parent-control.app-termination", level="INFO") as logs:
+                matches = terminator._matching_native_processes(
+                    uid, ("/home/child/Applications/Lunar.AppImage",), (), (), (app_id,),
+                )
+            try:
+                self.assertEqual([pid for pid, _fd in matches], [103, 102, 101])
+                self.assertIn("direct_match_count=1 descendant_match_count=2", logs.output[0])
+                self.assertNotIn("Lunar", str(logs.output))
+                self.assertNotIn("/home/", str(logs.output))
+            finally:
+                for _pid, fd in matches:
+                    os.close(fd)
+
+    def test_application_scope_requires_exact_identity_and_child_manager(self):
+        matching = RunningAppTerminator._matches_application_scope
+        for unit in ("app-gnome-steam-123.scope", "app-steam-abc.scope",
+                     "app-steam.service", "app-gnome-steam@abc.service"):
+            with self.subTest(unit=unit):
+                self.assertTrue(matching(self._scope(1001, unit), 1001, ("steam",)))
+        for scope in (
+            self._scope(1002, "app-gnome-steam-123.scope"),
+            self._scope(1001, "app-gnome-steam-other-123.scope"),
+            self._scope(1001, "app-gnome-steamcmd-123.scope"),
+            self._scope(1001, "app-gnome-steam.scope"),
+            "0::/user.slice/user-1001.slice/session-1.scope\n",
+        ):
+            with self.subTest(scope=scope):
+                self.assertFalse(matching(scope, 1001, ("steam",)))
+
+    def test_catalog_maps_only_blocked_native_targets_and_patterns(self):
+        catalog = mock.Mock(return_value=(
+            {"id": "steam.desktop", "targets": ("/usr/lib/steam/bin_steam.sh",)},
+            {"id": "lunar.desktop", "targets": ("/apps/Lunar-2.AppImage",)},
+            {"id": "other.desktop", "targets": ("/apps/Other.AppImage",)},
+            {"id": "flatpak.desktop", "targets": ("app/org.example.Game/x86_64/stable",)},
+        ))
+        terminator = RunningAppTerminator(application_catalog=catalog)
+        self.assertEqual(terminator._application_ids(
+            1001, ("/usr/lib/steam/bin_steam.sh", "app/org.example.Game/x86_64/stable"),
+            ("/apps/Lunar-*.AppImage",),
+        ), ("lunar", "steam"))
+        catalog.assert_called_once_with(1001)
+
+    def test_catalog_failure_is_redacted_and_prevents_signaling(self):
+        terminator = RunningAppTerminator(
+            application_catalog=mock.Mock(side_effect=RuntimeError("private account data")),
+        )
+        terminator._pidfd_send_signal = mock.Mock()
+        with mock.patch.object(terminator, "_identity"), \
+                self.assertRaisesRegex(AppTerminationError, "^application identity discovery failed$"):
+            terminator.terminate(1001, ("/usr/bin/game",), ())
+        terminator._pidfd_send_signal.assert_not_called()
+
+    def test_termination_discovers_scope_and_descendants_before_signaling(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc_root = Path(directory)
+            uid = os.getuid()
+            # Same kernel clock tick: ordering must follow ancestry rather
+            # than assuming each child has a strictly later start time.
+            self._process(proc_root, 101, uid, "/usr/bin/bash",
+                          cgroup=self._scope(uid, "app-gnome-game-101.scope"))
+            self._process(proc_root, 102, uid, "/opt/runtime/game", parent=101)
+            self._process(proc_root, 103, uid, "/usr/bin/allowed")
+            terminator = RunningAppTerminator(
+                proc_root=proc_root,
+                application_catalog=lambda _uid: (
+                    {"id": "game.desktop", "targets": ("/opt/launcher.sh",)},
+                ),
+            )
+            descriptors = {}
+            signaled = []
+
+            def pin(pid, _flags):
+                descriptor = os.open("/dev/null", os.O_RDONLY)
+                descriptors[descriptor] = pid
+                return descriptor
+
+            def send(descriptor, sig, _info, _flags):
+                self.assertEqual(sig, signal.SIGKILL)
+                pid = descriptors[descriptor]
+                signaled.append(pid)
+                # Simulate only these explicitly constructed fake processes
+                # exiting. No real process is ever signaled by this regression.
+                (proc_root / str(pid) / "status").unlink()
+
+            terminator._pidfd_open = pin
+            terminator._pidfd_send_signal = send
+            with mock.patch.object(terminator, "_identity"), \
+                    mock.patch.object(terminator, "_wait_for_exit"):
+                count = terminator.terminate(uid, ("/opt/launcher.sh",), ())
+            self.assertEqual(count, 2)
+            self.assertEqual(signaled, [102, 101])
+            self.assertTrue((proc_root / "103" / "status").exists())
+
+    def test_invalid_scope_closes_all_pinned_descriptors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc_root = Path(directory)
+            uid = os.getuid()
+            self._process(proc_root, 101, uid, "/usr/bin/game")
+            self._process(proc_root, 102, uid, "/usr/bin/other")
+            (proc_root / "102" / "cgroup").write_bytes(b"\xff")
+            terminator = RunningAppTerminator(proc_root=proc_root)
+            descriptors = []
+
+            def pin(_pid, _flags):
+                descriptor = os.open("/dev/null", os.O_RDONLY)
+                descriptors.append(descriptor)
+                return descriptor
+
+            terminator._pidfd_open = pin
+            with self.assertRaisesRegex(AppTerminationError, "scope is unavailable"):
+                terminator._matching_native_processes(
+                    uid, ("/usr/bin/game",), (), (), ("game",),
+                )
+            for descriptor in descriptors:
+                with self.assertRaises(OSError):
+                    os.fstat(descriptor)
+
+    def test_stat_lineage_handles_spaces_and_parentheses_in_process_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stat = Path(directory) / "stat"
+            stat.write_text("123 (an app) (name)) S 99 " + "0 " * 17 + "456\n")
+            self.assertEqual(RunningAppTerminator._process_lineage(stat), (99, 456))
 
     def test_native_termination_uses_pidfd_sigkill_and_verifies_exit(self):
         descriptor = os.open("/dev/null", os.O_RDONLY)

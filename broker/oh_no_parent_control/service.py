@@ -167,7 +167,9 @@ def production_dependencies(connection) -> ServiceDependencies:
         extensions=ExtensionManager(),
         timer_usage=TimerUsage(connection),
         application_catalog=list_apps,
-        running_apps=RunningAppTerminator(),
+        running_apps=RunningAppTerminator(
+            application_catalog=lambda uid: list_apps(accounts.get_user(uid)),
+        ),
     )
 
 

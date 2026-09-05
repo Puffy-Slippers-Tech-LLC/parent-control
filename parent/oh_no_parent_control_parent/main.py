@@ -25,6 +25,7 @@ from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 from common.oh_no_parent_control_ui.test_identities import preview_users
 
 from .client import BrokerClient, configure_logging
+from .feedback import FeedbackDialog
 
 LOG = logging.getLogger("oh-no-parent-control-parent")
 APPLICATION_ICON_NAME = "com.puffyslippers.OhNoParentControl"
@@ -281,6 +282,8 @@ class ParentWindow(Adw.ApplicationWindow):
     def _build(self):
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar(css_classes=["parent-header"])
+        header.set_centering_policy(Adw.CenteringPolicy.STRICT)
+        header.set_show_end_title_buttons(False)
         # Use a title-bar-specific raster at its native display size. Shrinking
         # the detailed 512 px launcher artwork here makes its fine neon edges
         # visibly soft, while the pre-rendered asset stays crisp at 48 px.
@@ -302,30 +305,46 @@ class ParentWindow(Adw.ApplicationWindow):
             title=app_name(), css_classes=["parent-window-title"],
         ))
         header.set_title_widget(title_brand)
-        menu = Gio.Menu()
-        menu.append("Help", "win.help")
-        menu.append("About", "win.about")
-        action_group = Gio.SimpleActionGroup()
-        self.insert_action_group("win", action_group)
-        help_action = Gio.SimpleAction.new("help", None)
-        help_action.connect("activate", lambda *_args: open_help())
-        about_action = Gio.SimpleAction.new("about", None)
-        about_action.connect("activate", self._show_about)
-        action_group.add_action(help_action)
-        action_group.add_action(about_action)
-        # ``view-more-symbolic`` is the standard GNOME vertical-ellipsis icon.
-        # Keep the button on the window so it remains visible and is easy to
-        # exercise from UI tests.
+        menu = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, width_request=190)
+        popover = Gtk.Popover(child=menu, css_classes=["parent-menu-popover"])
+        # Explicit buttons expose the same accessible labels as their visible
+        # text, including on GTK versions with unnamed model-menu items.
+        def activate_menu_item(_button, callback):
+            popover.popdown()
+            callback()
+
+        for label, callback in (
+            ("Help", open_help),
+            ("Send Feedback", self._show_feedback),
+            ("About", self._show_about),
+        ):
+            item = Gtk.Button(child=Gtk.Label(label=label, xalign=0),
+                              css_classes=["parent-menu-item"])
+            describe_control(item, label, label)
+            item.connect("clicked", activate_menu_item, callback)
+            menu.append(item)
+        # Explicit circular dots keep the heavier ellipsis consistent across
+        # icon themes and display scales.
+        dots = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3,
+                       halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        for _ in range(3):
+            dots.append(Gtk.Box(css_classes=["parent-menu-dot"]))
         self._menu_button = Gtk.MenuButton(
-            icon_name="view-more-symbolic",
-            menu_model=menu,
+            child=dots,
+            popover=popover,
             tooltip_text="Menu",
+            css_classes=["parent-header-menu"],
         )
         describe_control(
             self._menu_button, "Parent app menu",
-            "Open help and product information.",
+            "Open help, send feedback, and view product information.",
         )
-        header.pack_end(self._menu_button)
+        # Keep native window actions and the desktop's decoration layout, with
+        # the application menu immediately before the window controls.
+        header_actions = Gtk.Box(spacing=4, valign=Gtk.Align.CENTER)
+        header_actions.append(self._menu_button)
+        header_actions.append(Gtk.WindowControls(side=Gtk.PackType.END))
+        header.pack_end(header_actions)
         toolbar.add_top_bar(header)
         content = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -489,7 +508,11 @@ class ParentWindow(Adw.ApplicationWindow):
         # interface, which prevents assistive technology from selecting a
         # daily allowance.
         self._daily_limit_selected = 0
-        self._daily_limit = Gtk.MenuButton(label=_daily_limit_label(0))
+        self._daily_limit_choices = []
+        self._daily_limit = Gtk.MenuButton(
+            label=_daily_limit_label(0),
+            css_classes=["daily-limit-button"],
+        )
         self._daily_limit.set_sensitive(False)
         self._daily_limit.set_valign(Gtk.Align.CENTER)
         describe_control(
@@ -1035,6 +1058,9 @@ class ParentWindow(Adw.ApplicationWindow):
     def _show_about(self, *_args):
         AboutDialog(self).present()
 
+    def _show_feedback(self, *_args):
+        FeedbackDialog(self).present()
+
     def _clear_catalog_rows(self):
         for row in self._app_rows:
             self._apps_group.remove(row)
@@ -1537,22 +1563,82 @@ class ParentWindow(Adw.ApplicationWindow):
         self._save_parent_control(switch.get_active())
 
     def _daily_limit_popover(self):
-        choices = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        choices = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            css_classes=["daily-limit-menu"],
+        )
         for index, minutes in enumerate(DAILY_LIMIT_PRESETS):
-            choice = Gtk.Button(label=_daily_limit_label(minutes), hexpand=True)
+            choice = self._daily_limit_choice(
+                _daily_limit_label(minutes), index,
+            )
             describe_control(
                 choice, _daily_limit_label(minutes),
                 f"Set the selected child's daily allowance to {_daily_limit_label(minutes)}.",
             )
-            choice.connect("clicked", self._daily_limit_changed, index)
             choices.append(choice)
-        custom = Gtk.Button(label="Custom value", hexpand=True)
-        describe_control(custom, "Custom value", "Enter a custom daily allowance in minutes.")
-        custom.connect("clicked", self._daily_limit_changed, CUSTOM_DAILY_LIMIT_INDEX)
-        choices.append(custom)
-        return Gtk.Popover(child=Gtk.ScrolledWindow(
-            child=choices, min_content_height=360, min_content_width=220,
+        menu = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, width_request=300)
+        menu.append(Gtk.ScrolledWindow(
+            child=choices,
+            min_content_height=378,
+            max_content_height=378,
+            hscrollbar_policy=Gtk.PolicyType.NEVER,
         ))
+        menu.append(Gtk.Separator(css_classes=["daily-limit-separator"]))
+        custom = self._daily_limit_choice(
+            "Custom amount…", CUSTOM_DAILY_LIMIT_INDEX,
+            icon_name="emblem-system-symbolic",
+        )
+        describe_control(
+            custom, "Custom amount",
+            "Enter a custom daily allowance in minutes.",
+        )
+        menu.append(custom)
+        self._update_daily_limit_choice_styles()
+        return Gtk.Popover(
+            child=menu,
+            css_classes=["daily-limit-popover"],
+        )
+
+    def _daily_limit_choice(self, label, index, *, icon_name=None):
+        content = Gtk.Box(spacing=14)
+        if icon_name:
+            marker = Gtk.Image(
+                icon_name=icon_name,
+                pixel_size=22,
+                valign=Gtk.Align.CENTER,
+                css_classes=["daily-limit-custom-icon"],
+            )
+        else:
+            marker = Gtk.Box(
+                valign=Gtk.Align.CENTER,
+                halign=Gtk.Align.CENTER,
+                css_classes=["daily-limit-radio"],
+            )
+        content.append(marker)
+        content.append(Gtk.Label(
+            label=label,
+            xalign=0,
+            hexpand=True,
+            css_classes=["daily-limit-choice-label"],
+        ))
+        choice = Gtk.Button(
+            child=content,
+            hexpand=True,
+            css_classes=["daily-limit-choice"],
+        )
+        choice.connect("clicked", self._daily_limit_changed, index)
+        self._daily_limit_choices.append((choice, marker, index))
+        return choice
+
+    def _update_daily_limit_choice_styles(self):
+        for choice, marker, index in self._daily_limit_choices:
+            selected = index == self._daily_limit_selected
+            if selected:
+                choice.add_css_class("selected")
+                marker.add_css_class("selected")
+            else:
+                choice.remove_css_class("selected")
+                marker.remove_css_class("selected")
 
     def _daily_limit_changed(self, _button, selected):
         if self._loading or self._selected_uid() is None:
@@ -1562,6 +1648,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._daily_limit.set_label("Custom value" if is_custom else _daily_limit_label(
             DAILY_LIMIT_PRESETS[selected],
         ))
+        self._update_daily_limit_choice_styles()
         self._custom_daily_limit.set_visible(is_custom)
         self._daily_limit.popdown()
         if is_custom:
@@ -1609,6 +1696,7 @@ class ParentWindow(Adw.ApplicationWindow):
         selected, is_custom = _daily_limit_selection(minutes)
         self._daily_limit_selected = selected
         self._daily_limit.set_label("Custom value" if is_custom else _daily_limit_label(minutes))
+        self._update_daily_limit_choice_styles()
         self._custom_daily_limit.set_visible(is_custom)
         if is_custom:
             self._custom_daily_limit_entry.set_text(str(minutes))

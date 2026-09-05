@@ -21,6 +21,10 @@ endif
 override_dh_auto_install:
 	$(MAKE) _install-product-files DESTDIR=$(CURDIR)/debian/oh-no-parent-control PREFIX=/usr SYSCONFDIR=/etc
 
+override_dh_installsystemd:
+	# Maintainer scripts own the migration stop and manifest-selected activation.
+	dh_installsystemd --no-start --no-stop-on-upgrade
+
 override_dh_fixperms:
 	dh_fixperms
 	chmod 0640 debian/oh-no-parent-control/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop

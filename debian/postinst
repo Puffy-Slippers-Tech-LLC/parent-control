@@ -18,6 +18,37 @@ release_removal_guard() {
     fi
 }
 
+activate_broker() {
+    # This D-Bus-activated unit is intentionally static. deb-systemd-invoke
+    # skips inactive static units, including a broker stopped for migration.
+    # Consult the same package-service policy before asking systemd directly.
+    if [ ! -d /run/systemd/system ]; then
+        echo 'oh-no-parent-control: deferring broker activation until systemd is running' >&2
+        return
+    fi
+    broker_policy_status=0
+    broker_policy_helper="${DPKG_ROOT:-}/usr/sbin/policy-rc.d"
+    if [ -x "$broker_policy_helper" ]; then
+        "$broker_policy_helper" oh-no-parent-control-broker.service "$1" || broker_policy_status=$?
+    fi
+    case "$broker_policy_status" in
+        0|104) ;;
+        101)
+            echo 'oh-no-parent-control: broker activation deferred by policy-rc.d' >&2
+            return
+            ;;
+        *)
+            echo "oh-no-parent-control: broker activation policy failed (status $broker_policy_status)" >&2
+            return 1
+            ;;
+    esac
+    echo "oh-no-parent-control: broker activation: $1" >&2
+    if ! systemctl --system "$1" oh-no-parent-control-broker.service; then
+        echo 'oh-no-parent-control: broker activation failed; package configuration must be retried' >&2
+        return 1
+    fi
+}
+
 if [ "$1" = abort-remove ]; then
     release_removal_guard
 fi
@@ -122,20 +153,22 @@ if [ "$1" = configure ]; then
         malcontent-timerd.service \
         malcontent-timer-extension-agent.service >/dev/null
 
+    # Migration stops the broker even on an unchanged reinstall. Ensure it is
+    # running after every configure, without restarting an already-active
+    # broker unless the changed payload requires reconciliation.
+    broker_action=start
     pending=/var/lib/oh-no-parent-control/package-activation-pending
     if [ -f "$pending" ]; then
         previous=/var/lib/oh-no-parent-control/previous-package-activation.json
         current=/usr/share/oh-no-parent-control/package-activation.json
         impacts=$(/usr/libexec/oh-no-parent-control-package-activation \
             changed-impacts --old "$previous" --new "$current")
-        rm -f "$previous" "$pending"
-
         case "$impacts" in
             *process-restart*|*session-renewal*)
                 # Starting the broker reasserts per-child activation. A
                 # running Shell keeps its loaded code; the next session reads
                 # the updated immutable system extension payload.
-                deb-systemd-invoke restart oh-no-parent-control-broker.service >/dev/null
+                broker_action=restart
                 ;;
         esac
         case "$impacts" in
@@ -150,6 +183,12 @@ if [ "$1" = configure ]; then
                 chmod 0644 /run/reboot-required /run/reboot-required.pkgs
                 ;;
         esac
+    fi
+    activate_broker "$broker_action"
+    # Preserve the comparison on failure so a configure retry repeats the
+    # required activation and cannot lose a pending reboot requirement.
+    if [ -f "$pending" ]; then
+        rm -f "$previous" "$pending"
     fi
 fi
 

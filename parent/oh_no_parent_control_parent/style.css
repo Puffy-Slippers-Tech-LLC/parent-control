@@ -11,8 +11,8 @@ button.about-link > label {
 }
 
 .parent-header {
-  min-height: 78px;
-  background: alpha(white, 0.72);
+  min-height: 74px;
+  background: linear-gradient(110deg, #f8f9fa, #f3f4f5);
   box-shadow: inset 0 -1px alpha(#25252b, 0.10);
 }
 
@@ -20,7 +20,7 @@ button.about-link > label {
 .parent-window-title .title {
   color: #292934;
   font-size: 22px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .parent-title-brand image {
@@ -29,16 +29,111 @@ button.about-link > label {
 }
 
 .parent-header windowcontrols button {
-  min-width: 40px;
-  min-height: 40px;
-  margin: 0 11px;
+  min-width: 48px;
+  min-height: 48px;
+  margin: 0 2px;
   padding: 0;
-  border-radius: 50%;
-  background: alpha(#e8e8eb, 0.72);
+  border-radius: 10px;
+  color: #393944;
+  background: transparent;
+  box-shadow: none;
 }
 
-.parent-header menubutton {
-  margin-right: 18px;
+.parent-header windowcontrols button:hover {
+  background: alpha(#393944, 0.08);
+}
+
+.parent-header windowcontrols button:active {
+  background: alpha(#393944, 0.14);
+}
+
+.parent-header-menu {
+  margin: 0;
+}
+
+.parent-header-menu > button {
+  min-width: 56px;
+  min-height: 50px;
+  padding: 0;
+  border-radius: 12px;
+  background: alpha(#393944, 0.10);
+  box-shadow: none;
+}
+
+.parent-header-menu > button:hover {
+  background: alpha(#393944, 0.15);
+}
+
+.parent-header-menu > button:checked,
+.parent-header-menu > button:active {
+  background: alpha(#393944, 0.20);
+}
+
+.parent-menu-dot {
+  min-width: 4px;
+  min-height: 4px;
+  border-radius: 50%;
+  background: #393944;
+}
+
+.parent-menu-popover > contents {
+  padding: 8px;
+  border: 1px solid alpha(#292934, 0.14);
+  border-radius: 18px;
+  background: #fdfdfd;
+}
+
+.parent-menu-item {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: #393944;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+}
+
+.parent-menu-item:hover,
+.parent-menu-item:active,
+.parent-menu-item:focus-visible {
+  color: #6748ef;
+  background: alpha(#7657f6, 0.12);
+}
+
+.feedback-dialog {
+  background: linear-gradient(145deg, #fcfcfd, #f6f7f9);
+  color: #292934;
+}
+
+.feedback-icon,
+.feedback-attachment-button {
+  color: #6748ef;
+}
+
+.feedback-message {
+  border: 1px solid alpha(#24242a, 0.13);
+  border-radius: 14px;
+  background: white;
+}
+
+.feedback-message:focus-within {
+  border-color: #7657f6;
+}
+
+.feedback-message textview,
+.feedback-message textview text {
+  background: transparent;
+  color: #292934;
+}
+
+.feedback-send {
+  background: #7657f6;
+  color: white;
+}
+
+.feedback-send:disabled {
+  background: alpha(#7657f6, 0.35);
+  color: #514976;
 }
 
 .account-clamp {
@@ -183,6 +278,7 @@ button.about-link > label {
 }
 
 .screen-limits-card {
+  font-size: 1.15em;
   border: 1px solid alpha(#24242a, 0.13);
   border-radius: 14px;
   background: alpha(white, 0.92);
@@ -227,6 +323,95 @@ button.about-link > label {
 
 .screen-limit-switch:checked {
   background: #6d56ed;
+}
+
+.daily-limit-button > button {
+  min-height: 48px;
+  min-width: 120px;
+  padding: 0 16px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  color: #343442;
+  font-size: inherit;
+  font-weight: 700;
+  background: linear-gradient(145deg, #eeeeef, #e8e8ea);
+  box-shadow: none;
+}
+
+.daily-limit-button > button:hover {
+  background: #e1e1e4;
+  box-shadow: none;
+}
+
+.daily-limit-button > button:checked {
+  background: #dadade;
+}
+
+.daily-limit-popover > contents {
+  padding: 8px;
+  border: 1px solid alpha(#292934, 0.14);
+  border-radius: 18px;
+  background: #fdfdfd;
+  box-shadow: 0 9px 24px alpha(black, 0.15);
+}
+
+.daily-limit-menu {
+  padding: 2px;
+}
+
+.daily-limit-choice {
+  min-height: 40px;
+  margin: 1px 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  color: #393944;
+  font-weight: 400;
+  background: transparent;
+  box-shadow: none;
+}
+
+.daily-limit-choice:hover {
+  background: alpha(#7657f6, 0.07);
+}
+
+.daily-limit-choice.selected {
+  color: #6748ef;
+  background: alpha(#7657f6, 0.12);
+}
+
+.daily-limit-choice-label {
+  font-size: inherit;
+  font-weight: 400;
+}
+
+.daily-limit-choice.selected .daily-limit-choice-label {
+  font-weight: 700;
+}
+
+.daily-limit-radio {
+  min-width: 20px;
+  min-height: 20px;
+  border: 2px solid #aeb1ba;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.daily-limit-radio.selected {
+  border-color: #7657f6;
+  background: #7657f6;
+  box-shadow: inset 0 0 0 3px #fdfdfd;
+}
+
+.daily-limit-separator {
+  margin: 10px 8px;
+  background: alpha(#292934, 0.13);
+}
+
+.daily-limit-custom-icon {
+  min-width: 22px;
+  min-height: 22px;
+  color: #666977;
 }
 
 .setting-icon {

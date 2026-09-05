@@ -77,11 +77,12 @@ class RunningAppTerminator:
 
     def __init__(self, *, proc_root: Path = PROC_ROOT,
                  runtime_root: Path = RUNTIME_ROOT, flatpak: str = FLATPAK,
-                 monotonic=time.monotonic):
+                 monotonic=time.monotonic, application_catalog=None):
         self._proc_root = proc_root
         self._runtime_root = runtime_root
         self._flatpak = flatpak
         self._monotonic = monotonic
+        self._application_catalog = application_catalog
         self._pidfd_open = getattr(os, "pidfd_open", None)
         self._pidfd_send_signal = getattr(signal, "pidfd_send_signal", None)
 
@@ -91,11 +92,13 @@ class RunningAppTerminator:
         identity = self._identity(target_uid)
         native_targets = _native_targets(targets)
         snap_labels = _snap_security_labels(targets)
+        application_ids = self._application_ids(target_uid, targets, patterns)
         LOG.info(
             "blocked-app termination preflight native_target_count=%d "
-            "flatpak_target_count=%d snap_target_count=%d pattern_count=%d",
+            "flatpak_target_count=%d snap_target_count=%d pattern_count=%d "
+            "application_id_count=%d",
             len(native_targets), len(_flatpak_targets(targets)),
-            len(snap_labels), len(patterns),
+            len(snap_labels), len(patterns), len(application_ids),
         )
         if (native_targets or snap_labels or patterns) and (
                 self._pidfd_open is None or self._pidfd_send_signal is None):
@@ -117,9 +120,65 @@ class RunningAppTerminator:
         terminated += self._terminate_native(
             target_uid, _native_targets(targets), patterns,
             _snap_security_labels(targets),
+            self._application_ids(target_uid, targets, patterns),
         )
         LOG.info("blocked-app termination outcome=accepted terminated_count=%d", terminated)
         return terminated
+
+    def _application_ids(self, target_uid, targets, patterns) -> tuple[str, ...]:
+        """Resolve blocked launch targets to the child's desktop identities.
+
+        Desktop application scopes survive a launcher exec'ing a different
+        binary (Steam) or an AppImage mounting its payload. Resolve only native
+        targets here; Flatpak and Snap retain their own runtime identities.
+        """
+        native = _native_targets(targets)
+        if self._application_catalog is None or not (native or patterns):
+            return ()
+        try:
+            return tuple(sorted({
+                app["id"].removesuffix(".desktop")
+                for app in self._application_catalog(target_uid)
+                if any(target in native or any(
+                    self._matches_native_pattern(target, pattern)
+                    for pattern in patterns
+                ) for target in app["targets"])
+            }))
+        except Exception as error:
+            raise AppTerminationError("application identity discovery failed") from error
+
+    @staticmethod
+    def _unit_escape(value: str) -> str:
+        # systemd.unit's string escaping, not its path escaping: desktop IDs
+        # contain literal hyphens, which must not become unit separators.
+        return "".join(
+            chr(byte) if (65 <= byte <= 90 or 97 <= byte <= 122 or
+                          48 <= byte <= 57 or byte in b":_.") and
+                          not (index == 0 and byte == ord("."))
+            else f"\\x{byte:02x}"
+            for index, byte in enumerate(value.encode("utf-8"))
+        )
+
+    @classmethod
+    def _matches_application_scope(cls, cgroup: str, target_uid: int,
+                                   application_ids: tuple[str, ...]) -> bool:
+        # Accept only application units underneath this child's user manager.
+        # Never select a user/session slice or use a desktop ID substring.
+        root = (f"0::/user.slice/user-{target_uid}.slice/"
+                f"user@{target_uid}.service/app.slice/")
+        for line in cgroup.splitlines():
+            if not line.startswith(root):
+                continue
+            unit = line[len(root):].split("/", 1)[0]
+            for application_id in application_ids:
+                escaped = re.escape(cls._unit_escape(application_id))
+                if re.fullmatch(
+                    rf"app-(?:gnome-)?{escaped}"
+                    rf"(?:-[A-Za-z0-9_]+\.scope|(?:@[A-Za-z0-9_]+)?\.service)",
+                    unit,
+                ):
+                    return True
+        return False
 
     @staticmethod
     def _identity(target_uid: int):
@@ -136,8 +195,9 @@ class RunningAppTerminator:
     def _matching_native_processes(
             self, target_uid: int, targets: tuple[str, ...],
             patterns: tuple[str, ...],
-            snap_security_labels: tuple[str, ...] = ()) -> list[tuple[int, int]]:
-        matches = []
+            snap_security_labels: tuple[str, ...] = (),
+            application_ids: tuple[str, ...] = ()) -> list[tuple[int, int]]:
+        candidates = {}
         try:
             entries = tuple(self._proc_root.iterdir())
         except OSError as error:
@@ -162,6 +222,7 @@ class RunningAppTerminator:
                     if self._process_uids(entry / "status") != (target_uid,) * 4:
                         os.close(pidfd)
                         continue
+                    parent_pid, started = self._process_lineage(entry / "stat")
                     executable = os.readlink(entry / "exe")
                     if executable.endswith(" (deleted)"):
                         executable = executable.removesuffix(" (deleted)")
@@ -178,9 +239,10 @@ class RunningAppTerminator:
                             security_label.startswith(f"{label}//")
                             for label in snap_security_labels
                         )
-                    if not native_match and not snap_match:
-                        os.close(pidfd)
-                        continue
+                    scope_match = bool(application_ids) and self._matches_application_scope(
+                        (entry / "cgroup").read_text(encoding="utf-8"),
+                        target_uid, application_ids,
+                    )
                 except FileNotFoundError:
                     os.close(pidfd)
                     continue
@@ -194,12 +256,64 @@ class RunningAppTerminator:
                 except AppTerminationError:
                     os.close(pidfd)
                     raise
-                matches.append((pid, pidfd))
+                except UnicodeError as error:
+                    os.close(pidfd)
+                    raise AppTerminationError("application scope is unavailable") from error
+                candidates[pid] = (pidfd, parent_pid, started,
+                                   native_match or snap_match or scope_match)
+            selected = {pid for pid, info in candidates.items() if info[3]}
+            direct_count = len(selected)
+            # Record every descendant before sending any signal: launchers can
+            # exit first and reparent their games/helpers to the user manager.
+            # Start times reject a parent PID reused after the child was born.
+            while True:
+                descendants = {
+                    pid for pid, (_fd, parent, started, _match) in candidates.items()
+                    if parent in selected and candidates[parent][2] <= started
+                } - selected
+                if not descendants:
+                    break
+                selected.update(descendants)
+            matches = []
+            for pid, (pidfd, _parent, _started, _match) in candidates.items():
+                if pid in selected:
+                    matches.append((pid, pidfd))
+            LOG.info(
+                "blocked-app discovery target=[Child user] verified_process_count=%d "
+                "direct_match_count=%d descendant_match_count=%d",
+                len(candidates), direct_count, len(selected) - direct_count,
+            )
         except Exception:
-            for _pid, pidfd in matches:
+            for pidfd, *_rest in candidates.values():
                 os.close(pidfd)
             raise
+        for pid, (pidfd, *_rest) in candidates.items():
+            if pid not in selected:
+                os.close(pidfd)
+        # Children first reduces the opportunity for a launcher exit to orphan
+        # a still-running payload; all identities remain pinned by pidfd.
+        def ancestry_depth(pid):
+            ancestors = set()
+            while pid in selected and pid not in ancestors:
+                ancestors.add(pid)
+                pid = candidates[pid][1]
+            return len(ancestors)
+
+        matches.sort(key=lambda match: ancestry_depth(match[0]), reverse=True)
         return matches
+
+    @staticmethod
+    def _process_lineage(stat_path: Path) -> tuple[int, int]:
+        try:
+            # comm may contain spaces and parentheses. Fields after its final
+            # ')' start at state (3); PPid is 4 and starttime is 22.
+            fields = stat_path.read_bytes().rsplit(b")", 1)[1].split()
+            parent, started = int(fields[1]), int(fields[19])
+            if parent < 0 or started < 0:
+                raise ValueError
+            return parent, started
+        except (ValueError, IndexError) as error:
+            raise AppTerminationError("process lineage is unavailable") from error
 
     @staticmethod
     def _matches_native_pattern(executable: str, pattern: str) -> bool:
@@ -250,13 +364,14 @@ class RunningAppTerminator:
 
     def _terminate_native(self, target_uid: int, targets: tuple[str, ...],
                           patterns: tuple[str, ...],
-                          snap_security_labels: tuple[str, ...] = ()) -> int:
-        if not targets and not patterns and not snap_security_labels:
+                          snap_security_labels: tuple[str, ...] = (),
+                          application_ids: tuple[str, ...] = ()) -> int:
+        if not targets and not patterns and not snap_security_labels and not application_ids:
             return 0
         terminated = 0
         for _pass in range(MAX_NATIVE_TERMINATION_PASSES):
             matches = self._matching_native_processes(
-                target_uid, targets, patterns, snap_security_labels,
+                target_uid, targets, patterns, snap_security_labels, application_ids,
             )
             if not matches:
                 return terminated
@@ -278,7 +393,7 @@ class RunningAppTerminator:
                 for _pid, pidfd in matches:
                     os.close(pidfd)
         remaining = self._matching_native_processes(
-            target_uid, targets, patterns, snap_security_labels,
+            target_uid, targets, patterns, snap_security_labels, application_ids,
         )
         for _pid, pidfd in remaining:
             os.close(pidfd)

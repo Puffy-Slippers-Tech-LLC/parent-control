@@ -443,25 +443,6 @@ class ParentWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.VERTICAL,
             css_classes=["screen-limits-card"],
         )
-        card_header = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=2,
-            css_classes=["screen-limits-card-header"],
-        )
-        card_header.append(Gtk.Label(
-            label="Screen Limits",
-            xalign=0,
-            css_classes=["screen-limits-title"],
-        ))
-        self._screen_limits_description = Gtk.Label(
-            label="Manage how much screen time this child can have each day.",
-            xalign=0,
-            wrap=True,
-            css_classes=["screen-limits-description"],
-        )
-        card_header.append(self._screen_limits_description)
-        screen_limits.append(card_header)
-
         screen_limit_rows = Gtk.ListBox(
             selection_mode=Gtk.SelectionMode.NONE,
             css_classes=["screen-limit-rows"],
@@ -1227,9 +1208,6 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         selected = self._account.get_selected()
         child_name = self._users[selected][1].split(maxsplit=1)[0]
-        self._screen_limits_description.set_label(
-            f"Manage how much screen time {child_name} can have each day."
-        )
         self._revoke_description.set_label(
             f"Revokes one-time screen time and app access grants granted to {child_name}."
         )

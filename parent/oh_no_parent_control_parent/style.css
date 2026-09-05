@@ -208,13 +208,16 @@ button.about-link > label {
 }
 
 .screen-limit-rows > row {
+  /* Match the App Limits panel header's 64px rhythm while keeping this
+     settings-focused page comfortably more compact than app rows. */
+  min-height: 64px;
   border-top: 1px solid alpha(#24242a, 0.11);
   border-radius: 0;
   background: transparent;
 }
 
 .screen-limit-toggle-row {
-  min-height: 56px;
+  min-height: 64px;
 }
 
 .screen-limit-switch {
@@ -227,8 +230,8 @@ button.about-link > label {
 }
 
 .setting-icon {
-  min-width: 42px;
-  min-height: 42px;
+  min-width: 46px;
+  min-height: 46px;
   margin-right: 8px;
   border: 1px solid alpha(#6d56ed, 0.09);
   border-radius: 12px;

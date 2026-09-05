@@ -93,4 +93,40 @@ class ScriptedParentBroker:
         return None
 
 
+# Every component preview uses a fake feedback transport, so UI interaction
+# cannot send real email. Exercise the production encoder and retry controller.
+from unittest.mock import Mock
+import requests
+from parent.oh_no_parent_control_parent import feedback, feedback_transport
+
+feedback.collect_logs = lambda: b"PK\x03\x04component-test archive"
+feedback_status = int(os.environ.get("ONPC_FEEDBACK_STATUS", "202"))
+feedback_attempts = 0
+
+
+def feedback_post(_url, **kwargs):
+    global feedback_attempts
+    feedback_attempts += 1
+    part_names = [name for name, _part in kwargs["files"]]
+    assert "message" in part_names
+    assert "messageHtml" in part_names
+    message_html = next(part[1] for name, part in kwargs["files"]
+                        if name == "messageHtml")
+    assert "<strong>" in message_html
+    if feedback_status == 413 and feedback_attempts > 1:
+        assert "logs" not in part_names
+    result = requests.Response()
+    result.status_code = feedback_status if feedback_attempts == 1 else 202
+    result._content = json.dumps({"ok": result.status_code == 202}).encode()
+    result._content_consumed = True
+    return result
+
+
+feedback_session = Mock()
+feedback_session.__enter__ = Mock(return_value=feedback_session)
+feedback_session.__exit__ = Mock(return_value=False)
+feedback_session.post.side_effect = feedback_post
+feedback_transport.requests.Session = lambda: feedback_session
+
+
 raise SystemExit(Application(client_factory=ScriptedParentBroker).run([sys.argv[0]]))

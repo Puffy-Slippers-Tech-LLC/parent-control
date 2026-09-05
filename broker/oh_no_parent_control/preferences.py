@@ -46,8 +46,8 @@ def default_preferences() -> dict:
             "last_custom_minutes": MIN_CUSTOM_MINUTES,
             "allow_soft_blocked_apps": False,
             "last_selected_approver_uid": 0,
-            "kiosk_muted": False,
-            "child_muted": False,
+            "kiosk_muted": True,
+            "child_muted": True,
         },
     }
 
@@ -120,13 +120,13 @@ def validate_preferences(raw: object) -> dict:
     if type(request["allow_soft_blocked_apps"]) is not bool:
         raise PreferencesError("allow-soft state must be boolean")
     # These request-form fields were added without changing FORMAT_VERSION.
-    # Older current-version records omit them and must keep their prior
-    # visible defaults: first approver, and unmuted sound on both surfaces.
+    # Older current-version records omit them and must use the current visible
+    # defaults: first approver, and muted sound on both request surfaces.
     approver_uid = request.get("last_selected_approver_uid", 0)
     if type(approver_uid) is not int or not 0 <= approver_uid <= UINT32_MAX:
         raise PreferencesError("invalid selected approver")
-    kiosk_muted = request.get("kiosk_muted", False)
-    child_muted = request.get("child_muted", False)
+    kiosk_muted = request.get("kiosk_muted", True)
+    child_muted = request.get("child_muted", True)
     if type(kiosk_muted) is not bool or type(child_muted) is not bool:
         raise PreferencesError("sound muted state must be boolean")
 

@@ -49,6 +49,9 @@ STATES = (
         "css": "policy-soft-blocked",
     },
 )
+# The app-list selector and legend present blocked states from softer to harder.
+# Keep STATES unchanged because its order is also used by access-rule filters.
+APP_LIST_STATES = (STATES[0], STATES[2], STATES[1])
 MATCH_RULES = (
     {
         "id": "pattern",
@@ -282,7 +285,9 @@ class ParentWindow(Adw.ApplicationWindow):
     def _build(self):
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar(css_classes=["parent-header"])
-        header.set_centering_policy(Adw.CenteringPolicy.STRICT)
+        # Let the title shift when the trailing actions need more room, so the
+        # feedback button does not force it into a narrow symmetric allocation.
+        header.set_centering_policy(Adw.CenteringPolicy.LOOSE)
         header.set_show_end_title_buttons(False)
         # Use a title-bar-specific raster at its native display size. Shrinking
         # the detailed 512 px launcher artwork here makes its fine neon edges
@@ -315,7 +320,6 @@ class ParentWindow(Adw.ApplicationWindow):
 
         for label, callback in (
             ("Help", open_help),
-            ("Send Feedback", self._show_feedback),
             ("About", self._show_about),
         ):
             item = Gtk.Button(child=Gtk.Label(label=label, xalign=0),
@@ -331,17 +335,30 @@ class ParentWindow(Adw.ApplicationWindow):
             dots.append(Gtk.Box(css_classes=["parent-menu-dot"]))
         self._menu_button = Gtk.MenuButton(
             child=dots,
+            valign=Gtk.Align.CENTER,
             popover=popover,
             tooltip_text="Menu",
             css_classes=["parent-header-menu"],
         )
         describe_control(
             self._menu_button, "Parent app menu",
-            "Open help, send feedback, and view product information.",
+            "Open help and view product information.",
         )
         # Keep native window actions and the desktop's decoration layout, with
         # the application menu immediately before the window controls.
         header_actions = Gtk.Box(spacing=4, valign=Gtk.Align.CENTER)
+        feedback_content = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER)
+        feedback_content.append(Gtk.Image(
+            icon_name="chat-message-new-symbolic", pixel_size=20,
+        ))
+        feedback_content.append(Gtk.Label(label="Feedback"))
+        feedback_button = Gtk.Button(
+            child=feedback_content, css_classes=["parent-header-feedback"],
+            valign=Gtk.Align.CENTER,
+        )
+        describe_control(feedback_button, "Feedback", "Send feedback about the app.")
+        feedback_button.connect("clicked", lambda _button: self._show_feedback())
+        header_actions.append(feedback_button)
         header_actions.append(self._menu_button)
         header_actions.append(Gtk.WindowControls(side=Gtk.PackType.END))
         header.pack_end(header_actions)
@@ -913,7 +930,7 @@ class ParentWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.HORIZONTAL, spacing=3,
             opacity=0, css_classes=["policy-selector"],
         )
-        for state in STATES:
+        for state in APP_LIST_STATES:
             selector.append(Gtk.ToggleButton(
                 sensitive=False, can_focus=False, can_target=False,
                 css_classes=["policy-choice", state["css"]],
@@ -962,7 +979,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
         sections = Gtk.Box(css_classes=["policy-legend-sections"])
         sections.append(self._legend_section(
-            "App Access (What happens)", STATES, {
+            "App Access (What happens)", APP_LIST_STATES, {
                 "allowed": "App can always be used",
                 "permanent": "App is completely blocked and can only be allowed by admins",
                 "conditional": "App is blocked and can be granted one-time extension per child request if time limit is enabled",
@@ -1059,7 +1076,9 @@ class ParentWindow(Adw.ApplicationWindow):
         AboutDialog(self).present()
 
     def _show_feedback(self, *_args):
-        FeedbackDialog(self).present()
+        if not getattr(self, "_feedback_dialog", None):
+            self._feedback_dialog = FeedbackDialog(self)
+        self._feedback_dialog.present()
 
     def _clear_catalog_rows(self):
         for row in self._app_rows:
@@ -1108,7 +1127,7 @@ class ParentWindow(Adw.ApplicationWindow):
             valign=Gtk.Align.CENTER, css_classes=["policy-selector"],
         )
         first_button = None
-        for state in STATES:
+        for state in APP_LIST_STATES:
             button = Gtk.ToggleButton(
                 tooltip_text=state["label"],
                 css_classes=["policy-choice", state["css"]],

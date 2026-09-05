@@ -6,6 +6,7 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {queryEstimatedTimes} from './timerQuery.js';
 import {calculateOwnRemainingTime} from './timeCalculationClient.js';
@@ -26,11 +27,13 @@ const TIMER_INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
 const SCREEN_SAVER_NAME = 'org.gnome.ScreenSaver';
 const SCREEN_SAVER_PATH = '/org/gnome/ScreenSaver';
 const SCREEN_SAVER_INTERFACE = 'org.gnome.ScreenSaver';
+const COUNTDOWN_ANIMATION_KEY = 'one-minute-countdown-animation';
+const COUNTDOWN_ANIMATION_LABEL = 'One minute count down animation';
 
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
     _init(onRequest, approvedGrantRemaining = 0, preview = false,
-        appName = 'Parent Control', previewMarker = '', logoPath = '') {
+        appName = 'Parent Control', previewMarker = '', logoPath = '', settings = null) {
         super._init(0.0, 'Screen Time Remaining');
         // Drop the default panel menu. A second menu with this source actor
         // steals hover and press from the request popover, including the
@@ -40,6 +43,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._onRequest = onRequest;
         this._preview = preview;
         this._previewMarker = preview ? previewMarker : '';
+        this._settings = settings;
+        this._signals = [];
+        this._countdownAnimationsEnabled =
+            this._settings?.get_boolean(COUNTDOWN_ANIMATION_KEY) ?? false;
 
         const content = new St.BoxLayout({
             style_class: 'screen-time-remaining-content',
@@ -82,20 +89,22 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._requestButton.connect('clicked', () => {
+            this._contextMenu?.close();
             this.setRequestActive(true);
             this._onRequest?.(this);
         });
         content.add_child(this._requestButton);
         this.add_child(content);
+        this._installContextMenuHandler();
         this.reactive = false;
         this.can_focus = false;
         this.track_hover = false;
 
-        this._signals = [];
         this._timeoutId = 0;
         this._timeoutDeadline = 0;
         this._layoutSyncId = 0;
         this._flashTimeoutId = 0;
+        this._contextMenuDestroyId = 0;
         this._destroyed = false;
         this._activeExtensionEnd = approvedGrantRemaining > 0
             ? Main.timeLimitsManager.getCurrentTime() + approvedGrantRemaining
@@ -135,6 +144,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             () => this._queueLayoutSync());
         this._actorDestroyId = this.connect('destroy', () => this._disposeResources());
 
+        if (this._settings) {
+            this._connect(
+                this._settings,
+                `changed::${COUNTDOWN_ANIMATION_KEY}`,
+                () => this._syncCountdownAnimationSetting());
+        }
+
         this._sync();
         this._queueLayoutSync();
         if (!this._preview)
@@ -144,6 +160,78 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     setRequestActive(active) {
         if (!this._destroyed)
             this._requestButton?.set_checked(active);
+    }
+
+    _installContextMenuHandler() {
+        // Keeping a second PopupMenuManager attached to this panel actor while
+        // its menu is closed prevents St.Button's normal pointer and keyboard
+        // activation. Create the manager only for the lifetime of an opened
+        // secondary-click menu.
+        this._connect(this._requestButton,
+            'button-press-event', (_button, event) => {
+                if (event.get_button() !== Clutter.BUTTON_SECONDARY)
+                    return Clutter.EVENT_PROPAGATE;
+                this._requestButton.fake_release();
+                this._openContextMenu();
+                return Clutter.EVENT_STOP;
+            });
+    }
+
+    _openContextMenu() {
+        if (this._contextMenu) {
+            this._contextMenu.open();
+            return;
+        }
+
+        this._contextMenuManager = new PopupMenu.PopupMenuManager(this);
+        this._contextMenu = new PopupMenu.PopupMenu(
+            this._requestButton, 0.5, St.Side.TOP);
+        this._contextMenu.actor.hide();
+        Main.uiGroup.add_child(this._contextMenu.actor);
+        this._contextMenuManager.addMenu(this._contextMenu);
+        this._contextMenu.connect('open-state-changed', (_menu, open) => {
+            logDebug(`countdown animation menu ${open ? 'opened' : 'closed'}`);
+            if (!open && !this._destroyed && !this._contextMenuDestroyId) {
+                this._contextMenuDestroyId = GLib.idle_add(
+                    GLib.PRIORITY_DEFAULT_IDLE, () => {
+                        this._contextMenuDestroyId = 0;
+                        this._destroyContextMenu();
+                        return GLib.SOURCE_REMOVE;
+                    });
+            }
+        });
+
+        this._countdownAnimationItem = new PopupMenu.PopupSwitchMenuItem(
+            COUNTDOWN_ANIMATION_LABEL, this._countdownAnimationsEnabled);
+        this._countdownAnimationItem.connect('toggled', (_item, enabled) => {
+            if (!this._settings?.set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)) {
+                logWarning('could not save countdown animation preference');
+                this._syncCountdownAnimationSetting();
+                return;
+            }
+            logInfo(`countdown animation ${enabled ? 'enabled' : 'disabled'}`);
+        });
+        this._contextMenu.addMenuItem(this._countdownAnimationItem);
+        this._contextMenu.open();
+    }
+
+    _destroyContextMenu() {
+        this._contextMenu?.destroy();
+        this._contextMenu = null;
+        this._contextMenuManager = null;
+        this._countdownAnimationItem = null;
+    }
+
+    _syncCountdownAnimationSetting() {
+        if (!this._settings || this._destroyed)
+            return;
+        const enabled = this._settings.get_boolean(COUNTDOWN_ANIMATION_KEY);
+        this._countdownAnimationsEnabled = enabled;
+        if (this._countdownAnimationItem?.state !== enabled)
+            this._countdownAnimationItem?.setToggleState(enabled);
+        if (!enabled)
+            this._clearCountdownWarning();
+        this._sync();
     }
 
     _connect(object, signal, callback) {
@@ -180,6 +268,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._layoutSyncId = 0;
         }
         this._clearFlash();
+
+        if (this._contextMenuDestroyId) {
+            GLib.source_remove(this._contextMenuDestroyId);
+            this._contextMenuDestroyId = 0;
+        }
+        this._destroyContextMenu();
+        this._settings = null;
 
         if (this._timerSignalId)
             Gio.DBus.system.signal_unsubscribe(this._timerSignalId);
@@ -398,6 +493,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     _setShown(shown) {
         if (shown && !this.container.visible)
             logInfo('showing remaining time indicator');
+        if (!shown)
+            this._contextMenu?.close();
         this.container.visible = shown;
     }
 
@@ -430,13 +527,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _updateLabel(remainingSecs) {
-        if (remainingSecs >= 60)
+        if (remainingSecs >= 60 || !this._countdownAnimationsEnabled)
             this._clearCountdownWarning();
 
         const compact = this._syncOrientation();
         this._label.text = formatRemainingTime(remainingSecs, compact);
 
-        if (remainingSecs < 60) {
+        if (remainingSecs < 60 && this._countdownAnimationsEnabled) {
             this._label.add_style_pseudo_class('countdown');
             this._flashContent();
         }
@@ -448,7 +545,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _updateRequestIcon(remainingSecs) {
-        if (remainingSecs > 10) {
+        if (!this._countdownAnimationsEnabled || remainingSecs > 10) {
             this._stopRequestIconSpin();
             return;
         }

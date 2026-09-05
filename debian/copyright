@@ -25,6 +25,18 @@ Comment:
  Its accompanying license notice reserves Mozilla trademark rights. The icon
  identifies Thunderbird in the parent-preview fixture only.
 
+Files: parent/oh_no_parent_control_parent/rich_editor/quill.js
+       parent/oh_no_parent_control_parent/rich_editor/quill.snow.css
+       parent/oh_no_parent_control_parent/rich_editor/quill.js.LICENSE.txt
+       parent/oh_no_parent_control_parent/rich_editor/LICENSE
+Copyright: 2017-2024 Slab
+           2014 Jason Chen
+           2013 salesforce.com
+License: BSD-3-Clause
+Comment:
+ Quill 2.0.3 is vendored unmodified from the official npm distribution so the
+ feedback editor works offline and executes no remotely hosted code.
+
 License: GPL-3.0-only
  On Debian systems, the complete text of the GNU General Public License
  version 3 is in /usr/share/common-licenses/GPL-3.
@@ -32,6 +44,11 @@ License: GPL-3.0-only
 License: MPL-2.0
  The complete text of the Mozilla Public License, version 2.0, is available at
  https://www.mozilla.org/MPL/2.0/.
+
+License: BSD-3-Clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the conditions in the bundled
+ parent/oh_no_parent_control_parent/rich_editor/LICENSE are met.
 
 License: OFL-1.1
  The complete text of the SIL Open Font License version 1.1 is shipped in

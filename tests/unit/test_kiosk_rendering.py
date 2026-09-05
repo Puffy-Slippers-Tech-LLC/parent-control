@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,13 +34,10 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('LIGHTNING_SIZZLE_VOLUME = 0.90', source)
         self.assertIn('self._sizzle = LightningSizzle()', source)
         self.assertIn('self._background.set_lightning_sizzle(self._sizzle.play)', source)
-        self.assertIn('self._music.start()', source)
-        self.assertIn('if preview and not child_overlay:', source)
+        self.assertIn('if not muted:\n            self.start()', source)
         self.assertIn('self._apply_mute(True)', source)
-        self.assertLess(
-            source.index("self._music.start()"),
-            source.index("if preview and not child_overlay:"),
-        )
+        self.assertNotIn('self._apply_mute(True)\n        self._music.start()', source)
+        self.assertIn('if self._started:\n            return', source)
         self.assertIn('self._music.close()', source)
         self.assertIn('self._sizzle.close()', source)
         self.assertIn('def fade_out(self, duration_ms):', source)
@@ -47,23 +45,80 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('self._music.cancel_fade()', source)
         self.assertIn('--preview --soundtrack "$(CURDIR)/data/Gearbox_Waltz.mp3"', makefile)
 
-    def test_kiosk_has_a_sound_toggle_left_of_the_menu(self):
+    def test_kiosk_has_a_sound_and_lightning_toggle_left_of_the_menu(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertIn('def set_muted(self, muted):', source)
         self.assertIn('self._player.set_property("mute", muted)', source)
         self.assertIn("self._mute_icon = PixelIcon(SPEAKER, display_size=28, label=\"\")", source)
         self.assertIn("menu_icon = PixelIcon(MENU, display_size=31, label=\"\")", source)
-        self.assertIn('armor_kind="hud", tooltip_text="Mute sound"', source)
+        self.assertIn(
+            'armor_kind="hud", tooltip_text="Mute sound and lightning"', source,
+        )
         self.assertIn('self._mute_button.connect("clicked", self._toggle_mute)', source)
         self.assertIn('self._music.set_muted(muted)', source)
         self.assertIn('self._sizzle.set_muted(muted)', source)
+        self.assertIn('self._background.set_lightning_enabled(not muted)', source)
+        self.assertIn('def set_lightning_enabled(self, enabled):', source)
+        self.assertIn('if not self._lightning_enabled:', source)
+        self.assertIn('self._lightning_bolts.clear()', source)
         self.assertIn("SPEAKER_MUTED if muted else SPEAKER", source)
         self.assertNotIn("audio-volume-high-symbolic", source)
         self.assertNotIn("audio-volume-muted-symbolic", source)
         self.assertLess(
             source.index("top_controls.append(self._mute_button)"),
             source.index("top_controls.append(menu_button)"),
+        )
+
+    def test_muted_gateway_clears_and_suppresses_lightning(self):
+        from oh_no_parent_control_kiosk.main import GatewayBackground
+
+        redraws = []
+        background = SimpleNamespace(
+            _lightning_enabled=True,
+            _lightning_bolts=[{"starts_at": 0.0}],
+            _next_lightning_burst_at=42.0,
+            queue_draw=lambda: redraws.append(True),
+        )
+
+        GatewayBackground.set_lightning_enabled(background, False)
+
+        self.assertFalse(background._lightning_enabled)
+        self.assertEqual(background._lightning_bolts, [])
+        self.assertEqual(background._next_lightning_burst_at, 0.0)
+        self.assertEqual(redraws, [True])
+        # The muted path returns before it asks GTK for a drawing context.
+        GatewayBackground._append_gateway_energy(background, None, 800, 600, 1.0)
+
+    def test_unmuting_starts_background_music_once(self):
+        from oh_no_parent_control_kiosk.main import BackgroundMusic, Gst
+
+        calls = []
+
+        class Player:
+            @staticmethod
+            def set_property(name, value):
+                calls.append(("property", name, value))
+
+            @staticmethod
+            def set_state(state):
+                calls.append(("state", state))
+                return Gst.StateChangeReturn.SUCCESS
+
+        music = SimpleNamespace(
+            _player=Player(), _nominal_volume=0.12, _started=False,
+        )
+        music.start = lambda: BackgroundMusic.start(music)
+
+        BackgroundMusic.set_muted(music, True)
+        self.assertFalse(music._started)
+        BackgroundMusic.set_muted(music, False)
+        BackgroundMusic.set_muted(music, False)
+
+        self.assertTrue(music._started)
+        self.assertEqual(
+            [call for call in calls if call[0] == "state"],
+            [("state", Gst.State.PLAYING)],
         )
 
     def test_child_overlay_reuses_the_fullscreen_kiosk_gui(self):

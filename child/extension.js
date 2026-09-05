@@ -13,6 +13,7 @@ import {logError, logInfo, logWarning} from './logger.js';
 import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
+const SETTINGS_SCHEMA = 'com.puffyslippers.oh-no-parent-control.child';
 
 function requestAppArgv() {
     const override = GLib.getenv('OH_NO_PARENT_CONTROL_REQUEST_APP');
@@ -30,6 +31,7 @@ export default class OhNoParentControlExtension extends Extension {
         logInfo('extension enabled');
         this._preview = isPreview();
         this._appName = appName(this);
+        this._settings = this.getSettings(SETTINGS_SCHEMA);
         this._requestProcess = null;
         this._openingRequest = false;
         this._indicator = new RemainingTimeIndicator(
@@ -38,7 +40,8 @@ export default class OhNoParentControlExtension extends Extension {
             this._preview,
             this._appName,
             previewGenerationMarker(),
-            appLogoPath(this));
+            appLogoPath(this),
+            this._settings);
         if (previewStartsWithRequestOpen()) {
             GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
                 this._showRequest();
@@ -51,6 +54,7 @@ export default class OhNoParentControlExtension extends Extension {
         this._stopRequest();
         this._indicator?.destroy();
         this._indicator = null;
+        this._settings = null;
         logInfo('extension disabled');
     }
 

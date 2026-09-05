@@ -47,14 +47,37 @@ button.about-link > label {
   background: alpha(#393944, 0.14);
 }
 
+.parent-header-feedback {
+  min-height: 40px;
+  padding: 0 12px;
+  margin-left: 72px;
+  margin-right: 10px;
+  border: 1px solid alpha(#7657f6, 0.22);
+  border-radius: 12px;
+  color: #7657f6;
+  background: alpha(#7657f6, 0.08);
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.parent-header-feedback:hover {
+  background: alpha(#7657f6, 0.14);
+}
+
+.parent-header-feedback:active {
+  background: alpha(#7657f6, 0.20);
+}
+
 .parent-header-menu {
   margin: 0;
 }
 
 .parent-header-menu > button {
-  min-width: 56px;
-  min-height: 50px;
+  min-width: 40px;
+  min-height: 40px;
   padding: 0;
+  border: 1px solid transparent;
   border-radius: 12px;
   background: alpha(#393944, 0.10);
   box-shadow: none;
@@ -103,32 +126,192 @@ button.about-link > label {
 .feedback-dialog {
   background: linear-gradient(145deg, #fcfcfd, #f6f7f9);
   color: #292934;
+  font-size: 16px;
+  font-family: Ubuntu, sans-serif;
 }
 
-.feedback-icon,
+.feedback-header {
+  min-height: 50px;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  padding: 0 12px;
+}
+
+.feedback-header .title {
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.feedback-header windowcontrols button {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: #e5e5e8;
+  color: #292934;
+  margin: 10px 0;
+}
+
+.feedback-icon {
+  min-width: 76px;
+  min-height: 76px;
+  border-radius: 50%;
+  background: #efeaff;
+  color: #6740ef;
+}
+
+.feedback-title {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.feedback-subtitle {
+  font-size: 18px;
+  color: #8c8c9b;
+}
+
+.feedback-section-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.feedback-hint,
+.feedback-retention {
+  color: #8c8c9b;
+}
+
+.feedback-retention {
+  font-size: 13px;
+}
+
 .feedback-attachment-button {
-  color: #6748ef;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  color: #7650ff;
 }
 
-.feedback-message {
-  border: 1px solid alpha(#24242a, 0.13);
-  border-radius: 14px;
+.feedback-attachment-button image {
+  -gtk-icon-size: 22px;
+}
+
+.feedback-privacy-link {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  color: #7650ff;
+  font-size: 13px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.feedback-rich-editor {
+  border: 1px solid #a59aac;
+  border-radius: 9px;
   background: white;
 }
 
-.feedback-message:focus-within {
-  border-color: #7657f6;
+.feedback-rich-editor:focus-within {
+  border-color: #8866ff;
+  box-shadow: 0 0 0 0.5px #8866ff;
 }
 
-.feedback-message textview,
-.feedback-message textview text {
-  background: transparent;
+.feedback-rich-editor {
+  min-height: 140px;
+}
+
+.feedback-reply list.boxed-list,
+.feedback-attachments list.boxed-list {
+  border: 1px solid #dddde3;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 2px 5px alpha(black, 0.09);
+}
+
+.feedback-reply row {
+  min-height: 50px;
+  padding: 0 18px;
+}
+
+.feedback-reply row .title {
+  color: #8c8c9b;
+}
+
+.feedback-reply row .prefixes,
+.feedback-attachments row .prefixes {
+  margin-right: 16px;
+}
+
+.feedback-reply row image {
+  color: #363637;
+}
+
+.feedback-attachments .heading {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.feedback-attachments > box > .header {
+  margin-bottom: 8px;
+}
+
+.feedback-attachments row {
+  min-height: 60px;
+  padding: 0 14px;
+}
+
+.feedback-attachments row .title {
+  font-size: 16px;
+  color: #343437;
+}
+
+.feedback-attachments row .subtitle {
+  color: #91919b;
+  font-size: 13px;
+}
+
+.feedback-add-files,
+.feedback-close {
+  border: 0;
+  border-radius: 10px;
+  background: #e3e3e6;
   color: #292934;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.feedback-add-files {
+  min-height: 36px;
+  padding: 0 16px;
+}
+
+.feedback-close,
+.feedback-send {
+  border: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.feedback-close {
+  min-width: 50px;
+}
+
+.feedback-add-files:hover,
+.feedback-close:hover {
+  background: #d9d9df;
 }
 
 .feedback-send {
-  background: #7657f6;
+  background: linear-gradient(110deg, #784dff, #724bfa);
   color: white;
+}
+
+.feedback-send:hover {
+  background: #6840ee;
 }
 
 .feedback-send:disabled {

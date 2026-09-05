@@ -11,22 +11,29 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PackageDeploymentTests(unittest.TestCase):
-    def test_make_installdeb_repairs_dependencies_installs_package_and_offers_reboot(self):
+    def test_make_installdeb_only_repairs_dependencies_and_installs_package(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
         repair = recipe.index("$(APT) --fix-broken install")
         install = recipe.index('$(APT) install --reinstall "$$deb_file"')
-        marker = recipe.index("grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs")
-        prompt = recipe.index("Reboot now? [y/N]", marker)
         self.assertIn("@set -e", recipe)
         self.assertIn("dpkg-parsechangelog -S Version", recipe)
         self.assertIn("dpkg-architecture -qDEB_HOST_ARCH", recipe)
         self.assertIn("run make build first", recipe)
         self.assertLess(repair, install)
-        self.assertLess(install, marker)
-        self.assertLess(marker, prompt)
-        self.assertIn("exec 3<>/dev/tty", recipe[prompt:])
+        self.assertNotIn("reboot-required", recipe)
+        self.assertNotIn("REBOOT REQUIRED", recipe)
+        self.assertNotIn("Reboot now?", recipe)
+        self.assertNotIn("read -r", recipe)
+        self.assertNotIn("/dev/tty", recipe)
+        self.assertNotIn("systemctl reboot", recipe)
         self.assertNotIn("dpkg --install", recipe)
+
+    def test_reboot_notice_is_owned_by_the_debian_package(self):
+        postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+        notice = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
+        self.assertIn(notice, postinst)
+        self.assertLess(postinst.index("activate_broker"), postinst.index(notice))
 
     def test_make_build_keeps_changes_file_artifacts_together(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
@@ -55,7 +62,12 @@ class PackageDeploymentTests(unittest.TestCase):
     def test_package_payload_contains_product_assets_and_system_integration(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         for source in (
-            "parent/oh_no_parent_control_parent/style.css", "kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg",
+            "parent/oh_no_parent_control_parent/style.css",
+            "parent/oh_no_parent_control_parent/rich_editor/quill.js",
+            "parent/oh_no_parent_control_parent/rich_editor/quill.snow.css",
+            "parent/oh_no_parent_control_parent/rich_editor/quill.js.LICENSE.txt",
+            "docs/parent-control-feedback.md",
+            "kiosk/oh_no_parent_control_kiosk/kiosk-background.jpeg",
             "kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf", "data/Gearbox_Waltz.mp3",
             "data/fapolicyd/99-oh-no-parent-control-allow.rules", "tools/pam_oh_no_parent_control.c",
             "tools/session_limit_check.py", "tools/clear_session_runtime_max.py",
@@ -73,7 +85,7 @@ class PackageDeploymentTests(unittest.TestCase):
     def test_package_has_all_runtime_dependencies(self):
         control = (ROOT / "debian/control").read_text(encoding="utf-8")
         dependencies = next(line.removeprefix("Depends: ") for line in control.splitlines() if line.startswith("Depends: ")).split(", ")
-        for dependency in ("fapolicyd", "gnome-shell", "gir1.2-malcontent-0", "gir1.2-gstreamer-1.0", "gstreamer1.0-plugins-base", "gstreamer1.0-plugins-ugly", "libpam-malcontent", "mate-polkit-bin", "polkitd", "python3-gi-cairo", "systemd-sysusers"):
+        for dependency in ("fapolicyd", "gnome-shell", "gir1.2-malcontent-0", "gir1.2-gstreamer-1.0", "gir1.2-webkit-6.0", "gstreamer1.0-plugins-base", "gstreamer1.0-plugins-ugly", "libpam-malcontent", "mate-polkit-bin", "polkitd", "python3-gi-cairo", "systemd-sysusers", "update-notifier", "update-notifier-common"):
             self.assertIn(dependency, dependencies)
 
     def test_postinst_reasserts_kiosk_identity_and_enforcement_services(self):

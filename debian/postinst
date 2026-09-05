@@ -157,6 +157,7 @@ if [ "$1" = configure ]; then
     # running after every configure, without restarting an already-active
     # broker unless the changed payload requires reconciliation.
     broker_action=start
+    reboot_required=0
     pending=/var/lib/oh-no-parent-control/package-activation-pending
     if [ -f "$pending" ]; then
         previous=/var/lib/oh-no-parent-control/previous-package-activation.json
@@ -173,6 +174,17 @@ if [ "$1" = configure ]; then
         esac
         case "$impacts" in
             *reboot*)
+                echo 'oh-no-parent-control: reboot required; notifying Ubuntu update-notifier' >&2
+                # Use Ubuntu's package notification hook. Avoid duplicate
+                # package entries when configuration is retried before reboot.
+                if [ ! -e /run/reboot-required ] || \
+                        ! grep -Fxq 'oh-no-parent-control' /run/reboot-required.pkgs 2>/dev/null; then
+                    DPKG_MAINTSCRIPT_PACKAGE=oh-no-parent-control \
+                        /usr/share/update-notifier/notify-reboot-required
+                fi
+                # The Ubuntu helper can defer its marker for Livepatch. Our
+                # PAM/display-manager changes still require a reboot, so ensure
+                # the shared markers exist without clearing other requests.
                 if [ ! -e /run/reboot-required ]; then
                     printf '%s\n' '*** System restart required ***' > /run/reboot-required
                 fi
@@ -181,6 +193,7 @@ if [ "$1" = configure ]; then
                     printf '%s\n' 'oh-no-parent-control' >> /run/reboot-required.pkgs
                 fi
                 chmod 0644 /run/reboot-required /run/reboot-required.pkgs
+                reboot_required=1
                 ;;
         esac
     fi
@@ -189,6 +202,10 @@ if [ "$1" = configure ]; then
     # required activation and cannot lose a pending reboot requirement.
     if [ -f "$pending" ]; then
         rm -f "$previous" "$pending"
+    fi
+    if [ "$reboot_required" -eq 1 ]; then
+        printf '\n%s\n' \
+            '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
     fi
 fi
 

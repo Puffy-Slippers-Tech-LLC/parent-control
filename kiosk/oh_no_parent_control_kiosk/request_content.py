@@ -237,8 +237,8 @@ class RequestContent(MetalBoard):
         self._on_values_changed = on_values_changed
         self._suppress_values_changed = False
         self._pending_approver_uid = 0
-        self._kiosk_muted = False
-        self._child_muted = False
+        self._kiosk_muted = True
+        self._child_muted = True
 
         self.append(self._header())
         self._status = Gtk.Label(
@@ -669,8 +669,8 @@ class RequestContent(MetalBoard):
             self._custom_entry.set_text(str(custom))
             self._allow_soft.set_active(bool(request.get("allow_soft_blocked_apps", False)))
             self._pending_approver_uid = request.get("last_selected_approver_uid", 0)
-            self._kiosk_muted = bool(request.get("kiosk_muted", False))
-            self._child_muted = bool(request.get("child_muted", False))
+            self._kiosk_muted = bool(request.get("kiosk_muted", True))
+            self._child_muted = bool(request.get("child_muted", True))
             self._restore_approver()
             self._update_ready()
         finally:

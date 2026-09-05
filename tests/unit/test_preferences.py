@@ -93,7 +93,7 @@ class PreferenceTests(unittest.TestCase):
 
         self.assertEqual(normalized["daily_time_limit_minutes"], 0)
 
-    def test_current_format_without_request_ui_fields_uses_prior_defaults(self):
+    def test_current_format_without_request_ui_fields_uses_muted_defaults(self):
         value = default_preferences()
         value["request"] = {
             "last_selected_duration": "1800",
@@ -104,8 +104,8 @@ class PreferenceTests(unittest.TestCase):
         normalized = validate_preferences(value)
 
         self.assertEqual(normalized["request"]["last_selected_approver_uid"], 0)
-        self.assertFalse(normalized["request"]["kiosk_muted"])
-        self.assertFalse(normalized["request"]["child_muted"])
+        self.assertTrue(normalized["request"]["kiosk_muted"])
+        self.assertTrue(normalized["request"]["child_muted"])
 
     def test_unknown_preference_key_is_rejected(self):
         value = default_preferences()

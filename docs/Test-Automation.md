@@ -48,8 +48,9 @@ the implementation model-confirmation step.
 The intended interface is four commands. **These targets and their selectors
 are not implemented yet**; Task 28A owns their complete dispatch and CI. The
 smaller [F1 task](TestAutomation/Task-F1.md) brings guarded installed selectors
-and diagnostic timing forward into `check-system`. F1 is also unimplemented;
-use the current commands below until their documented implementation passes.
+and diagnostic timing forward into `check-system`. F1 is in progress: its
+host-safe `LIST=1` inventory is available, while selected VM execution remains
+fail-closed until the rest of F1 passes. Use the current commands below for runs.
 
 | Command | Default scope | Test VM |
 | --- | --- | --- |
@@ -91,12 +92,14 @@ included in today's `make check`.
 | `make check-component` | Private-D-Bus, Node/GJS, GTK, and nested-Shell components. |
 | `make check-static` | ShellCheck and GJS static/module checks. |
 | `make check-unit` | Unit and contract modules, including property tests. |
+| `make check-system LIST=1 [AREA=<area> [TEST=<case-id>]]` | Host-safe installed-case inventory and prerequisite resolution; no artifacts, root, or VM use. |
 | `make check-system ARTIFACT_DIR=<verified-directory>` | Existing guarded installed-system runner; detailed coverage is still being completed. |
 
-Today's installed runner has no supported case/area selector. Do not assume
-`AREA`, `TEST`, or guest pytest arguments work until F1 delivers and documents
-them. During implementation, full command lists in task documents are acceptance
-checks; use [focused verification](TestAutomation/Implementation-Workflow.md#verify-at-the-right-scope)
+Today's installed runner has no supported case/area execution selector. Use
+`AREA` and `TEST` only with `LIST=1`; non-listing selection fails closed until
+F1 delivers guarded forwarding. Guest pytest arguments remain unsupported.
+During implementation, full command lists in task documents are acceptance checks;
+use [focused verification](TestAutomation/Implementation-Workflow.md#verify-at-the-right-scope)
 for edits and do not rerun unaffected suites merely to resume a chat.
 
 Before a current host-integrated command that terminates processes, run its

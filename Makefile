@@ -115,9 +115,14 @@ prep-host:
 # Host controller only. The package is installed and checked with pytest inside the
 # fixed snapshot-backed VM. Run from a root shell on the development/VM host.
 check-system:
-	@test -n "$(ARTIFACT_DIR)" || (echo 'Usage: make check-system ARTIFACT_DIR=/tmp/onpc-test-artifacts/first' >&2; exit 2)
 	@test -z "$(VM_IMAGE)" || (echo 'VM_IMAGE is obsolete: check-system uses the fixed ubuntu26.04 baseline snapshot' >&2; exit 2)
-	@/usr/bin/python3 -B tests/integration/system_runner.py --artifacts "$(ARTIFACT_DIR)"
+	@test -z "$(LIST)" -o "$(LIST)" = "1" || (echo 'LIST must be 1 when supplied' >&2; exit 2)
+	@test "$(LIST)" = "1" -o -n "$(ARTIFACT_DIR)" || (echo 'Usage: make check-system ARTIFACT_DIR=/tmp/onpc-test-artifacts/first' >&2; exit 2)
+	@/usr/bin/python3 -B tests/integration/system_runner.py \
+		$(if $(ARTIFACT_DIR),--artifacts "$(ARTIFACT_DIR)") \
+		$(if $(AREA),--area "$(AREA)") \
+		$(if $(TEST),--test "$(TEST)") \
+		$(if $(LIST),--list)
 
 .PHONY: check-system
 

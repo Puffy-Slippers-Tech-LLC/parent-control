@@ -34,6 +34,8 @@ class RunningAppTerminatorTests(unittest.TestCase):
             encoding="ascii",
         )
         (directory / "cgroup").write_text(cgroup, encoding="utf-8")
+        (directory / "environ").write_bytes(b"")
+        (directory / "mountinfo").write_text("", encoding="utf-8")
         if security_label is not None:
             (directory / "attr").mkdir()
             (directory / "attr/current").write_text(
@@ -188,6 +190,76 @@ class RunningAppTerminatorTests(unittest.TestCase):
             finally:
                 for _pid, fd in matches:
                     os.close(fd)
+
+    def test_updated_appimage_matches_mounted_payload_and_game_without_old_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            uid = os.getuid()
+            mount = "/tmp/.mount_Lunar new"
+            source = "/home/child/Applications/Lunar Client-3.7.17-ow_new.AppImage"
+            old = "/home/child/Applications/Lunar Client-3.7.13-ow_old.AppImage"
+            pattern = "/home/child/Applications/Lunar Client-*-ow_*.AppImage"
+            environment = f"APPIMAGE={source}\0APPDIR={mount}\0SECRET=private\0".encode()
+            mountinfo = (
+                "42 1 0:99 / /tmp/.mount_Lunar\\040new ro - "
+                f"fuse.AppImage image ro,user_id={uid},group_id={uid}\n"
+            )
+            for pid, executable, owner, parent in (
+                (101, mount + "/lunarclient", uid, 1),
+                (102, "/opt/java/bin/java", uid, 101),
+                # Inherited variables must not select unrelated executables.
+                (103, "/usr/bin/editor", uid, 1),
+                (104, mount + "/lunarclient", uid + 1, 1),
+                (105, mount + "-other/lunarclient", uid, 1),
+                (106, mount + "/other", uid, 1),
+            ):
+                self._process(root, pid, owner, executable, parent=parent,
+                              cgroup=self._scope(owner, f"app-org.chromium.Chromium-{pid}.scope"))
+                (root / str(pid) / "environ").write_bytes(environment)
+                (root / str(pid) / "mountinfo").write_text(mountinfo)
+            # A matching path in a mount owned by another user is insufficient.
+            (root / "106/mountinfo").write_text(mountinfo.replace(f"user_id={uid}", f"user_id={uid + 1}"))
+            terminator = RunningAppTerminator(proc_root=root)
+            terminator._pidfd_open = lambda _pid, _flags: os.open("/dev/null", os.O_RDONLY)
+            with self.assertLogs("oh-no-parent-control.app-termination", level="INFO") as logs:
+                matches = terminator._matching_native_processes(
+                    uid, (old,), (pattern,), (), ("new-desktop-id",),
+                )
+            try:
+                self.assertEqual([pid for pid, _fd in matches], [102, 101])
+                self.assertIn("appimage_match_count=1", logs.output[0])
+                self.assertNotIn(source, str(logs.output))
+                self.assertNotIn("SECRET", str(logs.output))
+            finally:
+                for _pid, fd in matches:
+                    os.close(fd)
+
+    def test_appimage_requires_exact_policy_and_verified_mount(self):
+        with tempfile.TemporaryDirectory() as directory:
+            entry = Path(directory)
+            terminator = RunningAppTerminator()
+            source = "/apps/Game.AppImage"
+            valid = f"APPIMAGE={source}\0APPDIR=/tmp/game\0".encode()
+            (entry / "mountinfo").write_text(
+                "42 1 0:99 / /tmp/game ro - fuse.AppImage image ro,user_id=1001\n",
+            )
+            for environment, target, executable, expected in (
+                (valid, source, "/tmp/game/bin/game", True),
+                (valid, "/other/Game.AppImage", "/tmp/game/bin/game", False),
+                (valid, source, "/tmp/game-other/bin/game", False),
+                (valid.replace(b"/tmp/game", b"/"), source, "/usr/bin/game", False),
+                (valid + b"APPIMAGE=/apps/Other.AppImage\0", source, "/tmp/game/bin/game", False),
+            ):
+                with self.subTest(environment=environment, target=target, executable=executable):
+                    (entry / "environ").write_bytes(environment)
+                    self.assertEqual(terminator._matches_appimage(
+                        entry, executable, 1001, (target,), (),
+                    ), expected)
+            (entry / "environ").write_bytes(valid)
+            (entry / "mountinfo").write_text("")
+            self.assertFalse(terminator._matches_appimage(
+                entry, "/tmp/game/bin/game", 1001, (source,), (),
+            ))
 
     def test_application_scope_requires_exact_identity_and_child_manager(self):
         matching = RunningAppTerminator._matches_application_scope

@@ -24,6 +24,7 @@ MAX_FLATPAK_OUTPUT_BYTES = 1024 * 1024
 FLATPAK_TIMEOUT_SECONDS = 5
 PROCESS_EXIT_TIMEOUT_SECONDS = 2
 MAX_NATIVE_TERMINATION_PASSES = 4
+MAX_PROCESS_ENVIRONMENT_BYTES = 1024 * 1024
 LOG = logging.getLogger("oh-no-parent-control.app-termination")
 FLATPAK_INSTANCE_RE = re.compile(r"^[0-9]+$")
 FLATPAK_ID_RE = re.compile(
@@ -198,6 +199,7 @@ class RunningAppTerminator:
             snap_security_labels: tuple[str, ...] = (),
             application_ids: tuple[str, ...] = ()) -> list[tuple[int, int]]:
         candidates = {}
+        appimage_count = 0
         try:
             entries = tuple(self._proc_root.iterdir())
         except OSError as error:
@@ -229,6 +231,11 @@ class RunningAppTerminator:
                     native_match = executable in targets or any(
                             self._matches_native_pattern(executable, pattern)
                             for pattern in patterns)
+                    appimage_match = False
+                    if not native_match and (targets or patterns):
+                        appimage_match = self._matches_appimage(
+                            entry, executable, target_uid, targets, patterns,
+                        )
                     snap_match = False
                     if not native_match and snap_security_labels:
                         security_label = self._process_security_label(
@@ -260,7 +267,8 @@ class RunningAppTerminator:
                     os.close(pidfd)
                     raise AppTerminationError("application scope is unavailable") from error
                 candidates[pid] = (pidfd, parent_pid, started,
-                                   native_match or snap_match or scope_match)
+                                   native_match or appimage_match or snap_match or scope_match)
+                appimage_count += appimage_match
             selected = {pid for pid, info in candidates.items() if info[3]}
             direct_count = len(selected)
             # Record every descendant before sending any signal: launchers can
@@ -280,8 +288,8 @@ class RunningAppTerminator:
                     matches.append((pid, pidfd))
             LOG.info(
                 "blocked-app discovery target=[Child user] verified_process_count=%d "
-                "direct_match_count=%d descendant_match_count=%d",
-                len(candidates), direct_count, len(selected) - direct_count,
+                "direct_match_count=%d descendant_match_count=%d appimage_match_count=%d",
+                len(candidates), direct_count, len(selected) - direct_count, appimage_count,
             )
         except Exception:
             for pidfd, *_rest in candidates.values():
@@ -301,6 +309,56 @@ class RunningAppTerminator:
 
         matches.sort(key=lambda match: ancestry_depth(match[0]), reverse=True)
         return matches
+
+    def _matches_appimage(self, entry: Path, executable: str, target_uid: int,
+                          targets: tuple[str, ...], patterns: tuple[str, ...]) -> bool:
+        """Match a mounted payload after an AppImage update or scope change.
+
+        APPIMAGE/APPDIR are the documented AppImage runtime interface. Require
+        the kernel-reported executable to be inside that exact child-owned
+        FUSE mount: inherited environment alone must not select another app.
+        Paths and environment contents must never appear in diagnostic logs.
+        """
+        if not any(value.endswith(".AppImage") for value in (*targets, *patterns)):
+            return False
+        with (entry / "environ").open("rb") as stream:
+            environment = stream.read(MAX_PROCESS_ENVIRONMENT_BYTES + 1)
+        if len(environment) > MAX_PROCESS_ENVIRONMENT_BYTES:
+            raise AppTerminationError("application runtime identity exceeds size limit")
+        values = {}
+        for field in environment.split(b"\0"):
+            key, separator, value = field.partition(b"=")
+            if separator and key in {b"APPIMAGE", b"APPDIR"}:
+                if key in values:
+                    return False
+                values[key] = os.fsdecode(value)
+        source = values.get(b"APPIMAGE", "")
+        mount = values.get(b"APPDIR", "")
+        if (not os.path.isabs(source) or not source.endswith(".AppImage") or
+                not os.path.isabs(mount) or mount == "/" or
+                os.path.normpath(mount) != mount or
+                not executable.startswith(mount + "/")):
+            return False
+        if source not in targets and not any(
+                self._matches_native_pattern(source, pattern) for pattern in patterns):
+            return False
+        # mountinfo escapes whitespace and backslashes as octal sequences.
+        # Use this process's namespace; the broker has a private /tmp.
+        with (entry / "mountinfo").open("r", encoding="utf-8", errors="surrogateescape") as stream:
+            for line in stream:
+                fields = line.split()
+                if "-" not in fields or len(fields) < 10:
+                    continue
+                separator = fields.index("-")
+                if separator < 6 or len(fields) <= separator + 3:
+                    continue
+                mountpoint = re.sub(
+                    r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), fields[4],
+                )
+                if (mountpoint == mount and fields[separator + 1].startswith("fuse.") and
+                        f"user_id={target_uid}" in fields[separator + 3].split(",")):
+                    return True
+        return False
 
     @staticmethod
     def _process_lineage(stat_path: Path) -> tuple[int, int]:

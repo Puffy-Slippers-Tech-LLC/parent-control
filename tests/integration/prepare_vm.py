@@ -19,6 +19,10 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 
+# Protect direct invocation as well as the sudo launcher, before checkout imports.
+if __name__ == '__main__':
+    sys.dont_write_bytecode = True
+
 CHECKOUT = Path("/Data/Code/PST/parent-control")
 if str(CHECKOUT) not in sys.path:
     sys.path.insert(0, str(CHECKOUT))
@@ -410,6 +414,22 @@ def _bool(value: str) -> bool:
     raise PreparationError("verify:accounts-service", "AccountsService returned a malformed boolean")
 
 
+def suppress_initial_setup(username: str, *, runner: Runner) -> None:
+    """Satisfy Ubuntu 26.04's first-login and upgrade-login unit conditions."""
+    config = Path("/home") / username / ".config"
+    markers = (
+        config / "gnome-initial-setup-done",
+        config / "gnome-initial-setup" / f"upgrade-{UBUNTU_VERSION}-done",
+    )
+    # Drop privileges before accessing account-controlled paths, including any
+    # symlinks. New directories and markers belong to the account, not root.
+    prefix = ["runuser", "--user", username, "--"]
+    runner.run([*prefix, "mkdir", "-p", "--", str(markers[1].parent)])
+    runner.run([*prefix, "touch", "--", *(str(path) for path in markers)])
+    for path in markers:
+        runner.run([*prefix, "test", "-f", str(path)])
+
+
 def reconcile_accounts(
     existing: dict[str, ExistingAccount | None],
     password: str,
@@ -496,6 +516,8 @@ def reconcile_accounts(
         if uid_names.get(uid) != {identity.username}:
             raise PreparationError("verify:uid-collision", f"{identity.label} shares a UID with another account")
         seen_uids.add(uid)
+        suppress_initial_setup(identity.username, runner=runner)
+        print(f"prep-vm: {identity.label} first-login welcome suppression verified", file=sys.stderr)
         verified[identity.username] = {"uid": uid, "role": identity.role}
         print(f"prep-vm: {identity.label} verified", file=sys.stderr)
     return verified

@@ -16,7 +16,7 @@ fi
 
 if (( EUID != 0 )); then
     echo 'prep-vm: [stage:sudo] requesting root privileges for source-VM preparation' >&2
-    exec sudo -- /usr/bin/python3 "$PREPARER"
+    exec sudo -- /usr/bin/python3 -B "$PREPARER"
 fi
 
-exec /usr/bin/python3 "$PREPARER"
+exec /usr/bin/python3 -B "$PREPARER"

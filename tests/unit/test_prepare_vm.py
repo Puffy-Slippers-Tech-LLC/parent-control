@@ -227,7 +227,7 @@ class AccountRunner:
             self.inputs.append((command, input_text))
         if command[0] == "gpasswd":
             return subprocess.CompletedProcess(command, 3, "", "not a member")
-        if command[0] in {"useradd", "usermod", "install", "chpasswd"}:
+        if command[0] in {"useradd", "usermod", "install", "chpasswd", "runuser"}:
             return subprocess.CompletedProcess(command, 0, "", "")
         if command[0] == "id":
             username = command[-1]
@@ -292,6 +292,14 @@ def test_reconciliation_verifies_roles_and_passes_one_shared_secret_only_on_stdi
     assert {command[-1] for command in runner.commands if "SetIconFile" in command} == {identity.icon_file for identity in prepare.IDENTITIES}
     assert sum("SetShell" in command for command in runner.commands) == 4
     assert sum(command[0] == "install" for command in runner.commands) == 4
+    for identity in prepare.IDENTITIES:
+        prefix = ["runuser", "--user", identity.username, "--"]
+        config = Path("/home") / identity.username / ".config"
+        markers = [config / "gnome-initial-setup-done",
+                   config / "gnome-initial-setup/upgrade-26.04-done"]
+        assert [*prefix, "touch", "--", *map(str, markers)] in runner.commands
+        for marker in markers:
+            assert [*prefix, "test", "-f", str(marker)] in runner.commands
 
     with pytest.raises(prepare.PreparationError, match="verify:groups"):
         prepare.reconcile_accounts(

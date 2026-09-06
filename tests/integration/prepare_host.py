@@ -26,6 +26,10 @@ import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+# Direct root invocation must also leave checkout imports free of root-owned caches.
+if __name__ == '__main__':
+    sys.dont_write_bytecode = True
+
 import prepare_vm as guest_contract
 
 

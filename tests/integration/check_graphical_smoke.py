@@ -28,28 +28,35 @@ from vm_transport import Transport
 
 
 ROOT = Path(__file__).resolve().parents[2]
-STAGES = ('ready', 'gdm', 'menu', 'dismissed')
+STAGES = ('ready', 'gdm', 'selected', 'dismissed')
 # All session names and identifiers stay inside this guest process. This is a
 # read-only corroboration, never a replacement for graphical input/screens.
-OBSERVATION = '''import subprocess,time
+OBSERVATION = '''import json,subprocess,time
 def call(*args):
     return subprocess.run(args, capture_output=True, text=True, check=True, timeout=10).stdout
 deadline = time.monotonic() + 90
 while time.monotonic() < deadline:
     active = call('systemctl', 'is-active', 'display-manager').strip() == 'active'
-    classes = []
+    user_session = False
     greeter = False
     for row in call('loginctl', 'list-sessions', '--no-legend', '--no-pager').splitlines():
         session = row.split()[0]
         props = dict(line.split('=', 1) for line in call(
-            'loginctl', 'show-session', session, '-p', 'Class', '-p', 'Active', '-p', 'Type').splitlines())
-        classes.append(props.get('Class'))
+            'loginctl', 'show-session', session, '-p', 'Class', '-p', 'Active', '-p', 'Type',
+            '-p', 'Remote', '-p', 'Service', '-p', 'User').splitlines())
+        # Our root SSH observation creates its own logind user session. Only
+        # that non-graphical observation identity is excluded from this gate.
+        observer = (props.get('User') == '0' and props.get('Service') == 'sshd' and
+                    props.get('Remote') == 'yes' and props.get('Type') not in ('wayland', 'x11'))
+        user_session |= props.get('Class') in ('user', 'user-early') and not observer
         greeter |= props.get('Class') == 'greeter' and props.get('Active') == 'yes' and props.get('Type') in ('wayland', 'x11')
-    if active and greeter and not any(c in ('user', 'user-early') for c in classes):
+    if active and greeter and not user_session:
         print('greeter-ready')
         break
     time.sleep(0.5)
 else:
+    print(json.dumps({'display_manager_active': active, 'active_graphical_greeter': greeter,
+                      'unexpected_user_session': user_session}, sort_keys=True))
     raise SystemExit(1)
 '''
 
@@ -67,6 +74,11 @@ def variables(directory, server, run):
         'CASEDIR': str(directory / 'distribution'),
         'WORKER_HOSTNAME': '127.0.0.1', 'GENERAL_HW_VNC_IP': '127.0.0.1',
         'GENERAL_HW_VNC_PORT': 5900, 'GENERAL_HW_NO_SERIAL': 1,
+        # The generalhw default is 16-bit. QEMU's changed ZRLE rectangles trip
+        # the pinned client's 16-bit decoder even though its initial full frame
+        # succeeds. The backend's documented 32-bit setting uses its rgb888
+        # path and keeps the public VNC transport unchanged.
+        'GENERAL_HW_VNC_DEPTH': 32,
         'NOVIDEO': 1,
         **lifecycle_variables(server.path, run),
     }

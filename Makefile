@@ -10,7 +10,8 @@ PRODUCT_LIBDIR ?= $(PREFIX)/lib/oh-no-parent-control
 MULTIARCH ?= $(shell $(CC) -print-multiarch)
 PAM_MODULE_DIR ?= $(PREFIX)/lib/$(MULTIARCH)/security
 UUID := oh-no-parent-control@tech.puffyslippers.com
-ACTIVATION_MANIFEST_PATHS := \
+# Resolve packaging paths only when used; preparation does not need a compiler.
+ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-broker \
 	$(LIBEXECDIR)/oh-no-parent-control-migrate-state \
 	$(LIBEXECDIR)/oh-no-parent-control-login-check \
@@ -94,13 +95,17 @@ build: check-release-version
 
 installdeb:
 	@set -e; \
+	if ! command -v dpkg-parsechangelog >/dev/null 2>&1 || ! command -v dpkg-architecture >/dev/null 2>&1; then \
+		echo "Installing dpkg-dev, required to locate the built Debian package"; \
+		$(APT) update; \
+		$(APT) install dpkg-dev; \
+	fi; \
 	version="$$(dpkg-parsechangelog -S Version)"; \
 	architecture="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
 	deb_file="$(CURDIR)/output/oh-no-parent-control_$${version}_$${architecture}.deb"; \
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
-	$(APT) --fix-broken install; \
-	$(APT) install --reinstall "$$deb_file"; \
+	$(APT) --fix-broken install --reinstall "$$deb_file"; \
 	"$(LIBEXECDIR)/oh-no-parent-control-reboot-notice"
 
 uninstalldeb:
@@ -108,7 +113,7 @@ uninstalldeb:
 
 # Preparation-only host entry point; run from a root shell on the host.
 prep-host:
-	@/usr/bin/python3 tests/integration/prepare_host.py
+	@/usr/bin/python3 -B tests/integration/prepare_host.py
 
 .PHONY: prep-host
 
@@ -130,7 +135,7 @@ check-system:
 
 # Preparation-only source-VM entry point; the launcher requests sudo as needed.
 prep-vm:
-	@tests/integration/prepare-vm
+	@/bin/bash tests/integration/prepare-vm
 
 TEST_ENV = PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$${PYTHONPATH:-}
 PYTEST = $(TEST_ENV) $(PYTHON) -m pytest

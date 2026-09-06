@@ -1,3 +1,57 @@
+# This unprivileged helper validates every path; trust includes edits to the
+# helper in this checkout. No arbitrary rm or privileged deletion is approved.
+prefix_rule(
+    pattern = [["tools/cleanup-screenshots", "./tools/cleanup-screenshots", "/Data/Code/PST/parent-control/tools/cleanup-screenshots"]],
+    decision = "allow",
+    justification = "Remove explicitly selected caller-owned project PNG screenshots directly inside /tmp, with path validation.",
+    match = [
+        "tools/cleanup-screenshots /tmp/onpc-19p-gdm.png /tmp/onpc-future.png",
+        "./tools/cleanup-screenshots /tmp/onpc-selected.png",
+        "/Data/Code/PST/parent-control/tools/cleanup-screenshots /tmp/onpc-dismissed.png",
+    ],
+    not_match = ["rm -f /tmp/onpc-selected.png", "pkexec tools/cleanup-screenshots /tmp/onpc-selected.png"],
+)
+
+# The installed root-owned helper validates paths and creates only new PNG exports.
+prefix_rule(
+    pattern = ["pkexec", "/usr/local/libexec/onpc-export-screenshot"],
+    decision = "allow",
+    justification = "Export a validated graphical test PNG to a new caller-owned /tmp/onpc-*.png file.",
+    match = ["pkexec /usr/local/libexec/onpc-export-screenshot /tmp/onpc-graphical-smoke-example/testresults/smoke-2.png /tmp/onpc-example.png"],
+    not_match = ["pkexec /usr/bin/install -o edgar -g edgar -m 600 /tmp/source.png /tmp/onpc-example.png"],
+)
+
+# Read-only privileged diagnostics: approve tools independently of temporary
+# artifact names, log dates, byte/line limits, and other read-only arguments.
+# Keep this list to utilities without file-writing or command-execution options.
+# In particular, do not add shells, interpreters, find, sed, sort, or journalctl
+# here: their unrestricted arguments can execute commands or modify files.
+prefix_rule(
+    pattern = ["pkexec", ["/usr/bin/head", "/usr/bin/tail", "/usr/bin/cat", "/usr/bin/ls", "/bin/ls", "/usr/bin/stat", "/usr/bin/wc", "/usr/bin/readlink", "/usr/bin/grep"]],
+    decision = "allow",
+    justification = "Read diagnostic files and metadata without per-path or per-option approval, including privileged test artifacts and project logs.",
+    match = [
+        "pkexec /usr/bin/head -c 1500 /tmp/onpc-graphical-smoke-n4cvanbk/testresults/result-smoke.json",
+        "pkexec /usr/bin/tail -n 200 /var/log/oh-no-parent-control/daemon/2026-09-06.log",
+        "pkexec /usr/bin/cat /tmp/onpc-future-run/testresults/result-smoke.json",
+        "pkexec /usr/bin/ls -la /tmp/onpc-future-run/testresults",
+        "pkexec /bin/ls -la /tmp/onpc-future-run/testresults",
+        "pkexec /usr/bin/stat /tmp/onpc-future-run/testresults/result-smoke.json",
+        "pkexec /usr/bin/wc -c /tmp/onpc-future-run/testresults/result-smoke.json",
+        "pkexec /usr/bin/readlink -f /var/log/oh-no-parent-control",
+        "pkexec /usr/bin/grep -n ERROR /var/log/oh-no-parent-control/daemon/2026-09-06.log",
+    ],
+    not_match = [
+        "pkexec /bin/bash -c id",
+        "pkexec /usr/bin/python3 -c print(1)",
+        "pkexec /usr/bin/find /tmp -delete",
+        "pkexec /usr/bin/sed -i s/a/b/ /tmp/result",
+        "pkexec /usr/bin/sort -o /tmp/result /tmp/input",
+        "pkexec /usr/bin/journalctl --vacuum-time=1s",
+        "pkexec /usr/bin/rm /tmp/result",
+    ],
+)
+
 # This root-owned dispatcher is bound to this checkout by setup.sh.
 # Trust includes future check_*.py tests and edits to their imported code.
 prefix_rule(
@@ -13,5 +67,22 @@ prefix_rule(
         "pkexec /usr/bin/python3 -B /tmp/random.py",
         "pkexec /usr/local/libexec/onpc-test-runner arbitrary-category",
         "pkexec /usr/local/libexec/onpc-test-runner --command id",
+    ],
+)
+
+# Unit tests run unprivileged in this checkout. This prefix approves the whole
+# pytest category; trailing arguments may select the unit-test folder, any test
+# file in it, or individual test cases, with normal pytest options.
+prefix_rule(
+    pattern = ["/usr/bin/python3", "-B", "-m", "pytest"],
+    decision = "allow",
+    justification = "Run unprivileged project unit tests with pytest.",
+    match = [
+        "/usr/bin/python3 -B -m pytest tests/unit -q",
+        "/usr/bin/python3 -B -m pytest tests/unit/test_future_cleanup_safety.py::test_cleanup -q",
+    ],
+    not_match = [
+        "/usr/bin/python3 -m pytest tests/unit -q",
+        "/usr/bin/python3 -B tests/unit/test_graphical_transport_cleanup_safety.py",
     ],
 )

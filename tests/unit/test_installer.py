@@ -23,7 +23,7 @@ def test_installer_output_ends_with_notice_only_after_success(tmp_path, apt_stat
         "dpkg-architecture": "#!/bin/sh\necho amd64\n",
         "apt": (
             "#!/bin/sh\n"
-            'if [ "$1" = --fix-broken ]; then exit 0; fi\n'
+            "echo 'APT transaction'\n"
             "echo 'Processing triggers for desktop-file-utils ...'\n"
             "echo 'Processing triggers for libc-bin ...'\n"
             f"exit {apt_status}\n"
@@ -52,6 +52,7 @@ def test_installer_output_ends_with_notice_only_after_success(tmp_path, apt_stat
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10,
     )
     assert "Processing triggers for libc-bin" in result.stdout
+    assert result.stdout.count("APT transaction") == 1
     if apt_status == 0:
         assert result.returncode == 0, result.stdout
         assert result.stdout.rstrip().endswith(
@@ -67,13 +68,11 @@ class PackageDeploymentTests(unittest.TestCase):
     def test_make_installdeb_prints_reminder_after_apt_finishes(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
-        repair = recipe.index("$(APT) --fix-broken install")
-        install = recipe.index('$(APT) install --reinstall "$$deb_file"')
+        install = recipe.index('$(APT) --fix-broken install --reinstall "$$deb_file"')
         self.assertIn("@set -e", recipe)
         self.assertIn("dpkg-parsechangelog -S Version", recipe)
         self.assertIn("dpkg-architecture -qDEB_HOST_ARCH", recipe)
         self.assertIn("run make build first", recipe)
-        self.assertLess(repair, install)
         self.assertLess(install, recipe.index('"$(LIBEXECDIR)/oh-no-parent-control-reboot-notice"'))
         self.assertNotIn("reboot-required", recipe)
         self.assertNotIn("REBOOT REQUIRED", recipe)

@@ -50,13 +50,75 @@ The launcher runs all `tests/unit/test_*cleanup_safety.py` modules and
 test as root. New cleanup implementations must add matching safety regressions.
 
 `setup.sh` also installs the versioned `config/codex-tests.rules` as the project
-`.codex/rules/tests.rules`, approving both categories. Codex must
+`.codex/rules/tests.rules`, approving both privileged categories and
+unprivileged unit-test commands beginning with
+`/usr/bin/python3 -B -m pytest`. Artifact copies beginning with
+`pkexec /usr/bin/install -o edgar -g edgar -m 600` are also approved across
+changing filenames. That prefix leaves paths and trailing arguments unrestricted.
+For temporary screenshot cleanup, run
+`tools/cleanup-screenshots /tmp/onpc-19p-gdm.png /tmp/onpc-19p-selected.png`.
+The reusable approval covers varying explicit filenames. The helper validates
+the entire selection before deletion: only caller-owned regular `onpc-*.png`
+files directly inside `/tmp` are accepted, with no symlinks, directories,
+traversal, or wildcard arguments. Missing files are harmless. It prints counts
+without filenames and runs without privilege. Trust includes edits to this
+helper; the prefix rule itself does not validate arguments.
+Export privileged graphical smoke screenshots with the installed helper:
+
+```sh
+pkexec /usr/local/libexec/onpc-export-screenshot /tmp/onpc-graphical-smoke-EXAMPLE/testresults/smoke-2.png /tmp/onpc-example.png
+```
+
+It accepts a regular, singly linked PNG-signature file (up to 32 MiB) directly
+inside a graphical smoke run's `testresults` directory. It rejects symlinks in
+every source component, unsafe ownership or write permissions, and existing
+destinations. Exports are new `/tmp/onpc-*.png` files with mode `600` and the
+invoking account's UID and primary GID; no caller-selected ownership or options
+are accepted. Errors omit paths and account details. An output I/O failure may
+leave a new root-owned partial file; the helper never deletes files on failure.
+The helper is installed root-owned by `setup.sh`; its dedicated Codex prefix
+approves screenshot export without approving general privileged `install`.
+The development Polkit rule permits this exact installed helper, targeting root,
+without password prompts for active local members of Ubuntu's `sudo` group.
+Other programs, remote/inactive sessions, and non-administrators receive no
+authorization from this rule. The helper still validates every argument.
+Run `./setup.sh --test-tools-only` to
+refresh the dispatcher, exporter, and Codex rules without dependency installation,
+then restart Codex. Development-only activation is `none` (next invocation);
+there is no product package integration or saved-data migration.
+
+Use `./setup.sh --codex-rules-only` to refresh only Codex rules without installing
+dependencies or system policies. This development-only helper activates on its
+next invocation and is not installed in the product package.
+Codex must
 trust the project configuration and be restarted after the rule is installed.
 Linux Polkit authentication still applies. This grants trust to future test
 code and its imports in this checkout; it is not a sandbox for malicious tests.
 The installed dispatcher changes only when setup reinstalls it. It activates
 on its next invocation (`none`), adds no service or Polkit policy, and is not
 part of the product package. Run setup again if the checkout moves.
+
+For authorized test-environment installation or refresh, invoke `./setup.sh`,
+the existing approved setup entry point. This includes graphical AppArmor
+policy installation and refresh. Invoking `tools/install_graphical_test_policy.py`
+directly through `pkexec /usr/bin/python3` does not match the test-category rules
+and causes a separate Codex approval request. Use setup for these prerequisites
+and the dispatcher for tests; future integration checks are already covered
+without adding per-file rules. OS authentication is separate from Codex approval.
+
+Graphical attachment from the classic VS Code snap requires the anonymous Unix
+stream peer rule in both libvirtd and QEMU policy. `setup.sh` compiles proposed
+policy before writing and preserves site additions. The QEMU rule uses the
+supported `abstractions/libvirt-qemu.d` drop-in directory and takes effect when
+libvirt next starts a guest; setup does not reload active guest profiles. These
+development-only changes have product package activation `none`.
+
+For a descriptor failure, `integration check_graphical_attachment` compares the
+two public graphics APIs during one guarded boot. It checks a real VNC greeting
+and retains a root-private, receive-only syscall trace. Its fixed diagnostic
+pauses preserve kernel audit messages after startup profile loads. This is an
+explicit diagnostic, not a daily suite or graphical journey. The dispatcher
+includes its attachment/cleanup safety regressions before use.
 
 ### Manual entry points
 

@@ -356,8 +356,13 @@ both exact schedule/completion diagnostics, and rejects an ordinary compile
 failure. The actual graphical run uses `--exit-status-from-test-results` and
 also requires an `ok` module result with no failed/soft-failed details.
 `graphical_smoke/main.pm` loads one credential-free
-generalhw test: await guarded greeter observation, capture GDM, click the top
-right menu, and dismiss it with Escape, requiring both screen changes. The
+generalhw test: await guarded greeter observation, capture GDM, select the first
+large user tile, and dismiss the resulting credential prompt with Escape,
+requiring both screen changes. It explicitly selects the backend's documented
+32-bit VNC depth. The default 16-bit path can decode QEMU's initial full frame
+but the pinned client's ZRLE decoder rejects a subsequent changed rectangle.
+The large fixed-baseline tile proves input transport without depending on small,
+theme-sensitive status icons; Task 19B owns needle-based interaction helpers. The
 controller independently checks the active greeter and absence of logged-in
 user sessions through fixed read-only SSH observations at each stage. Bootstrap
 uses the existing offline SSH provisioning with `observation_only=True`; no

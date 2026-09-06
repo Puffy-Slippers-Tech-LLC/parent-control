@@ -7,7 +7,7 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly apt_lock_timeout_seconds=300
 
 usage() {
-    echo "Usage: ./setup.sh"
+    echo "Usage: ./setup.sh [--codex-rules-only|--test-tools-only]"
 }
 
 if (( $# > 1 )); then
@@ -16,6 +16,21 @@ if (( $# > 1 )); then
 fi
 case "${1-}" in
     "") ;;
+    --codex-rules-only)
+        install -D -m 0644 "$script_dir/config/codex-tests.rules" "$script_dir/.codex/rules/tests.rules"
+        echo "setup: installed project Codex test rules; restart Codex with this project trusted"
+        exit 0
+        ;;
+    --test-tools-only)
+        test_tools_install=(/usr/bin/python3 "$script_dir/tools/install_test_runner.py")
+        if (( EUID != 0 )); then
+            test_tools_install=(pkexec "${test_tools_install[@]}")
+        fi
+        "${test_tools_install[@]}"
+        install -D -m 0644 "$script_dir/config/codex-tests.rules" "$script_dir/.codex/rules/tests.rules"
+        echo "setup: installed development test tools and rules; restart Codex with this project trusted"
+        exit 0
+        ;;
     -h|--help)
         usage
         exit 0
@@ -57,6 +72,7 @@ fi
 "${apt_get[@]}" install -y \
     7zip \
     apparmor \
+    strace=6.19+ds-0ubuntu5 \
     build-essential \
     at-spi2-core=2.60.4-0ubuntu0.1 \
     dbus-daemon=1.16.2-2ubuntu4 \
@@ -126,16 +142,18 @@ ui_venv="$script_dir/.venv/onpc-ui-tests"
 "$ui_venv/bin/python" -m pip install --disable-pip-version-check --no-deps \
     --require-hashes -r "$script_dir/tests/ui/requirements.txt"
 
-# Development-only dispatcher; activates on the next invocation (none).
-# This is not shipped in the product package and changes no Polkit policy.
+# Development-only dispatcher and screenshot exporter; activate on the next invocation (none).
+# Not shipped in the product package. The exporter has a dedicated Polkit rule
+# for active local sudo-group members; polkitd loads it on installation.
 test_runner_install=(/usr/bin/python3 "$script_dir/tools/install_test_runner.py")
 if (( EUID != 0 )); then
     test_runner_install=(sudo "${test_runner_install[@]}")
 fi
 "${test_runner_install[@]}"
 # Classic VS Code snap callers retain their AppArmor label after pkexec.
-# Reload only libvirtd's anonymous graphics-socket peer rule; no daemon restart.
-# Development-only policy activates immediately on reload (none for packaging).
+# Install anonymous graphics-socket peer rules for libvirtd and QEMU. Only the
+# daemon profile is reloaded; the QEMU drop-in activates at the next guest start.
+# Both are development-only integration (none for product package activation).
 graphical_policy_install=(/usr/bin/python3 "$script_dir/tools/install_graphical_test_policy.py")
 if (( EUID != 0 )); then
     graphical_policy_install=(sudo "${graphical_policy_install[@]}")

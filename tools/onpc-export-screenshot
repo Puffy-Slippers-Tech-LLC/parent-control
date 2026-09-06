@@ -1,0 +1,95 @@
+#!/usr/bin/python3 -I
+"""Export one development test PNG without general privileged copy access."""
+
+from contextlib import ExitStack
+import os
+import pwd
+import re
+import stat
+import sys
+
+
+MAX_BYTES = 32 * 1024 * 1024
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def caller():
+    value = os.environ.get("PKEXEC_UID", "")
+    if os.geteuid() != 0 or not value.isascii() or not value.isdecimal():
+        raise ValueError("invoke the installed helper through pkexec")
+    uid = int(value)
+    if uid == 0:
+        raise ValueError("an unprivileged invoking user is required")
+    try:
+        return uid, pwd.getpwuid(uid).pw_gid
+    except KeyError:
+        raise ValueError("invoking account does not exist") from None
+
+
+def export(source, destination, uid, gid):
+    match = re.fullmatch(
+        r"/tmp/(onpc-graphical-smoke-[A-Za-z0-9_-]+)/testresults/([A-Za-z0-9][A-Za-z0-9_.-]*\.png)",
+        source,
+    )
+    if match is None or re.fullmatch(r"/tmp/onpc-[A-Za-z0-9][A-Za-z0-9_.-]*\.png", destination) is None:
+        raise ValueError("expected a graphical smoke test PNG and an explicit /tmp/onpc-*.png destination")
+    with ExitStack() as stack:
+        def open_fd(name, flags, parent=None, mode=0o600):
+            descriptor = os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC, mode, dir_fd=parent)
+            stack.callback(os.close, descriptor)
+            return descriptor
+
+        temporary = open_fd("/tmp", os.O_RDONLY | os.O_DIRECTORY)
+        parent = temporary
+        for name in (match[1], "testresults"):
+            parent = open_fd(name, os.O_RDONLY | os.O_DIRECTORY, parent)
+            info = os.fstat(parent)
+            if info.st_uid not in (0, uid) or info.st_mode & 0o022:
+                raise ValueError("test directory has unsafe ownership or permissions")
+        descriptor = open_fd(match[2], os.O_RDONLY | os.O_NONBLOCK, parent)
+        info = os.fstat(descriptor)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or info.st_uid not in (0, uid) or info.st_mode & 0o022):
+            raise ValueError("source must be a regular, singly linked test artifact with safe ownership and permissions")
+        if not 8 <= info.st_size <= MAX_BYTES:
+            raise ValueError("source exceeds screenshot size limits")
+        # Bound memory even if the source grows while being read. Never reopen
+        # a checked pathname; all subsequent operations use pinned descriptors.
+        data = bytearray()
+        while len(data) <= MAX_BYTES:
+            chunk = os.read(descriptor, min(65536, MAX_BYTES + 1 - len(data)))
+            if not chunk:
+                break
+            data.extend(chunk)
+        if len(data) > MAX_BYTES or not data.startswith(PNG_SIGNATURE):
+            raise ValueError("source is not a PNG screenshot within size limits")
+        output = open_fd(destination.removeprefix("/tmp/"), os.O_WRONLY | os.O_CREAT | os.O_EXCL, temporary)
+        # On an I/O failure retain the newly created root-owned file. Never
+        # unlink a pathname another process might have replaced during failure.
+        remaining = memoryview(data)
+        while remaining:
+            written = os.write(output, remaining)
+            if written == 0:
+                raise OSError("short screenshot write")
+            remaining = remaining[written:]
+        os.fchmod(output, 0o600)
+        os.fsync(output)
+        os.fchown(output, uid, gid)
+
+
+def main():
+    try:
+        if len(sys.argv) != 3:
+            raise ValueError("expected source and destination screenshot paths")
+        uid, gid = caller()
+        export(sys.argv[1], sys.argv[2], uid, gid)
+    except (ValueError, OSError) as error:
+        detail = str(error) if isinstance(error, ValueError) else f"filesystem error {error.errno}"
+        print(f"export-screenshot: {detail}", file=sys.stderr)
+        return 1
+    print("export-screenshot: exported one PNG with caller ownership and mode 600")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

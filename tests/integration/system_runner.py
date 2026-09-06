@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
+from dataclasses import dataclass
 import fcntl
 import hashlib
 import importlib
@@ -40,15 +41,160 @@ ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = '/var/tmp/onpc-system-input'
 TAG = 'onpc-system-run:'
 PHASE_COUNTS = {'installed': 2, 'rebooted': 2, 'authorization': 221}
+PHASE_ORDER = ('installed', 'rebooted', 'authorization')
+AREA_SOURCES = {
+    'package': ROOT / 'tests/system/test_install_smoke.py',
+    'authorization': ROOT / 'tests/system/test_authorization.py',
+}
+PHASE_DEPENDENCIES = {
+    'installed': (),
+    'rebooted': ('installed',),
+    'authorization': ('installed', 'rebooted'),
+}
+PHASE_PREREQUISITES = {
+    'installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
+    'rebooted': ('installed-phase', 'guest-reboot', 'boot-readiness'),
+    'authorization': ('rebooted-phase', 'authorization-accounts'),
+}
 require = baseline.require
 Error = baseline.CaptureError
+
+from owned_commands import Commands, CommandError
 
 
 def log(stage):
     print(f'check-system: [{stage}]', file=sys.stderr, flush=True)
 
 
-from owned_commands import Commands, CommandError
+@dataclass(frozen=True)
+class CaseExecution:
+    phase: str
+    area: str
+    case_id: str
+    prerequisite: bool
+
+
+@dataclass(frozen=True)
+class Selection:
+    area: str | None
+    test: str | None
+    scope: str
+    phases: tuple[str, ...]
+    prerequisites: tuple[str, ...]
+    executions: tuple[CaseExecution, ...]
+    available: dict[str, tuple[str, ...]]
+
+
+def collect_area_cases(area, *, invoke=None):
+    """Collect registered pytest IDs without running guest fixtures or VM code."""
+    require(area in AREA_SOURCES, 'selection:unknown-area')
+    source = AREA_SOURCES[area]
+    command = [
+        '/usr/bin/env',
+        f'PYTHONPATH={ROOT / "tests/integration"}',
+        'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1',
+        'PYTHONDONTWRITEBYTECODE=1',
+        '/usr/bin/python3', '-m', 'pytest', '-c', str(ROOT / 'tests/system/pytest.ini'),
+        '--noconftest', '--rootdir', str(ROOT / 'tests/system'), '--collect-only', '-q', str(source),
+    ]
+    try:
+        output = (invoke or Commands().run)(command, timeout=60)
+    except CommandError as error:
+        raise Error(f'selection:collection-failed:{area}') from error
+    prefix = source.name + '::'
+    cases = tuple(line.removeprefix(prefix) for line in output.decode().splitlines()
+                  if line.startswith(prefix))
+    require(cases and len(cases) == len(set(cases)), f'selection:invalid-registry:{area}')
+    return cases
+
+
+def case_phases(area, case_id):
+    if area == 'authorization':
+        return ('authorization',)
+    package = {
+        'test_installed_package': ('installed', 'rebooted'),
+        'test_first_install_requests_reboot': ('installed',),
+        'test_reboot_applies_installation': ('rebooted',),
+    }
+    require(case_id in package, 'selection:unregistered-package-case')
+    return package[case_id]
+
+
+def resolve_selection(area=None, test=None, *, inventories=None):
+    """Resolve an exact selection and all test-phase prerequisites on the host."""
+    require(area is None or area != '', 'selection:empty-area')
+    require(test is None or test != '', 'selection:empty-test')
+    require(area is None or area in AREA_SOURCES, 'selection:unknown-area')
+    require(test is None or area is not None, 'selection:test-requires-area')
+    if inventories is None:
+        inventories = {name: collect_area_cases(name) for name in AREA_SOURCES}
+    else:
+        inventories = {name: tuple(cases) for name, cases in inventories.items()}
+    require(set(inventories) == set(AREA_SOURCES), 'selection:incomplete-registry')
+    for name, cases in inventories.items():
+        require(cases and len(cases) == len(set(cases)), f'selection:invalid-registry:{name}')
+
+    if test is not None and test not in inventories[area]:
+        incompatible = any(test in cases for name, cases in inventories.items() if name != area)
+        require(not incompatible, 'selection:incompatible-test')
+        raise Error('selection:unknown-test')
+
+    chosen_areas = tuple(AREA_SOURCES) if area is None else (area,)
+    chosen = {name: inventories[name] for name in chosen_areas}
+    if test is not None:
+        chosen[area] = (test,)
+
+    terminal_phases = {phase for name, cases in chosen.items() for case in cases
+                       for phase in case_phases(name, case)}
+    phases = tuple(phase for phase in PHASE_ORDER if phase in terminal_phases or
+                   any(phase in PHASE_DEPENDENCIES[item] for item in terminal_phases))
+
+    executions = []
+    for phase in phases:
+        if phase in terminal_phases:
+            for name, cases in chosen.items():
+                for case in cases:
+                    if phase in case_phases(name, case):
+                        executions.append(CaseExecution(phase, name, case, False))
+        if phase not in terminal_phases:
+            for case in inventories['package']:
+                if phase in case_phases('package', case):
+                    executions.append(CaseExecution(phase, 'package', case, True))
+
+    prerequisites = []
+    for phase in phases:
+        for item in PHASE_PREREQUISITES[phase]:
+            if item not in prerequisites:
+                prerequisites.append(item)
+    if test and (test.startswith('test_authenticated_request_revalidates_live_state[') or
+                 test.startswith('test_real_selected_parent_authentication[')):
+        prerequisites.append('fixture-passwords')
+    available = {name: inventories[name] for name in chosen_areas}
+    return Selection(area, test, 'full' if area is None else 'partial', phases,
+                     tuple(prerequisites), tuple(executions), available)
+
+
+def print_selection(selection, stream=None):
+    """Print deterministic, host-safe scope information for operators."""
+    if stream is None:
+        stream = sys.stdout
+    print('check-system selection:', file=stream)
+    print('  mode: list-only (no root, artifacts, VM, or guest fixtures)', file=stream)
+    print(f'  scope: {selection.scope}', file=stream)
+    print('  area: ' + (selection.area or 'all'), file=stream)
+    print('  test: ' + (selection.test or 'all'), file=stream)
+    print('  vm-required-for-execution: yes', file=stream)
+    print('  phases: ' + ','.join(selection.phases), file=stream)
+    print('  prerequisites: ' + ','.join(selection.prerequisites), file=stream)
+    print(f'  expected-executions: {len(selection.executions)}', file=stream)
+    for execution in selection.executions:
+        kind = 'prerequisite' if execution.prerequisite else 'selected'
+        print(f'    {execution.phase}::{execution.case_id} [{kind}]', file=stream)
+    print('  available-selectors:', file=stream)
+    for name, cases in selection.available.items():
+        print(f'    {name}:', file=stream)
+        for case in cases:
+            print(f'      {case}', file=stream)
 
 
 def isolated_xml(xml, expected_uuid, run):
@@ -506,7 +652,10 @@ def evidence(directory, manifest, lease, passed, category):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--artifacts', type=Path, required=True, help='Task 13A artifact directory')
+    parser.add_argument('--artifacts', type=Path, help='Task 13A artifact directory')
+    parser.add_argument('--area')
+    parser.add_argument('--test')
+    parser.add_argument('--list', action='store_true')
     parser.add_argument('--check-tools', action='store_true')
     args = parser.parse_args(argv)
     source = None
@@ -517,6 +666,11 @@ def main(argv=None):
     host_before = None
     category = 'runner-failed'
     try:
+        if args.list:
+            print_selection(resolve_selection(args.area, args.test))
+            return 0
+        require(args.area is None and args.test is None,
+                'selection:execution-not-implemented')
         require(Path.cwd() == ROOT == baseline.guest_contract.CHECKOUT, 'guard:checkout')
         for name in ('ssh', 'qemu-img', 'ssh-keygen', 'virt-customize'):
             require(shutil.which(name) is not None, 'tools:missing; run ./setup.sh')
@@ -525,6 +679,7 @@ def main(argv=None):
             log('tools:available')
             return 0
         require(os.geteuid() == os.getegid() == 0, 'guard:root; run from a root shell on the VM host')
+        require(args.artifacts is not None, 'assets:directory-required')
         os.umask(0o077)
         directory = Path(tempfile.mkdtemp(prefix='onpc-system-'))
         private = directory / 'private'

@@ -68,11 +68,22 @@ coordinates host results and VM artifacts for the same source content.
 ## Running the current installed suite
 
 For implementation, use the [bounded diagnostic workflow](../../docs/TestAutomation/Implementation-Workflow.md).
-The current controller still executes all installed/reboot/authorization phases;
-it has no supported `AREA`/`TEST` selector. [F1](../../docs/TestAutomation/Task-F1.md)
-is the next planned runner change and must deliver guarded selection, exact
-scope reporting and phase timing before those options are used. Keep all
-identity, prerequisite, evidence and cleanup boundaries for focused runs.
+The current controller still executes all installed/reboot/authorization phases
+for a run; selected VM execution is not supported yet. F1's host-safe inventory
+can list the registered `package` and `authorization` cases and their explicit
+prerequisite closure without artifacts, root access, or VM operations:
+
+```sh
+make check-system LIST=1 AREA=authorization
+make check-system LIST=1 AREA=authorization TEST='test_real_selected_parent_authentication[child1]'
+```
+
+The listing uses pytest's public collection-only mode with project and third-party
+plugins disabled; it imports the test definitions but never executes guest
+fixtures. Non-listing `AREA`/`TEST` use remains fail-closed until
+[F1](../../docs/TestAutomation/Task-F1.md) delivers guarded forwarding, exact
+scope reporting and phase timing. Keep all identity, prerequisite, evidence and
+cleanup boundaries for focused runs.
 
 One expensive attempt should collect the safe observations needed to distinguish
 the current hypothesis on success and failure. Check parser/collector handling

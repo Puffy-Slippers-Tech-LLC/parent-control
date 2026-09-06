@@ -84,37 +84,38 @@ unresolved authentication case under the [implementation workflow](Implementatio
 
 ## Continuation handoff
 
-**Status:** ready, implementation not started.
+**Status:** host-safe registration, resolution, and `LIST=1` slice complete;
+selected execution remains deliberately unavailable.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** selector and prerequisite design remains unimplemented and must
-preserve VM safety boundaries. Confirm both in the new session.
-This is the development/host machine; retain
-the existing guarded `ubuntu26.04` VM and its established ownership contract.
+**Reason:** collection and prerequisite closure are now proven locally, while
+guest selector forwarding and exact result reconciliation still cross the VM,
+phase, and failure-evidence boundaries. Confirm both in the new session. This is
+the development/host machine; retain the existing guarded `ubuntu26.04` VM and
+its established ownership contract.
 
-**Next slice:** implement and verify host-safe case registration, selector and
-prerequisite resolution, and `LIST=1` for the current installed package and
-authorization areas. Plan 15–30 minutes; if the boundary is larger, checkpoint
-with the exact unfinished part. Stop after this local boundary and hand off
-before guarded VM qualification. Unknown/empty/incompatible selections must
-fail before any VM mutation; listing must not execute guest fixtures.
+**Proven/reuse:** `system_runner.py` registers `package` and `authorization`,
+collects exact parameterized IDs with public pytest collection-only mode, and
+resolves required install/reboot/authorization phases. Collection runs through
+the existing pidfd-owned `Commands` helper. Unknown, empty, incompatible,
+failed, duplicate, and incomplete registries fail closed. `LIST=1` returns before
+artifact, privilege, tool, lease, or VM checks and reports exact selected and
+prerequisite executions. Non-listing `AREA`/`TEST` currently returns
+`selection:execution-not-implemented` so it cannot silently run the full suite.
+The Makefile and current-run guides describe this boundary.
 
-**Reuse/read:** inspect the current `check-system` Make target, the existing
-controller and its host-safe regressions, guided by the
-[installed runner contracts](../../tests/integration/README.md#reusable-implementation-contracts).
-Read only the registration/dispatch paths needed for this slice. Use the existing
-interface as the starting point; selectors documented above are still planned.
+**Evidence/state:** changed `Makefile`, `tests/integration/system_runner.py`,
+`tests/unit/test_system_runner.py`, `tests/integration/README.md`, and
+`docs/Test-Automation.md`. `python3 -m pytest tests/unit/test_system_runner.py
+tests/unit/test_system_runner_cleanup_safety.py -q` passed 73 tests in 0.16 s;
+the real exact authorization and package listing commands passed in under one
+second; `git diff --check` passed. No artifacts, VM operation, expensive attempt,
+or cleanup action occurred, so these edits have not been exercised in the VM.
 
-**Verification:** focused host-safe tests for the new resolution/listing
-behavior, existing affected guards, and `git diff --check`. Record the exact
-commands, inputs and outcomes. Do not run the full installed suite merely to
-start this task. Full F1 acceptance, including `make check`, remains pending.
-
-**State/remaining:** this documentation session started no implementation or
-owned operation. Preserve concurrent edits, including Task 14's unqualified
-diagnostic changes. Guest selection forwarding, expected/executed reconciliation,
-diagnostic stage times, input provenance and guarded qualification remain in
-the task scope; retain them in the next handoff. Update
-[Continuation.md](Continuation.md) to resume F1 until its full acceptance passes.
-Reassess both settings for the next unfinished slice at each handoff; this
-initial design recommendation does not automatically apply to later routine work.
+**Next slice:** pass the resolved executions into `pytest_command` and
+`installed_run`, preserving the complete unselected dispatch. Replace selected
+hard-coded counts with exact expected/executed JUnit ID reconciliation and label
+partial scope; prove forwarding, missing/extra/skipped/failing ID handling, and
+collection-failure preservation with focused host-safe tests. Keep diagnostic
+stage timing, selected-input digests, evidence outcome separation, cleanup-safety
+qualification, selected VM samples, and the unselected acceptance run pending.

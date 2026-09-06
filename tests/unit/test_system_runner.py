@@ -194,6 +194,120 @@ def test_pytest_command_selects_both_required_tests_without_skips():
     assert runner.pytest_command(RUN, 'authorization')[-1] == runner.PAYLOAD + '/test_authorization.py'
 
 
+INVENTORIES = {
+    'package': (
+        'test_installed_package',
+        'test_first_install_requests_reboot',
+        'test_reboot_applies_installation',
+    ),
+    'authorization': (
+        'test_method_role_matrix[ListManagedUsers-child1]',
+        'test_real_selected_parent_authentication[child1]',
+    ),
+}
+
+
+def test_host_collection_uses_public_collect_only_without_guest_fixture_execution():
+    output = (
+        'test_authorization.py::test_method_role_matrix[ListManagedUsers-child1]\n'
+        'test_authorization.py::test_real_selected_parent_authentication[child1]\n'
+        '2 tests collected in 0.01s\n').encode()
+    invoke = Mock(return_value=output)
+    assert runner.collect_area_cases('authorization', invoke=invoke) == INVENTORIES['authorization']
+    command = invoke.call_args.args[0]
+    assert command[:4] == [
+        '/usr/bin/env', f'PYTHONPATH={runner.ROOT / "tests/integration"}',
+        'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1', 'PYTHONDONTWRITEBYTECODE=1']
+    assert '--collect-only' in command
+    assert '--noconftest' in command
+    assert command[-1].endswith('/tests/system/test_authorization.py')
+    assert invoke.call_args.kwargs == {'timeout': 60}
+
+
+@pytest.mark.parametrize(('result', 'category'), [
+    (runner.CommandError('command:failed:env'), 'selection:collection-failed:package'),
+    (b'no tests collected in 0.01s\n', 'selection:invalid-registry:package'),
+    (b'test_install_smoke.py::duplicate\ntest_install_smoke.py::duplicate\n',
+     'selection:invalid-registry:package'),
+])
+def test_host_collection_rejects_failed_empty_or_duplicate_registries(result, category):
+    invoke = Mock(side_effect=result) if isinstance(result, Exception) else Mock(return_value=result)
+    with pytest.raises(runner.Error, match=category):
+        runner.collect_area_cases('package', invoke=invoke)
+
+
+def test_authorization_selection_includes_exact_package_phase_prerequisites():
+    case = 'test_method_role_matrix[ListManagedUsers-child1]'
+    selection = runner.resolve_selection('authorization', case, inventories=INVENTORIES)
+    assert selection.scope == 'partial'
+    assert selection.phases == ('installed', 'rebooted', 'authorization')
+    assert [(item.phase, item.case_id, item.prerequisite) for item in selection.executions] == [
+        ('installed', 'test_installed_package', True),
+        ('installed', 'test_first_install_requests_reboot', True),
+        ('rebooted', 'test_installed_package', True),
+        ('rebooted', 'test_reboot_applies_installation', True),
+        ('authorization', case, False),
+    ]
+    assert selection.prerequisites == (
+        'accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install',
+        'installed-phase', 'guest-reboot', 'boot-readiness', 'rebooted-phase',
+        'authorization-accounts',
+    )
+    assert selection.available == {'authorization': INVENTORIES['authorization']}
+
+
+def test_password_case_registers_its_additional_fixture_prerequisite():
+    selection = runner.resolve_selection(
+        'authorization', 'test_real_selected_parent_authentication[child1]',
+        inventories=INVENTORIES)
+    assert selection.prerequisites[-1] == 'fixture-passwords'
+
+
+def test_pre_reboot_package_case_omits_unneeded_later_phases():
+    selection = runner.resolve_selection(
+        'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)
+    assert selection.phases == ('installed',)
+    assert [(item.phase, item.case_id) for item in selection.executions] == [
+        ('installed', 'test_first_install_requests_reboot')]
+    assert 'guest-reboot' not in selection.prerequisites
+
+
+@pytest.mark.parametrize(('area', 'test', 'category'), [
+    ('missing', None, 'selection:unknown-area'),
+    ('', None, 'selection:empty-area'),
+    ('authorization', '', 'selection:empty-test'),
+    (None, 'test_installed_package', 'selection:test-requires-area'),
+    ('authorization', 'test_installed_package', 'selection:incompatible-test'),
+    ('authorization', 'test_missing', 'selection:unknown-test'),
+])
+def test_invalid_or_incompatible_selections_fail_closed(area, test, category):
+    with pytest.raises(runner.Error, match=category):
+        runner.resolve_selection(area, test, inventories=INVENTORIES)
+
+
+def test_resolution_rejects_an_incomplete_registry():
+    with pytest.raises(runner.Error, match='selection:incomplete-registry'):
+        runner.resolve_selection('package', inventories={'package': INVENTORIES['package']})
+
+
+def test_list_mode_returns_before_artifact_root_tool_or_vm_checks(monkeypatch, capsys):
+    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: INVENTORIES[name])
+    monkeypatch.setattr(runner.shutil, 'which', Mock(side_effect=AssertionError('tool probe ran')))
+    case = 'test_method_role_matrix[ListManagedUsers-child1]'
+    assert runner.main(['--list', '--area', 'authorization', '--test', case]) == 0
+    output = capsys.readouterr().out
+    assert 'mode: list-only (no root, artifacts, VM, or guest fixtures)' in output
+    assert f'authorization::{case} [selected]' in output
+    assert 'installed::test_installed_package [prerequisite]' in output
+
+
+def test_selected_execution_stays_unavailable_until_guest_dispatch_is_wired(monkeypatch, capsys):
+    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: INVENTORIES[name])
+    monkeypatch.setattr(runner.shutil, 'which', Mock(side_effect=AssertionError('tool probe ran')))
+    assert runner.main(['--area', 'authorization']) == 1
+    assert 'selection:execution-not-implemented' in capsys.readouterr().err
+
+
 def test_readiness_timeout_is_bounded_without_fixed_sleep(monkeypatch):
     source = Mock()
     source.domain.interfaceAddresses.return_value = {}

@@ -24,6 +24,7 @@ nodejs=22.22.1+dfsg+~cs22.19.15-1ubuntu1
 libvirt-clients=12.0.0-1ubuntu5.3
 os-autoinst=5.1768577300.b85e4864-1
 util-linux=2.41.3-3ubuntu2.2
+strace=6.19+ds-0ubuntu5
 iproute2=6.19.0-1ubuntu1.1
 libfeature-compat-try-perl=0.05-1
 python3-libvirt=12.0.0-1build1

@@ -32,13 +32,22 @@ sub capture {
 
 sub run {
     exchange('ready', undef);
+    # The guest-side greeter session can become active while Plymouth is still
+    # handing the display to GDM.  Give that supported session transition time
+    # to render before asking for a stable feasibility capture.  Task 19B will
+    # replace this fixed-baseline settling period with needle-based readiness.
+    sleep 10;
     wait_still_screen(2, 30);
     my $screen = capture('gdm');
-    mouse_set($screen->{width} - 24, 16);
+    # The first user tile is a large, stable target on this fixed product-free
+    # baseline. The tiny status icons vary with the GNOME theme and are not a
+    # suitable transport feasibility target; Task 19B adds needle-based UI
+    # helpers. Selecting a user remains credential-free and changes no state.
+    mouse_set(int($screen->{width} / 2), int($screen->{height} * 0.14));
     wait_still_screen(1, 10);
     die 'smoke:mouse-no-change' unless wait_screen_change(sub { mouse_click('left'); }, 15);
     wait_still_screen(1, 10);
-    capture('menu');
+    capture('selected');
     die 'smoke:keyboard-no-change' unless wait_screen_change(sub { send_key('esc'); }, 15);
     wait_still_screen(1, 10);
     capture('dismissed');

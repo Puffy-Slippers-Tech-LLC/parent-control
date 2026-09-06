@@ -1,0 +1,4 @@
+# Development host: anonymous graphics FD exchange from the classic Code snap.
+# AppArmor revalidates both socket peers when QEMU or the client receives an FD.
+# No named sockets, network listeners, file access, ptrace, or execution grant.
+unix (send, receive) type=stream addr=none peer=(label=snap.code.code addr=none),

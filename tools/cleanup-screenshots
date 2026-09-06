@@ -1,0 +1,52 @@
+#!/usr/bin/python3
+"""Remove explicitly selected, caller-owned project PNG screenshots in /tmp."""
+
+import os
+import re
+import stat
+import sys
+
+
+def cleanup(paths):
+    if not paths or any(
+        re.fullmatch(r"/tmp/onpc-[A-Za-z0-9][A-Za-z0-9_.-]*\.png", path) is None
+        for path in paths
+    ):
+        raise ValueError("expected explicit /tmp/onpc-*.png paths (no directories or wildcards)")
+    # Pin the directory and never follow file symlinks. Validate the entire
+    # selection before deleting anything; missing files are harmless.
+    with_fd = os.open("/tmp", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        selected = {}
+        for path in paths:
+            name = path.removeprefix("/tmp/")
+            try:
+                info = os.stat(name, dir_fd=with_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
+                raise ValueError("selection contains a non-regular or non-owned file")
+            selected[name] = (info.st_dev, info.st_ino)
+        removed = 0
+        for name, identity in selected.items():
+            try:
+                info = os.stat(name, dir_fd=with_fd, follow_symlinks=False)
+                if (info.st_dev, info.st_ino) != identity:
+                    raise ValueError("selected file changed during cleanup")
+                os.unlink(name, dir_fd=with_fd)
+                removed += 1
+            except FileNotFoundError:
+                continue
+        print(f"cleanup-screenshots: removed {removed} file(s)")
+    finally:
+        os.close(with_fd)
+
+
+if __name__ == "__main__":
+    try:
+        cleanup(sys.argv[1:])
+    except (ValueError, OSError) as error:
+        # Do not print paths or other potentially identifying OS error details.
+        detail = str(error) if isinstance(error, ValueError) else f"filesystem error {error.errno}"
+        print(f"cleanup-screenshots: {detail}", file=sys.stderr)
+        sys.exit(1)

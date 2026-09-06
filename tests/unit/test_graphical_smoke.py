@@ -49,14 +49,19 @@ def test_evidence_contains_only_dimensions_and_digest(tmp_path):
     assert 'canary' not in json.dumps(result)
 
 
-def test_unchanged_menu_refuses_acknowledgement(tmp_path):
+def test_unchanged_selection_refuses_acknowledgement(tmp_path):
     png(tmp_path)
     controller = smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key')
     controller.steps = [{'stage': 'ready'}, {'stage': 'gdm', **smoke.screenshot(tmp_path, 'smoke-1.png')}]
-    (tmp_path / 'menu.request.json').write_text(json.dumps({'stage': 'menu', 'screenshot': 'smoke-1.png'}))
+    (tmp_path / 'selected.request.json').write_text(json.dumps({'stage': 'selected', 'screenshot': 'smoke-1.png'}))
     with pytest.raises(RuntimeError, match='unchanged-screen'):
         controller.step()
-    assert not (tmp_path / 'menu.reply.json').exists()
+    assert not (tmp_path / 'selected.reply.json').exists()
+
+
+def test_generalhw_uses_documented_32_bit_vnc_depth(tmp_path):
+    selected = smoke.variables(tmp_path, Mock(path=tmp_path / 'callback.sock'), 'a' * 32)
+    assert selected['GENERAL_HW_VNC_DEPTH'] == 32
 
 
 def test_success_requires_all_stages_even_with_zero_backend_status(tmp_path):
@@ -74,6 +79,47 @@ def test_fixed_observation_is_valid_python_and_contains_no_guest_mutation():
     compile(smoke.OBSERVATION, '<fixed-observation>', 'exec')
     assert "'is-active'" in smoke.OBSERVATION and "'show-session'" in smoke.OBSERVATION
     assert 'capture_output=True' in smoke.OBSERVATION
+
+
+@pytest.mark.parametrize('change,passed', [
+    ({}, True), ({'Type': 'unspecified'}, True),
+    ({'User': '1000'}, False), ({'Remote': 'no'}, False),
+    ({'Service': 'login'}, False), ({'Type': 'wayland'}, False),
+    ({'Type': 'x11', 'Active': 'no'}, False),
+])
+def test_greeter_observation_excludes_only_root_ssh_observer(change, passed, capsys):
+    import subprocess
+    import time
+    observer = {'Class': 'user', 'Active': 'yes', 'Type': 'tty',
+                'Remote': 'yes', 'Service': 'sshd', 'User': '0', **change}
+    greeter = {'Class': 'greeter', 'Active': 'yes', 'Type': 'wayland',
+               'Remote': 'no', 'Service': 'gdm-launch-environment', 'User': '123'}
+
+    def call(args, **kwargs):
+        if args[:2] == ('systemctl', 'is-active'):
+            return Mock(stdout='active\n')
+        if args[:2] == ('loginctl', 'list-sessions'):
+            return Mock(stdout='1 private-canary\n2 private-canary\n')
+        assert args[:2] == ('loginctl', 'show-session')
+        props = greeter if args[2] == '1' else observer
+        return Mock(stdout='\n'.join(f'{key}={value}' for key, value in props.items()))
+
+    with patch.object(subprocess, 'run', side_effect=call), \
+            patch.object(time, 'monotonic', side_effect=[0, 1, 100]), patch.object(time, 'sleep'):
+        if passed:
+            exec(smoke.OBSERVATION, {})
+        else:
+            with pytest.raises(SystemExit) as error:
+                exec(smoke.OBSERVATION, {})
+            assert error.value.code == 1
+    output = capsys.readouterr().out
+    if passed:
+        assert output == 'greeter-ready\n'
+    else:
+        assert json.loads(output) == {'display_manager_active': True,
+                                      'active_graphical_greeter': True,
+                                      'unexpected_user_session': True}
+    assert 'private-canary' not in output
 
 
 @pytest.mark.parametrize('result', [

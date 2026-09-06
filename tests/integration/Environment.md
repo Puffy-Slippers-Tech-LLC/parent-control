@@ -35,7 +35,13 @@ For an explicitly requested replacement environment, consult the maintained
 `make prep-vm` is guest-only account preparation; `make prep-host` is host-only
 baseline creation/reconciliation. They remain tooling, not daily `test-*`
 targets, and are never called automatically to repair a missing accepted
-baseline. Prepare the guest before product installation, then capture and
+baseline. Guest preparation suppresses Ubuntu's optional welcome/opt-in wizard
+for all four test accounts by creating their GNOME Initial Setup first-login
+and Ubuntu 26.04 upgrade completion markers, as the respective account. It
+does not enroll accounts in optional services. This tooling change activates
+on the next login after running `make prep-vm`; it needs no package activation
+or saved product-data migration. An already open wizard must be closed.
+Prepare the guest before product installation, then capture and
 validate its product-free baseline on the host. Preserve any existing baseline;
 replacement of a resource requires a deliberate ownership-reviewed operation.
 

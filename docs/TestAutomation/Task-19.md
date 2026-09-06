@@ -41,59 +41,51 @@ on the existing fixed VM. Read the mandatory
 
 ### Active handoff — 2026-09-06, 19P incomplete
 
-The fifth slice proved automatic cleanup after graphics RPC disconnection and
-fixed a confirmed outgoing AppArmor FD denial. **Live graphics still fails; no
-screen/input/SSH-observation stage has completed.** Scope remains the development
-host and existing guarded `ubuntu26.04` VM. Start with the
-[descriptor evidence](Evidence/19P-Descriptor-Transport-2026-09-06.md), which
-retains exact inputs, timings and the next discriminating experiment.
+**Substantive result achieved:** private capture review caught that an active
+guest greeter session can precede Plymouth's visible handoff to GDM. The smoke
+now waits ten seconds after the supported guest-side observation before asking
+for a stable fixed-baseline capture. One complete corrected-input smoke passed
+real GDM capture, mouse selection, the credential screen, Escape dismissal,
+collection, baseline restoration, and guarded cleanup. 19P remains incomplete
+until two more consecutive corrected-input successes pass private review. Scope
+is this development host and the existing guarded `ubuntu26.04` VM. See the
+[screen/input evidence](Evidence/19P-Screen-Input-2026-09-06.md) and retain the
+[descriptor fix evidence](Evidence/19P-QEMU-Peer-Fix-2026-09-06.md).
 
-**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
-**Reason:** lifecycle cleanup and basic FD transfer in both directions are now
-proven. The live graphics RPC still fails despite those passes, requiring focused
-syscall/API and security reasoning; neither a cheaper model nor lower effort is
-yet warranted. Confirm both next session.
+**Next-session settings:** `gpt-5.6-luna` / `low`; model: keep; effort: keep.
+**Reason:** the premature-capture cause is fixed and one corrected live attempt
+passed. The remaining slice is two bounded repeats, final checks, and completion
+documentation. Confirm both next session.
 
-**Required next-session outcome — explicit user instruction:** solve a substantive
-problem and verify the fix before handing off. The primary target is working
-graphics attachment and the first real guest screen, with successful cleanup.
-Instrumentation, a narrower hypothesis, or another failed attempt alone does
-not satisfy this instruction; do not simply leave implementation of the fix to
-yet another session. If a demonstrated external blocker prevents resolving
-graphics, document its evidence and solve another ready, authorized backlog
-problem instead. Time estimates are progress-review points, not sufficient
-reason to defer the same unresolved problem. Preserve all safety, experiment
-and cleanup constraints. The final report must identify the problem actually
-solved, the change, passing verification, and precisely what remains.
+**Reuse:** keep `Adapter.open_display()` with public `openGraphicsFD(0, 0)`, the
+namespace bridge, lifecycle owner, exact QEMU AppArmor peer rule, observer-only
+SSH, and `GENERAL_HW_VNC_DEPTH=32`. Do not change the comparison threshold or
+return to the small top-right icon. The first large fixed-baseline user tile is
+the credential-free mouse target; Escape returns to the user list. Task 19B will
+replace fixed geometry with needles. Private review confirmed both states without
+entering credentials; temporary review copies were deleted with
+`tools/cleanup-screenshots`.
 
-**First diagnostic step, not the session deliverable:** use a small lease-owned
-attachment diagnostic to distinguish failed `recvmsg` from absent/truncated
-`SCM_RIGHTS`, retaining raw
-syscall evidence privately. Compare the public caller-supplied and daemon-created
-socket APIs under the same attempt if needed. Verify collection/failure handling
-locally first; do not rerun distribution/worker qualification or launch another
-full smoke just to diagnose attachment. Basic probes now pass, so no further
-confinement expansion is justified by current evidence.
+**Diagnosis and attempts:** smoke 10 passed and its three captures were correct.
+Smoke 11's executable checks passed, but private review found its GDM capture was
+still the boot splash; its guest-side greeter observation became true before the
+display handoff. A ten-second render-settling period fixed that demonstrated race.
+Smoke 12 passed with the corrected input at
+`/tmp/onpc-graphical-smoke-r23h3m2c/result.json` (105.018 s preparation, 36.342 s
+test, 62.688 s cleanup, 204.061 s total); private review confirmed the account
+list, credential prompt, and returned account list. Its `smoke.pm` SHA-256 is
+`6b92862e73fb69e2849a121439c224bfc23d9fd33531c859469a15eaee20459a`.
+Do not count smoke 11 or pre-fix successes toward corrected-input qualification.
 
-**Proven interfaces:** `Adapter.open_display()` isolates graphics RPCs from the
-lease's lifecycle connection, verifying URI/UUID/instance/XML around attachment.
-The kernel identified an outgoing `file_receive` denial with peer `snap.code.code`.
-The approved, syntax-validated libvirtd anonymous-stream peer rule is installed;
-`setup.sh` reproduces it without adding ptrace or QEMU permissions. The dispatcher
-`integration check_graphical_transport` now proves outgoing RPC refusal and one
-usable incoming FD from an owned fixture under libvirtd's enforced profile.
-Both passed at `/tmp/onpc-graphics-transport-y6k4uz6a/result.json`. The final change
-only adds failed-fixture summary retention; that failure branch was not live-run.
-
-**Attempts: 4 total, 2 this slice.** Attempt 3's caller-owned API failed before
-the policy fix; attempt 4's daemon-created FD still failed afterward, with no new
-kernel AppArmor denial. Both original failures and empty steps are retained;
-both completed ordinary cleanup and journal `complete` (348.588/373.217 s total).
-No third full smoke this slice. Final `make check` passed: 1,114 unit/contracts,
-17 components, syntax/traceability. Isolated safety: 148 tests and 3 subtests.
-All commands finished; fresh query confirmed VM off. Approximately 40 minutes
-including approval waits and cleanup overrun. Concurrent edits and Task 14's
-failures remain. First screen, safe evidence and qualification remain required.
+**Exact next action:** after the dispatcher runs isolated safety, execute two
+consecutive complete `integration check_graphical_smoke` attempts with unchanged
+source inputs. Export captures only through `onpc-export-screenshot`, privately
+review their GDM/selected/dismissed states, and delete exports through
+`tools/cleanup-screenshots`. Record digests and timings, then run `make check`
+and `git diff --check`, mark 19P complete, and point continuation to Task 14.
+One of three corrected-input successes exists. This session passed the 28-test
+focused smoke suite; each of three live attempts passed 175 safety tests plus
+three subtests and completed cleanup. No authentication or operation is pending.
 
 ## Task 19A
 

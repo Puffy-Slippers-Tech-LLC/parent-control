@@ -41,3 +41,45 @@ def test_compile_failure_leaves_system_file_untouched(tmp_path):
     assert local.read_text() == '# site rules\n'
     assert '--skip-kernel-load' in run.call_args.args[0]
     assert run.call_count == 1
+
+
+def test_qemu_compile_failure_creates_no_dropin(tmp_path):
+    target = tmp_path / 'libvirt-qemu.d/onpc-graphical-tests'
+    with patch.object(policy, 'QEMU_DROPIN', target), \
+            patch.object(policy, 'trusted_file', return_value=policy.QEMU_INCLUDE), \
+            patch.object(policy.subprocess, 'run', side_effect=RuntimeError('syntax failure')) as run:
+        with pytest.raises(RuntimeError, match='syntax failure'):
+            policy.install_qemu_policy()
+    assert not target.parent.exists()
+    assert '--skip-kernel-load' in run.call_args.args[0]
+    assert '--replace' not in run.call_args.args[0]
+
+
+def test_qemu_rule_is_idempotent_without_reloading_guest_profiles(tmp_path):
+    target = tmp_path / 'libvirt-qemu.d/onpc-graphical-tests'
+    target.parent.mkdir(mode=0o755)
+    site = '# preserved site rule\n'
+    target.write_text(site)
+    expected = policy.updated_local(site, (ROOT / 'config/apparmor/onpc-graphical-qemu-tests').read_text())
+
+    def trusted(path):
+        return policy.QEMU_INCLUDE if path == policy.QEMU_ABSTRACTION else path.read_text()
+
+    real_lstat = Path.lstat
+
+    def lstat(path):
+        result = real_lstat(path)
+        if path == target.parent:
+            from types import SimpleNamespace
+            return SimpleNamespace(st_mode=result.st_mode, st_uid=0)
+        return result
+
+    with patch.object(policy, 'QEMU_DROPIN', target), patch.object(policy, 'trusted_file', side_effect=trusted), \
+            patch.object(Path, 'lstat', lstat), patch.object(policy.subprocess, 'run') as run:
+        policy.install_qemu_policy()
+        assert target.read_text() == expected
+        policy.install_qemu_policy()
+        assert target.read_text() == expected
+    assert run.call_count == 2
+    assert all('--skip-kernel-load' in call.args[0] and '--replace' not in call.args[0]
+               for call in run.call_args_list)

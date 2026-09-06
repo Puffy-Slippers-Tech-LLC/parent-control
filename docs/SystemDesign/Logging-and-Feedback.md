@@ -31,7 +31,15 @@ plain text, optional semantic HTML, optional reply email, app version,
 user-selected attachment basenames and bytes, and an optional diagnostic ZIP.
 The transport disables ambient credentials/proxy settings and redirects; it
 does not send local attachment paths, private preferences, or provider secrets.
-The client discloses seven-day retention. Server-side sanitization, email
+Use this disclosure consistently in the Parent App, website, and portal
+operations guide:
+
+> Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period.
+
+The Parent App footer summarizes this as “Feedback is emailed to support.”
+Its Privacy link opens the full disclosure and diagnostic-log explanation.
+
+Server-side sanitization, email
 routing, and retention enforcement belong to the separately deployed endpoint.
 
 The editor is locally bundled Quill 2.0.3 inside an ephemeral WebKitGTK 6 web

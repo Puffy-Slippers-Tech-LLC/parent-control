@@ -27,6 +27,18 @@ and the runner's pinned guest bootstrap configuration. Record actual runtime
 versions in each result; do not use a dated development-workstation package
 table as evidence of the installed guest's environment.
 
+## Graphical backend prerequisite
+
+Task 19P's candidate backend is the pinned os-autoinst `generalhw` package.
+After the isolated `test_system_runner_cleanup_safety.py` prerequisites, run
+`/usr/bin/python3 -B tests/integration/graphical_backend.py` for a read-only
+package/API/dependency check. It requires neither root nor VM access and reports
+tooling readiness only. `setup.sh` includes the Perl dependency missing from
+the backend package's dependency declaration. The
+[19P handoff](../../docs/TestAutomation/Task-19.md#active-handoff--2026-09-06-19p-incomplete)
+owns the still-unfinished lease adapter and live smoke; preflight success is
+not graphical compatibility or customer E2E evidence.
+
 ## Package and fixture inputs
 
 `tools/build_test_artifacts.py` builds without installing the product on the
@@ -270,3 +282,38 @@ ordinary regressions, even though the original runner implementation task is
 complete. Repeated live smoke qualification belongs to harness changes or
 diagnosis, not every daily run. No documentation cleanup authorizes deletion
 of historical evidence or logs.
+
+## Graphical adapter under development
+
+Task 19P now has controller plumbing in `graphical_lease.py`: public generalhw
+lifecycle command variables, a private Unix callback service, and revocable
+graphics descriptors from a `Lease(..., graphics_type='vnc')`. `Lease.stop()`
+stops the recorded instance without restoring within a backend attempt; the
+outer lease still performs baseline cleanup. All callback processing stays in
+the controller thread and revalidates lease ownership.
+
+`graphical_worker.Worker(directory, callback_path, run, command)` now launches
+trusted backend commands inside private network/PID/mount namespaces. The
+bridge listens on `127.0.0.1:5900` only there, acquiring the lease-issued display
+FD lazily when the backend connects. Supply `GENERAL_HW_VNC_IP=127.0.0.1` and
+`GENERAL_HW_VNC_PORT=5900` in the backend variables alongside
+`graphical_lease.lifecycle_variables()`. The worker does not create those vars
+or a distribution; its command is an internal controller API, not a privileged
+arbitrary-command CLI.
+
+Service callbacks from the lease owner's thread through `worker.run(server,
+timeout=...)`, or `worker.poll()` plus `server.serve_once()`. Close the worker
+in `finally` before closing the callback server and finishing the lease. Its
+pidfd/start gate, controller EOF, and `unshare --kill-child=KILL` bound backend
+descendant lifetime without process discovery. Kernel namespace cleanup also
+covers orphaned backend children. This contains trusted tooling; it is not a
+security sandbox for hostile root code. Working files and raw backend output
+remain root-private and are not safe evidence exports.
+
+The fixed non-VM qualification is
+`pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_worker`.
+The dispatcher runs the isolated cleanup prerequisites first. See the
+[worker evidence](../../docs/TestAutomation/Evidence/19P-Worker-Bridge-2026-09-06.md)
+for its success/failure scope. The actual generalhw launch distribution,
+read-only guest observation and screen/input smoke remain unfinished; no
+live graphical compatibility has been established.

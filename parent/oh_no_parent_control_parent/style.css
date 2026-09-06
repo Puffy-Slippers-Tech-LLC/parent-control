@@ -222,7 +222,7 @@ button.about-link > label {
   min-height: 140px;
 }
 
-.feedback-reply list.boxed-list,
+.feedback-reply-field,
 .feedback-attachments list.boxed-list {
   border: 1px solid #dddde3;
   border-radius: 10px;
@@ -230,22 +230,39 @@ button.about-link > label {
   box-shadow: 0 2px 5px alpha(black, 0.09);
 }
 
-.feedback-reply row {
+.feedback-reply-field {
   min-height: 50px;
   padding: 0 18px;
 }
 
-.feedback-reply row .title {
+.feedback-reply-field entry placeholder {
   color: #8c8c9b;
 }
 
-.feedback-reply row .prefixes,
 .feedback-attachments row .prefixes {
   margin-right: 16px;
 }
 
-.feedback-reply row image {
+.feedback-reply-field image {
   color: #363637;
+}
+
+.feedback-reply-field:focus-within {
+  border-color: #8866ff;
+}
+
+.feedback-anonymous-badge {
+  color: #8866ff;
+  background: #eee8ff;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-weight: 600;
+}
+
+.feedback-reply-hint {
+  color: #8c8c9b;
+  font-size: 13px;
+  font-style: italic;
 }
 
 .feedback-attachments .heading {

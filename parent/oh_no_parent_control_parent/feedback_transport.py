@@ -15,7 +15,12 @@ LOG = logging.getLogger("oh-no-parent-control-parent")
 ENDPOINT = "https://tech.puffyslippers.com/api/oh-no-parent-control/feedback"
 # Production activation authorized after backend deployment.
 SENDING_ENABLED = True
-RETENTION_DISCLOSURE = "Feedback and optional attachments are kept for 7 days."
+RETENTION_DISCLOSURE = (
+    "Feedback, reply email addresses, attachments, and diagnostic logs are emailed "
+    "to support. Retention depends on our support mailbox and service providers, "
+    "including their backup policies. We do not currently guarantee deletion "
+    "within a fixed period."
+)
 MAX_LOG_BYTES = 2_097_152
 MAX_MESSAGE_UTF16 = 5_000
 MAX_ATTACHMENT_COUNT = 5

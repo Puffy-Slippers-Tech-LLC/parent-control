@@ -8,6 +8,18 @@ and the mandatory [real E2E coverage contract](E2E-Coverage.md). This is final
 acceptance of all enumerated journeys and required variants, not just the
 example journey or a collection of separately passing component screens.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 28A | Wrap existing selectors and inventories first; then artifact coordination, final reconciliation and CI. |
+| 28B | Audit inventory gaps from existing evidence before one complete gate run; diagnose failures with focused selectors. |
+| 28C | Document measured, verified behavior and check links; no runtime test reruns for this documentation work. |
+
 ## Task 28A
 
 - Title: Implement the four test commands, CI, and the comprehensive gate.
@@ -20,12 +32,14 @@ example journey or a collection of separately passing component screens.
 - Work:
   1. Implement `make test-fast`, `make test-system`, `make test-e2e`, and
      `make test-all` over one authoritative suite inventory and shared runner
-     dispatch. Combine static, unit/property/contracts, private-D-Bus, GTK,
+     dispatch. Extend F1's installed selection/expected-case contract and 19A's
+     graphical inventory; do not implement a second selector or replace working
+     diagnostics. Combine static, unit/property/contracts, private-D-Bus, GTK,
      child JS/GJS, and nested-Shell checks in `test-fast`. Route non-VM UI
      through `tools/run-ui-tests`; run safety prerequisites in isolation.
   2. Provide documented `COMPONENT`/`TYPE` local selectors, `AREA` system
-     selectors, and `SCENARIO` E2E selection, including variants and both
-     request surfaces where shared code is involved. `LIST=1` lists scope,
+     selectors (retaining F1's focused `TEST` option), and `SCENARIO` E2E
+     selection, including variants and both request surfaces where shared code is involved. `LIST=1` lists scope,
      prerequisites, VM use, and available choices without executing tests.
      Unknown or unexpectedly empty selections fail. `test-all` refuses
      narrowing selectors; selected runs are reported as partial coverage.
@@ -37,7 +51,14 @@ example journey or a collection of separately passing component screens.
      throughout ordinary installed and customer scenarios. Detect or prevent
      source changes mixing results; identify supplemental fixture packages.
      No intermediate operator command is needed after one-time preparation.
-  4. Serialize the existing VM across layers and invocations, including
+     Record separate package/fixture build-input and test/harness identities
+     inside the complete run identity. Permit verified artifact reuse only by
+     the actual build-input closure, including packaging, assets, toolchain and
+     local edits; unknown applicability requires rebuilding. Documentation-only
+     handoffs and test selectors need not rebuild identical package payloads.
+     Cached artifacts never imply cached passing tests. `test-all` still makes
+     its required two isolated reproducibility builds from the captured inputs.
+  4. Reuse existing VM serialization across layers and invocations, including
      `make -j`. Reuse its validated lease, retained product-free baseline,
      share-detachment and restoration guards. Reset only outside whole
      attempts; never create a new VM/overlay/snapshot or restore between
@@ -66,6 +87,9 @@ example journey or a collection of separately passing component screens.
      If `check-release` remains, make it an alias of the same `test-all` gate,
      without `VM_IMAGE`. Record exact commands, selectors, prerequisites,
      source-input handling, and orchestration results for 28B.
+     Measure preparation, execution, collection and cleanup separately. Compare
+     focused iteration cost with the F1 baseline before adding optimization
+     machinery; no cache or runner rewrite is justified solely by task size.
 - Verification:
   - Validate CI configuration and test orchestration with pass, fail, missing
     evidence, skip/xfail, first-fail/second-pass, and interrupted runner results.

@@ -105,6 +105,11 @@ explicit preconditions, ordered customer actions, declared interventions,
 visible/backend/other-user assertions, executable test IDs, expected evidence,
 and bounded duration. Record setup, start, steps, end, and cleanup separately.
 
+Use the [implementation workflow](Implementation-Workflow.md) to prove a helper
+before expanding its cases, and to retain small handoffs between solved
+problems. Task verification is acceptance scope, not an instruction to run all
+journeys after every edit.
+
 The table below is a required starting inventory, not the complete coverage
 claim. Expand each family into individually selectable cases before its task
 is accepted. Preserve IDs when wording changes. Task 26C closes missing
@@ -150,6 +155,17 @@ and [removal](../System-Design.md#package-removal-lifecycle) contracts. Add omit
 product behavior to the inventory and identify its authoritative requirement; do not silently omit
 it because the original functional specification did not mention it.
 
+## Bound the matrix before expanding it
+
+For the current task, create a finite case/variant list tied to specification
+IDs, required transitions and interacting dimensions. Reuse existing scenario
+IDs and helpers; establish success, deliberate failure and one interaction
+before filling that list. Keep all required pending cases visible. Record newly
+discovered obligations with an owner and reason; block the current slice only
+when they invalidate its tested boundary or prerequisite. Required omissions
+still block their owning task and final acceptance. Do not invent new product
+guarantees or continually expand presentation combinations without a requirement.
+
 For each family, enumerate applicable dimensions: parent/child/kiosk and other
 users; both shared-form surfaces; enabled/disabled control; zero/available/
 expired/replacement time; daily-only/grant-only/combined time; allowed/hard/
@@ -158,11 +174,24 @@ locked sessions; windowed/fullscreen gameplay; approval/denial/cancel/failure;
 and app/session/service/reboot/suspend/package lifecycle boundaries. Cover both sides
 of validation boundaries and prove that other users remain unaffected.
 
-Use explicit full combinations where identity, enforcement, grant precedence,
-or cross-surface behavior interact. For independent presentation combinations,
-document a reviewed reduction and the omitted combinations' rationale. A test
-count or blanket coverage percentage is not a completeness argument. Missing
-required combinations remain pending and block final acceptance. Date, midnight,
+Use explicit full combinations of the dimensions that interact at identity,
+enforcement, grant-precedence or cross-surface boundaries. Do not multiply every
+dimension across every scenario irrespective of an interaction. For independent
+presentation dimensions, use boundary/equivalence cases or pairwise combinations
+with a documented rationale, keeping every required value/transition represented.
+No reduction may remove a specified security case, supported launch route,
+request surface, other-user assertion, or required real customer operation.
+
+Give each executable case one canonical owner. A continuous case may satisfy
+several families/tasks when every required action/assertion is present; reference
+that case instead of creating copies. Compatible validation values can be
+exercised sequentially in one declared journey; different initial states and
+interacting transactions still need explicit variants. Reuse code, not stale
+evidence or hidden product-state setup. The full gate executes each required
+canonical case once and validates all its requirement links.
+
+A test count or blanket coverage percentage is not a completeness argument.
+Missing required combinations remain pending and block final acceptance. Date, midnight,
 and DST system cases from Task 16 remain required; do not claim those are
 natural customer expiry runs when the guest clock was controlled.
 

@@ -8,6 +8,17 @@ execute actual GDM entry, customer requests, system password prompts, and
 return-to-GDM behavior. Never launch a preview or inject request results. No
 VM checkpoint may replace entry, approval, exit, or a cross-surface round trip.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 24A | Reuse the basic kiosk entry/approval helper; prove restriction and one agent recovery before expanding cases. |
+| 24B | Adapt the shared case table by surface, preserving kiosk exits and targets; then prove the cross-surface round trip. |
+
 ## Task 24A
 
 - Title: Prove restricted kiosk startup and authentication-agent recovery.
@@ -31,7 +42,7 @@ VM checkpoint may replace entry, approval, exit, or a cross-surface round trip.
      restriction and recovery mappings.
 - Verification:
   - Run cleanup-safety regressions in isolation before integrated controls.
-  - Run the complete kiosk restriction/recovery cases twice; reset the baseline
+  - Run each complete kiosk restriction/recovery variant once; reset the baseline
     only outside attempts, never between the failure and recovery steps.
     Correlate screens, user units, sessions, broker calls, grants, and logs.
   - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
@@ -60,7 +71,7 @@ VM checkpoint may replace entry, approval, exit, or a cross-surface round trip.
 - Verification:
   - Run focused local UI checks through `tools/run-ui-tests --timeout <duration>
     <pytest-selectors>`; run cleanup-safety regressions first where needed.
-  - Run the complete kiosk form cases twice on the guarded VM and correlate
+  - Run each complete kiosk form variant once on the guarded VM and correlate
     screenshots with sessions, broker calls, grants, preferences, and logs.
   - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
     `make check`, and `git diff --check`.

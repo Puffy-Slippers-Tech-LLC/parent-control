@@ -7,6 +7,17 @@ Label coherent guest-clock controls as environment-boundary evidence under
 [E2E-Coverage.md](E2E-Coverage.md). Real PAM/system calls and controlled clocks
 do not substitute for graphical login or natural customer expiry journeys.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 16A | One real usage/grant assertion; then independently bounded midnight and DST variants using the same time evidence. |
+| 16B | One valid and one zero-time PAM result; then retained-session/other-user isolation; then dependency-failure cases. |
+
 ## Task 16A
 
 - Title: Test real usage, grant arithmetic, midnight, and DST.
@@ -29,8 +40,9 @@ do not substitute for graphical login or natural customer expiry journeys.
 - Verification:
   - Run each clock scenario from a fresh testbed; collect Malcontent replies
     and AccountsService properties with recorded clock context.
-  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
-    `git diff --check`.
+  - Register and run this task's installed area with F1 and its prerequisite
+    closure, then `make check` and `git diff --check` once for acceptance.
+    Focused iterations select the affected case; no direct host guest-pytest.
 - Completion criteria: real system authorities match the documented time formula
   and local-day semantics.
 
@@ -69,7 +81,8 @@ do not substitute for graphical login or natural customer expiry journeys.
   - Run session-controller cleanup-safety regressions in isolation first.
   - Run fresh-testbed PAM/session cases; collect PAM results, logind state,
     usage/grants, boot IDs, timezone, clocks, and redacted logs.
-  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
-    `git diff --check`.
+  - Register and run this task's installed area with F1 and its prerequisite
+    closure, then `make check` and `git diff --check` once for acceptance.
+    Focused iterations select the affected case; no direct host guest-pytest.
 - Completion criteria: backend login/unlock and session lifetime match the
   specification without disturbing other users.

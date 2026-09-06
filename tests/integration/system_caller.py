@@ -160,6 +160,28 @@ class TextAgent:
                    'denied' if terminal.endswith(b'AUTHENTICATION FAILED') else 'cancelled')
         print('onpc-system: stage=authentication outcome=' +
               outcome, flush=True)
+        if outcome == 'denied':
+            # Helper stderr shares the private PTY. PAM and authority failures
+            # are not all journalled, so retain only an allowlisted stage;
+            # arbitrary terminal text may contain identities or credentials.
+            category = 'unclassified'
+            for marker, value in (
+                (b'polkit-agent-helper-1: pam_start failed:', 'pam-start'),
+                (b'polkit-agent-helper-1: pam_set_item failed:', 'pam-set-item'),
+                (b'polkit-agent-helper-1: pam_authenticate failed:', 'pam-authenticate'),
+                (b'polkit-agent-helper-1: pam_acct_mgmt failed:', 'pam-account'),
+                (b'polkit-agent-helper-1: pam_get_item failed:', 'pam-identity'),
+                (b'polkit-agent-helper-1: Tried to auth user', 'pam-identity-mismatch'),
+                (b'Error getting authority:', 'authority-unavailable'),
+                (b'Error constructing identity:', 'authority-identity'),
+                (b'polkit-agent-helper-1: error response to PolicyKit daemon:',
+                 'authority-response'),
+            ):
+                if marker in terminal:
+                    category = value
+                    break
+            print('onpc-system: stage=authentication-helper outcome=denied '
+                  f'category={category}', flush=True)
         guest.require(terminal.endswith(expected), 'agent:unexpected-' + outcome)
 
     def close(self):

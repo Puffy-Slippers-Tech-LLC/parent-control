@@ -1,15 +1,154 @@
 # Publishing to a Launchpad PPA
 
-These are the manual steps that require the publisher's Launchpad identity,
-OpenPGP private key, release decision, or permission to change a public archive.
+Use this guide with the assistant when ready to release. Say:
+**“Guide me through Publishing.md for initial app release.”**
+The assistant executes preparation, checks, builds, signing commands, source
+publication and upload as described below, stopping on failures. The publisher
+supplies release decisions and enters any credentials in the local secure prompt.
 The supported target is Ubuntu 26.04 LTS (`resolute`). Launchpad accepts a
 signed source upload and builds the architecture-specific `.deb`; do not upload
 the locally built binary package.
 
-Run checkout commands from the repository root on Ubuntu 26.04, in the same
-shell. Replace uppercase placeholders
-before running commands. Run each build and inspection step separately and stop
-on failure; the snippets are not an unattended publishing script.
+Run checkout commands from the repository root on Ubuntu 26.04. The helper
+uses only Python's standard library and the tools already installed by
+`setup.sh`. No additional host setup is needed solely for this helper.
+
+## Recorded publisher details
+
+These are public release metadata, also recorded in
+[`tools/publish_release.py`](../tools/publish_release.py). Update both places if
+the publishing identity changes. Never store a private key, passphrase, access
+token, private administrative email, or decrypted confirmation link here.
+
+| Setting | Value |
+| --- | --- |
+| Publisher display name | `Puffy Slippers Tech LLC` |
+| Public Git/changelog email | `dev@tech.puffyslippers.com` |
+| Launchpad URL owner / upload identifier | `puffyslipperstechllc` |
+| PPA name | `oh-no-parent-control` |
+| PPA | <https://launchpad.net/~puffyslipperstechllc/+archive/ubuntu/oh-no-parent-control> |
+| Upload target | `ppa:puffyslipperstechllc/oh-no-parent-control` |
+| Publisher OpenPGP fingerprint | `4449F02C3E57F8215261A57958109B593907EFDE` |
+| Public source | <https://github.com/Puffy-Slippers-Tech-LLC/parent-control> |
+| Git remote | `git@github.com:Puffy-Slippers-Tech-LLC/parent-control.git` |
+| Ubuntu series / initial architecture | `resolute` / `amd64` |
+| Initial product version | `1.0`, read from `data/app.json` at release time |
+
+The display name is not the Launchpad URL owner. The PPA archive signing key
+is also distinct from the publisher's source-upload key. A new PPA may not
+have an archive signing fingerprint until its first publication.
+
+The publisher reported one-time setup complete on 2026-09-05. Do not ask them
+to repeat it. Verify prerequisites and only repair concrete failures. At that
+time the public PPA existed and contained no source publications; always query
+it again before choosing a version.
+
+## Assistant-led release workflow
+
+This is the primary workflow. The sections below it are command references
+and recovery instructions, not a second checklist to run again.
+
+1. **Select source once.** Inspect Git status, branch, remote history and tags.
+   Default the initial release to product `1.0` unless the current metadata or
+   publisher says otherwise. If there are uncommitted changes, ask which belong
+   in the release; review and commit those specific paths after the answer.
+   Never silently include ongoing work or use `git add .`. If the checkout is
+   clean and its intended release source is clear, do not ask again. Fetch the
+   public remote and tags before planning. Resolve divergence before proceeding;
+   never force-push or move a published tag.
+2. **Check prerequisites.** Verify Ubuntu 26.04/amd64, declared build dependencies
+   (`dpkg-checkbuilddeps`), publishing commands (`debuild`, `dput`, `dch`,
+   `lintian`), Git push authentication, the recorded signing key's availability,
+   and Launchpad registration. Inspect the PPA's enabled architectures and
+   ensure only supported architectures are enabled. Use public Launchpad API
+   reads wherever possible. A missing tool is a reason to use `setup.sh` or the
+   declared build-dependency installation commands; do not rerun setup routinely.
+   Never request secrets in chat; let GnuPG/SSH use their local secure prompts.
+3. **Prepare automatically.** Run:
+
+   ```sh
+   python3 tools/publish_release.py plan
+   python3 tools/publish_release.py prepare /tmp/onpc-release-UNIQUE
+   ```
+
+   The assistant chooses a new directory name; the publisher need not type it.
+   `plan` is read-only. It queries all source publication states, including
+   deleted/superseded versions, follows pagination, and considers local tags
+   and the changelog. Network/API failure stops planning. `prepare` requires a
+   clean development checkout, creates an independent clone at `.../source`,
+   configures the public Git identity and signing key locally, and writes the
+   next native PPA version into its changelog. Ignored development output is
+   not copied. It saves `release.json` beside the clone. It does not commit,
+   tag, build, push, or upload. It refuses an existing destination; resume an
+   existing release using its recorded checkout instead of preparing over it.
+   Check pending uploads from earlier attempts as well: uploads not yet accepted
+   may not appear in publication history. Never blindly retry an uncertain upload.
+4. **Review and freeze.** Review the changelog and [Compliance.md](Compliance.md).
+   Commit the release entry in the clone, then create and verify the signed
+   package tag and, for a new product version, the product tag using the commands
+   below. Existing product tags are retained for packaging-only rebuilds.
+   Record the exact commit and tag fingerprints outside the source checkout.
+5. **Build and validate.** Execute the binary build and inspection commands below
+   from the release clone, with artifacts in its parent. Run the isolated
+   cleanup-safety prerequisites before any protected test/build command. Follow
+   [Test-Automation.md](Test-Automation.md) for available host, UI and guarded VM
+   validation. Respect any fixed-development-checkout requirements in the
+   current test harness; do not rewrite paths or bypass guards to run in the
+   release clone. Establish matching source inputs and exact package evidence.
+   Do not substitute older test artifacts for the newly versioned package.
+   If a clean package build cannot run declared tests on Launchpad, fix that
+   packaging/test portability issue before upload; do not silently use `nocheck`.
+   Record commands, outcomes, package hashes, environment and coverage gaps in
+   a release report beside `release.json`. Comprehensive `test-all` and graphical
+   E2E acceptance are currently unfinished: report this explicitly and resolve
+   the release-readiness decision with the publisher, without inventing a pass
+   or silently starting the test-automation implementation backlog.
+6. **Sign and inspect source.** Run the source build below, then:
+
+   ```sh
+   python3 tools/publish_release.py inspect /tmp/onpc-release-UNIQUE/source
+   ```
+
+   The helper checks source signatures against the recorded publisher key,
+   verifies SHA-256 and size for every upload file, checks the package tag's
+   commit, compares archived file bytes with Git, rejects extra/duplicate files,
+   and runs Lintian. It saves `source-review.json` beside the artifacts. Review
+   every excluded tracked file for complete corresponding source, source modes
+   and symlinks, Lintian warnings, binary contents and licensing. This helper
+   does not replace these reviews or regression acceptance. Keep reports and
+   logs outside the clone. Fix unexplained failures before proceeding.
+7. **Present the concrete release.** Summarize version, source commit/tags,
+   architecture, artifact hashes, validation and reviewed warnings/gaps. If
+   publication authorization has not already been given for this concrete
+   release, ask once to publish the source and upload to the named PPA. Explain
+   that this makes the release public and successful builds publish automatically.
+   Do all preparation and review before asking; do not ask separate permissions
+   for every routine step. Platform sandbox approvals may still be necessary.
+8. **Publish and monitor.** Execute the source push and `dput` commands below.
+   Explicitly push the release branch to the intended branch, normally
+   `git push origin HEAD:main`; the clone's `release/...` branch must not be
+   mistaken for `main`. Use a normal fast-forward push; reconcile concurrent
+   development before publication if it is refused. Push the signed tags and
+   verify their exact source is publicly retrievable before `dput`. Monitor
+   the source, every enabled architecture's build, and binary publication:
+
+   ```sh
+   python3 tools/publish_release.py status
+   ```
+
+   `status` reports source history, not binary acceptance. Follow source API
+   links to builds or use the PPA web UI to verify **Successfully built** and
+   **Published** for the exact version. An empty result immediately after upload
+   is not a rejection or a reason to upload again. Ask the publisher for a
+   Launchpad rejection email only if necessary; do not access email implicitly.
+   Record the final PPA URL, version, tags and installation commands. Preserve
+   artifacts and evidence through completion; a `dput` exit code alone does
+   not establish publication.
+
+The normal manual work is choosing release inputs when ambiguous, entering a
+key passphrase if prompted, and making any outstanding release decision.
+All publisher identifiers are already supplied. Do not publish anything merely
+because this guide or its helper is being edited.
 
 ## One-time publisher setup
 
@@ -32,7 +171,7 @@ on failure; the snippets are not an unattended publishing script.
 
    ```sh
    gpg --keyserver hkps://keyserver.ubuntu.com \
-       --send-keys FULL_OPENPGP_FINGERPRINT
+       --send-keys 4449F02C3E57F8215261A57958109B593907EFDE
    ```
 
 5. Open the Launchpad account's **OpenPGP keys** page, import that fingerprint,
@@ -172,9 +311,13 @@ is separate from daily test execution.
    not excluded by the current source options.
 7. Create a signed tag for this exact Debian package version:
 
+   Git forbids `~` in reference names. Replace it with `_` in the source tag
+   only: package `1.0+ppa1~ubuntu26.04.1` maps to tag
+   `v1.0+ppa1_ubuntu26.04.1`. The helper uses the same mapping.
+
    ```sh
    version=$(dpkg-parsechangelog -S Version)
-   source_tag="v${version}"
+   source_tag="v$(printf '%s' "$version" | tr '~' '_')"
    git tag -s "$source_tag" -m "Oh No! Parent Control ${version} source"
    git verify-tag "$source_tag"
    ```
@@ -231,9 +374,9 @@ Set shell variables to the publisher-specific values, then build the signed
 source upload:
 
 ```sh
-launchpad_owner='YOUR_LAUNCHPAD_OWNER'
+launchpad_owner='puffyslipperstechllc'
 ppa_name='oh-no-parent-control'
-signing_key='FULL_OPENPGP_FINGERPRINT'
+signing_key='4449F02C3E57F8215261A57958109B593907EFDE'
 
 make check-release-version
 test "$(dpkg-parsechangelog -S Distribution)" = resolute
@@ -282,7 +425,7 @@ After artifact review passes, publish the release commit
 and the signed package-version tag to the public source repository:
 
 ```sh
-git push origin HEAD
+git push origin HEAD:main
 git push origin "$source_tag"
 ```
 
@@ -317,13 +460,13 @@ Launchpad's upload instructions are:
 2. Open the published source entry and verify that its version equals the local
    `debian/changelog` version.
 3. Record both source and product tags alongside the published PPA version.
-4. Publish these consumer commands, replacing the owner if necessary:
+4. Publish these consumer commands:
 
    ```sh
    sudo apt update
    sudo apt install software-properties-common
    sudo add-apt-repository universe
-   sudo add-apt-repository ppa:YOUR_LAUNCHPAD_OWNER/oh-no-parent-control
+   sudo add-apt-repository ppa:puffyslipperstechllc/oh-no-parent-control
    sudo apt update
    sudo apt install oh-no-parent-control
    ```

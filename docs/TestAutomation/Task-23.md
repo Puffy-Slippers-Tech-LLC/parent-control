@@ -10,6 +10,17 @@ and observe results; they cannot call approval methods, inject grants, fake a
 Polkit agent, or restore VM state between steps. Task 24 implements kiosk
 variants; local shared-form component mocks do not fulfill either E2E surface.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 23A | One real selected-parent success and deliberate denial/cancel; one policy interaction; then the required approval matrix. |
+| 23B | Use the proven shared form/helper for parameterized validation values; group compatible values in one declared journey. |
+
 ## Task 23A
 
 - Title: Automate real authentication and atomic child approval.

@@ -15,6 +15,17 @@ checkpoint may construct an expired/replacement state. Direct installed D-Bus
 calls are backend evidence; [E2E-Coverage.md](E2E-Coverage.md) separately requires
 real graphical requests, authentication, elapsed time, and session entry.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 17A | One deterministic expired/replacement transaction race; then parameterize existing transaction/rollback helpers. |
+| 17B | One installed expiry/replacement sequence; then the other soft-app choice and required failure variants. |
+
 ## Task 17A
 
 - Title: Complete session-entry transaction and race regressions.
@@ -77,7 +88,8 @@ real graphical requests, authentication, elapsed time, and session entry.
   - Run fixture cleanup-safety regressions in isolation before live cases.
   - Run installed short-grant/replacement-grant cases in fresh testbeds and
     record filters, process identities, grants, and redacted logs.
-  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
-    `git diff --check`.
+  - Register and run this task's installed area with F1 and its prerequisite
+    closure, then `make check` and `git diff --check` once for acceptance.
+    Focused iterations select the affected case; no direct host guest-pytest.
 - Completion criteria: installed evidence proves expired-grant reconciliation
   and replacement-grant precedence without adding deadline-driven termination.

@@ -7,6 +7,17 @@ checkpoint is used. These are real installed-system tests. Their direct OS
 calls and deterministic process fixtures cannot replace the graphical customer
 journeys required by [E2E-Coverage.md](E2E-Coverage.md).
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 15A | One native allow/deny and other-user check; prove Snap/Flatpak helpers next; then fill the route and filename matrix. |
+| 15B | One owned-process isolation case; one rollback/partial-failure case; then extend the proven controls to every required identity format. |
+
 ## Task 15A
 
 - Title: Test installed catalog and application launch enforcement.
@@ -38,8 +49,9 @@ journeys required by [E2E-Coverage.md](E2E-Coverage.md).
   - Run fixture cleanup-safety regressions in isolation before live fixtures.
   - Run the full launch matrix in a fresh installed testbed, recording source
     and compiled fapolicyd rules, launch results, and per-user evidence.
-  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
-    `git diff --check`.
+  - Register and run this task's installed area with F1 and its prerequisite
+    closure, then `make check` and `git diff --check` once for acceptance.
+    Focused iterations select the affected case; no direct host guest-pytest.
 - Completion criteria: native, Snap, and Flatpak launch enforcement has positive,
   negative, and cross-user runtime evidence.
 
@@ -71,7 +83,8 @@ journeys required by [E2E-Coverage.md](E2E-Coverage.md).
   - Run cleanup-safety regressions in isolation before integrated termination.
   - Run termination and rollback cases in fresh installed testbeds, collecting
     process identities, filters, grants, and redacted logs.
-  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
-    `git diff --check`.
+  - Register and run this task's installed area with F1 and its prerequisite
+    closure, then `make check` and `git diff --check` once for acceptance.
+    Focused iterations select the affected case; no direct host guest-pytest.
 - Completion criteria: real enforcement and termination respect user boundaries
   and preserve the specified state after reversible and irreversible failures.

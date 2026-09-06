@@ -4,6 +4,11 @@ Use this guide for running tests. Use the [implementation plan](TestAutomation/T
 only when implementing unfinished automation. Running a test command does not
 restart the implementation plan or require a model-selection ceremony.
 
+Before executing the next implementation task, state its recommended model and
+reasoning effort, ask the user to confirm that both are selected, and wait for
+explicit confirmation before starting. Repeat this confirmation for each next
+task; authorization for a previous task does not carry over to the next one.
+
 ## Daily commands
 
 The intended interface is four commands. **These targets and their selectors

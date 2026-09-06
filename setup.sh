@@ -96,7 +96,8 @@ fi
     python3-pytest=9.0.2-4 \
     python3-requests \
     python3-venv \
-    qemu-utils=1:10.2.1+ds-1ubuntu3.2
+    qemu-utils=1:10.2.1+ds-1ubuntu3.2 \
+    shellcheck=0.11.0-2
 
 # Keep the public development identity and signing settings local to this checkout.
 # The private signing key must be restored separately before signing releases.

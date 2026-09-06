@@ -56,7 +56,8 @@ def validate_marker(marker, expected, machine, domain, mounts):
     require(marker.get('domain_uuid') == domain.lower(), 'domain-identity')
     require(not any(kind in {'virtiofs', '9p', 'nfs', 'nfs4', 'cifs', 'fuse.sshfs'}
                     for kind in mounts), 'host-filesystem-exposed')
-    for key in ('baseline_sha256', 'preparation_sha256', 'package_sha256'):
+    for key in ('baseline_sha256', 'preparation_sha256', 'package_sha256',
+                'selected_inputs_sha256'):
         require(isinstance(marker.get(key), str) and re.fullmatch(r'[0-9a-f]{64}', marker[key]), 'marker-digest')
 
 
@@ -224,6 +225,7 @@ def collect(marker, outcome):
     (output / 'result.json').write_text(json.dumps({
         'schema_version': 1, 'test': 'install-smoke', 'outcome': outcome,
         'package_sha256': marker['package_sha256'], 'baseline_sha256': marker['baseline_sha256'],
+        'selected_inputs_sha256': marker['selected_inputs_sha256'],
     }, sort_keys=True) + '\n')
     for source in output.glob('*.xml'):
         source.write_text(redacted(source.read_text()))

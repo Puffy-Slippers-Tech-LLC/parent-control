@@ -68,10 +68,10 @@ coordinates host results and VM artifacts for the same source content.
 ## Running the current installed suite
 
 For implementation, use the [bounded diagnostic workflow](../../docs/TestAutomation/Implementation-Workflow.md).
-The current controller still executes all installed/reboot/authorization phases
-for a run; selected VM execution is not supported yet. F1's host-safe inventory
-can list the registered `package` and `authorization` cases and their explicit
-prerequisite closure without artifacts, root access, or VM operations:
+The current controller executes the complete installed/reboot/authorization
+scope when unselected. F1 can list the registered `package` and `authorization`
+cases and their explicit prerequisite closure without artifacts, root access,
+or VM operations:
 
 ```sh
 make check-system LIST=1 AREA=authorization
@@ -80,10 +80,15 @@ make check-system LIST=1 AREA=authorization TEST='test_real_selected_parent_auth
 
 The listing uses pytest's public collection-only mode with project and third-party
 plugins disabled; it imports the test definitions but never executes guest
-fixtures. Non-listing `AREA`/`TEST` use remains fail-closed until
-[F1](../../docs/TestAutomation/Task-F1.md) delivers guarded forwarding, exact
-scope reporting and phase timing. Keep all identity, prerequisite, evidence and
-cleanup boundaries for focused runs.
+fixtures. A non-listing selection forwards only its exact cases plus registered
+package/reboot prerequisites through the same guarded VM controller. It labels
+the result partial and records expected and observed JUnit case identities;
+missing, additional, duplicate, failed, or skipped identities fail the run.
+The controller freezes only the test modules and guest helpers required by that
+resolved execution closure. `selected-inputs.json` binds their byte digests to
+the exact phases/case IDs, and its SHA-256 is carried independently through the
+guest marker, guest result, and aggregate result. Arbitrary guest pytest
+arguments remain unsupported. F1's selected VM acceptance is still pending.
 
 One expensive attempt should collect the safe observations needed to distinguish
 the current hypothesis on success and failure. Check parser/collector handling
@@ -99,12 +104,21 @@ verifying the input, invoke the host controller from a root shell:
 
 ```sh
 make check-system ARTIFACT_DIR=/tmp/onpc-test-artifacts/run-input
+make check-system ARTIFACT_DIR=/tmp/onpc-test-artifacts/run-input \
+    AREA=authorization TEST='test_method_role_matrix[ListManagedUsers-child1]'
 ```
 
 From an administrator's graphical session the equivalent is
 `pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=<verified-directory>`.
 The command resets guest disk changes since the retained baseline. Never run
 it on an unleased VM containing work that must be kept. `VM_IMAGE` is refused.
+
+Preparation checks all directly invoked host tools, including `dpkg-deb` and
+`dpkg-query`, and names a missing tool without logging command arguments.
+Missing, inaccessible, or otherwise unavailable artifact sources report distinct
+`assets:source-*` categories before run storage or VM access. These input errors
+do not establish a missing executable; verify the supplied artifact directory
+in the same privileged host context as the runner.
 
 Both Makefile and direct controller paths suppress Python bytecode writes.
 Default host pytest collection excludes `tests/system/`; guest pytest uses
@@ -133,9 +147,10 @@ The future E2E runner must obey the
   reset, bootstrap, the whole attempt and cleanup. Cleanup is bound to the
   recorded UUID, live domain identity, run marker, disk identities and snapshot
   metadata. It must not affect a replacement or unrelated VM.
-- `stage_assets`: freezes the package/fixture manifest and test inputs, verifies
-  canonical fixture digests, and hashes exact transferred bytes, including
-  variable Flatpak containers and executable test code.
+- `stage_assets`: freezes the package/fixture manifest, verifies canonical
+  fixture digests, and hashes exact transferred bytes, including variable
+  Flatpak containers. `stage_selected_inputs` separately freezes the resolved
+  executable test/helper closure and binds its files to the selected case IDs.
 - `vm_transport.Transport`: pinned-key SSH, safely quoted argument transport,
   constrained archive extraction, bounded readiness and real reboot. Every
   readiness probe revalidates identity; a guest guard failure is not retried as
@@ -197,11 +212,21 @@ a failed authentication-journal command fails collection explicitly. Raw diagnos
 temporary SSH credentials remain root-private. Use only validated redacted
 exports; read source logs and journals without modifying them.
 
-Results record package SHA-256, stable fixture digest and
-`baseline_provenance_sha256`. The last hashes finalized provenance, not the
-writable active QCOW2. Cleanup independently checks immutable backing hashes,
-snapshot metadata, product-free offline inspection and host product/PAM
-fingerprints, including after failure.
+Results record package SHA-256, stable fixture digest,
+`selected_inputs_sha256`, and `baseline_provenance_sha256`. The selected-input
+digest is distinct from package/fixture identity and changes with either the
+resolved execution closure or any staged test/helper byte. The baseline digest
+hashes finalized provenance, not the writable active QCOW2. Cleanup independently
+checks immutable backing hashes, snapshot metadata, product-free offline
+inspection and host product/PAM fingerprints, including after failure.
+
+The aggregate result also records monotonic accumulated seconds for preparation,
+bootstrap, install, reboot, test, collection, and cleanup. Its `outcomes` object
+reports product, infrastructure, collection, and cleanup independently. Each
+domain retains its first fixed failure category; later collection or cleanup
+failures remain visible without replacing the aggregate run's original category.
+An outcome is `not-run` when the attempt ended before that boundary could be
+established, rather than being inferred as a pass.
 
 An incomplete `system-run.json` prevents a new attempt. Preserve it and its
 evidence for [identity-verified recovery](Environment.md#interrupted-or-invalid-state).

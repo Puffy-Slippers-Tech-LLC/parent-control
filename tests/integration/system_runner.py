@@ -8,7 +8,7 @@ All VM/storage operations are injectable; imports have no machine side effects.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 import fcntl
 import hashlib
@@ -40,11 +40,20 @@ import prepare_host as baseline
 ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = '/var/tmp/onpc-system-input'
 TAG = 'onpc-system-run:'
-PHASE_COUNTS = {'installed': 2, 'rebooted': 2, 'authorization': 221}
 PHASE_ORDER = ('installed', 'rebooted', 'authorization')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'authorization': ROOT / 'tests/system/test_authorization.py',
+}
+COMMON_SELECTED_INPUTS = (
+    ('tests/integration/system_guest.py', 'system_guest.py'),
+    ('tests/integration/owned_commands.py', 'owned_commands.py'),
+    ('tests/integration/guest/redact.py', 'guest/redact.py'),
+    ('tests/system/pytest.ini', 'pytest.ini'),
+)
+AREA_SELECTED_HELPERS = {
+    'package': (),
+    'authorization': (('tests/integration/system_caller.py', 'system_caller.py'),),
 }
 PHASE_DEPENDENCIES = {
     'installed': (),
@@ -64,6 +73,76 @@ from owned_commands import Commands, CommandError
 
 def log(stage):
     print(f'check-system: [{stage}]', file=sys.stderr, flush=True)
+
+
+STAGE_NAMES = ('preparation', 'bootstrap', 'install', 'reboot', 'test',
+               'collection', 'cleanup')
+OUTCOME_NAMES = ('product', 'infrastructure', 'collection', 'cleanup')
+HOST_EXECUTABLES = ('ssh', 'qemu-img', 'ssh-keygen', 'virt-customize',
+                    'dpkg-deb', 'dpkg-query')
+
+
+def error_category(error):
+    """Return only the runner's fixed public failure categories."""
+    if isinstance(error, (Error, CommandError)):
+        return str(error)
+    return 'unexpected-failure-or-interruption'
+
+
+class RunLedger:
+    """Accumulate monotonic stage timings and independent first-failure results."""
+
+    def __init__(self, monotonic=time.monotonic):
+        self.monotonic = monotonic
+        self.durations = {name: 0.0 for name in STAGE_NAMES}
+        self.outcomes = {name: {'outcome': 'not-run', 'category': None}
+                         for name in OUTCOME_NAMES}
+        self.first_failure_category = None
+
+    @contextmanager
+    def measure(self, stage):
+        require(stage in self.durations, 'timing:unknown-stage')
+        started = self.monotonic()
+        try:
+            yield
+        finally:
+            duration = max(0.0, self.monotonic() - started)
+            self.durations[stage] += duration
+            log(f'timing:stage={stage} duration_seconds={duration:.3f}')
+
+    def pass_outcome(self, name):
+        require(name in self.outcomes, 'outcome:unknown-domain')
+        if self.outcomes[name]['outcome'] != 'failed':
+            self.outcomes[name] = {'outcome': 'passed', 'category': None}
+
+    def fail_outcome(self, name, category):
+        require(name in self.outcomes, 'outcome:unknown-domain')
+        require(isinstance(category, str) and category, 'outcome:invalid-category')
+        # A later failure in the same domain must not replace its first failure.
+        if self.outcomes[name]['outcome'] != 'failed':
+            self.outcomes[name] = {'outcome': 'failed', 'category': category}
+        if self.first_failure_category is None:
+            self.first_failure_category = category
+        log(f'outcome:domain={name} outcome=failed category={category}')
+
+    def data(self):
+        return {
+            'stage_durations_seconds': {
+                name: round(self.durations[name], 6) for name in STAGE_NAMES
+            },
+            'outcomes': {name: dict(self.outcomes[name]) for name in OUTCOME_NAMES},
+        }
+
+
+def record_caught_failure(ledger, error):
+    """Classify a caught failure without losing an earlier domain diagnosis."""
+    caught_category = error_category(error)
+    if not any(ledger.outcomes[name]['outcome'] == 'failed'
+               for name in ('product', 'collection', 'cleanup')):
+        ledger.fail_outcome('infrastructure', caught_category)
+    elif ledger.outcomes['infrastructure']['outcome'] == 'not-run':
+        ledger.pass_outcome('infrastructure')
+    return ledger.first_failure_category or caught_category
 
 
 @dataclass(frozen=True)
@@ -254,7 +333,8 @@ class SourceView:
 class Lease:
     """Serializes prep-host/system runners; durable state refuses interrupted ownership."""
 
-    def __init__(self, source, commands, inspect, *, directory=baseline.BASELINES, anchor=baseline.ANCHOR):
+    def __init__(self, source, commands, inspect, *, directory=baseline.BASELINES,
+                 anchor=baseline.ANCHOR, ledger=None):
         self.source, self.commands, self.inspect = source, commands, inspect
         self.view = SourceView(source)
         self.capture = baseline.Capture(self.view, commands, inspect, directory=directory, anchor=anchor)
@@ -265,6 +345,7 @@ class Lease:
         self.original_xml = None
         self.original_id = None
         self.mutated = False
+        self.ledger = ledger
 
     def save(self, phase):
         self.state['phase'] = phase
@@ -386,9 +467,24 @@ class Lease:
             os.close(self.fd)
             self.fd = None
 
-    def __exit__(self, *exc):
+    def __exit__(self, exc_type, exc_value, traceback):
+        if (self.ledger and exc_type is not None and
+                all(self.ledger.outcomes[name]['outcome'] != 'failed'
+                    for name in ('product', 'infrastructure', 'collection'))):
+            self.ledger.fail_outcome('infrastructure', error_category(exc_value))
         try:
-            self.finish()
+            measurement = self.ledger.measure('cleanup') if self.ledger else nullcontext()
+            with measurement:
+                self.finish()
+            if self.ledger:
+                self.ledger.pass_outcome('cleanup')
+        except BaseException as error:
+            if self.ledger:
+                self.ledger.fail_outcome('cleanup', error_category(error))
+            if exc_type is None:
+                raise
+            # Cleanup evidence remains failed, but the body failure keeps precedence.
+            log('cleanup:failed-after-original-error')
         finally:
             self.release()
 
@@ -401,6 +497,21 @@ def check_tree(root):
         require(not path.is_symlink() and (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)),
                 'assets:special-file')
     return root
+
+
+def artifact_source(path):
+    """Validate supplied inputs before creating run storage; never log paths."""
+    require(path is not None, 'assets:directory-required')
+    try:
+        source = check_tree(path.resolve(strict=True))
+    except FileNotFoundError as error:
+        raise Error('assets:source-missing') from error
+    except PermissionError as error:
+        raise Error('assets:source-inaccessible') from error
+    except OSError as error:
+        raise Error('assets:source-unavailable') from error
+    log('assets:source-validated')
+    return source
 
 
 def stage_assets(source, destination, commands):
@@ -439,6 +550,47 @@ def stage_assets(source, destination, commands):
                  for p in sorted(destination.rglob('*')) if p.is_file()}
     (destination / 'transfer-sha256.json').write_bytes(baseline.encode(inventory))
     return manifest
+
+
+def stage_selected_inputs(selection, destination):
+    """Freeze and identify only the test/helper files needed by this selection."""
+    selected_areas = {execution.area for execution in selection.executions}
+    inputs = list(COMMON_SELECTED_INPUTS)
+    for area in AREA_SOURCES:
+        if area not in selected_areas:
+            continue
+        inputs.append((str(AREA_SOURCES[area].relative_to(ROOT)), AREA_SOURCES[area].name))
+        inputs.extend(AREA_SELECTED_HELPERS[area])
+    require(len({target for _, target in inputs}) == len(inputs),
+            'selection:duplicate-input-target')
+
+    files = {}
+    for relative, target in inputs:
+        source = ROOT / relative
+        staged = destination / target
+        staged.parent.mkdir(exist_ok=True)
+        shutil.copyfile(source, staged)
+        files[target] = {'source': relative, 'sha256': baseline.digest(staged)}
+    identity = {
+        'schema_version': 1,
+        'selection': {
+            'scope': selection.scope,
+            'area': selection.area,
+            'test': selection.test,
+            'phases': list(selection.phases),
+            'executions': [
+                {'phase': item.phase, 'area': item.area, 'case_id': item.case_id,
+                 'prerequisite': item.prerequisite}
+                for item in selection.executions
+            ],
+        },
+        'files': files,
+    }
+    path = destination / 'selected-inputs.json'
+    path.write_bytes(baseline.encode(identity))
+    digest = baseline.digest(path)
+    log(f'provenance:selected-inputs files={len(files)} sha256={digest}')
+    return digest
 
 
 def ubuntu_archive_sources(contents):
@@ -517,7 +669,9 @@ def bootstrap(commands, lease, directory, guestfs):
                   'host_machine_id': Path('/etc/machine-id').read_text().strip(),
                   'baseline_sha256': lease.state['baseline_sha256'],
                   'preparation_sha256': lease.capture.state['guest']['preparation_record_sha256'],
-                  'package_sha256': baseline.digest(directory / 'input/package.deb')}
+                  'package_sha256': baseline.digest(directory / 'input/package.deb'),
+                  'selected_inputs_sha256': baseline.digest(
+                      directory / 'input/selected-inputs.json')}
         require(marker['machine_id'] != marker['host_machine_id'], 'bootstrap:host-identity')
         g.write('/etc/onpc-system-test.json', baseline.encode(marker))
         g.chown(0, 0, '/etc/onpc-system-test.json')
@@ -559,12 +713,18 @@ def guest_command(run, *args):
             '/usr/bin/python3', PAYLOAD + '/system_guest.py', *args]
 
 
-def pytest_command(run, phase):
-    require(phase in PHASE_COUNTS, 'pytest:phase')
-    tests = ['test_installed_package', 'test_first_install_requests_reboot' if phase == 'installed'
-             else 'test_reboot_applies_installation']
-    selectors = ([PAYLOAD + '/test_authorization.py'] if phase == 'authorization' else
-                 [f'{PAYLOAD}/test_install_smoke.py::{name}' for name in tests])
+def phase_executions(selection, phase):
+    """Return the exact registered executions assigned to one guest phase."""
+    require(phase in selection.phases, 'pytest:unselected-phase')
+    executions = tuple(item for item in selection.executions if item.phase == phase)
+    require(executions, 'pytest:empty-phase')
+    return executions
+
+
+def pytest_command(run, phase, selection):
+    require(phase in PHASE_ORDER, 'pytest:phase')
+    selectors = [f'{PAYLOAD}/{AREA_SOURCES[item.area].name}::{item.case_id}'
+                 for item in phase_executions(selection, phase)]
     return ['env', f'ONPC_EXPECTED_RUN={run}', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1',
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-m', 'pytest',
             '-c', PAYLOAD + '/pytest.ini', '--noconftest', '--rootdir', PAYLOAD,
@@ -572,43 +732,122 @@ def pytest_command(run, phase):
             *selectors]
 
 
-def installed_run(vm, lease, directory):
+def junit_executions(path, phase):
+    """Read exact registered execution identities from one pytest JUnit file."""
+    try:
+        root = ET.parse(path).getroot()
+    except (OSError, ET.ParseError, ValueError) as error:
+        raise Error(f'pytest:missing-or-invalid-junit:{phase}') from error
+    sources = {path.stem: area for area, path in AREA_SOURCES.items()}
+    executions = []
+    for case in root.iter('testcase'):
+        name = case.get('name')
+        module = (case.get('classname') or '').rsplit('.', 1)[-1]
+        require(module in sources and name, f'pytest:incorrect-test-identity:{phase}')
+        executions.append((sources[module], name))
+    require(executions, f'pytest:missing-tests:{phase}')
+    return root, tuple(executions)
+
+
+def reconcile_junit(directory, phase, selection):
+    """Reject failed, skipped, missing, duplicate, or unexpected guest cases."""
+    root, executed = junit_executions(directory / f'guest-results/{phase}.xml', phase)
+    try:
+        unhealthy = any(int(suite.get(key, '0')) != 0
+                        for suite in root.iter('testsuite')
+                        for key in ('errors', 'failures', 'skipped'))
+    except ValueError as error:
+        raise Error(f'pytest:missing-or-invalid-junit:{phase}') from error
+    unhealthy = unhealthy or any(case.find(key) is not None
+                                 for case in root.iter('testcase')
+                                 for key in ('error', 'failure', 'skipped'))
+    require(not unhealthy, f'pytest:failed-or-skipped-tests:{phase}')
+    expected = tuple((item.area, item.case_id) for item in phase_executions(selection, phase))
+    require(len(executed) == len(set(executed)) and set(executed) == set(expected),
+            f'pytest:missing-extra-or-duplicate-tests:{phase}')
+    return executed
+
+
+def installed_run(vm, lease, directory, selection, ledger=None):
+    ledger = ledger or RunLedger()
     run = lease.state['run']
     outcome = 'failed'
     try:
-        vm.ready()
-        vm.copy(False, str(directory / 'input') + '/', PAYLOAD + '/')
+        with ledger.measure('bootstrap'):
+            vm.ready()
+            vm.copy(False, str(directory / 'input') + '/', PAYLOAD + '/')
         lease.save('package-install')
-        vm.call(guest_command(run, 'install'), timeout=2400)
-        lease.save('pytest-installed')
-        vm.call(pytest_command(run, 'installed'), timeout=900)
-        # Preserve the successful first phase even if reboot loses transport.
-        vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
-        vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
-        lease.save('reboot-requested')
-        vm.reboot()
-        lease.save('pytest-rebooted')
-        vm.call(pytest_command(run, 'rebooted'), timeout=900)
-        lease.save('pytest-authorization')
-        vm.call(pytest_command(run, 'authorization'), timeout=900)
+        with ledger.measure('install'):
+            vm.call(guest_command(run, 'install'), timeout=2400)
+        if 'installed' in selection.phases:
+            lease.save('pytest-installed')
+            with ledger.measure('test'):
+                try:
+                    vm.call(pytest_command(run, 'installed', selection), timeout=900)
+                except CommandError as error:
+                    domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
+                              else 'infrastructure')
+                    ledger.fail_outcome(domain, 'pytest:failed:installed' if domain == 'product'
+                                        else error_category(error))
+                    raise
+            # Preserve the successful first phase if a required reboot loses transport.
+            with ledger.measure('collection'):
+                vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
+                vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+            ledger.pass_outcome('collection')
+        if 'rebooted' in selection.phases:
+            lease.save('reboot-requested')
+            with ledger.measure('reboot'):
+                vm.reboot()
+            lease.save('pytest-rebooted')
+            with ledger.measure('test'):
+                try:
+                    vm.call(pytest_command(run, 'rebooted', selection), timeout=900)
+                except CommandError as error:
+                    domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
+                              else 'infrastructure')
+                    ledger.fail_outcome(domain, 'pytest:failed:rebooted' if domain == 'product'
+                                        else error_category(error))
+                    raise
+        if 'authorization' in selection.phases:
+            lease.save('pytest-authorization')
+            with ledger.measure('test'):
+                try:
+                    vm.call(pytest_command(run, 'authorization', selection), timeout=900)
+                except CommandError as error:
+                    domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
+                              else 'infrastructure')
+                    ledger.fail_outcome(domain, 'pytest:failed:authorization' if domain == 'product'
+                                        else error_category(error))
+                    raise
         outcome = 'passed'
+    except BaseException as error:
+        if all(ledger.outcomes[name]['outcome'] != 'failed'
+               for name in ('product', 'infrastructure')):
+            ledger.fail_outcome('infrastructure', error_category(error))
+        raise
     finally:
         original_failure = sys.exc_info()[0] is not None
         try:
-            lease.guard()
-            vm.call(guest_command(run, 'collect', outcome), timeout=180)
-            vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
-        except Exception:
+            with ledger.measure('collection'):
+                lease.guard()
+                vm.call(guest_command(run, 'collect', outcome), timeout=180)
+                vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+            ledger.pass_outcome('collection')
+        except BaseException as error:
+            ledger.fail_outcome('collection', error_category(error))
             if not original_failure:
                 raise
             # Retain the original failure even if the guest cannot return logs.
             log('evidence:guest-collection-failed')
-    for phase, expected_count in PHASE_COUNTS.items():
-        root = ET.parse(directory / f'guest-results/{phase}.xml').getroot()
-        suites = list(root.iter('testsuite'))
-        require(sum(int(s.get('tests', '0')) for s in suites) == expected_count and
-                all(all(int(s.get(key, '0')) == 0 for key in ('errors', 'failures', 'skipped'))
-                    for s in suites), 'pytest:missing-failed-or-skipped-tests')
+    try:
+        result = {phase: reconcile_junit(directory, phase, selection)
+                  for phase in selection.phases}
+    except Error as error:
+        ledger.fail_outcome('product', error_category(error))
+        raise
+    ledger.pass_outcome('product')
+    return result
 
 
 def host_fingerprint(commands):
@@ -623,15 +862,54 @@ def host_fingerprint(commands):
     return result
 
 
-def evidence(directory, manifest, lease, passed, category):
+def selection_evidence(directory, selection):
+    """Describe planned and observed identities without weakening a run failure."""
+    expected = [{'phase': item.phase, 'area': item.area, 'case_id': item.case_id,
+                 'prerequisite': item.prerequisite} for item in selection.executions]
+    executed = []
+    junit = {}
+    for phase in selection.phases:
+        try:
+            _, identities = junit_executions(directory / f'guest-results/{phase}.xml', phase)
+            executed.extend({'phase': phase, 'area': area, 'case_id': case_id}
+                            for area, case_id in identities)
+            junit[phase] = 'collected'
+        except Error as error:
+            junit[phase] = str(error)
+    return {
+        'scope': selection.scope,
+        'area': selection.area,
+        'test': selection.test,
+        'phases': list(selection.phases),
+        'expected_executions': expected,
+        'executed_cases': executed,
+        'junit_collection': junit,
+    }
+
+
+def evidence(directory, manifest, lease, passed, category, selection,
+             selected_inputs_sha256, ledger):
     output = directory / 'evidence'
     output.mkdir(exist_ok=True)
+    collected = directory / 'guest-results'
+    if collected.is_dir():
+        try:
+            check_tree(collected)
+            shutil.copytree(collected, output / 'guest', dirs_exist_ok=True)
+        except Exception:
+            collection_category = 'collection:unsafe-or-unavailable-evidence'
+            ledger.fail_outcome('collection', collection_category)
+            if passed:
+                category = collection_category
+            passed = False
     data = {'schema_version': 1, 'test': 'install-smoke', 'outcome': 'passed' if passed else 'failed',
             'category': category, 'package_sha256': manifest['artifacts']['package']['sha256'],
             'fixture_sha256': manifest['artifacts']['fixtures']['sha256'],
+            'selected_inputs_sha256': selected_inputs_sha256,
             'baseline_provenance_sha256': lease.state['baseline_sha256'],
             'source': manifest['source'], 'cleanup_phase': lease.state['phase'],
-            'transport': 'guarded-ssh-pytest', 'virtualization': 'libvirt-qemu-snapshot'}
+            'transport': 'guarded-ssh-pytest', 'virtualization': 'libvirt-qemu-snapshot',
+            'selection': selection_evidence(directory, selection), **ledger.data()}
     (output / 'result.json').write_bytes(baseline.encode(data))
     suite = ET.Element('testsuite', name='onpc-system', tests='1', failures='0' if passed else '1')
     case = ET.SubElement(suite, 'testcase', name='install-smoke')
@@ -640,14 +918,11 @@ def evidence(directory, manifest, lease, passed, category):
     ET.ElementTree(suite).write(output / 'results.xml', encoding='utf-8', xml_declaration=True)
     (output / 'results.tap').write_text('TAP version 13\n1..1\n' +
                                        ('ok' if passed else 'not ok') + ' 1 - install-smoke\n')
-    collected = directory / 'guest-results'
-    if collected.is_dir():
-        check_tree(collected)
-        shutil.copytree(collected, output / 'guest', dirs_exist_ok=True)
     for path in output.rglob('*'):
         path.chmod(0o755 if path.is_dir() else 0o644)
     output.chmod(0o755)
     directory.chmod(0o755)
+    return passed, category
 
 
 def main(argv=None):
@@ -665,56 +940,64 @@ def main(argv=None):
     passed = False
     host_before = None
     category = 'runner-failed'
+    selection = None
+    selected_inputs_sha256 = None
+    ledger = RunLedger()
     try:
         if args.list:
-            print_selection(resolve_selection(args.area, args.test))
+            selection = resolve_selection(args.area, args.test)
+            print_selection(selection)
             return 0
-        require(args.area is None and args.test is None,
-                'selection:execution-not-implemented')
         require(Path.cwd() == ROOT == baseline.guest_contract.CHECKOUT, 'guard:checkout')
-        for name in ('ssh', 'qemu-img', 'ssh-keygen', 'virt-customize'):
-            require(shutil.which(name) is not None, 'tools:missing; run ./setup.sh')
+        if not args.check_tools:
+            require(os.geteuid() == os.getegid() == 0,
+                    'guard:root; run from a root shell on the VM host')
+        selection = resolve_selection(args.area, args.test)
+        log(f'selection:scope={selection.scope} phases={len(selection.phases)} '
+            f'executions={len(selection.executions)}')
+        for name in HOST_EXECUTABLES:
+            require(shutil.which(name) is not None,
+                    f'tools:missing:{name}; run ./setup.sh')
         api, guestfs = importlib.import_module('libvirt'), importlib.import_module('guestfs')
         if args.check_tools:
             log('tools:available')
             return 0
-        require(os.geteuid() == os.getegid() == 0, 'guard:root; run from a root shell on the VM host')
-        require(args.artifacts is not None, 'assets:directory-required')
+        with ledger.measure('preparation'):
+            assets = artifact_source(args.artifacts)
         os.umask(0o077)
         directory = Path(tempfile.mkdtemp(prefix='onpc-system-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
         commands = Commands()
         commands.directory = private
-        manifest = stage_assets(args.artifacts.resolve(strict=True), directory / 'input', commands)
-        host_before = host_fingerprint(commands)
-        for relative in ('tests/integration/system_guest.py', 'tests/integration/owned_commands.py',
-                         'tests/integration/system_caller.py', 'tests/system/test_authorization.py',
-                         'tests/system/test_install_smoke.py', 'tests/system/pytest.ini'):
-            shutil.copyfile(ROOT / relative, directory / 'input' / Path(relative).name)
-        (directory / 'input/guest').mkdir()
-        shutil.copyfile(ROOT / 'tests/integration/guest/redact.py', directory / 'input/guest/redact.py')
-        # Include the exact test/helper bytes as well as package and fixtures.
-        inventory = {str(p.relative_to(directory / 'input')): baseline.digest(p)
-                     for p in sorted((directory / 'input').rglob('*'))
-                     if p.is_file() and p.name != 'transfer-sha256.json'}
-        (directory / 'input/transfer-sha256.json').write_bytes(baseline.encode(inventory))
+        with ledger.measure('preparation'):
+            manifest = stage_assets(assets, directory / 'input', commands)
+            host_before = host_fingerprint(commands)
+            selected_inputs_sha256 = stage_selected_inputs(selection, directory / 'input')
+            # Include the exact test/helper bytes as well as package and fixtures.
+            inventory = {str(p.relative_to(directory / 'input')): baseline.digest(p)
+                         for p in sorted((directory / 'input').rglob('*'))
+                         if p.is_file() and p.name != 'transfer-sha256.json'}
+            (directory / 'input/transfer-sha256.json').write_bytes(baseline.encode(inventory))
         api.virEventRegisterDefaultImpl()
         def events():
             while True:
                 api.virEventRunDefaultImpl()
         threading.Thread(target=events, daemon=True, name='libvirt-events').start()
         source = baseline.LibvirtSource(api)
-        lease = Lease(source, commands, lambda disk, digest: baseline.inspect_guest(guestfs, disk, digest))
+        lease = Lease(source, commands, lambda disk, digest: baseline.inspect_guest(guestfs, disk, digest),
+                      ledger=ledger)
         # SIGTERM follows the same finally/lease cleanup as an interactive interruption.
         def interrupted(*_):
             raise KeyboardInterrupt
         signal.signal(signal.SIGTERM, interrupted)
         with lease:
-            lease.prepare()
-            host_key = bootstrap(commands, lease, directory, guestfs)
-            lease.start()
-            hostname = address(source)
+            with ledger.measure('preparation'):
+                lease.prepare()
+            with ledger.measure('bootstrap'):
+                host_key = bootstrap(commands, lease, directory, guestfs)
+                lease.start()
+                hostname = address(source)
             (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
             config = {
                 'directory': str(directory), 'hostname': hostname, 'run': lease.state['run'],
@@ -723,27 +1006,58 @@ def main(argv=None):
             from vm_transport import Transport
             vm = Transport(config, commands, guard=lambda _: lease.guard())
             lease.guard()
-            installed_run(vm, lease, directory)
-            result = json.loads((directory / 'guest-results/result.json').read_text())
-            require(result['outcome'] == 'passed' and result['package_sha256'] ==
-                    manifest['artifacts']['package']['sha256'], 'pytest:guest-evidence')
+            installed_run(vm, lease, directory, selection, ledger)
+            try:
+                result = json.loads((directory / 'guest-results/result.json').read_text())
+                require(result['outcome'] == 'passed' and result['package_sha256'] ==
+                        manifest['artifacts']['package']['sha256'] and
+                        result['selected_inputs_sha256'] == selected_inputs_sha256,
+                        'pytest:guest-evidence')
+            except (OSError, json.JSONDecodeError, KeyError, TypeError, Error) as error:
+                category = ('pytest:guest-evidence' if isinstance(error, Error)
+                            else 'collection:missing-or-invalid-guest-result')
+                ledger.fail_outcome('collection', category)
+                raise Error(category) from error
             lease.guard()
-        require(host_fingerprint(commands) == host_before, 'host:product-state-changed')
+        ledger.pass_outcome('infrastructure')
         passed = True
         category = 'all-checks-passed'
     except (Exception, KeyboardInterrupt) as error:
-        category = str(error) if isinstance(error, (Error, CommandError)) else 'unexpected-failure-or-interruption'
+        # A remote pytest exits through ssh's generic CommandError boundary.
+        # Retain the first classified runner failure instead of replacing it
+        # with that transport wrapper in the aggregate result.
+        category = record_caught_failure(ledger, error)
+        # Keep unexpected host failures diagnosable without exposing exception
+        # text, paths, command output, credentials, or other user data.
+        if category == 'unexpected-failure-or-interruption':
+            log(f'exception-type={type(error).__name__}')
         log(category)
     finally:
         if host_before is not None:
             try:
-                require(host_fingerprint(commands) == host_before, 'host:product-state-changed')
+                with ledger.measure('cleanup'):
+                    require(host_fingerprint(commands) == host_before, 'host:product-state-changed')
             except Exception:
-                passed, category = False, 'host:product-state-changed-or-unverifiable'
+                cleanup_category = 'host:product-state-changed-or-unverifiable'
+                ledger.fail_outcome('cleanup', cleanup_category)
+                if passed:
+                    category = cleanup_category
+                passed = False
         if source:
-            source.close()
-        if directory and manifest and lease and lease.state:
-            evidence(directory, manifest, lease, passed, category)
+            try:
+                with ledger.measure('cleanup'):
+                    source.close()
+            except Exception as error:
+                cleanup_category = error_category(error)
+                ledger.fail_outcome('cleanup', cleanup_category)
+                if passed:
+                    category = cleanup_category
+                passed = False
+        if (directory and manifest and lease and lease.state and selection and
+                selected_inputs_sha256):
+            passed, category = evidence(
+                directory, manifest, lease, passed, category, selection,
+                selected_inputs_sha256, ledger)
             log('evidence:' + str(directory / 'evidence'))
     return 0 if passed else 1
 

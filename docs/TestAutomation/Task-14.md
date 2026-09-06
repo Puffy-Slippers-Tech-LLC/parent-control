@@ -53,8 +53,9 @@ cases to run first. Finish with the full authorization area once.
 
 ## Continuation handoff — 2026-09-05 (incomplete)
 
-**Next result:** after F1, identify the exact helper failure stage in one real
-selected-parent authentication case. Task 14 remains unchecked.
+**Next result:** after F1, distinguish the reason for the helper's
+`authority-response` failure in the selected-parent case. The stage is now known;
+do not rerun merely to rediscover it. Task 14 remains unchecked.
 **Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
 **Reason:** real authentication still fails at an unresolved security boundary;
 the difficult diagnosis remains. Confirm both at the start of the session.
@@ -69,21 +70,28 @@ works; all ten challenges have Polkit denial events, while only the two delibera
 wrong passwords have PAM authentication-failure journal entries. This does not
 establish successful PAM/account checks or the cause of valid-password denial.
 
-**Changed but unqualified:** `system_caller.TextAgent.authenticate` now reduces
+**Now exercised during F1:** `system_caller.TextAgent.authenticate` reduces
 private helper stderr to allowlisted PAM-authentication, PAM-account,
-identity/authority-response, or unknown categories. Its focused regressions and
-host checks passed; this diagnostic change **has not run in the VM**. Reuse
+identity/authority-response, or unknown categories. The selected run at
+`/tmp/onpc-system-sjmucss6/evidence` exercised this code (JUnit's helper line 185
+also corroborates it). A read-only, allowlisted search of that run's retained
+host-private command output found `pam-authenticate` for the deliberate wrong
+password, then `authority-response` for the valid-password attempt. This narrows
+the failing boundary; it does not establish why the authority response failed.
+Neither category reached exported guest evidence. F1 owns that export gap and
+must prove safe retention locally before further qualification. Reuse
 `FixturePassword`, `PersistentCaller`, `TextAgent` and the
 [runner contracts](../../tests/integration/README.md#reusable-implementation-contracts).
 Do not revisit resolved registration/terminal-marker theories without new evidence.
 
-**Next experiment:** validate the new category handling locally, then use F1's
-listed selector for `test_real_selected_parent_authentication[child1]` with its
-real prerequisite closure. Capture the category and safe account/PAM status
-needed to distinguish authentication, account-management and authority-response
-failure in the same attempt. Several earlier full runs have already failed at
-this boundary; this is an instrumented discriminating attempt, not a reset of
-the two-attempt limit. Do not change passwords or policy speculatively.
+**Next experiment:** first inspect the retained evidence and authority-response
+handling; identify a safe discriminating reason/status to capture and validate
+its collection locally. Only then run F1's selected
+`test_real_selected_parent_authentication[child1]` with its real prerequisites.
+Several earlier full runs and two F1 selected failures have already exercised
+this flow. The two-attempt limit is already spent; no unchanged rerun is justified.
+Do not revisit registration/terminal-marker theories or change passwords/policy
+speculatively. F1 acceptance does not depend on repairing this authentication.
 
 **State/evidence:** the recorded runner completed cleanup, restored the baseline
 and domain configuration, preserved the host, and left the VM off. No operation

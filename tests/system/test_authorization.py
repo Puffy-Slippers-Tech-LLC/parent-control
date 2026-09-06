@@ -7,6 +7,7 @@ import pwd
 import pytest
 
 import system_guest as guest
+from system_caller import PersistentCaller
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 DENIED = guest.BUS + '.Error.AccessDenied'
@@ -174,3 +175,141 @@ def test_account_discovery_after_installation(accounts):
                           'authorization:discovery-sort')
             guest.require(all(isinstance(row[2], str) and (not row[2] or row[2].startswith('/'))
                               for row in rows), 'authorization:icon-path')
+
+
+def account_property(uid, interface, prop):
+    return json.loads(guest.run([
+        'busctl', '--system', '--json=short', 'get-property',
+        'org.freedesktop.Accounts', f'/org/freedesktop/Accounts/User{uid}',
+        interface, prop]))['data']
+
+
+def account_state(uid):
+    # Snapshot authoritative enforcement and private preferences without exposing
+    # their contents to pytest assertions or diagnostics.
+    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+               '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
+               'FindUserById', 'x', str(uid)])
+    record = Path('/var/lib/oh-no-parent-control/preferences') / f'{uid}.json'
+    return (
+        record.read_bytes() if record.exists() else None,
+        *(account_property(uid, 'com.endlessm.ParentalControls.SessionLimits', prop)
+          for prop in ('LimitType', 'DailyLimit', 'ActiveExtension')),
+        account_property(uid, 'com.endlessm.ParentalControls.AppFilter', 'AppFilter'),
+    )
+
+
+@pytest.mark.parametrize('role', ('noninteractive', 'system'))
+@pytest.mark.parametrize('method', METHODS)
+def test_ineligible_callers_cannot_use_broker(accounts, role, method):
+    signature, args, _ = invocation(method, role, accounts)
+    reply = call(accounts[role], method, signature, args)
+    guest.require(reply.get('error') == DENIED, 'authorization:ineligible-caller')
+
+
+@pytest.mark.parametrize('role', ('parent1', 'locked', 'kiosk', 'noninteractive', 'system'))
+@pytest.mark.parametrize('method', ('GetPreferences', 'SetParentControl', 'RequestAccess'))
+def test_ineligible_targets_fail_closed(accounts, role, method):
+    caller = 'kiosk' if method == 'RequestAccess' else 'parent1'
+    signature, args, _ = invocation(method, caller, accounts)
+    before = account_state(accounts[role])
+    reply = call(accounts[caller], method, signature, (accounts[role], *args[1:]))
+    guest.require(reply.get('error') == DENIED, 'authorization:ineligible-target')
+    guest.require(account_state(accounts[role]) == before, 'authorization:ineligible-target-write')
+
+
+@pytest.mark.parametrize('role', ('child1', 'child2'))
+def test_enabled_child_request_reaches_authentication_without_grant(accounts, role):
+    target = accounts[role]
+    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
+    try:
+        before = {key: account_state(accounts[key]) for key in ROLES}
+        result = accepted(call(target, 'RequestOwnAccess', '(uub)',
+                               (accounts['parent1'], 300, False)))
+        guest.require(result[1] in ('denied', 'cancelled') and result[2] == 0,
+                      'authorization:enabled-agentless-request')
+        guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                      'authorization:denied-request-write')
+    finally:
+        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+
+
+@pytest.mark.parametrize('target_role', ('child1', 'parent1', 'parent2'))
+def test_icons_match_authoritative_account_properties(accounts, target_role):
+    target = accounts[target_role]
+    method = 'ListManagedUsers' if target_role == 'child1' else 'ListApprovers'
+    path = f'/org/freedesktop/Accounts/User{target}'
+    for icon in ('/usr/share/oh-no-parent-control/app_logo.png', ''):
+        guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
+                   'org.freedesktop.Accounts.User', 'SetIconFile', 's', icon])
+        expected = account_property(target, 'org.freedesktop.Accounts.User', 'IconFile')
+        guest.require(bool(expected) == bool(icon), 'authorization:icon-fixture')
+        for role in ('parent1', 'kiosk'):
+            rows = accepted(call(accounts[role], method))[0]
+            matches = [row for row in rows if row[0] == target]
+            guest.require(len(matches) == 1 and matches[0][2] == expected,
+                          'authorization:authoritative-list-icon')
+        if target_role == 'child1':
+            own = accepted(call(target, 'GetOwnAccount'))
+            guest.require(own[2] == expected, 'authorization:authoritative-own-icon')
+
+
+@pytest.mark.parametrize('surface', ('child1', 'kiosk'))
+@pytest.mark.parametrize('approver', (
+    'child1', 'child2', 'unrelated', 'locked', 'kiosk', 'noninteractive', 'system'))
+def test_ineligible_selected_approvers_fail_closed(accounts, surface, approver):
+    target = accounts['child1']
+    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
+    try:
+        before = {key: account_state(accounts[key]) for key in ROLES}
+        if surface == 'child1':
+            reply = call(target, 'RequestOwnAccess', '(uub)',
+                         (accounts[approver], 300, False))
+        else:
+            reply = call(accounts['kiosk'], 'RequestAccess', '(uuub)',
+                         (target, accounts[approver], 300, False))
+        guest.require(reply.get('error') == DENIED, 'authorization:ineligible-approver')
+        guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                      'authorization:ineligible-approver-write')
+    finally:
+        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+
+
+def test_management_changes_preserve_other_accounts(accounts):
+    before = {key: account_state(accounts[key]) for key in ROLES if key != 'child1'}
+    target = accounts['child1']
+    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 37)))
+    accepted(call(target, 'UpdateRequestPreferences', '(usdbu)',
+                  (target, 'custom', 10.0, True, accounts['parent2'])))
+    accepted(call(accounts['parent1'], 'RevokeOneTimeGrant', '(u)', (target,)))
+    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+    guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                  'authorization:management-cross-account-write')
+
+
+@pytest.mark.parametrize('role,method,original,changed', (
+    ('parent2', 'ListManagedUsers', 1, 0),
+    ('child2', 'GetOwnAccount', 0, 1),
+))
+def test_persistent_caller_revalidates_changed_role(accounts, role, method, original, changed):
+    target = accounts[role]
+    interface = 'org.freedesktop.Accounts.User'
+    path = f'/org/freedesktop/Accounts/User{target}'
+    guest.require(account_property(target, interface, 'AccountType') == original,
+                  'authorization:role-fixture')
+    before = {key: account_state(accounts[key]) for key in ROLES}
+    with PersistentCaller(target) as caller:
+        accepted(caller.call(method))
+        try:
+            guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
+                       interface, 'SetAccountType', 'i', str(changed)])
+            guest.require(account_property(target, interface, 'AccountType') == changed,
+                          'authorization:role-change-not-visible')
+            reply = caller.call(method)
+            guest.require(reply.get('error') == DENIED, 'authorization:stale-caller-role')
+            guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                          'authorization:stale-role-write')
+        finally:
+            guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
+                       interface, 'SetAccountType', 'i', str(original)])
+        accepted(caller.call(method))

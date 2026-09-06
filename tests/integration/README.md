@@ -1,472 +1,174 @@
-# Ubuntu 26.04 integration harness
+# Installed-system runner
 
-## Scope
+Use the [daily guide](../../docs/Test-Automation.md) for command scope and the
+[test contributor guide](../README.md) for local layers and safety prerequisites.
+This document retains the implemented runner and artifact contracts. Initial
+setup tasks, historical test counts, and dated acceptance directories are not
+instructions for a new run.
 
-This contains the H-00 reproducible baseline, captured on 2026-09-01, and the
-H-50 disposable-VM harness.  The machine that captured the baseline is a
-development workstation, not an Oh No! Parent Control installation.  Nothing
-in this document authorizes installing the product, creating accounts,
-changing PAM or Polkit, or changing system services on a development
-workstation.
+## Environment and ownership
 
-The supported deployment target is a clean Ubuntu 26.04 Desktop VM.  The
-exact platform and dependency versions below let the harness distinguish
-package drift or an absent dependency from a regression in the product.  All
-product installation and account/service changes happen over SSH inside a
-marked VM.
+Installed-system tests use the real package and operating-system services on
+the existing guarded `ubuntu26.04` VM. They do not install the product or change
+accounts, PAM, Polkit, services or policy on the development host. An existing
+host product installation is preserved. Detailed identity, baseline and
+recovery requirements are in [Environment.md](Environment.md).
 
-## Captured platform
+The runner exclusively leases the VM, validates the finalized baseline and
+recorded disk/domain identities, restores only outside a complete attempt,
+detaches writable host shares/transfer channels before boot, and leaves the VM
+off with its prior persistent domain configuration restored after cleanup.
+It creates no new VM, snapshot, disk copy or overlay. A real reboot within an
+attempt preserves guest state and must produce a new boot identity.
 
-| Component | Package or command version | Installed | Enabled | Usable | Notes |
-| --- | --- | --- | --- | --- | --- |
-| Ubuntu Desktop | `ubuntu-desktop` 1.570.2; Ubuntu 26.04 LTS | yes | n/a | yes | Kernel: 7.0.0-30-generic. |
-| GNOME Shell | `gnome-shell` 50.1-0ubuntu1.2; `GNOME Shell 50.1` | yes | n/a | yes | Desktop component; no product extension was installed. |
-| AccountsService | `accountsservice` 23.13.9-8ubuntu5.2 | yes | yes | yes | `accounts-daemon.service` was enabled and active. |
-| Malcontent | `malcontent` 0.14.0-0ubuntu1.1 | yes | yes | no | `malcontent-timerd.service` was enabled but inactive; no managed product account or live session was created on this development machine. |
-| fapolicyd | package and executable absent | no | no | no | `fapolicyd.service` was not found. |
-| Flatpak | `flatpak` 1.16.6-1; `Flatpak 1.16.6` | yes | n/a | yes | Client command is available; no test application was installed. |
-| PAM | `libpam0g:amd64` 1.7.0-5ubuntu3.1 | yes | n/a | base library only | `pam_malcontent.so` and its `libpam-malcontent` package were absent. |
+The host and guest tooling sources are `setup.sh`,
+[../test-tools-ubuntu-26.04.txt](../test-tools-ubuntu-26.04.txt),
+and the runner's pinned guest bootstrap configuration. Record actual runtime
+versions in each result; do not use a dated development-workstation package
+table as evidence of the installed guest's environment.
 
-The absence of fapolicyd and the Malcontent PAM module is expected for this
-development-only baseline.  They are required dependencies for a deployment
-or destructive integration VM and must not be silently mocked or substituted.
+## Package and fixture inputs
 
-Re-capture this table on a clean supported VM before changing the supported
-platform.  Use these read-only commands:
+`tools/build_test_artifacts.py` builds without installing the product on the
+host. Use a new empty output directory under `/tmp`, outside the checkout:
 
 ```sh
-. /etc/os-release && printf '%s %s\n' "$PRETTY_NAME" "$VERSION_ID"
-uname -r
-dpkg-query -W -f='${binary:Package}\t${Status}\t${Version}\n' \
-  ubuntu-desktop gnome-shell accountsservice malcontent fapolicyd flatpak \
-  libpam0g libpam-malcontent
-gnome-shell --version
-flatpak --version
-fapolicyd --version
-dpkg -S '*/pam_malcontent.so'
-systemctl is-enabled accounts-daemon.service fapolicyd.service \
-  malcontent-timerd.service
-systemctl is-active accounts-daemon.service fapolicyd.service \
-  malcontent-timerd.service
+make build-test-artifacts OUTPUT_DIR=/tmp/onpc-test-artifacts/run-input
 ```
 
-## Test inventory
+Choose a different empty directory for another build. Output contains
+`artifact-manifest.json`, the named Debian package in `package/`, and
+deterministic native/Flatpak fixture assets in `fixtures/`. The manifest records
+source revision/content digest, source date epoch, architecture, build inputs,
+tool versions, and package/stable-fixture digests.
 
-## Requirement traceability
+`tests/fixtures/build_test_applications.py` supplies real long-running native
+executables, path/space/version-pattern variants, desktop entries and a minimal
+Flatpak runtime/application bundle. `make check-test-fixtures` tests the builder
+and identity-recorded processes with private temporary Flatpak state, never the
+developer's actual installation. `make build-test-fixtures OUTPUT_DIR=...`
+retains a payload for focused fixture work. These are enforcement targets, not
+proof of real-game behavior. Later Snap and game assets must use the same
+verified input discipline.
 
-`tests/requirements.json` maps every stable `ONPC-...` ID in
-`docs/Specification.md` to its responsible component, required test layer, and
-runtime evidence. Maintain the mapping when a requirement or executable test
-changes. Test references are repository-relative existing files under `tests/`;
-source-contract checks may be recorded as supporting references but never as
-acceptance evidence.
+`make verify-test-artifacts FIRST_OUTPUT=... SECOND_OUTPUT=...` performs two
+isolated builds and compares package bytes, contents/metadata, recorded inputs
+and the stable fixture payload. Both outputs must be new. Flatpak delivery
+containers can carry host-clock metadata; their stable payload digest is
+distinct from the exact-byte hashes verified during transfer. Do not claim
+byte-identical delivery containers when only their payloads were compared.
 
-During the staged rollout, run the host-safe structural check with:
+The builder records `DEB_BUILD_OPTIONS=nocheck`: current controller tests require
+the fixed development checkout and run through host checks separately. A
+successful build alone therefore does not establish passing tests. Test the
+current source/package inputs; previous acceptance artifacts are not defaults.
+Future `test-system`/`test-e2e` prepare inputs automatically, and `test-all`
+coordinates host results and VM artifacts for the same source content.
+
+## Running the current installed suite
+
+First run the applicable
+[isolated cleanup-safety regressions](../README.md#cleanup-safety-prerequisites),
+including persistent-caller cleanup if that helper is used. After building and
+verifying the input, invoke the host controller from a root shell:
 
 ```sh
-python3 tools/verify_test_traceability.py --mode stage
+make check-system ARTIFACT_DIR=/tmp/onpc-test-artifacts/run-input
 ```
 
-Only mark a requirement `covered` after the referenced executable test runs the
-behavior. The final release gate uses `--mode final`, which rejects planned
-coverage and records without executable evidence.
+From an administrator's graphical session the equivalent is
+`pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=<verified-directory>`.
+The command resets guest disk changes since the retained baseline. Never run
+it on an unleased VM containing work that must be kept. `VM_IMAGE` is refused.
 
-### Host-safe unit and source-contract tests
+Both Makefile and direct controller paths suppress Python bytecode writes.
+Default host pytest collection excludes `tests/system/`; guest pytest uses
+its own configuration and disables plugin autoload. Do not invoke guest tests
+as host pytest or bypass the controller merely to select a test.
 
-`make check` is the required host-safe baseline command.  It does not install
-the product or modify users, services, PAM, Polkit, AccountsService, or the
-host app filter.  It runs:
+After guarded offline bootstrap, the guest verifies its root-private run marker,
+machine identity distinct from the host, DMI domain UUID, supported Ubuntu
+release, absence of host shares, and package/transfer digests. Only then does
+APT install the exact package. The runner waits for systemd boot completion
+before service assertions; SSH alone is insufficient. A degraded boot does not
+skip the service assertions. Readiness waits never retry installation or a
+failed test assertion.
 
-- JavaScript syntax checks for the child extension;
-- Python unit tests in `tests/unit/` covering broker core, generated broker
-  properties and state-machine transactions, adapters, preferences and
-  migrations, execution-policy rendering, catalog,
-  extension lifecycle, logs, kiosk and parent clients/UI, provisioning,
-  installer, package activation, systemd unit, and PAM limit helper;
-- Python and XML parse checks; and
-- source-contract checks that reject private GNOME Shell APIs and verify that
-  child requests use the broker action without retained or implied privileges.
+The installed suite covers real package content/ownership, service and D-Bus
+readiness, PAM/Polkit/session integration, execution policy and actual reboot.
+Installed authorization coverage is being extended; the
+[Task 14 handoff](../../docs/TestAutomation/Task-14.md#continuation-handoff--2026-09-05-incomplete)
+owns its current status. These tests are not complete graphical E2E acceptance.
+The future E2E runner must obey the
+[real customer-operations contract](../../docs/TestAutomation/E2E-Coverage.md).
 
-Run it from the repository root:
+## Reusable implementation contracts
 
-```sh
-make check
-```
+- `system_runner.Lease`: the existing controller lock spans validation, outer
+  reset, bootstrap, the whole attempt and cleanup. Cleanup is bound to the
+  recorded UUID, live domain identity, run marker, disk identities and snapshot
+  metadata. It must not affect a replacement or unrelated VM.
+- `stage_assets`: freezes the package/fixture manifest and test inputs, verifies
+  canonical fixture digests, and hashes exact transferred bytes, including
+  variable Flatpak containers and executable test code.
+- `vm_transport.Transport`: pinned-key SSH, safely quoted argument transport,
+  constrained archive extraction, bounded readiness and real reboot. Every
+  readiness probe revalidates identity; a guest guard failure is not retried as
+  a transient SSH error. The first phase's evidence is retrieved before reboot.
+- `owned_commands.Commands`: pins directly spawned host/guest processes and
+  bounds interruption cleanup. No guessed process discovery or ownership.
+- `system_guest`: validates the guest/attempt boundary and drives real APT and
+  installed pytest phases. Package assertions account for actual packaged
+  permissions, including the restricted Parent launcher and fapolicyd's
+  tmpfiles-managed configuration ownership.
+- `system_caller.py`: drops real/effective/saved credentials, opens a fresh
+  system-bus connection and verifies the bus-reported UID. Structured replies
+  and private-state assertions stay in private diagnostics, without exposing
+  account contents in public assertion errors.
+- `system_caller.PersistentCaller(uid)`: context-managed real caller connection
+  with `name`, `call(method, signature, args)`, and separate `send(operation)` /
+  `receive(timeout)` operations. EOF closes it; bounded context cleanup signals
+  only its directly spawned pidfd. It is not an authentication agent and does
+  not by itself prove password handling or approval.
+- `tests/system/test_authorization.py`: reusable `batch`, `call`,
+  `account_property` and `account_state` assertions. Account state compares
+  private preferences and public limit/grant/filter state without printing
+  private values. Keep phase expectations aligned with actual collection;
+  fixed historical pass counts are not coverage definitions.
 
-Pytest markers make the test intent selectable. Every current test is marked
-`unit` or `contract`; the remaining markers are reserved for the component and
-guest layers added later in this plan:
+Current bootstrap operates only in the reset guest. Its offline repository
+normalization preserves signing, suites/components and unrelated repositories;
+it does not disable APT authentication. Libguestfs handles close before another
+guest tool opens the image. The pinned SSH key comes from read-only inspection.
+Keep changing implementation details and exact package pins in the controller,
+not duplicated as dated facts in this guide.
 
-```sh
-make check-marker MARKER=unit
-make check-marker MARKER=contract
-```
+## Evidence and failure recovery
 
-The full marker vocabulary is `unit`, `contract`, `component`, `ui`, `system`,
-`e2e`, `slow`, and `guest_mutating`. Source/configuration assertions are
-`contract` tests and are never runtime acceptance evidence. Generate local
-branch-coverage artifacts for the broker, parent, kiosk, common, and tools
-packages with:
-
-```sh
-make check-coverage
-```
-
-This writes HTML and XML reports under the ignored `artifacts/coverage/`
-directory. Coverage is reported by security boundary rather than forced into a
-misleading repository-wide percentage: broker caller/target validation,
-transaction rollback, preferences, migration, execution-policy activation, and
-UID-confined process ownership are the review boundaries. Use the report's
-missing-lines section to identify blind spots; no blanket threshold is applied.
-
-Maintained static checks are available separately and remain host-safe:
-
-```sh
-make check-static
-```
-
-This runs ShellCheck using `.shellcheckrc` and GJS's public module loader for
-the child modules; the existing Node syntax check continues to cover the
-Shell-bound entry point. The Ubuntu archive dependencies are listed in
-`tests/test-tools-ubuntu-26.04.txt`.
-
-Broker generated tests use the committed, deterministic `onpc` Hypothesis
-profile. Re-run them, including committed regression examples, with:
-
-```sh
-make check-unit
-```
-
-### Deterministic application fixtures
-
-`tests/fixtures/build_test_applications.py` source-builds a static
-long-running native target, deterministic AppImage-style copies and desktop
-entries, plus a local Flatpak repository and bundle. `make check-test-fixtures`
-builds and launches them in an unprivileged temporary directory with a private
-Flatpak user installation. It cannot access the development user's real
-Flatpak installation or the system installation. `make build-test-fixtures`
-requires an explicit empty output below `/tmp` and creates only a payload; it
-does not install the fixtures. A later guest-mutating task must copy that
-payload only after the guest guard validates the disposable VM marker.
-
-### Reproducible system-test artifacts
-
-Task 13A defines the package input for later installed-system tests. Build it
-without installing the product on the development host, using an explicit empty
-directory outside this checkout:
-
-```sh
-make build-test-artifacts OUTPUT_DIR=/tmp/onpc-test-artifacts/first
-```
-
-The directory contains `artifact-manifest.json`, the named Debian package at
-`package/`, and the Task 11 payload at `fixtures/`. The manifest records the
-source revision and digest, `SOURCE_DATE_EPOCH`, architecture, tool versions,
-package digest, and fixture-bundle digest. Task 13B consumes this manifest and
-copies only its digest-verified files into a guarded guest.
-
-To establish repeatability, use two new empty directories:
-
-```sh
-make verify-test-artifacts \
-  FIRST_OUTPUT=/tmp/onpc-test-artifacts/first \
-  SECOND_OUTPUT=/tmp/onpc-test-artifacts/second
-```
-
-The command builds from isolated temporary source copies, then compares the
-package file name and SHA-256, package metadata and contents, fixture digest,
-and recorded source/build inputs. It leaves the product uninstalled. Its
-manifest records `DEB_BUILD_OPTIONS=nocheck`: the Task 12 host-controller
-checks require the fixed development-checkout path and run separately through
-the required `make check` validation. The fixture digest covers its stable
-application and runtime payload. Flatpak's generated delivery summary and its
-bundle container carry a host-clock timestamp, so the builder verifies the
-bundle is present without treating that container timestamp as package input.
-
-### Installed-package runner (Task 13B)
-
-Build the Task 13A artifact without installing it, then run the host controller
-from a root shell at the development checkout:
-
-```sh
-make check-system ARTIFACT_DIR=/tmp/onpc-task13a-artifacts/final2-first
-```
-
-From a graphical administrator session, use
-`pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=<output>`.
-Both the Makefile entry point and direct controller execution disable Python
-bytecode writes so root runs cannot leave private caches in the checkout.
-Before installed-system assertions, the guest waits up to 600 seconds for
-`systemctl is-system-running --wait` to report boot completion. SSH availability
-alone does not establish fapolicyd or display-manager readiness. A degraded
-boot still undergoes every required service assertion; no service is restarted
-by this wait and no failed assertion is retried.
-Development dependencies are in `setup.sh`; bootstrap installs the pinned
-`python3-pytest=9.0.2-4` and `openssh-server=1:10.2p1-2ubuntu3.6` only in the
-reset guest. Before installation, guarded offline libguestfs access normalizes
-official Ubuntu archive/security URIs in the prepared guest's Deb822
-`ubuntu.sources` to `https://archive.ubuntu.com/ubuntu/`. Suites, components,
-signing settings and unrelated repositories are preserved. This avoids the
-unreachable regional HTTP mirror; APT authentication stays enabled. The handle
-closes before `virt-customize` installs tools, and a separate read-only handle
-then obtains the pinned SSH host key. Snapshot cleanup restores the original
-APT sources as well as all other guest changes.
-
-This command shuts down the existing `ubuntu26.04` VM, discards changes since
-`oh-no-parent-control-baseline`, and removes its writable `/Data` share and
-SPICE transfer channels before boot. It creates no replacement VM, disk copy or
-overlay. At the end, it restores the baseline and prior persistent domain XML
-and leaves the VM off. The named snapshot is retained unchanged.
-
-The host installs no product. The guest validates its root-private run marker,
-prepared machine identity distinct from the host, DMI domain UUID, Ubuntu
-release, absence of host shares, and package/transfer digests. Only after these
-checks does APT install the exact transferred `.deb`. Guest pytest checks
-installed version/content, file ownership/modes, private configuration, service
-readiness, real D-Bus activation, PAM, Polkit, session registration, generated
-and loaded execution rules, and first-install reboot markers. The host requests
-an actual reboot; a changed boot ID and a second pytest phase verify activation.
-A failed assertion is never retried, and skipped/missing tests cannot pass.
-The static broker is activated through its public system D-Bus service before
-readiness is asserted. Installed-file expectations include the Parent launcher's
-`root:sudo` restriction and Ubuntu fapolicyd's explicit tmpfiles assignment of
-its configuration tree to `root:fapolicyd`; other packaged files remain root-owned.
-
-The implementation contracts are:
-
-- `system_runner.Lease`: the existing Task 12 lock spans validation, reset,
-  bootstrap, tests and cleanup. VM cleanup is bound to the recorded UUID,
-  libvirt domain ID, run marker, disk identities and snapshot metadata.
-- `vm_transport.Transport`: pinned-key SSH, quoted argument transfer,
-  constrained archive extraction, bounded readiness and actual reboot. Fixed
-  read-only readiness probes wait through SSH connection/handshake failures
-  using the controller's libvirt timer events and one 330-second deadline.
-  Every probe revalidates VM identity; guest guard failures and a successfully
-  read but unchanged boot ID fail immediately. Installation and pytest calls
-  never repeat. The first phase's evidence is retrieved before reboot so a
-  later loss of SSH cannot erase its result.
-- `owned_commands.Commands`: the same host/guest command implementation;
-  interruption signals only pidfds opened for directly spawned children.
-  It never discovers signal targets by process name, environment, runtime path,
-  ancestry or a system-wide process scan.
-- `system_guest` and `tests/system/test_install_smoke.py`: guard, real APT
-  installation and guest pytest checks. The guest suite is excluded from
-  default host collection and runs with plugin autoload disabled and its own
-  pytest configuration.
-- Task 14 work in progress: `system_caller.py` checks the guest guard, drops
-  real/effective/saved credentials and opens a fresh system-bus connection. It
-  verifies the bus-reported UID before returning structured replies through
-  private controller diagnostics. `test_authorization.py` currently collects
-  142 cases for the initial method/role matrix, cross-child reads and writes,
-  private-record access, log component confinement, and account discovery.
-  The runner transfers and hashes both files and requires `authorization.xml`
-  after the reboot phase. This is not full Task 14 acceptance: enabled-child
-  requests and authentication revalidation races still need implementation.
-  Account setup preserves read-only Malcontent usage probes as root, parent,
-  child and kiosk for diagnosing the real dependency identity boundary. The
-  local broker self-read helper repair passes host checks but awaits rebuilt
-  package acceptance; see the Task 14 continuation handoff for evidence.
-  Test infrastructure activation is `none`; no saved-data migration applies.
-- `stage_assets`: a private frozen copy of the Task 13A package/fixture
-  manifest, verified canonical fixture payload, and exact transfer hashes for
-  all bytes, including Flatpak's variable container and the executed test code.
-
-Before any live system run, execute the cleanup prerequisite separately:
-
-```sh
-/usr/bin/python3 -m pytest tests/unit/test_system_runner_cleanup_safety.py tests/unit/test_prepare_host_cleanup_safety.py -q
-/usr/bin/python3 -m pytest tests/unit/test_system_runner.py tests/unit/test_vm_transport.py tests/unit/test_system_guest.py -q
-/usr/bin/python3 -m pytest tests/unit/test_system_caller.py -q
-```
-
-The root-private `system-run.json` is separate from Task 12's immutable
-`phase.json`. An incomplete previous run is refused: preserve its state and
-artifacts for identity-checked recovery, without deleting state or signalling
-guessed processes. A changed VM, disk, or snapshot identity prevents cleanup
-from touching a replacement. Normal failure/interruption restores the owned
-guest and still reports a failed attempt.
-
-Every attempt retains a unique `/tmp/onpc-system-*/` directory. Its public
+Every attempt retains a unique `/tmp/onpc-system-*/` directory. Public
 `evidence/` contains aggregate `result.json`, xUnit `results.xml`, TAP
-`results.tap`, and redacted guest logs plus pytest `installed.xml` and
-`rebooted.xml`. Raw command diagnostics and the temporary SSH key remain
-root-private. Only diagnostic copies are redacted using the existing
-`guest/redact.py` helper; source logs and journals are read only.
+`results.tap`, redacted guest logs, and the applicable guest phase XML
+(`installed.xml`, `rebooted.xml`, `authorization.xml`). Raw diagnostics and
+temporary SSH credentials remain root-private. Use only validated redacted
+exports; read source logs and journals without modifying them.
 
-Results record the exact package SHA-256, stable fixture digest, and
-`baseline_provenance_sha256`. The last value hashes the finalized Task 12
-record, including preparation/source digests and snapshot identity; it is not a
-hash of the writable active QCOW2. Cleanup independently checks immutable
-backing hashes, snapshot metadata, and product-free offline inspection. Host
-product/PAM fingerprints are checked even after failure.
+Results record package SHA-256, stable fixture digest and
+`baseline_provenance_sha256`. The last hashes finalized provenance, not the
+writable active QCOW2. Cleanup independently checks immutable backing hashes,
+snapshot metadata, product-free offline inspection and host product/PAM
+fingerprints, including after failure.
 
-Task 13B passed live acceptance on 2026-09-04: both pre-reboot and post-reboot
-phases passed (four cases, no skips), followed by verified baseline restoration,
-unchanged host product/PAM fingerprints, restored domain configuration and VM off.
-See its [accepted handoff](../../docs/TestAutomation/Task-13.md#accepted-handoff--task-13b-completed-2026-09-04).
-Evidence is retained at `/tmp/onpc-system-g33ljzev/evidence/`; input artifacts
-are at `/tmp/onpc-task13b-acceptance-ndbI8L/input/`. Recheck temporary paths before
-reuse. Preserve failed attempts separately. The bytecode access warning is
-resolved, and SSH readiness plus guest boot-completion waits passed live testing.
+An incomplete `system-run.json` prevents a new attempt. Preserve it and its
+evidence for [identity-verified recovery](Environment.md#interrupted-or-invalid-state).
+Never delete controller state or rebuild the baseline to conceal an error.
+Normal cleanup retains a failed outcome. Missing/skipped/failed phases cannot
+be called a complete pass; a later diagnostic success does not erase an earlier
+failure. The pending shared evidence/aggregate work adds executable
+scenario/variant/step reconciliation; current file-level requirement validation
+alone cannot establish that stronger claim.
 
-This is test-only integration: activation is `none`, with no product saved-data
-migration. Later tasks own detailed authorization, policy, usage and graphical
-coverage; this lifecycle smoke alone does not fully cover those requirements.
-
-### Source-VM account preparation
-
-The existing `ubuntu26.04` source VM exposes this development checkout at the
-fixed path `/Data/Code/PST/parent-control` through its `/Data` virtiofs share.
-That writable share is a preparation convenience. Its host files are outside
-the VM snapshot and are not restored by a baseline reset. Automated test runs
-must detach it before booting the existing VM for testing.
-
-Before product installation or baseline capture, open a terminal inside that
-VM and run the following from the fixed checkout:
-
-```sh
-cd /Data/Code/PST/parent-control
-make prep-vm
-```
-
-The launcher requests root privileges through sudo when needed, which may prompt
-for your sudo password. This is separate from the shared test-account password
-prompt below. Running as root skips sudo.
-
-The command accepts no VM, image, UUID, checkout, or output arguments. It first
-verifies root, virtualization, Ubuntu 26.04, hostname `ubuntu26.04`, the complete
-fixed checkout, and the absence of every product installation/residue category.
-It then prompts exactly once for a shared test-only password and prepares the
-two shared parent preview identities as local administrators and the two shared
-child preview identities as standard users. The
-password is sent only to `chpasswd` on standard input and is not stored in the
-preparation record.
-
-This command prepares accounts only. It does not install Oh No! Parent Control,
-change libvirt state, capture an image, or run product tests. It must never be
-run on the development host. Repeating it in the guarded source VM reasserts the
-same account properties and changes only the shared password. The resulting
-root-owned mode-`0600` record is
-`/etc/oh-no-parent-control-test-baseline.json`.
-
-This test-only preparation adds no packaged system integration, so its package
-update activation classification is `none`. It changes no product saved-data
-schema, so no data migration applies.
-
-### Reusable baseline snapshot on the existing VM
-
-`make prep-host` creates the libvirt-managed internal snapshot
-`oh-no-parent-control-baseline` on the existing `ubuntu26.04` VM at
-`qemu:///system`. It stores the saved disk state inside the VM's current QCOW2.
-It does not copy the VM, convert its image, create an external overlay, or
-define another domain. Normal testing writes to the existing VM; reverting
-the named snapshot restores the clean baseline repeatedly.
-
-The exact operator sequence is:
-
-1. On the development host, run `./setup.sh` if the pinned tools are missing.
-2. Inside `ubuntu26.04`, run `make prep-vm` from
-   `/Data/Code/PST/parent-control`.
-3. On the development/libvirt host, enter a root shell, change to that checkout,
-   and run `make prep-host`.
-4. Let the controller shut down the VM cleanly, inspect it read-only, and create
-   the snapshot. Do not start the VM or change its storage concurrently.
-5. Start the same VM for testing. Preserve the named snapshot.
-
-The controller resolves the active disk and verifies its QCOW2 chain ends at
-`/Data/virt-manager/ubuntu26.04.qcow2`. Existing backing files and unrelated
-snapshots are supported. The shutdown deadline is 180 seconds; it never
-force-stops the VM. Offline libguestfs inspection explicitly uses read-only
-QCOW2 access and verifies the preparation marker, accounts, and absence of the
-product in the guest. An installed product on the host is allowed and ignored.
-
-Plain `make prep-host` accepts no resource overrides and installs no packages.
-Dependency diagnostics do not connect to libvirt or write files:
-
-```sh
-/usr/bin/python3 tests/integration/prepare_host.py --help
-/usr/bin/python3 tests/integration/prepare_host.py --check-tools
-```
-
-The controller stores only its private lock and atomic `phase.json` under
-`/Data/virt-manager/oh-no-parent-control-baseline-state/` (root-owned, directory
-mode 0700 and files mode 0600). The record contains the domain and disk
-identities, preparation evidence, backing-chain digests, snapshot creation
-identity, and recovery phase. Libvirt owns the snapshot metadata; there is no
-separate baseline image, image checksum sidecar, or copied provenance artifact.
-Files left by an earlier copy-based workflow are not used or deleted.
-
-Phases are validation, shutdown requested, source off, snapshot requested,
-and finalized. After interruption, rerun `make prep-host`. If libvirt already
-created the snapshot, the controller validates its recorded operation identity,
-domain layout, and internal disk snapshot before finishing. A partial or
-unrelated same-name snapshot is refused and preserved for inspection.
-If the fixed controller directory exists but is empty with guest-mapped
-ownership or an incorrect mode, the host controller repairs it to host-root
-ownership and mode `0700`; any directory containing an entry remains refused
-and unchanged for inspection.
-Completed runs verify and preserve the original baseline even while the VM is
-running or has the product installed for testing. They neither recapture nor
-revert it. Missing/replaced snapshots and changed backing files are refused.
-Diagnostics contain categories, not raw account records or credentials.
-The libvirt event loop remains active throughout hashing, offline inspection,
-and disk checks so server keepalives are answered during long operations.
-An absent baseline is discovered by listing snapshots and is a normal creation
-case. Progress distinguishes source hashing, offline inspection, and disk checks.
-
-To restore the baseline between tests, first shut down the test guest cleanly:
-
-```sh
-virsh --connect qemu:///system shutdown ubuntu26.04
-virsh --connect qemu:///system domstate ubuntu26.04
-```
-
-Wait until the state is `shut off`. Then restore and boot the same VM:
-
-```sh
-virsh --connect qemu:///system snapshot-revert ubuntu26.04 oh-no-parent-control-baseline
-virsh --connect qemu:///system start ubuntu26.04
-```
-
-Revert discards guest disk changes made since the baseline, including test
-installations. The saved snapshot remains available for the next reset. The
-host's shared `/Data` files are outside the VM disk and are not restored.
-Automated test runners must detach that writable host share while the VM is
-off before booting a test run; reverting restores the saved domain definition,
-so runners must repeat that step after each reset. The snapshot also does not
-cover external firmware NVRAM or TPM state; such devices are refused.
-
-This tooling is development-only: activation classification is `none`, and no
-product saved-data migration applies. Task 12C verifies the actual snapshot;
-later runner work uses this existing VM with serialized baseline resets.
-
-### Reusable integration guards and evidence
-
-The previous cloud-image setup command has been removed.
-`tests/integration/harness.py` retains the existing identity guards, SSH
-transport, redaction, archive validation, and explicit owned-VM cleanup for
-later runners. These helpers are not another supported baseline path.
-Later runners must use the existing VM and restore its named baseline between
-runs. The retained disposable-VM helpers do not yet implement that lifecycle.
-
-The guest guard requires root, virtualization, Ubuntu 26.04, the exact
-hostname, and a root-owned mode-0600 marker whose random token also matches
-the controller's private state. Artifact collection redacts tokens,
-credentials, and private keys before checksumming. Extraction rejects links,
-devices, and path traversal. Existing owned-VM cleanup requires matching
-name/confirmation, token, domain description, and exact recorded disk paths.
-
-The host-controller regressions use mocked libvirt, inspection, and image
-operations; they require neither a running VM nor root:
-
-```sh
-python3 -m pytest tests/unit/test_prepare_host_cleanup_safety.py -q
-python3 -m pytest tests/unit/test_prepare_host.py -q
-make check
-git diff --check
-```
-
-Public tool contracts: [libguestfs Python API](https://libguestfs.org/guestfs-python.3.html),
-[libvirt event API](https://libvirt.org/html/libvirt-libvirt-event.html),
-[libvirt snapshots](https://libvirt.org/formatsnapshot.html),
-and [qemu-img](https://www.qemu.org/docs/master/tools/qemu-img.html).
+Existing tests for controller guards, transport and guest assertions remain
+ordinary regressions, even though the original runner implementation task is
+complete. Repeated live smoke qualification belongs to harness changes or
+diagnosis, not every daily run. No documentation cleanup authorizes deletion
+of historical evidence or logs.

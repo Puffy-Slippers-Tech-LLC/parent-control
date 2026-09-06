@@ -89,6 +89,15 @@ Canonical's current setup instructions are:
 
 ## Prepare each release
 
+Automated regression acceptance follows the
+[test automation guide](Test-Automation.md). Record evidence for the exact
+release source/package and supported environment before publishing. Local
+syntax/unit checks or a previously accepted package do not certify a new
+release. The comprehensive `make test-all` gate remains planned until its
+implementation and full acceptance are complete; do not claim it has run when
+only the current focused commands are available. Publisher account/key setup
+is separate from daily test execution.
+
 1. Use a dedicated clean release checkout and install the repository-recorded
    development and publishing tools. `setup.sh` installs development
    dependencies, not the product itself:

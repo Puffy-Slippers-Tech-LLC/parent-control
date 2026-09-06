@@ -1,7 +1,11 @@
 # Task 16 — Installed time authority, PAM, and sessions
 
 Execute 16A and 16B separately. All clock, account, and session changes are
-confined to disposable guests.
+confined to the guarded existing VM. Reset the retained baseline only outside
+complete attempts; create no VM copies, overlays, or intermediate checkpoints.
+Label coherent guest-clock controls as environment-boundary evidence under
+[E2E-Coverage.md](E2E-Coverage.md). Real PAM/system calls and controlled clocks
+do not substitute for graphical login or natural customer expiry journeys.
 
 ## Task 16A
 
@@ -18,14 +22,14 @@ confined to disposable guests.
   2. Grant the minimum 0.1 minute and verify fixed-duration accumulation against
      both daily remaining time and an existing later grant.
   3. Test ordinary midnight and both DST transition directions in separate
-     disposable boots. Keep the entire guest clock coherent, preload artifacts,
+     guarded attempts. Keep the entire guest clock coherent, preload artifacts,
      and record timezone, boot ID, clocks, and package digests.
   4. Publish reusable guest time/state assertions and update time requirement
      mappings. Never use a production clock hook or change the host clock.
 - Verification:
   - Run each clock scenario from a fresh testbed; collect Malcontent replies
     and AccountsService properties with recorded clock context.
-  - Run `make check-system VM_IMAGE=<verified-baseline>`, `make check`, and
+  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
     `git diff --check`.
 - Completion criteria: real system authorities match the documented time formula
   and local-day semantics.
@@ -46,17 +50,26 @@ confined to disposable guests.
   2. Create real child sessions. Prove runtime caps are cleared only for managed
      children, broker restart clears their stale caps, and expiry does not end
      the live session or another user's foreground session.
+     Include real idle, suspend/resume and concurrent-session usage boundaries;
+     declare any guest environment controls and preserve actual clock/session
+     evidence. Graphical suspend/wake and resumed-use paths belong to Task 26B.
   3. Verify zero time denies fresh-login account checks and retained-session
      unlock authentication; a valid grant permits both. Distinguish confirmed
      exhaustion from an indeterminate backend failure.
   4. Record logind/PAM/session evidence and reusable assertions for Task 22.
      Graphical lock-screen and GDM proof remains in that later task.
   5. Update PAM, session-lifetime, and backend login/unlock mappings.
+  6. Review the timer/store failure and bounded-storage obligations in the
+     threat coverage matrix. Exercise applicable unavailable/corrupt/read-only
+     dependency states through real guarded OS operations. Verify any claimed
+     security bound against the selected dependency version; unresolved scope
+     or vulnerability evidence must remain explicit for final acceptance,
+     not be replaced by a mocked successful timer response.
 - Verification:
   - Run session-controller cleanup-safety regressions in isolation first.
   - Run fresh-testbed PAM/session cases; collect PAM results, logind state,
     usage/grants, boot IDs, timezone, clocks, and redacted logs.
-  - Run `make check-system VM_IMAGE=<verified-baseline>`, `make check`, and
+  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
     `git diff --check`.
 - Completion criteria: backend login/unlock and session lifetime match the
   specification without disturbing other users.

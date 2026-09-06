@@ -4,6 +4,12 @@ Execute 23A and 23B separately. The child and kiosk use one GTK form: shared
 helpers must accept an explicit surface and preserve differences in account
 selection, broker method, mute preference, and exit behavior.
 
+Follow [E2E-Coverage.md](E2E-Coverage.md). Enumerate assigned scenario variants
+and execute complete graphical attempts. Shared helpers send real guest input
+and observe results; they cannot call approval methods, inject grants, fake a
+Polkit agent, or restore VM state between steps. Task 24 implements kiosk
+variants; local shared-form component mocks do not fulfill either E2E surface.
+
 ## Task 23A
 
 - Title: Automate real authentication and atomic child approval.
@@ -31,9 +37,10 @@ selection, broker method, mute preference, and exit behavior.
      and update identity, authorization, and transaction mappings.
 - Verification:
   - Run cleanup-safety regressions in isolation before process fixtures.
-  - Run denial/cancel and both approval cases in separate fresh overlays.
+  - Run denial/cancel and both approval cases as complete independent attempts,
+    resetting the retained baseline only outside attempts.
     Correlate screens, correlation IDs, processes, AppFilter, grants, and logs.
-  - Run `make check-e2e VM_IMAGE=<verified-baseline> SCENARIO=<child-approval>`,
+  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
     `make check`, and `git diff --check`.
 - Completion criteria: real child approval preserves identity, atomicity,
   isolation, and least authority.
@@ -61,7 +68,8 @@ selection, broker method, mute preference, and exit behavior.
 - Verification:
   - Run focused shared-form regressions through
     `tools/run-ui-tests --timeout <duration> <pytest-selectors>`.
-  - Run `make check-e2e VM_IMAGE=<verified-baseline> SCENARIO=<child-form>`
-    from a fresh overlay, `make check`, and `git diff --check`.
+  - Run all assigned variants with
+    `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
+    `make check`, and `git diff --check`.
 - Completion criteria: overlay form behavior is proven and shared cases are
   ready for the dedicated kiosk without duplicating authentication logic.

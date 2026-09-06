@@ -61,12 +61,13 @@ do not rerun merely to rediscover it. Task 14 remains unchecked.
 the difficult diagnosis remains. Confirm both at the start of the session.
 The authorized scope
 is this development host and the existing guarded `ubuntu26.04` VM. Follow the
-[current continuation](Continuation.md); finish F1 before further diagnosis.
+[current continuation](Continuation.md); F1 is now accepted, and 19P is next in
+the backlog before this authentication diagnosis resumes.
 
-**Known:** latest `/tmp/onpc-system-kpjcrm54/evidence/guest/authorization.xml`
-records 213 passed and eight `agent:unexpected-denied` failures in 94.800 s.
-Registration and selected-identity prompts work. The corrected journal collector
-works; all ten challenges have Polkit denial events, while only the two deliberate
+**Known:** latest `/tmp/onpc-system-vbx_zcy6/evidence/guest/authorization.xml`
+records 213 passed and eight `agent:unexpected-denied` failures in 91.459 s.
+Registration and selected-identity prompts work. Earlier journal evidence has
+Polkit denial events for all ten challenges, while only the two deliberate
 wrong passwords have PAM authentication-failure journal entries. This does not
 establish successful PAM/account checks or the cause of valid-password denial.
 
@@ -78,8 +79,12 @@ also corroborates it). A read-only, allowlisted search of that run's retained
 host-private command output found `pam-authenticate` for the deliberate wrong
 password, then `authority-response` for the valid-password attempt. This narrows
 the failing boundary; it does not establish why the authority response failed.
-Neither category reached exported guest evidence. F1 owns that export gap and
-must prove safe retention locally before further qualification. Reuse
+Neither category reached that earlier run's exported guest evidence. F1's final
+unselected run now exports all ten reduced per-attempt records: two
+`pam-authenticate` wrong-password denials and eight `authority-response`
+valid-password denials. Exact case/attempt associations, redaction, original
+failures and cleanup passed the [F1 acceptance audit](Evidence/F1-Qualification-2026-09-06.md).
+This establishes the export boundary, not the authority failure's cause. Reuse
 `FixturePassword`, `PersistentCaller`, `TextAgent` and the
 [runner contracts](../../tests/integration/README.md#reusable-implementation-contracts).
 Do not revisit resolved registration/terminal-marker theories without new evidence.
@@ -97,8 +102,10 @@ speculatively. F1 acceptance does not depend on repairing this authentication.
 and domain configuration, preserved the host, and left the VM off. No operation
 was pending at that checkpoint; verify ownership before a new attempt. Preserve
 unrelated concurrent edits. [Recorded checks, artifact digests and earlier
-attempts](Evidence/Task-14-2026-09-05.md) remain evidence for their inputs; the
-package build predates the new diagnostics. Verify applicable inputs or rebuild.
+attempts](Evidence/Task-14-2026-09-05.md) remain evidence for their inputs. The
+[F1 acceptance record](Evidence/F1-Qualification-2026-09-06.md) supplies the newer
+verified artifacts and exported diagnostic identities. Verify package-input
+applicability before reusing them for a changed-source attempt.
 
 **Remaining:** basic authentication on both surfaces; in-flight matrix;
 stale/removed identity and eligibility; completed authentication after requester

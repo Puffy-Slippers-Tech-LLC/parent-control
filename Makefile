@@ -117,12 +117,14 @@ prep-host:
 check-system:
 	@test -z "$(VM_IMAGE)" || (echo 'VM_IMAGE is obsolete: check-system uses the fixed ubuntu26.04 baseline snapshot' >&2; exit 2)
 	@test -z "$(LIST)" -o "$(LIST)" = "1" || (echo 'LIST must be 1 when supplied' >&2; exit 2)
+	@test -z "$(QUALIFICATION_FAILURE)" -o "$(QUALIFICATION_FAILURE)" = "1" || (echo 'QUALIFICATION_FAILURE must be 1 when supplied' >&2; exit 2)
 	@test "$(LIST)" = "1" -o -n "$(ARTIFACT_DIR)" || (echo 'Usage: make check-system ARTIFACT_DIR=/tmp/onpc-test-artifacts/first' >&2; exit 2)
 	@/usr/bin/python3 -B tests/integration/system_runner.py \
 		$(if $(ARTIFACT_DIR),--artifacts "$(ARTIFACT_DIR)") \
 		$(if $(AREA),--area "$(AREA)") \
 		$(if $(TEST),--test "$(TEST)") \
-		$(if $(LIST),--list)
+		$(if $(LIST),--list) \
+		$(if $(QUALIFICATION_FAILURE),--qualification-failure)
 
 .PHONY: check-system
 

@@ -16,6 +16,7 @@ def agent():
     instance = caller.TextAgent.__new__(caller.TextAgent)
     instance.master = 10
     instance.pending = b''
+    instance.record_diagnostic = Mock()
     return instance
 
 
@@ -79,6 +80,11 @@ def test_authentication_reports_actual_terminal_outcome(monkeypatch, capsys,
     assert 'private-user' not in output.out
     assert password._value.decode() not in output.out
     assert output.err == ''
+    outcome = ('accepted' if marker.endswith(b'COMPLETE') else
+               'denied' if marker.endswith(b'FAILED') else 'cancelled')
+    instance.record_diagnostic.assert_called_once_with(
+        expected='accepted' if succeeds else 'denied', outcome=outcome,
+        helper_category='unclassified' if outcome == 'denied' else None)
 
 
 def test_terminal_outcomes_are_consumed_in_stream_order():
@@ -90,8 +96,14 @@ def test_terminal_outcomes_are_consumed_in_stream_order():
 
 
 @pytest.mark.parametrize('diagnostic,category', [
+    (b'polkit-agent-helper-1: pam_start failed:', 'pam-start'),
+    (b'polkit-agent-helper-1: pam_set_item failed:', 'pam-set-item'),
     (b'polkit-agent-helper-1: pam_authenticate failed:', 'pam-authenticate'),
     (b'polkit-agent-helper-1: pam_acct_mgmt failed:', 'pam-account'),
+    (b'polkit-agent-helper-1: pam_get_item failed:', 'pam-identity'),
+    (b'polkit-agent-helper-1: Tried to auth user', 'pam-identity-mismatch'),
+    (b'Error getting authority:', 'authority-unavailable'),
+    (b'Error constructing identity:', 'authority-identity'),
     (b'polkit-agent-helper-1: error response to PolicyKit daemon:', 'authority-response'),
     (b'unknown helper error:', 'unclassified'),
 ])
@@ -106,6 +118,8 @@ def test_denied_helper_diagnostics_export_only_fixed_category(monkeypatch, capsy
     with pytest.raises(caller.guest.GuestError) as error:
         instance.authenticate(password)
     assert str(error.value) == 'agent:unexpected-denied'
+    instance.record_diagnostic.assert_called_once_with(
+        expected='accepted', outcome='denied', helper_category=category)
     assert capsys.readouterr() == (
         'onpc-system: stage=authentication outcome=denied\n'
         'onpc-system: stage=authentication-helper outcome=denied '

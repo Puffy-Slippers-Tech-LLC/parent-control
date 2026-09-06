@@ -1,22 +1,17 @@
 # Current implementation continuation
 
-Updated: 2026-09-05. This is the next-session pointer; the
-[master checklist](Test-Automation.md#unfinished-tasks) owns completion.
+Updated: 2026-09-06. The [master checklist](Test-Automation.md#unfinished-tasks)
+owns completion.
 
-- Task: **F1 — Focused installed diagnosis**.
-- Status: **in progress; failure classification verified, diagnostic export gap identified**.
-- Active handoff: [F1 continuation](Task-F1.md#continuation-handoff).
-- Next slice: retain allowlisted authentication-helper categories in exported
-  evidence; prove retention and redaction locally before another VM attempt.
-- Recommended model/effort: **`gpt-5.6-sol` / `medium`**. Ask for confirmation in
-  the new session before implementation.
-- Assessment: **keep model / raise effort**; the private-output/export boundary
-  needs redaction and failure-path regressions; another unchanged run adds no evidence.
-- Scope: this development/host machine and the existing guarded `ubuntu26.04` VM.
-- Task 14's [saved handoff](Task-14.md#continuation-handoff--2026-09-05-incomplete)
-  remains incomplete. Its diagnostic code has run: valid-password denial reports
-  `authority-response` privately. Fixing authentication is not an F1 gate.
-
-Use the [standard session loop](../Test-Automation.md#continue-implementation-in-fresh-sessions).
-Update this pointer after each slice under the
-[handoff rules](Implementation-Workflow.md#handoff-format-and-cost-review).
+- **F1 is complete.** [Acceptance and completion handoff](Task-F1.md#completion-handoff).
+- Next task: **19P — Prove graphical backend compatibility**;
+  [task definition](Task-19.md#task-19p).
+- Next result: establish a supported backend path for the existing guarded VM,
+  then prove its smallest keyboard/mouse/screenshot smoke with safe cleanup.
+- Settings: **`gpt-6-astra` / `high`**; raise model / raise effort. F1 is solved;
+  supported graphical integration and ownership/secret-capture boundaries bring
+  new uncertainty. Confirm both settings when starting the next task.
+- Scope: development host and existing guarded `ubuntu26.04` VM. All F1 commands
+  finished; cleanup passed and the VM was confirmed off. No operation is pending.
+- Task 14 retains its eight known authentication failures; their diagnostics
+  are now verified in exported installed evidence.

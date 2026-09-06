@@ -755,6 +755,28 @@ def test_full_lease_preserves_baseline_and_restores_original_config(lease_rig):
     assert lease.fd is None
 
 
+@pytest.mark.parametrize('fault', [None, 'mismatch', 'interrupt'])
+def test_baseline_proof_time_is_recorded_on_success_refusal_and_interruption(lease_rig, fault):
+    lease, _ = lease_rig
+    clock = iter((10.0, 17.5, 20.0, 20.25))
+    ledger = runner.RunLedger(monotonic=lambda: next(clock))
+    lease.ledger = ledger
+    if fault == 'mismatch':
+        lease.capture.verify_snapshot = Mock(return_value={'changed': True})
+    elif fault == 'interrupt':
+        lease.capture.verify_snapshot = Mock(side_effect=KeyboardInterrupt)
+    expected = (pytest.raises(runner.Error, match='baseline:changed') if fault == 'mismatch'
+                else pytest.raises(KeyboardInterrupt) if fault == 'interrupt'
+                else runner.nullcontext())
+    with expected:
+        with lease:
+            assert ledger.durations['preparation'] == 7.5
+    assert ledger.durations['preparation'] == 7.5
+    assert lease.fd is None
+    lease.source.domain.create.assert_not_called()
+    lease.source.domain.revertToSnapshot.assert_not_called()
+
+
 def test_interruption_restores_owned_vm_and_preserves_failure(lease_rig):
     lease, _ = lease_rig
     with pytest.raises(KeyboardInterrupt):

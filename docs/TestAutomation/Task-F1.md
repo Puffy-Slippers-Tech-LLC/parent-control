@@ -2,8 +2,9 @@
 
 This brings the diagnostic selection and minimum evidence work forward from
 Tasks 28A/27. Extend the existing runner; do not build another VM framework or
-wait for the complete CI/evidence platform. All interfaces below are **planned**
-until this task's implementation and verification pass.
+wait for the complete CI/evidence platform. **Accepted on 2026-09-06.**
+The interfaces below are implemented and verified; see the
+[acceptance evidence](Evidence/F1-Qualification-2026-09-06.md).
 
 - Depends on: the implemented [installed runner](../../tests/integration/README.md).
 - Complexity: high; selection must preserve prerequisite, ownership and result
@@ -53,7 +54,7 @@ until this task's implementation and verification pass.
    accepted baseline. Do not recreate it, weaken checks, or install new host
    tooling as an incidental optimization.
 
-Proposed interface, not executable instructions until implemented:
+Implemented interface:
 
 ```sh
 make check-system LIST=1 AREA=authorization
@@ -82,76 +83,80 @@ make check-system ARTIFACT_DIR=<verified-directory> AREA=authorization
 The next work is the early backend feasibility check, then Task 14's smallest
 unresolved authentication case under the [implementation workflow](Implementation-Workflow.md).
 
-## Acceptance disposition after the evidence audit
+## Acceptance disposition
 
-This records evidence and gaps against the existing work/verification requirements;
-it does not replace the master completion checkbox or relax acceptance.
+All F1 criteria are met. This qualifies the runner's selection and diagnostics;
+the original nonpassing Task 14 product/helper result remains nonpassing.
 
-| Boundary | Evidence or remaining work |
+| Boundary | Accepted evidence |
 | --- | --- |
-| Selected expected denial | `test_method_role_matrix[ListManagedUsers-child1]` passed in `/tmp/onpc-system-isjpweip/evidence`; package prerequisites also passed. |
-| Selected allowed/denied pair | A selected allowed authorization case remains unproven; use an already-working case such as `test_method_role_matrix[ListManagedUsers-parent1]`, not the broken valid-password flow. |
-| Original-failure preservation | `/tmp/onpc-system-sjmucss6/evidence` proves the aggregate authorization failure survives SSH, with exact scope and successful collection/cleanup. Do not repeat this qualification unchanged. |
-| Deliberate harness-failure sample | Still unproven. The known product/helper authentication failure is not silently substituted for the separately required deliberate harness fault. Define its injection and expected evidence before running it. |
-| Actionable diagnostic export | The latest run's private command output contains allowlisted `pam-authenticate` then `authority-response` categories. Neither appears in exported guest evidence. Fix and locally verify this boundary before another VM attempt. |
-| Unselected dispatch | One current-controller run remains required. Preserve known Task 14 failures; judge F1 on dispatch, exact identities, evidence and cleanup, not authentication success. |
+| Host-safe selection and guards | Local selector/prerequisite, identity reconciliation, provenance, refusal, collection and cleanup regressions pass. `LIST=1` resolves the complete 225 executions without root/VM use. |
+| Independent selected allowed/denied pair | Parent1 `ListManagedUsers`: five exact passes in `/tmp/onpc-system-qpzqx8ve/evidence`. Retained child1 selected denial: `/tmp/onpc-system-isjpweip/evidence`; also corroborated by the final unselected run. |
+| Deliberate harness-failure sample | `/tmp/onpc-system-_kufc3hb/evidence`: fixed `harness:qualification-failure`, five exact identities, failing exit status, successful collection/cleanup. |
+| Actionable diagnostic export | Final installed export retains ten correctly associated authentication attempts: two `pam-authenticate` denials and eight `authority-response` denials. All XML parses; known fixture identity/credential sentinels are absent. |
+| Unselected dispatch and original failure | `/tmp/onpc-system-vbx_zcy6/evidence`: exactly 225 executions, 217 passed and eight known Task 14 failures, zero errors/skips. Product outcome fails; infrastructure, collection and cleanup pass. |
+| Complete preparation timing | Initial baseline proof validation is timed on success, rejection and interruption. The final VM run records 74.561 seconds preparation, including 72.259 seconds initial proof verification. |
+| Local acceptance | `make check`: 923 unit/contracts and 17 components, plus syntax/source/traceability. Isolated cleanup prerequisites and `git diff --check` passed. |
 
-The next session must resolve the export gap locally first. Do not launch an
-unselected run merely to rediscover the existing authentication failure. Before
-any later VM qualification, state which remaining row it proves and its expected
-result; reuse prior applicable evidence for the other rows. A new session does
-not reset the attempt budget. Do not add retries or new acceptance requirements
-because a known Task 14 case remains red.
+[Commands, input digests, stage durations, audits and preserved first failures](Evidence/F1-Qualification-2026-09-06.md)
+are retained. Every owned command completed. The runner restored the retained
+baseline and prior configuration; a subsequent read-only query confirmed the VM
+off. No new baseline, overlay, VM, host tooling or product behavior was introduced.
 
-## Continuation handoff
+## Fixed qualification interface
 
-**Status:** selected failure classification is verified; the audit found a concrete
-diagnostic-export gap. Authentication repair remains Task 14 work, not an F1 gate.
+Use the existing `AREA=authorization`
+`TEST=test_method_role_matrix[ListManagedUsers-parent1]` selection for the
+allowed sample. Its expected result is five passed executions with successful
+collection and cleanup. Reuse the retained selected child denial as the denied
+half of the pair.
 
-**Next-session settings:** `gpt-5.6-sol` / `medium`; model: keep; effort: raise.
-**Reason:** preserve allowlisted diagnostics across the private-output/export
-boundary with redaction and failure-path regressions; VM repetition cannot resolve
-the demonstrated collection gap.
-Confirm both in the new session. Scope remains this development/host machine and
-the existing guarded `ubuntu26.04` VM.
+For the deliberately failing harness sample, the implemented
+`QUALIFICATION_FAILURE=1` option uses a public pytest call hook to raise the fixed
+`harness:qualification-failure` only after that selected case's real assertion
+succeeds. The hook is confined to this allowlisted case and opt-in qualification
+mode; its bytes enter selected-input provenance, and the result is labeled
+harness qualification. Scope/refusal and failure-handling regressions are part
+of local verification. The expected result is a deliberate failure with five exact execution
+identities, retained fixed failure category and safe diagnostics, and completed
+cleanup. This does not qualify as a product acceptance pass.
 
-**Proven/reuse:** exact selection/prerequisite reconciliation, selected-input
-provenance, stage timing, and split outcomes are implemented. The selected success
-sample remains `/tmp/onpc-system-isjpweip/evidence` (five executions). The original
-failure remains `/tmp/onpc-system-206cfc36/evidence`; its aggregate SSH category was
-incorrect. `record_caught_failure` now preserves the first classified failure.
+Retained package candidate: `/tmp/onpc-f1-20260906-acceptance`, source
+`5584f7fe5f2aa250713f8913b73e61bedad4968e501aa3b0b9c6b5d50722b412`, package
+`0f7ffa0a388ef6b5ed6d40316968ff22ab64111b7f213cd7069b637087b0055d`.
+Verify availability and current package-input applicability before reuse;
+these recorded hashes alone do not establish it. The prior missing-tool
+diagnosis was unsupported; `artifact_source` now rejects unavailable inputs
+before storage/VM access. No host-tool installation was needed.
 
-The prior missing-executable diagnosis was unsupported: all six preparation tools
-exist in the privileged host context, and failed directories contained no staged
-inputs. A missing supplied artifact path is plausible but not proven; do not
-repeat speculative tool installation. No `setup.sh` change was needed.
-`artifact_source` now distinguishes missing/inaccessible/unavailable inputs before
-run storage or VM access. Tool preflight also checks `dpkg-deb` and `dpkg-query`.
+## Completion handoff
 
-**Verification/evidence (2026-09-05 local):** 94 focused tests passed; isolated
-cleanup safety passed 49 tests plus 3 subtests. `make check` passed 891 unit/contract
-and 17 component tests plus static/traceability checks; `git diff --check` passed.
-One fresh build at `/tmp/onpc-f1-20260906-preparation` records source
-`89e06f07a73ba6c8ac184694db5ef5ba5ba4dcce006881c050b4213b170f7b8d`, package
-`b01d31f750ab1db26bc57ff1a0dad5c23bbc3dd0f3244708e3755c0a5f8819f9`.
-One guarded attempt used `AREA=authorization`
-`TEST=test_real_selected_parent_authentication[child1]`;
-`/tmp/onpc-system-sjmucss6/evidence/result.json` records exactly five executions,
-partial scope, aggregate `pytest:failed:authorization`, and passed infrastructure,
-collection, and cleanup. JUnit retains `agent:unexpected-denied`; selected-input
-digest is `4bbe26089ba3bd177eaae7fe5791cc2c59111a244d2777e32571e4840910a0f1`.
-Stage seconds: preparation 2.41, bootstrap 45.14, install 50.19, reboot 20.68,
-tests 37.51, collection 1.63, cleanup 100.80. The runner completed cleanup and
-`virsh domstate` confirmed shut off; no operation is owned. All new runner edits
-were exercised; later handoff edits are documentation only.
+**Status (2026-09-06):** F1 accepted. No F1 implementation or qualification work
+remains. Scope was this development/host machine and the existing guarded
+`ubuntu26.04` VM. The user requested completion through acceptance rather than
+another bounded-slice handoff; the remaining work was completed in this session.
 
-**Next slice:** export the allowlisted authentication-helper categories currently
-retained only in host-private pytest output. The latest run contains
-`pam-authenticate` for the deliberate wrong password, then `authority-response`
-for the expected-success attempt; exported JUnit lacks both. Use a safe fixture
-to verify category retention, attempt association, and secret exclusion locally
-before any VM run. Never export raw authentication terminal data. Stop at that
-tested boundary and save the concrete qualification selector/fault for the next
-slice. The table above owns the evidence disposition; do not restart solved
-selection or aggregate-failure investigations. Task 14's handoff now records that
-its diagnostic code has run and that authority response is the next boundary.
+**Proven/reuse:** the guarded runner supports full and exact partial selections,
+fixed prerequisite closure, independent selected-input provenance, complete stage
+timing, and separate product/infrastructure/collection/cleanup outcomes. Its
+fixed qualification mode preserves real assertions, errors and skips and cannot
+be a product acceptance pass. Selected allowed/denied cases, deliberate failure,
+and complete unselected dispatch have applicable evidence. All ten real
+authentication diagnostics now survive public XML export with their case/attempt
+association and safe categories.
+
+**Acceptance:** 923 unit/contracts and 17 components passed. The unselected run
+executed exactly 225 cases: 217 passes and eight preserved Task 14 failures.
+Infrastructure, collection and cleanup passed. See the
+[acceptance record](Evidence/F1-Qualification-2026-09-06.md) for commands, digests,
+timings, preserved initial failures and audits. No operation is pending; exec
+sessions 92498 and 54414 completed. The VM was independently confirmed off after
+cleanup. Task 14's authority-response root cause remains unresolved, with its
+previous diagnostic retry budget unchanged.
+
+**Next task/settings:** Task 19P; `gpt-6-astra` / `high`; model: raise; effort:
+raise. **Reason:** F1's implementation and acceptance are solved; the next task
+must establish a supported graphical backend API that fits existing VM ownership
+and secret-input/capture boundaries. This is a new integration uncertainty,
+not a continuation of F1. Confirm the settings when beginning that task in a new
+session; do not repeat F1 qualification simply to resume the backlog.

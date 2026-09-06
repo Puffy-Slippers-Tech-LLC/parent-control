@@ -24,6 +24,8 @@ class ScriptedParentBroker:
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
         if self._mode == "custom-limit":
             self._preferences[1001]["daily_time_limit_minutes"] = 73
+        if self._mode in {"grant-only", "exact-hours"}:
+            self._preferences[1001]["daily_time_limit_minutes"] = 0
         self._status_attempts = 0
         self._events_path = os.environ.get("ONPC_PARENT_COMPONENT_EVENTS_PATH")
 
@@ -61,11 +63,13 @@ class ScriptedParentBroker:
             raise RuntimeError("temporarily unavailable")
         if self._mode == "status-retries" and self._status_attempts < 3:
             raise RuntimeError("temporarily unavailable")
+        daily = 0 if self._mode in {"grant-only", "daily-exhausted", "exact-hours"} else 47 * 60
+        grant = 2 * 60 * 60 if self._mode == "exact-hours" else 15 * 60
         return {
-            "daily_allowance_remaining_seconds": 47 * 60,
-            "one_time_grant_remaining_seconds": 15 * 60,
+            "daily_allowance_remaining_seconds": daily,
+            "one_time_grant_remaining_seconds": grant,
             "additional_one_time_grant_seconds": 0,
-            "calculated_active_extension_seconds": 47 * 60,
+            "calculated_active_extension_seconds": max(daily, grant),
         }
 
     def set_preferences(self, uid, value):

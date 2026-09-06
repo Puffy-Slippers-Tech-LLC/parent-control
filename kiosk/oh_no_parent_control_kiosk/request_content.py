@@ -231,6 +231,8 @@ class RequestContent(MetalBoard):
         self._ready = False
         self._controls_enabled = True
         self._screen_time_limit_enabled = None
+        self._time_estimate = "Calculating time estimate…"
+        self._validation_error = None
         self._lock_child_selector = lock_child_selector
         self._selection_store = selection_store
         self._on_account_selected = on_account_selected
@@ -415,6 +417,7 @@ class RequestContent(MetalBoard):
         status_inner.append(self._status)
         status_row.append(status_inner)
         self.append(status_row)
+        self._custom_entry.connect("changed", self._emit_values_changed)
 
     @staticmethod
     def _header():
@@ -542,8 +545,9 @@ class RequestContent(MetalBoard):
         self._ready = False
         self._screen_time_limit_enabled = None
         self._update_controls()
-        self._status.remove_css_class("oh-no-parent-control-error")
-        self._status.set_text("Loading accounts…")
+        self._validation_error = None
+        self._time_estimate = "Calculating time estimate…"
+        self._update_status()
 
     def set_accounts(self, users):
         """Replace the selector with the broker's current eligible accounts."""
@@ -579,20 +583,50 @@ class RequestContent(MetalBoard):
             self._accounts_loaded and self._approvers_loaded and
             bool(self._account_uids) and bool(self._approver_uids)
         )
-        if not self._accounts_loaded or not self._approvers_loaded:
-            self._status.set_text("Loading accounts…")
-        elif not self._account_uids:
-            self._status.set_text(
-                "No local standard accounts are available. Create one, then reopen this screen."
-            )
-        elif not self._approver_uids:
-            self._status.set_text(
-                "No local interactive administrator accounts are available."
-            )
-        else:
-            self._status.set_text("Choose the account and approving administrator")
-        self._status.remove_css_class("oh-no-parent-control-error")
+        self._update_status()
         self._update_controls()
+
+    def _update_status(self):
+        if not self._accounts_loaded or not self._approvers_loaded:
+            message = "Loading accounts…"
+        elif not self._account_uids:
+            message = "No local standard accounts are available. Create one, then reopen this screen."
+        elif not self._approver_uids:
+            message = "No local interactive administrator accounts are available."
+        elif self._screen_time_limit_enabled is None:
+            message = "Loading request details…"
+        elif self._screen_time_limit_enabled is False:
+            message = "Screen limit is not enabled in Parent App"
+        elif not self._controls_enabled:
+            message = "Waiting for approval…"
+        elif self._validation_error:
+            message = self._validation_error
+        else:
+            try:
+                self.selected()
+            except ValueError as error:
+                message = str(error)
+            else:
+                message = self._time_estimate
+        self._status.set_text(message)
+        if self._validation_error and message == self._validation_error:
+            self._status.add_css_class("oh-no-parent-control-error")
+        else:
+            self._status.remove_css_class("oh-no-parent-control-error")
+
+    def time_estimate_selection(self):
+        """Return a valid, enabled request's identity and duration, or None."""
+        if self._screen_time_limit_enabled is not True:
+            return None
+        try:
+            uid, _label, _approver, seconds, _soft = self.selected()
+        except ValueError:
+            return None
+        return uid, seconds
+
+    def set_time_estimate(self, message):
+        self._time_estimate = message
+        self._update_status()
 
     def _account_changed(self, *_args):
         index = self._accounts.get_selected()
@@ -602,6 +636,8 @@ class RequestContent(MetalBoard):
         if (self._accounts_loaded and index < len(self._account_uids) and
                 self._on_account_selected is not None):
             self._screen_time_limit_enabled = None
+            self._validation_error = None
+            self._time_estimate = "Calculating time estimate…"
             self._update_ready()
             self._on_account_selected(self._account_uids[index])
 
@@ -620,6 +656,8 @@ class RequestContent(MetalBoard):
     def _emit_values_changed(self, *_args):
         if self._suppress_values_changed or self._on_values_changed is None:
             return
+        self._validation_error = None
+        self._update_status()
         self._on_values_changed()
 
     def muted_for_surface(self, surface):
@@ -737,18 +775,18 @@ class RequestContent(MetalBoard):
         return selected_value, custom, self._allow_soft.get_active()
 
     def show_validation_error(self, message):
-        self._status.set_text(message)
-        self._status.add_css_class("oh-no-parent-control-error")
-        self._status.set_visible(True)
+        self._validation_error = message
+        self._update_status()
 
     def clear_validation_error(self):
         """Restore the normal request-form status after a silent cancellation."""
-        self._status.remove_css_class("oh-no-parent-control-error")
+        self._validation_error = None
         self._update_ready()
 
     def set_controls_sensitive(self, enabled):
         self._controls_enabled = enabled
         self._update_controls()
+        self._update_status()
 
     def _update_controls(self):
         """Apply request availability while always preserving the exit path."""

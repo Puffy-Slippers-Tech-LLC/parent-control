@@ -223,8 +223,8 @@ def test_child_overlay_uses_fixed_child_identity(launch_ui, wait_for_accessible_
 
 @pytest.mark.parametrize("overlay, scenario, expected", (
     (False, "denied", "Request denied"), (True, "denied", "Request denied"),
-    (False, "cancelled", "Choose the account and approving administrator"),
-    (True, "cancelled", "Choose the account and approving administrator"),
+    (False, "cancelled", "Estimated time remaining if approved: 1h 17m"),
+    (True, "cancelled", "Estimated time remaining if approved: 1h 17m"),
 ))
 def test_outcomes_are_actionable_and_redacted(launch_ui, wait_for_accessible_node,
                                               wait_for_accessible_state, tmp_path,
@@ -326,3 +326,59 @@ def test_approval_uses_each_modes_result_exit_callback(
     )
     expected = "close_overlay" if overlay else "logout"
     wait_for_accessible_state(lambda: bool(events(path, expected)), f"approved {expected}")
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_footer_estimate_tracks_requested_duration(
+        launch_ui, wait_for_accessible_node, tmp_path, overlay):
+    application, path = launch_request(launch_ui, tmp_path, overlay=overlay)
+    wait_for_accessible_node(application, "Estimated time remaining if approved: 1h 17m", "label")
+    assert wait_for_accessible_node(application, "Request 5 minutes", "toggle button").do_action(0)
+    wait_for_accessible_node(application, "Estimated time remaining if approved: 52m", "label")
+    assert calls(path, "GetTimeStatus")[-1]["values"] == [1001, 300]
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+@pytest.mark.parametrize("scenario, expected", (
+    ("rest-of-day", "If approved, access until midnight."),
+    ("two-hours-grant-only", "Estimated time remaining if approved: 2h"),
+    ("estimate-unavailable", "Time estimate unavailable"),
+))
+def test_footer_special_cases_keep_requests_available(
+        launch_ui, wait_for_accessible_node, tmp_path, overlay, scenario, expected):
+    application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario=scenario)
+    wait_for_accessible_node(application, expected, "label")
+    assert wait_for_accessible_node(application, "REQUEST", "button").sensitive
+    if scenario == "rest-of-day":
+        assert not calls(path, "GetTimeStatus")
+
+
+def test_footer_estimate_changes_with_selected_child(
+        launch_ui, wait_for_accessible_node, tmp_path):
+    application, path = launch_request(launch_ui, tmp_path, overlay=False)
+    wait_for_accessible_node(application, "Estimated time remaining if approved: 1h 17m", "label")
+    assert wait_for_accessible_node(application, "Child account", "button").do_action(0)
+    assert wait_for_accessible_node(application, "Sam Rivera", "button").do_action(0)
+    wait_for_accessible_node(application, "Estimated time remaining if approved: 45m", "label")
+    assert calls(path, "GetTimeStatus")[-1]["values"] == [1002, 1800]
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_footer_estimate_tracks_custom_edits_and_preserves_validation(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
+    application, _path = launch_request(
+        launch_ui, tmp_path, overlay=overlay, scenario="remembered",
+    )
+    footer = wait_for_accessible_node(
+        application, "Estimated time remaining if approved: 49m 30s", "label",
+    )
+    custom = wait_for_accessible_node(application, "Custom duration in minutes", "text")
+    # The label stays in place while its accessible name changes. Observe its
+    # state directly so an event delivered during a tree search cannot be lost.
+    for value, expected in (
+        ("0.5", "Estimated time remaining if approved: 47m 30s"),
+        ("0.09", "Enter a number from 0.1 to 1440 minutes."),
+        ("5", "Estimated time remaining if approved: 52m"),
+    ):
+        custom.text = value
+        wait_for_accessible_state(lambda: footer.name == expected, expected)

@@ -292,6 +292,36 @@ stops the recorded instance without restoring within a backend attempt; the
 outer lease still performs baseline cleanup. All callback processing stays in
 the controller thread and revalidates lease ownership.
 
+Graphics FD RPCs use a short-lived, separate libvirt connection. Its URI, UUID,
+domain instance and exact XML must match the guarded lease before attachment,
+and ownership is checked again afterward. A graphics connection failure cannot
+close the lifecycle connection needed for normal baseline cleanup.
+
+On a development host launched from the classic VS Code snap, `pkexec` retains
+the `snap.code.code` AppArmor label. `setup.sh` installs the versioned
+`config/apparmor/onpc-graphical-tests` rule in the managed section of
+`/etc/apparmor.d/local/usr.sbin.libvirtd`, preserving other site rules. The
+installer compiles the proposed whole profile before writing and reloads only
+libvirtd's profile. The rule permits anonymous Unix stream send/receive with
+that exact peer label; it grants no named-socket, ptrace or additional QEMU
+permission. Libvirt authentication and the exclusive VM lease still apply.
+This development-only integration activates immediately on profile reload
+(`none` for product packaging); it changes no application data or product package.
+
+The fixed non-booting diagnostic is
+`pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_transport`.
+It requires the existing domain to be off and sends only an impossible graphics
+index. A normal libvirt refusal with the connection still alive proves outgoing
+FD RPC transport; a disconnected RPC is a failure. A separate owned fixture
+runs under libvirtd's existing AppArmor profile with `aa-exec`, sends one socket
+back, and requires usable bytes and no truncated ancillary data. Neither test
+starts a guest or attaches a usable display. These probes distinguish basic
+directional FD transfer from the live graphics RPC; their pass does not prove
+`openGraphicsFD` or graphical compatibility. Raw fixture diagnostics and the
+result are retained under root-private `/tmp/onpc-graphics-transport-*`. Use
+this cheap probe before another boot when diagnosing descriptor receipt. The
+dispatcher runs its safety regressions automatically.
+
 `graphical_worker.Worker(directory, callback_path, run, command)` now launches
 trusted backend commands inside private network/PID/mount namespaces. The
 bridge listens on `127.0.0.1:5900` only there, acquiring the lease-issued display
@@ -314,6 +344,31 @@ The fixed non-VM qualification is
 `pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_worker`.
 The dispatcher runs the isolated cleanup prerequisites first. See the
 [worker evidence](../../docs/TestAutomation/Evidence/19P-Worker-Bridge-2026-09-06.md)
-for its success/failure scope. The actual generalhw launch distribution,
-read-only guest observation and screen/input smoke remain unfinished; no
-live graphical compatibility has been established.
+for its success/failure scope.
+
+The fixed live feasibility invocation is now
+`pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_smoke`.
+It accepts no arguments and uses the same isolated safety prerequisites and
+exclusive baseline lease. Before acquiring the lease it uses the documented
+`_EXIT_AFTER_SCHEDULE=1` mode to load the distribution without starting a backend.
+The pinned CLI overrides its early exit status with 1; the preflight requires
+both exact schedule/completion diagnostics, and rejects an ordinary compile
+failure. The actual graphical run uses `--exit-status-from-test-results` and
+also requires an `ok` module result with no failed/soft-failed details.
+`graphical_smoke/main.pm` loads one credential-free
+generalhw test: await guarded greeter observation, capture GDM, click the top
+right menu, and dismiss it with Escape, requiring both screen changes. The
+controller independently checks the active greeter and absence of logged-in
+user sessions through fixed read-only SSH observations at each stage. Bootstrap
+uses the existing offline SSH provisioning with `observation_only=True`; no
+product package or guest pytest is installed by this smoke.
+
+Raw screenshots, backend logs, command diagnostics, SSH keys and working vars
+stay in its root-private `/tmp/onpc-graphical-smoke-*` directory. Only fixed
+stage labels, dimensions, digests and classified outcomes appear in the summary.
+Retaining private images does not approve them for export or prove their
+semantic content; reviewed/redacted screen evidence remains an acceptance
+obligation. No credentials are entered, serial capture is disabled, and no
+customer E2E claim is made. The task's active handoff owns live qualification
+status. These are development-only test changes, activated on next invocation
+(`none`); no host tools, product services or saved-data schema change.

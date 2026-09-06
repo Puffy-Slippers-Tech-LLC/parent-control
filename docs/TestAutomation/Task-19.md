@@ -41,47 +41,59 @@ on the existing fixed VM. Read the mandatory
 
 ### Active handoff — 2026-09-06, 19P incomplete
 
-The third slice implemented and qualified the contained worker and private
-TCP-to-FD bridge with non-VM fixtures. Live compatibility remains unproven.
-Scope remains the development host and existing guarded `ubuntu26.04` VM.
-Reuse the [worker evidence](Evidence/19P-Worker-Bridge-2026-09-06.md) for the
-current interface, source identities, retained failed/passing attempts and
-verification. Earlier adapter/tooling conclusions remain linked there.
+The fifth slice proved automatic cleanup after graphics RPC disconnection and
+fixed a confirmed outgoing AppArmor FD denial. **Live graphics still fails; no
+screen/input/SSH-observation stage has completed.** Scope remains the development
+host and existing guarded `ubuntu26.04` VM. Start with the
+[descriptor evidence](Evidence/19P-Descriptor-Transport-2026-09-06.md), which
+retains exact inputs, timings and the next discriminating experiment.
 
 **Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
-**Reason:** private namespace isolation, start gating, descriptor handling and
-normal/interrupted descendant cleanup now work locally. The remaining first
-live integration crosses backend callbacks, lease-owned graphics, and safe
-screen/observation evidence; that unresolved boundary still merits the current
-model and effort. Confirm both next session.
+**Reason:** lifecycle cleanup and basic FD transfer in both directions are now
+proven. The live graphics RPC still fails despite those passes, requiring focused
+syscall/API and security reasoning; neither a cheaper model nor lower effort is
+yet warranted. Confirm both next session.
 
-Reuse `graphical_worker.Worker`, `graphical_lease.CallbackServer`,
-`lifecycle_variables()`, and `Lease(..., graphics_type='vnc')`. generalhw must
-use `127.0.0.1:5900` inside the worker namespace. The worker requests the display
-FD lazily; all lease callbacks stay in the controller thread. Close the worker
-before the callback server and outer lease. No VM lifecycle operation belongs
-in the worker. The [integration guide](../../tests/integration/README.md#graphical-adapter-under-development)
-describes the exact internal API and capture boundary.
+**Required next-session outcome — explicit user instruction:** solve a substantive
+problem and verify the fix before handing off. The primary target is working
+graphics attachment and the first real guest screen, with successful cleanup.
+Instrumentation, a narrower hypothesis, or another failed attempt alone does
+not satisfy this instruction; do not simply leave implementation of the fix to
+yet another session. If a demonstrated external blocker prevents resolving
+graphics, document its evidence and solve another ready, authorized backlog
+problem instead. Time estimates are progress-review points, not sufficient
+reason to defer the same unresolved problem. Preserve all safety, experiment
+and cleanup constraints. The final report must identify the problem actually
+solved, the change, passing verification, and precisely what remains.
 
-**Next observable result:** wire a credential-free generalhw distribution and
-fixed guarded `check_*.py` smoke, then prove real libvirt graphics-FD attachment,
-GDM/menu keyboard/mouse and screen changes, plus fixed read-only observation.
-Use `pkexec /usr/local/libexec/onpc-test-runner integration <check_name>`; it
-runs the isolated safety prerequisites automatically. No actual generalhw
-launch/distribution or guest observation command exists yet. Do not boot outside
-the lease or repeat completed tooling/namespace checks solely for a fresh chat.
+**First diagnostic step, not the session deliverable:** use a small lease-owned
+attachment diagnostic to distinguish failed `recvmsg` from absent/truncated
+`SCM_RIGHTS`, retaining raw
+syscall evidence privately. Compare the public caller-supplied and daemon-created
+socket APIs under the same attempt if needed. Verify collection/failure handling
+locally first; do not rerun distribution/worker qualification or launch another
+full smoke just to diagnose attachment. Basic probes now pass, so no further
+confinement expansion is justified by current evidence.
 
-Verification: 29 focused worker tests; final dispatcher safety selection passed
-118 tests and 3 subtests. Non-VM normal exit, controller disconnect and forced
-supervisor interruption all transferred 1 MiB and confirmed both recorded
-fixture processes exited. Initial collector failure is retained; its corrected
-multi-pidfd wait has a regression. Final `make check` passed (1,032 unit/contract,
-17 components, syntax/traceability); `bash -n setup.sh` and `git diff --check`
-passed. New code has not run against the VM. Live expensive attempts: **0**.
-All commands finished; fresh read-only query confirmed VM off. About 30 minutes,
-including roughly ten minutes of approval/interruption; no VM cleanup time.
-Concurrent edits preserved. Task 14's failures remain; 19P still needs live
-smoke evidence before acceptance.
+**Proven interfaces:** `Adapter.open_display()` isolates graphics RPCs from the
+lease's lifecycle connection, verifying URI/UUID/instance/XML around attachment.
+The kernel identified an outgoing `file_receive` denial with peer `snap.code.code`.
+The approved, syntax-validated libvirtd anonymous-stream peer rule is installed;
+`setup.sh` reproduces it without adding ptrace or QEMU permissions. The dispatcher
+`integration check_graphical_transport` now proves outgoing RPC refusal and one
+usable incoming FD from an owned fixture under libvirtd's enforced profile.
+Both passed at `/tmp/onpc-graphics-transport-y6k4uz6a/result.json`. The final change
+only adds failed-fixture summary retention; that failure branch was not live-run.
+
+**Attempts: 4 total, 2 this slice.** Attempt 3's caller-owned API failed before
+the policy fix; attempt 4's daemon-created FD still failed afterward, with no new
+kernel AppArmor denial. Both original failures and empty steps are retained;
+both completed ordinary cleanup and journal `complete` (348.588/373.217 s total).
+No third full smoke this slice. Final `make check` passed: 1,114 unit/contracts,
+17 components, syntax/traceability. Isolated safety: 148 tests and 3 subtests.
+All commands finished; fresh query confirmed VM off. Approximately 40 minutes
+including approval waits and cleanup overrun. Concurrent edits and Task 14's
+failures remain. First screen, safe evidence and qualification remain required.
 
 ## Task 19A
 

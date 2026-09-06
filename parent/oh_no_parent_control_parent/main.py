@@ -21,6 +21,7 @@ from common.oh_no_parent_control_ui.about import (
     AboutDialog, app_name, branding_asset_path, open_help,
 )
 from common.oh_no_parent_control_ui.accessibility import describe_control
+from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 from common.oh_no_parent_control_ui.test_identities import preview_users
 
@@ -218,25 +219,15 @@ def _daily_limit_selection(minutes):
         return CUSTOM_DAILY_LIMIT_INDEX, True
 
 
-def _duration_label(seconds):
-    seconds = max(0, int(seconds))
-    minutes, remaining_seconds = divmod(seconds, 60)
-    if remaining_seconds:
-        return f"{minutes}m {remaining_seconds}s"
-    return f"{minutes}m"
-
-
-def _time_status_subtitle(status):
-    daily = _duration_label(status["daily_allowance_remaining_seconds"])
-    grant = _duration_label(status["one_time_grant_remaining_seconds"])
-    additional = _duration_label(status["additional_one_time_grant_seconds"])
-    calculated = _duration_label(status["calculated_active_extension_seconds"])
+def _time_status_subtitle(status, daily_limit_minutes):
+    grant = format_duration(status["one_time_grant_remaining_seconds"])
+    if daily_limit_minutes == 0:
+        return f"One-time grant remaining: {grant}."
+    daily = format_duration(status["daily_allowance_remaining_seconds"])
     return (
-        "Formula: max(Daily allowance remaining, One-time grant remaining) "
-        "+ Additional one-time grant\n"
-        f"Daily allowance remaining: {daily}  •  One-time grant remaining: {grant}  •  "
-        f"Additional one-time grant: {additional}\n"
-        f"Calculated ActiveExtension: max({daily}, {grant}) + {additional} = {calculated}"
+        f"Daily allowance remaining: {daily}.\n"
+        f"One-time grant remaining: {grant}.\n"
+        "The larger amount applies."
     )
 
 
@@ -777,52 +768,11 @@ class ParentWindow(Adw.ApplicationWindow):
         heading.append(collapse)
         panel.append(heading)
 
-        formula = Gtk.Label(xalign=0, wrap=True, css_classes=["calculation-formula"])
-        formula.set_markup(
-            "<b>Formula:</b> max(Daily allowance remaining, One-time grant remaining) "
-            "\n+ Additional one-time grant"
+        self._time_explanation = Gtk.Label(
+            label="—", xalign=0, wrap=True,
+            css_classes=["calculation-formula"],
         )
-        panel.append(formula)
-
-        equation = Gtk.Box(spacing=8, css_classes=["calculation-equation"])
-        self._time_operand_values = []
-
-        def operand(label):
-            column = Gtk.Box(
-                orientation=Gtk.Orientation.VERTICAL,
-                spacing=6,
-                hexpand=True,
-                homogeneous=True,
-            )
-            column.append(Gtk.Label(
-                label=label, justify=Gtk.Justification.CENTER,
-                css_classes=["equation-label"],
-            ))
-            value = Gtk.Label(label="—", css_classes=["equation-value"])
-            column.append(value)
-            self._time_operand_values.append(value)
-            return column
-
-        maximum = Gtk.Box(
-            spacing=8, hexpand=True, css_classes=["equation-maximum"],
-        )
-        maximum.append(Gtk.Label(
-            label="max(", css_classes=["equation-function"],
-        ))
-        maximum.append(operand("Daily allowance remaining"))
-        maximum.append(Gtk.Label(
-            label=",", css_classes=["equation-separator"],
-        ))
-        maximum.append(operand("One-time grant remaining"))
-        maximum.append(Gtk.Label(
-            label=")", css_classes=["equation-function"],
-        ))
-        equation.append(maximum)
-        equation.append(Gtk.Label(label="+", css_classes=["equation-operator"]))
-        equation.append(operand("Additional one-time grant"))
-        equation.append(Gtk.Label(label="=", css_classes=["equation-operator"]))
-        equation.append(operand("Calculated ActiveExtension"))
-        panel.append(equation)
+        panel.append(self._time_explanation)
         return panel
 
     def _policy_column_heading(self, label, slot, css_class, items, selected,
@@ -1275,8 +1225,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # its authoritative time status is still loading.
         self._remaining_time_seconds = None
         self._time_status_value.set_label("Loading…")
-        for value in self._time_operand_values:
-            value.set_label("—")
+        self._time_explanation.set_label("—")
         LOG.info("preferences load started target=[Child user]")
         self._set_apps_sensitive(False)
         # Start the application catalog immediately on a background thread so
@@ -1436,17 +1385,12 @@ class ParentWindow(Adw.ApplicationWindow):
         self._remaining_time_seconds = max(
             0, int(status["calculated_active_extension_seconds"]),
         )
-        durations = (
-            _duration_label(status["daily_allowance_remaining_seconds"]),
-            _duration_label(status["one_time_grant_remaining_seconds"]),
-            _duration_label(status["additional_one_time_grant_seconds"]),
-            _duration_label(status["calculated_active_extension_seconds"]),
-        )
         self._time_status_value.set_label(
-            _minutes_label(max(0, status["calculated_active_extension_seconds"] // 60))
+            format_duration(status["calculated_active_extension_seconds"])
         )
-        for label, duration in zip(self._time_operand_values, durations):
-            label.set_label(duration)
+        self._time_explanation.set_label(_time_status_subtitle(
+            status, self._preferences["daily_time_limit_minutes"],
+        ))
         LOG.info(
             "remaining time loaded target=[Child user] daily=%d grant=%d additional=%d calculated=%d",
             status["daily_allowance_remaining_seconds"],
@@ -1476,8 +1420,7 @@ class ParentWindow(Adw.ApplicationWindow):
             )
             return
         self._time_status_value.set_label("Unavailable")
-        for value in self._time_operand_values:
-            value.set_label("—")
+        self._time_explanation.set_label("—")
 
     def _retry_time_status(self):
         self._time_status_retry_id = 0

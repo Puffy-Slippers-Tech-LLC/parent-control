@@ -21,6 +21,12 @@ sys.path.pop(0)
 @pytest.fixture
 def prepared(lease_rig):
     lease, current = lease_rig
+    graphics = lease.source.api.open.return_value
+    graphics.getURI.return_value = graphical.URI
+    domain = graphics.lookupByUUIDString.return_value
+    domain.UUIDString.return_value = lease.source.uuid
+    domain.ID.side_effect = lambda: current['id']
+    domain.XMLDesc.side_effect = lambda *_: current['xml']
     lease.view.graphics_type = 'vnc'
     with lease:
         lease.prepare()
@@ -113,11 +119,20 @@ def start_adapter(lease):
 def test_graphics_uses_public_fd_and_stop_revokes_transferred_duplicate(prepared):
     lease, _ = prepared
     adapter = start_adapter(lease)
-    owned, remote = socket.socketpair()
-    lease.source.domain.openGraphicsFD.return_value = owned.detach()
-    with remote:
-        display = adapter.request('graphics', adapter.run)
-        lease.source.domain.openGraphicsFD.assert_called_once_with(0, 0)
+    connection = lease.source.api.open.return_value
+    domain = connection.lookupByUUIDString.return_value
+    peers = []
+    def attach(index, flags):
+        assert (index, flags) == (0, 0)
+        local, remote = socket.socketpair()
+        peers.append(remote)
+        return local.detach()
+    domain.openGraphicsFD.side_effect = attach
+    display = adapter.request('graphics', adapter.run)
+    with peers[0] as remote:
+        connection.close.assert_called_once()
+        lease.source.connection.close.assert_not_called()
+        lease.source.domain.openGraphicsFD.assert_not_called()
         sender, receiver = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         with sender, receiver:
             sender.sendmsg([b'ok\n'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
@@ -168,21 +183,63 @@ def test_replaced_identity_refuses_controls_and_display(prepared, change, action
 def test_replacement_during_fd_acquisition_closes_fd_before_return(prepared):
     lease, current = prepared
     adapter = start_adapter(lease)
-    owned, remote = socket.socketpair()
+    peers = []
     original_id = current['id']
-    def replaced(*_):
+    def replaced(index, flags):
+        local, remote = socket.socketpair()
+        peers.append(remote)
         current['id'] += 1
-        return owned.detach()
-    lease.source.domain.openGraphicsFD.side_effect = replaced
-    with remote:
-        try:
-            with pytest.raises(runner.Error, match='domain-replaced'):
-                adapter.request('graphics', adapter.run)
-            assert adapter.display is None
+        return local.detach()
+    lease.source.api.open.return_value.lookupByUUIDString.return_value.openGraphicsFD.side_effect = replaced
+    try:
+        with pytest.raises(runner.Error, match='domain-replaced'):
+            adapter.request('graphics', adapter.run)
+        assert adapter.display is None
+        with peers[0] as remote:
             remote.settimeout(1)
             assert remote.recv(32) == b''
-        finally:
-            current['id'] = original_id
+    finally:
+        current['id'] = original_id
+
+
+@pytest.mark.parametrize('close_fails', [False, True])
+def test_graphics_rpc_disconnect_preserves_lifecycle_cleanup(prepared, close_fails):
+    lease, _ = prepared
+    adapter = start_adapter(lease)
+    connection = lease.source.api.open.return_value
+    domain = connection.lookupByUUIDString.return_value
+    failure = RuntimeError('fixture RPC disconnected')
+    domain.openGraphicsFD.side_effect = failure
+    if close_fails:
+        connection.close.side_effect = RuntimeError('fixture close failed')
+    with pytest.raises(RuntimeError) as caught:
+        adapter.request('graphics', adapter.run)
+    assert caught.value is failure
+    assert adapter.display is None
+    lease.source.connection.close.assert_not_called()
+    adapter.request('off', adapter.run)
+    assert lease.source.off
+
+
+@pytest.mark.parametrize('fault', ['uri', 'uuid', 'id', 'xml'])
+def test_separate_graphics_connection_identity_checked_before_attach(prepared, fault):
+    lease, _ = prepared
+    adapter = start_adapter(lease)
+    connection = lease.source.api.open.return_value
+    domain = connection.lookupByUUIDString.return_value
+    if fault == 'uri':
+        connection.getURI.return_value = 'qemu:///session'
+    elif fault == 'uuid':
+        domain.UUIDString.return_value = 'replacement'
+    elif fault == 'id':
+        domain.ID.side_effect = lambda: lease.view.domain_id + 1
+    else:
+        domain.XMLDesc.side_effect = lambda *_: '<replacement/>'
+    with pytest.raises(RuntimeError, match='graphics:'):
+        adapter.request('graphics', adapter.run)
+    domain.openGraphicsFD.assert_not_called()
+    connection.close.assert_called_once()
+    lease.source.connection.close.assert_not_called()
 
 
 def test_released_lease_refuses_callback_before_libvirt(prepared):

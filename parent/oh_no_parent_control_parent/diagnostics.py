@@ -1,6 +1,6 @@
 """Bounded, read-only export of dated product logs."""
 
-from datetime import date, timedelta
+from datetime import date
 from io import BytesIO
 import os
 from pathlib import Path
@@ -13,7 +13,7 @@ COMPONENTS = ("broker", "child", "parent", "kiosk")
 
 
 def collect_logs(root=LOG_ROOT, today=None):
-    """Return a ZIP containing only regular logs from three local calendar days."""
+    """Return a ZIP containing the three newest available dated product logs."""
     today = today or date.today()
     output = BytesIO()
     total = 0
@@ -22,14 +22,34 @@ def collect_logs(root=LOG_ROOT, today=None):
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         root_fd = os.open(root, directory_flags)
         try:
+            available_dates = set()
             for component in COMPONENTS:
                 try:
                     component_fd = os.open(component, directory_flags, dir_fd=root_fd)
                 except FileNotFoundError:
                     continue
                 try:
-                    for offset in range(3):
-                        name = f"{today - timedelta(days=offset):%Y-%m-%d}.log"
+                    for name in os.listdir(component_fd):
+                        if not name.endswith(".log"):
+                            continue
+                        try:
+                            log_date = date.fromisoformat(name.removesuffix(".log"))
+                        except ValueError:
+                            continue
+                        if f"{log_date:%Y-%m-%d}.log" == name and log_date <= today:
+                            available_dates.add(log_date)
+                finally:
+                    os.close(component_fd)
+
+            selected_dates = sorted(available_dates, reverse=True)[:3]
+            for log_date in selected_dates:
+                name = f"{log_date:%Y-%m-%d}.log"
+                for component in COMPONENTS:
+                    try:
+                        component_fd = os.open(component, directory_flags, dir_fd=root_fd)
+                    except FileNotFoundError:
+                        continue
+                    try:
                         try:
                             fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                                          dir_fd=component_fd)
@@ -44,8 +64,8 @@ def collect_logs(root=LOG_ROOT, today=None):
                             raise ValueError("Logs exceed export limit")
                         archive.writestr(f"{component}/{name}", content)
                         count += 1
-                finally:
-                    os.close(component_fd)
+                    finally:
+                        os.close(component_fd)
         finally:
             os.close(root_fd)
     if not count:

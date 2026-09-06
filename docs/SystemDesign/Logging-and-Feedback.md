@@ -36,8 +36,8 @@ operations guide:
 
 > Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period.
 
-The Parent App footer summarizes this as “Feedback is emailed to support.”
-Its Privacy link opens the full disclosure and diagnostic-log explanation.
+The Parent App footer provides a Privacy link that opens the full disclosure
+and diagnostic-log explanation.
 
 Server-side sanitization, email
 routing, and retention enforcement belong to the separately deployed endpoint.
@@ -51,9 +51,9 @@ the draft after a web-process restart.
 Drafts, selected file bytes, and frozen retries remain in memory until app exit;
 closing the dialog preserves them and allows an in-flight worker to continue.
 The administrator can explicitly save a diagnostic ZIP to a chosen location.
-Diagnostic export reads only regular dated product logs from today and the
-previous two local calendar days, rejects symlinks, and limits input and ZIP
-size to 16 MiB. The transport separately caps an attached log ZIP at 2 MiB,
+Diagnostic export reads only regular dated product logs from the three newest
+available local log dates (not necessarily consecutive calendar days), rejects
+symlinks, and limits input and ZIP size to 16 MiB. The transport separately caps an attached log ZIP at 2 MiB,
 user attachments at five files of at most 5 MiB each, and all attachments plus
 logs at 8 MiB. Collection or size failures allow sending without logs.
 

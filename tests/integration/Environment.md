@@ -72,6 +72,16 @@ recorded original operation; this is not permission to recapture an accepted
 baseline. Normal test failure cleanup does not turn a failed attempt into a
 pass.
 
+For the narrow case of a VNC graphical attempt whose journal is
+`cleanup-requested` and whose exact recorded domain instance is still running,
+use `pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_recovery`.
+It accepts no arguments, runs isolated safety prerequisites, reacquires the
+exclusive lock and verifies the journal, live run/domain identity, source layout,
+baseline identity and snapshot/backing proof before using ordinary lease cleanup.
+It cannot boot, provision, create a baseline, recover another phase, or operate
+on an already-off/replaced instance. Recovery evidence is retained separately
+under `/tmp/onpc-graphical-recovery-*`; original failure evidence is unchanged.
+
 Read product logs at
 `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log` and journals without
 editing or deleting them. If sandbox access is denied, request the minimum

@@ -56,6 +56,7 @@ fi
 "${apt_get[@]}" update
 "${apt_get[@]}" install -y \
     7zip \
+    apparmor \
     build-essential \
     at-spi2-core=2.60.4-0ubuntu0.1 \
     dbus-daemon=1.16.2-2ubuntu4 \
@@ -132,6 +133,14 @@ if (( EUID != 0 )); then
     test_runner_install=(sudo "${test_runner_install[@]}")
 fi
 "${test_runner_install[@]}"
+# Classic VS Code snap callers retain their AppArmor label after pkexec.
+# Reload only libvirtd's anonymous graphics-socket peer rule; no daemon restart.
+# Development-only policy activates immediately on reload (none for packaging).
+graphical_policy_install=(/usr/bin/python3 "$script_dir/tools/install_graphical_test_policy.py")
+if (( EUID != 0 )); then
+    graphical_policy_install=(sudo "${graphical_policy_install[@]}")
+fi
+"${graphical_policy_install[@]}"
 install -D -m 0644 "$script_dir/config/codex-tests.rules" "$script_dir/.codex/rules/tests.rules"
 echo "setup: installed project Codex test rules; restart Codex with this project trusted"
 

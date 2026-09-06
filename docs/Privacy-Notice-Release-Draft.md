@@ -35,8 +35,8 @@ contents; the app does not send their original folder paths. Files or messages
 you select may contain personal information, so review them before sending and
 do not include passwords or information you do not want to share.
 
-An attached diagnostic archive contains eligible product logs from today and
-the previous two local calendar days. Routine product logs are designed to omit
+An attached diagnostic archive contains eligible product logs from the three
+newest log dates, even when there are gaps between those dates. Routine product logs are designed to omit
 account names, credentials, application paths, and feedback contents. You can
 send feedback without attaching logs or files. You can also save a diagnostic
 archive locally; saving it does not send it to us.

@@ -7,17 +7,31 @@ import pytest
 from parent.oh_no_parent_control_parent import diagnostics
 
 
-def test_export_contains_only_three_days_of_product_logs(tmp_path):
+def test_export_contains_three_newest_available_log_dates_in_newest_first_order(tmp_path):
     component = tmp_path / "parent"
     component.mkdir()
-    for day in (1, 2, 3, 4):
-        (component / f"2026-09-{day:02}.log").write_text(f"event {day}")
+    for day in (10, 11, 15, 20, 21):
+        (component / f"2026-01-{day:02}.log").write_text(f"event {day}")
     (component / "other.txt").write_text("excluded")
-    with ZipFile(BytesIO(diagnostics.collect_logs(tmp_path, date(2026, 9, 4)))) as archive:
+    with ZipFile(BytesIO(diagnostics.collect_logs(tmp_path, date(2026, 1, 21)))) as archive:
         assert archive.namelist() == [
-            f"parent/2026-09-{day:02}.log" for day in (4, 3, 2)
+            f"parent/2026-01-{day:02}.log" for day in (21, 20, 15)
         ]
-        assert archive.read("parent/2026-09-04.log") == b"event 4"
+        assert archive.read("parent/2026-01-21.log") == b"event 21"
+
+
+def test_export_orders_component_logs_by_date_before_component(tmp_path):
+    for component in ("broker", "parent"):
+        directory = tmp_path / component
+        directory.mkdir()
+        for day in (20, 21):
+            (directory / f"2026-01-{day:02}.log").write_text(component)
+
+    with ZipFile(BytesIO(diagnostics.collect_logs(tmp_path, date(2026, 1, 21)))) as archive:
+        assert archive.namelist() == [
+            "broker/2026-01-21.log", "parent/2026-01-21.log",
+            "broker/2026-01-20.log", "parent/2026-01-20.log",
+        ]
 
 
 def test_export_rejects_symlinks_and_oversized_logs(tmp_path, monkeypatch):

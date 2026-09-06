@@ -39,6 +39,28 @@ The child overlay and kiosk deliberately use the same GTK request form and
 validation. Only account selection, mute surface, broker request method, and
 exit behavior differ.
 
+## Remaining-time explanations
+
+Parent remaining-time labels and the child/kiosk estimate use the shared
+`common.oh_no_parent_control_ui.duration.format_duration` formatter: `1h 17m`,
+`2h` for exact hours, and seconds when needed to preserve partial minutes.
+
+The Parent App's expandable explanation describes current remaining time. A
+configured daily allowance of zero shows only the one-time grant remaining.
+With a positive configured allowance, it shows both remaining amounts and says
+that the larger applies, including when today's allowance has been exhausted.
+It does not show an additional request operand or internal property names.
+
+The shared child/kiosk form uses its existing footer for the estimated time
+remaining if approved. Fixed-duration choices query `GetTimeStatus` with the
+selected child and requested additional seconds. Selection changes are debounced,
+reads are serialized, and replies for superseded selections are discarded. The
+form refreshes every 30 seconds while idle; rest-of-day requests instead say
+that access lasts until midnight. Approval still recalculates the actual grant.
+Loading, validation, denial and approval-in-progress messages take precedence.
+An unavailable estimate does not prevent submitting a request. Closing the window
+removes refresh timers and makes outstanding estimate replies inert.
+
 ## Request-selector state
 
 Request selector defaults are non-authoritative UI state stored per operating

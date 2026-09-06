@@ -292,6 +292,15 @@ Discovery records child-owned descendants before any signal, including payloads
 that move to a different application scope (such as an Electron AppImage) and
 games launched by Steam. Parent start times reject stale links to reused PIDs.
 Unrelated application scopes and other accounts remain outside this selection.
+Mounted AppImage payloads also match through the documented `APPIMAGE` and
+`APPDIR` runtime values when the source matches a blocked target or saved
+pattern. The kernel-reported executable must be inside that exact FUSE mount,
+whose mount metadata must identify the selected child as owner. This recovers
+payloads after a self-update replaces the desktop ID or Electron moves to a
+generic Chromium scope. Inherited environment alone does not select an
+unrelated executable; the existing verified descendant traversal includes
+games launched by the matched payload. Discovery logs report match counts,
+never environment contents or application paths.
 Direct executable, Snap security-label, and Flatpak instance matching continue
 to apply. These runtime identities are derived without changing saved data;
 the broker changes activate through `process-restart`.

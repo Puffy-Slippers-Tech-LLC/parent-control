@@ -238,6 +238,14 @@ usage intervals; the root broker validates them and owns every write. A
 rest-of-day request instead computes the seconds to the next local midnight with
 timezone-aware epoch arithmetic.
 
+For `GetTimeStatus`, the broker first validates the caller and selected child,
+then runs the same fixed-purpose usage helper as that child to read only its own
+usage. Malcontent's public `QueryUsage` implementation permits self-reads and
+parent reads, but explicitly rejects UID 0. No administrator identity is selected
+on behalf of a child or kiosk status request. Approval-time usage queries retain
+the authenticated approver identity described above. This broker change activates
+on `process-restart` and introduces no saved-data migration.
+
 The child extension uses GNOME Shell's supported time-limit manager and the
 public Malcontent estimate signal/query for the daily estimate. It passes that
 estimate to `CalculateOwnRemainingTime`; the broker derives the child from the

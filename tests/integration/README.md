@@ -262,6 +262,10 @@ The implementation contracts are:
   The runner transfers and hashes both files and requires `authorization.xml`
   after the reboot phase. This is not full Task 14 acceptance: enabled-child
   requests and authentication revalidation races still need implementation.
+  Account setup preserves read-only Malcontent usage probes as root, parent,
+  child and kiosk for diagnosing the real dependency identity boundary. The
+  local broker self-read helper repair passes host checks but awaits rebuilt
+  package acceptance; see the Task 14 continuation handoff for evidence.
   Test infrastructure activation is `none`; no saved-data migration applies.
 - `stage_assets`: a private frozen copy of the Task 13A package/fixture
   manifest, verified canonical fixture payload, and exact transfer hashes for

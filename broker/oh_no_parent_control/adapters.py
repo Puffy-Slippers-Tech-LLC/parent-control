@@ -338,25 +338,33 @@ class TimerUsage:
         self.connection = connection
 
     def query_usage(self, uid: int) -> tuple[tuple[int, int], ...]:
-        reply = _call(
-            self.connection, TIMER_NAME, TIMER_PATH, TIMER_PARENT_INTERFACE,
-            "QueryUsage", GLib.Variant("(uss)", (uid, "login-session", "")),
-            "(a(tt))",
-        )
-        return tuple(tuple(interval) for interval in reply.unpack()[0])
+        # The broker has authorized the target before reaching this adapter.
+        # Malcontent rejects root, but permits an account to query its own
+        # records. Open the helper's fresh bus connection as that exact child.
+        LOG.info("usage query scope=own stage=identity")
+        try:
+            identity = pwd.getpwuid(uid)
+        except KeyError as error:
+            raise TimerUsageError("child-unavailable") from error
+        return self._query_usage_with_identity(uid, uid, identity.pw_gid)
 
     def query_usage_as(
             self, uid: int,
             approver: UserAccount) -> tuple[tuple[int, int], ...]:
         """Query through a new bus connection owned by the authenticated approver."""
-        LOG.info("usage helper stage=launch")
+        LOG.info("usage query scope=approver stage=identity")
         try:
             identity = pwd.getpwuid(approver.uid)
         except KeyError as error:
             raise TimerUsageError("approver-unavailable") from error
         if identity.pw_name != approver.username:
             raise TimerUsageError("approver-identity-changed")
+        return self._query_usage_with_identity(uid, approver.uid, identity.pw_gid)
 
+    def _query_usage_with_identity(
+            self, uid: int, reader_uid: int,
+            reader_gid: int) -> tuple[tuple[int, int], ...]:
+        LOG.info("usage helper stage=launch")
         try:
             with tempfile.TemporaryFile() as output:
                 result = subprocess.run(
@@ -370,8 +378,8 @@ class TimerUsage:
                     close_fds=True,
                     cwd="/",
                     env={"LANG": "C.UTF-8"},
-                    user=approver.uid,
-                    group=identity.pw_gid,
+                    user=reader_uid,
+                    group=reader_gid,
                     extra_groups=(),
                     umask=0o077,
                 )

@@ -39,6 +39,7 @@ import prepare_host as baseline
 ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = '/var/tmp/onpc-system-input'
 TAG = 'onpc-system-run:'
+PHASE_COUNTS = {'installed': 2, 'rebooted': 2, 'authorization': 142}
 require = baseline.require
 Error = baseline.CaptureError
 
@@ -413,14 +414,16 @@ def guest_command(run, *args):
 
 
 def pytest_command(run, phase):
-    require(phase in {'installed', 'rebooted'}, 'pytest:phase')
+    require(phase in PHASE_COUNTS, 'pytest:phase')
     tests = ['test_installed_package', 'test_first_install_requests_reboot' if phase == 'installed'
              else 'test_reboot_applies_installation']
+    selectors = ([PAYLOAD + '/test_authorization.py'] if phase == 'authorization' else
+                 [f'{PAYLOAD}/test_install_smoke.py::{name}' for name in tests])
     return ['env', f'ONPC_EXPECTED_RUN={run}', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1',
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-m', 'pytest',
             '-c', PAYLOAD + '/pytest.ini', '--noconftest', '--rootdir', PAYLOAD,
             '--junitxml', f'{PAYLOAD}/results/{phase}.xml', '-q',
-            *[f'{PAYLOAD}/test_install_smoke.py::{name}' for name in tests]]
+            *selectors]
 
 
 def installed_run(vm, lease, directory):
@@ -440,6 +443,8 @@ def installed_run(vm, lease, directory):
         vm.reboot()
         lease.save('pytest-rebooted')
         vm.call(pytest_command(run, 'rebooted'), timeout=900)
+        lease.save('pytest-authorization')
+        vm.call(pytest_command(run, 'authorization'), timeout=900)
         outcome = 'passed'
     finally:
         original_failure = sys.exc_info()[0] is not None
@@ -452,10 +457,10 @@ def installed_run(vm, lease, directory):
                 raise
             # Retain the original failure even if the guest cannot return logs.
             log('evidence:guest-collection-failed')
-    for phase in ('installed', 'rebooted'):
+    for phase, expected_count in PHASE_COUNTS.items():
         root = ET.parse(directory / f'guest-results/{phase}.xml').getroot()
         suites = list(root.iter('testsuite'))
-        require(sum(int(s.get('tests', '0')) for s in suites) == 2 and
+        require(sum(int(s.get('tests', '0')) for s in suites) == expected_count and
                 all(all(int(s.get(key, '0')) == 0 for key in ('errors', 'failures', 'skipped'))
                     for s in suites), 'pytest:missing-failed-or-skipped-tests')
 
@@ -529,6 +534,7 @@ def main(argv=None):
         manifest = stage_assets(args.artifacts.resolve(strict=True), directory / 'input', commands)
         host_before = host_fingerprint(commands)
         for relative in ('tests/integration/system_guest.py', 'tests/integration/owned_commands.py',
+                         'tests/integration/system_caller.py', 'tests/system/test_authorization.py',
                          'tests/system/test_install_smoke.py', 'tests/system/pytest.ini'):
             shutil.copyfile(ROOT / relative, directory / 'input' / Path(relative).name)
         (directory / 'input/guest').mkdir()

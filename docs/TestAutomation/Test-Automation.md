@@ -125,6 +125,12 @@ Task 13B acceptance is complete. Reuse its
 [accepted handoff](Task-13.md#accepted-handoff--task-13b-completed-2026-09-04)
 and completion record below when beginning Task 14 in a later session.
 
+Task 14 is in progress and paused at the user-requested elapsed-time checkpoint.
+Resume its [continuation handoff](Task-14.md#continuation-handoff--2026-09-05-incomplete).
+The initial installed authorization suite passed 135 cases and failed seven
+`GetTimeStatus` cases; cleanup restored the baseline and left the VM off.
+Task 14 remains unchecked; this is not a completion record.
+
 ## Rules for every task
 
 1. Default computer running the task is the dev machine. Tasks must not install
@@ -190,9 +196,11 @@ and completion record below when beginning Task 14 in a later session.
     work; never lower acceptance criteria to fit a cheaper model. All tasks
     remain mandatory regardless of the model used.
 18. 18. **IMPORTANT RULE**: For a long running task, whenever it's been running over 10 minutes, if there's a clean checkpoint to interrupt the task,
-    update the current task as clean handoff book, update recommended model and effort as appropriate in the current task. complex and hard ones need advanced model
-     and higher efforts, simpler ones need simpler model and lower effort to save tokens, remove anything that's completed and no longer needed
-    for the future, and pause the task, and tell the user that you wrote handoff, and they can quit the session and start a new one.
+    update the current task as clean handoff book, update recommended model and effort as appropriate in the current task according to remaining work
+    of the task, instead of the original recommended mode or completed work. complex and hard ones need advanced model and higher efforts, simpler
+    ones need simpler model and lower effort to save tokens, remove anything that's completed and no longer needed
+    for the future, and pause the task, and tell the user that you wrote handoff, and they can quit the session and start a new one by simply saying
+    "Run docs/Test-Automation.md"
 
 ## Requirement-ID and traceability maintenance
 

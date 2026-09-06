@@ -253,6 +253,16 @@ The implementation contracts are:
   installation and guest pytest checks. The guest suite is excluded from
   default host collection and runs with plugin autoload disabled and its own
   pytest configuration.
+- Task 14 work in progress: `system_caller.py` checks the guest guard, drops
+  real/effective/saved credentials and opens a fresh system-bus connection. It
+  verifies the bus-reported UID before returning structured replies through
+  private controller diagnostics. `test_authorization.py` currently collects
+  142 cases for the initial method/role matrix, cross-child reads and writes,
+  private-record access, log component confinement, and account discovery.
+  The runner transfers and hashes both files and requires `authorization.xml`
+  after the reboot phase. This is not full Task 14 acceptance: enabled-child
+  requests and authentication revalidation races still need implementation.
+  Test infrastructure activation is `none`; no saved-data migration applies.
 - `stage_assets`: a private frozen copy of the Task 13A package/fixture
   manifest, verified canonical fixture payload, and exact transfer hashes for
   all bytes, including Flatpak's variable container and the executed test code.
@@ -262,6 +272,7 @@ Before any live system run, execute the cleanup prerequisite separately:
 ```sh
 /usr/bin/python3 -m pytest tests/unit/test_system_runner_cleanup_safety.py tests/unit/test_prepare_host_cleanup_safety.py -q
 /usr/bin/python3 -m pytest tests/unit/test_system_runner.py tests/unit/test_vm_transport.py tests/unit/test_system_guest.py -q
+/usr/bin/python3 -m pytest tests/unit/test_system_caller.py -q
 ```
 
 The root-private `system-run.json` is separate from Task 12's immutable

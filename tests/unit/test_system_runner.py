@@ -191,6 +191,7 @@ def test_pytest_command_selects_both_required_tests_without_skips():
     assert before[-2] == after[-2]
     assert before[-2].endswith('::test_installed_package')
     assert runner.guest_command(RUN, 'install')[-2:] == [runner.PAYLOAD + '/system_guest.py', 'install']
+    assert runner.pytest_command(RUN, 'authorization')[-1] == runner.PAYLOAD + '/test_authorization.py'
 
 
 def test_readiness_timeout_is_bounded_without_fixed_sleep(monkeypatch):
@@ -233,16 +234,16 @@ def test_both_pytest_phases_must_supply_complete_unskipped_evidence(tmp_path, sk
     lease.state = {'run': RUN}
     output = tmp_path / 'guest-results'
     output.mkdir()
-    for phase in ('installed', 'rebooted'):
+    for phase, count in runner.PHASE_COUNTS.items():
         (output / f'{phase}.xml').write_text(
-            f'<testsuites><testsuite tests="2" failures="0" errors="0" skipped="{skipped}"/></testsuites>')
+            f'<testsuites><testsuite tests="{count}" failures="0" errors="0" skipped="{skipped}"/></testsuites>')
     if skipped:
         with pytest.raises(runner.Error, match='missing-failed-or-skipped-tests'):
             runner.installed_run(vm, lease, tmp_path)
     else:
         runner.installed_run(vm, lease, tmp_path)
     vm.reboot.assert_called_once()
-    assert vm.call.call_count == 5
+    assert vm.call.call_count == 6
     assert vm.call.call_args_list[2].args[0] == runner.guest_command(RUN, 'collect', 'installed')
 
 

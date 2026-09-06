@@ -102,14 +102,34 @@ class FeedbackDialog(Adw.Window):
         message_group.append(message)
         content.append(message_group)
 
-        reply_group = Adw.PreferencesGroup(css_classes=["feedback-reply"])
-        reply = Adw.EntryRow(title="Reply email (optional)")
-        reply.add_prefix(_feedback_icon("mail", 20))
+        reply_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
+                              css_classes=["feedback-reply"])
+        reply = Gtk.Entry(placeholder_text="you@example.com", hexpand=True,
+                          has_frame=False)
+        reply_header = Gtk.Box(spacing=12)
+        reply_header.append(Gtk.Label(
+            label="Reply email (optional)", xalign=0, hexpand=True,
+            mnemonic_widget=reply, css_classes=["feedback-section-title"],
+        ))
+        anonymous = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER,
+                            css_classes=["feedback-anonymous-badge"])
+        anonymous.append(_feedback_icon("privacy", 18, "#8866ff"))
+        anonymous.append(Gtk.Label(label="Anonymous by default"))
+        reply_header.append(anonymous)
+        reply_group.append(reply_header)
+        reply_field = Gtk.Box(spacing=16, css_classes=["feedback-reply-field"])
+        reply_field.append(_feedback_icon("mail", 20))
+        reply_field.append(reply)
         self._reply = reply
         reply.set_input_purpose(Gtk.InputPurpose.EMAIL)
         describe_control(reply, "Reply email (optional)",
                          "Add your email address if you would like a reply.")
-        reply_group.add(reply)
+        reply_group.append(reply_field)
+        reply_group.append(Gtk.Label(
+            label="If you provide your email, our support team can reach out to you. "
+                  "Otherwise, your feedback is sent anonymously.",
+            xalign=0, wrap=True, css_classes=["feedback-reply-hint"],
+        ))
         content.append(reply_group)
 
         attachments = Adw.PreferencesGroup(title="Attachments (optional)",
@@ -160,7 +180,7 @@ class FeedbackDialog(Adw.Window):
             hexpand=True, valign=Gtk.Align.CENTER,
         )
         privacy_notice.append(Gtk.Label(
-            label=transport.RETENTION_DISCLOSURE,
+            label="Feedback is emailed to support.",
             xalign=0, wrap=True, css_classes=["feedback-retention"],
         ))
         privacy_link = Gtk.LinkButton(
@@ -214,8 +234,7 @@ class FeedbackDialog(Adw.Window):
     def _show_log_privacy(self, *_args):
         dialog = Adw.AlertDialog.new(
             "Feedback privacy",
-            "Your feedback, reply email, files, and optional diagnostic logs are "
-            "sent to support and kept for 7 days. Diagnostic logs do not collect "
+            transport.RETENTION_DISCLOSURE + "\n\nDiagnostic logs do not collect "
             "personally identifiable information (PII), such as account names, email "
             "addresses, or file contents. Review files and logs before sending.",
         )

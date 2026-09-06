@@ -1,0 +1,17 @@
+# This root-owned dispatcher is bound to this checkout by setup.sh.
+# Trust includes future check_*.py tests and edits to their imported code.
+prefix_rule(
+    pattern = ["pkexec", "/usr/local/libexec/onpc-test-runner", ["integration", "system"]],
+    decision = "allow",
+    justification = "Run project test categories through the installed dispatcher, with validated selection and automatic unprivileged cleanup prerequisites.",
+    match = [
+        "pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_worker",
+        "pkexec /usr/local/libexec/onpc-test-runner integration check_future_feature",
+        "pkexec /usr/local/libexec/onpc-test-runner system --area authorization --list",
+    ],
+    not_match = [
+        "pkexec /usr/bin/python3 -B /tmp/random.py",
+        "pkexec /usr/local/libexec/onpc-test-runner arbitrary-category",
+        "pkexec /usr/local/libexec/onpc-test-runner --command id",
+    ],
+)

@@ -30,6 +30,36 @@ guest. Do not use generic `check-marker`/`check-coverage` as an E2E launcher.
 
 ## Cleanup-safety prerequisites
 
+### Approved privileged test categories
+
+`setup.sh` installs a root-owned `/usr/local/libexec/onpc-test-runner`, bound
+to this checkout. Use these entry points for Codex privileged test runs:
+
+```sh
+pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_worker
+pkexec /usr/local/libexec/onpc-test-runner system --artifacts /tmp/onpc-test-artifacts/first --area authorization
+```
+
+The integration category accepts any direct `tests/integration/check_*.py`
+file with a lowercase alphanumeric/underscore name and no script arguments.
+Future checks need no individual approval. Helpers, arbitrary paths, symlinks,
+and arbitrary command arguments are refused. The system category accepts the
+runner's artifact path, area/test selectors, listing and qualification flag.
+The launcher runs all `tests/unit/test_*cleanup_safety.py` modules and
+`test_graphical_lease.py` as the invoking user before executing the selected
+test as root. New cleanup implementations must add matching safety regressions.
+
+`setup.sh` also installs the versioned `config/codex-tests.rules` as the project
+`.codex/rules/tests.rules`, approving both categories. Codex must
+trust the project configuration and be restarted after the rule is installed.
+Linux Polkit authentication still applies. This grants trust to future test
+code and its imports in this checkout; it is not a sandbox for malicious tests.
+The installed dispatcher changes only when setup reinstalls it. It activates
+on its next invocation (`none`), adds no service or Polkit policy, and is not
+part of the product package. Run setup again if the checkout moves.
+
+### Manual entry points
+
 Before a host-integrated test that terminates processes, run its cleanup-safety
 regressions in isolation. They must pass before the protected operation starts.
 For the existing aggregate local/system commands, this cleanup-only selection
@@ -49,6 +79,15 @@ For a focused test, select the safety modules for every cleanup implementation
 it uses. New controllers must add their own ownership regressions. Future
 `test-*` dispatch runs the applicable prerequisites automatically, including
 for focused selections; today's commands do not all provide that orchestration.
+
+The developing graphical adapter additionally requires
+`tests/unit/test_graphical_lease.py` in isolation before its live use. It covers
+VM ownership refusal and real display descriptor transfer/revocation. The
+worker adds `tests/unit/test_graphical_worker_cleanup_safety.py`. The privileged
+integration dispatcher runs both automatically before
+`integration check_graphical_worker`, whose non-VM fixtures verify byte transfer,
+normal exit, controller disconnect, and forced supervisor interruption. This
+qualifies namespace containment, not the actual os-autoinst/VM integration.
 
 Signal only explicitly spawned, identity-recorded processes. Never infer
 ownership from names, environment variables, runtime directories, a host-wide

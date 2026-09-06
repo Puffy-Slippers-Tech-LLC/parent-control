@@ -16,6 +16,12 @@ Keep these topics separate so that each statement is accurate and reviewable:
 
 This guide may link to the threat model when describing a technical limitation, but it must not present a security property as a license term. Likewise, a privacy notice must describe actual data handling rather than copyright or third-party license information.
 
+The public privacy page must describe optional feedback submissions before the
+feedback-enabled product is released. The [prepared privacy update](Privacy-Notice-Release-Draft.md)
+identifies the current page's conflicting no-transmission wording and supplies
+client-accurate replacement text. Confirm deployed service retention and
+recipients before publishing server-side promises.
+
 ## Product license and corresponding source
 
 Oh No! Parent Control is licensed as GPL-3.0-only. Every source and binary distribution must preserve the copyright notice, GPL license text, and warranty disclaimer. A recipient of an object-code distribution must be able to obtain the complete corresponding source, including package build, installation, migration, and deployment scripts.
@@ -46,6 +52,18 @@ Do not claim that the product is affiliated with, endorsed by, or sponsored by t
 Every file distributed in a release needs a documented provenance, copyright holder, and license or other written distribution permission. Record those facts in `debian/copyright` and preserve license texts or attribution notices where their license requires them.
 
 The currently bundled Monocraft font is licensed under SIL OFL-1.1. Its copyright notice and complete license must remain alongside the installed font at `fonts/OFL.txt`. Before adding an image, sound, font, code sample, or other asset, obtain and retain evidence that the vendor has the right to redistribute it under the planned terms. Do not rely solely on a filename, embedded metadata, or a web search result as proof of redistribution rights.
+
+The feedback editor bundles Quill 2.0.3 under BSD-3-Clause. Preserve
+`rich_editor/LICENSE` and `quill.js.LICENSE.txt` beside the bundled JavaScript
+and stylesheet. The Thunderbird preview icon is covered by MPL-2.0; preserve
+its accompanying `THUNDERBIRD-BRANDING-LICENSE`, its source availability, and
+Mozilla's reservation of trademark rights. Ubuntu supplies the complete MPL-2.0
+text in `/usr/share/common-licenses/MPL-2.0`.
+
+[Asset provenance](Asset-Provenance.md) records exact upstream matches and the
+publisher records still required for product artwork and music. Update that
+record and `debian/copyright` when an asset changes. A pending provenance entry
+must be resolved before distributing that asset.
 
 ## Debian package requirements
 

@@ -1,0 +1,105 @@
+#!/usr/bin/python3 -I
+"""Installed development-only dispatcher; trust the configured test checkout."""
+
+import argparse
+import os
+from pathlib import Path
+import pwd
+import re
+import subprocess
+import sys
+
+CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
+
+
+def confined_file(root, relative):
+    candidate = root / relative
+    if candidate.is_symlink() or candidate.resolve().parent != candidate.parent.resolve():
+        raise ValueError('test-runner:invalid-test-path')
+    if not candidate.is_file() or not candidate.resolve().is_relative_to(root.resolve()):
+        raise ValueError('test-runner:missing-or-external-test')
+    return candidate
+
+
+def selection(root, argv):
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    categories = parser.add_subparsers(dest='category', required=True)
+    integration = categories.add_parser('integration', allow_abbrev=False)
+    integration.add_argument('test', help='check_* basename, with optional .py suffix')
+    system = categories.add_parser('system', allow_abbrev=False)
+    system.add_argument('--artifacts', type=Path)
+    system.add_argument('--area')
+    system.add_argument('--test')
+    system.add_argument('--list', action='store_true')
+    system.add_argument('--qualification-failure', action='store_true')
+    args = parser.parse_args(argv)
+    if args.category == 'integration':
+        name = args.test.removesuffix('.py')
+        if not re.fullmatch(r'check_[a-z][a-z0-9_]*', name):
+            raise ValueError('test-runner:invalid-test-name')
+        target = confined_file(root, f'tests/integration/{name}.py')
+        return ['/usr/bin/python3', '-B', str(target)]
+    target = confined_file(root, 'tests/integration/system_runner.py')
+    command = ['/usr/bin/python3', '-B', str(target)]
+    if not args.list and args.artifacts is None:
+        parser.error('system requires --artifacts unless --list is supplied')
+    if args.artifacts is not None:
+        if not args.artifacts.is_absolute():
+            parser.error('--artifacts must be absolute')
+        command += ['--artifacts', str(args.artifacts)]
+    for option in ('area', 'test'):
+        value = getattr(args, option)
+        if value is not None:
+            if not value or len(value) > 512 or any(ord(c) < 32 for c in value):
+                raise ValueError('test-runner:invalid-selector')
+            command.append(f'--{option}={value}')
+    if args.list:
+        command.append('--list')
+    if args.qualification_failure:
+        command.append('--qualification-failure')
+    return command
+
+
+def run(root, argv, caller):
+    command = selection(root, argv)
+    safety = sorted((root / 'tests/unit').glob('test_*cleanup_safety.py'))
+    if not safety:
+        raise ValueError('test-runner:missing-cleanup-prerequisites')
+    safety.append(root / 'tests/unit/test_graphical_lease.py')
+    safety = [str(confined_file(root, p.relative_to(root))) for p in safety]
+    environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+                   'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1'}
+    print('test-runner: cleanup prerequisites starting (unprivileged)', flush=True)
+    result = subprocess.run(
+        ['/usr/bin/python3', '-B', '-m', 'pytest', '-p', 'no:cacheprovider', *safety, '-q'],
+        cwd=root, env=environment, user=caller.pw_uid, group=caller.pw_gid,
+        extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid), check=False)
+    if result.returncode:
+        print('test-runner: cleanup prerequisites failed; test refused', file=sys.stderr)
+        return result.returncode
+    print('test-runner: cleanup prerequisites passed; selected test starting', flush=True)
+    # Preserve pkexec's authenticated graphical-caller identity for the VM runner.
+    environment['PKEXEC_UID'] = str(caller.pw_uid)
+    environment['HOME'] = '/root'
+    result = subprocess.run(command, cwd=root, env=environment, check=False)
+    print(f'test-runner: selected test finished (status={result.returncode})', flush=True)
+    return result.returncode
+
+
+def main():
+    try:
+        if CHECKOUT is None:
+            raise ValueError('test-runner:installation-required')
+        if os.geteuid() != 0:
+            raise ValueError('test-runner:pkexec-required')
+        uid = int(os.environ.get('PKEXEC_UID', '0'))
+        if uid <= 0:
+            raise ValueError('test-runner:unprivileged-caller-required')
+        return run(Path(CHECKOUT), sys.argv[1:], pwd.getpwuid(uid))
+    except (ValueError, KeyError, OSError):
+        print('test-runner: invalid request, missing prerequisite, or execution failure', file=sys.stderr)
+        return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main())

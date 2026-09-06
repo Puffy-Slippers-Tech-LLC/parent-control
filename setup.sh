@@ -99,6 +99,15 @@ fi
     qemu-utils=1:10.2.1+ds-1ubuntu3.2 \
     shellcheck=0.11.0-2
 
+# The graphical backend does not need recommended host networking services or
+# a separate VNC server. Feature::Compat::Try is used by the packaged entry
+# point but is missing from this os-autoinst package's dependency declaration.
+"${apt_get[@]}" install -y --no-install-recommends \
+    os-autoinst=5.1768577300.b85e4864-1 \
+    libfeature-compat-try-perl=0.05-1 \
+    util-linux=2.41.3-3ubuntu2.2 \
+    iproute2=6.19.0-1ubuntu1.1
+
 # Keep the public development identity and signing settings local to this checkout.
 # The private signing key must be restored separately before signing releases.
 git -C "$script_dir" config --local user.name 'Puffy Slippers Tech LLC'
@@ -115,5 +124,15 @@ ui_venv="$script_dir/.venv/onpc-ui-tests"
 "/usr/bin/python3" -m venv --system-site-packages "$ui_venv"
 "$ui_venv/bin/python" -m pip install --disable-pip-version-check --no-deps \
     --require-hashes -r "$script_dir/tests/ui/requirements.txt"
+
+# Development-only dispatcher; activates on the next invocation (none).
+# This is not shipped in the product package and changes no Polkit policy.
+test_runner_install=(/usr/bin/python3 "$script_dir/tools/install_test_runner.py")
+if (( EUID != 0 )); then
+    test_runner_install=(sudo "${test_runner_install[@]}")
+fi
+"${test_runner_install[@]}"
+install -D -m 0644 "$script_dir/config/codex-tests.rules" "$script_dir/.codex/rules/tests.rules"
+echo "setup: installed project Codex test rules; restart Codex with this project trusted"
 
 echo "Development dependencies installed. Run: make check or make check-component"

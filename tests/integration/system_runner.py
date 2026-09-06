@@ -283,7 +283,7 @@ def print_selection(selection, stream=None):
             print(f'      {case}', file=stream)
 
 
-def isolated_xml(xml, expected_uuid, run):
+def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
     """Use only the fixed guest disk; remove every host-sharing interface."""
     baseline.domain_layout(xml, expected_uuid)
     root = ET.fromstring(xml)
@@ -292,11 +292,15 @@ def isolated_xml(xml, expected_uuid, run):
     for name in ('filesystem', 'redirdev', 'channel', 'graphics', 'audio', 'sound', 'rng'):
         for node in devices.findall(name):
             devices.remove(node)
-    # A local SPICE display has neither clipboard nor file-transfer agents.
-    graphics = ET.SubElement(devices, 'graphics', type='spice', autoport='yes')
+    require(graphics_type in ('spice', 'vnc'), 'guard:graphics-type')
+    # Neither display listens on a host port/socket. Graphical workers obtain
+    # VNC through libvirt's public openGraphicsFD API under the same lease.
+    graphics = ET.SubElement(devices, 'graphics', type=graphics_type)
     ET.SubElement(graphics, 'listen', type='none')
-    ET.SubElement(graphics, 'clipboard', copypaste='no')
-    ET.SubElement(graphics, 'filetransfer', enable='no')
+    if graphics_type == 'spice':
+        graphics.set('autoport', 'yes')
+        ET.SubElement(graphics, 'clipboard', copypaste='no')
+        ET.SubElement(graphics, 'filetransfer', enable='no')
     for name in ('serial', 'console'):
         require(all(node.get('type') == 'pty' for node in devices.findall(name)), 'guard:host-character-device')
     interfaces = devices.findall('interface')
@@ -310,6 +314,20 @@ def isolated_xml(xml, expected_uuid, run):
     return ET.tostring(root, encoding='unicode')
 
 
+def validate_private_vnc(root):
+    """Refuse display replacement or any host listener, including normalized XML."""
+    displays = root.findall('devices/graphics')
+    require(len(displays) == 1, 'guard:graphics-count')
+    display = displays[0]
+    require(display.get('type') == 'vnc' and
+            set(display.attrib) <= {'type', 'port', 'autoport'} and
+            display.get('port', '-1') == '-1' and
+            display.get('autoport', 'no') == 'no', 'guard:graphics-endpoint')
+    require(len(display) == 1 and display[0].tag == 'listen' and
+            display[0].attrib == {'type': 'none'} and len(display[0]) == 0,
+            'guard:graphics-listener')
+
+
 class SourceView:
     """Retain Task 12's exact disk checks while allowing our removed file share."""
 
@@ -318,6 +336,7 @@ class SourceView:
         self.original_shares = None
         self.run = None
         self.domain_id = None
+        self.graphics_type = 'spice'
 
     def snapshot(self):
         layout, off = self.source.snapshot()
@@ -325,6 +344,8 @@ class SourceView:
             domain = self.source.connection.lookupByName(baseline.DOMAIN)
             root = ET.fromstring(domain.XMLDesc(0))
             require(root.findtext('description') == TAG + self.run, 'guard:run-identity')
+            if self.graphics_type == 'vnc':
+                validate_private_vnc(root)
             require(not layout['source_shares'] and not root.findall('devices/filesystem') and
                     not root.findall('devices/hostdev') and not root.findall('devices/channel') and
                     not root.findall('devices/redirdev'), 'guard:host-sharing')
@@ -341,9 +362,10 @@ class Lease:
     """Serializes prep-host/system runners; durable state refuses interrupted ownership."""
 
     def __init__(self, source, commands, inspect, *, directory=baseline.BASELINES,
-                 anchor=baseline.ANCHOR, ledger=None):
+                 anchor=baseline.ANCHOR, ledger=None, graphics_type='spice'):
         self.source, self.commands, self.inspect = source, commands, inspect
         self.view = SourceView(source)
+        self.view.graphics_type = graphics_type
         self.capture = baseline.Capture(self.view, commands, inspect, directory=directory, anchor=anchor)
         self.directory = directory
         self.journal = directory / 'system-run.json'
@@ -392,7 +414,8 @@ class Lease:
             require(not self.source.domain.autostart(), 'guard:autostart')
             run = uuid.uuid4().hex
             # Validate isolation before creating state or shutting down a VM.
-            self.test_xml = isolated_xml(self.original_xml, self.source.uuid, run)
+            self.test_xml = isolated_xml(self.original_xml, self.source.uuid, run,
+                                         graphics_type=self.view.graphics_type)
             self.state = {'schema_version': 1, 'run': run, 'phase': 'validated',
                           'domain_uuid': self.source.uuid, 'domain_id': None,
                           'original_xml': self.original_xml,
@@ -444,11 +467,8 @@ class Lease:
         self.guard()
         self.save('running')
 
-    def finish(self):
-        if not self.mutated:
-            self.save('complete')
-            return
-        self.save('cleanup-requested')
+    def stop(self):
+        """Stop the recorded instance without restoring between backend callbacks."""
         self.guard()
         if not self.view.snapshot()[1]:
             # Only the domain instance started and identity-recorded by this run.
@@ -461,6 +481,13 @@ class Lease:
                 self.guard()
                 self.source.domain.destroyFlags(0)
         self.guard(off=True)
+
+    def finish(self):
+        if not self.mutated:
+            self.save('complete')
+            return
+        self.save('cleanup-requested')
+        self.stop()
         self.restore()
         log('stage:restored-baseline-verification')
         require(self.capture.verify_snapshot() == self.capture.state['proof'], 'cleanup:baseline-changed')

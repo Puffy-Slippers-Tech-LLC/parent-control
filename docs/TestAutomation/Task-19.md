@@ -39,6 +39,50 @@ on the existing fixed VM. Read the mandatory
   evidence and safe cleanup. Carry its implementation into 19A; do not repeat
   this feasibility investigation at every graphical task.
 
+### Active handoff — 2026-09-06, 19P incomplete
+
+The third slice implemented and qualified the contained worker and private
+TCP-to-FD bridge with non-VM fixtures. Live compatibility remains unproven.
+Scope remains the development host and existing guarded `ubuntu26.04` VM.
+Reuse the [worker evidence](Evidence/19P-Worker-Bridge-2026-09-06.md) for the
+current interface, source identities, retained failed/passing attempts and
+verification. Earlier adapter/tooling conclusions remain linked there.
+
+**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
+**Reason:** private namespace isolation, start gating, descriptor handling and
+normal/interrupted descendant cleanup now work locally. The remaining first
+live integration crosses backend callbacks, lease-owned graphics, and safe
+screen/observation evidence; that unresolved boundary still merits the current
+model and effort. Confirm both next session.
+
+Reuse `graphical_worker.Worker`, `graphical_lease.CallbackServer`,
+`lifecycle_variables()`, and `Lease(..., graphics_type='vnc')`. generalhw must
+use `127.0.0.1:5900` inside the worker namespace. The worker requests the display
+FD lazily; all lease callbacks stay in the controller thread. Close the worker
+before the callback server and outer lease. No VM lifecycle operation belongs
+in the worker. The [integration guide](../../tests/integration/README.md#graphical-adapter-under-development)
+describes the exact internal API and capture boundary.
+
+**Next observable result:** wire a credential-free generalhw distribution and
+fixed guarded `check_*.py` smoke, then prove real libvirt graphics-FD attachment,
+GDM/menu keyboard/mouse and screen changes, plus fixed read-only observation.
+Use `pkexec /usr/local/libexec/onpc-test-runner integration <check_name>`; it
+runs the isolated safety prerequisites automatically. No actual generalhw
+launch/distribution or guest observation command exists yet. Do not boot outside
+the lease or repeat completed tooling/namespace checks solely for a fresh chat.
+
+Verification: 29 focused worker tests; final dispatcher safety selection passed
+118 tests and 3 subtests. Non-VM normal exit, controller disconnect and forced
+supervisor interruption all transferred 1 MiB and confirmed both recorded
+fixture processes exited. Initial collector failure is retained; its corrected
+multi-pidfd wait has a regression. Final `make check` passed (1,032 unit/contract,
+17 components, syntax/traceability); `bash -n setup.sh` and `git diff --check`
+passed. New code has not run against the VM. Live expensive attempts: **0**.
+All commands finished; fresh read-only query confirmed VM off. About 30 minutes,
+including roughly ten minutes of approval/interruption; no VM cleanup time.
+Concurrent edits preserved. Task 14's failures remain; 19P still needs live
+smoke evidence before acceptance.
+
 ## Task 19A
 
 - Title: Add the guarded os-autoinst worker and console transport.

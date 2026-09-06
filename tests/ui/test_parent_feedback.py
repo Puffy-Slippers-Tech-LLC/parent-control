@@ -63,8 +63,10 @@ def test_feedback_draft_and_optional_attachment(
     )
     wait_for_accessible_node(
         privacy_dialog,
-        "Your feedback, reply email, files, and optional diagnostic logs are "
-        "sent to support and kept for 7 days. Diagnostic logs do not collect "
+        "Feedback, reply email addresses, attachments, and diagnostic logs are emailed "
+        "to support. Retention depends on our support mailbox and service providers, "
+        "including their backup policies. We do not currently guarantee deletion "
+        "within a fixed period.\n\nDiagnostic logs do not collect "
         "personally identifiable information (PII), such as account names, email "
         "addresses, or file contents. Review files and logs before sending.",
     )

@@ -228,7 +228,18 @@ def collect(marker, outcome):
         'selected_inputs_sha256': marker['selected_inputs_sha256'],
     }, sort_keys=True) + '\n')
     for source in output.glob('*.xml'):
-        source.write_text(redacted(source.read_text()))
+        # Redact decoded values, then let the serializer escape replacements.
+        # Redacting serialized XML can insert literal <redacted> tags into
+        # tracebacks or miss XML-escaped identity/credential values.
+        tree = ET.parse(source)
+        for element in tree.iter():
+            if element.text is not None:
+                element.text = redacted(element.text)
+            if element.tail is not None:
+                element.tail = redacted(element.tail)
+            for name, value in element.attrib.items():
+                element.set(name, redacted(value))
+        tree.write(source, encoding='utf-8', xml_declaration=True)
 
 
 def main(argv=None):

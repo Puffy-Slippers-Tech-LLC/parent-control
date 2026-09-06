@@ -43,10 +43,11 @@ class FixturePassword:
 class TextAgent:
     """Real pkttyagent on a private PTY; never export terminal contents."""
 
-    def __init__(self, caller):
+    def __init__(self, caller, *, record_diagnostic=None):
         guest.guard()
         guest.require(isinstance(caller.name, str) and caller.name.startswith(':'), 'agent:subject')
         subject = caller.agent_subject()
+        self.record_diagnostic = record_diagnostic
         self.child = None
         self.pidfd = None
         self.master = None
@@ -160,6 +161,7 @@ class TextAgent:
                    'denied' if terminal.endswith(b'AUTHENTICATION FAILED') else 'cancelled')
         print('onpc-system: stage=authentication outcome=' +
               outcome, flush=True)
+        category = None
         if outcome == 'denied':
             # Helper stderr shares the private PTY. PAM and authority failures
             # are not all journalled, so retain only an allowlisted stage;
@@ -182,6 +184,12 @@ class TextAgent:
                     break
             print('onpc-system: stage=authentication-helper outcome=denied '
                   f'category={category}', flush=True)
+        if self.record_diagnostic is not None:
+            # Persist only reduced values before the outcome assertion can fail.
+            # The fixture associates these with its test and attempt in JUnit;
+            # terminal bytes and the fixture password never cross this boundary.
+            self.record_diagnostic(expected='accepted' if succeeds else 'denied',
+                                   outcome=outcome, helper_category=category)
         guest.require(terminal.endswith(expected), 'agent:unexpected-' + outcome)
 
     def close(self):

@@ -48,10 +48,11 @@ the implementation model-confirmation step.
 The intended interface is four commands. **These targets and their selectors
 are not implemented yet**; Task 28A owns their complete dispatch and CI. The
 smaller [F1 task](TestAutomation/Task-F1.md) brings guarded installed selectors
-and diagnostic timing forward into `check-system`. F1 is in progress: its
+and diagnostic timing forward into `check-system`. F1 is complete: its
 host-safe `LIST=1` inventory, guarded case forwarding, stage timing, split
-diagnostic outcomes, and selected-input provenance are available, while VM
-acceptance remains unfinished. Use the current commands below for runs.
+diagnostic outcomes, and selected-input provenance are implemented and qualified
+in the VM. Installed product coverage remains under development. Use the current
+commands below for runs.
 
 | Command | Default scope | Test VM |
 | --- | --- | --- |

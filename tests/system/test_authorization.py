@@ -323,9 +323,28 @@ def passwords(accounts):
     return values
 
 
+@pytest.fixture
+def authentication_diagnostics(request, record_testsuite_property):
+    """Retain safe per-attempt evidence even when an authentication assertion fails."""
+    attempt = 0
+
+    def record(*, expected, outcome, helper_category):
+        nonlocal attempt
+        attempt += 1
+        # This public fixture supports xunit2. Suite properties include the
+        # registered case ID because multiple tests can authenticate in a phase.
+        record_testsuite_property('onpc.authentication', json.dumps({
+            'case_id': request.node.name, 'attempt': attempt,
+            'expected': expected, 'outcome': outcome, 'helper_category': helper_category,
+        }, sort_keys=True))
+
+    return record
+
+
 @pytest.mark.parametrize('surface', ('child1', 'kiosk'))
 @pytest.mark.parametrize('mutation', ('child-role', 'approver-role', 'preferences'))
-def test_authenticated_request_revalidates_live_state(accounts, passwords, surface, mutation):
+def test_authenticated_request_revalidates_live_state(accounts, passwords, surface, mutation,
+                                                     authentication_diagnostics):
     """Authenticate successfully after a real, observable mid-prompt change."""
     target = accounts['child1']
     selected, other = accounts['parent1'], accounts['parent2']
@@ -337,7 +356,8 @@ def test_authenticated_request_revalidates_live_state(accounts, passwords, surfa
     path = f'/org/freedesktop/Accounts/User{changed_uid}'
     role_changed = False
     try:
-        with PersistentCaller(accounts[surface]) as caller, TextAgent(caller) as agent:
+        with PersistentCaller(accounts[surface]) as caller, TextAgent(
+                caller, record_diagnostic=authentication_diagnostics) as agent:
             caller.send({
                 'kind': 'call',
                 'method': 'RequestOwnAccess' if surface == 'child1' else 'RequestAccess',
@@ -385,13 +405,15 @@ def test_authenticated_request_revalidates_live_state(accounts, passwords, surfa
 
 
 @pytest.mark.parametrize('surface', ('child1', 'kiosk'))
-def test_real_selected_parent_authentication(accounts, passwords, surface):
+def test_real_selected_parent_authentication(accounts, passwords, surface,
+                                            authentication_diagnostics):
     target = accounts['child1']
     selected, other = accounts['parent1'], accounts['parent2']
     accepted(call(selected, 'SetParentControl', '(ubu)', (target, True, 0)))
     try:
         before = {key: account_state(accounts[key]) for key in ROLES}
-        with PersistentCaller(accounts[surface]) as caller, TextAgent(caller) as agent:
+        with PersistentCaller(accounts[surface]) as caller, TextAgent(
+                caller, record_diagnostic=authentication_diagnostics) as agent:
             operation = {
                 'kind': 'call',
                 'method': 'RequestOwnAccess' if surface == 'child1' else 'RequestAccess',

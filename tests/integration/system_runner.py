@@ -40,6 +40,8 @@ import prepare_host as baseline
 ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = '/var/tmp/onpc-system-input'
 TAG = 'onpc-system-run:'
+QUALIFICATION_CASE = 'test_method_role_matrix[ListManagedUsers-parent1]'
+QUALIFICATION_FAILURE = 'harness:qualification-failure'
 PHASE_ORDER = ('installed', 'rebooted', 'authorization')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
@@ -162,6 +164,7 @@ class Selection:
     prerequisites: tuple[str, ...]
     executions: tuple[CaseExecution, ...]
     available: dict[str, tuple[str, ...]]
+    qualification_failure: bool = False
 
 
 def collect_area_cases(area, *, invoke=None):
@@ -199,12 +202,14 @@ def case_phases(area, case_id):
     return package[case_id]
 
 
-def resolve_selection(area=None, test=None, *, inventories=None):
+def resolve_selection(area=None, test=None, *, inventories=None, qualification_failure=False):
     """Resolve an exact selection and all test-phase prerequisites on the host."""
     require(area is None or area != '', 'selection:empty-area')
     require(test is None or test != '', 'selection:empty-test')
     require(area is None or area in AREA_SOURCES, 'selection:unknown-area')
     require(test is None or area is not None, 'selection:test-requires-area')
+    require(not qualification_failure or (area == 'authorization' and test == QUALIFICATION_CASE),
+            'qualification:requires-allowlisted-case')
     if inventories is None:
         inventories = {name: collect_area_cases(name) for name in AREA_SOURCES}
     else:
@@ -250,7 +255,7 @@ def resolve_selection(area=None, test=None, *, inventories=None):
         prerequisites.append('fixture-passwords')
     available = {name: inventories[name] for name in chosen_areas}
     return Selection(area, test, 'full' if area is None else 'partial', phases,
-                     tuple(prerequisites), tuple(executions), available)
+                     tuple(prerequisites), tuple(executions), available, qualification_failure)
 
 
 def print_selection(selection, stream=None):
@@ -260,6 +265,8 @@ def print_selection(selection, stream=None):
     print('check-system selection:', file=stream)
     print('  mode: list-only (no root, artifacts, VM, or guest fixtures)', file=stream)
     print(f'  scope: {selection.scope}', file=stream)
+    print('  purpose: ' + ('harness-qualification' if selection.qualification_failure
+                          else 'product-tests'), file=stream)
     print('  area: ' + (selection.area or 'all'), file=stream)
     print('  test: ' + (selection.test or 'all'), file=stream)
     print('  vm-required-for-execution: yes', file=stream)
@@ -372,7 +379,10 @@ class Lease:
             self.capture.state = self.capture.read_state()
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
             log('stage:baseline-verification')
-            require(self.capture.verify_snapshot() == self.capture.state['proof'], 'baseline:changed')
+            # Proof validation can dominate preparation. Include it on refusal
+            # and interruption too, before any VM mutation is permitted.
+            with self.ledger.measure('preparation') if self.ledger else nullcontext():
+                require(self.capture.verify_snapshot() == self.capture.state['proof'], 'baseline:changed')
             if self.journal.exists():
                 baseline.identity(self.journal, private=True, mode=0o600)
                 previous = baseline.parse_json(self.journal.read_bytes())
@@ -556,6 +566,8 @@ def stage_selected_inputs(selection, destination):
     """Freeze and identify only the test/helper files needed by this selection."""
     selected_areas = {execution.area for execution in selection.executions}
     inputs = list(COMMON_SELECTED_INPUTS)
+    if selection.qualification_failure:
+        inputs.append(('tests/integration/system_qualification.py', 'system_qualification.py'))
     for area in AREA_SOURCES:
         if area not in selected_areas:
             continue
@@ -577,6 +589,7 @@ def stage_selected_inputs(selection, destination):
             'scope': selection.scope,
             'area': selection.area,
             'test': selection.test,
+            'qualification_failure': selection.qualification_failure,
             'phases': list(selection.phases),
             'executions': [
                 {'phase': item.phase, 'area': item.area, 'case_id': item.case_id,
@@ -725,11 +738,14 @@ def pytest_command(run, phase, selection):
     require(phase in PHASE_ORDER, 'pytest:phase')
     selectors = [f'{PAYLOAD}/{AREA_SOURCES[item.area].name}::{item.case_id}'
                  for item in phase_executions(selection, phase)]
+    qualification = (['-p', 'system_qualification', '--onpc-qualification-failure']
+                     if selection.qualification_failure and phase == 'authorization' else [])
     return ['env', f'ONPC_EXPECTED_RUN={run}', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1',
+            f'PYTHONPATH={PAYLOAD}',
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-m', 'pytest',
             '-c', PAYLOAD + '/pytest.ini', '--noconftest', '--rootdir', PAYLOAD,
             '--junitxml', f'{PAYLOAD}/results/{phase}.xml', '-q',
-            *selectors]
+            *qualification, *selectors]
 
 
 def junit_executions(path, phase):
@@ -768,10 +784,35 @@ def reconcile_junit(directory, phase, selection):
     return executed
 
 
+def is_qualification_failure(directory, selection):
+    """Recognize only the fixed fault with the complete, otherwise healthy scope."""
+    if not selection.qualification_failure:
+        return False
+    try:
+        for phase in selection.phases:
+            if phase != 'authorization':
+                reconcile_junit(directory, phase, selection)
+        root, identities = junit_executions(directory / 'guest-results/authorization.xml',
+                                           'authorization')
+        if identities != (('authorization', QUALIFICATION_CASE),):
+            return False
+        failures = list(root.iter('failure'))
+        return (len(failures) == 1 and
+                failures[0].get('message') == 'Failed: ' + QUALIFICATION_FAILURE and
+                next(root.iter('error'), None) is None and
+                next(root.iter('skipped'), None) is None and
+                all(int(suite.get('errors', '0')) == int(suite.get('skipped', '0')) == 0
+                    and int(suite.get('failures', '0')) == 1
+                    for suite in root.iter('testsuite')))
+    except (Error, ValueError):
+        return False
+
+
 def installed_run(vm, lease, directory, selection, ledger=None):
     ledger = ledger or RunLedger()
     run = lease.state['run']
     outcome = 'failed'
+    qualification_pending = False
     try:
         with ledger.measure('bootstrap'):
             vm.ready()
@@ -817,17 +858,20 @@ def installed_run(vm, lease, directory, selection, ledger=None):
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')
-                    ledger.fail_outcome(domain, 'pytest:failed:authorization' if domain == 'product'
-                                        else error_category(error))
+                    qualification_pending = selection.qualification_failure and domain == 'product'
+                    if not qualification_pending:
+                        ledger.fail_outcome(domain, 'pytest:failed:authorization' if domain == 'product'
+                                            else error_category(error))
                     raise
         outcome = 'passed'
     except BaseException as error:
-        if all(ledger.outcomes[name]['outcome'] != 'failed'
-               for name in ('product', 'infrastructure')):
+        if not qualification_pending and all(ledger.outcomes[name]['outcome'] != 'failed'
+                                             for name in ('product', 'infrastructure')):
             ledger.fail_outcome('infrastructure', error_category(error))
         raise
     finally:
         original_failure = sys.exc_info()[0] is not None
+        collection_error = None
         try:
             with ledger.measure('collection'):
                 lease.guard()
@@ -835,9 +879,16 @@ def installed_run(vm, lease, directory, selection, ledger=None):
                 vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
             ledger.pass_outcome('collection')
         except BaseException as error:
-            ledger.fail_outcome('collection', error_category(error))
+            collection_error = error
+        if qualification_pending:
+            if collection_error is None and is_qualification_failure(directory, selection):
+                ledger.fail_outcome('infrastructure', QUALIFICATION_FAILURE)
+            else:
+                ledger.fail_outcome('product', 'pytest:failed:authorization')
+        if collection_error is not None:
+            ledger.fail_outcome('collection', error_category(collection_error))
             if not original_failure:
-                raise
+                raise collection_error
             # Retain the original failure even if the guest cannot return logs.
             log('evidence:guest-collection-failed')
     try:
@@ -846,6 +897,9 @@ def installed_run(vm, lease, directory, selection, ledger=None):
     except Error as error:
         ledger.fail_outcome('product', error_category(error))
         raise
+    if selection.qualification_failure:
+        ledger.fail_outcome('infrastructure', 'harness:qualification-fault-missing')
+        raise Error('harness:qualification-fault-missing')
     ledger.pass_outcome('product')
     return result
 
@@ -880,6 +934,8 @@ def selection_evidence(directory, selection):
         'scope': selection.scope,
         'area': selection.area,
         'test': selection.test,
+        'purpose': ('harness-qualification' if selection.qualification_failure else 'product-tests'),
+        'qualification_failure': selection.qualification_failure,
         'phases': list(selection.phases),
         'expected_executions': expected,
         'executed_cases': executed,
@@ -931,6 +987,8 @@ def main(argv=None):
     parser.add_argument('--area')
     parser.add_argument('--test')
     parser.add_argument('--list', action='store_true')
+    parser.add_argument('--qualification-failure', action='store_true',
+                        help='inject the fixed harness fault after the allowlisted case succeeds')
     parser.add_argument('--check-tools', action='store_true')
     args = parser.parse_args(argv)
     source = None
@@ -945,14 +1003,16 @@ def main(argv=None):
     ledger = RunLedger()
     try:
         if args.list:
-            selection = resolve_selection(args.area, args.test)
+            selection = resolve_selection(args.area, args.test,
+                                          qualification_failure=args.qualification_failure)
             print_selection(selection)
             return 0
         require(Path.cwd() == ROOT == baseline.guest_contract.CHECKOUT, 'guard:checkout')
         if not args.check_tools:
             require(os.geteuid() == os.getegid() == 0,
                     'guard:root; run from a root shell on the VM host')
-        selection = resolve_selection(args.area, args.test)
+        selection = resolve_selection(args.area, args.test,
+                                      qualification_failure=args.qualification_failure)
         log(f'selection:scope={selection.scope} phases={len(selection.phases)} '
             f'executions={len(selection.executions)}')
         for name in HOST_EXECUTABLES:

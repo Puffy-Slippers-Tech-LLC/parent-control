@@ -88,7 +88,25 @@ The controller freezes only the test modules and guest helpers required by that
 resolved execution closure. `selected-inputs.json` binds their byte digests to
 the exact phases/case IDs, and its SHA-256 is carried independently through the
 guest marker, guest result, and aggregate result. Arbitrary guest pytest
-arguments remain unsupported. F1's selected VM acceptance is still pending.
+arguments remain unsupported. F1's selected and unselected runner qualification
+is complete; its [acceptance evidence](../../docs/TestAutomation/Evidence/F1-Qualification-2026-09-06.md)
+preserves the known Task 14 authentication failures as product/helper failures.
+
+For fixed harness qualification only, add `QUALIFICATION_FAILURE=1` to
+`make check-system` with `AREA=authorization` and
+`TEST='test_method_role_matrix[ListManagedUsers-parent1]'`. `LIST=1` also accepts
+this option. Every other scope is refused before VM mutation. The qualification
+plugin is frozen in selected-input provenance and loaded only for the selected
+authorization phase. Its [public pytest call wrapper](https://docs.pytest.org/en/stable/how-to/writing_hook_functions.html#hook-wrappers-executing-around-other-hooks)
+injects `harness:qualification-failure` only after the real assertion succeeds;
+existing assertion, setup and skip outcomes remain intact.
+
+Qualification retains a failing exit status and labels the result
+`harness-qualification`. The controller attributes the fixed fault to
+infrastructure only when all five exact executions are collected, prerequisite
+cases pass, and the selected case has only the fixed failure. Missing or unsafe
+evidence and cleanup failures remain separate outcomes. Even if the hook fails
+to inject its fault, qualification cannot become a passing product result.
 
 One expensive attempt should collect the safe observations needed to distinguish
 the current hypothesis on success and failure. Check parser/collector handling
@@ -208,7 +226,17 @@ Every attempt retains a unique `/tmp/onpc-system-*/` directory. Public
 `results.tap`, redacted guest logs, and the applicable guest phase XML
 (`installed.xml`, `rebooted.xml`, `authorization.xml`). The authentication journal
 collects Polkit service and PAM helper messages through the same redaction pass;
-a failed authentication-journal command fails collection explicitly. Raw diagnostics and
+a failed authentication-journal command fails collection explicitly.
+Authentication tests also retain `onpc.authentication` JUnit suite properties
+using pytest's public xunit2-compatible fixture. Each JSON value names the
+registered `case_id`, its one-based `attempt`, `expected` and actual `outcome`,
+and an allowlisted `helper_category` (null for accepted/cancelled outcomes).
+Recording precedes the outcome assertion, so an unexpected denial retains its
+category and remains a test failure. Attempt numbers restart for each case;
+credentials, account identities and terminal contents are excluded. JUnit
+redaction operates on decoded XML values before serialization, preserving valid
+XML even when a traceback contains a password assignment.
+Raw diagnostics and
 temporary SSH credentials remain root-private. Use only validated redacted
 exports; read source logs and journals without modifying them.
 

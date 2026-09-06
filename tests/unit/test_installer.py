@@ -124,7 +124,7 @@ class PackageDeploymentTests(unittest.TestCase):
             "parent/oh_no_parent_control_parent/rich_editor/quill.js",
             "parent/oh_no_parent_control_parent/rich_editor/quill.snow.css",
             "parent/oh_no_parent_control_parent/rich_editor/quill.js.LICENSE.txt",
-            "docs/parent-control-feedback.md",
+            "docs/SystemDesign/Logging-and-Feedback.md",
             "kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png",
             "kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf", "data/Gearbox_Waltz.mp3",
             "data/fapolicyd/99-oh-no-parent-control-allow.rules", "tools/pam_oh_no_parent_control.c",

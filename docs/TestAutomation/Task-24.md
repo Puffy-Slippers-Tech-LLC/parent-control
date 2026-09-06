@@ -3,6 +3,11 @@
 Execute 24A and 24B separately. Reuse Task 23's shared request-form helpers;
 retain kiosk-specific account selection, request method, mute, and logout.
 
+Follow [E2E-Coverage.md](E2E-Coverage.md). Enumerate the kiosk variants and
+execute actual GDM entry, customer requests, system password prompts, and
+return-to-GDM behavior. Never launch a preview or inject request results. No
+VM checkpoint may replace entry, approval, exit, or a cross-surface round trip.
+
 ## Task 24A
 
 - Title: Prove restricted kiosk startup and authentication-agent recovery.
@@ -20,13 +25,16 @@ retain kiosk-specific account selection, request method, mute, and logout.
   3. Stop the authentication-agent service during a request using public guest
      service controls; verify safe denial, restart its maintained user service,
      and complete a later request.
+     Classify this declared real-service intervention as fault/recovery; keep
+     the uninterrupted normal kiosk approval journey separately required.
   4. Publish kiosk entry/exit and agent-recovery helpers; update session
      restriction and recovery mappings.
 - Verification:
   - Run cleanup-safety regressions in isolation before integrated controls.
-  - Run the kiosk restriction/recovery cases twice on fresh installed overlays.
+  - Run the complete kiosk restriction/recovery cases twice; reset the baseline
+    only outside attempts, never between the failure and recovery steps.
     Correlate screens, user units, sessions, broker calls, grants, and logs.
-  - Run `make check-e2e VM_IMAGE=<verified-baseline> SCENARIO=<kiosk-session>`,
+  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
     `make check`, and `git diff --check`.
 - Completion criteria: the kiosk starts and recovers as a request-only session.
 
@@ -52,9 +60,9 @@ retain kiosk-specific account selection, request method, mute, and logout.
 - Verification:
   - Run focused local UI checks through `tools/run-ui-tests --timeout <duration>
     <pytest-selectors>`; run cleanup-safety regressions first where needed.
-  - Run the kiosk form cases twice from fresh installed overlays and correlate
+  - Run the complete kiosk form cases twice on the guarded VM and correlate
     screenshots with sessions, broker calls, grants, preferences, and logs.
-  - Run `make check-e2e VM_IMAGE=<verified-baseline> SCENARIO=<kiosk-form>`,
+  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
     `make check`, and `git diff --check`.
 - Completion criteria: kiosk selection, approval, shared choices, and every exit
   path have graphical and backend evidence.

@@ -25,7 +25,7 @@ or redistribute Malcontent. Malcontent is an LGPL-2.1-or-later operating-system
 dependency, with its own notices and source supplied by the distribution. This
 product is not affiliated with or endorsed by the Malcontent authors or GNOME.
 Read [NOTICE](NOTICE) and
-[the integration note](docs/malcontent014-integration.md) before deploying
+[the threat model](docs/Threat-Model.md) before deploying
 restrictions: Malcontent is one enforcement component, not a guarantee that
 every possible method of use is blocked.
 Maintainers should follow [the compliance guide](docs/Compliance.md) for every
@@ -119,48 +119,20 @@ The repository is organized by runtime component:
 - `broker/` contains the privileged shared-preferences and access broker.
 - `data/`, `config/`, and `tools/` contain system-wide integration and deployment files.
 
-Run the complete host-safe test suite without installing anything:
+See the [test automation guide](docs/Test-Automation.md) for current commands,
+the planned four-command interface, and complete-run acceptance criteria.
+Today, `make check` runs the non-graphical baseline; `make check-component`
+adds GTK, child JavaScript/GJS and nested-Shell components, and
+`make check-static` runs the maintained static tools. Run the applicable
+[cleanup-safety prerequisites](tests/README.md#cleanup-safety-prerequisites)
+before host-integrated tests that terminate processes.
 
-```sh
-make check
-```
-
-The unit and private-D-Bus component suites use pytest. On Ubuntu 26.04,
-`setup.sh` installs the reviewed archive versions listed in
-`tests/test-tools-ubuntu-26.04.txt`, including `python3-pytest=9.0.2-4` and
-`python3-dbusmock=0.38.1-1`, and `flatpak=1.16.6-1`. Run `make check-unit` for unit and contract tests,
-or `make check-component` for private-bus, JavaScript (Node and GJS), hermetic
-GTK, and isolated GNOME Shell component tests. `make check-child-shell` runs
-the GNOME Shell 50 child-extension lifecycle, indicator interaction, and
-controlled-source reload component suite.
-The latter creates a disposable Wayland compositor, private D-Bus, and private
-AT-SPI bus for each test process; it never uses the developer's desktop session.
-Each preview captures its complete nested-Shell logs and a PNG through GNOME
-Shell's public Screenshot D-Bus interface. Per-run diagnostics stay in the
-ignored `artifacts/ui/child-shell/` tree; the most recent successful evidence
-is also copied to `artifacts/ui/child-shell/latest/` by scenario. These images
-are of the private nested compositor, never the host desktop.
-`make check-child-node` runs the platform-neutral child-extension tests with
-Node's built-in runner. `make check-child-gjs` runs the GJS adapter tests and
-writes LCOV coverage to `artifacts/coverage/gjs-child/coverage.lcov`.
-`setup.sh` creates its isolated Dogtail 2.1.0 environment from the hash-pinned
-wheel in `tests/ui/requirements.txt` and installs Ubuntu's maintained
-`gnome-ponytail-daemon` package for real Wayland runs that need input injection.
-
-`make check-test-fixtures` builds deterministic native and Flatpak enforcement
-targets, launches them as the current unprivileged UID, and verifies their
-digests. It gives Flatpak an isolated temporary `HOME` and XDG tree, never uses
-the developer's user or system Flatpak installation, and removes the whole
-temporary tree after the test. To retain a payload for a guarded disposable-VM
-test, provide an explicit empty directory beneath `/tmp`:
-
-```sh
-make build-test-fixtures OUTPUT_DIR="$(mktemp -d /tmp/onpc-test-fixtures-XXXXXX)/payload"
-```
-
-This command only builds an image payload; it does not install an application,
-create an account, alter application policy, or start a VM. Later system tests
-may copy that payload only after their guest guard has verified a disposable VM.
+The [test contributor guide](tests/README.md) documents focused selection,
+property/contract coverage, private UI environments and artifact locations.
+The [installed-system runner guide](tests/integration/README.md) documents
+verified package inputs, the existing guarded VM, real reboot and cleanup.
+Local previews/component doubles are not customer E2E evidence. The graphical
+E2E suite and `make test-*` aliases are still planned, not implemented.
 
 Preview the kiosk UI from the checkout, with representative fixture data and
 without a kiosk login, broker, D-Bus calls, Polkit, or account changes:
@@ -223,9 +195,9 @@ make build
 dpkg-deb --contents output/oh-no-parent-control_*.deb
 ```
 
-Unit tests use mocked Polkit and AccountsService adapters and never modify real
-users. Installation, account provisioning, confinement, and end-to-end tests
-belong in a disposable Ubuntu 26.04 VM.
+Unit tests may isolate Polkit and AccountsService adapters without modifying
+real users. Installed-system and customer E2E tests use the guarded existing
+Ubuntu VM and the documented outer-only baseline reset contract.
 
 The child-session extension remains independently buildable for development:
 
@@ -264,5 +236,5 @@ data and logs are retained by this removal flow.
 Removal prints a reboot notice; reboot to finish removing the login integration.
 For deliberate removal of saved preferences and product logs, use
 `sudo apt purge oh-no-parent-control`. Shared dependencies remain managed by APT.
-See [the installation/removal audit](docs/Package-Removal.md) for ownership,
-cleanup, and validation details.
+See [the package removal lifecycle](docs/System-Design.md#package-removal-lifecycle)
+for ownership and cleanup rules.

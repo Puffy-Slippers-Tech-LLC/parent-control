@@ -1,7 +1,11 @@
 # Task 15 — Installed catalog, enforcement, and process termination
 
 Execute 15A and 15B separately. Product installation and policy changes happen
-only in Task 13B's guarded disposable testbeds.
+only in the [guarded existing VM](../../tests/integration/README.md). The retained product-free baseline is
+restored only outside complete attempts; no VM copy, overlay, or intermediate
+checkpoint is used. These are real installed-system tests. Their direct OS
+calls and deterministic process fixtures cannot replace the graphical customer
+journeys required by [E2E-Coverage.md](E2E-Coverage.md).
 
 ## Task 15A
 
@@ -12,7 +16,7 @@ only in Task 13B's guarded disposable testbeds.
 - Recommended Codex model: `gpt-5.6-terra`
 - Recommended reasoning effort: `high`
 - Work:
-  1. Install Task 11 fixtures for each relevant user. Verify system and
+  1. Install the existing deterministic application fixtures for each relevant user. Verify system and
      child-only launchers, selected-child XDG precedence, and exclusion of the
      administrator's substitutions.
   2. Test allowed, hard, and soft policies with screen-time control both enabled
@@ -21,7 +25,7 @@ only in Task 13B's guarded disposable testbeds.
   3. Cover exact paths, spaces, future matching versioned filenames, unrelated
      same-directory files, target refresh after update, missing-launcher rule
      retention, and the specified copied/renamed-target limitations.
-  4. Add a deterministic, locally built Snap fixture in the disposable guest
+  4. Add a deterministic, locally built Snap fixture in the guarded guest
      using maintained public tooling, recording its artifact and tool versions.
      Exercise its public application identity; native/Flatpak coverage cannot
      satisfy the specification's Snap requirement.
@@ -34,7 +38,7 @@ only in Task 13B's guarded disposable testbeds.
   - Run fixture cleanup-safety regressions in isolation before live fixtures.
   - Run the full launch matrix in a fresh installed testbed, recording source
     and compiled fapolicyd rules, launch results, and per-user evidence.
-  - Run `make check-system VM_IMAGE=<verified-baseline>`, `make check`, and
+  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
     `git diff --check`.
 - Completion criteria: native, Snap, and Flatpak launch enforcement has positive,
   negative, and cross-user runtime evidence.
@@ -56,7 +60,7 @@ only in Task 13B's guarded disposable testbeds.
      kernel Snap labels, and UID-scoped Flatpak instance handling.
   3. Verify approvals allowing soft apps terminate no open process, including an
      already-open hard-blocked target.
-  4. Force fapolicyd reload failure at a public OS boundary in a disposable
+  4. Force fapolicyd reload failure at a public OS boundary in the guarded
      guest. Verify atomic rule restoration, reload/read-back, and distinct
      PII-safe failure logs. Cover partial termination: strict filters and prior
      time remain, while terminated processes are not claimed to be restored.
@@ -67,7 +71,7 @@ only in Task 13B's guarded disposable testbeds.
   - Run cleanup-safety regressions in isolation before integrated termination.
   - Run termination and rollback cases in fresh installed testbeds, collecting
     process identities, filters, grants, and redacted logs.
-  - Run `make check-system VM_IMAGE=<verified-baseline>`, `make check`, and
+  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
     `git diff --check`.
 - Completion criteria: real enforcement and termination respect user boundaries
   and preserve the specified state after reversible and irreversible failures.

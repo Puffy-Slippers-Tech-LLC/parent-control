@@ -2,12 +2,18 @@
 
 The current specification (`ONPC-CORE-APPS-011`,
 `ONPC-COMP-CHILD-005`, and `ONPC-COMP-BROKER-009`) and
-`System-Design.md` require reconciliation at new-session entry and unlock.
+[session-entry design](../SystemDesign/Applications.md#session-entry-reconciliation)
+require reconciliation at new-session entry and unlock.
 `Broker.prepare_own_session` already implements this path. Expiry locks the
 desktop without immediately closing apps; the broker re-reads the grant under
 the transaction lock before restoring policy and terminating apps at session
-entry. A current replacement grant makes preparation a no-op. The former
-timer-scheduler task described obsolete behavior and must not be implemented.
+entry. A current replacement grant makes preparation a no-op.
+
+Installed attempts use the [guarded VM and artifact interface](../../tests/integration/README.md),
+with baseline restoration only outside complete attempts. No intermediate VM
+checkpoint may construct an expired/replacement state. Direct installed D-Bus
+calls are backend evidence; [E2E-Coverage.md](E2E-Coverage.md) separately requires
+real graphical requests, authentication, elapsed time, and session entry.
 
 ## Task 17A
 
@@ -71,7 +77,7 @@ timer-scheduler task described obsolete behavior and must not be implemented.
   - Run fixture cleanup-safety regressions in isolation before live cases.
   - Run installed short-grant/replacement-grant cases in fresh testbeds and
     record filters, process identities, grants, and redacted logs.
-  - Run `make check-system VM_IMAGE=<verified-baseline>`, `make check`, and
+  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
     `git diff --check`.
 - Completion criteria: installed evidence proves expired-grant reconciliation
   and replacement-grant precedence without adding deadline-driven termination.

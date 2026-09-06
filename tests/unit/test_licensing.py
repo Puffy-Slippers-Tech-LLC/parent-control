@@ -32,5 +32,5 @@ class LicensingTests(unittest.TestCase):
     def test_installation_ships_notices_and_integration_documentation(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn("LICENSE COPYRIGHT NOTICE", makefile)
-        self.assertIn("docs/malcontent014-integration.md", makefile)
+        self.assertIn("docs/System-Design.md", makefile)
         self.assertIn("docs/Compliance.md", makefile)

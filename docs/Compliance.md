@@ -39,7 +39,7 @@ Malcontent is an independently installed operating-system dependency. The produc
 
 The current Ubuntu-supported Malcontent package is LGPL-2.1-or-later. Because the product neither incorporates nor redistributes it, Malcontent’s own source, copyright notices, and license are supplied by the operating-system distribution. The product’s GPL-3.0-only license therefore applies to this repository and its shipped product files, not to Malcontent.
 
-Do not claim that the product is affiliated with, endorsed by, or sponsored by the Malcontent authors or GNOME. Do not claim that Malcontent alone prevents every possible way to use a device or application. The specific technical boundary is documented in `malcontent014-integration.md` and the broader enforcement limitations are in `Threat-Model.md`.
+Do not claim that the product is affiliated with, endorsed by, or sponsored by the Malcontent authors or GNOME. Do not claim that Malcontent alone prevents every possible way to use a device or application. The specific technical boundary is documented in `System-Design.md` and the broader enforcement limitations are in `Threat-Model.md`.
 
 ## Third-party and bundled assets
 
@@ -51,7 +51,7 @@ The currently bundled Monocraft font is licensed under SIL OFL-1.1. Its copyrigh
 
 `debian/copyright` is the machine-readable package copyright record. It must cover every distributed file class, identify the upstream source, and include or reference the required license text and notices. The built package must install it as `/usr/share/doc/oh-no-parent-control/copyright`.
 
-The package also installs the product license, copyright, `NOTICE`, README, and Malcontent integration note under `/usr/share/doc/oh-no-parent-control/`. The extension payload includes the GPL text, copyright, and notice because it may be distributed separately from the main package.
+The package also installs the product license, copyright, `NOTICE`, README, compliance guide, and system design under `/usr/share/doc/oh-no-parent-control/`. The extension payload includes the GPL text, copyright, and notice because it may be distributed separately from the main package.
 
 ## Release checklist
 
@@ -63,4 +63,4 @@ Before releasing a source archive, Debian package, extension archive, or other b
 4. Confirm the About dialog still offers the local License and Legal notices entries and displays the GPL/no-warranty and Malcontent disclosure.
 5. Reconfirm that all Malcontent interaction uses public supported APIs and that no Malcontent source, library, private API, branding, or endorsement claim was added.
 6. Review `Threat-Model.md` for any changed enforcement claim and update a separate privacy notice for any changed collection, storage, retention, or disclosure of personal data.
-7. Run `make check` and stage the package installation to verify the installed documentation paths.
+7. Follow the [test automation guide](Test-Automation.md) for required regression evidence and verify installed documentation paths in the guarded test VM. Local `make check` alone is not comprehensive release acceptance.

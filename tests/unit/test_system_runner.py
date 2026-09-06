@@ -229,15 +229,19 @@ def test_collection_failure_does_not_hide_original_connection_failure(tmp_path):
 
 
 @pytest.mark.parametrize('skipped', [0, 1])
-def test_both_pytest_phases_must_supply_complete_unskipped_evidence(tmp_path, skipped):
+@pytest.mark.parametrize('authorization_count_delta', [-1, 0, 1])
+def test_all_pytest_phases_must_supply_complete_unskipped_evidence(
+        tmp_path, skipped, authorization_count_delta):
     vm, lease = Mock(), Mock()
     lease.state = {'run': RUN}
     output = tmp_path / 'guest-results'
     output.mkdir()
     for phase, count in runner.PHASE_COUNTS.items():
+        if phase == 'authorization':
+            count += authorization_count_delta
         (output / f'{phase}.xml').write_text(
             f'<testsuites><testsuite tests="{count}" failures="0" errors="0" skipped="{skipped}"/></testsuites>')
-    if skipped:
+    if skipped or authorization_count_delta:
         with pytest.raises(runner.Error, match='missing-failed-or-skipped-tests'):
             runner.installed_run(vm, lease, tmp_path)
     else:

@@ -1,13 +1,13 @@
 ### Task 14 — Test installed broker identity and authorization boundaries
 
-- Depends on: Task 13B.
+- Depends on: the implemented [installed runner](../../tests/integration/README.md).
 - Complexity: very high. These are security boundaries that cannot be proven by
   same-UID mocks.
 - Recommended Codex model: `gpt-6-astra`
 - Recommended reasoning effort: `high`
-- Model rationale: keep the complete method/role matrix with stale-identity and
-  real-caller checks; separating inexpensive cells would fragment the security
-  argument and repeat sensitive fixture setup.
+- Model rationale for remaining work: real authentication and revalidation
+  during approval still require security-sensitive fixture design and installed
+  verification. The 213-case matrix and persistent caller role checks are accepted.
 - Objective: prove real caller identity and role enforcement on the installed
   system bus.
 - Work:
@@ -33,126 +33,103 @@
   - Inspect redacted broker logs and D-Bus results.
   - Run `make check-system ARTIFACT_DIR=<verified-artifact-directory>`, `make check`, and
     `git diff --check`.
-- Completion criteria: every method/role cell in `System-Design.md` has an
+- Completion criteria: every method/role cell in the
+  [broker interface matrix](../SystemDesign/Broker.md#broker-interface-and-roles) has an
   installed-system assertion and cross-account attempts fail closed.
 
 ## Continuation handoff — 2026-09-05 (incomplete)
 
-Task 14 remains unchecked. Continue this task only. The user confirmed this
-checkout is on the development host and authorized the existing `ubuntu26.04`
-VM. No further machine clarification is needed.
+Continue Task 14 only on this development host and the already-authorized
+existing `ubuntu26.04` VM. Resume with **`gpt-6-astra` / `high`**; no repeat
+machine clarification or model-selection pause is needed on that setting.
+Remaining real authentication and in-flight revalidation require security-sensitive
+fixture design. Task 14 remains unchecked.
 
-Recommended continuation: **`gpt-6-astra` / `high`**. Remaining work includes
-real authentication, stale identities, caller lifetime boundaries, and installed
-acceptance of the usage-query repair.
+### Remaining work
 
-### Reuse these implemented interfaces
-
-- `tests/integration/system_caller.py`: guarded JSON batch caller; drops real,
-  effective, saved UID/GID and supplementary groups before opening a fresh
-  system-bus connection; verifies the bus-reported UID. Returns public error
-  names and never private preference contents.
-- `tests/system/test_authorization.py`: `batch(uid, operations)` and
-  `call(uid, method, signature, args)` use identity-recorded
-  `owned_commands.Commands`. Current suite: 142 cases (17 methods × seven
-  roles, 15 cross-child attempts, seven file/log cases, discovery).
-- `system_runner.PHASE_COUNTS['authorization'] == 142`; new cases must update
-  this count and its tests. The guarded runner freezes/hashes all test inputs,
-  executes install/reboot/authorization phases, and rejects incomplete evidence.
-- Account setup now captures four read-only Malcontent `QueryUsage` probes in
-  order: root, parent1, child1, kiosk. Raw responses stay in private diagnostics
-  and redacted collected copies; probes do not relax the product assertions.
-
-### Confirmed defect and local repair
-
-The diagnostic VM run reproduced all seven `GetTimeStatus` failures on the
-unchanged package: 135 passed, seven failed, zero errors/skips. The dependency
-probes proved root is rejected as an invalid/unknown user, parent and child
-self-reads return `a(tt) 0`, and kiosk's cross-account read is denied.
-
-This matches the public upstream
-[Malcontent implementation](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/parent-timer-service.c):
-`query_usage_ensure_credentials_cb` rejects UID 0;
-`query_usage_get_child_user_cb` permits parent or self reads. The current
-`main` source was also checked and retains these boundaries.
-
-Local repair is implemented, but **has not been built or tested in the VM**:
-
-- `TimerUsage.query_usage(uid)` now runs the existing fixed-purpose helper
-  as the exact selected child's UID/primary GID, with no supplementary groups.
-  The broker's caller/target authorization remains before this read.
-- `query_usage_as(uid, approver)` retains authenticated-approver identity
-  validation. Both paths share bounded helper execution and reply validation.
-- `Broker._time_status` logs a fixed failure stage and exception type without
-  raw exceptions or account data. Adapter logs distinguish own/approver scope.
-- Adapter regressions prove selected-child credentials, absence of root-bus
-  queries, redacted logs, and refusal to launch for a missing child.
-- `docs/System-Design.md` describes the path. Activation is
-  `process-restart` through existing broker classification; no saved-data
-  migration or development-machine setup change applies.
-
-### Remaining work, in order
-
-1. Build a fresh package with `make build-test-artifacts OUTPUT_DIR=<fresh-/tmp-path>`;
-   the previous artifact below does **not** contain the repair. Run the guarded
-   authorization matrix and require all existing success cells to pass.
-   Preserve both historical failed runs; do not relabel a backend error as success.
-2. Add installed assertions for enabled-child `RequestOwnAccess`, ineligible
-   system/noninteractive callers and targets, exact authoritative icons, and
-   state isolation for other accounts. Disabled-child and agentless kiosk
-   denial alone do not prove successful request admission.
-3. Add persistent real-caller connections and controlled real authentication
-   for stale-account, changed-role, selected-approver revalidation, and caller
-   disappearance during approval. Use actual credential verification and public
-   interfaces; never add permissive test Polkit rules or inject approval.
+1. Add a real text authentication agent around the existing persistent caller.
+   Prove successful child and kiosk approvals, restriction to the selected
+   administrator, rejection of another administrator's credentials, and no
+   reusable management authority after approval. Use public
    [pkttyagent](https://polkit.pages.freedesktop.org/polkit/pkttyagent.1.html)
-   supports `--system-bus-name` and `--notify-fd`; PTY/password orchestration
-   is not implemented. Keep credentials in memory, out of arguments/logs.
-   Add and separately run caller/agent cleanup-safety regressions before these
-   integrated tests; signal only directly spawned, identity-pinned processes.
-4. Update broker/account traceability only as supported by executed evidence.
-   The manifest remains unchanged. Run stage validation after mapping changes.
-5. Complete `make check-system`, inspect redacted logs/results, run
-   `make check` and `git diff --check`, then update both Task 14 checkboxes
-   and append its completion record. No later task is authorized in this run.
+   `--system-bus-name <caller.name>` and `--notify-fd`; successful registration
+   closes the passed FD. PTY/password orchestration is not implemented.
+   Keep distinct temporary fixture passwords in memory, pass password-setting
+   input through stdin inside the guarded VM only, and keep credentials out of
+   arguments, output, pytest diagnostics, and artifacts. Never install permissive
+   test Polkit rules or inject approval. Pin directly spawned agents and run new
+   cleanup-safety regressions in isolation before integrated use.
+2. Hold approval at the real prompt, change accounts/roles/preferences or
+   disconnect the recorded requester, then finish authentication and assert
+   fail-closed results plus unchanged authoritative grant/app state for every
+   other account. Ordinary role changes on persistent connections are now
+   implemented separately; they do not prove revalidation after authentication.
+   Include stale/deleted accounts and selected-approver revalidation.
+3. Finish evidence-backed broker/account mappings in `tests/requirements.json`.
+   Existing installed references remain `planned`; do not claim authentication,
+   in-flight revalidation, or E2E obligations covered without matching evidence.
+4. Run the complete expanded system suite, inspect redacted logs, run
+   `make check` and `git diff --check`, then update the single Task 14 checklist entry and
+   record its final result/evidence in this task document. Stop before Task 15A.
 
-### Latest verification and evidence
+### Reuse these interfaces
 
-- Before VM execution:
-  `/usr/bin/python3 -B -m pytest tests/unit/test_system_runner_cleanup_safety.py tests/unit/test_prepare_host_cleanup_safety.py -q`
-  — 18 passed in isolation.
-- Before host checks:
-  `/usr/bin/python3 -B -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`
-  — 11 passed, three subtests passed.
-- Runner/caller regressions:
+- `tests/integration/system_caller.py`: batch calls still drop real/effective/
+  saved credentials and verify bus-reported UID. New `PersistentCaller(uid)`
+  is a context manager that exposes `name`, `call(method, signature, args)`,
+  and separate `send(operation)` / `receive(timeout)`. Operations use the
+  existing `kind=call`, `method`, `signature`, `args` JSON shape.
+  The child publishes its actual unique name after UID verification and handles
+  newline-framed operations on the same connection. EOF closes it; context
+  cleanup has bounded waits and can signal only the directly spawned pidfd.
+- `tests/system/test_authorization.py`: reuse `batch`, `call`,
+  `account_property`, and `account_state`. State snapshots compare private
+  preference bytes, `LimitType`, `DailyLimit`, `ActiveExtension`, and
+  `AppFilter` without printing contents.
+- `system_runner.PHASE_COUNTS['authorization'] == 213`. New coverage adds
+  14 ineligible-approver cases across both request surfaces, exact icons for
+  both administrators, and persistent caller administrator-demotion/child-
+  promotion cases. Keep the expected count aligned with collection.
+- Product baseline is commit `90b42070819001ad32479be89637383907b7b62d`.
+  The identity-scoped usage-query repair is accepted; do not redo its diagnosis.
+  This continuation changes tests/documentation only: activation `none`, no
+  migration or development-host setup change, no new commit.
+
+### Verification and evidence
+
+- Isolated prerequisites:
+  `/usr/bin/python3 -B -m pytest tests/unit/test_system_caller_cleanup_safety.py tests/unit/test_system_runner_cleanup_safety.py tests/unit/test_prepare_host_cleanup_safety.py -q`
+  — 25 passed before the expanded VM run (the seven new caller cases also
+  passed alone).
+- Focused host checks:
   `/usr/bin/python3 -B -m pytest tests/unit/test_system_caller.py tests/unit/test_system_runner.py tests/unit/test_system_guest.py tests/unit/test_vm_transport.py -q`
-  — 86 passed.
-- Post-repair:
-  `env PYTHONPATH=broker /usr/bin/python3 -B -m pytest tests/unit/test_adapters.py tests/unit/test_core.py -q`
-  — 88 passed, 17 subtests passed. An initial invocation without `PYTHONPATH`
-  failed collection only; use the exact command above.
-- Post-repair `make check`: 801 host tests and 17 component tests passed;
-  `git diff --check` passed.
-- Diagnostic command:
-  `pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=/tmp/onpc-task14-DLDL6r/input`
-  — Make exit 2, aggregate `outcome=failed`,
-  `category=command:failed:ssh`, `cleanup_phase=complete`.
-  Install and reboot each passed two cases; authorization ran 142 cases in
-  36.636 seconds, with the seven known `GetTimeStatus` failures.
-- Latest evidence: `/tmp/onpc-system-f35sqzni/evidence/`.
-  Under `guest/`, the four dependency probes are
-  `stage-j8pk1y0m-command-0006-stderr.txt` (root),
-  `0007.txt` (parent), `0008.txt` (child), and
-  `0009-stderr.txt` (kiosk), using that same filename prefix.
-  Broker logs and all three xUnit files are preserved there.
-- First failed run remains at `/tmp/onpc-system-erwox8b2/evidence/`.
-  Both attempts used package SHA-256
-  `8eb84c03f463ab4ea79529104571ea83e38fb7f1e2f9e9c3185d7bc444560fb4`.
-  Baseline provenance SHA-256:
-  `cffe72b4c77004a010d2b0341b415853c0afce838efe4762bb84a52665ca0eb5`.
-  Recheck temporary artifact existence next session.
-- Cleanup restored and verified the retained baseline and host fingerprints.
-  A separate `virsh --connect qemu:///system domstate ubuntu26.04` confirmed
-  `shut off`. No commands remain running. The local repair is uncommitted.
-- Paused at the user's ten-minute clean checkpoint after VM cleanup and local
-  checks. Resume by saying `Run docs/Test-Automation.md`.
+  — 94 passed. Authorization collection confirms exactly 213 cases.
+- Host cleanup prerequisite
+  `/usr/bin/python3 -B -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`
+  — 11 passed, three subtests passed. `make check` passed 816 unit/contract and
+  17 component tests; stage traceability validation passed.
+- VM command:
+  `pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=/tmp/onpc-task14-resume-nhtsRC/input`.
+  The corrected 195-case run passed all cases plus four install/reboot checks
+  at `/tmp/onpc-system-u0c5ozv_/evidence/` (authorization 51.528s).
+  Aggregate outcome passed, cleanup complete; VM independently confirmed off.
+- Expanded run: **213 authorization cases passed** in 75.331s, plus four
+  install/reboot checks, no failures/errors/skips. Evidence:
+  `/tmp/onpc-system-61fofrz8/evidence/`, including aggregate JSON/xUnit/TAP,
+  guest XML, and redacted broker/service logs. Aggregate outcome passed,
+  category `all-checks-passed`, cleanup complete. Logs confirm each persistent
+  caller's accepted/denied/accepted sequence around the role change.
+- Cleanup verified the retained baseline, restored prior domain XML and checked
+  unchanged host product/PAM fingerprints. A separate
+  `virsh --connect qemu:///system domstate ubuntu26.04` confirmed `shut off`.
+  No command remains running. `git diff --check` passed. This is the clean
+  checkpoint after the user's ten-minute limit; resume by saying
+  `Run docs/Test-Automation.md`.
+- Verified package directory: `/tmp/onpc-task14-resume-nhtsRC/input/`.
+  SHA-256: `bfdd5e4eef68d645c70e6792019c8f9cb1187f20d2619151c7f86ff2cd18cce0`.
+  Each runner invocation freezes/transfers current test bytes. Rebuild only if
+  product code changes; recheck temporary paths when resuming.
+- Preserve earlier failed evidence at `/tmp/onpc-system-oo7urqih/evidence/`
+  (194/195; corrected unsupported duration input), `/tmp/onpc-system-erwox8b2/evidence/`,
+  and `/tmp/onpc-system-f35sqzni/evidence/`. A later successful corrected run
+  does not relabel those attempts.

@@ -39,7 +39,7 @@ import prepare_host as baseline
 ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = '/var/tmp/onpc-system-input'
 TAG = 'onpc-system-run:'
-PHASE_COUNTS = {'installed': 2, 'rebooted': 2, 'authorization': 142}
+PHASE_COUNTS = {'installed': 2, 'rebooted': 2, 'authorization': 213}
 require = baseline.require
 Error = baseline.CaptureError
 

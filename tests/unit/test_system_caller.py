@@ -61,3 +61,39 @@ def test_guard_failure_prevents_identity_drop_and_bus_connection(monkeypatch):
 def test_private_read_cannot_select_arbitrary_paths(target):
     with pytest.raises(caller.guest.GuestError, match='caller:target'):
         caller.execute(None, {'kind': 'private-read', 'target': target}, None, None)
+
+
+def stream_rig(monkeypatch, chunks):
+    instance = caller.PersistentCaller.__new__(caller.PersistentCaller)
+    instance.child = SimpleNamespace(stdout=Mock())
+    instance.pending = b''
+    monkeypatch.setattr(caller.select, 'select', Mock(return_value=([instance.child.stdout], [], [])))
+    monkeypatch.setattr(caller.os, 'read', Mock(side_effect=chunks))
+    return instance
+
+
+def test_stream_frames_fragmented_and_combined_replies(monkeypatch):
+    instance = stream_rig(monkeypatch, [b'{"result":', b'[1]}\n{"error":"denied"}\n'])
+    assert instance.receive() == {'result': [1]}
+    assert instance.receive() == {'error': 'denied'}
+    assert caller.os.read.call_count == 2
+
+
+def test_stream_eof_is_a_failure(monkeypatch):
+    instance = stream_rig(monkeypatch, [b''])
+    with pytest.raises(caller.guest.GuestError, match='stream-disconnected'):
+        instance.receive()
+
+
+def test_stream_wait_has_a_bounded_deadline(monkeypatch):
+    instance = stream_rig(monkeypatch, [])
+    caller.select.select.return_value = ([], [], [])
+    with pytest.raises(caller.guest.GuestError, match='stream-timeout'):
+        instance.receive(timeout=0.1)
+    assert 0 < caller.select.select.call_args.args[3] <= 0.1
+
+
+def test_stream_rejects_unbounded_replies(monkeypatch):
+    instance = stream_rig(monkeypatch, [b'x' * 1048577])
+    with pytest.raises(caller.guest.GuestError, match='stream-reply-size'):
+        instance.receive()

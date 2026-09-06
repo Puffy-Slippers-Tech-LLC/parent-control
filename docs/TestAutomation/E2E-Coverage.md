@@ -1,0 +1,207 @@
+# Real end-to-end operations and scenario coverage
+
+This is a required planning and acceptance contract for unfinished automation
+tasks. It describes future work; an entry below is not evidence that a test has
+been implemented or passed. The [master plan](Test-Automation.md) owns task
+order and the public command interface.
+
+## Customer journeys must exercise the real machine
+
+A customer E2E scenario is an uninterrupted sequence of actions on the real
+installed product and operating system in the guarded test VM. Automation sends
+keyboard and mouse input to the guest display through a maintained public
+automation backend, observes the screens, and performs the same operations an
+end user would perform manually. Virtual hardware is the test environment;
+product behavior and operating-system enforcement must be real.
+
+- Install the digest-identified Debian package. Use real GDM, GNOME sessions,
+  system D-Bus, broker, AccountsService, Malcontent, PAM, Polkit, fapolicyd, and
+  installed application processes. No preview mode, fake service, stubbed
+  reply, patched authorization, or test-only production path may participate.
+- Perform login, Switch User, logout, settings changes, requests, password
+  entry, approvals, revocation, app launching, and ordinary restart actions
+  through the interfaces available to the customer. A command-line operation
+  that is itself the documented customer operation, such as APT installation,
+  is entered in the guest terminal with real authorization.
+- Enter credentials only into the real login/authentication prompt using
+  secret-safe input. A helper calling the broker, approving Polkit, setting a
+  grant, or changing preferences cannot stand in for a customer action.
+- Grant expiry and daily-allowance consumption use real measured usage and
+  elapsed time. Use short supported durations selected through the UI. Never
+  write usage/grant state, jump the clock, invoke Lock, or patch a timer to
+  manufacture the outcome of a customer expiry scenario.
+- Preserve causality: each step consumes the state produced by the preceding
+  actions. Reboot really reboots; user switching retains the actual sessions;
+  package operations execute real maintainer scripts. Do not reconstruct the
+  expected state behind the UI between steps.
+- No VM snapshot creation, save-state/load-state, checkpoint restore, cloned
+  installed image, or step-resume shortcut may construct or resume a journey.
+  In particular, never restore a snapshot to simulate login, grant, expiry,
+  reboot, recovery, installation, or removal. A failed attempt remains failed;
+  any diagnostic rerun starts the entire scenario again.
+- The already-approved product-free baseline is only an outer
+  preparation/cleanup boundary between independent attempts on the same VM.
+  Preserve it; create no additional VM snapshots or disposable overlays. Once
+  a journey starts, no baseline restore occurs until that attempt has ended
+  and its evidence has been collected. Tests may not restore between the
+  steps of an install/upgrade/remove/reinstall or cross-user journey.
+- Provisioning test accounts, package assets, and declared third-party apps
+  before the journey is permitted. Product configuration or authentication
+  that the journey claims to test must be performed in its visible steps,
+  rather than hidden in provisioning. Record all preconditions explicitly.
+- Read-only guest assertions may corroborate screens with grants, usage,
+  sessions, installed files, policy, and process identity. They must not drive
+  the tested outcome or disturb the foreground session. A backend assertion
+  cannot replace a visible success, denial, lock, or return-to-GDM assertion.
+
+Normal customer errors belong in customer journeys: invalid input, wrong
+passwords, cancelling authentication, duplicate clicks, and denied access must
+exercise the real UI and services too.
+
+## Distinguish supporting tests without weakening E2E
+
+Host unit and component tests may isolate dependencies with mocks. They remain
+part of the local regression suite, but cannot provide customer E2E evidence.
+Guarded installed-system tests exercise real OS interfaces directly and remain
+required even when they are not keyboard-and-mouse journeys.
+
+Graphical fault/recovery scenarios may deliberately stop a real service,
+change an account's real eligibility, or trigger a supported OS failure. Declare
+each such intervention, its actor, and the evidence that the fault occurred;
+classify the scenario as `fault-recovery`. Do not substitute fake product
+services or responses. Controlled guest date/time tests are similarly labeled
+`environment-boundary`; they do not prove natural elapsed-time behavior.
+Ordinary UI behavior before and after an intervention must still be real.
+
+Runner smoke, process fixtures, fault injection, and controlled-time results
+must not be relabeled as normal customer journeys. All required categories are
+included by default in `make test-e2e` or `make test-system` as appropriate, and
+in `make test-all`; separate labels describe the evidence, not optional scope.
+
+Tiny native/Snap/Flatpak fixtures provide deterministic real launch and process
+identities. They are useful for policy matrices but are not evidence of playing
+a customer game. Gameplay journeys additionally require a real, version-pinned
+installed game with a reproducible offline level or session, entered through
+its normal UI. Verify gameplay and input, including windowed and fullscreen
+expiry cases. Record its package/runtime identity and asset digests; a menu,
+sleeping process, or substitute test window is not gameplay evidence.
+
+## Enumerate scenarios before implementing them
+
+Include installed surfaces outside the original policy examples, such as
+About/license access and feedback drafting, validation, attachment review,
+cancel and retry. Declare external delivery separately: it needs the actual
+supported service, explicit authorization and a dedicated test recipient.
+Do not send routine automation to the production support inbox or present fake
+transport results as delivery evidence. The inventory must state the tested
+service boundary and required profile; missing prerequisites for a required
+delivery case block its acceptance rather than silently substituting a mock.
+
+Task 19A establishes `tests/e2e/scenarios.json` as the executable scenario
+inventory. Each later E2E task expands and implements its assigned entries.
+The inventory must contain stable scenario and variant IDs, category,
+responsible task, requirement IDs, affected components, supported environment,
+explicit preconditions, ordered customer actions, declared interventions,
+visible/backend/other-user assertions, executable test IDs, expected evidence,
+and bounded duration. Record setup, start, steps, end, and cleanup separately.
+
+The table below is a required starting inventory, not the complete coverage
+claim. Expand each family into individually selectable cases before its task
+is accepted. Preserve IDs when wording changes. Task 26C closes missing
+continuous journeys; Task 28B audits the complete executed inventory.
+
+| Scenario family | Owner | Required journey or outcome |
+| --- | --- | --- |
+| E2E-001 | 19B | Real boot, recognizable GDM, graphical/observation transport smoke; category `runner-smoke`. |
+| E2E-002 | 20 | Product absent → real package installation → actual reboot → usable, enforcement-ready GDM. |
+| E2E-003 | 21A | Parent login → app-grid launch → discover/select children, including a child created after installation. |
+| E2E-004 | 21A | Standard user attempts Parent access; management remains unavailable. Direct D-Bus attacks are separately labeled installed-system evidence. |
+| E2E-005 | 21A/21B | Parent changes allowance boundaries, toggles control, observes saving/loading and remaining-time state, then verifies actual child behavior. |
+| E2E-006 | 21B | Parent edits allowed/hard/soft policy and exact/pattern matching → child attempts use → other user's applications remain usable. |
+| E2E-007 | 21B/25B | Parent cancels revocation, then confirms revocation with apps open; check time, process, and other-session effects. |
+| E2E-008 | 22A | Actual daily allowance is consumed → desktop locks without logout → correct-password zero-time unlock and fresh login are denied. |
+| E2E-009 | 22A | Actual one-time grant expires → retained-session lock → new kiosk approval → successful unlock; cover both soft-app choices. |
+| E2E-010 | 22A | Switch User while a grant expires; the other foreground user is uninterrupted and the child cannot resume without time. |
+| E2E-011 | 22B | Real countdown passes minutes/final seconds; visibility is correct on unlocked desktop, lock screen, and GDM. |
+| E2E-012 | 23A | Child panel → one overlay → select each eligible parent → real prompt → successful approval with and without soft apps. |
+| E2E-013 | 23A/24B | Wrong password → denial → successful retry, and authentication cancel → retry, on both request surfaces. |
+| E2E-014 | 23B/24B | Both surfaces exercise predefined/custom/rest-of-day choices, fractional bounds, invalid values, and duplicate submission. |
+| E2E-015 | 23B/24B | Cancel, Escape, and successful completion produce each surface's correct exit and countdown/selection behavior. |
+| E2E-016 | 24A | GDM → restricted kiosk session; no general desktop or management access before or after a request. |
+| E2E-017 | 24B | Kiosk switches children and approvers; empty/ineligible/disabled states prevent a request correctly. |
+| E2E-018 | 24B | Change choices in one request surface → visit the other → verify per-child persistence and separately remembered mute. |
+| E2E-019 | 25A | Parent-configured native/Snap/Flatpak rules are enforced through every supported launch route; positive and negative matches. |
+| E2E-020 | 25A | App update or disappearance between display and save preserves the correct current target or saved rule. |
+| E2E-021 | 25B | Real repeated logins/switches establish multiple users/sessions → save/approve/revoke → required child-only process effects. |
+| E2E-022 | 26B | Configure and grant through the UI → actual app/session/machine restart or real idle/suspend/wake → resume use and verify time, persisted choices and enforcement. |
+| E2E-023 | 26C | Parent sets zero allowance → Switch User → child denied → kiosk approval → child logs in and plays a real game → natural expiry → lock and unlock denial. |
+| E2E-024 | 26C | Child requests additional time while time remains → real approval accumulates correctly → continued gameplay → eventual expiry. |
+| E2E-025 | 26C | Expired grant → replacement grant before session entry, with each soft-app choice → correct policy and retained-app behavior. |
+| E2E-026 | 26C | Parent configures → real package update → required process/session/reboot activation → customer logs in and uses preserved settings. |
+| E2E-027 | 26C | Install → reboot → configure/use → remove → reboot → verify usable login → reinstall/use retained settings → purge. Task 18C supplies installed assertions. |
+| E2E-028 | 20/22A/22B/24A | Real startup, zero-time desktop exposure, usage-read, and authentication-agent failures → visible safe denial/relock → real recovery; category `fault-recovery`. |
+| E2E-029 | 21B/25B/26A | Real failed save, stale identity, disconnect, concurrent transaction, policy reload, and partial termination failures → visible rollback/safe state; category `fault-recovery`. |
+
+Maximize meaningful coverage by tracing every applicable requirement and
+customer-visible transition, not by stopping once these examples pass. Review
+the [specification](../Specification.md), [system design](../System-Design.md),
+[package activation](../Package-Update.md), [migration](../Data-Migration.md),
+and [removal](../System-Design.md#package-removal-lifecycle) contracts. Add omitted
+product behavior to the inventory and identify its authoritative requirement; do not silently omit
+it because the original functional specification did not mention it.
+
+For each family, enumerate applicable dimensions: parent/child/kiosk and other
+users; both shared-form surfaces; enabled/disabled control; zero/available/
+expired/replacement time; daily-only/grant-only/combined time; allowed/hard/
+soft apps; native/Snap/Flatpak and supported launch routes; new/retained/
+locked sessions; windowed/fullscreen gameplay; approval/denial/cancel/failure;
+and app/session/service/reboot/suspend/package lifecycle boundaries. Cover both sides
+of validation boundaries and prove that other users remain unaffected.
+
+Use explicit full combinations where identity, enforcement, grant precedence,
+or cross-surface behavior interact. For independent presentation combinations,
+document a reviewed reduction and the omitted combinations' rationale. A test
+count or blanket coverage percentage is not a completeness argument. Missing
+required combinations remain pending and block final acceptance. Date, midnight,
+and DST system cases from Task 16 remain required; do not claim those are
+natural customer expiry runs when the guest clock was controlled.
+
+## Required continuous example: E2E-023
+
+Provision only the declared accounts, real game, and product package before
+starting. Preserve the parent session when switching users. This entire list
+is one scenario attempt, with no intermediate state injection or VM restore:
+
+1. Log in as the parent through GDM and open Parent from the app grid.
+2. Select the child, enable screen-time control, and set zero daily minutes.
+   Verify the visible save and make the game usable under the selected policy.
+3. Use the desktop's Switch User action. Attempt child login with the correct
+   password; verify the time-limit explanation and absence of a child desktop.
+4. Enter the kiosk from GDM. Select the child and approver, choose a short
+   supported grant, and submit. Enter the approver's password only in the real
+   system authentication prompt. Verify success and the normal return to GDM.
+5. Log in as the child with the correct password. Verify the actual desktop and
+   countdown, launch the real game through the app grid, enter gameplay, and
+   interact with it. Run explicit windowed and fullscreen variants.
+6. Let the actual grant expire while playing. Verify that the desktop locks
+   and game input is inaccessible. Read-only evidence must show that the child
+   session and game remain alive, and the parent/other users remain unaffected.
+7. Attempt unlock with the correct password and verify zero-time denial.
+   End the attempt, collect evidence, and only then perform guarded cleanup.
+
+This example is a mandatory minimum, never the sole E2E acceptance scenario.
+
+## Completion must be demonstrated by the current run
+
+Join the scenario inventory and requirement mapping to collected test/variant
+IDs, step outcomes, and the current run's evidence. Merely referencing an
+existing test file, checking `covered`, or passing isolated fragments does not
+prove a journey. Record real session/boot continuity across steps, declared
+reboots and interventions, and any outer baseline operations. Capture enough
+PII-safe screen/video and backend evidence to review the actual customer path.
+
+`make test-all` must reconcile expected and executed suites, scenarios, and
+variants, including harness/static checks without product requirement IDs.
+Missing, skipped, expected-failing, interrupted, stale, flaky, or failed results
+prevent success. Diagnostic reruns preserve the first failure. No restored
+checkpoint or evidence from a different package/source/run may fill a gap.

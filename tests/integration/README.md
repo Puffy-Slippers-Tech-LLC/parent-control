@@ -130,6 +130,21 @@ The future E2E runner must obey the
   `receive(timeout)` operations. EOF closes it; bounded context cleanup signals
   only its directly spawned pidfd. It is not an authentication agent and does
   not by itself prove password handling or approval.
+- `system_caller.TextAgent(caller)`: guarded real `pkttyagent --process` attached
+  to the persistent caller's pinned PID and kernel start time, with registration
+  readiness on its inherited notification pipe. Polkit resolves the broker's
+  real bus-name challenge to that process. Startup failure reports only a fixed
+  category and child exit status; terminal bytes are never exported.
+  `prompt(selected_uid, other_uid)` checks the
+  selected identity and waits for terminal echo to be disabled;
+  `authenticate(password, succeeds=...)` drives the real PAM challenge. Terminal
+  contents remain in memory; unexpected acceptance, denial or cancellation
+  fails immediately with a fixed category instead of waiting for a timeout.
+  `FixturePassword` generates distinct temporary
+  credentials and sets them through guarded guest stdin without diagnostic
+  export. Agent cleanup signals only its directly spawned pidfd; run
+  `test_system_agent_cleanup_safety.py` before integrated use. This text-agent
+  coverage does not replace graphical authentication journeys.
 - `tests/system/test_authorization.py`: reusable `batch`, `call`,
   `account_property` and `account_state` assertions. Account state compares
   private preferences and public limit/grant/filter state without printing
@@ -148,7 +163,9 @@ not duplicated as dated facts in this guide.
 Every attempt retains a unique `/tmp/onpc-system-*/` directory. Public
 `evidence/` contains aggregate `result.json`, xUnit `results.xml`, TAP
 `results.tap`, redacted guest logs, and the applicable guest phase XML
-(`installed.xml`, `rebooted.xml`, `authorization.xml`). Raw diagnostics and
+(`installed.xml`, `rebooted.xml`, `authorization.xml`). The authentication journal
+collects Polkit service and PAM helper messages through the same redaction pass;
+a failed authentication-journal command fails collection explicitly. Raw diagnostics and
 temporary SSH credentials remain root-private. Use only validated redacted
 exports; read source logs and journals without modifying them.
 

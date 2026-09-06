@@ -111,8 +111,8 @@ is separate from daily test execution.
    identity for the changelog entry:
 
    ```sh
-   export DEBFULLNAME='PUBLISHER NAME'
-   export DEBEMAIL='CONFIRMED_LAUNCHPAD_EMAIL'
+   export DEBFULLNAME='Puffy Slippers Tech LLC'
+   export DEBEMAIL='dev@tech.puffyslippers.com'
    ```
 
 3. Prepare the product release with the repository command. Product versions

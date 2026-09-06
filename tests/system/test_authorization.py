@@ -7,7 +7,7 @@ import pwd
 import pytest
 
 import system_guest as guest
-from system_caller import PersistentCaller
+from system_caller import FixturePassword, PersistentCaller, TextAgent
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 DENIED = guest.BUS + '.Error.AccessDenied'
@@ -313,3 +313,127 @@ def test_persistent_caller_revalidates_changed_role(accounts, role, method, orig
             guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
                        interface, 'SetAccountType', 'i', str(original)])
         accepted(caller.call(method))
+
+
+@pytest.fixture(scope='module')
+def passwords(accounts):
+    values = {role: FixturePassword() for role in ('parent1', 'parent2')}
+    for role, password in values.items():
+        password.install(accounts[role])
+    return values
+
+
+@pytest.mark.parametrize('surface', ('child1', 'kiosk'))
+@pytest.mark.parametrize('mutation', ('child-role', 'approver-role', 'preferences'))
+def test_authenticated_request_revalidates_live_state(accounts, passwords, surface, mutation):
+    """Authenticate successfully after a real, observable mid-prompt change."""
+    target = accounts['child1']
+    selected, other = accounts['parent1'], accounts['parent2']
+    accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))
+    original_preferences = accepted(call(other, 'GetPreferences', '(u)', (target,)))[0]
+    changed_uid = target if mutation == 'child-role' else selected
+    original_role = 0 if mutation == 'child-role' else 1
+    interface = 'org.freedesktop.Accounts.User'
+    path = f'/org/freedesktop/Accounts/User{changed_uid}'
+    role_changed = False
+    try:
+        with PersistentCaller(accounts[surface]) as caller, TextAgent(caller) as agent:
+            caller.send({
+                'kind': 'call',
+                'method': 'RequestOwnAccess' if surface == 'child1' else 'RequestAccess',
+                'signature': '(uub)' if surface == 'child1' else '(uuub)',
+                'args': (selected, 300, False) if surface == 'child1' else
+                        (target, selected, 300, False),
+            })
+            agent.prompt(selected, other)
+            if mutation == 'preferences':
+                saved = json.loads(original_preferences)
+                accepted(call(other, 'SetRequestMuted', '(usb)',
+                              (target, 'child', not saved['request']['child_muted'])))
+                current = accepted(call(other, 'GetPreferences', '(u)', (target,)))[0]
+                guest.require(current != original_preferences,
+                              'authorization:inflight-preferences-not-visible')
+            else:
+                # Changing the role leaves the password valid. A completed PAM
+                # challenge must therefore be rejected by broker revalidation,
+                # not merely fail because the selected account was locked.
+                guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                           path, interface, 'SetAccountType', 'i', str(1 - original_role)])
+                role_changed = True
+                guest.require(account_property(changed_uid, interface, 'AccountType') ==
+                              1 - original_role, 'authorization:inflight-role-not-visible')
+            print(f'onpc-system: stage=inflight-mutation kind={mutation} outcome=visible',
+                  flush=True)
+            # Snapshot after the intentional mutation, before releasing the
+            # password prompt. No grant, filter or other-account write is allowed.
+            before = {key: account_state(accounts[key]) for key in ROLES}
+            agent.authenticate(passwords['parent1'])
+            reply = caller.receive()
+            guest.require(reply.get('error') == DENIED,
+                          'authorization:authenticated-stale-request')
+            guest.require(all(account_state(accounts[key]) == state
+                              for key, state in before.items()),
+                          'authorization:authenticated-stale-request-write')
+            print('onpc-system: stage=inflight-revalidation outcome=denied-state-preserved',
+                  flush=True)
+    finally:
+        if role_changed:
+            guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                       path, interface, 'SetAccountType', 'i', str(original_role)])
+        accepted(call(other, 'SetPreferences', '(us)', (target, original_preferences)))
+        accepted(call(other, 'SetParentControl', '(ubu)', (target, False, 60)))
+
+
+@pytest.mark.parametrize('surface', ('child1', 'kiosk'))
+def test_real_selected_parent_authentication(accounts, passwords, surface):
+    target = accounts['child1']
+    selected, other = accounts['parent1'], accounts['parent2']
+    accepted(call(selected, 'SetParentControl', '(ubu)', (target, True, 0)))
+    try:
+        before = {key: account_state(accounts[key]) for key in ROLES}
+        with PersistentCaller(accounts[surface]) as caller, TextAgent(caller) as agent:
+            operation = {
+                'kind': 'call',
+                'method': 'RequestOwnAccess' if surface == 'child1' else 'RequestAccess',
+                'signature': '(uub)' if surface == 'child1' else '(uuub)',
+                'args': (selected, 300, False) if surface == 'child1' else
+                        (target, selected, 300, False),
+            }
+            caller.send(operation)
+            agent.prompt(selected, other)
+            agent.authenticate(passwords['parent2'], succeeds=False)
+            result = accepted(caller.receive())
+            guest.require(result[1] in ('denied', 'cancelled') and
+                          (surface == 'kiosk' or result[2] == 0),
+                          'authorization:wrong-parent-password')
+            guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                          'authorization:wrong-password-write')
+            caller.send(operation)
+            agent.prompt(selected, other)
+            agent.authenticate(passwords['parent1'])
+            result = accepted(caller.receive())
+            guest.require(result[1] == 'approved' and
+                          (surface == 'kiosk' or result[2] > 0),
+                          'authorization:real-authentication-grant')
+            grant = account_property(target, 'com.endlessm.ParentalControls.SessionLimits',
+                                     'ActiveExtension')
+            guest.require(grant[0] > 0 and grant[1] >= 300,
+                          'authorization:real-authentication-live-grant')
+            agent.close()
+            caller.send({'kind': 'account-type-write', 'target': accounts['child2']})
+            reply = caller.receive()
+            guest.require(reply.get('error') == 'org.freedesktop.Accounts.Error.PermissionDenied',
+                          'authorization:approval-accounts-authority')
+            guest.require(account_property(accounts['child2'], 'org.freedesktop.Accounts.User',
+                                           'AccountType') == 0,
+                          'authorization:approval-accounts-role-write')
+            for method in ('SetPreferences', 'SetParentControl', 'RevokeOneTimeGrant'):
+                signature, args, _ = invocation(method, surface, accounts)
+                reply = caller.call(method, signature, args)
+                guest.require(reply.get('error') == DENIED,
+                              'authorization:approval-management-authority')
+            guest.require(all(account_state(accounts[key]) == state
+                              for key, state in before.items() if key != 'child1'),
+                          'authorization:approved-cross-account-write')
+    finally:
+        accepted(call(selected, 'SetParentControl', '(ubu)', (target, False, 60)))

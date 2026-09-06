@@ -209,6 +209,11 @@ def collect(marker, outcome):
                              '-u', 'fapolicyd.service', '-u', 'accounts-daemon.service'],
                             timeout=60, check=False, merge_stderr=False)
     (output / 'service-journal.txt').write_text(redacted(result.decode(errors='replace')))
+    result = Commands().run(['journalctl', '--no-pager', '--utc', '-b',
+                             '_SYSTEMD_UNIT=polkit.service', '+',
+                             'SYSLOG_IDENTIFIER=polkit-agent-helper-1'],
+                            timeout=60, merge_stderr=False)
+    (output / 'authentication-journal.txt').write_text(redacted(result.decode(errors='replace')))
     logs = Path('/var/log/oh-no-parent-control')
     for source in sorted(logs.glob('*/*.log')):
         require(source.is_file() and not source.is_symlink(), 'log-file-type')

@@ -35,7 +35,8 @@ covers the current UI, nested-Shell, VM controller and persistent caller paths:
   tests/unit/test_child_preview_cleanup_safety.py \
   tests/unit/test_prepare_host_cleanup_safety.py \
   tests/unit/test_system_runner_cleanup_safety.py \
-  tests/unit/test_system_caller_cleanup_safety.py -q
+  tests/unit/test_system_caller_cleanup_safety.py \
+  tests/unit/test_system_agent_cleanup_safety.py -q
 ```
 
 For a focused test, select the safety modules for every cleanup implementation

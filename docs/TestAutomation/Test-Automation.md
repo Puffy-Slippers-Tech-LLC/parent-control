@@ -25,10 +25,12 @@ paths, or machine state here.
    [specification](../Specification.md), this plan, and the selected task's
    shared introduction and section. Read referenced durable contracts as
    needed; do not reread completed implementation instructions.
-2. Select the first unchecked item below. Report its task-local recommended
-   model/effort and stop before implementation unless the current user/session
-   has already authorized that task and setting. The existing Task 14 handoff's
-   resumption authorization remains applicable.
+2. Select the first unchecked item below. State its task-local recommended model
+   and reasoning effort, ask the user to confirm that both are selected, and
+   wait for explicit confirmation before starting implementation. Repeat this
+   confirmation before each next task; authorization for a previous task does
+   not carry over to the next one. Confirmation already given for the same task
+   and setting remains valid when resuming that task.
 3. Execute that one lettered task in dependency order. Preserve concurrent
    changes. Honor the authorized execution location; resolve any genuine
    machine ambiguity before VM mutation. Do not install the product on the

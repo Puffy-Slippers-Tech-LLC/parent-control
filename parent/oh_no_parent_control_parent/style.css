@@ -235,6 +235,15 @@ button.about-link > label {
   padding: 0 18px;
 }
 
+/* The surrounding field provides the border and keyboard focus indicator. */
+.feedback-reply-field entry,
+.feedback-reply-field entry > text {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
+
 .feedback-reply-field entry placeholder {
   color: #8c8c9b;
 }

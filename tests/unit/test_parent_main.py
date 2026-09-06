@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest import mock
 
 from parent.oh_no_parent_control_parent.main import (
-    APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _duration_label, _minutes_label,
+    APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
     PREVIEW_THUNDERBIRD_ICON, _time_status_subtitle,
 )
 
@@ -391,16 +391,6 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn("container = Gtk.CenterBox(", source)
         self.assertIn("container.set_center_widget(Gtk.Image(", source)
 
-    def test_calculation_layout_groups_the_first_two_operands_in_max(self):
-        source = inspect.getsource(ParentWindow._time_calculation_panel)
-
-        self.assertIn('css_classes=["equation-maximum"]', source)
-        self.assertIn('label="max("', source)
-        self.assertIn('label=","', source)
-        self.assertIn('label=")"', source)
-        self.assertIn('label="+"', source)
-        self.assertIn('label="="', source)
-
     def test_policy_selector_measurement_slot_is_fully_transparent(self):
         source = inspect.getsource(ParentWindow._policy_selector_slot)
 
@@ -513,19 +503,22 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(_daily_limit_selection(30), (2, False))
         self.assertEqual(_daily_limit_selection(31), (CUSTOM_DAILY_LIMIT_INDEX, True))
 
-    def test_time_status_explicitly_shows_formula_operands_and_result(self):
-        subtitle = _time_status_subtitle({
-            "daily_allowance_remaining_seconds": 31 * 60,
+    def test_time_explanation_distinguishes_grant_only_from_exhausted_daily_limit(self):
+        status = {
+            "daily_allowance_remaining_seconds": 0,
             "one_time_grant_remaining_seconds": 10 * 60,
-            "additional_one_time_grant_seconds": 5 * 60,
-            "calculated_active_extension_seconds": 36 * 60,
-        })
-
-        self.assertIn("Daily allowance remaining: 31m", subtitle)
-        self.assertIn("One-time grant remaining: 10m", subtitle)
-        self.assertIn("Additional one-time grant: 5m", subtitle)
-        self.assertIn("max(31m, 10m) + 5m = 36m", subtitle)
-        self.assertEqual(_duration_label(65), "1m 5s")
+            "additional_one_time_grant_seconds": 0,
+            "calculated_active_extension_seconds": 10 * 60,
+        }
+        self.assertEqual(
+            _time_status_subtitle(status, 0), "One-time grant remaining: 10m.",
+        )
+        self.assertEqual(_time_status_subtitle(status, 60), (
+            "Daily allowance remaining: 0m.\nOne-time grant remaining: 10m.\n"
+            "The larger amount applies."
+        ))
+        status["daily_allowance_remaining_seconds"] = 31 * 60
+        self.assertIn("Daily allowance remaining: 31m", _time_status_subtitle(status, 60))
 
     def test_revoke_confirmation_discloses_that_the_child_is_locked(self):
         source = inspect.getsource(ParentWindow._confirm_revoke)
@@ -547,7 +540,8 @@ class ParentWindowTests(unittest.TestCase):
         window._load_pending_time_status_refresh = lambda: None
         window._selected_uid = lambda: 1001
         window._time_status_value = Label()
-        window._time_operand_values = [Label(), Label(), Label(), Label()]
+        window._time_explanation = Label()
+        window._preferences = {"daily_time_limit_minutes": 0}
         window._loading = False
         window._account = FakeSensitiveWidget()
         window._revoke = FakeSensitiveWidget()
@@ -585,7 +579,7 @@ class ParentWindowTests(unittest.TestCase):
         window._time_status_retry_count = 0
         window._selected_uid = lambda: 1001
         window._time_status_value = Label("59 minutes")
-        window._time_operand_values = [Label("59m") for _index in range(4)]
+        window._time_explanation = Label("One-time grant remaining: 59m.")
         window._load_time_status = mock.Mock()
 
         with mock.patch(
@@ -615,14 +609,12 @@ class ParentWindowTests(unittest.TestCase):
         window._time_status_retry_count = MAX_TIME_STATUS_RETRIES
         window._selected_uid = lambda: 1001
         window._time_status_value = Label()
-        window._time_operand_values = [Label() for _index in range(4)]
+        window._time_explanation = Label()
 
         ParentWindow._time_status_failed(window, 1001, RuntimeError("busy"))
 
         self.assertEqual(window._time_status_value.label, "Unavailable")
-        self.assertEqual(
-            [label.label for label in window._time_operand_values], ["—"] * 4,
-        )
+        self.assertEqual(window._time_explanation.label, "—")
 
     def test_overlapping_time_status_refresh_is_coalesced(self):
         window = type("WindowHarness", (), {})()

@@ -77,14 +77,16 @@ Signed-By:
 
 
 @pytest.mark.parametrize('failure', [False, True])
-def test_bootstrap_closes_guest_edits_before_install_and_pins_host_key(tmp_path, failure):
+@pytest.mark.parametrize('observation_only', [False, True])
+def test_bootstrap_closes_guest_edits_before_install_and_pins_host_key(tmp_path, failure, observation_only):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
                            'guest': {'preparation_record_sha256': 'e' * 64}}
     lease.state = {'run': RUN, 'baseline_sha256': 'd' * 64}
     lease.source.uuid = UUID
     (tmp_path / 'input').mkdir()
-    (tmp_path / 'input/package.deb').write_bytes(b'package')
+    if not observation_only:
+        (tmp_path / 'input/package.deb').write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     edit, read = Mock(), Mock()
     guestfs.GuestFS.side_effect = [edit, read]
@@ -104,16 +106,25 @@ def test_bootstrap_closes_guest_edits_before_install_and_pins_host_key(tmp_path,
             edit.close.assert_called_once()
             edit.write.assert_any_call('/etc/apt/sources.list.d/ubuntu.sources',
                                        b'URIs: https://archive.ubuntu.com/ubuntu/\n')
-            assert args[args.index('--install') + 1] == 'openssh-server=1:10.2p1-2ubuntu3.6,python3-pytest=9.0.2-4'
+            expected = 'openssh-server=1:10.2p1-2ubuntu3.6'
+            if not observation_only:
+                expected += ',python3-pytest=9.0.2-4'
+            assert args[args.index('--install') + 1] == expected
+            marker = next(json.loads(c.args[1]) for c in edit.write.call_args_list
+                          if c.args[0] == '/etc/onpc-system-test.json')
+            assert ('package_sha256' in marker) != observation_only
+            if observation_only:
+                assert marker['scope'] == 'graphical-observation-only'
             if failure:
                 raise runner.CommandError('bootstrap-install-failed')
     commands.run.side_effect = command
     if failure:
         with pytest.raises(runner.CommandError, match='bootstrap-install-failed'):
-            runner.bootstrap(commands, lease, tmp_path, guestfs)
+            runner.bootstrap(commands, lease, tmp_path, guestfs, observation_only=observation_only)
         assert guestfs.GuestFS.call_count == 1
     else:
-        assert runner.bootstrap(commands, lease, tmp_path, guestfs) == 'ssh-ed25519 test-public-key'
+        assert runner.bootstrap(commands, lease, tmp_path, guestfs,
+                                observation_only=observation_only) == 'ssh-ed25519 test-public-key'
         read.add_drive_opts.assert_called_once_with('/guarded-image', format='qcow2', readonly=True)
         read.mount_ro.assert_called_once_with('/dev/sda2', '/')
         read.close.assert_called_once()

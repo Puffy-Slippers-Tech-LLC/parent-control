@@ -81,7 +81,7 @@ class FeedbackDialog(Adw.Window):
         heading.append(Gtk.Label(label="Help us make things better", xalign=0,
                                  wrap=True, css_classes=["feedback-title"]))
         heading.append(Gtk.Label(
-            label="Found a problem or have an idea? We’d love to hear it.",
+            label="Share a problem, suggestion, or idea.",
             xalign=0, wrap=True, css_classes=["feedback-subtitle"],
         ))
         introduction.append(heading)
@@ -91,14 +91,6 @@ class FeedbackDialog(Adw.Window):
                                 vexpand=True, margin_bottom=2)
         message = RichTextEditor(self._choose_attachments)
         self._message = message
-        message_label = Gtk.Label(label="Your _feedback", use_underline=True,
-                                 mnemonic_widget=message, xalign=0,
-                                 css_classes=["feedback-section-title"])
-        message_group.append(message_label)
-        message_group.append(Gtk.Label(
-            label="Tell us what happened and what you expected, or share your idea.",
-            xalign=0, wrap=True, css_classes=["feedback-hint"],
-        ))
         message_group.append(message)
         content.append(message_group)
 
@@ -126,8 +118,7 @@ class FeedbackDialog(Adw.Window):
                          "Add your email address if you would like a reply.")
         reply_group.append(reply_field)
         reply_group.append(Gtk.Label(
-            label="If you provide your email, our support team can reach out to you. "
-                  "Otherwise, your feedback is sent anonymously.",
+            label="Add your email if you’d like a reply. Otherwise, your feedback is anonymous.",
             xalign=0, wrap=True, css_classes=["feedback-reply-hint"],
         ))
         content.append(reply_group)
@@ -148,7 +139,7 @@ class FeedbackDialog(Adw.Window):
         attachments.set_header_suffix(self._add_attachment_button)
         self._attachment = Adw.ActionRow(
             title="diagnostic-logs.zip",
-            subtitle="Past 3 days · ZIP archive",
+            subtitle="Latest 3 log dates · ZIP archive",
         )
         self._attachment.add_prefix(_feedback_icon("archive", 26))
         self._attachment_button = Gtk.Button(
@@ -165,7 +156,7 @@ class FeedbackDialog(Adw.Window):
             tooltip_text="Save compressed logs to examine them before sending",
         )
         describe_control(self._download_button, "Download",
-                         "Save a ZIP of diagnostic logs from the past 3 days.")
+                         "Save a ZIP of diagnostic logs from the latest 3 log dates.")
         self._download_button.connect("clicked", self._download_logs)
         attachment_actions.append(self._download_button)
         attachment_actions.append(self._attachment_button)
@@ -179,10 +170,6 @@ class FeedbackDialog(Adw.Window):
             orientation=Gtk.Orientation.VERTICAL, spacing=6,
             hexpand=True, valign=Gtk.Align.CENTER,
         )
-        privacy_notice.append(Gtk.Label(
-            label="Feedback is emailed to support.",
-            xalign=0, wrap=True, css_classes=["feedback-retention"],
-        ))
         privacy_link = Gtk.LinkButton(
             uri=PRIVACY_URL, halign=Gtk.Align.START,
             css_classes=["feedback-privacy-link"],
@@ -354,7 +341,7 @@ class FeedbackDialog(Adw.Window):
             "diagnostic-logs.zip" if self._include_logs else "No logs attached",
         )
         self._attachment.set_subtitle(
-            "Past 3 days · ZIP archive"
+            "Latest 3 log dates · ZIP archive"
             if self._include_logs else "Your feedback can be sent without logs.",
         )
         if self._include_logs:
@@ -369,7 +356,7 @@ class FeedbackDialog(Adw.Window):
         describe_control(
             self._attachment_button,
             "Remove" if self._include_logs else "Add logs",
-            "Choose whether to include compressed diagnostic logs from the past 3 days with your feedback.",
+            "Choose whether to include compressed diagnostic logs from the latest 3 log dates with your feedback.",
         )
 
     def _choose_attachments(self, _button=None):
@@ -521,7 +508,7 @@ class FeedbackDialog(Adw.Window):
             destination = chooser.save_finish(result)
         except GLib.Error as error:
             if error.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED):
-                self._download_done("Past 3 days · ZIP archive")
+                self._download_done("Latest 3 log dates · ZIP archive")
             else:
                 LOG.warning("diagnostic download chooser failed error_type=%s",
                             type(error).__name__)

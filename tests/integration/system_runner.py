@@ -504,6 +504,54 @@ class Lease:
             os.close(self.fd)
             self.fd = None
 
+    def recover_graphical_cleanup(self):
+        """Resume only a recorded, still-running VNC cleanup after connection loss.
+
+        No start, preparation, new baseline or journal replacement is allowed.
+        Replaced/off domains and other incomplete phases require separate review.
+        """
+        require(self.fd is None and self.view.graphics_type == 'vnc', 'recovery:invalid-lease')
+        try:
+            self.capture.directory_identity = self.capture.private_directory()
+            self.fd = os.open(self.directory / '.lock', os.O_RDWR | os.O_NOFOLLOW)
+            baseline.identity(self.directory / '.lock', private=True, mode=0o600)
+            try:
+                fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise Error('state:busy-controller') from error
+            self.commands.lock_fd = self.fd
+            self.capture.state = self.capture.read_state()
+            require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
+            baseline.identity(self.journal, private=True, mode=0o600)
+            state = baseline.parse_json(self.journal.read_bytes())
+            require(isinstance(state, dict) and set(state) == {
+                'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
+                'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
+                state['phase'] == 'cleanup-requested' and
+                isinstance(state['run'], str) and re.fullmatch(r'[0-9a-f]{32}', state['run']) and
+                type(state['domain_id']) is int and state['domain_id'] >= 0 and
+                state['domain_uuid'] == self.source.uuid and
+                state['baseline_sha256'] == hashlib.sha256(baseline.encode(self.capture.state)).hexdigest(),
+                'recovery:journal-identity')
+            require(not self.source.domain.autostart() and
+                    self.source.domain.ID() == state['domain_id'], 'recovery:domain-replaced-or-off')
+            self.original_xml = state['original_xml']
+            require(baseline.domain_layout(self.original_xml, self.source.uuid) ==
+                    self.capture.state['source']['layout'], 'recovery:original-layout')
+            isolated_xml(self.original_xml, self.source.uuid, state['run'], graphics_type='vnc')
+            self.state = state
+            self.view.original_shares = self.capture.state['source']['layout']['source_shares']
+            self.view.run = state['run']
+            self.view.domain_id = state['domain_id']
+            self.snapshot_xml = self.source.baseline()
+            self.guard()
+            require(self.capture.verify_snapshot() == self.capture.state['proof'], 'recovery:baseline-changed')
+            self.mutated = True
+            log('recovery:recorded-graphical-cleanup')
+            self.finish()
+        finally:
+            self.release()
+
     def __exit__(self, exc_type, exc_value, traceback):
         if (self.ledger and exc_type is not None and
                 all(self.ledger.outcomes[name]['outcome'] != 'failed'
@@ -679,7 +727,7 @@ def mounted_guest(guestfs, lease, *, readonly=False):
     lease.guard(off=True)
 
 
-def bootstrap(commands, lease, directory, guestfs):
+def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
     """Prepare SSH only on the reset, powered-off active disk via libguestfs."""
     lease.guard(off=True)
     disk = Path(lease.capture.state['source']['layout']['disk'])
@@ -709,16 +757,20 @@ def bootstrap(commands, lease, directory, guestfs):
                   'host_machine_id': Path('/etc/machine-id').read_text().strip(),
                   'baseline_sha256': lease.state['baseline_sha256'],
                   'preparation_sha256': lease.capture.state['guest']['preparation_record_sha256'],
-                  'package_sha256': baseline.digest(directory / 'input/package.deb'),
                   'selected_inputs_sha256': baseline.digest(
                       directory / 'input/selected-inputs.json')}
+        if observation_only:
+            marker['scope'] = 'graphical-observation-only'
+        else:
+            marker['package_sha256'] = baseline.digest(directory / 'input/package.deb')
         require(marker['machine_id'] != marker['host_machine_id'], 'bootstrap:host-identity')
         g.write('/etc/onpc-system-test.json', baseline.encode(marker))
         g.chown(0, 0, '/etc/onpc-system-test.json')
         g.chmod(0o600, '/etc/onpc-system-test.json')
     lease.guard(off=True)
     commands.run(['virt-customize', '--format', 'qcow2', '-a', str(disk),
-                  '--install', 'openssh-server=1:10.2p1-2ubuntu3.6,python3-pytest=9.0.2-4',
+                  '--install', ('openssh-server=1:10.2p1-2ubuntu3.6' if observation_only else
+                                'openssh-server=1:10.2p1-2ubuntu3.6,python3-pytest=9.0.2-4'),
                   '--ssh-inject', f'root:file:{key}.pub',
                   '--run-command', 'systemctl enable ssh.service'], timeout=1800)
     with mounted_guest(guestfs, lease, readonly=True) as g:

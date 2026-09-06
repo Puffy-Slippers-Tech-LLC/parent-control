@@ -87,7 +87,7 @@ Terms used below:
 
 - [ONPC-COMP-PARENT-001] Starts only for a current local administrator and does not open a management window when access is denied or the broker is unavailable.
 - [ONPC-COMP-PARENT-002] Lists eligible children, selects one child at a time, and loads that child's screen-time status, app list, and saved settings. If no child exists, it says that no interactive non-administrator account was found.
-- [ONPC-COMP-PARENT-003] Lets the parent enable or disable screen-time control, choose a daily allowance, inspect today's remaining time, and revoke active one-time access. The revocation confirmation warns that the selected child's running blocked apps will close.
+- [ONPC-COMP-PARENT-003] Lets the parent enable or disable screen-time control, choose a daily allowance, inspect today's remaining time, and revoke active one-time access. The remaining-time explanation shows only the one-time grant when the configured daily allowance is zero; otherwise it shows both remaining amounts and explains that the larger applies, even when today's daily allowance is exhausted. It has no additional-request operand or internal property names. The revocation confirmation warns that the selected child's running blocked apps will close.
 - [ONPC-COMP-PARENT-004] Lets the parent search and filter the selected child's app list, assign one of the three access rules, and choose a precise or version-tolerant match where supported.
 - [ONPC-COMP-PARENT-005] Saves each change automatically in interaction order. While data is loading or saving, conflicting controls are unavailable. A failed save restores the last confirmed values and reports the failure.
 - [ONPC-COMP-PARENT-006] Never grants additional time; it manages policy and revokes grants only.
@@ -95,7 +95,7 @@ Terms used below:
 ### Request station
 
 - [ONPC-COMP-KIOSK-001] Opens only in the dedicated, restricted request-station session and always provides a way back to the sign-in screen.
-- [ONPC-COMP-KIOSK-002] Lists eligible children and eligible approving parents, then loads the saved request choices for the selected child.
+- [ONPC-COMP-KIOSK-002] Lists eligible children and eligible approving parents, then loads the saved request choices for the selected child. The footer estimates remaining time if a fixed-duration request is approved, updating with the child, requested duration, and periodically while idle. Rest-of-day requests say access lasts until midnight. Loading, validation, denial, and approval-in-progress messages take priority; an unavailable estimate does not prevent requesting access.
 - [ONPC-COMP-KIOSK-003] Keeps the request unavailable until accounts and the selected child's settings have loaded. It explains when no child or no approving parent is available.
 - [ONPC-COMP-KIOSK-004] Prevents duplicate submissions while a request or authentication prompt is in progress.
 - [ONPC-COMP-KIOSK-005] Submits only the displayed child, parent, duration, and soft-app choice. It shows approval, denial, cancellation, and service failure as specified in the end-to-end behavior.
@@ -106,7 +106,7 @@ Terms used below:
 - [ONPC-COMP-CHILD-001] Is packaged as an immutable system extension so every new Shell session can discover it, but is activated only for children whose screen-time control is enabled. In a running Shell, activation succeeds only when Shell reports the extension enabled and active; disabling succeeds only when it reports the extension disabled and inactive. Without a running Shell, the desired state is persisted for the next login.
 - [ONPC-COMP-CHILD-002] Shows a panel control only in the child's unlocked desktop and only while usable time remains. It does not show on the sign-in screen or lock screen.
 - [ONPC-COMP-CHILD-003] Uses the current daily-time estimate and the current verified one-time grant to display remaining time. A temporary read failure preserves the last known estimate rather than inventing a replacement.
-- [ONPC-COMP-CHILD-004] Opens at most one request overlay at a time. The overlay uses the signed-in child automatically, offers only eligible parents, and cannot manage another account.
+- [ONPC-COMP-CHILD-004] Opens at most one request overlay at a time. The overlay uses the signed-in child automatically, offers only eligible parents, and cannot manage another account. It shares the kiosk footer estimate and message-priority behavior.
 - [ONPC-COMP-CHILD-005] Refreshes remaining time when a grant changes and after the request overlay closes. On login and each transition from locked to unlocked it calls the child-owned broker session-preparation method. It does not decide grant validity, modify app policy, or terminate processes itself.
 - [ONPC-COMP-CHILD-006] Locks the child's desktop at zero time through the supported desktop lock and repeats enforcement if necessary. It does not log the child out or terminate another user's session.
 - [ONPC-COMP-CHILD-007] Has no independent settings screen, no parent-management capability, and no custom control inside the system lock screen.

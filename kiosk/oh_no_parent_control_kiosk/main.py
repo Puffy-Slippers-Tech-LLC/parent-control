@@ -24,6 +24,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gst, Gtk
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
 from common.oh_no_parent_control_ui.accessibility import describe_control
+from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.test_identities import preview_users
 
 from .model import RequestState, public_error
@@ -1113,6 +1114,10 @@ def configure_logging(preview=False, component="kiosk"):
     root.setLevel(logging.INFO)
 
 
+def _time_estimate_label(seconds):
+    return f"Estimated time remaining if approved: {format_duration(seconds)}"
+
+
 class RequestWindow(Adw.ApplicationWindow):
     def __init__(self, application, *, preview=False, soundtrack=None,
                  child_overlay=False, broker_connection=None):
@@ -1134,6 +1139,11 @@ class RequestWindow(Adw.ApplicationWindow):
         self._child_overlay = child_overlay
         self._applying_preferences = False
         self._state = RequestState()
+        self._estimate_revision = 0
+        self._estimate_in_flight = False
+        self._estimate_debounce_id = 0
+        self._estimate_refresh_id = 0
+        self._estimate_closed = False
         self._success_logout_source_id = None
         self._success_countdown_remaining = None
         self._success_action_label = None
@@ -1156,8 +1166,16 @@ class RequestWindow(Adw.ApplicationWindow):
         if not preview:
             self.connect("map", lambda *_args: self.fullscreen())
         self._load_users()
+        self._estimate_refresh_id = GLib.timeout_add_seconds(
+            30, self._refresh_time_estimate,
+        )
 
     def _on_destroy(self, *_args):
+        self._estimate_closed = True
+        for source_id in (self._estimate_debounce_id, self._estimate_refresh_id):
+            if source_id:
+                GLib.source_remove(source_id)
+        self._estimate_debounce_id = self._estimate_refresh_id = 0
         self._cancel_success_dismiss()
         if self._music is not None:
             self._music.close()
@@ -1259,7 +1277,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._request_content = RequestContent(
             self._request_access, self._cancel, self._load_preferences,
             lock_child_selector=self._child_overlay,
-            on_values_changed=self._persist_form_values,
+            on_values_changed=self._form_values_changed,
             selection_store=(None if self._preview else SelectionStore(
                 Path(GLib.get_user_state_dir()) / "oh-no-parent-control" / "request-selections.json",
                 child_overlay=self._child_overlay,
@@ -1461,6 +1479,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_content.set_loading()
             self._request_content.set_accounts(users)
             self._request_content.set_approvers(PREVIEW_APPROVERS)
+            self._queue_time_estimate()
             return
         LOG.info("request-account discovery started overlay=%s", self._child_overlay)
         self._request_content.set_loading()
@@ -1493,11 +1512,13 @@ class RequestWindow(Adw.ApplicationWindow):
             users, = connection.call_finish(result).unpack()
             LOG.info("approver discovery completed count=%d", len(users))
             self._request_content.set_approvers(users)
+            self._queue_time_estimate()
         except Exception as error:
             LOG.warning("approvers outcome=unavailable error_type=%s", type(error).__name__)
             self._show_error(error)
 
     def _load_preferences(self, target_uid):
+        self._queue_time_estimate()
         if self._preview and not self._interactive_preview:
             self._applying_preferences = True
             try:
@@ -1508,6 +1529,7 @@ class RequestWindow(Adw.ApplicationWindow):
                     )
             finally:
                 self._applying_preferences = False
+            self._queue_time_estimate()
             return
         LOG.info("preferences load started target=[Child user]")
         self._bus_call(
@@ -1530,9 +1552,84 @@ class RequestWindow(Adw.ApplicationWindow):
                 )
             finally:
                 self._applying_preferences = False
+            self._queue_time_estimate()
             LOG.info("preferences load completed target=[Child user]")
         except Exception as error:
             LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
+
+    def _form_values_changed(self):
+        self._queue_time_estimate()
+        self._persist_form_values()
+
+    def _queue_time_estimate(self):
+        # Invalidate replies immediately, including when the form becomes invalid.
+        self._estimate_revision += 1
+        self._request_content.set_time_estimate("Calculating time estimate…")
+        if self._estimate_debounce_id:
+            GLib.source_remove(self._estimate_debounce_id)
+        self._estimate_debounce_id = GLib.timeout_add(250, self._time_estimate_debounced)
+
+    def _time_estimate_debounced(self):
+        self._estimate_debounce_id = 0
+        self._refresh_time_estimate()
+        return GLib.SOURCE_REMOVE
+
+    def _refresh_time_estimate(self):
+        if self._estimate_closed:
+            return GLib.SOURCE_REMOVE
+        if (self._state.in_flight or
+                self._stack.get_visible_child_name() != "request"):
+            return GLib.SOURCE_CONTINUE
+        selection = self._request_content.time_estimate_selection()
+        if selection is None:
+            return GLib.SOURCE_CONTINUE
+        uid, seconds = selection
+        if seconds == 0:
+            self._request_content.set_time_estimate("If approved, access until midnight.")
+            return GLib.SOURCE_CONTINUE
+        if self._estimate_in_flight:
+            return GLib.SOURCE_CONTINUE
+        if self._preview and not self._interactive_preview:
+            self._request_content.set_time_estimate(_time_estimate_label(15 * 60 + seconds))
+            return GLib.SOURCE_CONTINUE
+        revision = self._estimate_revision
+        self._estimate_in_flight = True
+        try:
+            self._bus_call(
+                "GetTimeStatus", GLib.Variant("(uu)", (uid, seconds)), "(uuuu)",
+                lambda connection, result: self._time_estimate_done(
+                    revision, selection, connection, result,
+                ),
+            )
+        except Exception as error:
+            self._finish_time_estimate(revision, selection, error=error)
+        return GLib.SOURCE_CONTINUE
+
+    def _time_estimate_done(self, revision, selection, connection, result):
+        try:
+            _daily, _grant, _additional, calculated = connection.call_finish(result).unpack()
+        except Exception as error:
+            self._finish_time_estimate(revision, selection, error=error)
+        else:
+            self._finish_time_estimate(revision, selection, seconds=calculated)
+
+    def _finish_time_estimate(self, revision, selection, *, seconds=None, error=None):
+        self._estimate_in_flight = False
+        if self._estimate_closed:
+            return
+        if (revision != self._estimate_revision or
+                selection != self._request_content.time_estimate_selection()):
+            # Coalesce changes made during a broker read into one fresh request.
+            if not self._estimate_debounce_id:
+                self._refresh_time_estimate()
+            return
+        if error is not None:
+            LOG.warning("time estimate unavailable target=[Child user] error_type=%s",
+                        type(error).__name__)
+            self._request_content.set_time_estimate("Time estimate unavailable")
+        else:
+            LOG.debug("time estimate loaded target=[Child user] seconds=%d", seconds)
+            self._request_content.set_time_estimate(_time_estimate_label(seconds))
 
     def _persist_form_values(self):
         if (self._preview and not self._interactive_preview) or self._applying_preferences:
@@ -1685,6 +1782,7 @@ class RequestWindow(Adw.ApplicationWindow):
         finally:
             self._state.finish()
             self._set_request_controls(True)
+            self._queue_time_estimate()
 
     def _request_failed(self, error):
         LOG.warning("outcome=unavailable error_type=%s", type(error).__name__)

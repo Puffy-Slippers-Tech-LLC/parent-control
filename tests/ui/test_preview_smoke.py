@@ -115,7 +115,7 @@ def test_parent_time_status_retries(launch_ui, wait_for_accessible_node,
             "ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events_path),
         },
     )
-    wait_for_accessible_node(retrying, "47 minutes")
+    wait_for_accessible_node(retrying, "47m")
     wait_for_accessible_state(
         lambda: events_path.exists()
         and sum(json.loads(line)["event"] == "get_time_status"
@@ -305,3 +305,20 @@ def test_shared_request_preview_smoke(launch_ui, wait_for_accessible_node,
     if overlay:
         wait_for_accessible_node(application, "Help", "button")
     wait_for_accessible_node(application, "About", "button")
+
+
+@pytest.mark.parametrize("scenario, expected", (
+    ("normal", "Daily allowance remaining: 47m.\nOne-time grant remaining: 15m.\nThe larger amount applies."),
+    ("grant-only", "One-time grant remaining: 15m."),
+    ("exact-hours", "One-time grant remaining: 2h."),
+    ("daily-exhausted", "Daily allowance remaining: 0m.\nOne-time grant remaining: 15m.\nThe larger amount applies."),
+))
+def test_parent_remaining_time_explanation(
+        launch_ui, wait_for_accessible_node, scenario, expected):
+    application, _log = launch_ui(
+        "parent_component_preview",
+        environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": scenario},
+    )
+    wait_for_accessible_node(application, expected, "label")
+    if scenario == "exact-hours":
+        wait_for_accessible_node(application, "2h", "label")

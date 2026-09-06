@@ -18,6 +18,7 @@ import struct
 import sys
 
 from owned_commands import require
+from prepare_host import URI
 
 
 def log(event):
@@ -60,6 +61,63 @@ class Adapter:
                 display.close()
             log('display-closed')
 
+    def open_display(self):
+        """Public graphics FD API on a disposable graphics connection.
+
+        A failed FD RPC can close its libvirt connection. Never issue it on
+        the lease's lifecycle connection, which must remain usable for cleanup.
+        The second connection grants no new ownership: compare its exact domain
+        instance and XML against the guarded lease before attaching anything.
+        """
+        connection = self.lease.source.api.open(URI)
+        require(connection is not None, 'graphics:connection')
+        display = None
+        try:
+            require(connection.getURI() == URI, 'graphics:connection')
+            domain = connection.lookupByUUIDString(self.lease.source.uuid)
+            self.revalidate()
+            require(domain.UUIDString() == self.lease.source.uuid and
+                    domain.ID() == self.lease.view.domain_id and
+                    domain.XMLDesc(0) == self.lease.source.domain.XMLDesc(0),
+                    'graphics:domain-identity')
+            log('display-attach-requested')
+            # Let libvirt create/label the pair for its confined QEMU process.
+            # flags=0 retains authentication. No direct QEMU socket access.
+            descriptor = domain.openGraphicsFD(0, 0)
+            try:
+                display = socket.socket(fileno=descriptor)
+            except BaseException:
+                os.close(descriptor)
+                raise
+            self.revalidate()
+            require(domain.ID() == self.lease.view.domain_id and
+                    domain.XMLDesc(0) == self.lease.source.domain.XMLDesc(0),
+                    'graphics:domain-identity')
+        except BaseException:
+            if display is not None:
+                try:
+                    display.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                display.close()
+            log('display-attach-failed')
+            raise
+        finally:
+            original = sys.exception()
+            try:
+                connection.close()
+            except BaseException:
+                if display is not None:
+                    try:
+                        display.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
+                    display.close()
+                if original is None:
+                    raise
+                log('graphics-connection-close-failed')
+        return display
+
     def request(self, action, run):
         require(run == self.run, 'graphics:wrong-run')
         require(action in ('on', 'off', 'status', 'graphics'), 'graphics:unknown-action')
@@ -89,12 +147,7 @@ class Adapter:
         require(self.phase == 'running' and not self.lease.view.snapshot()[1],
                 'graphics:not-running')
         self.close_display()
-        descriptor = self.lease.source.domain.openGraphicsFD(0, 0)
-        try:
-            display = socket.socket(fileno=descriptor)
-        except BaseException:
-            os.close(descriptor)
-            raise
+        display = self.open_display()
         self.display = display
         # Recheck after acquiring the FD; do not return a replaced endpoint.
         self.revalidate()

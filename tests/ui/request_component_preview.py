@@ -39,6 +39,8 @@ class Broker:
         self.scenario = os.environ.get("ONPC_REQUEST_COMPONENT_SCENARIO", "normal")
         self.path = os.environ.get("ONPC_REQUEST_COMPONENT_EVENTS_PATH")
         self.preferences = copy.deepcopy(PREFERENCES)
+        if self.scenario == "two-hours-grant-only":
+            self.preferences[1001]["request"]["last_selected_duration"] = "7200"
         if self.scenario == "control-disabled":
             self.preferences[1001]["parent_control_enabled"] = False
         elif self.scenario == "remembered":
@@ -95,6 +97,15 @@ class Broker:
             return Reply((() if self.scenario == "no-approvers" else APPROVERS,))
         if method == "GetPreferences":
             return Reply((json.dumps(self.preferences[values[0]]),))
+        if method == "GetTimeStatus":
+            if self.scenario == "estimate-unavailable":
+                return Reply(error=RuntimeError("org.example.Secret /private/path"))
+            uid, additional = values
+            daily = 47 * 60 if uid == 1001 else 0
+            grant = 15 * 60
+            if self.scenario == "two-hours-grant-only":
+                daily = grant = 0
+            return Reply((daily, grant, additional, max(daily, grant) + additional))
         if method == "UpdateRequestPreferences":
             uid, duration, custom, soft, approver = values
             self.preferences[uid]["request"].update({

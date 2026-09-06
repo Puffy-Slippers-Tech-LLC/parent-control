@@ -1,27 +1,57 @@
 # Task 19 — os-autoinst end-to-end test distribution
 
-Execute 19A and 19B separately. Reuse the implemented
+Execute 19P, 19A and 19B separately under the
+[implementation workflow](Implementation-Workflow.md). Reuse the implemented
 [baseline validation and artifact contract](../../tests/integration/README.md)
 on the existing fixed VM. Read the mandatory
 [real operations and scenario coverage contract](E2E-Coverage.md). No new VM, snapshot, or overlay may bypass the approved ownership workflow.
 
+## Task 19P
+
+- Title: Prove graphical backend compatibility before expanding coverage.
+- Depends on: the implemented guarded lease; F1 is preferred for common
+  diagnostic evidence but is not a graphical feasibility dependency.
+- Complexity: high; a supported automation backend must fit existing ownership.
+- Recommended Codex model: `gpt-6-astra`
+- Recommended reasoning effort: `high`
+- Work:
+  1. Check current primary documentation for a maintained graphical backend
+     that can control the existing lease-validated VM without a second guest,
+     new overlay/snapshot, private API, host-window automation, or a different
+     lifecycle owner. Evaluate the proposed os-autoinst integration first.
+  2. Use one bounded smoke to prove real guest keyboard/mouse, screenshot and
+     supported observation transport with the existing lease and cleanup.
+     Follow isolated cleanup-safety prerequisites before live controls. If
+     host tools are missing, record them and update `setup.sh` as needed under
+     normal authorization; do not silently recreate the baseline.
+  3. Record the supported backend/version/API, smallest working invocation,
+     secret-input/capture boundaries, actual timings and remaining helper gaps.
+     This is feasibility evidence, not E2E acceptance or the full 19A runner.
+     Also identify availability of a reproducible offline game for Task 26C
+     and any required external-delivery test profile; do not download a game
+     or send feedback merely to inventory prerequisites.
+- Verification: source-backed compatibility and one clean guarded smoke, plus
+  focused checks for any helper code and `make check`/`git diff --check` when
+  code changes. Apply the two-attempt diagnostic limit. If no supported path
+  is established, record the concrete blocker and stop backend development;
+  independent installed-system work may proceed. Do not mark 19P complete.
+- Completion criteria: a supported integration is demonstrated with retained
+  evidence and safe cleanup. Carry its implementation into 19A; do not repeat
+  this feasibility investigation at every graphical task.
+
 ## Task 19A
 
 - Title: Add the guarded os-autoinst worker and console transport.
-- Depends on: Task 18C.
+- Depends on: Task 19P and F1; the preferred schedule follows Task 14.
 - Complexity: very high. Guest ownership, storage, secrets, console transport,
   and cleanup must be correct before any graphical scenario can be trusted.
 - Recommended Codex model: `gpt-6-astra`
 - Recommended reasoning effort: `high`
 - Work:
-  1. First resolve the backend/VM ownership contract: verify from current public
-     documentation and a bounded smoke that the planned maintained graphical
-     backend can drive the guarded existing VM without owning a second guest,
-     creating overlays/checkpoints, bypassing identity checks, or using private
-     APIs. Reuse the existing guarded lease for lifecycle control. Do not assume the
-     earlier os-autoinst QEMU-backend proposal is compatible; if no supported
-     integration is demonstrated, report the concrete design blocker before
-     building scenarios. Do not silently change VM ownership or fake E2E.
+  1. Reuse 19P's demonstrated backend and F1's selection/evidence conventions.
+     Revalidate the compatibility decision only if the backend, environment or
+     ownership contract changed. The guarded lease remains lifecycle owner;
+     no second guest, new overlays/checkpoints or private APIs are permitted.
   2. Add `tests/e2e`, its distribution/entry point, public console definitions,
      configuration templates, read-only guest assertion scripts, and launcher
      for the verified backend. Pin required maintained tooling through
@@ -48,8 +78,11 @@ on the existing fixed VM. Read the mandatory
      and variant IDs, category, owner, requirement links, preconditions, ordered
      steps, interventions, assertions, executable references, and expected
      evidence. Future cases remain explicitly pending. Enumerate the coverage
-     dimensions before implementing them; task completion cannot substitute
-     one smoke or the user's sample for the complete customer inventory.
+     dimensions before implementing them, using its bounded-matrix rules.
+     Establish the minimum versioned evidence fields and safe collector now;
+     Task 27 extends them instead of requiring a rewrite of every scenario.
+     Future pending entries do not block runner acceptance, but remain required
+     for their owning tasks and the final gate.
 - Verification:
   - Run cleanup-safety regressions in isolation before starting a guest.
   - Run host-safe guard/refusal tests and the fresh-guest serial smoke.

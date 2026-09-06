@@ -67,6 +67,20 @@ coordinates host results and VM artifacts for the same source content.
 
 ## Running the current installed suite
 
+For implementation, use the [bounded diagnostic workflow](../../docs/TestAutomation/Implementation-Workflow.md).
+The current controller still executes all installed/reboot/authorization phases;
+it has no supported `AREA`/`TEST` selector. [F1](../../docs/TestAutomation/Task-F1.md)
+is the next planned runner change and must deliver guarded selection, exact
+scope reporting and phase timing before those options are used. Keep all
+identity, prerequisite, evidence and cleanup boundaries for focused runs.
+
+One expensive attempt should collect the safe observations needed to distinguish
+the current hypothesis on success and failure. Check parser/collector handling
+locally first. After two attempts on the same blocker, improve the evidence or
+justify a new discriminating experiment before another boot; carry that history
+across handoffs. Never leave a VM running or restore an intermediate state to
+save conversation context. A completed attempt's failure remains preserved.
+
 First run the applicable
 [isolated cleanup-safety regressions](../README.md#cleanup-safety-prerequisites),
 including persistent-caller cleanup if that helper is used. After building and
@@ -140,6 +154,9 @@ The future E2E runner must obey the
   `authenticate(password, succeeds=...)` drives the real PAM challenge. Terminal
   contents remain in memory; unexpected acceptance, denial or cancellation
   fails immediately with a fixed category instead of waiting for a timeout.
+  Denied challenges also report an allowlisted helper failure stage (PAM or
+  authority response, or `unclassified`); arbitrary helper stderr and terminal
+  contents are never exported, and the category alone does not prove the cause.
   `FixturePassword` generates distinct temporary
   credentials and sets them through guarded guest stdin without diagnostic
   export. Agent cleanup signals only its directly spawned pidfd; run

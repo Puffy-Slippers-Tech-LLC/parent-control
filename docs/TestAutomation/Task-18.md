@@ -7,6 +7,18 @@ an installed snapshot or restore between install, upgrade, retry, reboot,
 remove, or reinstall steps. Real maintainer scripts and OS services execute
 every package transition; host mocks are supporting tests only.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 18A | One activation fixture end to end; then parameterize the remaining classes without rebuilding unchanged fixtures per case. |
+| 18B | Inventory actual migration versions first; prove one supported path and interruption; then the finite invalid-data matrix. |
+| 18C | One continuous removal/reinstall/purge journey; then isolated refusal/retry variants using the same ownership assertions. |
+
 ## Task 18A
 
 - Title: Test all package activation classes.
@@ -30,8 +42,9 @@ every package transition; host mocks are supporting tests only.
      markers; update activation, startup, and restart mappings.
 - Verification:
   - Run every activation fixture from a fresh testbed.
-  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
-    `git diff --check`.
+  - Register and run this task's installed area with F1 and its prerequisite
+    closure, then `make check` and `git diff --check` once for acceptance.
+    Focused iterations select the affected case; no direct host guest-pytest.
 - Completion criteria: all four activation classes follow the real package
   lifecycle with observable process, session, and boot results.
 
@@ -60,8 +73,9 @@ every package transition; host mocks are supporting tests only.
   - Run controller cleanup-safety regressions in isolation before interruption.
   - Run each upgrade/failure fixture from its own fresh testbed and compare
     before/after state through privileged guest assertions.
-  - Run `make check-system ARTIFACT_DIR=<verified-directory>`, `make check`, and
-    `git diff --check`.
+  - Register and run this task's installed area with F1 and its prerequisite
+    closure, then `make check` and `git diff --check` once for acceptance.
+    Focused iterations select the affected case; no direct host guest-pytest.
 - Completion criteria: every supported saved-data path and retry/failure
   boundary is verified through real package maintainer scripts.
 
@@ -98,7 +112,7 @@ every package transition; host mocks are supporting tests only.
     existing guarded system runner and a digest-identified artifact.
   - Verify host/baseline preservation and the documented final VM state.
   - Run `make check`, `git diff --check`, and the focused installed selectors
-    introduced here; record them for the later `test-system AREA=package` alias.
+    provided by F1; record them for the later `test-system AREA=package` alias.
 - Completion criteria: real installed lifecycle and retry evidence complements
   existing mocked regressions; Task 26C still owns the continuous graphical
   customer lifecycle, including actual post-removal login.

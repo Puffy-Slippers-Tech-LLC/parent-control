@@ -11,6 +11,17 @@ grant, session state, or VM checkpoint replaces those operations. Process
 fixtures exercise real OS enforcement but do not prove gameplay; Task 26C
 additionally requires a real installed game and continuous customer journeys.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 25A | One graphical native allow/deny route; then adapt the proven route helper for each required platform/identity. |
+| 25B | One two-user process-isolation transaction; then retained sessions and the declared partial-failure variants. |
+
 ## Task 25A
 
 - Title: Automate graphical launch-route and matching matrices.

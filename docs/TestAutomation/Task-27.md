@@ -8,6 +8,18 @@ customer journeys, real fault/environment interventions, and supporting local
 tests; a mocked component result or restored VM checkpoint cannot fulfill a
 customer scenario. File-level traceability alone is not proof of execution.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 27A | Extend the existing versioned manifest with one validated adapter; then complete reconciliation and privacy cases. |
+| 27B | Wire one runner at a time using fixed fields; batch mechanical adapters after the first works. |
+| 27C | Fix one observed synchronization defect at a time; repeat only the affected smoke with a stated stability question. |
+
 ## Task 27A
 
 - Title: Define and enforce the shared evidence and redaction contract.
@@ -25,6 +37,10 @@ customer scenario. File-level traceability alone is not proof of execution.
      operations. Prove continuity across real steps and declared reboots;
      reject checkpoint-resumed customer evidence. Define explicit
      non-applicable fields for host-only runs; never fabricate identities.
+     Extend F1 and 19A's versioned fields and validators; preserve their safe
+     diagnostic and selector contracts. Settle shared fields when each runner
+     is introduced, so this task completes reconciliation and privacy coverage
+     instead of redesigning all previously implemented scenarios.
   2. Implement shared validation, copied-artifact redaction, safe archive
      construction/extraction, and redacted-archive checksums. Never alter logs.
   3. Test secret-like fields, SSH keys, bearer values, Polkit text, os-autoinst
@@ -96,18 +112,22 @@ customer scenario. File-level traceability alone is not proof of execution.
      service readiness, needles, app start/exit, lock, and logout.
   2. Add a whole-scenario rerun command recording both attempts and preserving
      the original failure. Failed-then-passed must still fail a release.
-  3. Repeatedly run selected stable component/E2E smoke cases, diagnose actual
+  3. Repeatedly run selected stable component/E2E smoke cases when a stated
+     stability question requires it; diagnose actual
      races, and fix root causes without unexplained sleeps or assertion retries.
      Use the evidence contract to distinguish product and infrastructure failure.
 - Verification:
   - Test timeout, collection, and rerun result propagation, including first-fail/
     second-pass and interrupted attempts.
-  - Run cleanup-safety regressions in isolation, then stable component and E2E
-    smokes ten consecutive complete attempts each, using fresh local processes
-    and outer baseline preparation for the existing VM. Never resume a
-    scenario from a saved VM checkpoint or retry an assertion into a pass.
-    Ten-run qualification is explicit maintenance for this harness change,
-    not a default repeat count inherited by `test-fast`, `test-e2e` or `test-all`.
+  - Reuse applicable 19B transport qualification; do not repeat it merely to
+    complete a later task number. For changed wait/cleanup behavior, select the
+    affected smoke and record its stability question, independent attempt count
+    and stop condition under the implementation workflow. Start with three
+    complete smoke attempts for a new transport; a demonstrated intermittent
+    failure needs a count justified by that failure, not an automatic ten-run
+    loop across all suites. Preserve each original failure and use fresh owned
+    processes/outer baseline preparation. No in-journey checkpoint or assertion
+    retry may turn a failure into a pass.
   - Run `make check`, affected component/system/E2E suites, and
     `git diff --check`.
 - Completion criteria: waits are bounded and diagnosable, smoke evidence is

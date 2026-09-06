@@ -4,6 +4,16 @@ Follow [E2E-Coverage.md](E2E-Coverage.md). Enumerate the assigned installation
 and startup-failure variants before implementing them; real customer steps
 and declared OS fault controls must have distinct categories and evidence.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 20 | One real clean install/reboot/readiness journey; then separately declared startup failures. |
+
 - Depends on: Task 19B.
 - Complexity: high. This is the first complete release-path graphical job.
 - Recommended Codex model: `gpt-5.6-sol`
@@ -36,8 +46,9 @@ and declared OS fault controls must have distinct categories and evidence.
      mappings.
 - Verification:
   - Run runner cleanup-safety regressions in isolation before live scenarios.
-  - Run the clean-install scenario twice as complete independent attempts.
-    Restore the retained baseline only outside attempts, never across its reboot.
+  - Run every clean-install/startup-failure variant once as a complete attempt.
+    Repetition follows the workflow's stability rule. Restore the retained
+    baseline only outside attempts, never across a journey's reboot.
   - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=E2E-002`,
     package-focused system tests, `make check`, and `git diff --check`.
 - Completion criteria: a digest-identified release package passes a real clean

@@ -89,6 +89,29 @@ def test_terminal_outcomes_are_consumed_in_stream_order():
     assert instance.pending == b' AUTHENTICATION COMPLETE'
 
 
+@pytest.mark.parametrize('diagnostic,category', [
+    (b'polkit-agent-helper-1: pam_authenticate failed:', 'pam-authenticate'),
+    (b'polkit-agent-helper-1: pam_acct_mgmt failed:', 'pam-account'),
+    (b'polkit-agent-helper-1: error response to PolicyKit daemon:', 'authority-response'),
+    (b'unknown helper error:', 'unclassified'),
+])
+def test_denied_helper_diagnostics_export_only_fixed_category(monkeypatch, capsys,
+                                                             diagnostic, category):
+    instance = agent()
+    password = caller.FixturePassword()
+    monkeypatch.setattr(caller.termios, 'tcgetattr', Mock(return_value=[0, 0, 0, 0]))
+    monkeypatch.setattr(caller.os, 'write', Mock(side_effect=lambda fd, data: len(data)))
+    instance.pending = (diagnostic + b' private-user ' + password._value +
+                        b'\nAUTHENTICATION FAILED')
+    with pytest.raises(caller.guest.GuestError) as error:
+        instance.authenticate(password)
+    assert str(error.value) == 'agent:unexpected-denied'
+    assert capsys.readouterr() == (
+        'onpc-system: stage=authentication outcome=denied\n'
+        'onpc-system: stage=authentication-helper outcome=denied '
+        f'category={category}\n', '')
+
+
 def test_password_installation_uses_stdin_without_diagnostics(monkeypatch):
     import owned_commands
     controller = Mock(directory=None)

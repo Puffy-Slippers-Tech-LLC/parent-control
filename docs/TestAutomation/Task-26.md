@@ -12,6 +12,18 @@ Failure → recovery and restart → resumed use are continuous sequences, not
 separate preconstructed states. Read-only state captures are evidence, never
 restorable VM snapshots.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 26A | Inventory existing canonical fault cases first; implement only missing graphical transitions/interactions, starting with one observable race. |
+| 26B | One real restart/resumed-use boundary; then parameterize each required persistence boundary. |
+| 26C | Prove the real-game E2E-023 path and its fullscreen/windowed variants before filling remaining journey gaps; reuse existing cases. |
+
 ## Task 26A
 
 - Title: Prove adversarial transaction races and failure recovery.
@@ -125,9 +137,9 @@ restorable VM snapshots.
      resolved before this task completes and before final release acceptance.
 - Verification:
   - Run cleanup-safety regressions in isolation before integrated operations.
-  - Run every newly completed customer journey/variant, and repeat the central
-    E2E-023 journey as a complete fresh attempt. Any rerun retains its first
-    failure; no snapshot resumes at the failed step.
+  - Run every newly completed canonical journey/variant once, including both
+    E2E-023 gameplay variants. Repetition follows a stated stability question;
+    any rerun retains its first failure and begins the whole journey again.
   - Review screen/step traces against customer actions and check that backend
     witnesses did not produce the outcome. Verify gameplay, natural expiry,
     expected retained sessions, and other-user isolation.

@@ -13,10 +13,21 @@ locks, or intermediate VM restores may manufacture natural expiry evidence.
 Reuse Task 21B's minimal real kiosk approval helper to establish/replenish
 grants; Tasks 23/24 later extend its authentication and surface matrices.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 22A | One natural expiry, denial and replacement-grant unlock sequence; then fill session and soft-app variants. |
+| 22B | One display transition and visibility case; then the declared dependency-loss/recovery case. |
+
 ## Task 22A
 
 - Title: Prove lock, retained-session unlock, and fresh-login enforcement.
-- Depends on: Task 21B.
+- Depends on: Task 21B and the Task 16B/17B installed session assertions.
 - Complexity: very high. GNOME Shell, PAM, logind, active-user isolation, and
   broker reconciliation must agree across retained and new sessions.
 - Recommended Codex model: `gpt-6-astra`
@@ -47,7 +58,7 @@ grants; Tasks 23/24 later extend its authentication and surface matrices.
      reconciliation, and isolation mappings.
 - Verification:
   - Run cleanup-safety regressions in isolation before session/process controls.
-  - Run complete lock/login cases twice; reset only outside attempts. Correlate
+  - Run each complete lock/login variant once; reset only outside attempts. Correlate
     screenshots, logind sessions, PAM results, usage, grants, filters, processes,
     and PII-safe logs.
   - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
@@ -64,8 +75,9 @@ grants; Tasks 23/24 later extend its authentication and surface matrices.
 - Recommended Codex model: `gpt-5.6-terra`
 - Recommended reasoning effort: `medium`
 - Work:
-  1. Verify minute countdown and final-minute seconds with the minimum real
-     grant; do not add a production clock hook.
+  1. Verify minute countdown and final-minute seconds with the shortest real
+     grant that crosses that transition and allows the required UI steps.
+     Do not use a too-short grant or add a production clock hook.
   2. Verify the control appears only on the unlocked managed child's desktop
      while usable time remains, never on GDM or the lock screen. Assert no
      independent child settings or custom lock-screen controls.
@@ -75,7 +87,7 @@ grants; Tasks 23/24 later extend its authentication and surface matrices.
      the natural countdown and visibility journey E2E-011.
   4. Update countdown, visibility, and estimate-recovery mappings.
 - Verification:
-  - Run complete display cases twice on the guarded VM with bounded
+  - Run each complete display variant once on the guarded VM with bounded
     screen waits and backend time evidence.
   - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
     `make check`, and `git diff --check`.

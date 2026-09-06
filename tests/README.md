@@ -4,6 +4,12 @@ Start with the [daily testing guide](../docs/Test-Automation.md) for current and
 planned commands. This document describes how to select and maintain tests;
 it does not repeat completed setup tasks or historical acceptance results.
 
+For unfinished implementation, follow the
+[bounded workflow](../docs/TestAutomation/Implementation-Workflow.md): read the
+active problem and relevant code, prove one real helper path, then batch its
+cases. Preserve a short handoff and clear solved context before a different
+problem. A fresh chat does not require rerunning unaffected tests.
+
 ## Layers and boundaries
 
 | Location | Purpose | Real dependencies and isolation |
@@ -119,6 +125,10 @@ layers actually measured and include the separate child-language results.
 5. Run the relevant verification once per ordinary attempt, with bounded waits
    and preserved first failures. Repeated harness qualification is explicit
    maintenance work, not a permanent multiplier in daily commands.
+   During implementation, use focused selections and run common checks after
+   the stable batch's final edit. Full task verification is an acceptance step,
+   not a loop after every diagnostic change. Register canonical cases once
+   even when several requirement/task IDs use them; retain every required layer.
 
 Feedback component tests use a fake delivery transport and do not send mail.
 Their evidence cannot prove external delivery. Any live delivery test must

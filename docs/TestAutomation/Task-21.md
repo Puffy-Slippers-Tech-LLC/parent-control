@@ -9,6 +9,17 @@ UI; backend fixtures are installed application inputs or read-only assertions,
 never injected preferences, grants, or authentication. Each scenario is a
 continuous attempt on the existing VM, without intermediate resets.
 
+## Implementation slices
+
+Use the [implementation workflow](Implementation-Workflow.md). These are small
+work boundaries within the existing task, not extra acceptance checklists.
+Verification below is task acceptance; edits use the smallest affected selection.
+
+| Task | First proof, then expansion |
+| --- | --- |
+| 21A | One real Parent discovery/access journey; then batch compatible navigation and validation steps. |
+| 21B | First prove one real kiosk approval and one Parent save with other-user evidence; then extend the shared helpers to transaction variants. |
+
 ## Task 21A
 
 - Title: Automate Parent discovery, navigation, and validation.
@@ -48,7 +59,7 @@ continuous attempt on the existing VM, without intermediate resets.
 ## Task 21B
 
 - Title: Automate Parent saves, live policy, and revocation.
-- Depends on: Task 21A.
+- Depends on: Task 21A and the Task 15B/16B failure and ownership helpers.
 - Complexity: high. UI ordering must be correlated with several privileged
   transactions, using already-tested backend assertions.
 - Recommended Codex model: `gpt-5.6-terra`

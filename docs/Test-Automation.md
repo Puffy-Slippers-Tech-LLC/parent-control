@@ -1,19 +1,55 @@
 # Test automation
 
-Use this guide for running tests. Use the [implementation plan](TestAutomation/Test-Automation.md)
-only when implementing unfinished automation. Running a test command does not
-restart the implementation plan or require a model-selection ceremony.
+This is the entry point for continuing implementation and for running tests.
+For the remaining implementation, repeat this exact prompt in each new session:
 
-Before executing the next implementation task, state its recommended model and
-reasoning effort, ask the user to confirm that both are selected, and wait for
-explicit confirmation before starting. Repeat this confirmation for each next
-task; authorization for a previous task does not carry over to the next one.
+> Continue the next unfinished task in docs/Test-Automation.md. This is the dev and host machine.
+
+## Continue implementation in fresh sessions
+
+1. The agent reads [the current continuation](TestAutomation/Continuation.md),
+   follows its active handoff, and selects one bounded slice under the
+   [implementation backlog](TestAutomation/Test-Automation.md#implementing-one-task).
+   This prompt requests implementation; it does not request a daily test run.
+2. The agent states the task, next result, recommended model and reasoning
+   effort **from the latest handoff**, then asks you to confirm that both settings
+   are selected. The task's original recommendation is only a starting default.
+   This happens **at every new session**, including continuations of the same task. Select the
+   settings and reply **“Go ahead.”** The agent cannot change them itself.
+3. The agent implements and verifies that slice, normally planned for 15–30
+   minutes. Ten minutes is a progress review. At a solved boundary, or after the
+   30-minute/context review and completion of the current bounded operation,
+   it writes the handoff and ends the session. It may finish a running test and
+   cleanup beyond the estimate, explaining the overrun; it must not start a
+   succession of new problems in the same session.
+4. The agent updates the task's compact handoff and the continuation record,
+   **reevaluating both model and effort for the next unfinished slice**. It must
+   recommend a cheaper model/lower effort when the remaining work permits it,
+   or a stronger model/higher effort when the remaining difficulty requires it,
+   and briefly explain the choice even when keeping the same settings. It
+   preserves applicable evidence and tells you that you can end the session.
+   Start a **new session** with the same prompt. You do not need to find a task
+   number or copy the previous conversation. Repeat until the backlog is complete.
+
+The prompt establishes that this is the development/host machine. Installed
+tests use the existing guarded test VM; preserve that recorded scope without
+asking you to identify the machine again. Each start reads the unfinished
+question and relevant changes, without loading solved investigations or
+repeating checks solely because the session is new. The
+[implementation workflow](TestAutomation/Implementation-Workflow.md) defines
+reading limits, experiment budgets, safe cleanup and handoff contents.
+
+An explicit request to run tests uses the commands below. A documentation
+review edits the relevant guides. Neither starts implementation or requires
+the implementation model-confirmation step.
 
 ## Daily commands
 
 The intended interface is four commands. **These targets and their selectors
-are not implemented yet**; Task 28A owns them. Current executable commands are
-listed below, so planned automation is never mistaken for passing coverage.
+are not implemented yet**; Task 28A owns their complete dispatch and CI. The
+smaller [F1 task](TestAutomation/Task-F1.md) brings guarded installed selectors
+and diagnostic timing forward into `check-system`. F1 is also unimplemented;
+use the current commands below until their documented implementation passes.
 
 | Command | Default scope | Test VM |
 | --- | --- | --- |
@@ -56,6 +92,12 @@ included in today's `make check`.
 | `make check-static` | ShellCheck and GJS static/module checks. |
 | `make check-unit` | Unit and contract modules, including property tests. |
 | `make check-system ARTIFACT_DIR=<verified-directory>` | Existing guarded installed-system runner; detailed coverage is still being completed. |
+
+Today's installed runner has no supported case/area selector. Do not assume
+`AREA`, `TEST`, or guest pytest arguments work until F1 delivers and documents
+them. During implementation, full command lists in task documents are acceptance
+checks; use [focused verification](TestAutomation/Implementation-Workflow.md#verify-at-the-right-scope)
+for edits and do not rerun unaffected suites merely to resume a chat.
 
 Before a current host-integrated command that terminates processes, run its
 [cleanup-safety prerequisites](../tests/README.md#cleanup-safety-prerequisites)
@@ -119,9 +161,11 @@ are not test suites and must not run from `test-*`. The prepared machine is a
 prerequisite; an invalid/missing baseline is reported, never rebuilt silently.
 
 Run each registered regression and required variant once per ordinary attempt.
-Three-run/ten-run qualification and diagnostic reruns are explicit operations
-for harness changes or flake investigation; they preserve each attempt and do
-not multiply the daily suite. A real-duration wait or second package build
+Repeated qualification and diagnostic reruns need a stated stability question,
+selected scope, count and stop condition under the
+[implementation workflow](TestAutomation/Implementation-Workflow.md#verify-at-the-right-scope).
+They preserve each attempt and do not multiply the daily suite. A real-duration
+wait or second package build
 needed for a reproducibility assertion remains part of that test's behavior.
 
 Removing completed setup instructions does not remove regression tests of

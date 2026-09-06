@@ -64,6 +64,19 @@ def accounts():
         names[role] = name
     values = {role: pwd.getpwnam(name).pw_uid for role, name in names.items()}
     values['kiosk'] = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())['kiosk_uid']
+    # Preserve the public dependency's real caller boundary alongside product
+    # results. Raw replies stay in the existing private/redacted diagnostics;
+    # this probe never substitutes for a successful GetTimeStatus assertion.
+    query = ['busctl', '--system', 'call', 'org.freedesktop.MalcontentTimer1',
+             '/org/freedesktop/MalcontentTimer1',
+             'org.freedesktop.MalcontentTimer1.Parent', 'QueryUsage', 'uss',
+             str(values['child1']), 'login-session', '']
+    for role in ('root', 'parent1', 'child1', 'kiosk'):
+        prefix = [] if role == 'root' else [
+            'runuser', '--user', pwd.getpwuid(values[role]).pw_name, '--']
+        guest.commands.run(prefix + query, timeout=45, check=False, merge_stderr=False)
+        print(f'onpc-system: stage=usage-boundary role={role} '
+              f'exit={guest.commands.last_returncode}', flush=True)
     # Empty policies exercise authorization without selecting application processes.
     for role in ('child1', 'child2', 'unrelated'):
         accepted(call(values['parent1'], 'SetParentControl', '(ubu)', (values[role], False, 60)))

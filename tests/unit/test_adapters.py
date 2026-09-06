@@ -168,13 +168,32 @@ class PolkitAdapterTests(unittest.TestCase):
 
         policy.reconcile.assert_called_once_with({1001: ()})
 
-    def test_timer_usage_queries_selected_child_through_parent_interface(self):
-        reply = mock.Mock()
-        reply.unpack.return_value = ([(10, 20), (30, 40)],)
-        with mock.patch("oh_no_parent_control.adapters._call", return_value=reply) as call:
+    def test_timer_usage_queries_as_selected_child_not_root(self):
+        identity = SimpleNamespace(pw_name="private-child-name", pw_gid=1201)
+        with mock.patch("oh_no_parent_control.adapters.pwd.getpwuid",
+                        return_value=identity) as lookup, \
+                mock.patch("oh_no_parent_control.adapters.subprocess.run",
+                           side_effect=self._helper_result("[[10,20],[30,40]]")) as run, \
+                mock.patch("oh_no_parent_control.adapters._call") as root_call, \
+                self.assertLogs("oh-no-parent-control.adapters", level="INFO") as logs:
             self.assertEqual(TimerUsage(object()).query_usage(1001), ((10, 20), (30, 40)))
-        self.assertEqual(call.call_args.args[4], "QueryUsage")
-        self.assertEqual(call.call_args.args[5].unpack(), (1001, "login-session", ""))
+        lookup.assert_called_once_with(1001)
+        root_call.assert_not_called()
+        self.assertEqual(run.call_args.args[0], [
+            "/usr/libexec/oh-no-parent-control-query-usage", "1001"])
+        self.assertEqual(run.call_args.kwargs["user"], 1001)
+        self.assertEqual(run.call_args.kwargs["group"], 1201)
+        self.assertEqual(run.call_args.kwargs["extra_groups"], ())
+        self.assertNotIn(identity.pw_name, "\n".join(logs.output))
+        self.assertNotIn("1001", "\n".join(logs.output))
+
+    def test_timer_usage_missing_child_never_launches_helper(self):
+        with mock.patch("oh_no_parent_control.adapters.pwd.getpwuid",
+                        side_effect=KeyError("private-child-name")), \
+                mock.patch("oh_no_parent_control.adapters.subprocess.run") as run:
+            with self.assertRaisesRegex(TimerUsageError, "child-unavailable"):
+                TimerUsage(object()).query_usage(1001)
+        run.assert_not_called()
 
     def test_timer_usage_helper_runs_as_authenticated_approver(self):
         identity = SimpleNamespace(pw_name="parent", pw_gid=1200)

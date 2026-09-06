@@ -362,11 +362,16 @@ class Broker:
     def _time_status(self, target_uid: int, additional_seconds: int) -> TimeStatus:
         if self._preferences is None or self._timer_usage is None:
             raise BackendFailure("remaining-time status is unavailable")
+        stage = "preferences"
         try:
             preferences = self._preferences.load(target_uid)
+            stage = "usage"
             usage_entries = self._timer_usage.query_usage(target_uid)
+            stage = "grant"
             grant_time, grant_duration = self._accounts.get_extension(target_uid)
         except Exception as error:
+            LOG.warning("time-status stage=%s outcome=failed error_type=%s",
+                        stage, type(error).__name__)
             raise BackendFailure("remaining-time status is unavailable") from error
 
         return self._time_status_from_usage(

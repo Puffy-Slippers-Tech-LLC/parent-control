@@ -127,8 +127,11 @@ and completion record below when beginning Task 14 in a later session.
 
 Task 14 is in progress and paused at the user-requested elapsed-time checkpoint.
 Resume its [continuation handoff](Task-14.md#continuation-handoff--2026-09-05-incomplete).
-The initial installed authorization suite passed 135 cases and failed seven
-`GetTimeStatus` cases; cleanup restored the baseline and left the VM off.
+Two installed runs passed 135 cases and failed seven `GetTimeStatus` cases.
+The latest diagnostic confirmed Malcontent rejects the root usage query while
+child self-reads succeed. A local identity-scoped helper repair passes host
+checks; it still needs a fresh package and VM acceptance. Cleanup restored the
+baseline and left the VM off. Real authentication/revalidation cases remain.
 Task 14 remains unchecked; this is not a completion record.
 
 ## Rules for every task

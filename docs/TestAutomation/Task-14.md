@@ -38,98 +38,121 @@
 
 ## Continuation handoff — 2026-09-05 (incomplete)
 
-Task 14 remains unchecked. Continue this task only; no completion record is
-appropriate until the remaining deliverables and installed assertions pass.
-The user confirmed this checkout is on the development host and authorized use
-of the existing `ubuntu26.04` VM. No further machine clarification is needed.
+Task 14 remains unchecked. Continue this task only. The user confirmed this
+checkout is on the development host and authorized the existing `ubuntu26.04`
+VM. No further machine clarification is needed.
 
-Recommended continuation: **`gpt-6-astra` / `high`**. The remaining work includes
-real authentication timing, stale identities, and caller lifetime security
-boundaries. It is not a lower-complexity acceptance-only continuation.
+Recommended continuation: **`gpt-6-astra` / `high`**. Remaining work includes
+real authentication, stale identities, caller lifetime boundaries, and installed
+acceptance of the usage-query repair.
 
-### Implemented interface to reuse
+### Reuse these implemented interfaces
 
-- `tests/integration/system_caller.py`: root entry checks `system_guest.guard`,
-  consumes a JSON batch from stdin, initializes the selected account's groups,
-  drops real/effective/saved GID and UID, clears inherited environment, and
-  opens a fresh connection to `/run/dbus/system_bus_socket`. The bus-reported
-  UID must match. The helper loads no product modules and returns public D-Bus
-  error names, not exception messages. Its private-read operation opens only
-  the exact selected preference record and never returns record contents.
-- `tests/system/test_authorization.py`: `batch(uid, operations)` / `call(uid,
-  method, signature, args)` reuse identity-recorded `owned_commands.Commands`.
-  Module setup requires the VM guard before creating fixture accounts and
-  applying empty application policies through the installed broker. The suite
-  currently collects 142 cases: 17 methods across seven roles, 15 cross-child
-  attempts, seven private-file/component-log cases, and discovery checks.
-- `system_runner.PHASE_COUNTS` adds `authorization: 142`. The runner freezes
-  and hashes the helper and suite, executes that phase after the existing
-  install/reboot assertions, and rejects missing/failed/skipped evidence.
-  Future additions must update the expected count and its verification.
-- No production code or saved-data schema changed. Test-only activation is
-  `none`. The integration README documents the unfinished phase.
+- `tests/integration/system_caller.py`: guarded JSON batch caller; drops real,
+  effective, saved UID/GID and supplementary groups before opening a fresh
+  system-bus connection; verifies the bus-reported UID. Returns public error
+  names and never private preference contents.
+- `tests/system/test_authorization.py`: `batch(uid, operations)` and
+  `call(uid, method, signature, args)` use identity-recorded
+  `owned_commands.Commands`. Current suite: 142 cases (17 methods × seven
+  roles, 15 cross-child attempts, seven file/log cases, discovery).
+- `system_runner.PHASE_COUNTS['authorization'] == 142`; new cases must update
+  this count and its tests. The guarded runner freezes/hashes all test inputs,
+  executes install/reboot/authorization phases, and rejects incomplete evidence.
+- Account setup now captures four read-only Malcontent `QueryUsage` probes in
+  order: root, parent1, child1, kiosk. Raw responses stay in private diagnostics
+  and redacted collected copies; probes do not relax the product assertions.
 
-### Remaining implementation and acceptance
+### Confirmed defect and local repair
 
-1. Diagnose the seven `GetTimeStatus` failures from the first VM attempt below.
-   Each of the seven allowed roles receives the public `BackendFailure` error;
-   the other 135 cases pass. Broker logs confirm the error category but do not
-   identify the underlying adapter exception. Inspect the installed usage-query
-   boundary (`TimerUsage.query_usage` / `Broker._time_status`) and capture
-   redacted dependency evidence in the next guarded run before choosing a fix.
-   Do not replace expected success with acceptance of a backend error. Preserve
-   failed evidence; a rerun does not erase a prior failure.
-2. Extend the installed assertions for enabled-child `RequestOwnAccess`,
-   ineligible system/noninteractive callers and targets, exact authoritative
-   icon values, and state isolation for other accounts. Current disabled-child
-   denial and agentless kiosk denial do not prove successful request admission.
+The diagnostic VM run reproduced all seven `GetTimeStatus` failures on the
+unchanged package: 135 passed, seven failed, zero errors/skips. The dependency
+probes proved root is rejected as an invalid/unknown user, parent and child
+self-reads return `a(tt) 0`, and kiosk's cross-account read is denied.
+
+This matches the public upstream
+[Malcontent implementation](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/parent-timer-service.c):
+`query_usage_ensure_credentials_cb` rejects UID 0;
+`query_usage_get_child_user_cb` permits parent or self reads. The current
+`main` source was also checked and retains these boundaries.
+
+Local repair is implemented, but **has not been built or tested in the VM**:
+
+- `TimerUsage.query_usage(uid)` now runs the existing fixed-purpose helper
+  as the exact selected child's UID/primary GID, with no supplementary groups.
+  The broker's caller/target authorization remains before this read.
+- `query_usage_as(uid, approver)` retains authenticated-approver identity
+  validation. Both paths share bounded helper execution and reply validation.
+- `Broker._time_status` logs a fixed failure stage and exception type without
+  raw exceptions or account data. Adapter logs distinguish own/approver scope.
+- Adapter regressions prove selected-child credentials, absence of root-bus
+  queries, redacted logs, and refusal to launch for a missing child.
+- `docs/System-Design.md` describes the path. Activation is
+  `process-restart` through existing broker classification; no saved-data
+  migration or development-machine setup change applies.
+
+### Remaining work, in order
+
+1. Build a fresh package with `make build-test-artifacts OUTPUT_DIR=<fresh-/tmp-path>`;
+   the previous artifact below does **not** contain the repair. Run the guarded
+   authorization matrix and require all existing success cells to pass.
+   Preserve both historical failed runs; do not relabel a backend error as success.
+2. Add installed assertions for enabled-child `RequestOwnAccess`, ineligible
+   system/noninteractive callers and targets, exact authoritative icons, and
+   state isolation for other accounts. Disabled-child and agentless kiosk
+   denial alone do not prove successful request admission.
 3. Add persistent real-caller connections and controlled real authentication
-   to prove stale-account, changed-role, selected-approver revalidation, and
-   caller disappearance during approval. Use public interfaces with actual
-   credential verification; never add permissive test Polkit rules or inject
-   an approved result. An available supported starting point is
-   [pkttyagent](https://polkit.pages.freedesktop.org/polkit/pkttyagent.1.html):
-   `--system-bus-name` selects the actual caller, and `--notify-fd` reports agent
-   registration. Its password-prompt/PTY orchestration has not been implemented.
-   Keep fixture credentials in memory and out of command arguments and logs.
-   Add caller/agent cleanup-safety regressions and run them in isolation before
-   integrated disconnect tests; signal only directly spawned, pinned processes.
-4. Add broker/account traceability mappings only as supported by executed
-   evidence. The manifest is unchanged so far; do not claim planned races as
-   covered. Run stage traceability validation after mapping changes.
-5. Run the completed authorization suite via the guarded runner, inspect
-   redacted logs and D-Bus evidence, run `make check` and `git diff --check`,
-   update both Task 14 checkboxes and append its master completion record only
-   after full acceptance.
+   for stale-account, changed-role, selected-approver revalidation, and caller
+   disappearance during approval. Use actual credential verification and public
+   interfaces; never add permissive test Polkit rules or inject approval.
+   [pkttyagent](https://polkit.pages.freedesktop.org/polkit/pkttyagent.1.html)
+   supports `--system-bus-name` and `--notify-fd`; PTY/password orchestration
+   is not implemented. Keep credentials in memory, out of arguments/logs.
+   Add and separately run caller/agent cleanup-safety regressions before these
+   integrated tests; signal only directly spawned, identity-pinned processes.
+4. Update broker/account traceability only as supported by executed evidence.
+   The manifest remains unchanged. Run stage validation after mapping changes.
+5. Complete `make check-system`, inspect redacted logs/results, run
+   `make check` and `git diff --check`, then update both Task 14 checkboxes
+   and append its completion record. No later task is authorized in this run.
 
-### Checkpoint verification and artifacts
+### Latest verification and evidence
 
-- Isolated prerequisite: `/usr/bin/python3 -B -m pytest tests/unit/test_system_runner_cleanup_safety.py tests/unit/test_prepare_host_cleanup_safety.py -q`
-  — 18 passed.
-- Focused: `/usr/bin/python3 -B -m pytest tests/unit/test_system_caller.py tests/unit/test_system_runner.py tests/unit/test_system_guest.py tests/unit/test_vm_transport.py -q`
+- Before VM execution:
+  `/usr/bin/python3 -B -m pytest tests/unit/test_system_runner_cleanup_safety.py tests/unit/test_prepare_host_cleanup_safety.py -q`
+  — 18 passed in isolation.
+- Before host checks:
+  `/usr/bin/python3 -B -m pytest tests/unit/test_child_preview_cleanup_safety.py -q`
+  — 11 passed, three subtests passed.
+- Runner/caller regressions:
+  `/usr/bin/python3 -B -m pytest tests/unit/test_system_caller.py tests/unit/test_system_runner.py tests/unit/test_system_guest.py tests/unit/test_vm_transport.py -q`
   — 86 passed.
-- Collection only (no VM actions): `env PYTHONPATH=tests/integration PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /usr/bin/python3 -B -m pytest -c tests/system/pytest.ini --noconftest --collect-only tests/system/test_authorization.py -q`
-  — 142 collected.
-- `make check` — 800 host tests and 17 component tests passed.
-- `make build-test-artifacts OUTPUT_DIR=/tmp/onpc-task14-DLDL6r/input` — passed.
-  This fresh artifact replaces the prior Task 13B `/tmp` input, which no longer
-  exists. Do not assume temporary artifacts survive a new session.
-- Live command: `pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=/tmp/onpc-task14-DLDL6r/input`.
-  Result: failed, exit 2 from Make (`command:failed:ssh` is the controller's
-  wrapper category). Install and reboot each passed two tests. Authorization
-  ran all 142 tests in 36.666 seconds: 135 passed, seven failed, no errors or
-  skips. All failures are `test_method_role_matrix[GetTimeStatus-<role>]`.
-- Preserved evidence: `/tmp/onpc-system-erwox8b2/evidence/` contains aggregate
-  `result.json`, three guest xUnit files, redacted broker/component logs,
-  service journal and structured caller replies. Aggregate `outcome=failed`,
-  `cleanup_phase=complete`; the runner verified the restored baseline. A
-  separate `virsh --connect qemu:///system domstate ubuntu26.04` returned
-  `shut off`. No command is still running and no fixture account persists
-  beyond the restored snapshot.
-- Exact package SHA-256:
-  `8eb84c03f463ab4ea79529104571ea83e38fb7f1e2f9e9c3185d7bc444560fb4`;
-  baseline provenance SHA-256:
+- Post-repair:
+  `env PYTHONPATH=broker /usr/bin/python3 -B -m pytest tests/unit/test_adapters.py tests/unit/test_core.py -q`
+  — 88 passed, 17 subtests passed. An initial invocation without `PYTHONPATH`
+  failed collection only; use the exact command above.
+- Post-repair `make check`: 801 host tests and 17 component tests passed;
+  `git diff --check` passed.
+- Diagnostic command:
+  `pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=/tmp/onpc-task14-DLDL6r/input`
+  — Make exit 2, aggregate `outcome=failed`,
+  `category=command:failed:ssh`, `cleanup_phase=complete`.
+  Install and reboot each passed two cases; authorization ran 142 cases in
+  36.636 seconds, with the seven known `GetTimeStatus` failures.
+- Latest evidence: `/tmp/onpc-system-f35sqzni/evidence/`.
+  Under `guest/`, the four dependency probes are
+  `stage-j8pk1y0m-command-0006-stderr.txt` (root),
+  `0007.txt` (parent), `0008.txt` (child), and
+  `0009-stderr.txt` (kiosk), using that same filename prefix.
+  Broker logs and all three xUnit files are preserved there.
+- First failed run remains at `/tmp/onpc-system-erwox8b2/evidence/`.
+  Both attempts used package SHA-256
+  `8eb84c03f463ab4ea79529104571ea83e38fb7f1e2f9e9c3185d7bc444560fb4`.
+  Baseline provenance SHA-256:
   `cffe72b4c77004a010d2b0341b415853c0afce838efe4762bb84a52665ca0eb5`.
-- Pause: the run exceeded ten minutes; the first clean checkpoint was after
-  the active VM runner completed cleanup. No additional implementation or
-  whole-run retry was started. Changes are uncommitted.
+  Recheck temporary artifact existence next session.
+- Cleanup restored and verified the retained baseline and host fingerprints.
+  A separate `virsh --connect qemu:///system domstate ubuntu26.04` confirmed
+  `shut off`. No commands remain running. The local repair is uncommitted.
+- Paused at the user's ten-minute clean checkpoint after VM cleanup and local
+  checks. Resume by saying `Run docs/Test-Automation.md`.

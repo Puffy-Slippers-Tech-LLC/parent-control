@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -19,6 +19,38 @@ sys.path.pop(0)
 
 UUID = 'f95890e1-88e7-4779-8ae3-53fdcc34330a'
 RUN = 'a' * 32
+
+
+def test_run_ledger_accumulates_monotonic_stage_time_and_preserves_first_failure(capsys):
+    clock = iter((10.0, 10.25, 20.0, 20.75))
+    ledger = runner.RunLedger(monotonic=lambda: next(clock))
+    with ledger.measure('test'):
+        pass
+    with ledger.measure('test'):
+        pass
+    ledger.fail_outcome('product', 'pytest:failed:installed')
+    ledger.fail_outcome('product', 'pytest:failed:authorization')
+    ledger.fail_outcome('collection', 'collection:missing')
+    ledger.pass_outcome('product')
+
+    data = ledger.data()
+    assert data['stage_durations_seconds'] == {
+        'preparation': 0.0, 'bootstrap': 0.0, 'install': 0.0, 'reboot': 0.0,
+        'test': 1.0, 'collection': 0.0, 'cleanup': 0.0,
+    }
+    assert data['outcomes']['product'] == {
+        'outcome': 'failed', 'category': 'pytest:failed:installed'}
+    assert ledger.first_failure_category == 'pytest:failed:installed'
+    assert 'timing:stage=test duration_seconds=0.250' in capsys.readouterr().err
+
+
+def test_aggregate_category_preserves_pytest_failure_wrapped_by_ssh():
+    ledger = runner.RunLedger()
+    ledger.fail_outcome('product', 'pytest:failed:authorization')
+
+    assert runner.record_caught_failure(
+        ledger, runner.CommandError('command:failed:ssh')) == 'pytest:failed:authorization'
+    assert ledger.outcomes['infrastructure'] == {'outcome': 'passed', 'category': None}
 
 
 def test_bootstrap_normalizes_only_official_deb822_archive_uris():
@@ -53,6 +85,7 @@ def test_bootstrap_closes_guest_edits_before_install_and_pins_host_key(tmp_path,
     lease.source.uuid = UUID
     (tmp_path / 'input').mkdir()
     (tmp_path / 'input/package.deb').write_bytes(b'package')
+    (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     edit, read = Mock(), Mock()
     guestfs.GuestFS.side_effect = [edit, read]
     for g in (edit, read):
@@ -146,7 +179,7 @@ def marker():
     return {'purpose': 'onpc-system-test', 'run': RUN, 'machine_id': 'b' * 32,
             'host_machine_id': 'c' * 32, 'domain_uuid': UUID,
             'baseline_sha256': 'd' * 64, 'preparation_sha256': 'e' * 64,
-            'package_sha256': 'f' * 64}
+            'package_sha256': 'f' * 64, 'selected_inputs_sha256': 'a' * 64}
 
 
 def test_guest_guard_accepts_only_matching_isolated_vm():
@@ -156,6 +189,7 @@ def test_guest_guard_accepts_only_matching_isolated_vm():
 @pytest.mark.parametrize('field,value', [
     ('purpose', 'other'), ('run', 'b' * 32), ('domain_uuid', 'other'),
     ('host_machine_id', 'b' * 32), ('package_sha256', 'invalid'),
+    ('selected_inputs_sha256', 'invalid'),
     ('machine_id', 'c' * 32),
 ])
 def test_guest_marker_refuses_host_or_replacement(field, value):
@@ -183,15 +217,18 @@ def test_asset_tree_rejects_symlink_and_special_file(tmp_path):
 
 
 def test_pytest_command_selects_both_required_tests_without_skips():
-    before = runner.pytest_command(RUN, 'installed')
-    after = runner.pytest_command(RUN, 'rebooted')
+    selection = runner.resolve_selection(inventories=INVENTORIES)
+    before = runner.pytest_command(RUN, 'installed', selection)
+    after = runner.pytest_command(RUN, 'rebooted', selection)
     assert 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1' in before
     assert before[-1].endswith('::test_first_install_requests_reboot')
     assert after[-1].endswith('::test_reboot_applies_installation')
     assert before[-2] == after[-2]
     assert before[-2].endswith('::test_installed_package')
     assert runner.guest_command(RUN, 'install')[-2:] == [runner.PAYLOAD + '/system_guest.py', 'install']
-    assert runner.pytest_command(RUN, 'authorization')[-1] == runner.PAYLOAD + '/test_authorization.py'
+    authorization = runner.pytest_command(RUN, 'authorization', selection)
+    assert authorization[-1].endswith(
+        '/test_authorization.py::test_real_selected_parent_authentication[child1]')
 
 
 INVENTORIES = {
@@ -263,6 +300,38 @@ def test_password_case_registers_its_additional_fixture_prerequisite():
     assert selection.prerequisites[-1] == 'fixture-passwords'
 
 
+def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
+    first = runner.resolve_selection(
+        'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)
+    second = runner.resolve_selection(
+        'package', 'test_reboot_applies_installation', inventories=INVENTORIES)
+    first_digest = runner.stage_selected_inputs(first, tmp_path / 'first')
+    repeated_digest = runner.stage_selected_inputs(first, tmp_path / 'repeated')
+    second_digest = runner.stage_selected_inputs(second, tmp_path / 'second')
+
+    assert first_digest == repeated_digest
+    assert first_digest != second_digest
+    identity = json.loads((tmp_path / 'first/selected-inputs.json').read_text())
+    assert identity['selection']['test'] == 'test_first_install_requests_reboot'
+    assert set(identity['files']) == {
+        'system_guest.py', 'owned_commands.py', 'guest/redact.py', 'pytest.ini',
+        'test_install_smoke.py',
+    }
+
+
+def test_authorization_selected_inputs_include_prerequisite_test_and_helper(tmp_path):
+    selection = runner.resolve_selection(
+        'authorization', 'test_method_role_matrix[ListManagedUsers-child1]',
+        inventories=INVENTORIES)
+    digest = runner.stage_selected_inputs(selection, tmp_path)
+    identity = json.loads((tmp_path / 'selected-inputs.json').read_text())
+
+    assert digest == hashlib.sha256((tmp_path / 'selected-inputs.json').read_bytes()).hexdigest()
+    assert {'test_install_smoke.py', 'test_authorization.py', 'system_caller.py'} <= set(
+        identity['files'])
+    assert identity['selection']['executions'][-1]['case_id'] == selection.test
+
+
 def test_pre_reboot_package_case_omits_unneeded_later_phases():
     selection = runner.resolve_selection(
         'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)
@@ -301,11 +370,76 @@ def test_list_mode_returns_before_artifact_root_tool_or_vm_checks(monkeypatch, c
     assert 'installed::test_installed_package [prerequisite]' in output
 
 
-def test_selected_execution_stays_unavailable_until_guest_dispatch_is_wired(monkeypatch, capsys):
+def test_selected_execution_reaches_normal_guarded_prerequisite_checks(monkeypatch, capsys):
     monkeypatch.setattr(runner, 'collect_area_cases', lambda name: INVENTORIES[name])
-    monkeypatch.setattr(runner.shutil, 'which', Mock(side_effect=AssertionError('tool probe ran')))
+    monkeypatch.setattr(runner.shutil, 'which', Mock(return_value=None))
+    monkeypatch.setattr(runner.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(runner.os, 'getegid', lambda: 0)
     assert runner.main(['--area', 'authorization']) == 1
-    assert 'selection:execution-not-implemented' in capsys.readouterr().err
+    output = capsys.readouterr().err
+    assert 'selection:scope=partial phases=3 executions=6' in output
+    assert 'tools:missing' in output
+    assert 'selection:execution-not-implemented' not in output
+
+
+@pytest.mark.parametrize('missing', ['dpkg-deb', 'dpkg-query'])
+def test_check_tools_rejects_missing_package_inspection_tool(monkeypatch, capsys, missing):
+    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: INVENTORIES[name])
+    monkeypatch.setattr(runner.shutil, 'which',
+                        lambda name: None if name == missing else '/usr/bin/' + name)
+    with patch.object(runner.tempfile, 'mkdtemp') as mkdir, \
+            patch.object(runner, 'Lease') as lease:
+        assert runner.main(['--check-tools']) == 1
+    assert f'tools:missing:{missing}; run ./setup.sh' in capsys.readouterr().err
+    mkdir.assert_not_called()
+    lease.assert_not_called()
+
+
+@pytest.mark.parametrize(('failure', 'category'), [
+    (FileNotFoundError('private input path'), 'assets:source-missing'),
+    (PermissionError('private input path'), 'assets:source-inaccessible'),
+    (OSError('private input path'), 'assets:source-unavailable'),
+])
+def test_unavailable_artifacts_fail_before_storage_or_vm_access(
+        monkeypatch, capsys, failure, category):
+    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: INVENTORIES[name])
+    monkeypatch.setattr(runner.shutil, 'which', lambda name: '/usr/bin/' + name)
+    monkeypatch.setattr(runner.importlib, 'import_module', Mock())
+    monkeypatch.setattr(runner.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(runner.os, 'getegid', lambda: 0)
+    with patch.object(runner, 'check_tree', side_effect=failure), \
+            patch.object(runner.tempfile, 'mkdtemp') as mkdir, \
+            patch.object(runner, 'Lease') as lease:
+        assert runner.main(['--artifacts', str(runner.ROOT)]) == 1
+    output = capsys.readouterr().err
+    assert category in output
+    assert 'private input path' not in output
+    assert 'unexpected-failure' not in output
+    mkdir.assert_not_called()
+    lease.assert_not_called()
+
+
+def test_artifact_source_resolves_valid_input_and_classifies_missing_path(tmp_path):
+    assert runner.artifact_source(tmp_path) == tmp_path.resolve()
+    with pytest.raises(runner.Error, match='assets:source-missing'):
+        runner.artifact_source(tmp_path / 'absent')
+    file = tmp_path / 'regular-file'
+    file.write_text('payload')
+    with pytest.raises(runner.Error, match='assets:directory'):
+        runner.artifact_source(file)
+
+
+def test_selected_pytest_command_forwards_only_resolved_case_and_prerequisites():
+    case = 'test_method_role_matrix[ListManagedUsers-child1]'
+    selection = runner.resolve_selection('authorization', case, inventories=INVENTORIES)
+    command = runner.pytest_command(RUN, 'authorization', selection)
+    assert command[-1] == f'{runner.PAYLOAD}/test_authorization.py::{case}'
+    assert not any('real_selected_parent_authentication' in item for item in command)
+    installed = runner.pytest_command(RUN, 'installed', selection)
+    assert installed[-2:] == [
+        f'{runner.PAYLOAD}/test_install_smoke.py::test_installed_package',
+        f'{runner.PAYLOAD}/test_install_smoke.py::test_first_install_requests_reboot',
+    ]
 
 
 def test_readiness_timeout_is_bounded_without_fixed_sleep(monkeypatch):
@@ -325,7 +459,8 @@ def test_install_assertion_failure_collects_evidence_without_reboot_or_retry(tmp
     failure = runner.CommandError('test-assertion-failed')
     vm.call.side_effect = [b'', failure, b'']
     with pytest.raises(runner.CommandError, match='test-assertion-failed'):
-        runner.installed_run(vm, lease, tmp_path)
+        runner.installed_run(vm, lease, tmp_path,
+                             runner.resolve_selection(inventories=INVENTORIES))
     assert vm.call.call_count == 3
     assert vm.call.call_args.args[0] == runner.guest_command(RUN, 'collect', 'failed')
     vm.reboot.assert_not_called()
@@ -337,32 +472,196 @@ def test_collection_failure_does_not_hide_original_connection_failure(tmp_path):
     lease.state = {'run': RUN}
     vm.ready.side_effect = runner.CommandError('original-connection-failed')
     vm.call.side_effect = runner.CommandError('collection-failed')
+    ledger = runner.RunLedger()
     with pytest.raises(runner.CommandError, match='original-connection-failed'):
-        runner.installed_run(vm, lease, tmp_path)
+        runner.installed_run(vm, lease, tmp_path,
+                             runner.resolve_selection(inventories=INVENTORIES), ledger)
+    assert ledger.outcomes['infrastructure'] == {
+        'outcome': 'failed', 'category': 'original-connection-failed'}
+    assert ledger.outcomes['collection'] == {
+        'outcome': 'failed', 'category': 'collection-failed'}
     vm.reboot.assert_not_called()
 
 
-@pytest.mark.parametrize('skipped', [0, 1])
-@pytest.mark.parametrize('authorization_count_delta', [-1, 0, 1])
-def test_all_pytest_phases_must_supply_complete_unskipped_evidence(
-        tmp_path, skipped, authorization_count_delta):
+def test_collection_failure_does_not_hide_original_pytest_failure_or_its_domain(tmp_path):
     vm, lease = Mock(), Mock()
     lease.state = {'run': RUN}
-    output = tmp_path / 'guest-results'
+    vm.commands.last_returncode = 1
+    original = runner.CommandError('command:failed:ssh')
+    vm.call.side_effect = [b'', original, runner.CommandError('command:failed:ssh')]
+    selection = runner.resolve_selection(
+        'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)
+    ledger = runner.RunLedger()
+
+    with pytest.raises(runner.CommandError, match='command:failed:ssh') as caught:
+        runner.installed_run(vm, lease, tmp_path, selection, ledger)
+
+    assert caught.value is original
+    assert ledger.outcomes['product'] == {
+        'outcome': 'failed', 'category': 'pytest:failed:installed'}
+    assert ledger.outcomes['collection'] == {
+        'outcome': 'failed', 'category': 'command:failed:ssh'}
+    assert ledger.durations['install'] >= 0
+    assert ledger.durations['test'] >= 0
+    assert ledger.durations['collection'] >= 0
+
+
+def write_junit_results(directory, selection, fault=None):
+    output = directory / 'guest-results'
     output.mkdir()
-    for phase, count in runner.PHASE_COUNTS.items():
-        if phase == 'authorization':
-            count += authorization_count_delta
-        (output / f'{phase}.xml').write_text(
-            f'<testsuites><testsuite tests="{count}" failures="0" errors="0" skipped="{skipped}"/></testsuites>')
-    if skipped or authorization_count_delta:
-        with pytest.raises(runner.Error, match='missing-failed-or-skipped-tests'):
-            runner.installed_run(vm, lease, tmp_path)
-    else:
-        runner.installed_run(vm, lease, tmp_path)
+    for phase in selection.phases:
+        executions = list(runner.phase_executions(selection, phase))
+        if fault == 'missing' and phase == selection.phases[-1]:
+            executions.pop()
+        if fault == 'extra' and phase == selection.phases[-1]:
+            executions.append(runner.CaseExecution(phase, executions[0].area, 'test_unexpected', False))
+        if fault == 'duplicate' and phase == selection.phases[-1]:
+            executions.append(executions[0])
+        suite = ET.Element('testsuite', tests=str(len(executions)), failures='0', errors='0', skipped='0')
+        for index, execution in enumerate(executions):
+            classname = runner.AREA_SOURCES[execution.area].stem
+            if fault == 'identity' and phase == selection.phases[-1] and index == 0:
+                classname = 'test_unregistered'
+            case = ET.SubElement(suite, 'testcase', classname=classname, name=execution.case_id)
+            if fault in {'failure', 'skipped'} and phase == selection.phases[-1] and index == 0:
+                suite.set('failures' if fault == 'failure' else 'skipped', '1')
+                ET.SubElement(case, fault)
+        ET.ElementTree(suite).write(output / f'{phase}.xml', encoding='utf-8')
+
+
+def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path):
+    vm, lease = Mock(), Mock()
+    lease.state = {'run': RUN}
+    selection = runner.resolve_selection(inventories=INVENTORIES)
+    write_junit_results(tmp_path, selection)
+    ledger = runner.RunLedger()
+    result = runner.installed_run(vm, lease, tmp_path, selection, ledger)
+    assert result['authorization'] == (
+        ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]'),
+        ('authorization', 'test_real_selected_parent_authentication[child1]'),
+    )
     vm.reboot.assert_called_once()
     assert vm.call.call_count == 6
     assert vm.call.call_args_list[2].args[0] == runner.guest_command(RUN, 'collect', 'installed')
+    assert ledger.outcomes['product'] == {'outcome': 'passed', 'category': None}
+    assert ledger.outcomes['collection'] == {'outcome': 'passed', 'category': None}
+
+
+@pytest.mark.parametrize(('fault', 'category'), [
+    ('missing', 'pytest:missing-extra-or-duplicate-tests:authorization'),
+    ('extra', 'pytest:missing-extra-or-duplicate-tests:authorization'),
+    ('duplicate', 'pytest:missing-extra-or-duplicate-tests:authorization'),
+    ('failure', 'pytest:failed-or-skipped-tests:authorization'),
+    ('skipped', 'pytest:failed-or-skipped-tests:authorization'),
+    ('identity', 'pytest:incorrect-test-identity:authorization'),
+])
+def test_junit_reconciliation_rejects_incomplete_or_unhealthy_identities(tmp_path, fault, category):
+    selection = runner.resolve_selection(inventories=INVENTORIES)
+    write_junit_results(tmp_path, selection, fault)
+    with pytest.raises(runner.Error, match=category):
+        runner.reconcile_junit(tmp_path, 'authorization', selection)
+
+
+def test_selected_pre_reboot_execution_omits_reboot_and_later_phases(tmp_path):
+    vm, lease = Mock(), Mock()
+    lease.state = {'run': RUN}
+    selection = runner.resolve_selection(
+        'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)
+    write_junit_results(tmp_path, selection)
+    assert runner.installed_run(vm, lease, tmp_path, selection) == {
+        'installed': (('package', 'test_first_install_requests_reboot'),),
+    }
+    vm.reboot.assert_not_called()
+    commands = [call.args[0] for call in vm.call.call_args_list]
+    assert runner.pytest_command(RUN, 'installed', selection) in commands
+    assert all('rebooted.xml' not in item and 'authorization.xml' not in item
+               for command in commands for item in command)
+
+
+def test_partial_selection_evidence_records_expected_and_executed_ids(tmp_path):
+    case = 'test_method_role_matrix[ListManagedUsers-child1]'
+    selection = runner.resolve_selection('authorization', case, inventories=INVENTORIES)
+    write_junit_results(tmp_path, selection)
+    result = runner.selection_evidence(tmp_path, selection)
+    assert result['scope'] == 'partial'
+    assert result['area'] == 'authorization'
+    assert result['test'] == case
+    assert result['junit_collection'] == {
+        'installed': 'collected', 'rebooted': 'collected', 'authorization': 'collected'}
+    assert result['expected_executions'][-1] == {
+        'phase': 'authorization', 'area': 'authorization', 'case_id': case,
+        'prerequisite': False,
+    }
+    assert result['executed_cases'][-1] == {
+        'phase': 'authorization', 'area': 'authorization', 'case_id': case,
+    }
+
+
+def test_public_evidence_records_stage_timings_and_separate_outcomes(tmp_path):
+    selection = runner.resolve_selection(
+        'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)
+    manifest = {
+        'artifacts': {
+            'package': {'sha256': 'a' * 64},
+            'fixtures': {'sha256': 'b' * 64},
+        },
+        'source': {'commit': 'test'},
+    }
+    lease = Mock()
+    lease.state = {'baseline_sha256': 'c' * 64, 'phase': 'complete'}
+    ledger = runner.RunLedger()
+    ledger.durations['preparation'] = 1.25
+    ledger.pass_outcome('product')
+    ledger.pass_outcome('infrastructure')
+    ledger.fail_outcome('collection', 'collection:missing')
+    ledger.pass_outcome('cleanup')
+
+    assert runner.evidence(tmp_path, manifest, lease, False, 'collection:missing',
+                           selection, 'd' * 64, ledger) == (False, 'collection:missing')
+
+    result = json.loads((tmp_path / 'evidence/result.json').read_text())
+    assert result['category'] == 'collection:missing'
+    assert result['selected_inputs_sha256'] == 'd' * 64
+    assert result['stage_durations_seconds']['preparation'] == 1.25
+    assert result['outcomes'] == {
+        'product': {'outcome': 'passed', 'category': None},
+        'infrastructure': {'outcome': 'passed', 'category': None},
+        'collection': {'outcome': 'failed', 'category': 'collection:missing'},
+        'cleanup': {'outcome': 'passed', 'category': None},
+    }
+
+
+def test_unsafe_guest_evidence_fails_collection_without_replacing_product_category(tmp_path):
+    selection = runner.resolve_selection(
+        'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)
+    manifest = {
+        'artifacts': {
+            'package': {'sha256': 'a' * 64},
+            'fixtures': {'sha256': 'b' * 64},
+        },
+        'source': {'commit': 'test'},
+    }
+    lease = Mock()
+    lease.state = {'baseline_sha256': 'c' * 64, 'phase': 'complete'}
+    collected = tmp_path / 'guest-results'
+    collected.mkdir()
+    (collected / 'unsafe').symlink_to(tmp_path)
+    ledger = runner.RunLedger()
+    ledger.fail_outcome('product', 'pytest:failed:installed')
+    ledger.pass_outcome('infrastructure')
+    ledger.pass_outcome('collection')
+    ledger.pass_outcome('cleanup')
+
+    assert runner.evidence(tmp_path, manifest, lease, False, 'command:failed:ssh',
+                           selection, 'd' * 64, ledger) == (False, 'command:failed:ssh')
+
+    result = json.loads((tmp_path / 'evidence/result.json').read_text())
+    assert result['category'] == 'command:failed:ssh'
+    assert result['outcomes']['product'] == {
+        'outcome': 'failed', 'category': 'pytest:failed:installed'}
+    assert result['outcomes']['collection'] == {
+        'outcome': 'failed', 'category': 'collection:unsafe-or-unavailable-evidence'}
+    assert not (tmp_path / 'evidence/guest').exists()
 
 
 def test_restore_never_requests_boot_or_deletes_snapshot():

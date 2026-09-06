@@ -98,3 +98,59 @@ def test_domain_replacement_during_shutdown_timeout_prevents_force_stop():
     with pytest.raises(runner.Error, match='guard:domain-replaced'):
         lease.finish()
     lease.source.domain.destroyFlags.assert_not_called()
+
+
+def test_cleanup_failure_is_recorded_without_replacing_original_body_failure():
+    clock = iter((4.0, 6.5))
+    ledger = runner.RunLedger(monotonic=lambda: next(clock))
+    lease = runner.Lease(Mock(), Mock(), Mock(), ledger=ledger)
+    lease.finish = Mock(side_effect=runner.Error('cleanup:guest-changed'))
+    lease.release = Mock()
+    original = runner.Error('pytest:failed:installed')
+    ledger.fail_outcome('product', 'pytest:failed:installed')
+
+    with patch.object(runner.Lease, '__enter__', return_value=lease):
+        with pytest.raises(runner.Error, match='pytest:failed:installed') as caught:
+            with lease:
+                raise original
+
+    assert caught.value is original
+    assert ledger.outcomes['cleanup'] == {
+        'outcome': 'failed', 'category': 'cleanup:guest-changed'}
+    assert ledger.durations['cleanup'] == 2.5
+    lease.release.assert_called_once()
+
+
+def test_cleanup_failure_also_retains_an_unclassified_body_infrastructure_failure():
+    ledger = runner.RunLedger()
+    lease = runner.Lease(Mock(), Mock(), Mock(), ledger=ledger)
+    lease.finish = Mock(side_effect=runner.Error('cleanup:guest-changed'))
+    lease.release = Mock()
+    original = runner.Error('transport:domain-replaced')
+
+    with patch.object(runner.Lease, '__enter__', return_value=lease):
+        with pytest.raises(runner.Error, match='transport:domain-replaced') as caught:
+            with lease:
+                raise original
+
+    assert caught.value is original
+    assert ledger.outcomes['infrastructure'] == {
+        'outcome': 'failed', 'category': 'transport:domain-replaced'}
+    assert ledger.outcomes['cleanup'] == {
+        'outcome': 'failed', 'category': 'cleanup:guest-changed'}
+
+
+def test_cleanup_failure_without_an_original_error_remains_terminal():
+    ledger = runner.RunLedger()
+    lease = runner.Lease(Mock(), Mock(), Mock(), ledger=ledger)
+    lease.finish = Mock(side_effect=runner.Error('cleanup:guest-changed'))
+    lease.release = Mock()
+
+    with patch.object(runner.Lease, '__enter__', return_value=lease):
+        with pytest.raises(runner.Error, match='cleanup:guest-changed'):
+            with lease:
+                pass
+
+    assert ledger.outcomes['cleanup'] == {
+        'outcome': 'failed', 'category': 'cleanup:guest-changed'}
+    lease.release.assert_called_once()

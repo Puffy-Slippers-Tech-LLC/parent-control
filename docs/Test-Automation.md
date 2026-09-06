@@ -49,8 +49,9 @@ The intended interface is four commands. **These targets and their selectors
 are not implemented yet**; Task 28A owns their complete dispatch and CI. The
 smaller [F1 task](TestAutomation/Task-F1.md) brings guarded installed selectors
 and diagnostic timing forward into `check-system`. F1 is in progress: its
-host-safe `LIST=1` inventory is available, while selected VM execution remains
-fail-closed until the rest of F1 passes. Use the current commands below for runs.
+host-safe `LIST=1` inventory, guarded case forwarding, stage timing, split
+diagnostic outcomes, and selected-input provenance are available, while VM
+acceptance remains unfinished. Use the current commands below for runs.
 
 | Command | Default scope | Test VM |
 | --- | --- | --- |
@@ -94,10 +95,12 @@ included in today's `make check`.
 | `make check-unit` | Unit and contract modules, including property tests. |
 | `make check-system LIST=1 [AREA=<area> [TEST=<case-id>]]` | Host-safe installed-case inventory and prerequisite resolution; no artifacts, root, or VM use. |
 | `make check-system ARTIFACT_DIR=<verified-directory>` | Existing guarded installed-system runner; detailed coverage is still being completed. |
+| `make check-system ARTIFACT_DIR=<verified-directory> AREA=<area> [TEST=<case-id>]` | Guarded partial installed run for registered `package` or `authorization` scope, including required package/reboot phases. |
 
-Today's installed runner has no supported case/area execution selector. Use
-`AREA` and `TEST` only with `LIST=1`; non-listing selection fails closed until
-F1 delivers guarded forwarding. Guest pytest arguments remain unsupported.
+Selected runs record their exact expected and executed JUnit identities and
+reject missing, additional, duplicate, failed, or skipped cases. They are
+partial diagnostic results and cannot satisfy full-suite acceptance. Guest
+pytest arguments remain unsupported.
 During implementation, full command lists in task documents are acceptance checks;
 use [focused verification](TestAutomation/Implementation-Workflow.md#verify-at-the-right-scope)
 for edits and do not rerun unaffected suites merely to resume a chat.

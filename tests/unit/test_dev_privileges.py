@@ -14,8 +14,10 @@ privileges = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/dev
 PROGRAM = '/usr/local/libexec/onpc-test-runner'
 
 
+@pytest.mark.parametrize('name', ['test-runner', 'setup', 'diagnostics', 'test-artifacts', 'export-screenshot'])
 @pytest.mark.parametrize('returncode', [0, 1, 2, 127])
-def test_noninteractive_permission_preflight_gates_pkexec(monkeypatch, returncode):
+def test_noninteractive_permission_preflight_gates_pkexec(monkeypatch, returncode, name):
+    program = '/usr/local/libexec/onpc-' + name
     monkeypatch.setattr(os, 'geteuid', lambda: 1000)
     monkeypatch.setattr(Path, 'lstat', lambda _: SimpleNamespace(st_mode=stat.S_IFREG | 0o755, st_uid=0))
     check = Mock(return_value=SimpleNamespace(returncode=returncode))
@@ -24,17 +26,17 @@ def test_noninteractive_permission_preflight_gates_pkexec(monkeypatch, returncod
     monkeypatch.setattr(os, 'execve', execute)
     if returncode:
         with pytest.raises(ValueError, match='noninteractive'):
-            privileges['launch'](PROGRAM, ['vm', 'status'])
+            privileges['launch'](program, ['vm', 'status'])
         execute.assert_not_called()
     else:
-        privileges['launch'](PROGRAM, ['vm', 'status'])
-        assert execute.call_args.args[1] == ['/usr/bin/pkexec', PROGRAM, 'vm', 'status']
+        privileges['launch'](program, ['vm', 'status'])
+        assert execute.call_args.args[1] == ['/usr/bin/pkexec', program, 'vm', 'status']
     command = check.call_args.args[0]
     assert '--allow-user-interaction' not in command
     assert '--enable-internal-agent' not in command
     assert command[command.index('--process') + 1].count(',') == 2
     assert '--detail' not in command
-    assert command[2] == 'com.puffyslippers.onpc.development.test-runner'
+    assert command[2] == 'com.puffyslippers.onpc.development.' + name
 
 
 def test_arbitrary_program_refused_without_authority_request(monkeypatch):
@@ -50,6 +52,7 @@ def test_arbitrary_program_refused_without_authority_request(monkeypatch):
     ('50-onpc-diagnostics.rules', 'diagnostics'),
     ('50-onpc-test-artifacts.rules', 'test-artifacts'),
     ('50-onpc-screenshot-export.rules', 'export-screenshot'),
+    ('50-onpc-setup.rules', 'setup'),
 ])
 @pytest.mark.parametrize('override,expected', [
     ({}, 'yes'), ({'user': None, 'program': None}, 'yes'),

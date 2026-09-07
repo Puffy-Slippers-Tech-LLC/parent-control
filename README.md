@@ -63,7 +63,20 @@ Build and test commands report missing dependencies; setup installs them.
 Use `./setup.sh --help` for focused refreshes: `--dependencies-only`,
 `--test-tools-only`, or `--codex-rules-only`. The latter installs machine-wide
 `pwd` and `git status` approvals, independent of directory/repository, and the
-checkout's validated test rules. Restart Codex after rule changes.
+checkout's validated test rules. The same machine-wide file allows ordinary
+`rg -n` and `sed -n` reads across any file paths. Restart Codex after rule changes.
+
+Routine setup refreshes, including host dependencies, use a dedicated,
+noninteractive Polkit helper. Install its authorization once with
+`./setup.sh --bootstrap-tools`; the first installation requires root authority
+and may request an administrator password. Repeating bootstrap reuses the
+installed grant. Subsequent operations either use that grant or fail with setup
+guidance, without opening authentication dialogs. Full setup bootstraps a
+missing helper before installing dependencies on a clean machine. Git settings
+and the UI virtual environment are configured as the invoking user. Repair of
+an existing denied installation requires running `./setup.sh --bootstrap-tools`
+from an administrator-authorized root session; denial never triggers an
+automatic authentication fallback.
 
 Explicit baseline preparation uses `./setup.sh --prepare-host` on the host,
 after `./setup.sh --prepare-vm` inside the source VM; see

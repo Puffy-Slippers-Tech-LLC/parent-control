@@ -64,7 +64,11 @@ and restrict relevant old global approvals; use the validated entry points.
 
 Install or refresh with `./setup.sh --test-tools-only`, then restart Codex with
 the project trusted. Use `./setup.sh --codex-rules-only` for rule-only updates.
-Installation can require one-time administrator authentication. Installed
+Initial installation uses `./setup.sh --bootstrap-tools` and can require
+one-time administrator authentication. Repeated bootstrap and all routine host
+setup, including dependencies, use the dedicated `onpc-setup` action and never
+fall back to an authentication dialog. Repairing an existing denied installation
+requires running that setup mode from an administrator-authorized root session. Installed
 Polkit grants permit active local administrators and deny excluded callers;
 the new checkout wrappers check permission without requesting authentication.
 

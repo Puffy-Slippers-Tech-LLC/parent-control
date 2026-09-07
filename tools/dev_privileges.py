@@ -6,7 +6,7 @@ import subprocess
 
 
 PROGRAMS = {'/usr/local/libexec/onpc-' + name: 'com.puffyslippers.onpc.development.' + name
-            for name in ('test-runner', 'diagnostics', 'test-artifacts', 'export-screenshot')}
+            for name in ('test-runner', 'diagnostics', 'test-artifacts', 'export-screenshot', 'setup')}
 
 
 def check(program):

@@ -3,8 +3,9 @@
 `scenarios.json` is the versioned starting inventory for
 [E2E coverage](../../docs/TestAutomation/E2E-Coverage.md). All 156 variants are
 currently **pending**. Inventory validation is host unit coverage; it does not
-establish graphical behavior or complete Task 19A. The guarded E2E launcher,
-runtime evidence collector and `make check-e2e` remain unfinished.
+establish graphical behavior or complete Task 19A. The runtime evidence gate
+and private collector have host-only regression coverage. The guarded E2E
+launcher, collector integration and `make check-e2e` remain unfinished.
 
 ## Inspect scope on the host
 
@@ -75,9 +76,9 @@ code: the launcher must enforce lifecycle, secret and observation boundaries.
 
 ## Minimum evidence declaration, version 1
 
-The inventory pins required run and step field names so the next collector
-can implement a shared format. This slice validates the **declaration**, not
-runtime result payloads, artifact safety, or completeness of a passing attempt.
+The inventory pins required run and step field names. `evidence.py` now checks
+runtime payloads against these declarations and `private_artifacts.py` verifies
+collected copies. The controller integration and real acceptance are pending.
 
 | Fields | Required meaning for the collector |
 | --- | --- |
@@ -93,16 +94,83 @@ Expected evidence always includes action trace, screen, backend, other-user,
 continuity, input provenance, split outcomes and cleanup. Declared faults also
 require intervention evidence, and external-delivery scenarios require delivery
 evidence. Missing, extra, duplicate, skipped, failed or stale required results,
-unsafe artifacts and failed cleanup must prevent a runtime pass. Task 19A's
-collector/launcher slice implements those checks; Task 27 extends the contract.
+unsafe artifacts and failed cleanup prevent a runtime pass. Task 27 extends
+this minimum contract and connects evidence across all layers.
+
+## Runtime gate and private collector
+
+The guarded controller constructs `EvidenceContract` before executing a selection,
+with a fresh `run_id`, the inventory path, selector and independently verified
+input identities. Construction refuses pending cases and stale inventory bytes.
+The contract freezes the plan and inputs; it never obtains expected provenance
+from worker results. The source identity must cover requirement mappings, test
+code and uncommitted changes. The launcher must establish that identity and
+verify preservation after execution. An explicit null package digest is allowed
+only when every selected case is a product-free runner smoke.
+
+`validate(records, collector)` accepts one record per selected case in selection
+order. Version 1 extends the minimum run fields with `schema_version`, exact
+`executable` identity, executed `assertions`, and ordered `failures`. Each assertion
+has `assertion_id`, `step_id`, `kind`, `outcome` and nonempty `artifact_ids`.
+Visible/backend/other-user assertions require their corresponding evidence kind
+on the declared step. Every artifact must be linked from a step, every declared
+evidence kind must be present, and the records must exactly match the collector's
+manifest. The collector rechecks permissions, directory identity and copy digests
+at the gate. Unknown fields are refused, rather than silently discarded.
+
+Step `monotonic_seconds` is elapsed time from the case's setup start, in
+nondecreasing order, bounded by its declared duration and actual UTC boundaries
+(one second of timestamp rounding tolerance). `boot-N` and `session-N` are
+run-local continuity aliases; the controller maintains their mapping privately.
+Recording an alias is not proof of a reboot or other-user isolation: the owning
+assertion scripts must establish those facts. Customer operations must match the
+inventory's exact phase and operation, including the sole outer cleanup reset.
+
+The controller calls `record_failure(case_id, category, code, ...)` immediately
+on observing a failure, using fixed safe codes, and obtains result fields from
+`failure_state(case_id)`. Its append-only ledger prevents a worker payload from
+removing or replacing the first failure. Product, infrastructure, collection
+and cleanup remain independent outcomes. Any nonpassing outcome or step/assertion,
+recorded failure, or incomplete cleanup refuses acceptance. Cleanup requires
+`lease_phase=complete` plus true `owned_processes_stopped`, `vm_off`,
+`baseline_restored`, `host_preserved` and `source_preserved` fields.
+
+`PrivateCollector(run_id=..., secrets=[...])` creates a new private
+`/tmp/onpc-e2e-evidence-*` directory. Keep it open through validation. Register
+all fixture secrets before capture. `add` accepts reviewed bytes; `copy` accepts
+one filename in a private source directory. Both require `reviewed=True` from
+the trusted controller. This flag attests prior producer review, **not automatic
+redaction**. The collector does not OCR images, discover unknown PII, or establish
+that screenshots are safe. Producers must exclude authentication captures, raw
+worker vars/logs, account names and other PII before collection. Secret scanning
+(literal, JSON/URL/base64 and UTF-16 representations) is defense in depth.
+Task 19A's worker integration must implement and exercise these capture boundaries.
+
+Files are bounded to 16 MiB, copied as 0600 into 0700 storage, and identified
+by digest, size, kind, run and redaction policy. No path traversal, symlink,
+hardlink, FIFO/device, public permission, recursive copy or overwrite is allowed.
+Source logs are never modified. Changed files and unregistered directory entries
+refuse acceptance. `save_report` retains a controller's redacted structured
+diagnostic record once, including failed/interrupted attempts; it does not grant
+a passing result. Preserve the original report and allocate a new run/collector
+for a diagnostic retry. The launcher must persist failure history before risky
+cleanup and retain the gate's fixed refusal code without raw exception output.
+
+The gate returns `outcome=passed`, exact case IDs, inputs and full/partial scope
+only after all checks pass. Partial selections remain partial. Host tests use
+separate temporary ready inventories and synthetic reviewed payloads. They prove
+the contract's acceptance/refusal behavior, not customer execution, screen
+redaction, verified input capture, or VM restoration.
 
 ## Verify edits
 
 ```sh
-/usr/bin/python3 -B -m pytest tests/unit/test_e2e_inventory.py -q
+tools/run-unit-tests tests/unit/test_e2e_inventory.py tests/unit/test_e2e_evidence.py -q
 ```
 
 These tests run automatically in `make check` via ordinary unit discovery.
 They cover selection refusal, pending/ready separation, matrix closure,
 three-sided evidence declarations, malformed input, executable containment,
-phase/intervention categories and host-only CLI behavior.
+phase/intervention categories and host-only CLI behavior. Runtime tests also
+cover exact result reconciliation, split outcomes, retained failures, provenance,
+private copies, tampering, secret exclusion and file/directory replacement.

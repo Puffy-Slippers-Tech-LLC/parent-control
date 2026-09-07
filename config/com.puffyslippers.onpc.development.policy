@@ -4,6 +4,12 @@
 <policyconfig>
   <vendor>Puffy Slippers Tech LLC</vendor>
   <!-- Default denial is deliberate: missing scoped rules never trigger an auth dialog. -->
+  <action id="com.puffyslippers.onpc.development.setup">
+    <description>Refresh validated development setup on the configured checkout</description>
+    <message>Development setup authorization is unavailable</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/onpc-setup</annotate>
+  </action>
   <action id="com.puffyslippers.onpc.development.test-runner">
     <description>Run validated development tests on the configured checkout</description>
     <message>Development test runner authorization is unavailable</message>

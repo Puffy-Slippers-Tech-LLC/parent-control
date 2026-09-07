@@ -70,6 +70,11 @@ def test_inline_examples_and_no_generic_script_allow():
     'pwd', '/bin/pwd -L', '/usr/bin/pwd -P', 'git status --short',
     'git status --porcelain=v2 --untracked-files=all -- arbitrary/file',
     '/usr/bin/git status --short -- another/path',
+    "rg -n 'evidence|redact|secret|collector|outcomes|first_failure' tests/integration/graphical_worker.py tests/integration/check_graphical_smoke.py docs/TestAutomation/E2E-Coverage.md tests/README.md",
+    "rg -n --glob '*evidence*' 'evidence|redact|secret|collector|outcomes|first_failure' tests/integration",
+    'rg -n needle /etc /var/log /tmp', '/usr/bin/rg -n pattern arbitrary/repo',
+    "sed -n '1,95p' tests/integration/check_graphical_smoke.py",
+    "/usr/bin/sed -n '20,80p' /var/log/example.log",
 ])
 def test_machine_reads_are_path_independent_without_project_prompt(command):
     rules = [*entries('codex-read-only.rules'), *entries()]

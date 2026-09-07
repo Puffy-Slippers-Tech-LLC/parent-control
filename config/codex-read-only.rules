@@ -1,6 +1,20 @@
 # Machine-wide inspection, independent of checkout and path. Select any repo
 # with the command tool's working directory; no unrestricted git/-C prefix.
 prefix_rule(
+    pattern = [["sed", "/usr/bin/sed"], "-n"],
+    decision = "allow",
+    justification = "User-authorized file slices across any system path or repository.",
+    match = ["sed -n '1,95p' tests/integration/check_graphical_smoke.py", "/usr/bin/sed -n '20,80p' /var/log/example.log"],
+    not_match = ["sed -i s/old/new/ file", "bash -c 'sed -n 1p file'"],
+)
+prefix_rule(
+    pattern = [["rg", "/usr/bin/rg"], "-n"],
+    decision = "allow",
+    justification = "User-authorized line-numbered text searches across any system path or repository.",
+    match = ["rg -n needle /etc /tmp", "rg -n 'setup|install' setup.sh tools", "/usr/bin/rg -n needle /var/log"],
+    not_match = ["rg --pre /tmp/program needle", "bash -c 'rg -n needle'"],
+)
+prefix_rule(
     pattern = [["pwd", "/bin/pwd", "/usr/bin/pwd"]],
     decision = "allow",
     justification = "Read the working directory anywhere on this machine.",

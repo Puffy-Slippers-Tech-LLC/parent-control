@@ -11,7 +11,11 @@ routine approved commands.
 Run `./setup.sh --test-tools-only`, then restart Codex with this checkout trusted.
 Setup installs root-owned helpers and scoped Polkit rules, pins the finalized
 test baseline's VM UUID, and renders this checkout's absolute command prefixes.
-Installation itself can require administrator authentication. For Codex-only
+First install uses `./setup.sh --bootstrap-tools` and can require administrator
+authentication to establish the grant. Repeated bootstrap and routine refreshes
+reuse the dedicated `onpc-setup` helper without asking for authentication.
+Repair of an existing denied installation requires running that setup mode from
+an administrator-authorized root session; it never falls back after denial. For Codex-only
 changes, use `./setup.sh --codex-rules-only`. Repeat setup after moving the
 checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
@@ -48,11 +52,29 @@ There is no product package, service restart, reboot, or saved-data migration.
 Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 `--test-tools-only`. Host package dependencies belong to full setup or
 `--dependencies-only`. Codex setup also installs its maintained machine-wide
-`pwd` and `git status` rules in `/etc/codex/rules/onpc-read-only.rules`, without
+`pwd`, `git status`, `rg -n` and `sed -n` rules in `/etc/codex/rules/onpc-read-only.rules`, without
 changing unrelated system/user rules. These reads cover any working directory
 or repository; select a repository with the command tool's working directory.
 
 ## Category coverage and future additions
+
+Setup authorization is separate from runtime test authorization. The installed
+`/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
+`codex-rules`, `test-tools`, `graphical-policy` or `prepare-host`, with no extra
+paths or arguments. Its
+dedicated Polkit action defaults to denial and grants only active local members
+of `sudo`. `setup.sh` checks this authorization without requesting interaction
+before invoking the helper, and never falls back to generic `pkexec` on denial.
+The dispatcher uses fixed modules from its pinned trusted checkout and a clean
+environment; trust includes edits to that checkout's setup code. The dependency
+operation runs only the fixed host-package module with noninteractive package
+configuration. Checkout Git settings and the UI virtual environment run afterward
+as the invoking user, outside the privileged dispatcher. Full clean-machine
+setup establishes authorization before dependencies. Bootstrap authenticates
+only when the helper is absent, reuses an existing grant, and stops on denial or
+an unsafe existing helper. These
+development-only changes activate on invocation (`none`) and change no product
+data. Codex restarts do not change Polkit authentication policy.
 
 Use `tools/run-tests --list` for the category inventory. Paths are relative to
 the checkout. Quote globs and parametrized pytest IDs so Codex sees a literal
@@ -183,11 +205,15 @@ Filters accept input paths or stdin; none accepts an output path. Search accepts
 regular expressions or fixed strings, without a preprocessor. HTTPS fetch uses
 a fixed GET command with configuration disabled, HTTPS-only redirects and a
 timeout; no upload, credentials, output file or custom request options. Public
-read-only web requests remain authorized. Raw `rg`, `sed`, `sort`, `uniq`,
-`gzip`, `curl` and `wget` now have project prompt overrides for their broad
-saved grants; sandboxed ordinary reads still work. Use these wrappers for
-repeated escalated reads. Never fix shell expansion by granting a general shell
-or passing an unquoted pattern.
+read-only web requests remain authorized. Ordinary `rg -n` and `sed -n` reads are explicitly allowed machine-wide across
+all paths. Project prompt rules must not blanket-match `rg` or `sed`, since
+that overrides the global allow. Prefix rules do not validate trailing options;
+use these direct allowances for trusted reads and the validated reader for
+untrusted arguments. `sort`, `uniq`, `gzip`, `curl` and `wget` retain their project
+prompt overrides. Use quoted ripgrep `--glob '*pattern*'` options instead of
+unquoted shell wildcards: Codex can classify shell expansion as an unsplit shell
+invocation, which the direct executable rule does not cover. Never grant a
+generic shell to solve that parsing limitation.
 
 ## Approval limits and review findings
 

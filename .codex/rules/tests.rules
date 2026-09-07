@@ -106,7 +106,7 @@ prefix_rule(
 
 # Restrictive project overrides also take precedence over old global allow
 # entries. An allow cannot cancel a prompt. Use the validated entry points above.
-# No global rules are changed by setup.
+# Machine-wide ordinary read allowances are maintained separately by setup.
 prefix_rule(
     pattern = [["virsh", "/usr/bin/virsh", "virt-manager", "/usr/bin/virt-manager"]],
     decision = "prompt",
@@ -125,11 +125,25 @@ prefix_rule(
     justification = "Use tools/run-tests; trailing Make options, assignments and targets can execute unrelated code.",
 )
 prefix_rule(
-    pattern = [["rg", "/usr/bin/rg", "sed", "/usr/bin/sed", "sort", "/usr/bin/sort",
+    pattern = [["sort", "/usr/bin/sort",
                 "uniq", "/usr/bin/uniq", "gzip", "/usr/bin/gzip",
                 "curl", "/usr/bin/curl", "wget", "/usr/bin/wget"]],
     decision = "prompt",
     justification = "Use tools/read-only for searches, filters and HTTPS reads; unrestricted arguments can run preprocessors, overwrite files, or send modifying network requests.",
+)
+# The user explicitly authorizes rg -n across all paths. A blanket rg prompt
+# overrides that machine-wide allow, so keep direct execution options separate.
+# Prefix rules cannot validate trailing options: use tools/read-only search for
+# untrusted arguments and use the direct allowance only for ordinary reads.
+prefix_rule(
+    pattern = [["rg", "/usr/bin/rg"], ["--pre", "--hostname-bin"]],
+    decision = "prompt",
+    justification = "These ripgrep options execute another program; ordinary rg -n searches are allowed globally.",
+)
+prefix_rule(
+    pattern = [["sed", "/usr/bin/sed"], ["-i", "--in-place"]],
+    decision = "prompt",
+    justification = "In-place editing needs separate authorization; ordinary sed -n file reads are allowed globally.",
 )
 prefix_rule(
     pattern = ["pkexec", ["make", "/usr/bin/make", "/usr/bin/python3", "/bin/bash", "/usr/bin/bash",

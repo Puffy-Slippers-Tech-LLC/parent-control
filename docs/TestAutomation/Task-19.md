@@ -138,47 +138,47 @@ for the remaining boundary; do not rebuild already implemented interfaces.
 
 ### Task 19A continuation — 2026-09-07
 
-**Completed boundary:** the actual booted asset probe now rejects unexpected
-empty directories. Twelve new filesystem cases execute the exact guest program
-and check receipt agreement, malformed trees, links, permissions, ownership,
-special files and changed/missing/extra payloads. This is solid host implementation
-progress; transfer qualification remains **unaccepted**, with all 156 variants pending.
+**Completed boundary:** asset and greeter corroboration now use a fixed read-only
+observation capability. Arbitrary commands/writes are refused before transport;
+lease/configuration checks surround each execution, safe output is validated,
+and failures/interruption prevent subsequent probes or graphical acknowledgement.
+This is solid host implementation progress, with 41 new cases. Transfer remains
+**unaccepted** and all 156 variants pending.
 
-**Next result:** obtain a confirmed pause/end of other checkout editing work;
-clean Git status alone proved insufficient. Then finish local edits, build with
-`tools/run-tests artifacts build`, and run
+**Next result:** implement private secret-variable staging and masked-prompt,
+password-input/capture-failure handling, with host refusal/interruption checks.
+This work is independent of concurrent checkout edits; do not start another
+source-blocked build/VM loop. Read `e2e_worker.run_distribution`, `PrivateCollector`,
+the [observation contract](../../tests/e2e/README.md#read-only-observation-capability)
+and the [secret findings](Evidence/19P-Backend-Preflight-2026-09-06.md#capture-cleanup-and-downstream-prerequisites).
+The supported console and harmless serial command still need implementation.
+
+**Evidence/attempts:** [this slice](Evidence/19A-Observation-Capability-20260907.md)
+records exact input hashes atop `fafe57e`: 124 focused checks passed (25855);
+`make check` (57433) passed 2,210 unit/contracts, 17 components and syntax/traceability.
+`git diff --check` passed; only docs changed afterward. No reusable artifact is
+nominated. Transfer attempt count stays **four**, with no new VM attempt.
+[Attempt 4](Evidence/19A-Asset-Observation-20260907.md) failed on concurrent source
+edits, with cleanup/preservation passing; earlier failures remain retained.
+
+**Live acceptance:** once local implementation is ready, establish a source-stable
+window, build with `tools/run-tests artifacts build`, then use
 `tools/run-tests e2e --qualify-transfer --artifacts <new-output>` once. Inspect
-offline/booted receipts, terminal result and held-lease finalization. If other
-work must continue, advance host-side secret/capture and harmless-console
-implementation instead of spending another blocked VM attempt. Reuse the
-accepted backend/lifecycle; do not repeat setup or baseline discovery.
-
-**Evidence/attempts:** [this slice](Evidence/19A-Asset-Observation-20260907.md)
-retains transfer attempt 4: build/early preflight passed from clean revision
-`9e36732`, then concurrent edits to package-configuration code/docs/tests caused
-`provenance:source-changed` before upload. Cleanup and host preservation passed
-in 298.235 seconds. The pause request received no answer before handoff; there
-was no retry. [Earlier failures](Evidence/19A-Source-Preflight-20260907.md)
-remain failed. Inventory-prefix and new directory checks still need live proof.
-
-**Next reads/check:** `AssetTransfer`, `Qualification`, and the
-[transfer contract](../../tests/e2e/README.md#asset-transfer-qualification).
-For independent host work: `e2e_worker.run_distribution`, `PrivateCollector`,
-`vm_transport.py`, and the [secret boundary](Evidence/19P-Backend-Preflight-2026-09-06.md#capture-cleanup-and-downstream-prerequisites).
-Focused transfer tests: 28 passed (handle 22065). Final `make check` handle
-66809 exited 0: 2,150 unit/contracts and 17 components, syntax/traceability;
-`git diff --check` passed. Only docs changed afterward. No reusable artifact
-is nominated; the recorded build predates the new probe and concurrent edits.
+offline/booted receipts, the changed observation route, terminal result and
+held-lease finalization. Clean Git status alone does not establish source stability.
+Reuse the accepted backend/baseline; authentication/serial and final 19A acceptance
+remain separate required evidence.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** real probe logic now has host coverage, but live transfer and
-secret/console ownership and capture boundaries remain unresolved. Remaining
-19A: **2–3 sessions / 1.5–2.5 active hours**, plus source-stability waiting.
-The forecast is unchanged because live acceptance did not advance.
+**Reason:** fixed observation routing is host-tested; authentication, capture
+and serial integration still require security/ownership reasoning. Revised
+remaining 19A estimate: **3–4 sessions / 2–3 active hours**, plus any wait for a
+stable checkout. The earlier forecast undercounted these unimplemented boundaries;
+this session removed one boundary but did not advance live acceptance.
 
-**State:** dev host and existing guarded `ubuntu26.04` VM only. Handle 34617
-exited 1; all checks finished. VM confirmed off at 23:07 UTC, lease released,
-no operation pending. Original evidence/logs and concurrent edits preserved.
+**State:** dev host and existing guarded VM only; all owned commands finished.
+No VM/lease operation was started. The prior 23:07 UTC VM-off observation was
+not refreshed. Original evidence/logs preserved; no pending operation to recover.
 
 ## Task 19B
 

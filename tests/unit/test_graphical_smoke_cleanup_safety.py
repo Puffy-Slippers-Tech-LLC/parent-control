@@ -71,12 +71,13 @@ def test_failed_observation_never_releases_graphical_input(tmp_path):
     import json
     (tmp_path / 'ready.request.json').write_text(json.dumps({'stage': 'ready', 'screenshot': None}))
     lease, vm = Mock(), Mock()
+    vm.config = {}
     lease.state = {'run': 'a' * 32}
     vm.call.return_value = b'not a greeter\n'
     controller = smoke.Smoke(tmp_path, lease, Mock(), 'host-key')
     with patch.object(smoke.runner, 'address', return_value='192.0.2.1'), \
             patch.object(smoke, 'Transport', return_value=vm):
-        with pytest.raises(RuntimeError, match='greeter-observation-failed'):
+        with pytest.raises(smoke.EvidenceError, match='observation:invalid-output'):
             controller.step()
     assert controller.steps == []
     assert not (tmp_path / 'ready.reply.json').exists()
@@ -259,6 +260,7 @@ def test_live_controller_ordering_and_retained_diagnostics(qualification, fault)
 def test_stage_checkpoint_failure_prevents_guest_acknowledgement(tmp_path):
     (tmp_path / 'ready.request.json').write_text(json.dumps({'stage': 'ready', 'screenshot': None}))
     vm = Mock()
+    vm.config = {}
     vm.call.return_value = b'greeter-ready\n'
     progress = Mock(side_effect=[None, OSError('private-canary')])
     controller = smoke.Smoke(tmp_path, Mock(state={'run': 'a' * 32}), Mock(), 'host-key', progress)
@@ -297,7 +299,7 @@ def test_booted_asset_refusal_prevents_first_graphical_action(tmp_path):
     controller = smoke.Smoke(tmp_path, Mock(state={'run': 'a' * 32}), Mock(), 'host-key',
                              transfer=transfer)
     with patch.object(smoke.runner, 'address', return_value='192.0.2.1'), \
-            patch.object(smoke, 'Transport'):
+            patch.object(smoke, 'Transport', return_value=Mock(config={})):
         with pytest.raises(smoke.EvidenceError, match='booted-assets-mismatch'):
             controller.step()
     assert not (tmp_path / 'ready.reply.json').exists()

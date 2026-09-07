@@ -606,7 +606,7 @@ def main(argv=None):
         if args.check_tools:
             log("tools:available")
             return 0
-        require(os.geteuid() == os.getegid() == 0, "guard:root; enter a root shell on the development host")
+        require(os.geteuid() == os.getegid() == 0, "guard:root; run ./setup.sh --prepare-host on the development host")
         # libvirt requires continuous event dispatch to answer server keepalives,
         # including during hashing, libguestfs inspection and QEMU checks.
         # The process-lifetime daemon also drains callbacks after close().
@@ -628,7 +628,7 @@ def main(argv=None):
         category = str(error) if isinstance(error, CaptureError) else "operation:failed-or-interrupted"
         phase = capture.state["phase"] if capture and capture.state else "before-validation"
         log(f"{category}; recovery-phase:{phase}")
-        print("prep-host: resolve the reported condition, then rerun make prep-host; retain snapshot and controller state",
+        print("prep-host: resolve the reported condition, then rerun ./setup.sh --prepare-host; retain snapshot and controller state",
               file=sys.stderr)
         return 1
     finally:

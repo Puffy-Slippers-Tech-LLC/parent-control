@@ -15,7 +15,9 @@ Installation itself can require administrator authentication. For Codex-only
 changes, use `./setup.sh --codex-rules-only`. Repeat setup after moving the
 checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
-dependencies and the separate documented baseline preparation process.
+dependencies and host policies. Explicit baseline preparation is also routed
+through the master: `./setup.sh --prepare-host`; see
+[VM prerequisites](../../tests/integration/Environment.md).
 The tools-only refresh also fills missing `curl`, `ripgrep` and Python coverage
 plugin packages without requesting package upgrades; ordinary test commands
 never install dependencies. Full setup includes these prerequisites too.
@@ -43,7 +45,12 @@ that context before reinstalling or interpreting it as a host-policy denial.
 Development activation is `none`: installed helpers change on their next
 invocation, Polkit watches its rule directory, and Codex loads rules on restart.
 There is no product package, service restart, reboot, or saved-data migration.
-Graphical AppArmor prerequisites remain installed by full `./setup.sh`.
+Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
+`--test-tools-only`. Host package dependencies belong to full setup or
+`--dependencies-only`. Codex setup also installs its maintained machine-wide
+`pwd` and `git status` rules in `/etc/codex/rules/onpc-read-only.rules`, without
+changing unrelated system/user rules. These reads cover any working directory
+or repository; select a repository with the command tool's working directory.
 
 ## Category coverage and future additions
 

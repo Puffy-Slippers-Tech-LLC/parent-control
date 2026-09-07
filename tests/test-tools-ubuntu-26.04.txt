@@ -22,6 +22,10 @@ shellcheck=0.11.0-2
 gjs=1.88.0-1
 nodejs=22.22.1+dfsg+~cs22.19.15-1ubuntu1
 libvirt-clients=12.0.0-1ubuntu5.3
+# VM host runtime, installed by setup.sh through tools/setup_dependencies.sh.
+libvirt-daemon-system
+qemu-system-x86
+virtiofsd
 os-autoinst=5.1768577300.b85e4864-1
 util-linux=2.41.3-3ubuntu2.2
 strace=6.19+ds-0ubuntu5

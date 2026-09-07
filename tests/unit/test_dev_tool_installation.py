@@ -120,3 +120,37 @@ def test_only_missing_fixed_dependencies_are_installed_without_upgrades(monkeypa
         assert execute.call_args.kwargs['check'] is True
     else:
         execute.assert_not_called()
+
+
+def test_system_rules_install_is_atomic_idempotent_and_preserves_other_rules(tmp_path, monkeypatch):
+    target = tmp_path / 'etc/codex/rules/onpc-read-only.rules'
+    target.parent.mkdir(parents=True)
+    target.parent.parent.chmod(0o775)
+    unrelated = target.with_name('organization.rules')
+    unrelated.write_text('# preserved organization policy\n')
+    real_stat = Path.stat
+
+    def root_owned(path, *args, **kwargs):
+        # Model /etc ownership in a user-owned fixture, without privilege.
+        values = list(real_stat(path, *args, **kwargs))
+        if path not in (target.parent, target.parent.parent):
+            values[0] &= ~0o022
+        values[4] = values[5] = 0
+        return os.stat_result(values)
+
+    monkeypatch.setattr(Path, 'stat', root_owned)
+    monkeypatch.setattr(os, 'fchown', Mock())
+    rules['install_system_rules'](ROOT, target)
+    assert real_stat(target.parent.parent).st_mode & 0o777 == 0o755
+    assert target.read_bytes() == (ROOT / 'config/codex-read-only.rules').read_bytes()
+    assert target.stat().st_mode & 0o777 == 0o644
+    with monkeypatch.context() as patch:
+        replace = Mock(side_effect=AssertionError('unchanged rules must not be rewritten'))
+        patch.setattr(os, 'replace', replace)
+        rules['install_system_rules'](ROOT, target)
+    assert unrelated.read_text() == '# preserved organization policy\n'
+    target.unlink()
+    target.symlink_to(unrelated)
+    with pytest.raises(ValueError, match='symlink'):
+        rules['install_system_rules'](ROOT, target)
+    assert unrelated.read_text() == '# preserved organization policy\n'

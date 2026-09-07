@@ -273,7 +273,7 @@ def validate_environment(
 ) -> GuestIdentity:
     runner = runner or Runner()
     if (os.geteuid() if euid is None else euid) != 0:
-        raise PreparationError("guard:root", "root privileges required; run make prep-vm to request sudo")
+        raise PreparationError("guard:root", "root privileges required; run ./setup.sh --prepare-vm inside the source VM")
 
     virtual = runner.run(["systemd-detect-virt", "--vm"], check=False)
     virtualization = virtual.stdout.strip()

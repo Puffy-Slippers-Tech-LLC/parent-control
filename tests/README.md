@@ -76,7 +76,7 @@ the source must be a regular PNG directly inside an
 `/tmp/onpc-graphical-smoke-*/testresults/` directory. See the helper's validation
 tests for ownership, size/signature and no-overwrite guarantees.
 
-Full `./setup.sh` also maintains graphical AppArmor policy. Classic VS Code
+Full `./setup.sh` and `--test-tools-only` both maintain graphical AppArmor policy. Classic VS Code
 snap attachment needs anonymous graphics-socket peer rules in libvirtd and
 QEMU; the QEMU drop-in activates at the next guest start. Development helpers
 activate on invocation (`none`), Polkit watches installed rules, and Codex

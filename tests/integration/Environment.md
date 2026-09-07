@@ -23,7 +23,8 @@ Fixed test-account definitions live in
 `common/oh_no_parent_control_ui/test_identities.py`; real account identities and
 roles are verified in the guest. Keep passwords out of records and diagnostics.
 
-Host dependencies are maintained in `setup.sh`,
+Host setup is orchestrated only by `setup.sh`; its scoped dependency module is
+`tools/setup_dependencies.sh`. Dependency versions are also recorded in
 [../test-tools-ubuntu-26.04.txt](../test-tools-ubuntu-26.04.txt), and
 [../ui/requirements.txt](../ui/requirements.txt). Missing tooling is a
 prerequisite failure, not permission for a test to install host packages.
@@ -32,14 +33,18 @@ those per-attempt guest writes are distinct from one-time host setup.
 
 For an explicitly requested replacement environment, consult the maintained
 `prepare_vm.py` and `prepare_host.py` guards before provisioning. Existing
-`make prep-vm` is guest-only account preparation; `make prep-host` is host-only
-baseline creation/reconciliation. They remain tooling, not daily `test-*`
+`./setup.sh --prepare-vm` is guest-only account preparation;
+`./setup.sh --prepare-host` is host-only baseline creation/reconciliation, followed
+by refreshing helpers with the finalized VM identity. Run ordinary `./setup.sh`
+on a replacement host first to install its dependencies and policies. The
+Makefile's `prep-vm` and `prep-host` targets only delegate to these modes.
+They remain tooling, not daily `test-*`
 targets, and are never called automatically to repair a missing accepted
 baseline. Guest preparation suppresses Ubuntu's optional welcome/opt-in wizard
 for all four test accounts by creating their GNOME Initial Setup first-login
 and Ubuntu 26.04 upgrade completion markers, as the respective account. It
 does not enroll accounts in optional services. This tooling change activates
-on the next login after running `make prep-vm`; it needs no package activation
+on the next login after running `./setup.sh --prepare-vm`; it needs no package activation
 or saved product-data migration. An already open wizard must be closed.
 Prepare the guest before product installation, then capture and
 validate its product-free baseline on the host. Preserve any existing baseline;

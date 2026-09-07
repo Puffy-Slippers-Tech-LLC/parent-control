@@ -48,15 +48,29 @@ reinstall or administrator-directed archival.
 
 ## Development
 
-On a clean Ubuntu Desktop development machine, install the dependencies for
-checks and all three previews:
+On a clean Ubuntu Desktop development machine (also the VM host), use the
+single setup entry point for dependencies, checks, previews and host tooling:
 
 ```sh
 ./setup.sh
 ```
 
-This does not install the product or configure accounts, services, or Polkit.
-Build and install the Debian package to deploy the product to a machine.
+Setup is idempotent: rerun it to refresh dependencies, the UI environment,
+checkout Git settings, test helpers, graphical AppArmor policies and Codex rules.
+It includes the libvirt/QEMU host packages and Debian build prerequisites.
+Build and test commands report missing dependencies; setup installs them.
+
+Use `./setup.sh --help` for focused refreshes: `--dependencies-only`,
+`--test-tools-only`, or `--codex-rules-only`. The latter installs machine-wide
+`pwd` and `git status` approvals, independent of directory/repository, and the
+checkout's validated test rules. Restart Codex after rule changes.
+
+Explicit baseline preparation uses `./setup.sh --prepare-host` on the host,
+after `./setup.sh --prepare-vm` inside the source VM; see
+[VM prerequisites and recovery](tests/integration/Environment.md). Ordinary
+host setup preserves the VM. Scoped modules implement each step; Makefile
+preparation aliases delegate to the master. Build and install the Debian
+package to deploy the product.
 
 ### Restore the publisher OpenPGP key
 
@@ -203,7 +217,7 @@ The child-session extension remains independently buildable for development:
 
 ```sh
 make pack-extension
-make install-extension
+./setup.sh --install-extension
 ```
 
 The system installation below installs the extension's Polkit policy.
@@ -213,6 +227,7 @@ The system installation below installs the extension's Polkit policy.
 On a clean Ubuntu 26.04 Desktop computer, build and install the package:
 
 ```sh
+./setup.sh
 make build
 make installdeb
 ```

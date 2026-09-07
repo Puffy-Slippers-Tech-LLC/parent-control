@@ -62,7 +62,7 @@ and recovery instructions, not a second checklist to run again.
    and Launchpad registration. Inspect the PPA's enabled architectures and
    ensure only supported architectures are enabled. Use public Launchpad API
    reads wherever possible. A missing tool is a reason to use `setup.sh` or the
-   declared build-dependency installation commands; do not rerun setup routinely.
+   focused `./setup.sh --dependencies-only` mode; do not rerun setup routinely.
    Never request secrets in chat; let GnuPG/SSH use their local secure prompts.
 3. **Prepare automatically.** Run:
 
@@ -347,8 +347,7 @@ architecture.
 Install the declared build dependencies, then build without root privileges:
 
 ```sh
-sudo apt update
-sudo apt build-dep .
+./setup.sh --dependencies-only
 dpkg-buildpackage --build=binary --no-sign
 ```
 

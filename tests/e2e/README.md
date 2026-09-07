@@ -7,8 +7,9 @@ establish graphical behavior or complete Task 19A. The runtime evidence gate
 and private collector have host-only regression coverage. The shared worker now
 uses the private collector for diagnostics and has passed one guarded VM smoke.
 The inventory-gated launcher and `make check-e2e` now support listing and
-explicit execution refusal before privilege checks. The execution controller,
-independent provenance and scenario-result collection remain unfinished.
+explicit execution refusal before privilege checks. Controller-owned provenance
+capture and preservation checks now have host regression coverage. The execution
+controller's real scenario collection and dispatch remain unfinished.
 
 ## Inspect scope on the host
 
@@ -51,8 +52,9 @@ success is declaration inspection, never an E2E pass.
 The JSON includes canonical case IDs, owner, status/reason, parameters,
 environment, prerequisites, duration bound, ordered phases, assertions,
 expected evidence and the SHA-256 of the exact inventory bytes read. This digest
-identifies the declaration only. The future runner must separately freeze and
-identify current source, requirement mappings, packages, assets and environment.
+identifies the declaration only. `provenance.VerifiedInputs` separately identifies
+current source, requirement mappings, staged packages/assets and the verified
+baseline's guest preparation. Execution dispatch must use that capture.
 
 ## Maintain declarations
 
@@ -124,9 +126,9 @@ The guarded controller constructs `EvidenceContract` before executing a selectio
 with a fresh `run_id`, the inventory path, selector and independently verified
 input identities. Construction refuses pending cases and stale inventory bytes.
 The contract freezes the plan and inputs; it never obtains expected provenance
-from worker results. The source identity must cover requirement mappings, test
-code and uncommitted changes. The launcher must establish that identity and
-verify preservation after execution. An explicit null package digest is allowed
+from worker results. The source identity covers requirement mappings, test code
+and uncommitted changes through `provenance.VerifiedInputs`. The execution
+controller must use its preservation gate after execution. A null package digest is allowed
 only when every selected case is a product-free runner smoke.
 
 `validate(records, collector)` accepts one record per selected case in selection
@@ -183,6 +185,49 @@ separate temporary ready inventories and synthetic reviewed payloads. They prove
 the contract's acceptance/refusal behavior, not customer execution, screen
 redaction, verified input capture, or VM restoration.
 
+## Controller-owned provenance
+
+Construct `VerifiedInputs(lease=lease, assets=staged_directory)` after the existing
+`Lease.prepare` and `stage_assets`, before worker startup. The asset directory
+must be caller-owned and mode 0700; the outer controller must set this after
+staging, since `copytree` retains the builder directory's permissions. Omit
+assets only for a product-free smoke. This API has no lifecycle operations and
+must retain the existing held lease through its final check.
+
+`inputs` returns copied expected identities; `source_files` supplies the earlier
+digest map required by `e2e_worker.run_distribution`. Source enumeration uses
+Git's tracked and nonignored untracked paths, hashes current bytes and modes in
+the artifact builder's format, and detects edits, additions, removals and file
+replacement. Missing tracked files refuse, matching the current builder's
+contract. Ignored build outputs are excluded. The capture rejects symlinks,
+hardlinks and special input files, pins parent directory opens and checks file
+identity around each read. Source capture records identities; it does not copy
+the checkout. The worker still stages verified distribution bytes separately.
+
+Staged package bytes and fixture manifests use the existing artifact verifier;
+fixture payload bytes also use the fixture verifier. The package manifest's
+source digest must match this checkout's current content identity. The exact
+staged tree, including the Flatpak delivery container, is hashed and rechecked.
+Baseline identity is independently derived from the held lease's durable state,
+retained snapshot proof and verified guest preparation. `environment_id` is a
+safe digest alias of that guest preparation, not a claim that the full installed
+host-tool/release-environment matrix has been validated. Raw baseline account
+records and exception text are never exported.
+
+Use `contract(run_id=..., selector=...)` to create the expected evidence contract,
+`recheck()` immediately before startup, and `validate(contract, records,
+collector)` after outer cleanup but before releasing the lease. Validation
+checks inputs before and after the existing evidence gate and rejects contracts
+created elsewhere. Any observed input failure is latched: restoring bytes or a
+later successful worker result cannot clear it. The future controller must
+persist this fixed failure code with its other attempt outcomes. Checks detect
+changes at these boundaries; they are not a filesystem monitor.
+
+Host tests exercise actual Git trees, artifact/fixture verification and the real
+private collector with synthetic scenario records. They do not establish live
+VM provenance or customer behavior. All repository variants remain pending and
+the launcher remains closed until real scenario collection is connected.
+
 ## Verify edits
 
 ```sh
@@ -234,5 +279,5 @@ inputs, identity replacement, timeout, nonzero status, interruption at each
 execution boundary, report failure and combined cleanup/original failures. It
 is automatically included in the dispatcher's isolated safety prerequisites.
 The [worker integration evidence](../../docs/TestAutomation/Evidence/19A-Worker-Integration-20260907.md)
-records the real run. The launcher preflight is now implemented; independent
-provenance and actual scenario records remain the next controller boundary.
+records the real run. The launcher preflight is now implemented; actual scenario
+records and live use of the verified-input gate remain the next controller boundary.

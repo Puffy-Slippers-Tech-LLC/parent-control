@@ -33,19 +33,20 @@ does not launch a desktop process from the root maintainer script. If the hook
 defers marker creation for Livepatch, `postinst` still records the reboot needed
 by our PAM/display-manager integration. Configuration retries avoid duplicate
 entries and retain the activation comparison if the hook fails.
-After APT succeeds, `make installdeb` prints a prominent terminal notice
-telling the administrator to reboot before using the kiosk session.
-The notice checks for this package's exact name in `/run/reboot-required.pkgs`,
-so reinstalls, updates, and configuration reruns retain an outstanding reminder
-until reboot clears the marker. Requests belonging only to other packages do
-not trigger the kiosk notice.
-The package ships a read-only `oh-no-parent-control-reboot-notice` helper for
-this notice. Only `make installdeb` calls it, after APT succeeds, so the reminder
-appears once, following dependency triggers and other APT output. Direct APT
-or dpkg installs use Ubuntu's reboot notification and markers; `postinst` does
-not print the terminal prompt.
-The helper activates on invocation (`none`) and is excluded from the activation
-digest manifest. It introduces no saved-data changes or migration.
+`make installdeb` locates the built `.deb` and hands off to ordinary
+`apt install <deb>`; `make uninstalldeb` runs `apt remove oh-no-parent-control`.
+Both use only the package payload, installed maintainer scripts, and package
+manager integration. They must never add checkout-side setup, cleanup, notices,
+or success messages. Installation does not force repair or reinstallation; APT
+decides whether the supplied version needs installation just as in production.
+At the end of successful package configuration, `postinst` prints the kiosk
+reboot reminder when this package has an outstanding reboot marker, then a
+green package-configuration success message. These appear for production APT
+and dpkg installations as well as Make. APT may subsequently print dependency
+triggers or report a separate transaction failure; the success message describes
+only this package's configuration. The former Make-only helper's behavior now
+lives in `postinst`, and the helper is no longer shipped. This lifecycle change
+activates during configuration (`none`) and introduces no saved-data migration.
 
 This follows [Ubuntu's package reboot-notification guidance](https://discourse.ubuntu.com/t/ubuntu-deb-package-maintainer-scripts-hooks-triggers-tips-tricks/36174).
 The notification wiring activates during package configuration (`none`); it
@@ -66,8 +67,18 @@ they introduce no boot integration or saved-data migration.
 ## Maintaining classifications
 
 Removal changes PAM and login-manager integration too. `postrm remove` records
-the Ubuntu reboot requirement and prints a removal-specific terminal notice.
-It uses the update-notifier hook if present, with a direct marker fallback when
+the Ubuntu reboot requirement. The packaged
+`/etc/apt/apt.conf.d/99zz-oh-no-parent-control-reboot-notice` uses APT's
+[documented `DPkg::Post-Invoke` hook](https://manpages.debian.org/unstable/apt/apt.conf.5.en.html)
+to print a removal-specific terminal notice after dpkg and its triggers.
+It activates on the next APT invocation (`none`), is excluded from activation
+digests, requires no data migration,
+and is shared by ordinary APT removal and `make uninstalldeb`.
+The command is inline so removal of the executable payload cannot break it.
+The conffile remains after ordinary remove, reminding on later transactions
+until reboot clears the request or purge removes the hook. Direct dpkg
+removal uses Ubuntu's reboot markers without this APT terminal notice.
+`postrm` uses the update-notifier hook if present, with a direct marker fallback when
 the dependency is missing, fails, or defers notification. Retry does not duplicate
 the package entry. A later `postrm purge` does not invent another reboot request;
 APT purge of an installed package already runs the removal phase first.

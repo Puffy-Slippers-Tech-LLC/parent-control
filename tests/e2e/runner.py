@@ -36,7 +36,15 @@ def preflight(argv, *, root=ROOT):
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--scenario')
     parser.add_argument('--artifacts', type=Path)
+    parser.add_argument('--qualify-transfer', action='store_true')
     args = parser.parse_args(argv)
+    if args.qualify_transfer:
+        if args.list or args.scenario is not None:
+            raise ValueError('e2e:qualification-cannot-select-scenarios')
+        validate_artifact_path(args.artifacts)
+        if not args.artifacts.is_dir():
+            raise ValueError('e2e:missing-artifact-directory')
+        return {'mode': 'asset-transfer-qualification', 'artifacts': str(args.artifacts)}
     if args.list and args.artifacts is not None:
         raise ValueError('e2e:listing-does-not-use-artifacts')
     api = runpy.run_path(str(confined_file(root, 'tests/e2e/inventory.py')))
@@ -50,16 +58,19 @@ def preflight(argv, *, root=ROOT):
     # This path is reached only for a fully runnable selection. Keep it closed
     # until independently verified provenance and real EvidenceContract records
     # are connected to the guarded worker. File existence/status is insufficient.
-    if args.artifacts is None:
+    validate_artifact_path(args.artifacts)
+    raise ValueError('e2e:execution-controller-unfinished')
+
+
+def validate_artifact_path(path):
+    if path is None:
         raise ValueError('e2e:artifacts-required')
-    path = args.artifacts
     if (not path.is_absolute() or '..' in path.parts
             or not any(path.is_relative_to(base) and len(path.parts) > len(base.parts)
                        and re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', path.parts[len(base.parts)])
                        for base in (Path('/tmp'), Path('/var/tmp')))
             or any(part.is_symlink() for part in (path, *path.parents))):
         raise ValueError('e2e:invalid-artifact-directory')
-    raise ValueError('e2e:execution-controller-unfinished')
 
 
 def make_arguments(environment):
@@ -88,6 +99,10 @@ def main(argv=None):
             os.execv(str(launcher), [str(launcher), 'e2e', *arguments])
             return 0
         plan = preflight(argv)
+        if plan['mode'] == 'asset-transfer-qualification':
+            sys.path.insert(0, str(ROOT / 'tests/integration'))
+            import check_graphical_smoke
+            return check_graphical_smoke.main(assets=Path(plan['artifacts']))
         print(json.dumps(plan, indent=2))
         return 0
     except (ValueError, OSError) as error:

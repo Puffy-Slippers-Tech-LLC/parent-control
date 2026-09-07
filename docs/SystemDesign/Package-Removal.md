@@ -97,9 +97,17 @@ first unpack removes only its attempt's bookkeeping.
 
 ## Reboot notice
 
-Successful removal records Ubuntu's reboot requirement and prints a terminal
-notice so existing login-manager/PAM transactions are renewed at the next boot.
-It never forces logout, restarts the desktop, or reboots automatically. It adds
+Successful removal records Ubuntu's reboot requirement so existing
+login-manager/PAM transactions are renewed at the next boot. The packaged
+APT `DPkg::Post-Invoke` hook prints the removal notice after dpkg's triggers,
+in bold red on a capable terminal and plain text in redirected output.
+`make uninstalldeb` uses this same production APT integration without a
+checkout helper. The hook is self-contained because the executable payload
+has already been removed. Its APT conffile survives ordinary removal and
+reminds on later package transactions while this package's reboot request
+is outstanding; purge removes the conffile. Direct dpkg removal records the
+Ubuntu reboot requirement without the APT terminal notice.
+Removal never forces logout, restarts the desktop, or reboots automatically. It adds
 only this package's reboot request, preserving other entries without duplicates;
 a later purge does not clear or recreate the request after reboot. The reboot
 notifier is optional in `postrm`, when dependencies may already be absent; see

@@ -14,8 +14,16 @@ from tools.render_polkit_policy import render
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.parametrize("apt_status", [0, 1])
-def test_installer_output_ends_with_notice_only_after_success(tmp_path, apt_status):
+@pytest.mark.parametrize("failure, status, step", [
+    (None, 0, None),
+    ("dpkg-parsechangelog", 2, "reading package version"),
+    ("dpkg-architecture", 3, "reading package architecture"),
+    ("package", 1, "locating built package"),
+    ("apt", 100, "installing package with APT"),
+])
+def test_installer_hands_off_to_apt_and_preserves_failures(
+    tmp_path, failure, status, step,
+):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name, source in {
@@ -23,57 +31,73 @@ def test_installer_output_ends_with_notice_only_after_success(tmp_path, apt_stat
         "dpkg-architecture": "#!/bin/sh\necho amd64\n",
         "apt": (
             "#!/bin/sh\n"
+            'printf "%s\\n" "$@" > "$APT_ARGUMENTS"\n'
             "echo 'APT transaction'\n"
             "echo 'Processing triggers for desktop-file-utils ...'\n"
             "echo 'Processing triggers for libc-bin ...'\n"
-            f"exit {apt_status}\n"
+            "exit 0\n"
         ),
     }.items():
         command = bin_dir / name
+        if failure == name:
+            source = (
+                f"#!/bin/sh\necho '{name} diagnostic' >&2\nexit {status}\n"
+            )
         command.write_text(source)
         command.chmod(0o755)
     output = tmp_path / "output"
     output.mkdir()
-    (output / "oh-no-parent-control_1.0_amd64.deb").touch()
-    marker = tmp_path / "reboot-required.pkgs"
-    marker.write_text("oh-no-parent-control\n")
+    if failure != "package":
+        (output / "oh-no-parent-control_1.0_amd64.deb").touch()
+    # Any Make-side helper invocation is a parity regression, even if installed.
     helper = bin_dir / "oh-no-parent-control-reboot-notice"
-    helper.write_text(
-        (ROOT / "tools/oh-no-parent-control-reboot-notice").read_text().replace(
-            "/run/reboot-required.pkgs", str(marker)
-        )
-    )
+    helper.write_text("#!/bin/sh\necho 'unexpected helper invocation'\nexit 99\n")
     helper.chmod(0o755)
+    arguments = tmp_path / "apt-arguments"
     result = subprocess.run(
         ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
          "installdeb", f"CURDIR={tmp_path}", f"LIBEXECDIR={bin_dir}",
          f"APT={bin_dir / 'apt'}"],
-        env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"},
+        env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}",
+             "APT_ARGUMENTS": str(arguments)},
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10,
     )
-    assert "Processing triggers for libc-bin" in result.stdout
-    assert result.stdout.count("APT transaction") == 1
-    if apt_status == 0:
+    if failure is None:
         assert result.returncode == 0, result.stdout
-        assert result.stdout.rstrip().endswith(
-            "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
-        )
-        assert result.stdout.count("REBOOT REQUIRED") == 1
+        assert result.stdout.count("APT transaction") == 1
+        assert "Processing triggers for libc-bin" in result.stdout
+        assert arguments.read_text().splitlines() == [
+            "install", str(output / "oh-no-parent-control_1.0_amd64.deb")]
+        assert result.stdout.rstrip().endswith("Processing triggers for libc-bin ...")
+        assert "REBOOT REQUIRED" not in result.stdout
+        assert "PASS:" not in result.stdout
+        assert "FAIL:" not in result.stdout
     else:
         assert result.returncode != 0
+        if failure != "apt":
+            assert f"FAIL: installdeb: {step} (exit {status})" in result.stdout
+        assert f"Error {status}" in result.stdout
+        assert "PASS:" not in result.stdout
         assert "REBOOT REQUIRED" not in result.stdout
+        if failure in {"dpkg-parsechangelog", "dpkg-architecture", "apt"}:
+            assert f"{failure} diagnostic" in result.stdout
+        if failure in {"dpkg-parsechangelog", "dpkg-architecture", "package"}:
+            assert "Installing " not in result.stdout
+            assert "APT transaction" not in result.stdout
 
 
 class PackageDeploymentTests(unittest.TestCase):
-    def test_make_installdeb_prints_reminder_after_apt_finishes(self):
+    def test_make_package_targets_delegate_all_product_behavior_to_apt(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
-        install = recipe.index('$(APT) --fix-broken install --reinstall "$$deb_file"')
+        self.assertTrue(recipe.rstrip().endswith('exec $(APT) install "$$deb_file"'))
+        removal = makefile.split("uninstalldeb:\n", 1)[1].split("\n\n", 1)[0]
+        self.assertEqual(removal.strip(), '$(APT) remove oh-no-parent-control')
         self.assertIn("@set -e", recipe)
         self.assertIn("dpkg-parsechangelog -S Version", recipe)
         self.assertIn("dpkg-architecture -qDEB_HOST_ARCH", recipe)
         self.assertIn("run make build first", recipe)
-        self.assertLess(install, recipe.index('"$(LIBEXECDIR)/oh-no-parent-control-reboot-notice"'))
+        self.assertNotIn("$(LIBEXECDIR)", recipe)
         self.assertNotIn("reboot-required", recipe)
         self.assertNotIn("REBOOT REQUIRED", recipe)
         self.assertNotIn("Reboot now?", recipe)
@@ -84,13 +108,11 @@ class PackageDeploymentTests(unittest.TestCase):
 
     def test_reboot_notice_is_owned_by_the_debian_package(self):
         postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
-        helper = (ROOT / "tools/oh-no-parent-control-reboot-notice").read_text(encoding="utf-8")
         notice = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
-        self.assertIn(notice, helper)
-        self.assertIn('[ -t 2 ] && [ "${TERM:-dumb}" != dumb ]', helper)
-        self.assertIn("'\\n\\033[1;31m%s\\033[0m\\n'", helper)
-        self.assertNotIn('/usr/libexec/oh-no-parent-control-reboot-notice', postinst)
-        self.assertNotIn(notice, postinst)
+        self.assertIn(notice, postinst)
+        self.assertIn('[ -t 2 ] && [ "${TERM:-dumb}" != dumb ]', postinst)
+        self.assertIn("'\\n\\033[1;31m%s\\033[0m\\n'", postinst)
+        self.assertLess(postinst.index('#DEBHELPER#'), postinst.index(notice))
 
     def test_make_build_keeps_changes_file_artifacts_together(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")

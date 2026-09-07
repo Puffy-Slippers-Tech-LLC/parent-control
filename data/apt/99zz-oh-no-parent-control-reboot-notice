@@ -1,0 +1,7 @@
+// APT reads this before removal and runs the command after dpkg's triggers.
+// Keep it self-contained: the package's executables are gone by then.
+// As a conffile it survives ordinary remove; an outstanding reboot request
+// remains a reminder on later package transactions until reboot or purge.
+DPkg::Post-Invoke {
+    "if grep -Fxq oh-no-parent-control /run/reboot-required.pkgs 2>/dev/null; then case $(dpkg-query -W -f='${db:Status-Status}' oh-no-parent-control 2>/dev/null) in config-files|not-installed|'') if [ -t 2 ] && case ${TERM:-dumb} in dumb) false;; *) true;; esac; then printf '\n\033[1;31m%s\033[0m\n' '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***' >&2; else printf '\n%s\n' '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***' >&2; fi;; esac; fi";
+};

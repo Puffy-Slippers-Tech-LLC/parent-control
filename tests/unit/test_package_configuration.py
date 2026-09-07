@@ -123,12 +123,16 @@ esac
     script.write_text(source)
 
     def run(**env):
-        return subprocess.run(
+        result = subprocess.run(
             ["/bin/sh", str(script), "configure"],
             env={"PATH": str(bin_dir), "AUDIT_ROOT": str(tmp_path),
                  "IMPACTS": "process-restart", **env},
             capture_output=True, text=True, timeout=10,
         )
+        if result.returncode != 0:
+            assert "PASS:" not in result.stdout
+            assert REBOOT_NOTICE not in result.stderr
+        return result
 
     return tmp_path, state, run
 
@@ -151,16 +155,17 @@ def test_configure_activates_static_broker_after_migration(package_machine, impa
     assert not (state / "package-activation-pending").exists()
     assert (root / "run/reboot-required").exists() == ("reboot" in impacts)
     assert ("notify-reboot-required " in commands) == ("reboot" in impacts)
-    assert REBOOT_NOTICE not in result.stderr
+    assert (REBOOT_NOTICE in result.stderr) == ("reboot" in impacts)
+    assert "PASS: Oh No! Parent Control package configuration completed successfully." in result.stdout
 
 
 @pytest.mark.parametrize("impacts", ["", "process-restart", "session-renewal", None],
                          ids=["reinstall", "broker-update", "session-update", "reconfigure"])
-def test_reboot_marker_survives_configuration_without_early_notice(package_machine, impacts):
+def test_reboot_marker_repeats_package_notice_until_reboot(package_machine, impacts):
     root, state, run = package_machine
     result = run(IMPACTS="reboot")
     assert result.returncode == 0, result.stderr
-    assert REBOOT_NOTICE not in result.stderr
+    assert result.stderr.count(REBOOT_NOTICE) == 1
     packages = root / "run/reboot-required.pkgs"
     original_packages = packages.read_text()
 
@@ -175,7 +180,7 @@ def test_reboot_marker_survives_configuration_without_early_notice(package_machi
             (state / "previous-package-activation.json").touch()
         result = run(IMPACTS=impacts or "")
         assert result.returncode == 0, result.stderr
-        assert REBOOT_NOTICE not in result.stderr
+        assert (REBOOT_NOTICE in result.stderr) == (not rebooted)
         assert not (state / "package-activation-pending").exists()
         if rebooted:
             assert not (root / "run/reboot-required").exists()

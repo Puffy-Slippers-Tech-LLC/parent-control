@@ -257,7 +257,8 @@ if [ "$1" = remove ]; then
         printf '%s\n' oh-no-parent-control >> /run/reboot-required.pkgs
     fi
     chmod 0644 /run/reboot-required /run/reboot-required.pkgs
-    printf '\n%s\n' '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***' >&2
+    # The packaged APT Post-Invoke hook prints the terminal reminder after
+    # triggers finish. Direct dpkg removal retains Ubuntu's reboot markers.
 fi
 
 exit 0

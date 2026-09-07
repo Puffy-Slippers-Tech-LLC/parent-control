@@ -29,8 +29,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/e2e'))
 import e2e_worker
 from private_artifacts import EvidenceError, PrivateCollector
-from provenance import VerifiedInputs
+from provenance import VerifiedInputs, preflight_source
 from recording import save_checkpoint
+from asset_transfer import AssetTransfer
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
 # All session names and identifiers stay inside this guest process. This is a
@@ -113,12 +114,13 @@ def screenshot(directory, name):
 
 
 class Smoke:
-    def __init__(self, directory, lease, commands, host_key, progress=None):
+    def __init__(self, directory, lease, commands, host_key, progress=None, transfer=None):
         self.directory, self.lease, self.commands = directory, lease, commands
         self.host_key = host_key
         self.steps = []
         self.vm = None
         self.progress = progress
+        self.transfer = transfer
 
     def step(self):
         if len(self.steps) == len(STAGES):
@@ -144,6 +146,8 @@ class Smoke:
             self.vm = Transport(config, self.commands, guard=lambda _: self.lease.guard())
             self.vm.probe_ready(timeout=180)
             reply = {'observation': 'active-greeter-no-user-session'}
+            if self.transfer is not None:
+                reply['assets'] = self.transfer.observe(self.vm)
         else:
             reply = screenshot(self.directory, request['screenshot'])
             if stage != 'gdm':
@@ -165,8 +169,8 @@ class Smoke:
 
 
 def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
-                *, progress=None, on_failure=None):
-    smoke = Smoke(directory, lease, commands, host_key, progress)
+                *, progress=None, on_failure=None, transfer=None):
+    smoke = Smoke(directory, lease, commands, host_key, progress, transfer)
     def validate():
         require(len(smoke.steps) == len(STAGES), 'smoke:missing-stages')
         module_result(directory)
@@ -188,13 +192,15 @@ def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
 class Qualification:
     """Live diagnostic checkpoints, without an inventory or scenario override."""
 
-    def __init__(self, directory, commands, ledger, collector, result, host_before):
+    def __init__(self, directory, commands, ledger, collector, result, host_before, assets=None):
         self.directory, self.commands, self.ledger = directory, commands, ledger
         self.collector, self.result, self.host_before = collector, result, host_before
         self.verified = None
         self.sequence = 0
         self.started = time.monotonic()
         self.active_stage = None
+        self.assets = assets
+        self.transfer = None
 
     def checkpoint(self, event):
         self.sequence += 1
@@ -232,14 +238,20 @@ class Qualification:
                                             guestfs, observation_only=True)
                 lease.guard(off=True)
                 lease.save('isolated')
-                self.verified = VerifiedInputs(lease=lease)
+                self.verified = VerifiedInputs(lease=lease, assets=self.assets)
                 self.result['provenance'] = self.verified.inputs
                 self.checkpoint('inputs-captured')
+                if self.assets is not None:
+                    self.transfer = AssetTransfer(self.verified)
+                    self.checkpoint('asset-transfer-started')
+                    self.result['asset_transfer'] = self.transfer.provision(lease, guestfs)
+                    self.checkpoint('asset-transfer-verified')
             with self.ledger.measure('test'):
                 self.verified.recheck()
                 self.result.update(run_backend(
                     self.directory, lease, self.commands, host_key, self.ledger,
-                    self.verified.source_files, progress=self.progress, on_failure=self.failure))
+                    self.verified.source_files, progress=self.progress, on_failure=self.failure,
+                    transfer=self.transfer))
         except BaseException as error:
             code = str(error) if isinstance(error, EvidenceError) else runner.error_category(error)
             if not any(v['outcome'] == 'failed' for v in self.ledger.outcomes.values()):
@@ -304,8 +316,8 @@ class Qualification:
         runner.log('graphical:finalized-with-lease-held')
 
 
-def main():
-    require(len(sys.argv) == 1, 'smoke:invalid-arguments')
+def main(*, assets=None):
+    require(assets is not None or len(sys.argv) == 1, 'smoke:invalid-arguments')
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
     require(Path.cwd() == ROOT == runner.baseline.guest_contract.CHECKOUT, 'smoke:checkout')
     os.umask(0o077)
@@ -318,6 +330,8 @@ def main():
     result = {'scope': 'credential-free-graphical-feasibility', 'outcome': 'failed',
               'raw_capture': 'root-private-not-approved-for-export',
               'evidence_directory': str(directory), 'steps': []}
+    if assets is not None:
+        result['scope'] = 'credential-free-asset-transfer-qualification'
     started = time.monotonic()
     def interrupted(*_):
         raise KeyboardInterrupt
@@ -327,6 +341,12 @@ def main():
             result['inputs_sha256'] = inputs()
             result['backend'] = graphical_backend.check(commands)
             schedule_preflight(directory, commands)
+            staged = None
+            if assets is not None:
+                staged = directory / 'assets'
+                runner.stage_assets(runner.artifact_source(assets), staged, commands)
+                staged.chmod(0o700)
+                result['source_preflight'] = preflight_source(staged)
             (directory / 'input').mkdir(mode=0o700)
             (directory / 'input/selected-inputs.json').write_text(json.dumps(result['inputs_sha256'], sort_keys=True))
             host_before = runner.host_fingerprint(commands)
@@ -342,13 +362,16 @@ def main():
                                  ledger=ledger, graphics_type='vnc')
         with PrivateCollector(run_id='qualification-' + uuid.uuid4().hex, secrets=[]) as collector:
             result['qualification_evidence'] = str(collector.path)
-            qualification = Qualification(directory, commands, ledger, collector, result, host_before)
+            qualification = Qualification(directory, commands, ledger, collector, result, host_before, staged)
             lease.finalize = qualification.finalize
             with lease:
                 result['baseline_sha256'] = lease.state['baseline_sha256']
                 qualification.execute(lease, guestfs)
     except (Exception, KeyboardInterrupt) as error:
         result['outcome'] = 'failed'
+        if isinstance(error, EvidenceError) and not any(
+                value['outcome'] == 'failed' for value in ledger.outcomes.values()):
+            ledger.fail_outcome('infrastructure', str(error))
         result['category'] = runner.record_caught_failure(ledger, error)
         result['exception_type'] = type(error).__name__
     finally:

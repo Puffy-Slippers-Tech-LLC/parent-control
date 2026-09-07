@@ -340,7 +340,7 @@ def test_removal_requests_reboot_without_losing_or_duplicating_requests(machine,
     for _ in range(2):
         result = machine.run("postrm", "remove")
         assert result.returncode == 0, result.stderr
-        assert "REBOOT REQUIRED: reboot to finish removing" in result.stderr
+        assert "REBOOT REQUIRED" not in result.stderr
         assert packages.read_text().splitlines() == ["linux-base", "oh-no-parent-control"]
     assert (machine.root / "run/reboot-required").is_file()
     assert "reboot" not in machine.commands

@@ -1,172 +1,92 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Configures Git and installs tools to develop and preview this checkout. Product
-# deployment is exclusively through the Debian package.
+# The only public setup entry point. Modules own implementation; this file owns
+# selection, ordering and privileges. Product deployment remains in the package.
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly apt_lock_timeout_seconds=300
 
 usage() {
-    echo "Usage: ./setup.sh [--codex-rules-only|--test-tools-only]"
-}
+    cat <<'USAGE'
+Usage: ./setup.sh [MODE]
+  (no mode)             Set up/refresh the development machine and VM host
+  --dependencies-only   Install development, build, UI and VM host dependencies
+  --test-tools-only     Refresh test helpers, graphical policies and Codex rules
+  --codex-rules-only    Refresh machine-wide and checkout Codex rules
+  --prepare-host        Prepare/reconcile the existing test VM baseline on the host
+  --prepare-vm          Prepare test accounts INSIDE the source VM only
+  --install-extension   Install the development extension for the current user
+  -h, --help            Show this help
 
-install_codex_rules() {
-    /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py"
+All modes are repeatable. Baseline and guest preparation are explicit operations;
+ordinary host setup preserves the VM. See tests/integration/Environment.md.
+USAGE
 }
 
 if (( $# > 1 )); then
     usage >&2
     exit 2
 fi
-case "${1-}" in
-    "") ;;
-    --codex-rules-only)
-        install_codex_rules
-        echo "setup: installed project Codex test rules; restart Codex with this project trusted"
-        exit 0
-        ;;
-    --test-tools-only)
-        test_tools_install=(/usr/bin/python3 "$script_dir/tools/install_test_runner.py")
-        if (( EUID != 0 )); then
-            test_tools_install=(pkexec "${test_tools_install[@]}")
-        fi
-        "${test_tools_install[@]}"
-        install_codex_rules
-        echo "setup: installed development test tools and rules; restart Codex with this project trusted"
-        exit 0
-        ;;
-    -h|--help)
-        usage
-        exit 0
-        ;;
-    *)
-        usage >&2
-        exit 2
-        ;;
+readonly mode="${1-}"
+case "$mode" in
+    ''|--dependencies-only|--test-tools-only|--codex-rules-only|--prepare-host|--prepare-vm|--install-extension) ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
 esac
 
-if [[ ! -f "$script_dir/Makefile" || ! -x "$script_dir/child/preview" ]]; then
-    echo "setup: run this script from a complete repository checkout" >&2
+cd -- "$script_dir"
+if [[ ! -f Makefile || ! -x child/preview ]]; then
+    echo 'setup: run from a complete repository checkout' >&2
     exit 1
 fi
 
-if ! command -v apt-get >/dev/null; then
-    echo "setup: Ubuntu/Debian with apt-get is required" >&2
-    exit 1
-fi
+run_root() {
+    if (( EUID == 0 )); then
+        "$@"
+    else
+        pkexec --keep-cwd "$@"
+    fi
+}
 
-if (( EUID == 0 )); then
-    apt_get=(apt-get -o "DPkg::Lock::Timeout=$apt_lock_timeout_seconds")
-else
-    command -v sudo >/dev/null || {
-        echo "setup: sudo is required to install development dependencies" >&2
-        exit 1
-    }
-    apt_get=(sudo apt-get -o "DPkg::Lock::Timeout=$apt_lock_timeout_seconds")
-fi
+install_codex_rules() {
+    echo 'setup: [stage:codex-rules]'
+    run_root /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py" --system
+    /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py"
+    echo 'setup: Codex rules installed; restart Codex with this checkout trusted'
+}
 
-"${apt_get[@]}" update
-"${apt_get[@]}" install -y software-properties-common
-add_repository=(add-apt-repository -y universe)
-if (( EUID != 0 )); then
-    add_repository=(sudo "${add_repository[@]}")
-fi
-"${add_repository[@]}"
-"${apt_get[@]}" update
-"${apt_get[@]}" install -y \
-    7zip \
-    apparmor \
-    strace=6.19+ds-0ubuntu5 \
-    build-essential \
-    at-spi2-core=2.60.4-0ubuntu0.1 \
-    dbus-daemon=1.16.2-2ubuntu4 \
-    dbus-user-session \
-    debhelper \
-    devscripts \
-    dpkg-dev \
-    dh-python \
-    dput \
-    flatpak=1.16.6-1 \
-    git \
-    gnome-ponytail-daemon=0.0.11-1build1 \
-    gnupg \
-    gir1.2-adw-1 \
-    gir1.2-gtk-4.0 \
-    gir1.2-webkit-6.0 \
-    gnome-shell=50.1-0ubuntu1.2 \
-    inotify-tools=4.25.9.0-1 \
-    gjs=1.88.0-1 \
-    libpam0g-dev=1.7.0-5ubuntu3.2 \
-    libglib2.0-bin \
-    libvirt-clients=12.0.0-1ubuntu5.3 \
-    libguestfs-tools=1:1.58.1-3ubuntu3 \
-    lintian \
-    make \
-    mutter=50.1-0ubuntu2.2 \
-    mutter-dev-bin=50.1-0ubuntu2.2 \
-    nodejs=22.22.1+dfsg+~cs22.19.15-1ubuntu1 \
-    openssh-client=1:10.2p1-2ubuntu3.6 \
-    pipewire=1.6.2-1ubuntu1.1 \
-    python3 \
-    python3-dbusmock=0.38.1-1 \
-    python3-gi \
-    python3-gi-cairo \
-    python3-hypothesis=6.151.5-1 \
-    python3-libvirt=12.0.0-1build1 \
-    python3-guestfs=1:1.58.1-3ubuntu3 \
-    python3-pytest=9.0.2-4 \
-    python3-pytest-cov \
-    python3-requests \
-    python3-venv \
-    qemu-utils=1:10.2.1+ds-1ubuntu3.2 \
-    curl \
-    ripgrep \
-    shellcheck=0.11.0-2
+install_test_tools() {
+    echo 'setup: [stage:test-tools]'
+    run_root /usr/bin/python3 -IB "$script_dir/tools/install_test_runner.py"
+    echo 'setup: [stage:graphical-host-policies]'
+    run_root /usr/bin/python3 -IB "$script_dir/tools/install_graphical_test_policy.py"
+    install_codex_rules
+}
 
-# The graphical backend does not need recommended host networking services or
-# a separate VNC server. Feature::Compat::Try is used by the packaged entry
-# point but is missing from this os-autoinst package's dependency declaration.
-"${apt_get[@]}" install -y --no-install-recommends \
-    os-autoinst=5.1768577300.b85e4864-1 \
-    libfeature-compat-try-perl=0.05-1 \
-    util-linux=2.41.3-3ubuntu2.2 \
-    iproute2=6.19.0-1ubuntu1.1
-
-# Keep the public development identity and signing settings local to this checkout.
-# The private signing key must be restored separately before signing releases.
-git -C "$script_dir" config --local user.name 'Puffy Slippers Tech LLC'
-git -C "$script_dir" config --local user.email 'dev@tech.puffyslippers.com'
-git -C "$script_dir" config --local gpg.format openpgp
-git -C "$script_dir" config --local user.signingkey '4449F02C3E57F8215261A57958109B593907EFDE'
-echo "setup: configured checkout-local Git identity and OpenPGP signing key"
-
-# GNOME Shell 50 supplies the public org.gnome.Shell.Screenshot interface used
-# by isolated child component evidence capture; no host screenshot tool or
-# desktop-session access is used.
-
-ui_venv="$script_dir/.venv/onpc-ui-tests"
-"/usr/bin/python3" -m venv --system-site-packages "$ui_venv"
-"$ui_venv/bin/python" -m pip install --disable-pip-version-check --no-deps \
-    --require-hashes -r "$script_dir/tests/ui/requirements.txt"
-
-# Development-only dispatcher and artifact/screenshot helpers; activate on invocation (none).
-# Not shipped in the product package. Scoped Polkit rules cover active local
-# sudo-group members; polkitd loads them on installation.
-test_runner_install=(/usr/bin/python3 "$script_dir/tools/install_test_runner.py")
-if (( EUID != 0 )); then
-    test_runner_install=(sudo "${test_runner_install[@]}")
-fi
-"${test_runner_install[@]}"
-# Classic VS Code snap callers retain their AppArmor label after pkexec.
-# Install anonymous graphics-socket peer rules for libvirtd and QEMU. Only the
-# daemon profile is reloaded; the QEMU drop-in activates at the next guest start.
-# Both are development-only integration (none for product package activation).
-graphical_policy_install=(/usr/bin/python3 "$script_dir/tools/install_graphical_test_policy.py")
-if (( EUID != 0 )); then
-    graphical_policy_install=(sudo "${graphical_policy_install[@]}")
-fi
-"${graphical_policy_install[@]}"
-install_codex_rules
-echo "setup: installed project Codex test rules; restart Codex with this project trusted"
-
-echo "Development dependencies installed. Run: make check or make check-component"
+case "$mode" in
+    --codex-rules-only) install_codex_rules ;;
+    --test-tools-only) install_test_tools ;;
+    --install-extension)
+        make --no-print-directory _install-development-extension
+        ;;
+    --prepare-vm)
+        # Guest identity is validated before account changes. Never run host
+        # dependency/policy installation or baseline capture in this mode.
+        /bin/bash "$script_dir/tests/integration/prepare-vm"
+        ;;
+    --prepare-host)
+        # The controller owns provenance and resumability, preserving accepted
+        # baselines and rejecting concurrent or replaced resources.
+        echo 'setup: [stage:prepare-host]'
+        run_root /usr/bin/python3 -B "$script_dir/tests/integration/prepare_host.py"
+        # Pin the accepted UUID only after successful baseline reconciliation.
+        install_test_tools
+        ;;
+    ''|--dependencies-only)
+        echo 'setup: [stage:dependencies]'
+        /bin/bash "$script_dir/tools/setup_dependencies.sh"
+        if [[ -z "$mode" ]]; then
+            install_test_tools
+        fi
+        ;;
+esac
+echo 'setup: selected setup completed successfully'

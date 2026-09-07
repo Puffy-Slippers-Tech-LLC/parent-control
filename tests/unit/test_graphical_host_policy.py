@@ -55,6 +55,22 @@ def test_qemu_compile_failure_creates_no_dropin(tmp_path):
     assert '--replace' not in run.call_args.args[0]
 
 
+def test_missing_local_policy_is_created_once_and_repeat_preserves_it(tmp_path):
+    local, profile = tmp_path / 'local', tmp_path / 'profile'
+    profile.write_text('profile libvirtd {\n' + policy.INCLUDE + '\n}\n')
+    with patch.object(policy, 'LOCAL', local), patch.object(policy, 'PROFILE', profile), \
+            patch.object(policy, 'trusted_file', side_effect=lambda path: path.read_text()), \
+            patch.object(policy.subprocess, 'run') as run:
+        policy.install()
+        installed = local.read_text()
+        inode = local.stat().st_ino
+        policy.install()
+    assert local.read_text() == installed
+    assert local.stat().st_ino == inode
+    assert installed.count(policy.BEGIN) == 1
+    assert run.call_count == 4  # Validate and reload, including a retry after load failure.
+
+
 def test_qemu_rule_is_idempotent_without_reloading_guest_profiles(tmp_path):
     target = tmp_path / 'libvirt-qemu.d/onpc-graphical-tests'
     target.parent.mkdir(mode=0o755)

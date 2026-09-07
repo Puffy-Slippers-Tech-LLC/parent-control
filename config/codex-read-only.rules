@@ -1,0 +1,16 @@
+# Machine-wide inspection, independent of checkout and path. Select any repo
+# with the command tool's working directory; no unrestricted git/-C prefix.
+prefix_rule(
+    pattern = [["pwd", "/bin/pwd", "/usr/bin/pwd"]],
+    decision = "allow",
+    justification = "Read the working directory anywhere on this machine.",
+    match = ["pwd", "/usr/bin/pwd -P"],
+    not_match = ["bash -c pwd"],
+)
+prefix_rule(
+    pattern = [["git", "/usr/bin/git"], "status"],
+    decision = "allow",
+    justification = "Inspect Git status and path selections in any repository working directory.",
+    match = ["git status --short", "git status --porcelain=v1 --untracked-files=all -- any/path", "/usr/bin/git status"],
+    not_match = ["git reset --hard", "git config --global user.name example", "git -C /tmp/repo status"],
+)

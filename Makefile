@@ -80,8 +80,7 @@ APT := sudo apt
 endif
 
 build: check-release-version
-	$(APT) update
-	$(APT) build-dep .
+	@dpkg-checkbuilddeps || (echo 'Run ./setup.sh --dependencies-only to install build prerequisites' >&2; exit 1)
 	dpkg-buildpackage --build=binary --no-sign -a$(DEB_HOST_ARCH)
 	version=$$(dpkg-parsechangelog -S Version); \
 	architecture=$$(dpkg-architecture -qDEB_HOST_ARCH); \
@@ -96,9 +95,8 @@ build: check-release-version
 installdeb:
 	@set -e; \
 	if ! command -v dpkg-parsechangelog >/dev/null 2>&1 || ! command -v dpkg-architecture >/dev/null 2>&1; then \
-		echo "Installing dpkg-dev, required to locate the built Debian package"; \
-		$(APT) update; \
-		$(APT) install dpkg-dev; \
+		echo "Run ./setup.sh --dependencies-only to install dpkg-dev" >&2; \
+		exit 1; \
 	fi; \
 	version="$$(dpkg-parsechangelog -S Version)"; \
 	architecture="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
@@ -111,9 +109,9 @@ installdeb:
 uninstalldeb:
 	$(APT) remove oh-no-parent-control
 
-# Preparation-only host entry point; run from a root shell on the host.
+# Convenience aliases contain no setup logic; setup.sh is the integration point.
 prep-host:
-	@/usr/bin/python3 -B tests/integration/prepare_host.py
+	@./setup.sh --prepare-host
 
 .PHONY: prep-host
 
@@ -133,9 +131,9 @@ check-system:
 
 .PHONY: check-system
 
-# Preparation-only source-VM entry point; the launcher requests sudo as needed.
+# Guest-only preparation also goes through the master with explicit selection.
 prep-vm:
-	@/bin/bash tests/integration/prepare-vm
+	@./setup.sh --prepare-vm
 
 TEST_ENV = PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$${PYTHONPATH:-}
 PYTEST = $(TEST_ENV) $(PYTHON) -m pytest
@@ -224,6 +222,11 @@ pack-extension:
 	gnome-extensions pack "$(CHILD_DIR)" --force --out-dir=. --schema="$(EXTENSION_SCHEMA)" $(EXTENSION_SOURCES:%=--extra-source=%) $(EXTENSION_ASSETS:%=--extra-source=%) $(EXTENSION_PACK_ASSETS:%=--extra-source=%)
 
 install-extension:
+	@./setup.sh --install-extension
+
+# Scoped payload module invoked only by setup.sh; shares the packaging manifest.
+.PHONY: _install-development-extension
+_install-development-extension:
 	install -d "$(EXTENSION_DIR)" "$(EXTENSION_DIR)/schemas"
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(EXTENSION_DIR)/"

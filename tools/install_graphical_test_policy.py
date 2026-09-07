@@ -41,7 +41,8 @@ def trusted_file(path):
 
 
 def install():
-    profile, existing = trusted_file(PROFILE), trusted_file(LOCAL)
+    profile = trusted_file(PROFILE)
+    existing = trusted_file(LOCAL) if LOCAL.exists() or LOCAL.is_symlink() else ''
     if profile.count(INCLUDE) != 1:
         raise ValueError('graphical-policy:unsupported-local-include')
     rule = (ROOT / 'config/apparmor/onpc-graphical-tests').read_text()
@@ -60,7 +61,8 @@ def install():
                 stream.flush()
                 os.fchmod(stream.fileno(), 0o644)
                 os.fsync(stream.fileno())
-            if trusted_file(LOCAL) != existing:
+            current = trusted_file(LOCAL) if LOCAL.exists() or LOCAL.is_symlink() else ''
+            if current != existing:
                 raise ValueError('graphical-policy:local-file-changed')
             os.replace(temporary, LOCAL)
         finally:

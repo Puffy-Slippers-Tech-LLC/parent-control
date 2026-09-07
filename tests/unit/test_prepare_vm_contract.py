@@ -48,6 +48,11 @@ def test_launcher_refuses_this_development_context_without_prompting():
 
 def test_make_prep_vm_needs_neither_compiler_nor_executable_launcher(tmp_path):
     (tmp_path / "Makefile").write_bytes((ROOT / "Makefile").read_bytes())
+    master = tmp_path / 'setup.sh'
+    master.write_bytes((ROOT / 'setup.sh').read_bytes())
+    master.chmod(0o755)
+    (tmp_path / 'child').mkdir()
+    (tmp_path / 'child/preview').touch(mode=0o755)
     launcher = tmp_path / "tests/integration/prepare-vm"
     launcher.parent.mkdir(parents=True)
     launcher.write_text("printf 'preparation launcher reached\\n'\n", encoding="utf-8")
@@ -60,5 +65,5 @@ def test_make_prep_vm_needs_neither_compiler_nor_executable_launcher(tmp_path):
         text=True,
     )
     assert result.returncode == 0, result.stderr
-    assert result.stdout == "preparation launcher reached\n"
+    assert result.stdout == "preparation launcher reached\nsetup: selected setup completed successfully\n"
     assert result.stderr == ""

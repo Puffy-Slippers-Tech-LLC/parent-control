@@ -8,8 +8,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def entries():
-    tree = ast.parse((ROOT / 'config/codex-tests.rules').read_text())
+def entries(name='codex-tests.rules'):
+    tree = ast.parse((ROOT / 'config' / name).read_text())
     result = []
     for statement in tree.body:
         assert isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
@@ -56,7 +56,7 @@ def test_legacy_global_allow_cannot_override_project_prompt(command):
 
 
 def test_inline_examples_and_no_generic_script_allow():
-    for rule in entries():
+    for rule in [*entries(), *entries('codex-read-only.rules')]:
         for example in rule.get('match', []):
             assert matches(rule['pattern'], shlex.split(example)), example
         for example in rule.get('not_match', []):
@@ -64,3 +64,23 @@ def test_inline_examples_and_no_generic_script_allow():
         if rule['decision'] == 'allow':
             assert not matches(rule['pattern'], ['tools/random.py'])
             assert not matches(rule['pattern'], ['pkexec', '/usr/bin/python3'])
+
+
+@pytest.mark.parametrize('command', [
+    'pwd', '/bin/pwd -L', '/usr/bin/pwd -P', 'git status --short',
+    'git status --porcelain=v2 --untracked-files=all -- arbitrary/file',
+    '/usr/bin/git status --short -- another/path',
+])
+def test_machine_reads_are_path_independent_without_project_prompt(command):
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    decisions = {rule['decision'] for rule in rules if matches(rule['pattern'], shlex.split(command))}
+    assert decisions == {'allow'}
+
+
+@pytest.mark.parametrize('command', [
+    'git reset --hard', 'git clean -fd', 'git config --global alias.x arbitrary',
+    'git -C /tmp/repo clean -fd', 'bash -c pwd', 'pkexec /usr/bin/git status',
+])
+def test_machine_reads_do_not_grant_writes_or_generic_wrappers(command):
+    assert not any(matches(rule['pattern'], shlex.split(command))
+                   for rule in entries('codex-read-only.rules'))

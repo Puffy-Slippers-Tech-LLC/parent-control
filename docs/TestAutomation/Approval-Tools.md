@@ -234,6 +234,46 @@ unquoted shell wildcards: Codex can classify shell expansion as an unsplit shell
 invocation, which the direct executable rule does not cover. Never grant a
 generic shell to solve that parsing limitation.
 
+### Ripgrep searches without shell expansion
+
+The installed `rg -n` prefix already allows every direct line-numbered search,
+independent of regex and paths. A command such as
+`rg -n '^(def|class) |environment|provenance|accepted' tools/*baseline* tests/integration/baseline*`
+contains shell filename expansion. Codex therefore checks the enclosing
+`/bin/bash -lc <script>` against the shell prompt rule, rather than checking
+`rg -n`. Another ripgrep allow or a rules refresh cannot change that decision.
+Prefix rules match literal argument tokens; they cannot express an exception
+for arbitrary shell scripts whose text starts with `rg -n`.
+
+Generate the search using quoted ripgrep globs and a literal root instead:
+
+```sh
+rg -n '^(def|class) |environment|provenance|accepted' --glob '/tools/*baseline*' --glob '/tools/*baseline*/**' --glob '/tests/integration/baseline*' --glob '/tests/integration/baseline*/**' .
+```
+
+Run this from the checkout using the command tool's working directory. The
+leading slashes anchor filters to that search root; the `/**` filters include
+contents of matching directories. This keeps unrelated nested baseline files
+and other directories out of the search. Ripgrep's normal hidden-file, ignore
+and symlink handling still applies when walking `.`. If explicitly selected
+files need different traversal behavior, discover them with `rg --files` using
+the appropriate options and pass literal filenames instead. Quoting a wildcard
+path alone does not expand it: ripgrep treats `'tools/*baseline*'` as a literal
+filename.
+
+Correct this command form before requesting execution. Keep regexes and glob
+values quoted, avoid shell substitutions/assignments/redirections, and do not
+request a generic Bash grant. No policy change or restart is needed to use this
+form with the already-installed direct search allowance.
+
+`codex execpolicy check` tests the supplied argument vector; it does not exercise
+the command tool's shell splitting. Passing a raw Bash wrapper to that checker
+will match the shell rule even when a command tool could split its script.
+Rule-prefix tests alone must not be reported as proof of shell parsing or of
+automatic approval for unquoted wildcards. See the
+[official rules documentation](https://learn.chatgpt.com/docs/agent-configuration/rules#shell-wrappers-and-compound-commands)
+for the parser boundary.
+
 ## Approval limits and review findings
 
 The earlier unit launcher validated paths; the UI launcher forwarded arbitrary

@@ -2,10 +2,19 @@
 import ast
 from pathlib import Path
 import shlex
+import shutil
+import subprocess
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+BASELINE_PATTERN = '^(def|class) |environment|provenance|accepted'
+BASELINE_SEARCH = [
+    'rg', '-n', BASELINE_PATTERN,
+    '--glob', '/tools/*baseline*', '--glob', '/tools/*baseline*/**',
+    '--glob', '/tests/integration/baseline*', '--glob', '/tests/integration/baseline*/**',
+    '.',
+]
 
 
 def entries(name='codex-tests.rules'):
@@ -127,3 +136,50 @@ def test_machine_reads_are_path_independent_without_project_prompt(command):
 def test_machine_reads_do_not_grant_writes_or_generic_wrappers(command):
     assert not any(matches(rule['pattern'], shlex.split(command))
                    for rule in entries('codex-read-only.rules'))
+
+
+@pytest.mark.parametrize('executable', ['rg', '/usr/bin/rg'])
+def test_baseline_search_with_quoted_filters_has_only_allow_matches(executable):
+    # Check the argv Codex can extract from a simple literal command. shlex is
+    # NOT Codex's shell parser; splitting the original unquoted wildcard search
+    # here would falsely suggest that the command tool can approve it.
+    argv = [executable, *BASELINE_SEARCH[1:]]
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    assert {rule['decision'] for rule in rules if matches(rule['pattern'], argv)} == {'allow'}
+
+
+@pytest.mark.parametrize('shell', ['bash', '/bin/bash', '/usr/bin/bash'])
+def test_opaque_baseline_search_still_matches_shell_prompt(shell):
+    # This is the argv from the reported approval request, after Codex declined
+    # to split the script containing filename expansion. Do not execute it.
+    script = f'rg -n {shlex.quote(BASELINE_PATTERN)} tools/*baseline* tests/integration/baseline*'
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    assert {rule['decision'] for rule in rules
+            if matches(rule['pattern'], [shell, '-lc', script])} == {'prompt'}
+
+
+def test_baseline_glob_filters_preserve_path_scope(tmp_path):
+    rg = shutil.which('rg')
+    if rg is None:
+        pytest.skip('ripgrep is a development prerequisite; run ./setup.sh --dependencies-only')
+    selected = [
+        'tools/host_baseline.py', 'tools/baseline data.txt',
+        'tools/baseline-dir/child.py', 'tools/baseline-dir/nested/child.py',
+        'tests/integration/baseline.py', 'tests/integration/baseline-dir/child.py',
+    ]
+    excluded = [
+        'tools/unrelated.py', 'tools/other/baseline.py',
+        'tests/integration/check_baseline.py', 'tests/integration/other/baseline.py',
+        'other/baseline.py', 'other/tools/host_baseline.py',
+    ]
+    for name in [*selected, *excluded]:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('no match\naccepted\n')
+    result = subprocess.run(
+        [rg, *BASELINE_SEARCH[1:]], cwd=tmp_path,
+        env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8'},
+        text=True, capture_output=True, timeout=10, check=True,
+    )
+    assert set(result.stdout.splitlines()) == {f'./{name}:2:accepted' for name in selected}
+    assert not result.stderr

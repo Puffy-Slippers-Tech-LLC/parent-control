@@ -39,53 +39,47 @@ on the existing fixed VM. Read the mandatory
   evidence and safe cleanup. Carry its implementation into 19A; do not repeat
   this feasibility investigation at every graphical task.
 
-### Active handoff — 2026-09-06, 19P incomplete
+### Completion handoff — 2026-09-06, 19P accepted
 
-**Substantive result achieved:** private capture review caught that an active
-guest greeter session can precede Plymouth's visible handoff to GDM. The smoke
-now waits ten seconds after the supported guest-side observation before asking
-for a stable fixed-baseline capture. One complete corrected-input smoke passed
-real GDM capture, mouse selection, the credential screen, Escape dismissal,
-collection, baseline restoration, and guarded cleanup. 19P remains incomplete
-until two more consecutive corrected-input successes pass private review. Scope
-is this development host and the existing guarded `ubuntu26.04` VM. See the
-[screen/input evidence](Evidence/19P-Screen-Input-2026-09-06.md) and retain the
-[descriptor fix evidence](Evidence/19P-QEMU-Peer-Fix-2026-09-06.md).
+**Completed:** three corrected-input full smokes (12–14) passed on the existing
+guarded `ubuntu26.04` VM. Private review confirmed the real GDM account list,
+mouse-selected empty credential prompt, and Escape return in every attempt.
+Infrastructure, collection, host preservation and baseline cleanup passed.
+The [acceptance evidence](Evidence/19P-Screen-Input-2026-09-06.md) retains exact
+inputs, screen digests, timings and original failures. This establishes backend
+feasibility; it does not accept the full 19A runner or customer E2E coverage.
 
-**Next-session settings:** `gpt-5.6-luna` / `low`; model: keep; effort: keep.
-**Reason:** the premature-capture cause is fixed and one corrected live attempt
-passed. The remaining slice is two bounded repeats, final checks, and completion
-documentation. Confirm both next session.
+**Correction:** the earlier stale-controller handoff was wrong. Smoke 13 was
+still running after its command session ID was discarded; its final result is
+passed/complete. The redundant invocation correctly refused the busy lease.
+No controller repair, recovery, lock removal or process signal was needed.
+The workflow now requires retaining and polling command session metadata.
 
-**Reuse:** keep `Adapter.open_display()` with public `openGraphicsFD(0, 0)`, the
-namespace bridge, lifecycle owner, exact QEMU AppArmor peer rule, observer-only
-SSH, and `GENERAL_HW_VNC_DEPTH=32`. Do not change the comparison threshold or
-return to the small top-right icon. The first large fixed-baseline user tile is
-the credential-free mouse target; Escape returns to the user list. Task 19B will
-replace fixed geometry with needles. Private review confirmed both states without
-entering credentials; temporary review copies were deleted with
-`tools/cleanup-screenshots`.
+**Reuse:** `os-autoinst=5.1768577300.b85e4864-1`, public test API 48 and
+`generalhw`; `Adapter.open_display()` with public `openGraphicsFD(0, 0)`;
+the namespace bridge and existing lease lifecycle owner; exact QEMU AppArmor
+peer rule; observer-only SSH; and `GENERAL_HW_VNC_DEPTH=32`. The bounded
+ten-second render settling and large fixed-baseline tile remain feasibility
+helpers. Task 19B replaces geometry/readiness with needles. Invoke the smoke
+through `pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_smoke`.
+The dispatcher supplies isolated safety prerequisites. Preserve private capture
+handling and the [downstream prerequisite inventory](Evidence/19P-Backend-Preflight-2026-09-06.md#capture-cleanup-and-downstream-prerequisites).
 
-**Diagnosis and attempts:** smoke 10 passed and its three captures were correct.
-Smoke 11's executable checks passed, but private review found its GDM capture was
-still the boot splash; its guest-side greeter observation became true before the
-display handoff. A ten-second render-settling period fixed that demonstrated race.
-Smoke 12 passed with the corrected input at
-`/tmp/onpc-graphical-smoke-r23h3m2c/result.json` (105.018 s preparation, 36.342 s
-test, 62.688 s cleanup, 204.061 s total); private review confirmed the account
-list, credential prompt, and returned account list. Its `smoke.pm` SHA-256 is
-`6b92862e73fb69e2849a121439c224bfc23d9fd33531c859469a15eaee20459a`.
-Do not count smoke 11 or pre-fix successes toward corrected-input qualification.
+**Session result:** reviewed smoke 13 (222.031 s), completed and reviewed smoke
+14 (218.304 s), and passed `make check` (1,190 unit/contracts, 17 components,
+syntax and traceability) plus `git diff --check`. Review exports were deleted
+through the approved helper; raw evidence remains private. The final runner
+exited successfully with `lease_phase=complete`; no VM operation is pending.
 
-**Exact next action:** after the dispatcher runs isolated safety, execute two
-consecutive complete `integration check_graphical_smoke` attempts with unchanged
-source inputs. Export captures only through `onpc-export-screenshot`, privately
-review their GDM/selected/dismissed states, and delete exports through
-`tools/cleanup-screenshots`. Record digests and timings, then run `make check`
-and `git diff --check`, mark 19P complete, and point continuation to Task 14.
-One of three corrected-input successes exists. This session passed the 28-test
-focused smoke suite; each of three live attempts passed 175 safety tests plus
-three subtests and completed cleanup. No authentication or operation is pending.
+**Next action:** resume [Task 14's authentication diagnosis](Task-14.md#continuation-handoff--2026-09-05-incomplete).
+First inspect the retained `authority-response` evidence and helper handling,
+add locally validated discriminating diagnostics, then use F1's selected case.
+Do not repeat 19P or launch an unchanged authentication attempt.
+**Next-session settings:** `gpt-6-astra` / `high`; model: raise; effort: raise
+relative to 19P's confirmed `gpt-5.6-luna` / `low` qualification settings.
+**Reason:** graphical feasibility is solved; Task 14 resumes an unresolved real
+Polkit authentication boundary requiring security reasoning. This keeps Task
+14's own model and effort recommendation. Confirm both next session.
 
 ## Task 19A
 

@@ -61,8 +61,8 @@ do not rerun merely to rediscover it. Task 14 remains unchecked.
 the difficult diagnosis remains. Confirm both at the start of the session.
 The authorized scope
 is this development host and the existing guarded `ubuntu26.04` VM. Follow the
-[current continuation](Continuation.md); F1 is now accepted, and 19P is next in
-the backlog before this authentication diagnosis resumes.
+[current continuation](Continuation.md); F1 and 19P are now accepted, and this
+authentication diagnosis is the next unfinished slice.
 
 **Known:** latest `/tmp/onpc-system-vbx_zcy6/evidence/guest/authorization.xml`
 records 213 passed and eight `agent:unexpected-denied` failures in 91.459 s.

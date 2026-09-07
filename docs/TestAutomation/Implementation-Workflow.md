@@ -88,6 +88,12 @@ prompt. Do not read old transcripts to recover a model approval.
   changes. Do not spend the wait repeatedly reconsidering unchanged evidence
   or loading the next unrelated problem. Use scripts to summarize routine
   results so a model is needed for a new finding, not every log line.
+- Preserve the full command result, including its session ID and exit status.
+  A yielded command is still running; poll that session until it exits. Missing
+  `result.json`, a busy lease, or an off VM during preparation/shutdown does not
+  establish interruption. Before diagnosing recovery or launching another run,
+  reconcile the original command's completion and retained result. If its handle
+  was lost, inspect that attempt's evidence without assuming it failed.
 - A clean handoff means commands have finished, evidence is retained, and the
   guarded runner has completed cleanup. If interrupted, record the exact owned
   running command/session and recovery state; reconnect to that operation,

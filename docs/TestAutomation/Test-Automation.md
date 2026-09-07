@@ -178,7 +178,7 @@ coverage remains unchanged; these milestones are partial implementation results,
 not release passes. Use measured slice/attempt times to forecast remaining work.
 
 - [x] [Task F1 — Focused installed diagnosis, moved forward from Tasks 28/27](Task-F1.md)
-- [ ] [Task 19P — Prove graphical backend compatibility](Task-19.md#task-19p)
+- [x] [Task 19P — Prove graphical backend compatibility](Task-19.md#task-19p)
 - [ ] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md)
 - [ ] [Task 19A — Add the guarded os-autoinst worker and console transport](Task-19.md#task-19a)
 - [ ] [Task 19B — Add stable screen matching and graphical smoke](Task-19.md#task-19b)

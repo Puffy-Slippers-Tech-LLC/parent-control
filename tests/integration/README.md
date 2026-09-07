@@ -35,9 +35,13 @@ After the isolated `test_system_runner_cleanup_safety.py` prerequisites, run
 package/API/dependency check. It requires neither root nor VM access and reports
 tooling readiness only. `setup.sh` includes the Perl dependency missing from
 the backend package's dependency declaration. The
-[19P handoff](../../docs/TestAutomation/Task-19.md#active-handoff--2026-09-06-19p-incomplete)
-owns the still-unfinished lease adapter and live smoke; preflight success is
-not graphical compatibility or customer E2E evidence.
+[19P completion handoff](../../docs/TestAutomation/Task-19.md#completion-handoff--2026-09-06-19p-accepted)
+records the qualified lease adapter and live smoke. Run its credential-free
+feasibility check with
+`pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_smoke`;
+the dispatcher supplies isolated cleanup/lease prerequisites. This establishes
+graphical compatibility, while the full E2E runner and customer coverage remain
+under development. Preflight alone establishes only tooling readiness.
 
 ## Package and fixture inputs
 

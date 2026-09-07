@@ -1,7 +1,7 @@
 ### Task 20 — Automate clean installation, reboot, and startup readiness
 
-Follow [E2E-Coverage.md](E2E-Coverage.md). Enumerate the assigned installation
-and startup-failure variants before implementing them; real customer steps
+Follow [E2E-Coverage.md](E2E-Coverage.md). Audit the existing E2E-002 and assigned
+E2E-028 variants before implementing gaps; real customer steps
 and declared OS fault controls must have distinct categories and evidence.
 
 ## Implementation slices
@@ -43,7 +43,9 @@ Verification below is task acceptance; edits use the smallest affected selection
   6. Prove a broker startup reconciliation failure prevents broker readiness and
      a fapolicyd readiness failure prevents managed graphical login startup.
   7. Collect all startup evidence and update installation/startup requirement
-     mappings.
+     mappings. Resolve E2E-002's existing `requirement_gap` against the normative
+     lifecycle contract before readiness; keep broker and fapolicyd startup
+     failures independently asserted even where they share scenario helpers.
 - Verification:
   - Run runner cleanup-safety regressions in isolation before live scenarios.
   - Run every clean-install/startup-failure variant once as a complete attempt.

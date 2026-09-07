@@ -4,7 +4,7 @@ Execute 21A and 21B separately. Use Task 19's public graphical helpers and
 versioned guest assertions from the installed-system tasks.
 
 Follow [E2E-Coverage.md](E2E-Coverage.md), expanding the assigned scenario
-families and dimensions before implementation. Configure through Parent's real
+families only after auditing existing entries and dimensions. Configure through Parent's real
 UI; backend fixtures are installed application inputs or read-only assertions,
 never injected preferences, grants, or authentication. Each scenario is a
 continuous attempt on the existing VM, without intermediate resets.
@@ -19,6 +19,13 @@ Verification below is task acceptance; edits use the smallest affected selection
 | --- | --- |
 | 21A | One real Parent discovery/access journey; then batch compatible navigation and validation steps. |
 | 21B | First prove one real kiosk approval and one Parent save with other-user evidence; then extend the shared helpers to transaction variants. |
+
+Before 21A acceptance, resolve the [E2E-005 ownership split](Reuse-Map.md#resolve-before-the-affected-batch):
+its pending variants currently belong to 21A but require 21B's complete
+transaction journey. Preserve all actions/assertions and stable IDs when
+correcting the declarations. Complete E2E-030/031's normative requirement links
+within 21A; E2E-032/033 delivery and transport-retry acceptance belongs to 26C.
+Share helpers and reference canonical cases, without counting partial journeys.
 
 ## Task 21A
 

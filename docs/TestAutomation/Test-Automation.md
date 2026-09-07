@@ -13,9 +13,10 @@ installed-system runner. Their regression tests remain required. Completed
 Tasks 01–13 and historical qualification records have been removed from this
 active plan; reuse the implemented interfaces rather than repeating setup.
 
-Start with the [implementation workflow](Implementation-Workflow.md): one
-bounded problem, focused experiments, small reading scope, and a fresh chat
-after a solved problem. It replaces automatic ten-minute session endings.
+Use the [implementation workflow](Implementation-Workflow.md): quality first,
+one bounded problem, focused experiments and a durable handoff. The
+[reuse map](Reuse-Map.md) routes every remaining task to shared work and records
+cross-task gaps found in the documentation review. Read only the selected row.
 
 The [current continuation](Continuation.md) points to the next session's task
 and handoff. The reordered backlog brings [F1](Task-F1.md)'s focused diagnosis
@@ -35,69 +36,14 @@ docs/Test-Automation.md” requests a test run; it does not advance this backlog
 
 ## Implementing one task
 
-1. Read `AGENTS.md`, [Continuation.md](Continuation.md), this selection procedure,
-   the selected task's header/active handoff, and the relevant
-   [workflow](Implementation-Workflow.md) rules. Keep this initial routing read
-   small; do not investigate code or run tests before model confirmation.
-   After confirmation, consult the [system design](../System-Design.md) when
-   understanding architecture, then only the owning module and relevant
-   specification IDs. Read changed files and the unresolved question, not every
-   design/task document or archived investigation.
-2. Resume the continuation's unfinished task when its dependencies are met.
-   Otherwise select the first ready unchecked item below. The checklist owns
-   completion; the continuation is a pointer, not another checklist. If it is
-   absent or stale, reconcile against the checklist and the selected task's
-   latest handoff/current files, without replaying completed work. A recorded
-   external/design blocker stays unchecked and blocks dependent acceptance;
-   independent ready work may proceed. If nothing is ready, report the concrete
-   blocker and save the continuation. If all items are complete, record completion
-   and tell the user the roadmap is finished; do not restart it or rerun suites.
-3. State the selected task, one next observable result, planned slice budget,
-   and the latest applicable handoff's recommended model and reasoning effort,
-   including its reason. That recommendation takes precedence over the task
-   header's initial defaults; [reassess it](Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff)
-   if intervening changes alter the remaining work. Ask the user to confirm both settings
-   and wait for an explicit “Go ahead” before implementation. **Ask at every new
-   session, even for the same task and previously selected settings**, as requested
-   by the user's [session loop](../Test-Automation.md#continue-implementation-in-fresh-sessions).
-   A previous session's confirmation is historical context. Once confirmed in
-   this session, proceed without asking again unless recommending a setting
-   change. Mention this documented user preference as the reason for the pause.
-   The standard prompt confirms this is the development/host machine; retain
-   the recorded VM scope without another machine-selection question.
-4. Execute one bounded slice of that task using the workflow's experiment
-   budget. Prove the helper's basic success/failure before expanding variants.
-   Batch routine cases that reuse it; hand off before an unrelated next problem.
-   Preserve concurrent changes. Honor the authorized execution location; resolve any genuine
-   machine ambiguity before VM mutation. Do not install the product on the
-   development host or recreate the accepted environment.
-5. Use focused checks during iteration and the task's full assigned scope for
-   acceptance, following [verification scope](Implementation-Workflow.md#verify-at-the-right-scope).
-   Run `make check` and `git diff --check` once after the final code change in a
-   stable batch; context resets alone do not invalidate tests. Always run the
-   applicable safety prerequisites before protected operations. Documentation
-   reviews use links/reference/consistency checks and `git diff --check`, with
-   no product tests, VM operations or model-selection pause.
-6. Mark its single checklist entry complete only when deliverables and
-   verification pass. Record a concise result and evidence reference in that
-   task's document and update reusable contracts in the test guides.
-   Missing work stays unchecked; never lower assertions to claim completion.
-7. Save a 200–400-word [handoff](Implementation-Workflow.md#handoff-format-and-cost-review)
-   at a solved problem boundary or context/budget review. Preserve the current
-   hypothesis and attempts spent if unfinished. Complete owned operation cleanup
-   before a fresh chat; do not restart a useful VM attempt to meet a timer.
-   Reevaluate both model and effort for the next slice: lower, raise or keep
-   each as its remaining difficulty warrants, with a short reason. Update the
-   task handoff first, then mirror the recommendation and reason in
-   [Continuation.md](Continuation.md). Point
-   to the same task if unfinished and ready, or the next ready task if complete
-   or blocked. Give an unstarted next task a concrete first slice. End the turn
-   by saying the user can end this session and reuse the standard prompt.
-   Do not automatically start the next slice or task in this session.
-8. Remove obsolete one-time instructions after retaining reusable contracts and
-   required evidence references. Do not make every continuation reread them.
+Follow the [session procedure](Implementation-Workflow.md#start-with-one-bounded-result)
+and its verification/handoff rules; they are maintained there once. Use the
+checklist below for completion and each task's dependencies, deliverables and
+acceptance criteria for scope. A completed slice alone never checks off a task.
 
 An explicit documentation review may inspect and revise every relevant task.
+It requires links/reference/consistency checks and `git diff --check`, with no
+product tests, VM operations or implementation model-selection pause.
 Remove obsolete completed work only after retaining contracts or unresolved
 handoffs still needed by future tasks. Do not delete tests, source logs, saved
 evidence or the VM baseline as documentation cleanup.
@@ -150,7 +96,7 @@ layers and executable evidence. Preserve IDs when wording is clarified and add
 one for a new normative obligation, including a nested obligation. Existing
 file references are structural checks, not proof that assertions ran.
 
-Use `python3 tools/verify_test_traceability.py --mode stage` after specification
+Use `tools/run-tests traceability stage` after specification
 or mapping changes; ordinary `make check` retains stage mode. Only mark actual
 runtime coverage `covered`. Source contracts support architecture checks but
 cannot replace runtime acceptance.

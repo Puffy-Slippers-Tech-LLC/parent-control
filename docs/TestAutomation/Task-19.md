@@ -78,6 +78,9 @@ handoff's settings for the next slice.
 
 ## Task 19A
 
+The work list defines full acceptance. Resume the [active handoff](#task-19a-continuation--2026-09-07)
+for the remaining boundary; do not rebuild already implemented interfaces.
+
 - Title: Add the guarded os-autoinst worker and console transport.
 - Depends on: Task 19P and F1; the preferred schedule follows Task 14.
 - Complexity: very high. Guest ownership, storage, secrets, console transport,
@@ -89,7 +92,7 @@ handoff's settings for the next slice.
      Revalidate the compatibility decision only if the backend, environment or
      ownership contract changed. The guarded lease remains lifecycle owner;
      no second guest, new overlays/checkpoints or private APIs are permitted.
-  2. Add `tests/e2e`, its distribution/entry point, public console definitions,
+  2. Complete the existing `tests/e2e` distribution/entry point, public console definitions,
      configuration templates, read-only guest assertion scripts, and launcher
      for the verified backend. Pin required maintained tooling through
      `setup.sh` and the test-tool list. Never use a root-password shortcut or
@@ -111,12 +114,12 @@ handoff's settings for the next slice.
   7. Prove one fresh guest boots, executes a harmless serial command, returns
      evidence, and shuts down. Document console, secret, asset, and helper
      contracts for 19B and later scenarios.
-  8. Establish `tests/e2e/scenarios.json` from E2E-Coverage.md with stable scenario
+  8. Reuse the established `tests/e2e/scenarios.json` and validate its stable scenario
      and variant IDs, category, owner, requirement links, preconditions, ordered
      steps, interventions, assertions, executable references, and expected
-     evidence. Future cases remain explicitly pending. Enumerate the coverage
-     dimensions before implementing them, using its bounded-matrix rules.
-     Establish the minimum versioned evidence fields and safe collector now;
+     evidence against E2E-Coverage.md. Future cases remain explicitly pending.
+     Audit assigned dimensions before implementing gaps, using its bounded-matrix
+     rules. Integrate the existing versioned evidence fields and safe collector;
      Task 27 extends them instead of requiring a rewrite of every scenario.
      Future pending entries do not block runner acceptance, but remain required
      for their owning tasks and the final gate.
@@ -135,14 +138,12 @@ handoff's settings for the next slice.
 
 ### Task 19A continuation — 2026-09-07
 
-**Completed boundary:** live credential-free qualification now captures
-`VerifiedInputs` after preparation, forwards its source map, and persists real
-observed stages before permitting subsequent guest actions. `Lease.__exit__`
-restores once, invokes its finalizer while held, then releases. Finalization
-checks provenance, host preservation and private reports. One guarded smoke
-passed in **569.891 seconds**, with all four observations and 12 durable ordered
-checkpoints. Worker, host/source preservation and baseline cleanup passed.
-This is solid implementation progress; all 156 scenario variants remain pending.
+**Completed boundary:** credential-free live qualification captures
+`VerifiedInputs`, forwards its source map and persists observed stages before
+the next action. Cleanup runs once; finalization checks provenance, host
+preservation and private reports before lease release. One guarded smoke passed
+in **569.891 seconds**, with four observations and 12 durable checkpoints.
+All 156 scenario variants remain pending.
 
 **Next result:** connect verified asset staging/transfer to the guarded E2E
 transport. Reuse `stage_assets`, private staging permissions, `VerifiedInputs`
@@ -159,18 +160,25 @@ console execution and final 19A acceptance remain subsequent boundaries.
 and `Lease.finalize`. The original recorder/provenance unit evidence remains
 applicable. No backend/baseline/Task 14 investigation is needed.
 
-**Verification:** 27 new regression cases; 277 focused tests passed. The live
-dispatcher passed 276 isolated safety tests plus three subtests. `make check`
-passed 2,073 unit/contracts and 17 components. A post-smoke source-preservation
-failure-flag correction is host-tested only (24 smoke safety tests); success-path
-live evidence is retained with its original digest. No failed VM attempt or
-unresolved test failure remains. Repeated proof reads dominate runtime; about
-140 seconds of finalization is outside the current named timing buckets.
+**Next reads/check:** `system_runner.stage_assets`/`bootstrap`,
+`vm_transport.Transport`, `provenance.VerifiedInputs`, and
+`check_graphical_smoke.Qualification`. Start local transfer/refusal verification
+with `tools/run-unit-tests tests/unit/test_e2e_provenance.py tests/unit/test_system_runner_cleanup_safety.py -q`,
+extending the selection for new transfer tests. No package-bearing artifact is
+nominated: verify/build current inputs through the approved artifact category.
+
+**Verification:** [exact commands, counts and digests](Evidence/19A-Live-Finalization-20260907.md)
+retain the 277 focused tests, `make check` and isolated live safety results.
+The final failure-flag correction is host-tested only. One successful live
+attempt; zero failed attempts on this boundary; no transfer attempt yet.
+Source/transport/lease changes require affected revalidation; a fresh chat alone
+does not. Repeated proof reads and about 140 seconds of unbucketed finalization
+are a timing lead for 27C/28A, not permission to weaken checks.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** live lifecycle ordering is now proven, so no model increase is
-needed; asset integrity across provisioning/observation boundaries still needs
-high effort. Estimate remaining 19A: **3–4 sessions / 1.5–3 hours**, provisional
+**Reason:** live lifecycle is proven; provisioning/observation separation and
+asset integrity still need high effort. Estimate remaining 19A:
+**3–4 sessions / 1.5–3 hours**, provisional
 on secret/console findings. This slice took about 25 minutes, including its
 9.5-minute VM attempt; the next session should deliver transfer evidence.
 

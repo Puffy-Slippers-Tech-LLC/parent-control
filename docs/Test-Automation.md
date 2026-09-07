@@ -7,37 +7,27 @@ For the remaining implementation, repeat this exact prompt in each new session:
 
 ## Continue implementation in fresh sessions
 
-1. The agent reads [the current continuation](TestAutomation/Continuation.md),
-   follows its active handoff, and selects one bounded slice under the
-   [implementation backlog](TestAutomation/Test-Automation.md#implementing-one-task).
-   This prompt requests implementation; it does not request a daily test run.
-2. The agent states the task, next result, recommended model and reasoning
-   effort **from the latest handoff**, then asks you to confirm that both settings
-   are selected. The task's original recommendation is only a starting default.
-   This happens **at every new session**, including continuations of the same task. Select the
-   settings and reply **“Go ahead.”** The agent cannot change them itself.
-3. The agent implements and verifies that slice, normally planned for 15–30
-   minutes. Ten minutes is a progress review. At a solved boundary, or after the
-   30-minute/context review and completion of the current bounded operation,
-   it writes the handoff and ends the session. It may finish a running test and
-   cleanup beyond the estimate, explaining the overrun; it must not start a
-   succession of new problems in the same session.
-4. The agent updates the task's compact handoff and the continuation record,
-   **reevaluating both model and effort for the next unfinished slice**. It must
-   recommend a cheaper model/lower effort when the remaining work permits it,
-   or a stronger model/higher effort when the remaining difficulty requires it,
-   and briefly explain the choice even when keeping the same settings. It
-   preserves applicable evidence and tells you that you can end the session.
-   Start a **new session** with the same prompt. You do not need to find a task
-   number or copy the previous conversation. Repeat until the backlog is complete.
+1. Follow [Continuation.md](TestAutomation/Continuation.md) to the active task
+   and its next bounded result. The [workflow](TestAutomation/Implementation-Workflow.md#start-with-one-bounded-result)
+   owns task selection, execution, verification and handoff rules.
+2. At each new implementation session, including the same task, confirm the
+   model and reasoning effort recommended by the **latest handoff** and reply
+   **“Go ahead.”** The agent states the reason and cannot switch settings itself.
+3. Implement and verify one coherent slice, normally planned for 15–30 minutes.
+   Finish the current operation and safe cleanup before handing off. The agent
+   saves the next action, reusable evidence and reassessed settings, then tells
+   you that you can end the session. Start a new session with the same prompt.
 
-The prompt establishes that this is the development/host machine. Installed
-tests use the existing guarded test VM; preserve that recorded scope without
-asking you to identify the machine again. Each start reads the unfinished
-question and relevant changes, without loading solved investigations or
-repeating checks solely because the session is new. The
-[implementation workflow](TestAutomation/Implementation-Workflow.md) defines
-reading limits, experiment budgets, safe cleanup and handoff contents.
+**Quality takes absolute precedence over token, cost and time savings.** Reduce
+repeated context and rediscovery first; lower model/effort only when the next
+slice's quality can be preserved. Budgets trigger review, never weaker checks.
+The [reuse map](TestAutomation/Reuse-Map.md) identifies opportunities across all
+remaining tasks; consult only the relevant row during implementation.
+
+The prompt establishes development/host scope and the existing guarded test VM.
+Preserve that authorization and the compact handoff across sessions; no machine
+selection, old transcript, completed investigation or repeated test is needed
+merely because the chat is new.
 
 An explicit request to run tests uses the commands below. A documentation
 review edits the relevant guides. Neither starts implementation or requires

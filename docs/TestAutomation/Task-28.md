@@ -146,7 +146,7 @@ Verification below is task acceptance; edits use the smallest affected selection
      their root causes before accepting the release.
 - Verification:
   - Run cleanup-safety regressions in isolation before integrated release tests.
-  - Run `python3 tools/verify_test_traceability.py --mode final`.
+  - Run `tools/run-tests traceability final`.
   - Run the full release command and confirm zero skipped, expected-failing,
     missing, flaky, or failed required tests, scenarios, variants, and
     requirements, with complete cleanup and valid current-run evidence.

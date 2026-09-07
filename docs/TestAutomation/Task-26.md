@@ -135,6 +135,13 @@ Verification below is task acceptance; edits use the smallest affected selection
      package/source identity, session/boot continuity, and evidence locations.
      Record actual durations and any remaining gap; required gaps must be
      resolved before this task completes and before final release acceptance.
+  7. Complete the already registered E2E-032/033 real feedback delivery and
+     declared transport-failure/retry cases. Resolve their normative requirement
+     gaps and required service profile before readiness; use the supported
+     service, dedicated test recipient and explicit delivery authorization.
+     Reuse 21A's draft/attachment helpers. Missing authorization or service
+     prerequisites remain a blocker for these cases, not permission to send
+     routine feedback or substitute fake transport evidence.
 - Verification:
   - Run cleanup-safety regressions in isolation before integrated operations.
   - Run every newly completed canonical journey/variant once, including both

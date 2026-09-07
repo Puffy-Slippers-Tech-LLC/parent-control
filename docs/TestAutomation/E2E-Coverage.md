@@ -3,7 +3,7 @@
 This is a required planning and acceptance contract for unfinished automation
 tasks. It describes future work; an entry below is not evidence that a test has
 been implemented or passed. The [master plan](Test-Automation.md) owns task
-order and the public command interface.
+order; the [daily guide](../Test-Automation.md) owns the public command interface.
 
 ## Customer journeys must exercise the real machine
 
@@ -97,8 +97,9 @@ transport results as delivery evidence. The inventory must state the tested
 service boundary and required profile; missing prerequisites for a required
 delivery case block its acceptance rather than silently substituting a mock.
 
-Task 19A establishes `tests/e2e/scenarios.json` as the executable scenario
-inventory. Each later E2E task expands and implements its assigned entries.
+Task 19A has established `tests/e2e/scenarios.json` as the executable scenario
+inventory. Each later E2E task audits and implements its assigned entries,
+expanding only missing obligations rather than reconstructing the inventory.
 The [inventory validator and selection interface](../../tests/e2e/README.md)
 now enumerate the starting cases, all explicitly pending. E2E-030–033 also
 record About/license, feedback draft/review, authorized delivery and declared
@@ -194,6 +195,14 @@ exercised sequentially in one declared journey; different initial states and
 interacting transactions still need explicit variants. Reuse code, not stale
 evidence or hidden product-state setup. The full gate executes each required
 canonical case once and validates all its requirement links.
+
+Before accepting a task, reconcile family-level related owners with the actual
+variant owners and required helper dependencies. If a complete pending journey
+belongs to a later transaction task, explicitly correct its ownership and links
+without dropping actions, assertions or IDs. Do not create a dependency cycle,
+duplicate the journey for each task, or mark its early screens as a complete pass.
+The [reuse review](Reuse-Map.md#resolve-before-the-affected-batch) records the
+current E2E-005 split and requirement/prerequisite gaps to resolve.
 
 A test count or blanket coverage percentage is not a completeness argument.
 Missing required combinations remain pending and block final acceptance. Date, midnight,

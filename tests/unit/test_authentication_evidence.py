@@ -49,6 +49,37 @@ def test_junit_redaction_handles_escaped_values_without_breaking_xml(monkeypatch
     assert failure.tail == '[Test user] token=<redacted>'
 
 
+def test_deleted_identity_is_redacted_from_text_and_junit(monkeypatch, tmp_path):
+    import pwd
+    account = SimpleNamespace(pw_uid=1234, pw_name='deleted-fixture',
+                              pw_gecos='Deleted <Person>', pw_dir='/home/deleted-fixture')
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    monkeypatch.setattr(guest, 'guard', lambda: {})
+    monkeypatch.setattr(pwd, 'getpwuid', lambda uid: account)
+    guest.retain_identity_for_redaction(account.pw_uid)
+    saved = list((tmp_path / 'private/redaction-identities').glob('*.json'))
+    assert len(saved) == 1 and saved[0].stat().st_mode & 0o777 == 0o600
+    # The collector runs later in another process, after NSS no longer has it.
+    diagnostics = tmp_path / 'private/stage-sample'
+    diagnostics.mkdir()
+    contents = 'deleted-fixture Deleted <Person> /home/deleted-fixture'
+    (diagnostics / 'stderr.txt').write_text(contents)
+    results = tmp_path / 'results'
+    results.mkdir()
+    root = ET.Element('testsuite')
+    case = ET.SubElement(root, 'testcase', name='test_deleted_account')
+    ET.SubElement(case, 'failure', message=contents).text = contents
+    ET.ElementTree(root).write(results / 'authorization.xml', encoding='utf-8')
+    collect_local(monkeypatch, tmp_path, tmp_path)
+    assert (results / 'stage-sample-stderr.txt').read_text() == '[Test user] ' * 2 + '[Test user]'
+    failure = ET.parse(results / 'authorization.xml').find('testcase/failure')
+    assert failure.text == failure.get('message') == '[Test user] ' * 2 + '[Test user]'
+    assert {path.name for path in results.iterdir()} == {
+        'authorization.xml', 'stage-sample-stderr.txt', 'service-journal.txt',
+        'authentication-journal.txt', 'result.json',
+    }
+
+
 def test_authentication_attempts_survive_failed_pytest_and_public_export(monkeypatch, tmp_path):
     payload = tmp_path / 'payload'
     results = payload / 'results'

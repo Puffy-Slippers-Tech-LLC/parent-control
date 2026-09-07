@@ -250,7 +250,9 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         for item in PHASE_PREREQUISITES[phase]:
             if item not in prerequisites:
                 prerequisites.append(item)
-    if test and (test.startswith('test_authenticated_request_revalidates_live_state[') or
+    if test and (test in ('test_authenticated_request_rejects_deleted_target',
+                         'test_requester_disconnect_during_approval') or
+                 test.startswith('test_authenticated_request_revalidates_live_state[') or
                  test.startswith('test_real_selected_parent_authentication[')):
         prerequisites.append('fixture-passwords')
     available = {name: inventories[name] for name in chosen_areas}

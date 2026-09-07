@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 import pwd
+import re
+import time
 
 import pytest
 
@@ -198,6 +200,169 @@ def account_state(uid):
           for prop in ('LimitType', 'DailyLimit', 'ActiveExtension')),
         account_property(uid, 'com.endlessm.ParentalControls.AppFilter', 'AppFilter'),
     )
+
+
+def disposable_identity_name(role, surface=None):
+    guest.require(role in ('target', 'approver') and surface in (None, 'child', 'kiosk'),
+                  'authorization:deletion-fixture-scope')
+    return 'onpc-auth-delete-' + (surface + '-' if surface else '') + role
+
+
+def create_disposable_identity(role, record_testsuite_property, *, surface=None):
+    """Only the guarded guest creates these; baseline restoration owns cleanup."""
+    guest.guard()
+    name = disposable_identity_name(role, surface)
+    try:
+        pwd.getpwnam(name)
+    except KeyError:
+        pass
+    else:
+        raise guest.GuestError('authorization:deletion-fixture-collision')
+    # Establish eligibility through the authority the broker consults, without
+    # racing the asynchronous local-user reload following a direct useradd.
+    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+               '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
+               'CreateUser', 'ssi', name, '', '1' if role == 'approver' else '0'])
+    uid = pwd.getpwnam(name).pw_uid
+    observed = {prop: account_property(uid, 'org.freedesktop.Accounts.User', prop)
+                for prop in ('AccountType', 'LocalAccount', 'SystemAccount')}
+    record_testsuite_property('onpc.deletion-fixture', json.dumps(
+        {'role': role, 'surface': surface, **observed}, sort_keys=True))
+    guest.require(observed == {'AccountType': int(role == 'approver'),
+                               'LocalAccount': True, 'SystemAccount': False},
+                  'authorization:deletion-fixture-eligibility:' + role)
+    return uid
+
+
+@pytest.fixture
+def disposable_identities(accounts, record_testsuite_property):
+    # Create both before deleting either, so this slice cannot reuse a deleted UID.
+    values = {role: create_disposable_identity(role, record_testsuite_property)
+              for role in ('target', 'approver')}
+    FixturePassword().install(values['approver'])
+    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+               f"/org/freedesktop/Accounts/User{values['approver']}",
+               'org.freedesktop.Accounts.User', 'SetLocked', 'b', 'false'])
+    guest.require(account_property(values['approver'], 'org.freedesktop.Accounts.User',
+                                   'Locked') is False,
+                  'authorization:deletion-fixture-approver-locked')
+    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)',
+                  (values['target'], False, 60)))
+    return values
+
+
+def delete_disposable_identity(uid, role, *, surface=None):
+    """Observe deletion in both identity authorities before testing the broker."""
+    guest.guard()
+    name = disposable_identity_name(role, surface)
+    guest.require(pwd.getpwnam(name).pw_uid == uid,
+                  'authorization:deletion-identity-mismatch')
+    guest.retain_identity_for_redaction(uid)
+    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+               '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
+               'DeleteUser', 'xb', str(uid), 'false'])
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            pwd.getpwuid(uid)
+        except KeyError:
+            absent = True
+        else:
+            absent = False
+        # A missing UID must not resolve even if AccountsService cached it earlier.
+        guest.commands.run([
+            'busctl', '--system', 'call', 'org.freedesktop.Accounts',
+            '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
+            'FindUserById', 'x', str(uid)], check=False, merge_stderr=False)
+        if absent and guest.commands.last_returncode != 0:
+            break
+        guest.require(time.monotonic() < deadline, 'authorization:deletion-not-visible')
+        time.sleep(0.1)
+    # Distinguish disappearance from an unavailable AccountsService daemon.
+    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+               '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
+               'FindUserById', 'x', '0'])
+    print(f'onpc-system: stage=account-deletion role={role} outcome=visible', flush=True)
+
+
+def test_deleted_target_and_approver_fail_closed(accounts, disposable_identities,
+                                               record_testsuite_property):
+    """Stale selections fail on existing bus connections and preserve survivors."""
+    target, approver = (disposable_identities[key] for key in ('target', 'approver'))
+    parent = accounts['parent1']
+    original = accepted(call(parent, 'GetPreferences', '(u)', (accounts['child1'],)))[0]
+    accepted(call(parent, 'SetParentControl', '(ubu)', (accounts['child1'], True, 0)))
+    try:
+        with PersistentCaller(parent) as manager, PersistentCaller(accounts['kiosk']) as kiosk:
+            callers = (manager, kiosk)
+
+            def discovery():
+                return tuple((
+                    {row[0] for row in accepted(caller.call('ListManagedUsers'))[0]},
+                    {row[0] for row in accepted(caller.call('ListApprovers'))[0]},
+                ) for caller in callers)
+
+            initial = discovery()
+            guest.require(all(target in children and approver in parents
+                              for children, parents in initial),
+                          'authorization:deletion-fixtures-not-discovered')
+            # Seed a real remembered selection before its administrator disappears.
+            accepted(call(parent, 'UpdateRequestPreferences', '(usdbu)',
+                          (accounts['child1'], '300', 5.0, False, approver)))
+            saved_target = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
+            before = {key: account_state(accounts[key]) for key in ROLES}
+            approver_before = account_state(approver)
+            record = Path('/var/lib/oh-no-parent-control/preferences') / f'{target}.json'
+            delete_disposable_identity(target, 'target')
+            record_testsuite_property('onpc.account-deletion', 'target:visible-in-nss-and-accountsservice')
+            # Account removal may itself clean product state. Requests must not
+            # recreate or change whatever state remains after that operation.
+            deleted_record = record.read_bytes() if record.exists() else None
+            guest.require(discovery() == tuple((children - {target}, parents)
+                                              for children, parents in initial),
+                          'authorization:deleted-target-discovery')
+            specs = (
+                ('GetPreferences', '(u)', (target,)),
+                ('ListApplications', '(u)', (target,)),
+                ('GetTimeStatus', '(uu)', (target, 0)),
+                ('CalculateRemainingTime', '(uuuu)', (target, 10, 0, 5)),
+                ('UpdateRequestPreferences', '(usdbu)', (target, '300', 5.0, False, approver)),
+                ('SetRequestMuted', '(usb)', (target, 'kiosk', True)),
+                ('SetPreferences', '(us)', (target, saved_target)),
+                ('SetParentControl', '(ubu)', (target, False, 60)),
+                ('RevokeOneTimeGrant', '(u)', (target,)),
+            )
+            for method, signature, args in specs:
+                reply = manager.call(method, signature, args)
+                guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
+                              'authorization:deleted-target:' + method)
+            reply = kiosk.call('RequestAccess', '(uuub)', (target, approver, 300, False))
+            guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
+                          'authorization:deleted-target-request')
+            guest.require(account_state(approver) == approver_before,
+                          'authorization:deleted-target-approver-write')
+            delete_disposable_identity(approver, 'approver')
+            record_testsuite_property('onpc.account-deletion', 'approver:visible-in-nss-and-accountsservice')
+            guest.require(discovery() == tuple((children - {target}, parents - {approver})
+                                              for children, parents in initial),
+                          'authorization:deleted-approver-discovery')
+            for surface in ('child1', 'kiosk'):
+                reply = (call(accounts['child1'], 'RequestOwnAccess', '(uub)',
+                              (approver, 300, False)) if surface == 'child1' else
+                         kiosk.call('RequestAccess', '(uuub)',
+                                    (accounts['child1'], approver, 300, False)))
+                guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
+                              'authorization:deleted-approver-request:' + surface)
+            guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                          'authorization:deleted-identity-survivor-write')
+            guest.require((record.read_bytes() if record.exists() else None) == deleted_record,
+                          'authorization:deleted-target-record-write')
+            record_testsuite_property('onpc.deleted-identity-requests', 'denied-state-preserved')
+            print('onpc-system: stage=deleted-identity-requests outcome=denied-state-preserved',
+                  flush=True)
+    finally:
+        accepted(call(parent, 'SetPreferences', '(us)', (accounts['child1'], original)))
+        accepted(call(parent, 'SetParentControl', '(ubu)', (accounts['child1'], False, 60)))
 
 
 def test_root_method_permissions_and_approver_exclusion(accounts):
@@ -401,6 +566,204 @@ def authentication_diagnostics(request, record_testsuite_property):
         }, sort_keys=True))
 
     return record
+
+
+def test_requester_disconnect_during_approval(accounts, passwords,
+                                            authentication_diagnostics,
+                                            record_testsuite_property):
+    """Requester exit denies approval; a fresh connection can still authenticate."""
+    target = accounts['child1']
+    selected, other = accounts['parent1'], accounts['parent2']
+
+    def request_log_lines():
+        # Read only guest product logs. Raw lines remain private; public evidence
+        # contains fixed stages and the product's random request correlation ID.
+        return {line for path in Path('/var/log/oh-no-parent-control/broker').glob('*.log')
+                for line in path.read_text().splitlines() if 'request=' in line}
+
+    for surface in ('child', 'kiosk'):
+        accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))
+        granted_at = None
+        try:
+            before = {key: account_state(accounts[key]) for key in ROLES}
+            caller_uid = target if surface == 'child' else accounts['kiosk']
+            with PersistentCaller(accounts['kiosk']) as observer, \
+                    PersistentCaller(caller_uid) as caller, TextAgent(
+                        caller, record_diagnostic=authentication_diagnostics) as agent:
+                # Invalid duration is checked after acquiring the transaction
+                # lock and before authentication or writes. This public method
+                # is therefore a side-effect-free Busy -> InvalidRequest probe.
+                def transaction_probe():
+                    return observer.call('RequestAccess', '(uuub)',
+                                         (target, selected, 1, False)).get('error')
+
+                previous_lines = request_log_lines()
+                operation = {
+                    'kind': 'call',
+                    'method': 'RequestOwnAccess' if surface == 'child' else 'RequestAccess',
+                    'signature': '(uub)' if surface == 'child' else '(uuub)',
+                    'args': (selected, 300, False) if surface == 'child' else
+                            (target, selected, 300, False),
+                }
+                caller.send(operation)
+                agent.prompt(selected, other)
+                started = [match.group(1) for line in request_log_lines() - previous_lines
+                           if (match := re.search(r'request=([0-9a-f-]{36}) .*kind=' +
+                                                  surface + r' stage=authorize$', line))]
+                guest.require(len(started) == 1, 'authorization:disconnect-request-correlation')
+                correlation = started[0]
+                guest.require(transaction_probe() == guest.BUS + '.Error.Busy',
+                              'authorization:disconnect-prompt-transaction-not-active')
+
+                caller.close()
+                deadline = time.monotonic() + 10
+                while True:
+                    owner = json.loads(guest.run([
+                        'busctl', '--system', '--json=short', 'call',
+                        'org.freedesktop.DBus', '/org/freedesktop/DBus',
+                        'org.freedesktop.DBus', 'NameHasOwner', 's', caller.name]))['data']
+                    if owner == [False]:
+                        break
+                    guest.require(owner == [True] and time.monotonic() < deadline,
+                                  'authorization:disconnect-bus-name-still-owned')
+                    time.sleep(0.05)
+                record_testsuite_property('onpc.requester-disconnect',
+                                          surface + ':bus-name-gone-before-authentication')
+                # The supported Polkit rejects authentication for the vanished
+                # subject. Require its real terminal denial, then independently
+                # establish broker completion and unchanged account state.
+                agent.authenticate(passwords['parent1'], succeeds=False)
+                # A failed terminal message alone does not finish the authority's
+                # outstanding call for a vanished subject. End this owned test
+                # agent's registration, then observe actual broker completion.
+                # Never infer completion from a fixed sleep or the caller's exit.
+                agent.close()
+                record_testsuite_property('onpc.requester-disconnect-agent',
+                                          surface + ':closed-after-terminal-denial')
+
+                deadline = time.monotonic() + 10
+                while True:
+                    result = transaction_probe()
+                    if result == guest.BUS + '.Error.InvalidRequest':
+                        break
+                    guest.require(result == guest.BUS + '.Error.Busy' and
+                                  time.monotonic() < deadline,
+                                  'authorization:disconnect-transaction-not-finished')
+                    time.sleep(0.05)
+                finished = request_log_lines() - previous_lines
+                guest.require(any(line.endswith('request=' + correlation + ' outcome=denied')
+                                  for line in finished),
+                              'authorization:disconnect-terminal-outcome-missing')
+                guest.require(not any('request=' + correlation + ' stage=' + stage in line
+                                      for line in finished for stage in (
+                                          'usage-query', 'limit-initialize', 'filter-write',
+                                          'blocked-app-termination', 'extension-write')),
+                              'authorization:disconnect-reached-write-pipeline')
+                guest.require(all(account_state(accounts[key]) == state
+                                  for key, state in before.items()),
+                              'authorization:disconnect-account-state-write')
+                record_testsuite_property('onpc.requester-disconnect-result', json.dumps({
+                    'surface': surface, 'request': correlation,
+                    'outcome': 'disconnected-denied-state-preserved',
+                    'transaction': 'busy-then-released',
+                }, sort_keys=True))
+                print(f'onpc-system: stage=requester-disconnect surface={surface} '
+                      'outcome=disconnected-denied-state-preserved', flush=True)
+
+            # Use the same UID, selected parent, password, and displayed request
+            # on a new bus connection. A real grant proves the denial above did
+            # not arise from invalid credentials or consume the repeat interval.
+            with PersistentCaller(caller_uid) as fresh, TextAgent(
+                    fresh, record_diagnostic=authentication_diagnostics) as agent:
+                fresh.send(operation)
+                agent.prompt(selected, other)
+                agent.authenticate(passwords['parent1'])
+                result = accepted(fresh.receive())
+                guest.require(result[1] == 'approved', 'authorization:disconnect-retry-not-approved')
+                granted_at = time.monotonic()
+                extension = account_property(target,
+                    'com.endlessm.ParentalControls.SessionLimits', 'ActiveExtension')
+                guest.require(extension[0] > 0 and extension[1] >= 300,
+                              'authorization:disconnect-retry-no-grant')
+                guest.require(all(account_state(accounts[key]) == state
+                                  for key, state in before.items() if key != 'child1'),
+                              'authorization:disconnect-retry-other-account-write')
+                record_testsuite_property('onpc.requester-disconnect-recovery',
+                                          surface + ':fresh-connection-authenticated-and-granted')
+                print(f'onpc-system: stage=requester-disconnect-recovery surface={surface} '
+                      'outcome=approved', flush=True)
+        finally:
+            accepted(call(other, 'RevokeOneTimeGrant', '(u)', (target,)))
+            accepted(call(other, 'SetParentControl', '(ubu)', (target, False, 60)))
+            if granted_at is not None:
+                # The successful control must not rate-limit a later registered
+                # case using the same child/kiosk UID. Let the real interval
+                # elapse; never reset broker state or alter product configuration.
+                interval = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())[
+                    'minimum_request_interval_seconds']
+                time.sleep(max(0, granted_at + interval - time.monotonic()))
+
+
+def test_authenticated_request_rejects_deleted_target(accounts, passwords,
+                                                      authentication_diagnostics,
+                                                      record_testsuite_property):
+    """Both real request surfaces reject deletion after successful authentication."""
+    # Allocate before either deletion, keeping each target's UID distinct even
+    # when the OS would otherwise reuse the most recently deleted account.
+    targets = {surface: create_disposable_identity(
+        'target', record_testsuite_property, surface=surface) for surface in ('child', 'kiosk')}
+    guest.require(len(set(targets.values())) == 2, 'authorization:deletion-target-isolation')
+    selected, other = accounts['parent1'], accounts['parent2']
+    for target in targets.values():
+        accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))
+
+    surviving_targets = set(targets.values())
+    for surface, target in targets.items():
+        caller_uid = target if surface == 'child' else accounts['kiosk']
+        with PersistentCaller(caller_uid) as caller, TextAgent(
+                caller, record_diagnostic=authentication_diagnostics) as agent:
+            caller.send({
+                'kind': 'call',
+                'method': 'RequestOwnAccess' if surface == 'child' else 'RequestAccess',
+                'signature': '(uub)' if surface == 'child' else '(uuub)',
+                'args': (selected, 300, False) if surface == 'child' else
+                        (target, selected, 300, False),
+            })
+            agent.prompt(selected, other)
+            delete_disposable_identity(target, 'target', surface=surface)
+            surviving_targets.remove(target)
+            record_testsuite_property('onpc.inflight-target-deletion',
+                                      surface + ':visible-before-authentication')
+            # Keep requester disconnect separate from deletion revalidation.
+            # The real bus still owns the same name and kernel caller UID.
+            def require_connected():
+                observed = json.loads(guest.run([
+                    'busctl', '--system', '--json=short', 'call',
+                    'org.freedesktop.DBus', '/org/freedesktop/DBus',
+                    'org.freedesktop.DBus', 'GetConnectionUnixUser', 's', caller.name]))['data']
+                guest.require(observed == [caller_uid], 'authorization:deleted-target-caller-lost')
+
+            require_connected()
+            survivor_uids = {accounts[role] for role in ROLES} | surviving_targets
+            before = {uid: account_state(uid) for uid in survivor_uids}
+            record = Path('/var/lib/oh-no-parent-control/preferences') / f'{target}.json'
+            deleted_record = record.read_bytes() if record.exists() else None
+            agent.authenticate(passwords['parent1'])
+            reply = caller.receive()
+            guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
+                          'authorization:authenticated-deleted-target:' + surface)
+            require_connected()
+            guest.require(all(account_state(uid) == state for uid, state in before.items()),
+                          'authorization:authenticated-deleted-target-survivor-write:' + surface)
+            guest.require((record.read_bytes() if record.exists() else None) == deleted_record,
+                          'authorization:authenticated-deleted-target-record-write:' + surface)
+            guest.require(target not in {row[0] for row in accepted(
+                call(other, 'ListManagedUsers'))[0]},
+                'authorization:authenticated-deleted-target-reappeared:' + surface)
+            record_testsuite_property('onpc.inflight-target-result',
+                                      surface + ':authenticated-invalid-request-state-preserved')
+            print(f'onpc-system: stage=inflight-target-deletion surface={surface} '
+                  'outcome=authenticated-denied-state-preserved', flush=True)
 
 
 @pytest.mark.parametrize('surface', ('child1', 'kiosk'))

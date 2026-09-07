@@ -127,9 +127,26 @@ def test_agent_drops_all_credentials_before_exec_and_fails_closed(monkeypatch, c
 
 
 @pytest.mark.parametrize('target', ['../secret', True, -1, 0])
-def test_private_read_cannot_select_arbitrary_paths(target):
+@pytest.mark.parametrize('kind', ('private-read', 'private-write'))
+def test_private_access_cannot_select_arbitrary_paths(target, kind):
     with pytest.raises(caller.guest.GuestError, match='caller:target'):
-        caller.execute(None, {'kind': 'private-read', 'target': target}, None, None)
+        caller.execute(None, {'kind': kind, 'target': target}, None, None)
+
+
+def test_private_write_probe_never_creates_truncates_or_writes(monkeypatch):
+    opened, closed = Mock(return_value=42), Mock()
+    monkeypatch.setattr(caller.os, 'open', opened)
+    monkeypatch.setattr(caller.os, 'close', closed)
+    operation = {'kind': 'private-write', 'target': 2345}
+    assert caller.execute(None, operation, None, None) == {'writable': True}
+    opened.assert_called_once_with(
+        Path('/var/lib/oh-no-parent-control/preferences/2345.json'), caller.os.O_WRONLY)
+    closed.assert_called_once_with(42)
+    opened.side_effect = PermissionError()
+    assert caller.execute(None, operation, None, None) == {'writable': False}
+    opened.side_effect = FileNotFoundError()
+    with pytest.raises(FileNotFoundError):
+        caller.execute(None, operation, None, None)
 
 
 def stream_rig(monkeypatch, chunks):

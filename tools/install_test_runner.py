@@ -37,11 +37,27 @@ def main():
         os.replace(temporary, destination)
     finally:
         Path(temporary).unlink(missing_ok=True)
-    # Install authorization only after both validated, root-owned helpers exist.
+    source = (root / 'tools/onpc-test-artifacts').read_text().replace(
+        'CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.',
+        f'CHECKOUT = {str(root)!r}')
+    destination = Path('/usr/local/libexec/onpc-test-artifacts')
+    descriptor, temporary = tempfile.mkstemp(prefix='.onpc-test-artifacts-', dir=destination.parent)
+    try:
+        with os.fdopen(descriptor, 'w') as stream:
+            stream.write(source)
+            stream.flush()
+            os.fchmod(stream.fileno(), 0o755)
+            os.fchown(stream.fileno(), 0, 0)
+            os.fsync(stream.fileno())
+        os.replace(temporary, destination)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+    # Install authorization only after all validated, root-owned helpers exist.
     # polkitd watches this directory; activation is immediate (none).
     policies = (
         ('50-onpc-screenshot-export.rules', '.onpc-screenshot-policy-'),
         ('50-onpc-test-runner.rules', '.onpc-test-runner-policy-'),
+        ('50-onpc-test-artifacts.rules', '.onpc-test-artifacts-policy-'),
     )
     for name, prefix in policies:
         destination = Path('/etc/polkit-1/rules.d') / name

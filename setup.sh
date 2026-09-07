@@ -142,9 +142,9 @@ ui_venv="$script_dir/.venv/onpc-ui-tests"
 "$ui_venv/bin/python" -m pip install --disable-pip-version-check --no-deps \
     --require-hashes -r "$script_dir/tests/ui/requirements.txt"
 
-# Development-only dispatcher and screenshot exporter; activate on the next invocation (none).
-# Not shipped in the product package. The exporter has a dedicated Polkit rule
-# for active local sudo-group members; polkitd loads it on installation.
+# Development-only dispatcher and artifact/screenshot helpers; activate on invocation (none).
+# Not shipped in the product package. Scoped Polkit rules cover active local
+# sudo-group members; polkitd loads them on installation.
 test_runner_install=(/usr/bin/python3 "$script_dir/tools/install_test_runner.py")
 if (( EUID != 0 )); then
     test_runner_install=(sudo "${test_runner_install[@]}")

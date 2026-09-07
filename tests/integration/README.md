@@ -276,6 +276,10 @@ XML even when a traceback contains a password assignment.
 Raw diagnostics and
 temporary SSH credentials remain root-private. Use only validated redacted
 exports; read source logs and journals without modifying them.
+For local privileged inspection of any run artifact, use the
+[`onpc-test-artifacts` helper](../README.md#prompt-free-test-artifact-access)
+instead of general `pkexec` readers. Its Codex and Polkit grants apply across
+all run names and file formats. Private local copies are not redacted evidence.
 
 Results record package SHA-256, stable fixture digest,
 `selected_inputs_sha256`, and `baseline_provenance_sha256`. The selected-input

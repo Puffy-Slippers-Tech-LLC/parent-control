@@ -57,9 +57,8 @@ every argument; authorization trusts test code and its imports in this checkout.
 `setup.sh` also installs the versioned `config/codex-tests.rules` as the project
 `.codex/rules/tests.rules`, approving both privileged categories and
 unprivileged unit-test commands beginning with
-`/usr/bin/python3 -B -m pytest`. Artifact copies beginning with
-`pkexec /usr/bin/install -o edgar -g edgar -m 600` are also approved across
-changing filenames. That prefix leaves paths and trailing arguments unrestricted.
+`/usr/bin/python3 -B -m pytest`. For privileged artifact inspection, use
+`pkexec /usr/local/libexec/onpc-test-artifacts` as described below.
 For temporary screenshot cleanup, run
 `tools/cleanup-screenshots /tmp/onpc-19p-gdm.png /tmp/onpc-19p-selected.png`.
 The reusable approval covers varying explicit filenames. The helper validates
@@ -127,6 +126,50 @@ and retains a root-private, receive-only syscall trace. Its fixed diagnostic
 pauses preserve kernel audit messages after startup profile loads. This is an
 explicit diagnostic, not a daily suite or graphical journey. The dispatcher
 includes its attachment/cleanup safety regressions before use.
+
+### Prompt-free test artifact access
+
+Use the installed `onpc-test-artifacts` helper for privileged inspection across
+all test runs, names, extensions, and nested directories. Its Codex allow rule
+and dedicated Polkit rule cover the whole helper, not individual files:
+
+```sh
+pkexec /usr/local/libexec/onpc-test-artifacts read /tmp/onpc-system-EXAMPLE/input/selected-inputs.json --bytes 8000
+pkexec /usr/local/libexec/onpc-test-artifacts list /tmp/onpc-system-EXAMPLE
+pkexec /usr/local/libexec/onpc-test-artifacts tail /tmp/onpc-system-EXAMPLE/private/command-1.log --bytes 16000
+pkexec /usr/local/libexec/onpc-test-artifacts stat /tmp/onpc-system-EXAMPLE/evidence/result.json
+pkexec /usr/local/libexec/onpc-test-artifacts export /tmp/onpc-future-run/results/recording.webm
+```
+
+`read` also accepts `--offset` for paging through large files. `list` returns
+JSON names; `stat` returns JSON type, size, mode, and modification time. `export`
+prints a new `/tmp/onpc-artifact-export-*/<original-name>` path. Its directory is
+mode `700` and file mode `600`, both owned by the invoking account. Ordinary
+readers can then inspect the copy without privilege. Existing graphical smoke
+PNG exports continue to use `onpc-export-screenshot` above.
+
+Sources may be anywhere beneath `/tmp/onpc-*`, `/var/tmp/onpc-*`,
+`/var/tmp/oh-no-parent-control-artifacts`, `/var/log/oh-no-parent-control`, or
+this checkout's `tests/`, `artifacts/`, and `output/`. This includes private test
+inputs and raw diagnostics for local inspection. Raw exports retain their source
+contents; only validated, redacted evidence is suitable for sharing. No sources
+are edited, deleted, or made public. Symlink traversal, hard-linked files,
+special files, and unrelated host paths are refused. Reads use pinned file
+descriptors; exports create new private files without caller-selected write paths.
+
+Use ordinary unprivileged tools for accessible artifacts, this helper for
+privileged ones, and the installed test dispatcher for test execution and its
+temporary writes. Do not use `pkexec head`, `cat`, `cp`, or an interpreter for
+routine artifact work: general root programs have no password-free Polkit grant.
+Adding future tests or file formats under these storage roots needs no new rule.
+
+Install or refresh through `./setup.sh --test-tools-only`, then restart Codex
+with this checkout trusted to load the new allow rule. Polkit grants activate
+immediately for active local `sudo`-group administrators. Installation itself may
+need administrator authentication. These development-only helpers activate on
+invocation (`none`), are absent from the product package, and change no saved
+application data. Restrictive organization-managed Codex policies still take
+precedence over local allow rules.
 
 ### Manual entry points
 

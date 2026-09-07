@@ -21,6 +21,20 @@ prefix_rule(
     not_match = ["pkexec /usr/bin/install -o edgar -g edgar -m 600 /tmp/source.png /tmp/onpc-example.png"],
 )
 
+# All test artifact formats and future run names share one installed validator.
+prefix_rule(
+    pattern = ["pkexec", "/usr/local/libexec/onpc-test-artifacts"],
+    decision = "allow",
+    justification = "Inspect project test files, results, logs and images, or create new caller-owned exports, through a path-confined helper.",
+    match = [
+        "pkexec /usr/local/libexec/onpc-test-artifacts read /tmp/onpc-system-example/input/selected-inputs.json --bytes 8000",
+        "pkexec /usr/local/libexec/onpc-test-artifacts list /tmp/onpc-future-run",
+        "pkexec /usr/local/libexec/onpc-test-artifacts tail /var/log/oh-no-parent-control/daemon/2026-09-06.log",
+        "pkexec /usr/local/libexec/onpc-test-artifacts export /tmp/onpc-future-run/results/image.webp",
+    ],
+    not_match = ["pkexec /usr/bin/cp /etc/shadow /tmp/onpc-copy", "pkexec /tmp/onpc-test-artifacts read /etc/shadow"],
+)
+
 # Read-only privileged diagnostics: approve tools independently of temporary
 # artifact names, log dates, byte/line limits, and other read-only arguments.
 # Keep this list to utilities without file-writing or command-execution options.

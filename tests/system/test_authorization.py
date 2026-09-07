@@ -150,9 +150,14 @@ def test_cross_child_targets_fail_closed(accounts, role, method):
 
 @pytest.mark.parametrize('role', ROLES)
 def test_private_records_and_log_components(accounts, role):
+    before = {key: account_state(accounts[key]) for key in ('child1', 'child2')}
     replies = batch(accounts[role], [
-        {'kind': 'private-read', 'target': accounts[target]} for target in ('child1', 'child2')])
-    guest.require(all(reply == {'readable': False} for reply in replies), 'authorization:private-record')
+        {'kind': kind, 'target': accounts[target]}
+        for target in ('child1', 'child2') for kind in ('private-read', 'private-write')])
+    guest.require(replies == [{'readable': False}, {'writable': False}] * 2,
+                  'authorization:private-record')
+    guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                  'authorization:private-probe-write')
     own = 'parent' if role in ('parent1', 'parent2', 'locked') else 'kiosk' if role == 'kiosk' else 'child'
     for component in {'parent', 'child', 'kiosk', 'broker'} - {own}:
         reply = call(accounts[role], 'LogEvent', '(sss)', (component, 'INFO', 'forbidden component test'))

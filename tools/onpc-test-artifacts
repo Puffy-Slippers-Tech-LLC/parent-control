@@ -1,0 +1,144 @@
+#!/usr/bin/python3 -I
+"""Inspect project test artifacts; never execute commands or change sources."""
+
+import argparse
+from contextlib import contextmanager, ExitStack
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import stat
+import sys
+import tempfile
+
+CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
+
+
+def caller():
+    value = os.environ.get('PKEXEC_UID', '')
+    if os.geteuid() != 0 or not value.isascii() or not value.isdecimal() or int(value) <= 0:
+        raise ValueError('pkexec with an unprivileged caller is required')
+    account = pwd.getpwuid(int(value))
+    return account.pw_uid, account.pw_gid
+
+
+def source_parts(source, checkout):
+    """Accept all names/extensions under project storage, never arbitrary host files."""
+    parts = source.split('/')
+    if parts[0] or any(p in ('', '.', '..') for p in parts[1:]):
+        raise ValueError('an absolute path without traversal is required')
+    path = Path(source)
+    roots = [Path('/var/log/oh-no-parent-control'),
+             Path('/var/tmp/oh-no-parent-control-artifacts')]
+    roots.extend(Path(checkout) / name for name in ('tests', 'artifacts', 'output'))
+    temporary = (len(parts) >= 3 and
+                 ((parts[1] == 'tmp' and re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', parts[2])) or
+                  (len(parts) >= 4 and parts[1:3] == ['var', 'tmp'] and
+                   re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', parts[3]))))
+    if not temporary and not any(path.is_relative_to(root) for root in roots):
+        raise ValueError('source is outside project test and log storage')
+    return parts[1:]
+
+
+@contextmanager
+def open_source(source, checkout, uid):
+    parts = source_parts(source, checkout)
+    with ExitStack() as stack:
+        def opened(name, flags, parent=None):
+            fd = os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+            stack.callback(os.close, fd)
+            return fd
+
+        parent = opened('/', os.O_RDONLY | os.O_DIRECTORY)
+        for name in parts[:-1]:
+            parent = opened(name, os.O_RDONLY | os.O_DIRECTORY, parent)
+        fd = opened(parts[-1], os.O_RDONLY | os.O_NONBLOCK, parent)
+        info = os.fstat(fd)
+        if info.st_uid not in (0, uid):
+            raise ValueError('artifact must belong to root or the invoking account')
+        if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+            raise ValueError('only regular files and directories are supported')
+        if stat.S_ISREG(info.st_mode) and info.st_nlink != 1:
+            raise ValueError('hard-linked artifacts are refused')
+        yield fd, info
+
+
+def copy_bytes(fd, output, count):
+    # Bounded by the original size (or requested slice), even for a growing log.
+    while count:
+        chunk = os.read(fd, min(count, 65536))
+        if not chunk:
+            break
+        output.write(chunk)
+        count -= len(chunk)
+
+
+def export(fd, info, source, uid, gid):
+    """Create a new private caller-owned copy; no caller-selected write target."""
+    directory = Path(tempfile.mkdtemp(prefix='onpc-artifact-export-', dir='/tmp'))
+    # The new root-private directory cannot be replaced by an unprivileged peer.
+    destination = directory / Path(source).name
+    with destination.open('xb') as output:
+        os.fchmod(output.fileno(), 0o600)
+        copy_bytes(fd, output, info.st_size)
+        output.flush()
+        os.fsync(output.fileno())
+        os.fchown(output.fileno(), uid, gid)
+    os.chown(directory, uid, gid)
+    # Failure retains the newly created private partial export; never delete sources.
+    return str(destination)
+
+
+def nonnegative(value):
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError('expected a nonnegative byte count')
+    return number
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    actions = parser.add_subparsers(dest='action', required=True)
+    for action in ('read', 'tail', 'list', 'stat', 'export'):
+        command = actions.add_parser(action, allow_abbrev=False)
+        command.add_argument('source')
+        if action in ('read', 'tail'):
+            command.add_argument('--bytes', type=nonnegative, default=8000)
+        if action == 'read':
+            command.add_argument('--offset', type=nonnegative, default=0)
+    args = parser.parse_args(argv)
+    try:
+        if CHECKOUT is None:
+            raise ValueError('installation required')
+        uid, gid = caller()
+        with open_source(args.source, CHECKOUT, uid) as (fd, info):
+            directory = stat.S_ISDIR(info.st_mode)
+            if args.action == 'stat':
+                print(json.dumps({'kind': 'directory' if directory else 'file',
+                                  'bytes': info.st_size, 'mode': oct(stat.S_IMODE(info.st_mode)),
+                                  'mtime_ns': info.st_mtime_ns}))
+            elif args.action == 'list':
+                if not directory:
+                    raise ValueError('list requires a directory')
+                print(json.dumps(sorted(os.listdir(fd))))
+            else:
+                if directory:
+                    raise ValueError('this operation requires a regular file')
+                if args.action == 'export':
+                    print(export(fd, info, args.source, uid, gid))
+                else:
+                    offset = (max(0, info.st_size - args.bytes) if args.action == 'tail'
+                              else args.offset)
+                    os.lseek(fd, offset, os.SEEK_SET)
+                    copy_bytes(fd, sys.stdout.buffer, min(args.bytes, max(0, info.st_size - offset)))
+        return 0
+    except (ValueError, KeyError, OSError) as error:
+        # Source contents and account/path details belong only in requested output.
+        detail = str(error) if isinstance(error, ValueError) else type(error).__name__
+        print(f'test-artifacts: {detail}', file=sys.stderr)
+        return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main())

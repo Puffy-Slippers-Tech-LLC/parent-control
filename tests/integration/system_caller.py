@@ -370,15 +370,21 @@ def drop_identity(uid, *, allow_root=False):
 
 
 def execute(connection, operation, Gio, GLib):
-    if operation['kind'] == 'private-read':
+    if operation['kind'] in ('private-read', 'private-write'):
         # Exact product paths only; never return private record contents.
         target = operation['target']
         guest.require(type(target) is int and target >= 1000, 'caller:target')
+        writable = operation['kind'] == 'private-write'
+        result_key = 'writable' if writable else 'readable'
         try:
-            with (Path('/var/lib/oh-no-parent-control/preferences') / f'{target}.json').open('rb'):
-                return {'readable': True}
+            # Request write access without truncating, creating, or changing a
+            # record even if the installed permissions unexpectedly allow it.
+            path = Path('/var/lib/oh-no-parent-control/preferences') / f'{target}.json'
+            descriptor = os.open(path, os.O_WRONLY if writable else os.O_RDONLY)
+            os.close(descriptor)
+            return {result_key: True}
         except PermissionError:
-            return {'readable': False}
+            return {result_key: False}
     guest.require(operation['kind'] in ('call', 'account-type-write'), 'caller:operation')
     destination = interface = guest.BUS
     path = '/com/puffyslippers/OhNoParentControl1'

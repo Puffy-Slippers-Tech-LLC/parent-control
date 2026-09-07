@@ -1,0 +1,11 @@
+// Development-only: all filenames and formats use the same validated helper.
+// The helper confines reads to project test/log storage and exports only new
+// caller-owned copies. No general root command or source modification is granted.
+polkit.addRule(function(action, subject) {
+    if (action.id === "org.freedesktop.policykit.exec" &&
+        action.lookup("program") === "/usr/local/libexec/onpc-test-artifacts" &&
+        action.lookup("user") === "root" &&
+        subject.local && subject.active && subject.isInGroup("sudo")) {
+        return polkit.Result.YES;
+    }
+});

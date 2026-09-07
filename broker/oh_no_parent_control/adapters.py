@@ -31,6 +31,8 @@ REQUEST_ACTION_IDS = {
 ACCOUNTS_NAME = "org.freedesktop.Accounts"
 ACCOUNTS_PATH = "/org/freedesktop/Accounts"
 ACCOUNTS_INTERFACE = "org.freedesktop.Accounts"
+NONINTERACTIVE_SHELLS = frozenset({"", "/bin/false", "/usr/bin/false",
+                                  "/sbin/nologin", "/usr/sbin/nologin"})
 PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 SESSION_LIMITS_INTERFACE = "com.endlessm.ParentalControls.SessionLimits"
 APP_FILTER_INTERFACE = "com.endlessm.ParentalControls.AppFilter"
@@ -193,17 +195,16 @@ class AccountsService:
             is_local=properties.get("LocalAccount", False),
             is_locked=properties.get("Locked", True),
             icon_file=_accounts_icon_file(properties.get("IconFile", "")),
+            is_interactive=properties.get("Shell", "") not in NONINTERACTIVE_SHELLS,
         )
 
     def list_users(self) -> tuple[UserAccount, ...]:
         # ListCachedUsers is explicitly non-exhaustive. Enumerate current NSS
         # identities so a newly created local account appears before first
         # login, then use AccountsService as the authority for account type.
-        noninteractive_shells = {"", "/bin/false", "/usr/bin/false",
-                                 "/sbin/nologin", "/usr/sbin/nologin"}
         uids = sorted({entry.pw_uid for entry in pwd.getpwall()
                        if 1000 <= entry.pw_uid <= (1 << 32) - 1 and
-                       getattr(entry, "pw_shell", "/bin/sh") not in noninteractive_shells})
+                       getattr(entry, "pw_shell", "") not in NONINTERACTIVE_SHELLS})
         users = []
         for uid in uids:
             try:

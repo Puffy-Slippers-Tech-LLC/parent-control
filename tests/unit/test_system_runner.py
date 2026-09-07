@@ -311,9 +311,22 @@ def test_password_case_registers_its_additional_fixture_prerequisite():
     assert selection.prerequisites[-1] == 'fixture-passwords'
 
 
+def test_remote_fixture_is_declared_for_selected_and_full_authorization_runs():
+    case = 'test_remote_accounts_are_excluded'
+    inventories = {**INVENTORIES, 'authorization': (*INVENTORIES['authorization'], case)}
+    for selected in (case, None):
+        selection = runner.resolve_selection('authorization', selected, inventories=inventories)
+        assert 'remote-ldap-nss-fixtures' in selection.prerequisites
+    assert ('tests/integration/system_remote_accounts.py', 'system_remote_accounts.py') in (
+        runner.AREA_SELECTED_HELPERS['authorization'])
+
+
 @pytest.mark.parametrize('case', (
+    'test_administrator_eligibility_predicates',
     'test_authenticated_request_rejects_deleted_target',
     'test_requester_disconnect_during_approval',
+    'test_request_rejects_locked_approver_during_authentication[child1]',
+    'test_request_rejects_locked_approver_during_authentication[kiosk]',
 ))
 def test_inflight_case_registers_passwords_and_exact_execution(case):
     inventories = {**INVENTORIES, 'authorization': (*INVENTORIES['authorization'], case)}

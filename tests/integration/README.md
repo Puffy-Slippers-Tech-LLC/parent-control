@@ -256,6 +256,22 @@ guest tool opens the image. The pinned SSH key comes from read-only inspection.
 Keep changing implementation details and exact package pins in the controller,
 not duplicated as dated facts in this guide.
 
+`test_remote_accounts_are_excluded` provisions real RFC2307 LDAP users through
+`system_remote_accounts.py` only after the guest guard and package/reboot
+prerequisites. It refuses existing directory configuration and UID/name
+collisions, installs pinned OpenLDAP/SSSD packages, uses LDAP's public
+`cn=config` interface with root peer credentials, and enables NSS enumeration.
+The LDAP server runs on guest loopback; credentials and remote login are not
+needed for this identity/authorization test. No local passwd records or private
+AccountsService files are created for these identities. Public `CacheUser` and
+property reads establish nonlocal, interactive, unlocked standard/admin roles
+before exclusion assertions. The retained baseline removes fixture services,
+configuration and accounts after the attempt. No host tool installation is
+required. This test integration activates on the next invocation (`none`);
+the broker's local-administrator enforcement is `process-restart`, with no
+saved-data migration. Package versions and predicate/denial observations are
+retained in JUnit; APT catalog/command diagnostics follow the existing collector.
+
 ## Evidence and failure recovery
 
 Every attempt retains a unique `/tmp/onpc-system-*/` directory. Public

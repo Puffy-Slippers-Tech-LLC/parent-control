@@ -199,6 +199,21 @@ def make_broker(authorizer=None, accounts=None, preferences=None, extensions=Non
 
 
 class CoreTests(unittest.TestCase):
+    def test_management_revalidates_administrator_locality_before_read_or_write(self):
+        accounts, preferences = Accounts(), Preferences()
+        broker = make_broker(accounts=accounts, preferences=preferences)
+        self.assertTrue(broker.list_managed_users(1003))
+        accounts.users[1003] = UserAccount(1003, 'admin', 'Admin', True, False, False)
+        accounts.events.clear()
+        before = dict(preferences.values)
+        with self.assertRaises(AccessDenied):
+            broker.list_managed_users(1003)
+        with self.assertRaises(AccessDenied):
+            broker.set_parent_control(1003, 1001, True, 60)
+        self.assertEqual(accounts.events, [])
+        self.assertEqual(preferences.values, before)
+        self.assertTrue(broker.list_managed_users(0))
+
     def test_startup_reasserts_only_preference_enabled_managed_children(self):
         accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
         preferences.values[1001]["parent_control_enabled"] = True
@@ -320,6 +335,9 @@ class CoreTests(unittest.TestCase):
         )
         accounts.users[1006] = UserAccount(
             1006, "locked-admin", "Locked Admin", True, False, True, True,
+        )
+        accounts.users[1007] = UserAccount(
+            1007, "noninteractive-admin", "Admin", True, False, True, is_interactive=False,
         )
         users = make_broker(accounts=accounts).list_approvers(991)
         self.assertEqual([(user.uid, user.label) for user in users], [(1003, "Admin")])
@@ -893,6 +911,23 @@ class CoreTests(unittest.TestCase):
 
         self.assertEqual(auth.calls, [])
         self.assertEqual(accounts.events, [])
+
+    def test_noninteractive_approver_is_rejected_on_both_request_surfaces(self):
+        for surface in ("child", "kiosk"):
+            with self.subTest(surface=surface):
+                auth, accounts, preferences = Authorizer(), Accounts(), Preferences()
+                preferences.values[1001]["parent_control_enabled"] = True
+                accounts.users[1003] = UserAccount(
+                    1003, "parent", "Admin", True, False, True, is_interactive=False,
+                )
+                broker = make_broker(auth, accounts, preferences=preferences)
+                with self.assertRaises(AccessDenied):
+                    if surface == "child":
+                        broker.request_own_access(1001, ":1.20", 1003, 900, False)
+                    else:
+                        broker.request_access(991, ":1.20", 1001, 1003, 900, False)
+                self.assertEqual(auth.calls, [])
+                self.assertEqual(accounts.events, [])
 
     def test_admin_target_is_rejected_without_authorization(self):
         auth, accounts = Authorizer(), Accounts()

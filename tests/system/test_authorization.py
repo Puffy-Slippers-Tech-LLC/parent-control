@@ -507,6 +507,184 @@ def test_ineligible_selected_approvers_fail_closed(accounts, surface, approver):
         accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
 
 
+def test_administrator_eligibility_predicates(accounts, record_testsuite_property):
+    """Isolate shell/name exclusions from role, locality, system and lock state."""
+    guest.guard()
+    interface = 'org.freedesktop.Accounts.User'
+    target = accounts['child1']
+    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
+    try:
+        for predicate in ('noninteractive', 'unsafe-name'):
+            name = 'onpc-auth-check-' + predicate
+            if predicate == 'unsafe-name':
+                name = '1' + name
+            guest.require(len(name.encode()) <= 32, 'authorization:eligibility-name-length')
+            try:
+                pwd.getpwnam(name)
+            except KeyError:
+                pass
+            else:
+                raise guest.GuestError('authorization:eligibility-fixture-collision')
+            if predicate == 'unsafe-name':
+                # Ubuntu useradd supports this name. Avoid renaming a cached
+                # account: AccountsService can leave a duplicate exported object.
+                guest.run(['useradd', '--create-home', '--shell', '/bin/bash',
+                           '--groups', 'sudo', name])
+            else:
+                guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                           '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
+                           'CreateUser', 'ssi', name, '', '1'])
+            uid = pwd.getpwnam(name).pw_uid
+            path = f'/org/freedesktop/Accounts/User{uid}'
+            FixturePassword().install(uid)
+            guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                       '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
+                       'FindUserById', 'x', str(uid)])
+
+            def observe(stage):
+                # Exercise the same public resolution route as the broker, not
+                # only a possibly stale previously exported object path.
+                resolved = json.loads(guest.run([
+                    'busctl', '--system', '--json=short', 'call', 'org.freedesktop.Accounts',
+                    '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
+                    'FindUserById', 'x', str(uid)]))['data']
+                guest.require(resolved == [path], 'authorization:eligibility-resolution')
+                observed = {prop: account_property(uid, interface, prop) for prop in (
+                    'AccountType', 'LocalAccount', 'SystemAccount', 'Locked')}
+                # Record predicates, never usernames, UIDs or credentials.
+                shell = account_property(uid, interface, 'Shell')
+                username = account_property(uid, interface, 'UserName')
+                observed['interactive'] = shell == '/bin/bash'
+                observed['safe_name'] = bool(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*[$]?', username))
+                observed['nss_matches'] = (pwd.getpwuid(uid).pw_shell == shell and
+                                           pwd.getpwuid(uid).pw_name == username)
+                return observed
+
+            def require_ready(stage):
+                # useradd updates NSS synchronously, whereas AccountsService
+                # reloads local accounts asynchronously. Re-resolve publicly
+                # until locality is visible; never relax another predicate.
+                started = time.monotonic()
+                previous = None
+                while True:
+                    observed = observe(stage)
+                    elapsed = time.monotonic() - started
+                    finished = observed['LocalAccount'] or elapsed >= 10
+                    if observed != previous or finished:
+                        record_testsuite_property('onpc.eligibility-fixture', json.dumps({
+                            'predicate': predicate, 'stage': stage,
+                            'elapsed_seconds': round(elapsed, 3), **observed,
+                        }, sort_keys=True))
+                    if finished:
+                        break
+                    previous = observed
+                    time.sleep(0.1)
+                guest.require(uid >= 1000 and uid != accounts['kiosk'] and observed == {
+                    'AccountType': 1, 'LocalAccount': True, 'SystemAccount': False,
+                    'Locked': False, 'interactive': stage != 'excluded' or predicate != 'noninteractive',
+                    'safe_name': stage != 'excluded' or predicate != 'unsafe-name',
+                    'nss_matches': True,
+                }, 'authorization:independent-eligibility:' + predicate + ':' + stage)
+
+            guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
+                       interface, 'SetShell', 's', '/bin/bash'])
+            guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
+                       interface, 'SetLocked', 'b', 'false'])
+            if predicate == 'noninteractive':
+                require_ready('eligible')
+                for caller in ('parent1', 'child1', 'kiosk'):
+                    guest.require(uid in {row[0] for row in accepted(call(
+                        accounts[caller], 'ListApprovers'))[0]}, 'authorization:eligible-control')
+                guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
+                           interface, 'SetShell', 's', '/usr/sbin/nologin'])
+            require_ready('excluded')
+            before = {key: account_state(accounts[key]) for key in ROLES}
+            for caller in ('parent1', 'child1', 'kiosk'):
+                offered = {row[0] for row in accepted(call(accounts[caller], 'ListApprovers'))[0]}
+                guest.require(uid not in offered and accounts['parent1'] in offered,
+                              'authorization:predicate-discovery')
+            for surface in ('child1', 'kiosk'):
+                if surface == 'child1':
+                    reply = call(target, 'RequestOwnAccess', '(uub)', (uid, 300, False))
+                else:
+                    reply = call(accounts['kiosk'], 'RequestAccess', '(uuub)',
+                                 (target, uid, 300, False))
+                record_testsuite_property('onpc.eligibility-denial', json.dumps({
+                    'predicate': predicate, 'surface': surface,
+                    'access_denied': reply.get('error') == DENIED,
+                    'invalid_request': reply.get('error') == guest.BUS + '.Error.InvalidRequest',
+                }, sort_keys=True))
+                guest.require(reply.get('error') == DENIED,
+                              'authorization:predicate-direct-selection:' + predicate + ':' + surface)
+                guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                              'authorization:predicate-state-write')
+                print(f'onpc-system: stage=eligibility predicate={predicate} '
+                      f'surface={surface} outcome=denied', flush=True)
+    finally:
+        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+
+
+def test_remote_accounts_are_excluded(accounts, record_testsuite_property):
+    """Real LDAP identities must be rejected solely for their nonlocal status."""
+    from system_remote_accounts import PACKAGES, provision
+
+    remote = provision()
+    record_testsuite_property('onpc.remote-packages', guest.run([
+        'dpkg-query', '-W', '-f=${Package}=${Version}\n',
+        *[package.split('=')[0] for package in PACKAGES]]))
+    interface = 'org.freedesktop.Accounts.User'
+    for role, uid in remote.items():
+        observed = {prop: account_property(uid, interface, prop) for prop in (
+            'AccountType', 'LocalAccount', 'SystemAccount', 'Locked')}
+        shell = account_property(uid, interface, 'Shell')
+        name = account_property(uid, interface, 'UserName')
+        observed.update(interactive=shell == '/bin/bash',
+                        safe_name=bool(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*[$]?', name)),
+                        nss_matches=pwd.getpwuid(uid).pw_name == name and
+                        pwd.getpwuid(uid).pw_shell == shell)
+        record_testsuite_property('onpc.remote-fixture', json.dumps({
+            'role': role, **observed}, sort_keys=True))
+        guest.require(uid >= 1000 and uid != accounts['kiosk'] and observed == {
+            'AccountType': int(role == 'administrator'), 'LocalAccount': False,
+            'SystemAccount': False, 'Locked': False, 'interactive': True,
+            'safe_name': True, 'nss_matches': True,
+        }, 'authorization:independent-remote-predicate:' + role)
+    for caller in ('parent1', 'kiosk'):
+        managed = {row[0] for row in accepted(call(accounts[caller], 'ListManagedUsers'))[0]}
+        guest.require(not managed.intersection(remote.values()) and accounts['child1'] in managed,
+                      'authorization:remote-child-discovery')
+    for caller in ('parent1', 'child1', 'kiosk'):
+        approvers = {row[0] for row in accepted(call(accounts[caller], 'ListApprovers'))[0]}
+        guest.require(not approvers.intersection(remote.values()) and accounts['parent1'] in approvers,
+                      'authorization:remote-approver-discovery')
+    target = accounts['child1']
+    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
+    try:
+        before = {key: account_state(accounts[key]) for key in ROLES}
+        attempts = (
+            ('child-selected-parent', target, 'RequestOwnAccess', '(uub)',
+             (remote['administrator'], 300, False)),
+            ('kiosk-selected-parent', accounts['kiosk'], 'RequestAccess', '(uuub)',
+             (target, remote['administrator'], 300, False)),
+            ('kiosk-selected-child', accounts['kiosk'], 'RequestAccess', '(uuub)',
+             (remote['child'], accounts['parent1'], 300, False)),
+            ('parent-selected-child', accounts['parent1'], 'GetPreferences', '(u)',
+             (remote['child'],)),
+            ('remote-child-caller', remote['child'], 'GetOwnAccount', '()', ()),
+            ('remote-admin-caller', remote['administrator'], 'ListManagedUsers', '()', ()),
+        )
+        for boundary, caller, method, signature, args in attempts:
+            reply = call(caller, method, signature, args)
+            record_testsuite_property('onpc.remote-denial', json.dumps({
+                'boundary': boundary, 'access_denied': reply.get('error') == DENIED,
+            }, sort_keys=True))
+            guest.require(reply.get('error') == DENIED, 'authorization:remote-denial:' + boundary)
+            guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                          'authorization:remote-state-write')
+    finally:
+        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+
+
 def test_management_changes_preserve_other_accounts(accounts):
     before = {key: account_state(accounts[key]) for key in ROLES if key != 'child1'}
     target = accounts['child1']
@@ -832,6 +1010,60 @@ def test_authenticated_request_revalidates_live_state(accounts, passwords, surfa
                        path, interface, 'SetAccountType', 'i', str(original_role)])
         accepted(call(other, 'SetPreferences', '(us)', (target, original_preferences)))
         accepted(call(other, 'SetParentControl', '(ubu)', (target, False, 60)))
+
+
+@pytest.mark.parametrize('surface', ('child1', 'kiosk'))
+def test_request_rejects_locked_approver_during_authentication(
+        accounts, passwords, surface, authentication_diagnostics):
+    """A parent locked after selection cannot approve through an active prompt."""
+    target, selected, other = (accounts[key] for key in ('child1', 'parent1', 'parent2'))
+    interface = 'org.freedesktop.Accounts.User'
+    path = f'/org/freedesktop/Accounts/User{selected}'
+    guest.require(account_property(selected, interface, 'Locked') is False,
+                  'authorization:lock-fixture')
+    original = accepted(call(other, 'GetPreferences', '(u)', (target,)))[0]
+    accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))
+    try:
+        with PersistentCaller(accounts[surface]) as caller, TextAgent(
+                caller, record_diagnostic=authentication_diagnostics) as agent:
+            rows = accepted(caller.call('ListApprovers'))[0]
+            guest.require(selected in {row[0] for row in rows},
+                          'authorization:lock-initial-discovery')
+            caller.send({
+                'kind': 'call',
+                'method': 'RequestOwnAccess' if surface == 'child1' else 'RequestAccess',
+                'signature': '(uub)' if surface == 'child1' else '(uuub)',
+                'args': (selected, 300, False) if surface == 'child1' else
+                        (target, selected, 300, False),
+            })
+            agent.prompt(selected, other)
+            guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                       path, interface, 'SetLocked', 'b', 'true'])
+            guest.require(account_property(selected, interface, 'Locked') is True,
+                          'authorization:inflight-lock-not-visible')
+            rows = accepted(call(other, 'ListApprovers'))[0]
+            guest.require(selected not in {row[0] for row in rows},
+                          'authorization:locked-approver-discovery')
+            before = {key: account_state(accounts[key]) for key in ROLES}
+            # Unlike a role change, locking invalidates password authentication.
+            # This case proves the installed denial boundary, not a successful
+            # PAM challenge followed by the broker's post-authentication check.
+            agent.authenticate(passwords['parent1'], succeeds=False)
+            result = accepted(caller.receive())
+            guest.require(result[1] in ('denied', 'cancelled') and
+                          (surface == 'kiosk' or result[2] == 0),
+                          'authorization:inflight-locked-approver-grant')
+            guest.require(all(account_state(accounts[key]) == state for key, state in before.items()),
+                          'authorization:inflight-locked-approver-write')
+            print(f'onpc-system: stage=inflight-approver-lock surface={surface} '
+                  'outcome=denied-state-preserved', flush=True)
+    finally:
+        guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                   path, interface, 'SetLocked', 'b', 'false'])
+        guest.require(account_property(selected, interface, 'Locked') is False,
+                      'authorization:approver-unlock-not-visible')
+        accepted(call(other, 'SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(call(other, 'SetPreferences', '(us)', (target, original)))
 
 
 @pytest.mark.parametrize('surface', ('child1', 'kiosk'))

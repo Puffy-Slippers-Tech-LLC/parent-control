@@ -108,11 +108,14 @@ class PackageDeploymentTests(unittest.TestCase):
 
     def test_reboot_notice_is_owned_by_the_debian_package(self):
         postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+        helper = (ROOT / "tools/package_notice").read_text(encoding="utf-8")
         notice = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
-        self.assertIn(notice, postinst)
-        self.assertIn('[ -t 2 ] && [ "${TERM:-dumb}" != dumb ]', postinst)
-        self.assertIn("'\\n\\033[1;31m%s\\033[0m\\n'", postinst)
-        self.assertLess(postinst.index('#DEBHELPER#'), postinst.index(notice))
+        self.assertNotIn(notice, postinst)
+        self.assertIn(notice, helper)
+        self.assertIn('[ -t 2 ] && [ "${TERM:-dumb}" != dumb ]', helper)
+        self.assertIn("'\\033[1;31m%s\\033[0m\\n'", helper)
+        self.assertLess(postinst.index('#DEBHELPER#'), postinst.index(
+            '/usr/libexec/oh-no-parent-control-package-notice --configured'))
 
     def test_make_build_keeps_changes_file_artifacts_together(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")

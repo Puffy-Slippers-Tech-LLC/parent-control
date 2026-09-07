@@ -134,6 +134,52 @@ def machine(tmp_path):
     return Machine(tmp_path)
 
 
+def test_preinst_registers_dpkg_notice_before_unpack_and_retries_safely(machine):
+    notice = machine.root / "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice"
+    assert not notice.exists()
+    result = machine.run("preinst", "install")
+    assert result.returncode == 0, result.stderr
+    content = notice.read_text()
+    assert content.startswith("post-invoke=if [ -x ")
+    assert "oh-no-parent-control-package-notice --after-dpkg" in content
+    assert notice.stat().st_mode & 0o777 == 0o644
+    pending = machine.write("run/oh-no-parent-control-package-configuration-complete")
+    result = machine.run("preinst", "install")
+    assert result.returncode == 0, result.stderr
+    assert notice.read_text() == content
+    assert not pending.exists()
+
+
+@pytest.mark.parametrize("action", ["remove", "purge", "abort-install"])
+@pytest.mark.parametrize("modified", [False, True])
+def test_notice_cleanup_preserves_administrator_replacements(machine, action, modified):
+    assert machine.run("preinst", "install").returncode == 0
+    notice = machine.root / "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice"
+    if modified:
+        notice.write_text("# administrator replacement\n")
+    pending = machine.write("run/oh-no-parent-control-package-configuration-complete")
+    result = machine.run("postrm", action)
+    assert result.returncode == 0, result.stderr
+    assert notice.exists() == modified
+    if modified:
+        assert notice.read_text() == "# administrator replacement\n"
+    assert not pending.exists()
+
+
+def test_notice_bootstrap_and_cleanup_do_not_follow_substituted_configuration(machine):
+    protected = machine.write("administrator-file", "preserved\n")
+    notice = machine.root / "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice"
+    notice.parent.mkdir(parents=True)
+    notice.symlink_to(protected)
+    result = machine.run("preinst", "install")
+    assert result.returncode != 0
+    assert "refusing substituted package notice configuration" in result.stderr
+    result = machine.run("postrm", "abort-install")
+    assert result.returncode == 0, result.stderr
+    assert notice.is_symlink()
+    assert protected.read_text() == "preserved\n"
+
+
 def test_purge_removes_saved_state_logs_and_empty_policy(machine):
     machine.baseline()
     machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")

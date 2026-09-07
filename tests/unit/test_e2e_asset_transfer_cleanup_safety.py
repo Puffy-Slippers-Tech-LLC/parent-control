@@ -1,8 +1,10 @@
 """Transfer failure cannot start a journey, repeat provisioning, or own cleanup."""
 
+import builtins
 import hashlib
 import json
-from pathlib import Path
+import os
+from pathlib import Path, PurePosixPath
 import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -183,3 +185,79 @@ def test_booted_corruption_cannot_be_cleared_by_a_later_good_reply(attempt):
     with pytest.raises(transfer.EvidenceError, match='verified-provisioning-required'):
         control.observe(vm)
     assert vm.call.call_count == 1
+
+
+def execute_observation(guest, capsys, *, wrong_owner=False):
+    """Run the exact guest probe over real copied bytes without root or a VM.
+
+    Only map the fixed guest root and root ownership onto the unprivileged
+    fixture. Traversal, file kinds, permissions, link counts and hashes are real.
+    """
+    class GuestPath(type(guest.root)):
+        def lstat(self):
+            info = super().lstat()
+            return SimpleNamespace(st_uid=1 if wrong_owner else 0, st_gid=0,
+                                   st_mode=info.st_mode, st_nlink=info.st_nlink)
+
+    def imported(name, *args, **kwargs):
+        if name == 'pathlib':
+            return SimpleNamespace(Path=lambda value: GuestPath(guest.path(value)),
+                                   PurePosixPath=PurePosixPath)
+        return builtins.__import__(name, *args, **kwargs)
+
+    capsys.readouterr()
+    exec(compile(transfer.OBSERVE, '<fixed-asset-observation>', 'exec'),
+         {'__builtins__': {**vars(builtins), '__import__': imported}})
+    return json.loads(capsys.readouterr().out)
+
+
+def test_exact_guest_probe_matches_offline_receipt(attempt, capsys):
+    control, lease, guest, api = attempt
+    receipt = control.provision(lease, api)
+    assert execute_observation(guest, capsys) == receipt
+
+
+@pytest.mark.parametrize('fault', ['extra-directory', 'file-mode', 'directory-mode',
+                                  'file-symlink', 'directory-symlink', 'hardlink',
+                                  'fifo', 'owner'])
+def test_exact_guest_probe_refuses_unsafe_or_extra_entries(attempt, capsys, fault):
+    control, lease, guest, api = attempt
+    control.provision(lease, api)
+    root = guest.path(transfer.DESTINATION)
+    file = root / 'package.deb'
+    if fault == 'extra-directory':
+        (root / 'unexpected-empty').mkdir(mode=0o755)
+    elif fault == 'file-mode':
+        file.chmod(0o666)
+    elif fault == 'directory-mode':
+        root.chmod(0o777)
+    elif fault == 'file-symlink':
+        (root / 'linked-file').symlink_to(file)
+    elif fault == 'directory-symlink':
+        (root / 'linked-directory').symlink_to(root / 'fixtures')
+    elif fault == 'hardlink':
+        os.link(file, root / 'hardlink')
+    elif fault == 'fifo':
+        os.mkfifo(root / 'fifo')
+    with pytest.raises(AssertionError):
+        execute_observation(guest, capsys, wrong_owner=fault == 'owner')
+
+
+@pytest.mark.parametrize('fault', ['changed', 'missing', 'extra'])
+def test_exact_guest_probe_detects_changed_file_inventory(attempt, capsys, fault):
+    control, lease, guest, api = attempt
+    receipt = control.provision(lease, api)
+    root = guest.path(transfer.DESTINATION)
+    if fault == 'changed':
+        (root / 'package.deb').write_bytes(b'changed')
+    elif fault == 'missing':
+        (root / 'package.deb').unlink()
+    else:
+        (root / 'extra-file').write_bytes(b'extra')
+        (root / 'extra-file').chmod(0o644)
+    observed = execute_observation(guest, capsys)
+    assert observed != receipt
+    vm = Mock()
+    vm.call.return_value = json.dumps(observed).encode()
+    with pytest.raises(transfer.EvidenceError, match='booted-assets-mismatch'):
+        control.observe(vm)

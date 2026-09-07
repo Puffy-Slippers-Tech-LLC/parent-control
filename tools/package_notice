@@ -1,0 +1,60 @@
+#!/bin/sh
+# Package-owned terminal output; invoked by postinst and dpkg's public hook.
+set -e
+
+pending=/run/oh-no-parent-control-package-configuration-complete
+
+print_notice() {
+    printf '\033[1;32mPASS: Oh No! Parent Control package configuration completed successfully.\033[0m\n'
+    if grep -Fxq oh-no-parent-control /run/reboot-required.pkgs 2>/dev/null; then
+        if [ -t 2 ] && [ "${TERM:-dumb}" != dumb ]; then
+            printf '\033[1;31m%s\033[0m\n' \
+                '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
+        else
+            printf '%s\n' \
+                '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
+        fi
+    fi
+}
+
+case "${1:-}" in
+    --configured)
+        # APT runs unpack and configuration in separate dpkg invocations.
+        # preinst registers our hook before that configuration pass starts.
+        # Direct dpkg --install can unpack/configure in a single invocation,
+        # so retain immediate output when no frontend owns the transaction.
+        rm -f "$pending"
+        if [ "${DPKG_FRONTEND_LOCKED:-}" = true ]; then
+            (umask 077; touch "$pending")
+        else
+            print_notice
+        fi
+        ;;
+    --after-dpkg)
+        [ -f "$pending" ] && [ ! -L "$pending" ] || exit 0
+        case "${DPKG_HOOK_ACTION:-}" in
+            configure|triggers-only) ;;
+            *) exit 0 ;;
+        esac
+        # Frontends can split configuration into multiple passes. Do not
+        # print while another package or a deferred trigger still needs work,
+        # or after a configuration failure. Only query dpkg's public fields.
+        if ! package_state=$(dpkg-query -W -f='${db:Status-Status} ${db:Status-Eflag}' oh-no-parent-control 2>/dev/null) ||
+           [ "$package_state" != 'installed ok' ]; then
+            exit 0
+        fi
+        if ! states=$(dpkg-query -W -f='${db:Status-Status} ${db:Status-Eflag}\n'); then
+            echo 'oh-no-parent-control: completion notice deferred; package status unavailable' >&2
+            exit 0
+        fi
+        if printf '%s\n' "$states" | grep -Ev '^(installed|config-files|not-installed) ok$' >/dev/null; then
+            exit 0
+        fi
+        rm -f "$pending"
+        print_notice
+        ;;
+    *)
+        echo 'Usage: oh-no-parent-control-package-notice <--configured|--after-dpkg>' >&2
+        exit 2
+        ;;
+esac

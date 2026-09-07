@@ -25,6 +25,8 @@ def activation_for(path: str) -> str:
     if path in {
         "usr/libexec/oh-no-parent-control-migrate-state",
         "usr/libexec/oh-no-parent-control-uninstall",
+        "usr/libexec/oh-no-parent-control-package-notice",
+        "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice",
         "etc/apt/apt.conf.d/99zz-oh-no-parent-control-reboot-notice",
         "usr/lib/oh-no-parent-control/broker/oh_no_parent_control/uninstall.py",
     }:

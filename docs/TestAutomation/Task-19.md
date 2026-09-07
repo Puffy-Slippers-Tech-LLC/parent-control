@@ -138,48 +138,47 @@ for the remaining boundary; do not rebuild already implemented interfaces.
 
 ### Task 19A continuation — 2026-09-07
 
-**Completed boundary:** stale/unreadable starting sources now refuse before
-libvirt connection or lease acquisition, with their specific failure category
-retained. Five new regressions and a real installed-launcher denial prove this
-early check; held-lease provenance checks remain mandatory. Concurrent work
-independently corrected uncommitted-deletion handling in builder/provenance;
-that implementation was preserved and verified. Transfer qualification is
-**not yet passed**; all 156 customer variants remain pending.
+**Completed boundary:** the actual booted asset probe now rejects unexpected
+empty directories. Twelve new filesystem cases execute the exact guest program
+and check receipt agreement, malformed trees, links, permissions, ownership,
+special files and changed/missing/extra payloads. This is solid host implementation
+progress; transfer qualification remains **unaccepted**, with all 156 variants pending.
 
-**Next result:** first establish that other checkout edits have ended. Then
-build fresh inputs with `tools/run-tests artifacts build` and run
+**Next result:** obtain a confirmed pause/end of other checkout editing work;
+clean Git status alone proved insufficient. Then finish local edits, build with
+`tools/run-tests artifacts build`, and run
 `tools/run-tests e2e --qualify-transfer --artifacts <new-output>` once. Inspect
-offline receipt, booted-asset observation, terminal result and held-lease
-finalization. Do not repeat setup, baseline/backend investigation or the
-unchanged lifecycle smoke. Secret/capture and harmless console transport follow.
+offline/booted receipts, terminal result and held-lease finalization. If other
+work must continue, advance host-side secret/capture and harmless-console
+implementation instead of spending another blocked VM attempt. Reuse the
+accepted backend/lifecycle; do not repeat setup or baseline discovery.
 
-**Evidence/attempts:** [this slice](Evidence/19A-Source-Preflight-20260907.md)
-retains the third transfer attempt: concurrent deletion during capture caused
-`provenance:recheck-failed`; transfer never started. Cleanup/host preservation
-passed in 252.326 seconds. A deliberate early refusal then completed in 1.211
-seconds without acquiring a lease. The
-[first two failures](Evidence/19A-Asset-Transfer-20260907.md) remain unchanged:
-source-ordering is fixed/live-proven, and the inventory-prefix correction still
-needs live qualification. Do not spend another VM attempt while sources change;
-this session's request to pause other edits received no answer.
+**Evidence/attempts:** [this slice](Evidence/19A-Asset-Observation-20260907.md)
+retains transfer attempt 4: build/early preflight passed from clean revision
+`9e36732`, then concurrent edits to package-configuration code/docs/tests caused
+`provenance:source-changed` before upload. Cleanup and host preservation passed
+in 298.235 seconds. The pause request received no answer before handoff; there
+was no retry. [Earlier failures](Evidence/19A-Source-Preflight-20260907.md)
+remain failed. Inventory-prefix and new directory checks still need live proof.
 
-**Next reads/check:** `provenance.preflight_source`, `AssetTransfer`,
-`Qualification`, and the [transfer contract](../../tests/e2e/README.md#asset-transfer-qualification).
-Final focused result: 82 tests including actual-checkout/deletion coverage.
-Final `make check` handle 82692 exited 0: 2,136 unit/contracts, 17 components,
-syntax/traceability; `git diff --check` passed. Earlier full check failed only
-on the concurrently deleted file; the subsequent correction passed. Only docs
-changed after final checks. No artifact is nominated for reuse.
+**Next reads/check:** `AssetTransfer`, `Qualification`, and the
+[transfer contract](../../tests/e2e/README.md#asset-transfer-qualification).
+For independent host work: `e2e_worker.run_distribution`, `PrivateCollector`,
+`vm_transport.py`, and the [secret boundary](Evidence/19P-Backend-Preflight-2026-09-06.md#capture-cleanup-and-downstream-prerequisites).
+Focused transfer tests: 28 passed (handle 22065). Final `make check` handle
+66809 exited 0: 2,150 unit/contracts and 17 components, syntax/traceability;
+`git diff --check` passed. Only docs changed afterward. No reusable artifact
+is nominated; the recorded build predates the new probe and concurrent edits.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** early refusal and deletion compatibility are proven; live transfer
-acceptance and secret/console boundaries still need high effort. Remaining 19A:
-**2–3 sessions / 1.5–2.5 hours of active work**, plus unbounded waiting for other
-edits to finish. Solid guard progress was made, but live acceptance did not advance.
+**Reason:** real probe logic now has host coverage, but live transfer and
+secret/console ownership and capture boundaries remain unresolved. Remaining
+19A: **2–3 sessions / 1.5–2.5 active hours**, plus source-stability waiting.
+The forecast is unchanged because live acceptance did not advance.
 
-**State:** dev host and existing guarded `ubuntu26.04` VM only. Handles 73916
-and 91370 exited 1 (the latter intentionally); all checks finished. VM confirmed
-off at 22:54 UTC, ownership released, no operation pending. Logs/evidence preserved.
+**State:** dev host and existing guarded `ubuntu26.04` VM only. Handle 34617
+exited 1; all checks finished. VM confirmed off at 23:07 UTC, lease released,
+no operation pending. Original evidence/logs and concurrent edits preserved.
 
 ## Task 19B
 

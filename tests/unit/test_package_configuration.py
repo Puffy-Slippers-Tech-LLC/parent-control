@@ -109,6 +109,11 @@ esac
         target = tmp_path / f"usr/libexec/oh-no-parent-control-{name}"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.symlink_to(stub)
+    notice = tmp_path / "usr/libexec/oh-no-parent-control-package-notice"
+    notice.write_text(
+        (ROOT / "tools/package_notice").read_text().replace("/run/", str(tmp_path) + "/run/")
+    )
+    notice.chmod(0o755)
     policy = tmp_path / "usr/sbin/policy-rc.d"
     policy.parent.mkdir(parents=True)
     policy.symlink_to(stub)
@@ -122,19 +127,50 @@ esac
     script = tmp_path / "postinst"
     script.write_text(source)
 
-    def run(**env):
+    def run(combine_output=False, **env):
         result = subprocess.run(
             ["/bin/sh", str(script), "configure"],
             env={"PATH": str(bin_dir), "AUDIT_ROOT": str(tmp_path),
                  "IMPACTS": "process-restart", **env},
-            capture_output=True, text=True, timeout=10,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT if combine_output else subprocess.PIPE,
+            text=True, timeout=10,
         )
         if result.returncode != 0:
             assert "PASS:" not in result.stdout
-            assert REBOOT_NOTICE not in result.stderr
+            assert REBOOT_NOTICE not in (result.stderr or result.stdout)
         return result
 
     return tmp_path, state, run
+
+
+@pytest.mark.parametrize("reboot", [False, True])
+def test_configuration_output_ends_with_success_then_reboot_notice(package_machine, reboot):
+    _, _, run = package_machine
+    result = run(combine_output=True, IMPACTS="reboot" if reboot else "")
+    assert result.returncode == 0, result.stdout
+    success = (
+        "\033[1;32mPASS: Oh No! Parent Control package configuration "
+        "completed successfully.\033[0m"
+    )
+    expected = [success, REBOOT_NOTICE] if reboot else [success]
+    assert result.stdout.splitlines()[-len(expected):] == expected
+    assert result.stdout.count(success) == 1
+    assert result.stdout.count(REBOOT_NOTICE) == int(reboot)
+
+
+def test_apt_configuration_queues_notice_until_dpkg_finishes(package_machine):
+    root, _, run = package_machine
+    result = run(DPKG_FRONTEND_LOCKED="true", IMPACTS="reboot")
+    assert result.returncode == 0, result.stderr
+    assert "PASS:" not in result.stdout
+    assert REBOOT_NOTICE not in result.stderr
+    pending = root / "run/oh-no-parent-control-package-configuration-complete"
+    assert pending.is_file()
+    assert pending.stat().st_mode & 0o777 == 0o600
+    result = run(DPKG_FRONTEND_LOCKED="true", BROKER_STATUS="1")
+    assert result.returncode != 0
+    assert not pending.exists(), "failed retries must discard earlier completion"
 
 
 @pytest.mark.parametrize("impacts,action", [

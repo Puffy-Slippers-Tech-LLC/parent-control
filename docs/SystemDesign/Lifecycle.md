@@ -56,6 +56,8 @@ new child/kiosk session, or a reboot at the PAM/display-manager boundary. See
 /usr/libexec/oh-no-parent-control-execution-policy-{ready,probe}
 /usr/libexec/oh-no-parent-control-uninstall            verified removal helper
 /usr/libexec/oh-no-parent-control-{provision,package-activation}
+/usr/libexec/oh-no-parent-control-package-notice       deferred package completion output
+/etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice    generated dpkg completion hook
 /usr/lib/oh-no-parent-control/{broker,parent,kiosk,common}/
 /usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/
                                                        immutable extension payload

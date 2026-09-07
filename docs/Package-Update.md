@@ -39,14 +39,37 @@ Both use only the package payload, installed maintainer scripts, and package
 manager integration. They must never add checkout-side setup, cleanup, notices,
 or success messages. Installation does not force repair or reinstallation; APT
 decides whether the supplied version needs installation just as in production.
-At the end of successful package configuration, `postinst` prints the kiosk
-reboot reminder when this package has an outstanding reboot marker, then a
-green package-configuration success message. These appear for production APT
-and dpkg installations as well as Make. APT may subsequently print dependency
-triggers or report a separate transaction failure; the success message describes
-only this package's configuration. The former Make-only helper's behavior now
-lives in `postinst`, and the helper is no longer shipped. This lifecycle change
-activates during configuration (`none`) and introduces no saved-data migration.
+APT installation output is deferred until dpkg finishes configuration and
+triggers. `preinst` generates the package-owned
+`/etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice`, using dpkg's documented
+[`post-invoke` hook](https://manpages.debian.org/unstable/dpkg/dpkg.1.en.html#OPTIONS).
+APT starts a new dpkg process for configuration after unpacking, so that
+process reads the hook even on the first installation. An APT hook shipped
+as a conffile would be too late for the already-running APT process; a dpkg
+conffile would likewise become available too late during configuration.
+
+After successful configuration, `postinst` calls the packaged
+`/usr/libexec/oh-no-parent-control-package-notice --configured`, which queues a
+private completion marker in `/run` when a frontend holds the dpkg lock.
+The post-invoke hook reads dpkg's public status fields and waits until this
+package is installed and no package remains unconfigured, broken, or awaiting
+triggers. It consumes the marker and prints the green PASS line, immediately
+followed by the kiosk reboot reminder when this package has an outstanding
+reboot request. This places both lines after dependency configuration and
+triggers for ordinary APT installs, including `make installdeb`. Failed
+configuration retries clear stale completion markers; unrelated later
+transactions do not repeat a consumed PASS message. Other independently
+configured APT hooks can still emit their own output after dpkg returns.
+
+Direct `dpkg --install` may unpack and configure in a single process, which
+cannot load its newly generated hook. Without a frontend lock, `postinst`
+therefore retains immediate PASS/reboot output. Removal, purge, and aborted
+installation remove the generated hook only if its contents still match;
+administrator replacements are preserved. The inline hook checks for the
+helper before calling it, so removal of the executable payload is harmless.
+The notice helper and generated dpkg configuration activate on invocation
+(`none`), are excluded from activation digests, and introduce no saved-data
+migration. All of this behavior ships in the `.deb`.
 
 This follows [Ubuntu's package reboot-notification guidance](https://discourse.ubuntu.com/t/ubuntu-deb-package-maintainer-scripts-hooks-triggers-tips-tricks/36174).
 The notification wiring activates during package configuration (`none`); it

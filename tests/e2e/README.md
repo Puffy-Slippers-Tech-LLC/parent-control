@@ -378,6 +378,33 @@ Raw vars/logs/screens stay private and are never copied as reviewed artifacts.
 An empty secret registry is appropriate only for this fixed credential-free
 distribution; authenticated scenarios need the remaining secret/capture work.
 
+### Read-only observation capability
+
+The graphical controller keeps SSH readiness in its provisioning boundary,
+then exposes `ReadOnlyObservations` to stage/asset observation code. Its only
+operation is `read('assets')` or `read('greeter')`. The versioned programs in
+`guest_observations.py` are fixed: scenarios cannot supply shell commands,
+paths, stdin, timeout overrides, package operations, policy writes or resets.
+Adding a probe requires maintained code, explicit output validation and tests;
+there is no guest-selected helper or dynamic command registration.
+
+Each read checks the pinned transport configuration and the existing lease
+guard before execution and before accepting output. Asset output must be the
+canonical count/digest receipt; greeter output must be the exact success marker.
+Only validated fields return to the controller. Unknown probes, malformed output,
+transport/ownership failures and interruption latch failure for that observer.
+Public diagnostics contain fixed codes, never raw guest output or exception text.
+Raw command diagnostics still belong to private controller storage, not reviewed
+evidence. This is a capability boundary for trusted Python scenario code, not
+a sandbox against code that deliberately imports the provisioning transport.
+
+The asset and greeter probes now use this interface. Host tests cover their
+real program logic plus routing, refusal, output and interruption behavior;
+the changed live route still needs guarded qualification. This SSH observation
+interface does not satisfy the remaining authenticated serial-command smoke
+or masked-prompt/secret/capture acceptance. The helpers are development-only,
+activate on next invocation (`none`), and change no product data or setup policy.
+
 `tests/unit/test_e2e_worker_cleanup_safety.py` covers ownership refusal, stale
 inputs, identity replacement, timeout, nonzero status, interruption at each
 execution boundary, report failure and combined cleanup/original failures. It

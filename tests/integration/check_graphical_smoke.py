@@ -32,38 +32,10 @@ from private_artifacts import EvidenceError, PrivateCollector
 from provenance import VerifiedInputs, preflight_source
 from recording import save_checkpoint
 from asset_transfer import AssetTransfer
+from guest_observations import GREETER as OBSERVATION
+from observation_transport import ReadOnlyObservations
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
-# All session names and identifiers stay inside this guest process. This is a
-# read-only corroboration, never a replacement for graphical input/screens.
-OBSERVATION = '''import json,subprocess,time
-def call(*args):
-    return subprocess.run(args, capture_output=True, text=True, check=True, timeout=10).stdout
-deadline = time.monotonic() + 90
-while time.monotonic() < deadline:
-    active = call('systemctl', 'is-active', 'display-manager').strip() == 'active'
-    user_session = False
-    greeter = False
-    for row in call('loginctl', 'list-sessions', '--no-legend', '--no-pager').splitlines():
-        session = row.split()[0]
-        props = dict(line.split('=', 1) for line in call(
-            'loginctl', 'show-session', session, '-p', 'Class', '-p', 'Active', '-p', 'Type',
-            '-p', 'Remote', '-p', 'Service', '-p', 'User').splitlines())
-        # Our root SSH observation creates its own logind user session. Only
-        # that non-graphical observation identity is excluded from this gate.
-        observer = (props.get('User') == '0' and props.get('Service') == 'sshd' and
-                    props.get('Remote') == 'yes' and props.get('Type') not in ('wayland', 'x11'))
-        user_session |= props.get('Class') in ('user', 'user-early') and not observer
-        greeter |= props.get('Class') == 'greeter' and props.get('Active') == 'yes' and props.get('Type') in ('wayland', 'x11')
-    if active and greeter and not user_session:
-        print('greeter-ready')
-        break
-    time.sleep(0.5)
-else:
-    print(json.dumps({'display_manager_active': active, 'active_graphical_greeter': greeter,
-                      'unexpected_user_session': user_session}, sort_keys=True))
-    raise SystemExit(1)
-'''
 
 
 def inputs():
@@ -143,8 +115,9 @@ class Smoke:
             config = {'directory': str(self.directory), 'hostname': hostname,
                       'domain_uuid': self.lease.source.uuid,
                       'domain_id': self.lease.view.domain_id, 'run': self.lease.state['run']}
-            self.vm = Transport(config, self.commands, guard=lambda _: self.lease.guard())
-            self.vm.probe_ready(timeout=180)
+            transport = Transport(config, self.commands, guard=lambda _: self.lease.guard())
+            transport.probe_ready(timeout=180)
+            self.vm = ReadOnlyObservations(transport)
             reply = {'observation': 'active-greeter-no-user-session'}
             if self.transfer is not None:
                 reply['assets'] = self.transfer.observe(self.vm)
@@ -155,8 +128,7 @@ class Smoke:
                 require((reply['width'], reply['height']) == (previous['width'], previous['height'])
                         and reply['sha256'] != previous['sha256'], 'smoke:unchanged-screen')
         # Corroborate each captured stage, not just SSH availability at boot.
-        require(self.vm.call(['/usr/bin/python3', '-c', OBSERVATION], timeout=110) == b'greeter-ready\n',
-                'smoke:greeter-observation-failed')
+        self.vm.read('greeter')
         self.steps.append({'stage': stage, **reply})
         if self.progress is not None:
             # Persist the actual corroboration before acknowledging the next

@@ -86,9 +86,9 @@ def test_real_staged_bytes_copied_before_readonly_observation(attempt):
     for name, expected in control.verified.asset_files.items():
         assert guest.checksum('sha256', transfer.DESTINATION + '/' + name) == expected
     vm = Mock()
-    vm.call.return_value = json.dumps(receipt).encode()
+    vm.read.return_value = receipt
     assert control.observe(vm) == receipt
-    assert vm.method_calls == [('call', (['/usr/bin/python3', '-c', transfer.OBSERVE],), {'timeout': 120})]
+    assert vm.method_calls == [('read', ('assets',), {})]
     with pytest.raises(transfer.EvidenceError, match='already-attempted'):
         control.provision(lease, api)
     assert api.GuestFS.call_count == 1
@@ -148,7 +148,7 @@ def test_refusals_latch_and_leave_restoration_to_outer_lease(attempt, fault):
     vm = Mock()
     with pytest.raises(transfer.EvidenceError, match='verified-provisioning-required'):
         control.observe(vm)
-    vm.call.assert_not_called()
+    vm.read.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['inventory', 'package-alias'])
@@ -178,13 +178,13 @@ def test_booted_corruption_cannot_be_cleared_by_a_later_good_reply(attempt):
     control, lease, guest, api = attempt
     receipt = control.provision(lease, api)
     vm = Mock()
-    vm.call.return_value = b'{"files":0,"sha256":"forged"}'
+    vm.read.return_value = {'files': 0, 'sha256': 'forged'}
     with pytest.raises(transfer.EvidenceError, match='booted-assets-mismatch'):
         control.observe(vm)
-    vm.call.return_value = json.dumps(receipt).encode()
+    vm.read.return_value = receipt
     with pytest.raises(transfer.EvidenceError, match='verified-provisioning-required'):
         control.observe(vm)
-    assert vm.call.call_count == 1
+    assert vm.read.call_count == 1
 
 
 def execute_observation(guest, capsys, *, wrong_owner=False):
@@ -258,6 +258,6 @@ def test_exact_guest_probe_detects_changed_file_inventory(attempt, capsys, fault
     observed = execute_observation(guest, capsys)
     assert observed != receipt
     vm = Mock()
-    vm.call.return_value = json.dumps(observed).encode()
+    vm.read.return_value = observed
     with pytest.raises(transfer.EvidenceError, match='booted-assets-mismatch'):
         control.observe(vm)

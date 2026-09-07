@@ -48,11 +48,12 @@ Candidate accounts are enumerated from current NSS identities so a newly
 created local user can appear before first login. Accounts with a noninteractive
 shell are excluded from the discovered lists. AccountsService is then the
 authority for UID, local/system status, account type, lock state, display name,
-and icon.
+and icon. The current AccountsService shell also determines interactive approver
+eligibility on direct UID selection and transaction revalidation.
 
 An eligible child is a local, non-system, non-administrator account with UID at
 least 1000, excluding the configured kiosk UID. An eligible approver is a local,
-non-system, unlocked administrator with UID at least 1000 and a username safe
+non-system, unlocked, interactive administrator with UID at least 1000 and a username safe
 for the Polkit identity rule. The broker reloads these account records rather
 than trusting cached front-end labels or roles.
 
@@ -66,7 +67,7 @@ is separately installed with mode `0755`. The Parent App checks the live
 administrator role before showing its management window; the broker checks
 management operations independently.
 
-Management authorization uses the live AccountsService administrator flag and
+Management authorization uses the live AccountsService administrator and local-account flags and
 also accepts UID 0. This is distinct from approver eligibility: root is not
 listed as a selectable approver, and approvers must meet all the local-account,
 unlocked-account, and username restrictions above.

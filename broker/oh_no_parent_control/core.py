@@ -64,6 +64,7 @@ class UserAccount:
     is_local: bool
     is_locked: bool = False
     icon_file: str = ""
+    is_interactive: bool = True
 
 
 @dataclass(frozen=True)
@@ -435,7 +436,8 @@ class Broker:
         if caller_uid == 0:
             return True
         try:
-            return self._accounts.get_user(caller_uid).is_admin
+            user = self._accounts.get_user(caller_uid)
+            return user.is_admin and user.is_local
         except Exception:
             return False
 
@@ -477,7 +479,7 @@ class Broker:
             MIN_MANAGED_UID <= user.uid <= UINT32_MAX and
             user.uid != config.kiosk_uid and
             user.is_local and not user.is_system and not user.is_locked and
-            user.is_admin and
+            user.is_admin and user.is_interactive and
             bool(APPROVER_USERNAME_RE.fullmatch(user.username))
         )
 

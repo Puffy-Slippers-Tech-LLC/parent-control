@@ -55,7 +55,8 @@ COMMON_SELECTED_INPUTS = (
 )
 AREA_SELECTED_HELPERS = {
     'package': (),
-    'authorization': (('tests/integration/system_caller.py', 'system_caller.py'),),
+    'authorization': (('tests/integration/system_caller.py', 'system_caller.py'),
+                      ('tests/integration/system_remote_accounts.py', 'system_remote_accounts.py')),
 }
 PHASE_DEPENDENCIES = {
     'installed': (),
@@ -251,11 +252,15 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
             if item not in prerequisites:
                 prerequisites.append(item)
     if test and (test in ('test_authenticated_request_rejects_deleted_target',
-                         'test_requester_disconnect_during_approval') or
+                         'test_requester_disconnect_during_approval',
+                         'test_administrator_eligibility_predicates') or
                  test.startswith('test_authenticated_request_revalidates_live_state[') or
+                 test.startswith('test_request_rejects_locked_approver_during_authentication[') or
                  test.startswith('test_real_selected_parent_authentication[')):
         prerequisites.append('fixture-passwords')
     available = {name: inventories[name] for name in chosen_areas}
+    if any(item.case_id == 'test_remote_accounts_are_excluded' for item in executions):
+        prerequisites.append('remote-ldap-nss-fixtures')
     return Selection(area, test, 'full' if area is None else 'partial', phases,
                      tuple(prerequisites), tuple(executions), available, qualification_failure)
 

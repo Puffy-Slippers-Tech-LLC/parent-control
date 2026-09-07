@@ -48,55 +48,53 @@ variants and the previously registered authorization area have passed.
 Root's method permissions, stale/deleted selections, and authenticated in-flight
 target deletion on both request surfaces now pass in focused VM selections.
 Requester disconnect/cancellation and fresh-connection recovery now pass on
-both paths. Next reconcile the method/role and account-requirement coverage,
-batch any concrete missing identity/eligibility assertions, and finish acceptance.
-Preserve existing registrations.
-Use isolated fixtures/cooldowns; a selected case must not require unrelated
-cases to run first. Finish with the full authorization area once.
+both paths. The method/role audit and a corrected full authorization-area run
+now pass, including direct private-record write-open denials and active-prompt
+approver locking. The [finite coverage audit](Evidence/Task-14-Coverage-Audit.md)
+records the remaining independent eligibility predicates; do not repeat the
+method audit. The noninteractive-administrator boundary now has installed
+assertions and a broker fix; unsafe-name fixture locality and independent exclusion
+now pass after bounded public readiness observation. Real OpenLDAP/SSSD standard
+and administrator fixtures now pass public classification, discovery exclusions,
+direct selections and remote caller checks. The broker locality requirement for
+management is fixed and verified. Preserve all registrations; only final
+full-area acceptance remains for Task 14.
 
 ## Continuation handoff — 2026-09-06 (incomplete)
 
-**Next result:** finish the finite Task 14 coverage audit and acceptance. Compare
-the registered installed cases with the broker method/role matrix and explicit
-account requirements. List any concrete missing identity/eligibility assertions,
-implement only those gaps as a batch, update requirement mappings, then run one
-complete authorization-area acceptance. Do not carry forward an undefined
-“remaining variants” investigation or repeat completed focused matrices just
-to resume. Task 14 remains unchecked. Scope: development host and existing
-guarded `ubuntu26.04` VM.
+**Next result:** run the complete registered authorization area against a fresh,
+verified current-input build. If it and `make check` / `git diff --check` pass,
+accept Task 14 and advance the continuation to the next master-checklist task.
+The finite eligibility gaps are resolved; do not repeat remote fixture research,
+method audits, or solved name/locality/deletion/disconnect investigations.
 
 **Next-session settings:** `gpt-5.6-sol` / `medium`; model: keep; effort: lower.
-**Reason:** live authentication and cancellation ordering are resolved. Coverage
-reconciliation and mappings can use the proven installed helpers with medium
-effort; reassess only if the audit identifies a new concurrency boundary.
+**Reason:** real LDAP/NSS/AccountsService provisioning and broker remote-caller
+exclusion are now proven. Remaining work is registered-suite acceptance and
+review using established helpers, so medium effort should suffice.
 
-**Completed this session:** registered requester disconnect/cancellation and
-fresh-connection recovery for both child and kiosk. The bus name disappeared
-during a real prompt; Polkit denied the vanished subject. Closing the owned
-agent then released the transaction. Correlated broker denial, no write-stage
-entries and unchanged state across all seven role accounts were verified.
-Each surface then authenticated with the same credentials on a fresh connection
-and received a real grant; cleanup revoked it and respected the cooldown.
-This proves explicit agent cancellation, not automatic prompt dismissal or a
-separately forced post-approval `caller_alive` branch.
+**Completed this session:** implemented guarded OpenLDAP/SSSD fixtures and
+`test_remote_accounts_are_excluded`, with selected-input provenance and declared
+prerequisites. Both directory identities resolve through NSS and public
+AccountsService as nonlocal, nonsystem, unlocked and interactive, with safe
+names and verified standard/admin roles. Discovery exclusions, child/kiosk
+approver selection, remote child targets, and both real remote callers pass;
+all six direct boundaries return `AccessDenied`, with seven local accounts'
+state unchanged. Fixed broker management authorization to require locality as
+well as administrator status, preserving root; added revalidation regression.
 
-**Verification:** third VM attempt passed all **five exact executions** and all
-four outcome domains. First failure disproved successful authentication after
-subject exit; second established that terminal failure alone does not complete
-the transaction. Both failures remain retained; the third followed that concrete
-lifecycle correction. **146 focused tests**, **30 isolated safety tests**, and
-dispatcher **175 tests / 3 subtests** passed. Final `make check`: **1,225 unit/
-contract and 17 component tests** passed. Seven selected hashes match; **275**
-public guest files passed the scoped identity scan.
-[Evidence, commands, all attempts and timings](Evidence/Task-14-2026-09-06-Requester-Disconnect.md).
+**Verification:** two selected attempts. First failed fixture installation on an
+obsolete SSSD pin; live archive verification resolved it to `2.12.0-1ubuntu5.4`.
+Second passed all five executions and all four outcome categories. No remote
+fixture blocker remains. `make check`: **1,293 + 17 passed** before the pin-only
+correction; **93** focused tests passed afterward. Full-area acceptance remains
+pending. [Evidence, commands, hashes and timings](Evidence/Task-14-20260906-Remote.md).
 
-**Remaining:** requirement/method-matrix audit and full-area acceptance, including
-the extracted stale-selection helper and new disconnect case together. No active
-blocker remains. Preserve [in-flight deletion](Evidence/Task-14-2026-09-06-InFlight-Deletion.md)
-and [stale-selection](Evidence/Task-14-2026-09-06-Deletion-Qualification.md)
-evidence. Full Task 14 and release acceptance are pending.
-
-**State:** final build **42128**, VM **14234**, checks **90893**, and manifest
-read **15742** exited **0**. Evidence: `/tmp/onpc-system-8zftfkk4/evidence`.
-Baseline restored, domain **shut off**, all owned operations finished. The slice
-overran its estimate to complete the evidence-based correction and cleanup.
+**State:** successful evidence `/tmp/onpc-system-1rwcidgj/evidence`; build
+**46285** and VM **92878** exited **0**. First failure retained at
+`/tmp/onpc-system-_7_od9yt/evidence`, with completed cleanup reconciled after user
+interruption. Final VM state confirmed **shut off**, baseline restored, all
+operations finished. Only documentation followed the successful VM run. Scope
+remains this development host and existing guarded `ubuntu26.04` VM; no host
+product/account changes or new VM. Existing uncommitted work is preserved.
+Task 14 stays unchecked until final authorization-area acceptance.

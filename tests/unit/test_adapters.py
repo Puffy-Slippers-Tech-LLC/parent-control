@@ -96,6 +96,22 @@ class PolkitAdapterTests(unittest.TestCase):
                 mock.patch.object(accounts, "get_user", side_effect=lambda uid: uid):
             self.assertEqual(accounts.list_users(), (1001, 1002))
 
+    def test_direct_account_lookup_preserves_shell_eligibility(self):
+        accounts = AccountsService(object())
+        for shell in (None, "", "/bin/false", "/usr/bin/false", "/sbin/nologin",
+                      "/usr/sbin/nologin", "/bin/bash", "/bin/sh"):
+            with self.subTest(shell=shell):
+                properties = {"Uid": 1003, "AccountType": 1,
+                              "LocalAccount": True, "SystemAccount": False, "Locked": False}
+                if shell is not None:
+                    properties["Shell"] = shell
+                reply = mock.Mock()
+                reply.unpack.return_value = (properties,)
+                with mock.patch.object(accounts, "_user_path", return_value="/org/freedesktop/Accounts/User1003"), \
+                        mock.patch("oh_no_parent_control.adapters._call", return_value=reply):
+                    user = accounts.get_user(1003)
+                self.assertEqual(user.is_interactive, shell in ("/bin/bash", "/bin/sh"))
+
     def test_session_runtime_cap_is_cleared_only_for_the_child_user_session(self):
         accounts = AccountsService(object())
         sessions = mock.Mock()

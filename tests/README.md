@@ -41,11 +41,19 @@ tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' tests/unit/test_graphi
 tools/run-tests component 'tests/component/test_*.py' -q
 tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py' -q
 tools/run-tests integration check_graphical_worker
+tools/run-tests integration check_package_notice
 tools/run-tests system --artifacts /tmp/onpc-test-artifacts/first --area authorization
 tools/run-tests e2e --list
 tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500
 tools/test-vm status
 ```
+
+`check_package_notice` runs real APT and dpkg against tiny fixture packages in
+private chroots under `/var/tmp/onpc-package-notice-*`. It exercises the production
+notice bootstrap, helper, and removal hook through first install, reinstall,
+remove/reinstall, and trigger failure. It changes no host packages or VM state;
+it does not exercise the product's kiosk, PAM, or service provisioning.
+Command output and results are retained for the artifact reader below.
 
 Always quote filename patterns and parametrized IDs. The launchers validate
 every selection and option, expand globs without a shell, preserve exit status,

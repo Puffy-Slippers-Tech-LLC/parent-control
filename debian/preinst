@@ -1,6 +1,31 @@
 #!/bin/sh
 set -e
 
+prepare_package_notice() {
+    # A new APT hook is too late for the APT process already running. dpkg
+    # reads its own hooks again when APT starts the configuration pass.
+    # Generate this owned configuration before unpack, rather than shipping
+    # a conffile which would only become available during configuration.
+    notice_path=/etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice
+    notice_hook='post-invoke=if [ -x /usr/libexec/oh-no-parent-control-package-notice ]; then /usr/libexec/oh-no-parent-control-package-notice --after-dpkg; fi'
+    if [ -L /etc/dpkg ] || [ -L /etc/dpkg/dpkg.cfg.d ] ||
+       [ -L "$notice_path" ]; then
+        echo 'oh-no-parent-control: refusing substituted package notice configuration' >&2
+        exit 1
+    fi
+    if [ -e "$notice_path" ]; then
+        if [ ! -f "$notice_path" ] || [ "$(cat "$notice_path")" != "$notice_hook" ]; then
+            echo 'oh-no-parent-control: preserving modified package notice configuration' >&2
+            exit 1
+        fi
+    else
+        install -d -o root -g root -m 0755 /etc/dpkg/dpkg.cfg.d
+        printf '%s\n' "$notice_hook" > "$notice_path"
+        chmod 0644 "$notice_path"
+    fi
+    rm -f /run/oh-no-parent-control-package-configuration-complete
+}
+
 if [ "$1" = install ] || [ "$1" = upgrade ]; then
     # Reject collisions before unpacking can replace files or configuring can
     # change account properties. The reserved kiosk identity must be ours.
@@ -29,6 +54,7 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
     if [ "$1" = install ] && [ -z "${2:-}" ]; then
         touch /var/lib/oh-no-parent-control/first-install-in-progress
     fi
+    prepare_package_notice
     # Capture before our fallback rule is unpacked or any service is started.
     # Keep this across upgrades and remove/reinstall until postrm restores it.
     baseline=/var/lib/oh-no-parent-control/fapolicyd-before-install

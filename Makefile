@@ -268,6 +268,7 @@ _install-product-files:
 	install -m 0755 broker/oh-no-parent-control-broker "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-migrate-state "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-uninstall "$(DESTDIR)$(LIBEXECDIR)/"
+	install -m 0755 tools/package_notice "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-notice"
 	install -d "$(DESTDIR)$(SYSCONFDIR)/apt/apt.conf.d"
 	install -m 0644 data/apt/99zz-oh-no-parent-control-reboot-notice "$(DESTDIR)$(SYSCONFDIR)/apt/apt.conf.d/"
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"

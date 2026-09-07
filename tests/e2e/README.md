@@ -200,8 +200,9 @@ must retain the existing held lease through its final check.
 digest map required by `e2e_worker.run_distribution`. Source enumeration uses
 Git's tracked and nonignored untracked paths, hashes current bytes and modes in
 the artifact builder's format, and detects edits, additions, removals and file
-replacement. Missing tracked files refuse, matching the current builder's
-contract. Root controller reads scope Git's `safe.directory` to this invocation's
+replacement. Tracked deletions already present before a fresh build are omitted,
+matching the builder; deletion or reappearance during an attempt refuses.
+Root controller reads scope Git's `safe.directory` to this invocation's
 trusted checkout, without changing global configuration. Ignored build outputs
 are excluded. The capture rejects symlinks,
 hardlinks and special input files, pins parent directory opens and checks file
@@ -268,12 +269,17 @@ bytes, extra entries and a second provisioning call refuse. No package is
 installed, no product state is written and no host share is attached.
 
 After boot, `AssetTransfer.observe` uses the guarded SSH transport for a fixed
-read-only tree, ownership, mode and digest check. Only count/digest evidence
+read-only tree, ownership, mode and digest check. The tree check includes
+unexpected empty directories; every directory must be an ancestor of a
+transferred file. Only count/digest evidence
 returns. A mismatch prevents the ready acknowledgement and latches failure;
 later replies cannot clear it. Ordered checkpoints retain transfer start and
 successful offline verification. The outer lease owns all cleanup, including
 partial transfer failure; the transfer helper never boots, stops or restores.
 This does not complete the remaining authenticated secret/console transport.
+Host regressions execute the exact probe against filesystem fixtures, checking
+receipt agreement and malformed trees, ownership, permissions, links, special
+files and changed/missing/extra payloads. They do not replace live qualification.
 
 ```sh
 tools/run-unit-tests tests/unit/test_e2e_inventory.py tests/unit/test_e2e_evidence.py -q

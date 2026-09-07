@@ -56,6 +56,14 @@ class PackageActivationTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(activation_for(path), "none")
 
+    def test_package_completion_notice_activates_on_invocation(self):
+        for path in (
+            "usr/libexec/oh-no-parent-control-package-notice",
+            "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(activation_for(path), "none")
+
     def test_execution_rule_change_reloads_with_broker_restart(self):
         self.assertEqual(activation_for("usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules"), "process-restart")
         self.assertEqual(

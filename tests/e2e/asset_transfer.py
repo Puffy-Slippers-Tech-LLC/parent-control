@@ -26,17 +26,23 @@ OBSERVE = '''import hashlib,json,pathlib,stat
 root=pathlib.Path('/var/lib/onpc-e2e-assets')
 assert root.resolve()==root
 files={}
+directories=set()
 for p in [root,*sorted(root.rglob('*'))]:
     s=p.lstat()
     assert s.st_uid==s.st_gid==0 and p.resolve()==p
     if stat.S_ISDIR(s.st_mode):
         assert stat.S_IMODE(s.st_mode)==493
+        directories.add(p.relative_to(root).as_posix())
         continue
     assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and stat.S_IMODE(s.st_mode)==420
     h=hashlib.sha256()
     with p.open('rb') as stream:
         for block in iter(lambda: stream.read(1048576),b''): h.update(block)
     files[p.relative_to(root).as_posix()]=h.hexdigest()
+expected_directories={'.'}
+for name in files:
+    expected_directories.update(p.as_posix() for p in pathlib.PurePosixPath(name).parents)
+assert directories==expected_directories
 encoded=(json.dumps(files,sort_keys=True,indent=2)+'\\n').encode()
 print(json.dumps({'files':len(files),'sha256':hashlib.sha256(encoded).hexdigest()},sort_keys=True))
 '''

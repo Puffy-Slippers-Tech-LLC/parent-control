@@ -1,6 +1,21 @@
 #!/bin/sh
 set -e
 
+case "$1" in
+    remove|purge|abort-install)
+        notice_path=/etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice
+        notice_hook='post-invoke=if [ -x /usr/libexec/oh-no-parent-control-package-notice ]; then /usr/libexec/oh-no-parent-control-package-notice --after-dpkg; fi'
+        # Never remove an administrator's replacement. The guard in an
+        # unchanged hook also makes a removed executable harmless.
+        if [ ! -L /etc/dpkg ] && [ ! -L /etc/dpkg/dpkg.cfg.d ] &&
+           [ ! -L "$notice_path" ] && [ -f "$notice_path" ] &&
+           [ "$(cat "$notice_path")" = "$notice_hook" ]; then
+            rm -f "$notice_path"
+        fi
+        rm -f /run/oh-no-parent-control-package-configuration-complete
+        ;;
+esac
+
 check_tree() {
     # Only fixed product paths below. Never follow links or cross filesystems.
     if [ -L "$1" ]; then

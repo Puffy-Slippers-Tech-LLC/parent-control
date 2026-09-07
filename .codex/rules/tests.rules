@@ -118,11 +118,34 @@ prefix_rule(
     decision = "prompt",
     justification = "Use tools/run-tests; a general interpreter or pytest command can execute arbitrary paths and plugins.",
 )
+# Routine Make targets are explicitly authorized in this trusted checkout.
+# A blanket make prompt would override both this rule and saved target allows.
+# This is a prefix grant, not argument validation: it also matches trailing
+# arguments and trusts the Makefile and environment. Use tools/run-tests when
+# selection/options need validation; do not add a generic make or shell allow.
 prefix_rule(
-    pattern = [["make", "/usr/bin/make", "env", "/usr/bin/env",
-                "bash", "/bin/bash", "/usr/bin/bash", "sh", "/bin/sh", "/usr/bin/sh"]],
+    pattern = [["make", "/usr/bin/make"],
+               ["build", "check", "check-release-version", "check-unit",
+                "check-component", "check-test-fixtures", "check-child-node",
+                "check-child-gjs", "check-child-shell", "check-shell",
+                "check-gjs", "check-static"]],
+    decision = "allow",
+    justification = "Run the trusted checkout's routine build and check targets without repeated approval.",
+    match = ["make check", "/usr/bin/make check", "make build", "make check-component"],
+    not_match = ["make", "make check-system", "make installdeb", "make -f /tmp/Makefile check", "bash -lc 'make check'"],
+)
+prefix_rule(
+    pattern = [["make", "/usr/bin/make"],
+               ["check-system", "installdeb", "uninstalldeb", "prep-host", "prep-vm"]],
     decision = "prompt",
-    justification = "Use tools/run-tests; trailing Make options, assignments and targets can execute unrelated code.",
+    justification = "Use tools/run-tests system or setup.sh for validated system tests and setup; package installation/removal needs separate authorization.",
+    match = ["make check-system LIST=1", "make installdeb"],
+    not_match = ["make check", "make build"],
+)
+prefix_rule(
+    pattern = [["env", "/usr/bin/env", "bash", "/bin/bash", "/usr/bin/bash", "sh", "/bin/sh", "/usr/bin/sh"]],
+    decision = "prompt",
+    justification = "Use direct approved commands or validated helpers; unrestricted shell scripts and environment wrappers need separate approval.",
 )
 prefix_rule(
     pattern = [["sort", "/usr/bin/sort",

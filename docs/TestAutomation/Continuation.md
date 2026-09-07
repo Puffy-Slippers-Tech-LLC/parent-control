@@ -5,12 +5,12 @@ owns completion.
 
 - F1, 19P and 14 are complete. **19A remains active**;
   [handoff](Task-19.md#task-19a-continuation--2026-09-07).
-- Completed: inventory plus runtime evidence gate/private collector; 244 focused
-  tests and whitespace checks passed. All 156 actual variants remain pending.
-- Next slice: integrate the qualified guarded worker/distribution/launcher and
-  collector; prove host-safe dispatch/refusal before the smallest live smoke.
-- Settings: **`gpt-5.6-sol` / `high`**; model keep, effort keep. Proven inventory
-  and collector boundaries plus the qualified backend bound integration; lifecycle
-  ownership, real capture safety and interruption still warrant high effort.
-- Host-only changes; no VM query/mutation or owned operation remains. The
-  previous VM shut-off observation is historical. No blocker or feasibility rerun.
+- Completed: inventory-gated launcher/`check-e2e`, host-safe listing and refusal
+  before privilege/VM access. Installed dispatcher refreshed and checked;
+  `make check` passed (1,959 unit/contracts, 17 components). All 156 variants pending.
+- Next: independently verified provenance and input-change rejection for the
+  execution controller, then real `EvidenceContract` scenario records. Reuse the
+  qualified worker; keep E2E-001 pending until 19B matching.
+- Settings: **`gpt-5.6-sol` / `high`**; both keep. Routing/refusal is verified;
+  provenance, mutation detection and real evidence integration still need high effort.
+- All commands finished; no owned VM/worker operation started or remains.

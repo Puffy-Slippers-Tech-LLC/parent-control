@@ -11,7 +11,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import signal
 import struct
 import sys
@@ -20,14 +19,15 @@ import threading
 import time
 
 import graphical_backend
-from graphical_lease import Adapter, CallbackServer, lifecycle_variables
-from graphical_worker import Worker
 from owned_commands import Commands, require
 import system_runner as runner
 from vm_transport import Transport
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tests/e2e'))
+import e2e_worker
+sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
 # All session names and identifiers stay inside this guest process. This is a
 # read-only corroboration, never a replacement for graphical input/screens.
@@ -64,24 +64,10 @@ else:
 def inputs():
     paths = [*sorted((ROOT / 'tests/integration').glob('*.py')),
              *sorted((ROOT / 'tests/integration/graphical_smoke').rglob('*.pm')),
+             *sorted((ROOT / 'tests/e2e').glob('*.py')),
+             ROOT / 'tests/e2e/scenarios.json', ROOT / 'tests/requirements.json',
              ROOT / 'tests/test-tools-ubuntu-26.04.txt']
     return {str(p.relative_to(ROOT)): runner.baseline.digest(p) for p in paths}
-
-
-def variables(directory, server, run):
-    return {
-        'BACKEND': 'generalhw', 'DISTRI': 'onpc-smoke',
-        'CASEDIR': str(directory / 'distribution'),
-        'WORKER_HOSTNAME': '127.0.0.1', 'GENERAL_HW_VNC_IP': '127.0.0.1',
-        'GENERAL_HW_VNC_PORT': 5900, 'GENERAL_HW_NO_SERIAL': 1,
-        # The generalhw default is 16-bit. QEMU's changed ZRLE rectangles trip
-        # the pinned client's 16-bit decoder even though its initial full frame
-        # succeeds. The backend's documented 32-bit setting uses its rgb888
-        # path and keeps the public VNC transport unchanged.
-        'GENERAL_HW_VNC_DEPTH': 32,
-        'NOVIDEO': 1,
-        **lifecycle_variables(server.path, run),
-    }
 
 
 def schedule_preflight(directory, commands):
@@ -167,48 +153,24 @@ class Smoke:
         runner.log('graphical:' + stage + '-observed')
 
 
-def close_backend(worker, server, ledger):
-    original = sys.exception()
-    failure = None
-    with ledger.measure('cleanup'):
-        for resource in (worker, server):
-            if resource is None:
-                continue
-            try:
-                resource.close()
-            except BaseException as error:
-                failure = failure or error
-                ledger.fail_outcome('cleanup', 'smoke:backend-cleanup-failed')
-    if failure is not None and original is None:
-        raise failure
-
-
-def run_backend(directory, lease, commands, host_key, ledger):
-    server = CallbackServer(Adapter(lease), directory)
-    worker = None
+def run_backend(directory, lease, commands, host_key, ledger, expected_inputs):
     smoke = Smoke(directory, lease, commands, host_key)
+    def validate():
+        require(len(smoke.steps) == len(STAGES), 'smoke:missing-stages')
+        module_result(directory)
     try:
-        shutil.copytree(Path(__file__).with_name('graphical_smoke'), directory / 'distribution')
-        (directory / 'distribution/needles').mkdir()
-        (directory / 'vars.json').write_text(json.dumps(variables(directory, server, lease.state['run'])))
-        worker = Worker(directory, server.path, lease.state['run'],
-                        ['/usr/bin/isotovideo', '--exit-status-from-test-results'])
-        deadline = time.monotonic() + 600
-        while time.monotonic() < deadline:
-            result = worker.poll()
-            if result is not None:
-                require(result == 0, 'smoke:backend-failed')
-                require(len(smoke.steps) == len(STAGES), 'smoke:missing-stages')
-                module_result(directory)
-                return smoke.steps
-            server.serve_once()
-            smoke.step()
-        require(False, 'smoke:timeout')
+        worker_result = e2e_worker.run_distribution(
+            directory, lease, ledger, expected_inputs=expected_inputs,
+            observe=smoke.step, validate=validate)
+        return {'steps': smoke.steps, 'worker_evidence': worker_result}
     finally:
+        original = sys.exception()
         try:
             (directory / 'steps.json').write_text(json.dumps(smoke.steps, indent=2) + '\n')
-        finally:
-            close_backend(worker, server, ledger)
+        except BaseException:
+            ledger.fail_outcome('collection', 'smoke:step-report-failed')
+            if original is None:
+                raise
 
 
 def main():
@@ -255,7 +217,8 @@ def main():
                 lease.guard(off=True)
                 lease.save('isolated')
             with ledger.measure('test'):
-                result['steps'] = run_backend(directory, lease, commands, host_key, ledger)
+                result.update(run_backend(directory, lease, commands, host_key, ledger,
+                                          result['inputs_sha256']))
                 require(inputs() == result['inputs_sha256'], 'smoke:source-inputs-changed')
                 ledger.pass_outcome('infrastructure')
                 ledger.pass_outcome('collection')

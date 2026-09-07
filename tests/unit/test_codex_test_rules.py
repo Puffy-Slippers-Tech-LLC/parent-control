@@ -1,4 +1,4 @@
-"""The project's restrictive rules must dominate previously saved broad allows."""
+"""Routine commands stay approved; scoped restrictions dominate saved allows."""
 import ast
 from pathlib import Path
 import shlex
@@ -44,7 +44,7 @@ def test_validated_routes_only_match_allow_rules(command):
     'virsh --connect qemu:///system start other-vm',
     '/usr/bin/python3 -B -m pytest /tmp/arbitrary.py',
     '.venv/onpc-ui-tests/bin/python -c arbitrary',
-    'make check -f /tmp/Makefile', 'make check-system SHELL=/tmp/arbitrary',
+    'make check-system SHELL=/tmp/arbitrary', 'make installdeb', 'make prep-host',
     'journalctl --vacuum-time=1s', 'systemctl restart sshd',
     'pkexec /usr/bin/head /etc/shadow', 'gdbus call --address unix:path=/tmp/bus',
     'rg --pre /tmp/arbitrary needle', 'sort input -o /tmp/output',
@@ -53,6 +53,44 @@ def test_validated_routes_only_match_allow_rules(command):
 def test_legacy_global_allow_cannot_override_project_prompt(command):
     decisions = [rule['decision'] for rule in entries() if matches(rule['pattern'], shlex.split(command))]
     assert 'prompt' in decisions
+
+
+@pytest.mark.parametrize('executable', ['make', '/usr/bin/make'])
+@pytest.mark.parametrize('target', [
+    'build', 'check', 'check-release-version', 'check-unit', 'check-component',
+    'check-test-fixtures', 'check-child-node', 'check-child-gjs',
+    'check-child-shell', 'check-shell', 'check-gjs', 'check-static',
+])
+def test_routine_make_targets_are_allowed_without_saved_user_rules(executable, target):
+    # Evaluate every maintained rule: any broad prompt recreates the reported
+    # failure even when a target-specific allow also matches.
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    decisions = {rule['decision'] for rule in rules
+                 if matches(rule['pattern'], [executable, target])}
+    assert decisions == {'allow'}
+
+
+@pytest.mark.parametrize('command', [
+    'make', 'make arbitrary-target', 'make check-other',
+    'make -f /tmp/Makefile check', 'make -C /tmp check',
+    'make installdeb', 'make uninstalldeb', 'make prep-host', 'make prep-vm',
+    'make check-system', 'pkexec make check', 'pkexec /usr/bin/make check',
+    "bash -lc 'make check'", "/bin/bash -lc 'make check'",
+    "bash -lc 'make check && arbitrary-command'", 'env make check',
+])
+def test_make_target_grants_do_not_allow_other_commands_or_whole_shells(command):
+    # Codex splits simple shell invocations before matching. We must not grant
+    # the wrapper itself: unsplit scripts still require independent approval.
+    assert not any(rule['decision'] == 'allow' and matches(rule['pattern'], shlex.split(command))
+                   for rule in entries())
+
+
+def test_make_prefix_grant_does_not_claim_to_validate_trailing_arguments():
+    # Document the supported rule language's boundary rather than treating
+    # match/not_match examples as runtime argument validators.
+    command = ['make', 'check', '-f', '/tmp/Makefile']
+    decisions = {rule['decision'] for rule in entries() if matches(rule['pattern'], command)}
+    assert decisions == {'allow'}
 
 
 def test_inline_examples_and_no_generic_script_allow():

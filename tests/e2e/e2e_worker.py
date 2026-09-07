@@ -1,0 +1,184 @@
+"""Guarded, credential-free generalhw execution shared with the qualified smoke.
+
+The caller owns the prepared lease and its outer restoration. This module owns
+only the callback server and recorded worker. It exports structured diagnostics,
+never raw worker logs, variables or screenshots. It is not a customer runner.
+"""
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+import time
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tests/integration'))
+from graphical_lease import Adapter, CallbackServer, lifecycle_variables
+from graphical_worker import Worker
+from owned_commands import require
+sys.path.pop(0)
+
+from evidence import FailureLedger
+from private_artifacts import PrivateCollector
+
+DISTRIBUTION = ROOT / 'tests/integration/graphical_smoke'
+COMMAND = ('/usr/bin/isotovideo', '--exit-status-from-test-results')
+
+
+def distribution_inputs():
+    """Freeze the exact maintained Perl distribution, including uncommitted edits.
+
+    No arbitrary worker variables, extra schedule, checkpoints, executable
+    overrides or credential input are accepted at this boundary.
+    """
+    require(DISTRIBUTION.resolve() == DISTRIBUTION, 'e2e:distribution-path')
+    result = {}
+    for path in sorted(DISTRIBUTION.rglob('*')):
+        metadata = path.lstat()
+        require(not stat.S_ISLNK(metadata.st_mode), 'e2e:distribution-symlink')
+        if stat.S_ISDIR(metadata.st_mode):
+            continue
+        require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
+                and path.suffix == '.pm' and metadata.st_size <= 1024 * 1024,
+                'e2e:distribution-file')
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            opened = os.fstat(stream.fileno())
+            require((opened.st_dev, opened.st_ino) == (metadata.st_dev, metadata.st_ino),
+                    'e2e:distribution-replaced')
+            data = stream.read(1024 * 1024 + 1)
+        require(len(data) <= 1024 * 1024, 'e2e:distribution-size')
+        result[path.relative_to(DISTRIBUTION).as_posix()] = data
+        require(len(result) <= 128, 'e2e:distribution-size')
+    require('main.pm' in result and 'tests/smoke.pm' in result, 'e2e:distribution-incomplete')
+    return result
+
+
+def stage_distribution(directory, expected_inputs):
+    """Copy frozen bytes only if they match the controller's earlier input map."""
+    files = distribution_inputs()
+    prefix = DISTRIBUTION.relative_to(ROOT).as_posix() + '/'
+    actual = {prefix + name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
+    require(actual == {key: value for key, value in expected_inputs.items()
+                       if key.startswith(prefix)}, 'e2e:distribution-inputs-changed')
+    destination = directory / 'distribution'
+    destination.mkdir(mode=0o700)
+    for name, data in files.items():
+        path = destination / name
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data)
+    (destination / 'needles').mkdir(mode=0o700)
+    return hashlib.sha256(json.dumps(actual, sort_keys=True).encode()).hexdigest()
+
+
+def variables(directory, server, run):
+    return {
+        'BACKEND': 'generalhw', 'DISTRI': 'onpc-smoke',
+        'CASEDIR': str(directory / 'distribution'),
+        'WORKER_HOSTNAME': '127.0.0.1', 'GENERAL_HW_VNC_IP': '127.0.0.1',
+        'GENERAL_HW_VNC_PORT': 5900, 'GENERAL_HW_NO_SERIAL': 1,
+        # Qualified public rgb888 path; the pinned client's 16-bit changed
+        # ZRLE rectangles do not decode this QEMU display correctly.
+        'GENERAL_HW_VNC_DEPTH': 32, 'NOVIDEO': 1,
+        **lifecycle_variables(server.path, run),
+    }
+
+
+def run_distribution(directory, lease, ledger, *, expected_inputs, observe, validate,
+                     timeout=600):
+    """Run fixed trusted code against an existing isolated lease, then retain reports.
+
+    observe/validate are controller functions, never supplied by the guest or
+    CLI. Validation must reconcile actual module results and completed stages.
+    A zero worker exit alone cannot pass. Final VM/host/source restoration and
+    full inventory EvidenceContract acceptance remain the outer owner's job.
+    """
+    require(type(timeout) in (int, float) and 0 < timeout <= 600, 'e2e:timeout')
+    require(isinstance(lease.state['run'], str)
+            and re.fullmatch(r'[0-9a-f]{32}', lease.state['run']), 'e2e:run')
+    directory = Path(directory)
+    metadata = directory.lstat()
+    require(directory.is_absolute() and directory.resolve() == directory
+            and stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == os.geteuid()
+            and stat.S_IMODE(metadata.st_mode) == 0o700, 'e2e:private-directory')
+    # Adapter validates the held lease, its instance, graphics and off state
+    # before storage, callbacks or worker construction.
+    adapter = Adapter(lease)
+    run_id = 'worker-' + lease.state['run']
+    started = time.monotonic()
+    failures = FailureLedger()
+    server = worker = None
+    first_error = None
+    result = {'schema_version': 1, 'run_id': run_id, 'scope': 'credential-free-worker',
+              'outcome': 'failed', 'distribution_sha256': None,
+              'raw_capture': 'private-not-approved-for-export',
+              'worker_stopped': False, 'callback_closed': False}
+    with PrivateCollector(run_id=run_id, secrets=[]) as collector:
+        result['evidence_directory'] = str(collector.path)
+        def fail(category, code, error):
+            nonlocal first_error
+            first_error = first_error or error
+            failures.record(category, code, monotonic_seconds=time.monotonic() - started)
+            ledger.fail_outcome(category, 'e2e:' + code)
+
+        def save(name):
+            result.update(failures=failures.snapshot(), first_failure=failures.first_failure,
+                          duration_seconds=time.monotonic() - started)
+            collector.save_report(name, result)
+
+        try:
+            result['distribution_sha256'] = stage_distribution(directory, expected_inputs)
+            server = CallbackServer(adapter, directory)
+            fd = os.open(directory / 'vars.json',
+                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, 'w') as stream:
+                json.dump(variables(directory, server, lease.state['run']), stream)
+            worker = Worker(directory, server.path, lease.state['run'], list(COMMAND))
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                # Revalidate even when no callback is queued or the worker exits.
+                adapter.revalidate()
+                status = worker.poll()
+                if status is not None:
+                    require(status == 0, 'e2e:backend-failed')
+                    validate()
+                    result['outcome'] = 'passed'
+                    break
+                server.serve_once()
+                observe()
+            else:
+                require(False, 'e2e:deadline')
+        except BaseException as error:
+            fail('infrastructure', 'worker-interrupted' if isinstance(error, KeyboardInterrupt)
+                 else 'worker-execution-failed', error)
+        finally:
+            # Persist the original failure before cleanup can fail or interrupt.
+            try:
+                save('worker-before-cleanup')
+            except BaseException as error:
+                fail('collection', 'worker-report-failed', error)
+            with ledger.measure('cleanup'):
+                for resource, key in ((worker, 'worker_stopped'), (server, 'callback_closed')):
+                    try:
+                        if resource is not None:
+                            resource.close()
+                        result[key] = True
+                    except BaseException as error:
+                        fail('cleanup', 'worker-cleanup-failed' if key == 'worker_stopped'
+                             else 'callback-cleanup-failed', error)
+            result['outcome'] = 'failed' if failures.snapshot() else result['outcome']
+            try:
+                save('worker-result')
+                collector.verify([])
+            except BaseException as error:
+                fail('collection', 'worker-report-failed', error)
+            # Fixed codes only. The path is a generated private artifact locator.
+            print('e2e-worker: evidence=' + str(collector.path), file=sys.stderr, flush=True)
+    if first_error is not None:
+        raise first_error
+    return result

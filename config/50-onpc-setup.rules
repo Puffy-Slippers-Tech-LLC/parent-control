@@ -1,0 +1,13 @@
+// Only the installed dispatcher can perform fixed operations in its pinned
+// trusted checkout. Never authorize a generic Python interpreter or shell.
+polkit.addRule(function(action, subject) {
+    if (action.id === "com.puffyslippers.onpc.development.setup") {
+        if (((!action.lookup("user") && !action.lookup("program")) ||
+             (action.lookup("user") === "root" &&
+              action.lookup("program") === "/usr/local/libexec/onpc-setup")) &&
+            subject.local && subject.active && subject.isInGroup("sudo")) {
+            return polkit.Result.YES;
+        }
+        return polkit.Result.NO;
+    }
+});

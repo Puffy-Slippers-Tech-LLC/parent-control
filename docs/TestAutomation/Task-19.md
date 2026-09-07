@@ -135,48 +135,48 @@ handoff's settings for the next slice.
 
 ### Task 19A continuation — 2026-09-07
 
-**Completed boundary:** `tests/e2e/scenarios.json` contains 33 families and 156
-explicit pending variants. `inventory.py` validates schema, exact selection,
-matrix closure, ownership, references, attempt phases, interventions and minimum
-evidence declarations. Family selection retains every variant; runnable
-selection refuses pending work. About/feedback and installation mapping gaps
-remain explicitly owned. See the [contract](../../tests/e2e/README.md) and
-[input digests/results](Evidence/19A-Inventory-20260907.md). This completes the
-first inventory slice, not Task 19A or any customer coverage.
+**Completed boundary:** runtime `evidence.py` and `private_artifacts.py` now
+consume the inventory contract. Exact cases, steps, assertions, artifact links,
+input identities, timing, split outcomes and cleanup must reconcile before a
+pass. Controller-owned failure history preserves the first failure even if a
+submitted result clears it. Private copies enforce containment, ownership,
+permissions, digests, secret scanning and immutable report filenames. Read the
+[runtime contract](../../tests/e2e/README.md#runtime-gate-and-private-collector).
+All 33 families / 156 actual variants remain pending. This slice is complete;
+19A and customer coverage are not.
 
-**Next result:** implement the runtime evidence validator and private collector
-consuming this selection contract. Reconcile exact case/step/assertion identities,
-current-input provenance, outcomes and cleanup; refuse missing/extra/duplicate,
-skipped/failed/stale records and unsafe artifact references. Prove a valid
-synthetic record and deliberate refusal cases locally, including secret
-exclusion and preservation of the first failure. The current evidence fields
-are declarations only. Keep all actual scenarios pending during these host tests.
+**Next result:** wire the guarded distribution/launcher to the qualified worker,
+inventory and collector, and expose `check-e2e` through the existing approved
+dispatcher. First prove host-safe dispatch/refusal and failure collection; then
+run the smallest fresh-boot/harmless-observation smoke with retained private
+evidence and owned cleanup. Generate expected provenance independently, record
+failures as observed and persist them before risky cleanup. Trusted producers
+must exclude PII/authentication captures; secret scanning is not image redaction.
+Do not promote the full E2E-001 journey before its 19B matching requirements exist.
 
 **Reuse:** 19P's qualified `generalhw`, API 48, `graphical_worker.py`,
-`graphical_lease.py` and `check_graphical_smoke.py`; F1's split outcome/provenance
-conventions. No backend research or baseline preparation rerun is needed.
-After collection is proven, the following slice wires the guarded distribution/
-launcher and `check-e2e`; fresh boot/observation, secrets, digest-verified assets
-and safe cleanup still require real acceptance. Stable screen matching remains
-19B. Do not repeat this inventory implementation or completed Task 14 acceptance.
+`graphical_lease.py`, `check_graphical_smoke.py`, and F1 provenance conventions.
+No backend research, baseline preparation, inventory rewrite or completed
+Task 14 rerun is needed. Fresh input transfer, real secret-safe transport,
+interruption, source/host preservation and cleanup still need integrated
+acceptance; stable screen matching remains 19B.
 
-**Verification:** 102 focused tests passed; isolated cleanup prerequisites passed
-175 tests plus 3 subtests; `make check` passed 1,395 unit/contracts, 17 components
-and static/traceability checks; `git diff --check` passed. The sandbox initially
-denied local socket operations. Explicit filenames matched the existing pytest
-approval after a wildcard escalation was interrupted; no rule change was needed.
-All edits are host-verified only. Zero VM attempts; no product blocker.
+**Verification:** 244 focused tests passed (142 runtime + 102 inventory), final
+pytest time 0.87 s; `git diff --check` passed. Three evolving-code local runs
+totaled 2.56 s of pytest; about 15–20 minutes implementation/review/documentation.
+[Input digests and scope](Evidence/19A-Runtime-Evidence-20260907.md). No full-suite
+or VM acceptance claimed, zero expensive attempts, no blocker or unresolved
+diagnosis. Run relevant cleanup prerequisites before any next live operation.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** inventory/selection is proven and bounds the collector implementation,
-so the same model suffices; artifact containment, secret exclusion and truthful
-failure/provenance handling still warrant high reasoning effort.
+**Reason:** inventory and collector boundaries now have focused coverage and the
+backend is qualified, so the same model suffices. Integrating lifecycle ownership,
+real capture safety and interruption still warrants high effort.
 
-**State:** authorized scope remains this development host and the existing
-guarded `ubuntu26.04` VM. All commands exited; no owned operation remains.
-This slice neither queried nor changed the VM; its last shut-off observation
-is historical. About 16 minutes of work/verification plus an interrupted
-approval wait; no live preparation/test/cleanup time.
+**State:** scope remains this development host and the existing guarded
+`ubuntu26.04` VM. All commands exited; no owned operation remains. This session
+did not query or change the VM; previous shut-off observations are historical.
+Concurrent setup/permission edits were preserved and are outside this slice.
 
 ## Task 19B
 

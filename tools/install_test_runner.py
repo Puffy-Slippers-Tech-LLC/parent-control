@@ -24,14 +24,15 @@ def install_missing_dependencies():
         print('test-runner-install: installing missing launcher dependencies', flush=True)
         subprocess.run(['/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=300', 'install',
                         '--no-upgrade', '--no-remove', '--no-install-recommends', '-y', *packages],
-                       env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}, check=True)
+                       env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+                            'DEBIAN_FRONTEND': 'noninteractive'}, check=True)
 
 
 def validated_policy(root):
     data = (root / 'config/com.puffyslippers.onpc.development.policy').read_bytes()
     tree = ET.fromstring(data)
     expected = {'com.puffyslippers.onpc.development.' + name: '/usr/local/libexec/onpc-' + name
-                for name in ('test-runner', 'diagnostics', 'test-artifacts', 'export-screenshot')}
+                for name in ('test-runner', 'diagnostics', 'test-artifacts', 'export-screenshot', 'setup')}
     actions = tree.findall('action')
     if len(actions) != len(expected) or {item.get('id') for item in actions} != set(expected):
         raise ValueError('test-runner-install:invalid-policy-actions')
@@ -102,7 +103,7 @@ def main():
     root = Path(__file__).resolve().parents[1]
     identity = pinned_vm_uuid()
     policy_data = validated_policy(root)
-    names = ('onpc-test-runner', 'onpc-export-screenshot', 'onpc-test-artifacts', 'onpc-diagnostics')
+    names = ('onpc-test-runner', 'onpc-export-screenshot', 'onpc-test-artifacts', 'onpc-diagnostics', 'onpc-setup')
     rendered = {name: render_helper(root, name, identity).encode() for name in names}
     for name, data in rendered.items():
         compile(data, name, 'exec')
@@ -119,6 +120,7 @@ def main():
         ('50-onpc-test-runner.rules', '.onpc-test-runner-policy-'),
         ('50-onpc-test-artifacts.rules', '.onpc-test-artifacts-policy-'),
         ('50-onpc-diagnostics.rules', '.onpc-diagnostics-policy-'),
+        ('50-onpc-setup.rules', '.onpc-setup-policy-'),
     )
     for name, _prefix in policies:
         destination = Path('/etc/polkit-1/rules.d') / name

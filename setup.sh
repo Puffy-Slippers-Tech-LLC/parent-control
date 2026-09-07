@@ -12,6 +12,7 @@ Usage: ./setup.sh [MODE]
   --dependencies-only   Install development, build, UI and VM host dependencies
   --test-tools-only     Refresh test helpers, graphical policies and Codex rules
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
+  --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --prepare-host        Prepare/reconcile the existing test VM baseline on the host
   --prepare-vm          Prepare test accounts INSIDE the source VM only
   --install-extension   Install the development extension for the current user
@@ -28,7 +29,7 @@ if (( $# > 1 )); then
 fi
 readonly mode="${1-}"
 case "$mode" in
-    ''|--dependencies-only|--test-tools-only|--codex-rules-only|--prepare-host|--prepare-vm|--install-extension) ;;
+    ''|--dependencies-only|--test-tools-only|--codex-rules-only|--bootstrap-tools|--prepare-host|--prepare-vm|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -40,31 +41,50 @@ if [[ ! -f Makefile || ! -x child/preview ]]; then
 fi
 
 run_root() {
+    # Routine operations never fall back to generic pkexec authentication.
     if (( EUID == 0 )); then
+        shift
         "$@"
     else
-        pkexec --keep-cwd "$@"
+        /usr/bin/python3 -IB "$script_dir/tools/setup_privileges.py" "$1"
+    fi
+}
+
+bootstrap_tools() {
+    if (( EUID == 0 )); then
+        echo 'setup: [stage:bootstrap-tools] installing authorization as root'
+        /usr/bin/python3 -IB "$script_dir/tools/install_test_runner.py"
+    elif [[ -e "/usr/local/libexec/onpc-setup" || -L "/usr/local/libexec/onpc-setup" ]]; then
+        echo 'setup: [stage:bootstrap-tools] reusing installed noninteractive authorization'
+        run_root test-tools /usr/bin/python3 -IB "$script_dir/tools/install_test_runner.py"
+    else
+        echo 'setup: [stage:bootstrap-tools] first installation requires administrator authorization'
+        pkexec --keep-cwd /usr/bin/python3 -IB "$script_dir/tools/install_test_runner.py"
     fi
 }
 
 install_codex_rules() {
     echo 'setup: [stage:codex-rules]'
-    run_root /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py" --system
+    run_root codex-rules /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py" --system
     /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py"
     echo 'setup: Codex rules installed; restart Codex with this checkout trusted'
 }
 
 install_test_tools() {
     echo 'setup: [stage:test-tools]'
-    run_root /usr/bin/python3 -IB "$script_dir/tools/install_test_runner.py"
+    run_root test-tools /usr/bin/python3 -IB "$script_dir/tools/install_test_runner.py"
     echo 'setup: [stage:graphical-host-policies]'
-    run_root /usr/bin/python3 -IB "$script_dir/tools/install_graphical_test_policy.py"
+    run_root graphical-policy /usr/bin/python3 -IB "$script_dir/tools/install_graphical_test_policy.py"
     install_codex_rules
 }
 
 case "$mode" in
     --codex-rules-only) install_codex_rules ;;
     --test-tools-only) install_test_tools ;;
+    --bootstrap-tools)
+        bootstrap_tools
+        install_codex_rules
+        ;;
     --install-extension)
         make --no-print-directory _install-development-extension
         ;;
@@ -77,13 +97,20 @@ case "$mode" in
         # The controller owns provenance and resumability, preserving accepted
         # baselines and rejecting concurrent or replaced resources.
         echo 'setup: [stage:prepare-host]'
-        run_root /usr/bin/python3 -B "$script_dir/tests/integration/prepare_host.py"
+        run_root prepare-host /usr/bin/python3 -B "$script_dir/tests/integration/prepare_host.py"
         # Pin the accepted UUID only after successful baseline reconciliation.
         install_test_tools
         ;;
     ''|--dependencies-only)
+        # Establish the grant before installing host dependencies. All later
+        # privileged stages reuse it, including repeated bootstrap requests.
+        if [[ -z "$mode" && ! -e "/usr/local/libexec/onpc-setup" && ! -L "/usr/local/libexec/onpc-setup" ]]; then
+            bootstrap_tools
+        fi
         echo 'setup: [stage:dependencies]'
-        /bin/bash "$script_dir/tools/setup_dependencies.sh"
+        run_root dependencies /bin/bash "$script_dir/tools/setup_dependencies.sh"
+        echo 'setup: [stage:checkout]'
+        /bin/bash "$script_dir/tools/setup_checkout.sh"
         if [[ -z "$mode" ]]; then
             install_test_tools
         fi

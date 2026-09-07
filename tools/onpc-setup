@@ -1,0 +1,55 @@
+#!/usr/bin/python3 -IB
+"""Root-owned dispatcher for fixed setup operations in the trusted checkout."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
+OPERATIONS = {
+    'dependencies': ('tools/setup_dependencies.sh',),
+    'codex-rules': ('tools/install_codex_rules.py', '--system'),
+    'test-tools': ('tools/install_test_runner.py',),
+    'graphical-policy': ('tools/install_graphical_test_policy.py',),
+    'prepare-host': ('tests/integration/prepare_host.py',),
+}
+
+
+def command(root, argv):
+    if len(argv) != 1 or argv[0] not in OPERATIONS:
+        raise ValueError('setup-helper: expected one supported setup operation')
+    relative, *args = OPERATIONS[argv[0]]
+    target = root / relative
+    if not root.is_absolute() or any(path.is_symlink() for path in (target, *target.parents)):
+        raise ValueError('setup-helper: unsafe checkout path')
+    if not target.is_file():
+        raise ValueError('setup-helper: missing setup module')
+    if argv[0] == 'dependencies':
+        return ['/bin/bash', str(target)]
+    # prepare_host imports its sibling guest contract; the other installers use
+    # only the standard library and can run with Python's isolated mode.
+    return ['/usr/bin/python3', '-B' if argv[0] == 'prepare-host' else '-IB', str(target), *args]
+
+
+def main():
+    try:
+        if CHECKOUT is None or os.geteuid() != 0 or int(os.environ.get('PKEXEC_UID', '0')) <= 0:
+            raise ValueError('setup-helper: use the installed helper through setup.sh')
+        root = Path(CHECKOUT)
+        selected = command(root, sys.argv[1:])
+        print(f'setup-helper: starting {sys.argv[1]}', flush=True)
+        result = subprocess.run(selected, cwd=root, check=False,
+                                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+                                     'LANG': 'C.UTF-8', 'HOME': '/root',
+                                     'DEBIAN_FRONTEND': 'noninteractive',
+                                     'PYTHONDONTWRITEBYTECODE': '1'})
+        print(f'setup-helper: finished (status={result.returncode})', flush=True)
+        return result.returncode
+    except (ValueError, OSError) as error:
+        print(str(error) if isinstance(error, ValueError) else 'setup-helper: filesystem or execution failure',
+              file=sys.stderr)
+        return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main())

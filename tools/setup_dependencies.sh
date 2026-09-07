@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Dependency and checkout configuration module; invoke through ../setup.sh.
+# Host package module; setup.sh supplies the scoped privilege authorization.
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly apt_lock_timeout_seconds=300
-if (( $# != 0 )); then
-    echo 'setup-dependencies: use ./setup.sh --dependencies-only' >&2
+if (( $# != 0 || EUID != 0 )); then
+    echo 'setup-dependencies: use ./setup.sh --dependencies-only with installed setup authorization' >&2
     exit 2
 fi
 if ! command -v apt-get >/dev/null; then
@@ -13,23 +13,12 @@ if ! command -v apt-get >/dev/null; then
     exit 1
 fi
 
-if (( EUID == 0 )); then
-    apt_get=(apt-get -o "DPkg::Lock::Timeout=$apt_lock_timeout_seconds")
-else
-    command -v sudo >/dev/null || {
-        echo "setup: sudo is required to install development dependencies" >&2
-        exit 1
-    }
-    apt_get=(sudo apt-get -o "DPkg::Lock::Timeout=$apt_lock_timeout_seconds")
-fi
+export DEBIAN_FRONTEND=noninteractive
+apt_get=(apt-get -o "DPkg::Lock::Timeout=$apt_lock_timeout_seconds")
 
 "${apt_get[@]}" update
 "${apt_get[@]}" install -y software-properties-common
-add_repository=(add-apt-repository -y universe)
-if (( EUID != 0 )); then
-    add_repository=(sudo "${add_repository[@]}")
-fi
-"${add_repository[@]}"
+add-apt-repository -y universe
 "${apt_get[@]}" update
 "${apt_get[@]}" install -y \
     7zip \
@@ -94,20 +83,3 @@ fi
     iproute2=6.19.0-1ubuntu1.1
 
 "${apt_get[@]}" build-dep -y "$script_dir"
-
-# Keep the public development identity and signing settings local to this checkout.
-# The private signing key must be restored separately before signing releases.
-git -C "$script_dir" config --local user.name 'Puffy Slippers Tech LLC'
-git -C "$script_dir" config --local user.email 'dev@tech.puffyslippers.com'
-git -C "$script_dir" config --local gpg.format openpgp
-git -C "$script_dir" config --local user.signingkey '4449F02C3E57F8215261A57958109B593907EFDE'
-echo "setup: configured checkout-local Git identity and OpenPGP signing key"
-
-# GNOME Shell 50 supplies the public org.gnome.Shell.Screenshot interface used
-# by isolated child component evidence capture; no host screenshot tool or
-# desktop-session access is used.
-
-ui_venv="$script_dir/.venv/onpc-ui-tests"
-"/usr/bin/python3" -m venv --system-site-packages "$ui_venv"
-"$ui_venv/bin/python" -m pip install --disable-pip-version-check --no-deps \
-    --require-hashes -r "$script_dir/tests/ui/requirements.txt"

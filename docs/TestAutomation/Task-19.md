@@ -135,48 +135,51 @@ handoff's settings for the next slice.
 
 ### Task 19A continuation — 2026-09-07
 
-**Completed boundary:** runtime `evidence.py` and `private_artifacts.py` now
-consume the inventory contract. Exact cases, steps, assertions, artifact links,
-input identities, timing, split outcomes and cleanup must reconcile before a
-pass. Controller-owned failure history preserves the first failure even if a
-submitted result clears it. Private copies enforce containment, ownership,
-permissions, digests, secret scanning and immutable report filenames. Read the
-[runtime contract](../../tests/e2e/README.md#runtime-gate-and-private-collector).
-All 33 families / 156 actual variants remain pending. This slice is complete;
-19A and customer coverage are not.
+**Completed boundary:** inventory-gated `runner.py`, `make check-e2e` and the
+existing category/installed dispatchers now provide host-safe listing and
+invalid/pending refusal before privilege checks, cleanup prerequisites or VM
+execution. All 33 families / 156 variants remain pending. A synthetic ready
+declaration also refuses at `e2e:execution-controller-unfinished`; worker
+diagnostics cannot become scenario results. The installed helper was refreshed
+through `./setup.sh --test-tools-only` and its refusal verified.
 
-**Next result:** wire the guarded distribution/launcher to the qualified worker,
-inventory and collector, and expose `check-e2e` through the existing approved
-dispatcher. First prove host-safe dispatch/refusal and failure collection; then
-run the smallest fresh-boot/harmless-observation smoke with retained private
-evidence and owned cleanup. Generate expected provenance independently, record
-failures as observed and persist them before risky cleanup. Trusted producers
-must exclude PII/authentication captures; secret scanning is not image redaction.
-Do not promote the full E2E-001 journey before its 19B matching requirements exist.
+**Next result:** implement independently verified input provenance for the
+guarded execution controller: freeze current source (including uncommitted
+runner/requirements changes), inventory, package/assets and environment/baseline
+identities before worker startup, and reject mismatches or changed inputs.
+Reuse the existing artifact/lease contracts in `system_runner.py` and the
+runtime `EvidenceContract`; do not accept provenance asserted by worker output.
+Then connect actual scenario records to `EvidenceContract.validate` before
+opening execution dispatch. Keep E2E-001 pending until 19B matching exists.
+Fresh guest asset transfer, harmless observation and authenticated secret/capture
+transport remain explicit 19A acceptance work.
 
-**Reuse:** 19P's qualified `generalhw`, API 48, `graphical_worker.py`,
-`graphical_lease.py`, `check_graphical_smoke.py`, and F1 provenance conventions.
-No backend research, baseline preparation, inventory rewrite or completed
-Task 14 rerun is needed. Fresh input transfer, real secret-safe transport,
-interruption, source/host preservation and cleanup still need integrated
-acceptance; stable screen matching remains 19B.
+**Reuse:** `runner.preflight`, the
+[launcher and worker contracts](../../tests/e2e/README.md), and
+`e2e_worker.run_distribution` with the controller's earlier input digest map and
+trusted observe/validate callbacks. The existing guarded worker smoke already
+passed; its [evidence](Evidence/19A-Worker-Integration-20260907.md) and earlier
+[runtime evidence](Evidence/19A-Runtime-Evidence-20260907.md) remain applicable.
+No backend research, worker rewrite, baseline preparation or Task 14 rerun.
 
-**Verification:** 244 focused tests passed (142 runtime + 102 inventory), final
-pytest time 0.87 s; `git diff --check` passed. Three evolving-code local runs
-totaled 2.56 s of pytest; about 15–20 minutes implementation/review/documentation.
-[Input digests and scope](Evidence/19A-Runtime-Evidence-20260907.md). No full-suite
-or VM acceptance claimed, zero expensive attempts, no blocker or unresolved
-diagnosis. Run relevant cleanup prerequisites before any next live operation.
+**Verification:** 33 new launcher regressions; 191 focused tests passed, followed
+by 101 authorization/launcher checks. `make check` passed 1,959 unit/contracts,
+17 components, syntax and traceability. Real category listing and both ordinary
+and installed pending refusal passed; `git diff --check` passed.
+[Commands and code digests](Evidence/19A-Launcher-Preflight-20260907.md).
+No VM attempt, expensive failed experiment or unresolved diagnosis this slice.
+Dispatcher edits have not been exercised inside a VM attempt; 19A stays open.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** inventory and collector boundaries now have focused coverage and the
-backend is qualified, so the same model suffices. Integrating lifecycle ownership,
-real capture safety and interruption still warrants high effort.
+**Reason:** launcher routing/refusal is now verified and needs no further
+investigation. The existing model remains suitable; independent provenance,
+input mutation detection and real evidence integration still require high effort.
 
-**State:** scope remains this development host and the existing guarded
-`ubuntu26.04` VM. All commands exited; no owned operation remains. This session
-did not query or change the VM; previous shut-off observations are historical.
-Concurrent setup/permission edits were preserved and are outside this slice.
+**State:** this development host and the existing guarded `ubuntu26.04` VM remain
+the authorized scope. All commands finished, including make handle 65427 (exit
+0); no owned VM/worker operation was started or remains. No current VM state
+is inferred from historical smoke evidence. Existing worker and approval-rule
+edits were preserved. Setup refreshed rules; their Codex activation is on restart.
 
 ## Task 19B
 

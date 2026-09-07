@@ -4,8 +4,11 @@
 [E2E coverage](../../docs/TestAutomation/E2E-Coverage.md). All 156 variants are
 currently **pending**. Inventory validation is host unit coverage; it does not
 establish graphical behavior or complete Task 19A. The runtime evidence gate
-and private collector have host-only regression coverage. The guarded E2E
-launcher, collector integration and `make check-e2e` remain unfinished.
+and private collector have host-only regression coverage. The shared worker now
+uses the private collector for diagnostics and has passed one guarded VM smoke.
+The inventory-gated launcher and `make check-e2e` now support listing and
+explicit execution refusal before privilege checks. The execution controller,
+independent provenance and scenario-result collection remain unfinished.
 
 ## Inspect scope on the host
 
@@ -13,9 +16,10 @@ From the checkout, these commands only read declarations and print JSON. They
 need no root, package artifacts, installed product, graphical tools or VM:
 
 ```sh
-python3 -B tests/e2e/inventory.py
-python3 -B tests/e2e/inventory.py --scenario E2E-023
-python3 -B tests/e2e/inventory.py --scenario E2E-023/fullscreen
+tools/run-tests e2e --list
+tools/run-tests e2e --list --scenario E2E-023
+tools/run-tests e2e --list --scenario E2E-023/fullscreen
+make check-e2e LIST=1 SCENARIO=E2E-023/fullscreen
 ```
 
 An omitted selector lists every category, family and variant, including pending
@@ -23,9 +27,26 @@ work. An exact family selects all its variants. An exact `E2E-NNN/variant`
 selects one case and is partial, even if the family currently has one variant.
 Any explicit selection is partial relative to the full inventory. Empty,
 unknown, wildcard, prefix and comma-separated selectors fail with exit 2.
-`--require-runnable` also refuses any selection containing a pending variant;
-it still only lists and never executes anything. Pending cases are never
-silently filtered to obtain a successful selection.
+The lower-level `inventory.py --require-runnable` command also refuses any
+selection containing a pending variant; it still only lists and never executes
+anything. Pending cases are never silently filtered to obtain a successful selection.
+
+`tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` and
+`make check-e2e ARTIFACT_DIR=/tmp/onpc-... SCENARIO=E2E-001` currently fail with
+`selection:pending`, before artifact access, privilege checks, cleanup tests,
+worker imports or VM operations. Omitting the selector checks the entire
+inventory. `LIST=1` rejects artifact arguments; other nonempty `LIST` values and
+all nonempty `VM_IMAGE` values fail. Make forwards selector values through the
+environment, so they cannot become recipe shell commands.
+
+Both the unprivileged category launcher and installed dispatcher invoke the
+same `runner.preflight`; refresh the latter with `./setup.sh --test-tools-only`
+after dispatcher changes. Development activation is `none` (next invocation),
+with no product or saved-data changes. Missing/unsafe inventory inputs fail
+closed. Even a fully ready declaration cannot run until the execution controller
+is connected: `e2e:execution-controller-unfinished` is an explicit remaining
+implementation gate. There is no bypass, checkpoint or resume option. Listing
+success is declaration inspection, never an E2E pass.
 
 The JSON includes canonical case IDs, owner, status/reason, parameters,
 environment, prerequisites, duration bound, ordered phases, assertions,
@@ -174,3 +195,44 @@ three-sided evidence declarations, malformed input, executable containment,
 phase/intervention categories and host-only CLI behavior. Runtime tests also
 cover exact result reconciliation, split outcomes, retained failures, provenance,
 private copies, tampering, secret exclusion and file/directory replacement.
+
+## Shared guarded worker
+
+`e2e_worker.run_distribution` now runs the qualified, fixed credential-free
+distribution for `tests/integration/check_graphical_smoke.py`. Invoke the smoke
+through `tools/run-tests integration check_graphical_smoke`; the dispatcher runs
+isolated cleanup prerequisites before entering the existing VM lease. This is
+worker integration evidence, not an executed E2E-001 variant. The distribution's
+Perl sources still live in `tests/integration/graphical_smoke`; this extraction
+does not replace its feasibility geometry with Task 19B's stable matching.
+
+The outer controller supplies its previously recorded source digest map. The
+worker freezes distribution bytes, rejects changed/extra/missing inputs and
+unsafe source entries, and writes only those verified bytes into a fresh private
+distribution directory. Its fixed generalhw variables and command expose no
+caller-selected backend, schedule, checkpoint, guest command or password input.
+`Adapter` must validate the prepared lease before callbacks or worker creation,
+and revalidates its identity on every poll, including worker completion. The
+trusted observation and validation callbacks remain in the outer controller;
+worker exit zero cannot substitute for their stage/module assertions.
+
+Private `worker-before-cleanup.json` and `worker-result.json` reports contain
+only fixed diagnostic fields, distribution digest, timing, failure history and
+worker/callback cleanup status. The first is persisted before closing resources;
+the worker closes before its callback server, and each close is attempted even
+after another fails. Failure reports exclude raw exception text. Collection or
+cleanup failure prevents return of success and preserves the original error.
+The reports use `FailureLedger` and `PrivateCollector`; they are explicitly
+credential-free worker diagnostics, **not** `EvidenceContract` scenario results
+or proof of outer VM/host restoration. The outer smoke result owns those checks.
+Raw vars/logs/screens stay private and are never copied as reviewed artifacts.
+An empty secret registry is appropriate only for this fixed credential-free
+distribution; authenticated scenarios need the remaining secret/capture work.
+
+`tests/unit/test_e2e_worker_cleanup_safety.py` covers ownership refusal, stale
+inputs, identity replacement, timeout, nonzero status, interruption at each
+execution boundary, report failure and combined cleanup/original failures. It
+is automatically included in the dispatcher's isolated safety prerequisites.
+The [worker integration evidence](../../docs/TestAutomation/Evidence/19A-Worker-Integration-20260907.md)
+records the real run. The launcher preflight is now implemented; independent
+provenance and actual scenario records remain the next controller boundary.

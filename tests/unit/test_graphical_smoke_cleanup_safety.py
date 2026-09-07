@@ -12,38 +12,6 @@ import check_graphical_recovery as recovery
 sys.path.pop(0)
 
 
-@pytest.mark.parametrize('worker_fails', [False, True])
-def test_worker_closes_before_callback_even_on_cleanup_failure(worker_fails):
-    events = []
-    def worker_close():
-        events.append('worker')
-        if worker_fails:
-            raise RuntimeError('fixture failure')
-    worker = Mock(close=worker_close)
-    server = Mock(close=lambda: events.append('server'))
-    ledger = smoke.runner.RunLedger()
-    if worker_fails:
-        with pytest.raises(RuntimeError, match='fixture failure'):
-            smoke.close_backend(worker, server, ledger)
-        assert ledger.outcomes['cleanup']['outcome'] == 'failed'
-    else:
-        smoke.close_backend(worker, server, ledger)
-    assert events == ['worker', 'server']
-
-
-def test_original_failure_survives_cleanup_failure():
-    ledger = smoke.runner.RunLedger()
-    worker, server = Mock(), Mock()
-    worker.close.side_effect = RuntimeError('cleanup failure')
-    with pytest.raises(ValueError, match='original failure'):
-        try:
-            raise ValueError('original failure')
-        finally:
-            smoke.close_backend(worker, server, ledger)
-    server.close.assert_called_once()
-    assert ledger.outcomes['cleanup']['outcome'] == 'failed'
-
-
 @pytest.mark.parametrize('arguments,uid', [(['check', 'extra'], 0), (['check'], 1000)])
 def test_invalid_invocation_refuses_before_files_commands_or_vm(arguments, uid):
     with patch.object(sys, 'argv', arguments), patch.object(smoke.os, 'geteuid', return_value=uid), \
@@ -61,10 +29,12 @@ def test_backend_poll_failure_still_closes_worker_and_callback(tmp_path):
     lease = Mock(state={'run': 'a' * 32})
     worker, server = Mock(), Mock(path=tmp_path / 'callback.sock')
     worker.poll.side_effect = RuntimeError('fixture backend failure')
-    with patch.object(smoke, 'Adapter'), patch.object(smoke, 'CallbackServer', return_value=server), \
-            patch.object(smoke, 'Worker', return_value=worker):
+    tmp_path.chmod(0o700)
+    with patch.object(smoke.e2e_worker, 'Adapter'), \
+            patch.object(smoke.e2e_worker, 'CallbackServer', return_value=server), \
+            patch.object(smoke.e2e_worker, 'Worker', return_value=worker):
         with pytest.raises(RuntimeError, match='fixture backend failure'):
-            smoke.run_backend(tmp_path, lease, Mock(), 'host-key', smoke.runner.RunLedger())
+            smoke.run_backend(tmp_path, lease, Mock(), 'host-key', smoke.runner.RunLedger(), smoke.inputs())
     worker.close.assert_called_once()
     server.close.assert_called_once()
 

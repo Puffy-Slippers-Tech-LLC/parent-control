@@ -60,17 +60,20 @@ def test_unchanged_selection_refuses_acknowledgement(tmp_path):
 
 
 def test_generalhw_uses_documented_32_bit_vnc_depth(tmp_path):
-    selected = smoke.variables(tmp_path, Mock(path=tmp_path / 'callback.sock'), 'a' * 32)
+    selected = smoke.e2e_worker.variables(tmp_path, Mock(path=tmp_path / 'callback.sock'), 'a' * 32)
     assert selected['GENERAL_HW_VNC_DEPTH'] == 32
 
 
 def test_success_requires_all_stages_even_with_zero_backend_status(tmp_path):
     worker, server = Mock(), Mock(path=tmp_path / 'callback.sock')
     worker.poll.return_value = 0
-    with patch.object(smoke, 'Adapter'), patch.object(smoke, 'CallbackServer', return_value=server), \
-            patch.object(smoke, 'Worker', return_value=worker):
+    tmp_path.chmod(0o700)
+    with patch.object(smoke.e2e_worker, 'Adapter'), \
+            patch.object(smoke.e2e_worker, 'CallbackServer', return_value=server), \
+            patch.object(smoke.e2e_worker, 'Worker', return_value=worker):
         with pytest.raises(RuntimeError, match='missing-stages'):
-            smoke.run_backend(tmp_path, Mock(state={'run': 'a' * 32}), Mock(), 'host-key', smoke.runner.RunLedger())
+            smoke.run_backend(tmp_path, Mock(state={'run': 'a' * 32}), Mock(), 'host-key',
+                              smoke.runner.RunLedger(), smoke.inputs())
     worker.close.assert_called_once()
     server.close.assert_called_once()
 

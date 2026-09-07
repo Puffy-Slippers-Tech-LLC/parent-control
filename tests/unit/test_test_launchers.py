@@ -125,13 +125,13 @@ def test_missing_roadmap_target_refuses_but_fixed_target_can_be_added(checkout):
     assert safety is False
 
 
-def test_e2e_listing_is_host_safe_and_missing_executor_refused():
+def test_e2e_listing_is_host_safe_and_pending_execution_refused():
     plan, safety = commands.plan(ROOT, 'e2e', ['--list'])
     assert 'pkexec' not in plan[0][0]
-    assert plan[0][2].endswith('/tests/e2e/inventory.py')
-    assert '--list' not in plan[0]
+    assert plan[0][2].endswith('/tests/e2e/runner.py')
+    assert '--list' in plan[0]
     assert safety is False
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='selection:pending'):
         commands.plan(ROOT, 'e2e', ['--artifacts=/tmp/onpc-future'])
 
 

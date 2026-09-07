@@ -131,6 +131,17 @@ check-system:
 
 .PHONY: check-system
 
+# Literal values travel through the environment, never through recipe shell
+# interpolation. Both listing and execution use the validated category launcher.
+check-e2e: export ONPC_E2E_LIST := $(value LIST)
+check-e2e: export ONPC_E2E_SCENARIO := $(value SCENARIO)
+check-e2e: export ONPC_E2E_ARTIFACT_DIR := $(value ARTIFACT_DIR)
+check-e2e: export ONPC_E2E_VM_IMAGE := $(value VM_IMAGE)
+check-e2e:
+	@/usr/bin/python3 -B tests/e2e/runner.py --from-make
+
+.PHONY: check-e2e
+
 # Guest-only preparation also goes through the master with explicit selection.
 prep-vm:
 	@./setup.sh --prepare-vm

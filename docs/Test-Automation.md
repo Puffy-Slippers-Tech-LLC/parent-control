@@ -105,6 +105,8 @@ included in today's `make check`.
 | `make check-system LIST=1 [AREA=<area> [TEST=<case-id>]]` | Host-safe installed-case inventory and prerequisite resolution; no artifacts, root, or VM use. |
 | `make check-system ARTIFACT_DIR=<verified-directory>` | Existing guarded installed-system runner; detailed coverage is still being completed. |
 | `make check-system ARTIFACT_DIR=<verified-directory> AREA=<area> [TEST=<case-id>]` | Guarded partial installed run for registered `package` or `authorization` scope, including required package/reboot phases. |
+| `make check-e2e LIST=1 [SCENARIO=<family-or-variant>]` | Host-safe inventory through the validated E2E launcher; all current variants are pending. |
+| `make check-e2e ARTIFACT_DIR=<verified-directory> [SCENARIO=<family-or-variant>]` | Implemented selection/refusal boundary; pending cases fail before privilege or VM access. Actual execution remains unfinished under Task 19A. |
 
 Selected runs record their exact expected and executed JUnit identities and
 reject missing, additional, duplicate, failed, or skipped cases. They are

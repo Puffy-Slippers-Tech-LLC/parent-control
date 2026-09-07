@@ -96,8 +96,27 @@ argument; the launcher expands file patterns without a shell.
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify /tmp/onpc-...` / `compare /tmp/onpc-first /tmp/onpc-second` | Fixed builder; explicit existing project artifact inputs |
 | Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
-| Graphical customer journeys, variants and fault/recovery scenarios | `tools/run-tests e2e --list --scenario E2E-001` | Current inventory only; execution is reserved for the guarded `tests/e2e/runner.py` and refuses until implemented |
+| Graphical customer journeys, variants and fault/recovery scenarios | `tools/run-tests e2e --list --scenario E2E-001` | Host-safe `runner.py` inventory preflight; invalid/pending execution refuses before privilege checks; actual scenario controller remains unfinished |
 | Future fast suite and complete gate (Task 28A) | `tools/run-tests fast --component broker --type contract` / `tools/run-tests all` | Fixed `test-fast`/`test-all` targets; currently refuse because those targets are unfinished |
+
+Routine `make check`, `make build`, `make check-release-version`, `make check-unit`,
+`make check-component`, `make check-test-fixtures`, `make check-child-node`,
+`make check-child-gjs`, `make check-child-shell`, `make check-shell`,
+`make check-gjs` and `make check-static` also have maintained auto-approval rules
+for `make` and `/usr/bin/make`. Run the plain target from this trusted checkout;
+use the validated launchers above for selections/options. These are prefix
+grants: they trust the Makefile, environment and trailing arguments, and cannot
+enforce an exact argument count. No generic Make or shell allowance is installed.
+Direct `make check-system`, `make check-e2e`, installation/removal and host/guest setup targets
+retain prompts; use their validated routes and applicable authorization.
+
+The former blanket `make` prompt overrode even a saved `make check` allow,
+because the strictest matching rule wins. Do not restore that blanket prompt.
+Codex splits a simple `/bin/bash -lc 'make check'` invocation and evaluates the
+inner command, so it needs no shell allowance. Complex scripts retain the shell
+prompt. After changing rules, run `./setup.sh --codex-rules-only` and restart
+Codex with this checkout trusted. Setup maintains these target grants for clean
+machines without changing personal user rules.
 
 System and E2E listings run as the ordinary user without safety tests, privilege
 or VM mutation. `fast --list` forwards `LIST=1` once its target exists. `all`
@@ -220,12 +239,13 @@ generic shell to solve that parsing limitation.
 The earlier unit launcher validated paths; the UI launcher forwarded arbitrary
 pytest arguments. Direct pytest rules likewise accepted external tests/plugins.
 General privileged readers still caused Polkit dialogs despite Codex approval.
-Saved global `virsh`, Make, journal, filter/fetch and interpreter approvals could authorize
+Saved global `virsh`, journal, filter/fetch and interpreter approvals could authorize
 operations beyond their descriptions. These paths are replaced for routine work
 by the validated helpers; project `prompt` overrides cover the relevant broad
 global families without editing personal global rules. A prefix checks initial
 arguments only, so adding an apparently safe subcommand is insufficient when
-trailing options or Make targets can execute code.
+trailing options can execute code. The explicitly authorized routine Make target
+prefixes above accept this limitation; they are not argument-confined helpers.
 
 The safety boundary trusts this checkout, its maintained test code/imports,
 configuration and installed dependencies. A filename pattern cannot prove that

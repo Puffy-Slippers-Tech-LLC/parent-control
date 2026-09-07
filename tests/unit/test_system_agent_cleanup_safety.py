@@ -15,7 +15,7 @@ sys.path.pop(0)
 
 
 def subject():
-    return SimpleNamespace(name=':1.234', agent_subject=lambda: '12345,67890')
+    return SimpleNamespace(name=':1.234', uid=2345, agent_subject=lambda: '12345,67890')
 
 
 def rig(monkeypatch):

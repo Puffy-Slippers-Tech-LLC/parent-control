@@ -48,6 +48,44 @@ def test_retained_root_saved_uid_is_refused(monkeypatch):
         caller.drop_identity(2345)
 
 
+def test_explicit_root_caller_sets_and_verifies_all_credentials(monkeypatch):
+    calls = identity_rig(monkeypatch)
+    monkeypatch.setattr(caller.os, 'getresuid', lambda: (0, 0, 0))
+    caller.drop_identity(0, allow_root=True)
+    calls.setresuid.assert_called_once_with(0, 0, 0)
+    calls.initgroups.assert_called_once_with('fixture', 1234)
+    calls.setresgid.assert_called_once_with(1234, 1234, 1234)
+    assert caller.os.environ == {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': '/home/fixture'}
+
+
+@pytest.mark.parametrize('allow_root', [False, None, 1, 'true'])
+def test_root_requires_literal_opt_in(monkeypatch, allow_root):
+    calls = identity_rig(monkeypatch)
+    with pytest.raises(caller.guest.GuestError, match='caller:uid'):
+        caller.drop_identity(0, allow_root=allow_root)
+    assert not calls.mock_calls
+
+
+def test_root_opt_in_still_verifies_kernel_credentials(monkeypatch):
+    identity_rig(monkeypatch)
+    with pytest.raises(caller.guest.GuestError, match='caller:credentials'):
+        caller.drop_identity(0, allow_root=True)
+
+
+def test_authentication_agent_cannot_opt_in_to_root(monkeypatch, capsys):
+    calls = identity_rig(monkeypatch)
+    monkeypatch.setattr(caller.guest, 'guard', Mock())
+    monkeypatch.setattr(caller.os, 'setsid', Mock())
+    monkeypatch.setattr(caller.fcntl, 'ioctl', Mock())
+    execute = Mock()
+    monkeypatch.setattr(caller.os, 'execv', execute)
+    with pytest.raises(SystemExit):
+        caller.run_agent('12345,67890', '13', '0')
+    assert not calls.mock_calls
+    execute.assert_not_called()
+    assert capsys.readouterr() == ('', 'agent-wrapper:identity\n')
+
+
 def test_guard_failure_prevents_identity_drop_and_bus_connection(monkeypatch):
     monkeypatch.setattr(caller.guest, 'guard', Mock(side_effect=caller.guest.GuestError('guard-refused')))
     drop = Mock()
@@ -55,6 +93,37 @@ def test_guard_failure_prevents_identity_drop_and_bus_connection(monkeypatch):
     with pytest.raises(caller.guest.GuestError, match='guard-refused'):
         caller.main()
     drop.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', [None, 'guard', 'identity'])
+def test_agent_drops_all_credentials_before_exec_and_fails_closed(monkeypatch, capsys, failure):
+    calls = Mock()
+    identity = identity_rig(monkeypatch)
+    calls.attach_mock(identity, 'identity')
+    monkeypatch.setattr(caller.guest, 'guard', calls.guard)
+    monkeypatch.setattr(caller.os, 'setsid', calls.setsid)
+    monkeypatch.setattr(caller.fcntl, 'ioctl', calls.ioctl)
+    monkeypatch.setattr(caller.os, 'execv', calls.execv)
+    if failure == 'guard':
+        calls.guard.side_effect = RuntimeError('private-guard-detail')
+    elif failure == 'identity':
+        identity.setresuid.side_effect = RuntimeError('private-identity-detail')
+    if failure:
+        with pytest.raises(SystemExit):
+            caller.run_agent('12345,67890', '13', '2345')
+        calls.execv.assert_not_called()
+        assert capsys.readouterr() == ('', f'agent-wrapper:{failure}\n')
+        if failure == 'guard':
+            assert not identity.mock_calls
+    else:
+        caller.run_agent('12345,67890', '13', '2345')
+        assert [entry[0] for entry in calls.mock_calls] == [
+            'guard', 'setsid', 'ioctl', 'identity.initgroups',
+            'identity.setresgid', 'identity.setresuid', 'identity.chdir', 'execv']
+        calls.execv.assert_called_once_with('/usr/bin/pkttyagent', [
+            'pkttyagent', '--process', '12345,67890', '--notify-fd', '13'])
+        assert caller.os.environ == {
+            'PATH': '/usr/bin:/bin', 'LANG': 'C', 'LC_ALL': 'C', 'HOME': '/home/fixture'}
 
 
 @pytest.mark.parametrize('target', ['../secret', True, -1, 0])

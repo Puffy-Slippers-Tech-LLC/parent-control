@@ -97,7 +97,7 @@ def test_authentication_attempts_survive_failed_pytest_and_public_export(monkeyp
          'helper_category': category}
         for surface, attempt, expected, outcome, category in (
             ('child1', 1, 'denied', 'denied', 'pam-authenticate'),
-            ('child1', 2, 'accepted', 'denied', 'authority-response'),
+            ('child1', 2, 'accepted', 'denied', 'authority-response-no-session'),
             ('kiosk', 1, 'denied', 'denied', 'pam-authenticate'),
             ('kiosk', 2, 'accepted', 'accepted', None),
         )

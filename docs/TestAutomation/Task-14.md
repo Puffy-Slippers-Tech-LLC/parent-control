@@ -6,8 +6,8 @@
   same-UID mocks.
 - Recommended Codex model: `gpt-6-astra`
 - Recommended reasoning effort: `high`
-- Model rationale for remaining work: establish the authentication failure
-  boundary before expanding installed in-flight revalidation and disconnect cases.
+- Initial model rationale: establish real authentication and identity boundaries.
+  The current handoff reevaluates settings for the remaining slice.
 - Objective: prove real caller identity and role enforcement on the installed
   system bus.
 - Work:
@@ -41,75 +41,52 @@
 
 ## Implementation slices
 
-Follow the [bounded workflow](Implementation-Workflow.md). First exercise the
-existing helper diagnostics on one selected-parent case: deliberate wrong
-password, then a valid password and actual grant. Do not add more dependent
-mutation cases while this path fails. Next prove one successful authentication
-followed by changed-state denial; then parameterize the required matrix and
-finish stale/deleted accounts, selected identity/eligibility, requester
-disconnect and root's management allowance. Preserve existing test registrations.
+Follow the [bounded workflow](Implementation-Workflow.md). Both child and kiosk
+selected-parent cases now prove deliberate wrong-password denial, a valid
+password and an actual grant. All six authenticated live-state revalidation
+variants and the previously registered authorization area have passed.
+Root's method permissions are now verified in a focused selection. Next finish
+stale/deleted accounts, selected identity/eligibility and requester disconnect.
+Preserve existing registrations.
 Use isolated fixtures/cooldowns; a selected case must not require unrelated
 cases to run first. Finish with the full authorization area once.
 
-## Continuation handoff — 2026-09-05 (incomplete)
+## Continuation handoff — 2026-09-06 (incomplete)
 
-**Next result:** after F1, distinguish the reason for the helper's
-`authority-response` failure in the selected-parent case. The stage is now known;
-do not rerun merely to rediscover it. Task 14 remains unchecked.
-**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
-**Reason:** real authentication still fails at an unresolved security boundary;
-the difficult diagnosis remains. Confirm both at the start of the session.
-The authorized scope
-is this development host and the existing guarded `ubuntu26.04` VM. Follow the
-[current continuation](Continuation.md); F1 and 19P are now accepted, and this
-authentication diagnosis is the next unfinished slice.
+**Next result:** implement and verify stale/deleted identity assertions, beginning
+with actual deletion of a selected target and approver, refreshed discovery and
+fail-closed requests without changes to surviving accounts. Task 14 remains unchecked.
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: raise.
+**Reason:** root permissions and the existing authentication helper are proven;
+the next slice must distinguish NSS/AccountsService identity lifecycle and
+broker revalidation, requiring more security reasoning than the root matrix.
+Scope remains this development host and the existing guarded `ubuntu26.04` VM.
 
-**Known:** latest `/tmp/onpc-system-vbx_zcy6/evidence/guest/authorization.xml`
-records 213 passed and eight `agent:unexpected-denied` failures in 91.459 s.
-Registration and selected-identity prompts work. Earlier journal evidence has
-Polkit denial events for all ten challenges, while only the two deliberate
-wrong passwords have PAM authentication-failure journal entries. This does not
-establish successful PAM/account checks or the cause of valid-password denial.
+**Proven this session:** added explicit root opt-in to the guarded caller helper
+and seven credential/agent regressions. One new installed case exercised all
+17 root method cells, observable management writes, other-account isolation,
+request-only denials, discovery/approver exclusion and log-component restrictions.
+The focused run passed **five exact executions**, including four install/reboot
+prerequisites; all four outcome domains passed. Isolated cleanup checks passed
+30 tests, caller checks 25, and `make check` passed 1,210 unit/contracts plus
+17 components and static/traceability checks. [Inputs and evidence](Evidence/Task-14-2026-09-06-Root.md).
+The prior [225-execution area pass](Evidence/Task-14-2026-09-06-Authorization.md)
+already proves both authentication surfaces and all six live-state variants.
 
-**Now exercised during F1:** `system_caller.TextAgent.authenticate` reduces
-private helper stderr to allowlisted PAM-authentication, PAM-account,
-identity/authority-response, or unknown categories. The selected run at
-`/tmp/onpc-system-sjmucss6/evidence` exercised this code (JUnit's helper line 185
-also corroborates it). A read-only, allowlisted search of that run's retained
-host-private command output found `pam-authenticate` for the deliberate wrong
-password, then `authority-response` for the valid-password attempt. This narrows
-the failing boundary; it does not establish why the authority response failed.
-Neither category reached that earlier run's exported guest evidence. F1's final
-unselected run now exports all ten reduced per-attempt records: two
-`pam-authenticate` wrong-password denials and eight `authority-response`
-valid-password denials. Exact case/attempt associations, redaction, original
-failures and cleanup passed the [F1 acceptance audit](Evidence/F1-Qualification-2026-09-06.md).
-This establishes the export boundary, not the authority failure's cause. Reuse
-`FixturePassword`, `PersistentCaller`, `TextAgent` and the
-[runner contracts](../../tests/integration/README.md#reusable-implementation-contracts).
-Do not revisit resolved registration/terminal-marker theories without new evidence.
+**Next action:** extend `tests/system/test_authorization.py` using isolated
+disposable account fixtures, `call`/`batch`, `account_state` and, where needed,
+`PersistentCaller`. Establish the actual account-deletion observation before
+asserting stale-identity denial; preserve other accounts and retained evidence.
+Use host-safe collection, isolated safety prerequisites, fresh inputs and the
+smallest registered selection. No deletion experiment has been attempted and
+no unresolved root/authentication blocker remains. Do not repeat solved work.
+Still missing: stale/deleted identities, remaining selected identity/eligibility
+changes, requester-disconnect completion, final requirement/matrix audit and
+complete-area task acceptance.
 
-**Next experiment:** first inspect the retained evidence and authority-response
-handling; identify a safe discriminating reason/status to capture and validate
-its collection locally. Only then run F1's selected
-`test_real_selected_parent_authentication[child1]` with its real prerequisites.
-Several earlier full runs and two F1 selected failures have already exercised
-this flow. The two-attempt limit is already spent; no unchanged rerun is justified.
-Do not revisit registration/terminal-marker theories or change passwords/policy
-speculatively. F1 acceptance does not depend on repairing this authentication.
-
-**State/evidence:** the recorded runner completed cleanup, restored the baseline
-and domain configuration, preserved the host, and left the VM off. No operation
-was pending at that checkpoint; verify ownership before a new attempt. Preserve
-unrelated concurrent edits. [Recorded checks, artifact digests and earlier
-attempts](Evidence/Task-14-2026-09-05.md) remain evidence for their inputs. The
-[F1 acceptance record](Evidence/F1-Qualification-2026-09-06.md) supplies the newer
-verified artifacts and exported diagnostic identities. Verify package-input
-applicability before reusing them for a changed-source attempt.
-
-**Remaining:** basic authentication on both surfaces; in-flight matrix;
-stale/removed identity and eligibility; completed authentication after requester
-disconnect where feasible; root management; evidence-backed requirement mappings
-and full task acceptance. The [standard session prompt](../Test-Automation.md#continue-implementation-in-fresh-sessions)
-resumes the recorded continuation; this handoff preserves Task 14 while its
-prerequisite work proceeds.
+**State:** root run session 79852 exited 0; evidence is
+`/tmp/onpc-system-o0xgf72y/evidence`. Baseline/domain restoration and host
+preservation passed; final domain check was `shut off`. No operation is pending.
+All new caller/system-test code was exercised in the VM; subsequent edits are
+documentation only. One VM attempt, approximately 5.6 minutes of runner stages;
+no retry. Prior working-tree edits remain preserved.

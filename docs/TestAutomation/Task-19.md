@@ -71,7 +71,7 @@ syntax and traceability) plus `git diff --check`. Review exports were deleted
 through the approved helper; raw evidence remains private. The final runner
 exited successfully with `lease_phase=complete`; no VM operation is pending.
 
-**Next action:** resume [Task 14's authentication diagnosis](Task-14.md#continuation-handoff--2026-09-05-incomplete).
+**Next action:** resume [Task 14's active slice](Task-14.md#continuation-handoff--2026-09-06-incomplete).
 First inspect the retained `authority-response` evidence and helper handling,
 add locally validated discriminating diagnostics, then use F1's selected case.
 Do not repeat 19P or launch an unchanged authentication attempt.

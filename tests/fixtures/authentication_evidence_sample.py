@@ -30,7 +30,8 @@ def sample_agent(monkeypatch, authentication_diagnostics, surface):
     agent.pending = (
         b'polkit-agent-helper-1: pam_authenticate failed: ' + private +
         b'\nAUTHENTICATION FAILED\n' +
-        (b'polkit-agent-helper-1: error response to PolicyKit daemon: ' + private +
+        (private + b'\npolkit-agent-helper-1: error response to PolicyKit daemon: '
+         b'GDBus.Error:org.freedesktop.PolicyKit1.Error.Failed: No session for cookie'
          b'\nAUTHENTICATION FAILED' if surface == 'child1' else
          private + b'\nAUTHENTICATION COMPLETE'))
     monkeypatch.setattr(caller.termios, 'tcgetattr', lambda fd: [0, 0, 0, 0])

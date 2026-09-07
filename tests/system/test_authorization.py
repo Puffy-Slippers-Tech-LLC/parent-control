@@ -21,18 +21,19 @@ METHODS = (
 )
 
 
-def batch(uid, operations):
+def batch(uid, operations, *, allow_root=False):
     raw = guest.commands.run(
         ['/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_caller.py')],
-        input=json.dumps({'uid': uid, 'operations': operations}).encode(),
+        input=json.dumps({'uid': uid, 'operations': operations, 'allow_root': allow_root}).encode(),
         timeout=180, merge_stderr=False)
     reply = json.loads(raw)
     guest.require(reply['uid'] == uid and len(reply['replies']) == len(operations), 'caller:reply')
     return reply['replies']
 
 
-def call(uid, method, signature='()', args=()):
-    return batch(uid, [{'kind': 'call', 'method': method, 'signature': signature, 'args': args}])[0]
+def call(uid, method, signature='()', args=(), *, allow_root=False):
+    return batch(uid, [{'kind': 'call', 'method': method, 'signature': signature, 'args': args}],
+                 allow_root=allow_root)[0]
 
 
 def accepted(reply):
@@ -88,7 +89,7 @@ def accounts():
 def invocation(method, role, accounts):
     child = role in ('child1', 'child2', 'unrelated')
     target = accounts[role] if child else accounts['child1']
-    parent = role in ('parent1', 'parent2', 'locked')
+    parent = role in ('parent1', 'parent2', 'locked', 'root')
     manager = parent or role == 'kiosk'
     component = 'parent' if parent else 'kiosk' if role == 'kiosk' else 'child'
     specs = {
@@ -197,6 +198,67 @@ def account_state(uid):
           for prop in ('LimitType', 'DailyLimit', 'ActiveExtension')),
         account_property(uid, 'com.endlessm.ParentalControls.AppFilter', 'AppFilter'),
     )
+
+
+def test_root_method_permissions_and_approver_exclusion(accounts):
+    """All root cells share one guarded case; every call verifies bus UID 0."""
+    target = accounts['child1']
+    original = accepted(call(accounts['parent1'], 'GetPreferences', '(u)', (target,)))[0]
+    others = {key: account_state(accounts[key]) for key in ROLES if key != 'child1'}
+    try:
+        for method in METHODS:
+            signature, args, allowed = invocation(method, 'root', accounts)
+            if method == 'SetPreferences':
+                desired = json.loads(args[1])
+                desired['request']['child_muted'] = not desired['request']['child_muted']
+                args = (target, json.dumps(desired))
+            elif method == 'SetParentControl':
+                args = (target, True, 37)
+            before = account_state(target)
+            reply = call(0, method, signature, args, allow_root=True)
+            if allowed:
+                result = accepted(reply)
+                if method in ('ListManagedUsers', 'ListApprovers'):
+                    uids = {row[0] for row in result[0]}
+                    expected = ('child1', 'child2') if method == 'ListManagedUsers' else (
+                        'parent1', 'parent2')
+                    guest.require(0 not in uids and {accounts[key] for key in expected} <= uids,
+                                  'authorization:root-discovery')
+                elif method == 'SetPreferences':
+                    saved = json.loads(accepted(call(accounts['parent1'], 'GetPreferences',
+                                                    '(u)', (target,)))[0])
+                    guest.require(saved == desired, 'authorization:root-preferences-not-applied')
+                elif method == 'SetParentControl':
+                    saved = json.loads(accepted(call(accounts['parent1'], 'GetPreferences',
+                                                    '(u)', (target,)))[0])
+                    guest.require(saved['parent_control_enabled'] and account_state(target) != before,
+                                  'authorization:root-control-not-applied')
+            else:
+                guest.require(reply.get('error') == DENIED, 'authorization:root-request-only-denial')
+                guest.require(account_state(target) == before, 'authorization:root-denial-write')
+            guest.require(all(account_state(accounts[key]) == state for key, state in others.items()),
+                          'authorization:root-cross-account-write')
+            print(f'onpc-system: stage=root-method method={method} '
+                  f'outcome={"allowed" if allowed else "denied"}', flush=True)
+
+        # Root's management bypass cannot turn it into a selected approver.
+        for surface in ('child1', 'kiosk'):
+            before = account_state(target)
+            method = 'RequestOwnAccess' if surface == 'child1' else 'RequestAccess'
+            signature = '(uub)' if surface == 'child1' else '(uuub)'
+            args = (0, 300, False) if surface == 'child1' else (target, 0, 300, False)
+            reply = call(accounts[surface], method, signature, args)
+            guest.require(reply.get('error') == DENIED, 'authorization:root-selected-approver')
+            guest.require(account_state(target) == before and all(
+                account_state(accounts[key]) == state for key, state in others.items()),
+                'authorization:root-approver-denial-write')
+        for component in ('child', 'kiosk', 'broker'):
+            reply = call(0, 'LogEvent', '(sss)', (component, 'INFO', 'root component test'),
+                         allow_root=True)
+            guest.require(reply.get('error') == DENIED, 'authorization:root-log-impersonation')
+    finally:
+        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(call(accounts['parent1'], 'SetPreferences', '(us)', (target, original)))
 
 
 @pytest.mark.parametrize('role', ('noninteractive', 'system'))

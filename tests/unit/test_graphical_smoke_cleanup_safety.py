@@ -1,6 +1,7 @@
 """No live commands: controller refusal and cleanup ordering before VM use."""
 
 from pathlib import Path
+import json
 import sys
 from unittest.mock import Mock, patch
 
@@ -122,3 +123,121 @@ def test_recovery_entrypoint_refuses_unprivileged_use_before_files_or_vm():
         with pytest.raises(RuntimeError, match='root-required'):
             recovery.main()
     create.assert_not_called()
+
+
+@pytest.fixture
+def qualification(tmp_path):
+    with smoke.PrivateCollector(run_id='qualification-test', secrets=['private-canary'],
+                                parent=tmp_path) as collector:
+        ledger = smoke.runner.RunLedger()
+        result = {'outcome': 'failed', 'steps': []}
+        controller = smoke.Qualification(tmp_path, Mock(), ledger, collector, result, 'host')
+        controller.verified = Mock(inputs={'source_sha256': 'a' * 64}, source_files={'file': 'digest'})
+        lease = smoke.runner.Lease(Mock(), Mock(), Mock(), ledger=ledger,
+                                   finalize=controller.finalize)
+        lease.fd, lease.state = 42, {'phase': 'isolated'}
+        lease.prepare, lease.guard, lease.save = Mock(), Mock(), Mock()
+
+        def finish():
+            lease.state['phase'] = 'complete'
+
+        def release():
+            lease.fd = None
+
+        lease.finish, lease.release = Mock(side_effect=finish), Mock(side_effect=release)
+        with patch.object(smoke.runner.Lease, '__enter__', return_value=lease), \
+                patch.object(smoke, 'VerifiedInputs', return_value=controller.verified), \
+                patch.object(smoke.runner, 'bootstrap', return_value='host-key'), \
+                patch.object(smoke.runner, 'host_fingerprint', return_value='host'):
+            yield controller, lease
+
+
+def reports(controller):
+    return [json.loads(path.read_text()) for path in sorted(controller.collector.path.glob('event-*.json'))]
+
+
+@pytest.mark.parametrize('fault', [None, 'bootstrap', 'worker', 'interrupt', 'cleanup',
+                                  'provenance', 'host', 'report', 'late-source'])
+def test_live_controller_ordering_and_retained_diagnostics(qualification, fault):
+    controller, lease = qualification
+    original = KeyboardInterrupt('private-canary') if fault == 'interrupt' else RuntimeError('private-canary')
+    rechecks = []
+
+    def recheck():
+        rechecks.append((lease.fd, lease.state['phase']))
+        assert lease.fd == 42
+        if fault == 'provenance' and len(rechecks) == 2:
+            raise original
+        if fault == 'late-source' and len(rechecks) == 3:
+            raise original
+
+    controller.verified.recheck.side_effect = recheck
+
+    def backend(*args, **kwargs):
+        assert args[-1] == controller.verified.source_files
+        assert rechecks == [(42, 'isolated')]
+        for stage in smoke.STAGES:
+            kwargs['progress'](stage, None)
+            if fault in ('worker', 'interrupt') and stage == 'selected':
+                controller.ledger.fail_outcome('infrastructure', 'e2e:worker-execution-failed')
+                kwargs['on_failure']('infrastructure', 'worker-execution-failed')
+                raise original
+            kwargs['progress'](stage, {'stage': stage, 'sha256': 'b' * 64})
+            assert reports(controller)[-1]['event'] == 'stage-observed'
+        return {'worker_evidence': {'outcome': 'passed'}}
+
+    if fault == 'bootstrap':
+        lease.prepare.side_effect = original
+    if fault == 'cleanup':
+        lease.finish.side_effect = original
+    old_save = controller.collector.save_report
+
+    def save(name, data):
+        if fault == 'report' and data.get('event') == 'after-cleanup':
+            raise original
+        return old_save(name, data)
+
+    with patch.object(smoke, 'run_backend', side_effect=backend) as run, \
+            patch.object(controller.collector, 'save_report', side_effect=save), \
+            patch.object(smoke.runner, 'host_fingerprint', return_value='changed' if fault == 'host' else 'host'):
+        if fault:
+            with pytest.raises(BaseException) as caught:
+                with lease:
+                    controller.execute(lease, Mock())
+            if fault != 'host':
+                assert caught.value is original
+        else:
+            with lease:
+                controller.execute(lease, Mock())
+            assert controller.result['outcome'] == 'passed'
+            assert controller.result['preservation'] == {'source': True, 'host': True}
+            assert rechecks == [(42, 'isolated'), (42, 'complete'), (42, 'complete')]
+    lease.finish.assert_called_once()
+    lease.release.assert_called_once()
+    docs = reports(controller)
+    assert 'private-canary' not in json.dumps(docs)
+    assert any(d['event'] == 'before-cleanup' for d in docs)
+    assert docs[-1]['result']['outcome'] == ('failed' if fault else 'passed')
+    if fault in ('provenance', 'late-source'):
+        assert docs[-1]['result']['preservation']['source'] is False
+    if fault in ('worker', 'interrupt'):
+        before = next(d for d in docs if d['event'] == 'before-cleanup')
+        assert before['active_stage'] == 'selected'
+        assert [s['stage'] for s in before['result']['steps']] == ['ready', 'gdm']
+        assert before['outcomes']['infrastructure']['outcome'] == 'failed'
+    if fault == 'bootstrap':
+        run.assert_not_called()
+
+
+def test_stage_checkpoint_failure_prevents_guest_acknowledgement(tmp_path):
+    (tmp_path / 'ready.request.json').write_text(json.dumps({'stage': 'ready', 'screenshot': None}))
+    vm = Mock()
+    vm.call.return_value = b'greeter-ready\n'
+    progress = Mock(side_effect=[None, OSError('private-canary')])
+    controller = smoke.Smoke(tmp_path, Mock(state={'run': 'a' * 32}), Mock(), 'host-key', progress)
+    with patch.object(smoke.runner, 'address', return_value='192.0.2.1'), \
+            patch.object(smoke, 'Transport', return_value=vm):
+        with pytest.raises(OSError):
+            controller.step()
+    assert progress.call_count == 2
+    assert not (tmp_path / 'ready.reply.json').exists()

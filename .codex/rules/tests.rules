@@ -150,10 +150,15 @@ prefix_rule(
 prefix_rule(
     pattern = [["sort", "/usr/bin/sort",
                 "uniq", "/usr/bin/uniq", "gzip", "/usr/bin/gzip",
-                "curl", "/usr/bin/curl", "wget", "/usr/bin/wget"]],
+                "wget", "/usr/bin/wget"]],
     decision = "prompt",
     justification = "Use tools/read-only for searches, filters and HTTPS reads; unrestricted arguments can run preprocessors, overwrite files, or send modifying network requests.",
+    not_match = ["curl -fsSL 'https://example.com/path?key=value'"],
 )
+# Preserve the user's existing global curl -fsSL allow. A blanket curl prompt
+# overrides it even for a quoted, direct public GET. Do not duplicate or widen
+# that grant here. It is a prefix, not trailing-argument validation: use it only
+# for trusted public reads, and use tools/read-only fetch for untrusted inputs.
 # The user explicitly authorizes rg -n across all paths. A blanket rg prompt
 # overrides that machine-wide allow, so keep direct execution options separate.
 # Prefix rules cannot validate trailing options: use tools/read-only search for

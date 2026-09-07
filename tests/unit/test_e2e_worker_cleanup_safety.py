@@ -71,6 +71,28 @@ def test_completed_worker_requires_controller_validation_and_owned_cleanup(attem
     assert runtime.Worker.call_args.args[-1] == list(runtime.COMMAND)
 
 
+@pytest.mark.parametrize('hook_fails', [False, True])
+def test_scenario_failure_hook_precedes_worker_cleanup_and_cannot_prevent_it(attempt, hook_fails):
+    original = KeyboardInterrupt('private-canary')
+    attempt.worker.poll.side_effect = original
+    seen = []
+    def checkpoint(category, code):
+        seen.append((category, code))
+        attempt.events.append('scenario-failure')
+        if hook_fails:
+            raise OSError('private-canary-report')
+    with pytest.raises(KeyboardInterrupt) as caught:
+        attempt.run(on_failure=checkpoint)
+    assert caught.value is original
+    assert seen == [('infrastructure', 'worker-interrupted')]
+    assert attempt.events.index('scenario-failure') < attempt.events.index('worker-close')
+    attempt.worker.close.assert_called_once()
+    attempt.server.close.assert_called_once()
+    final = report(attempt)
+    assert final['first_failure']['code'] == 'worker-interrupted'
+    assert ('scenario-checkpoint-failed' in [f['code'] for f in final['failures']]) == hook_fails
+
+
 @pytest.mark.parametrize('boundary', ['spawn', 'poll', 'callback', 'observe', 'validate', 'guard'])
 @pytest.mark.parametrize('interrupt', [False, True])
 def test_failure_is_persisted_before_cleanup_without_raw_exception(attempt, boundary, interrupt):

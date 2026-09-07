@@ -369,7 +369,7 @@ class Lease:
     """Serializes prep-host/system runners; durable state refuses interrupted ownership."""
 
     def __init__(self, source, commands, inspect, *, directory=baseline.BASELINES,
-                 anchor=baseline.ANCHOR, ledger=None, graphics_type='spice'):
+                 anchor=baseline.ANCHOR, ledger=None, graphics_type='spice', finalize=None):
         self.source, self.commands, self.inspect = source, commands, inspect
         self.view = SourceView(source)
         self.view.graphics_type = graphics_type
@@ -382,6 +382,9 @@ class Lease:
         self.original_id = None
         self.mutated = False
         self.ledger = ledger
+        # Trusted read/report callback, after the sole cleanup attempt and while
+        # the lease is held. It must never restore or release this lease itself.
+        self.finalize = finalize
 
     def save(self, phase):
         self.state['phase'] = phase
@@ -564,21 +567,38 @@ class Lease:
                 all(self.ledger.outcomes[name]['outcome'] != 'failed'
                     for name in ('product', 'infrastructure', 'collection'))):
             self.ledger.fail_outcome('infrastructure', error_category(exc_value))
+        pending = exc_value
         try:
-            measurement = self.ledger.measure('cleanup') if self.ledger else nullcontext()
-            with measurement:
-                self.finish()
-            if self.ledger:
-                self.ledger.pass_outcome('cleanup')
-        except BaseException as error:
-            if self.ledger:
-                self.ledger.fail_outcome('cleanup', error_category(error))
-            if exc_type is None:
-                raise
-            # Cleanup evidence remains failed, but the body failure keeps precedence.
-            log('cleanup:failed-after-original-error')
+            try:
+                measurement = self.ledger.measure('cleanup') if self.ledger else nullcontext()
+                with measurement:
+                    self.finish()
+                if self.ledger:
+                    self.ledger.pass_outcome('cleanup')
+            except BaseException as error:
+                if self.ledger:
+                    self.ledger.fail_outcome('cleanup', error_category(error))
+                pending = pending if pending is not None else error
+                log('cleanup:failed')
+            # Also retain incomplete-cleanup evidence. Callback failure cannot
+            # retry restoration, skip release, or replace an earlier failure.
+            if self.finalize is not None:
+                try:
+                    self.finalize(self)
+                except BaseException as error:
+                    if self.ledger:
+                        record_caught_failure(self.ledger, error)
+                    pending = pending if pending is not None else error
+                    log('finalization:failed')
         finally:
-            self.release()
+            try:
+                self.release()
+            except BaseException as error:
+                if self.ledger:
+                    self.ledger.fail_outcome('cleanup', 'cleanup:lease-release-failed')
+                pending = pending if pending is not None else error
+        if exc_type is None and pending is not None:
+            raise pending
 
 
 def check_tree(root):

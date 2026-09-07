@@ -5,13 +5,13 @@ owns completion.
 
 - F1, 19P and 14 are complete. **19A remains active**;
   [handoff](Task-19.md#task-19a-continuation--2026-09-07).
-- Completed: controller-owned `VerifiedInputs` captures and rechecks source,
-  inventory, package/assets and baseline/guest preparation identities; connects
-  them to the evidence gate. 41 new regressions; `make check` passed
-  (2,006 unit/contracts, 17 components). All 156 variants remain pending.
-- Next: real ordered scenario records and failure persistence around the
-  qualified worker, using the completed provenance gate. Keep dispatch closed
-  and E2E-001 pending until its required matching exists.
-- Settings: **`gpt-5.6-sol` / `high`**; both keep. Input refusal is proven locally;
-  event ordering, interruption persistence and lease-bound acceptance still need high effort.
-- All commands finished; no owned VM/worker operation started or remains.
+- Completed: live cleanup once, provenance checks before release and 12 durable
+  observed-stage checkpoints. One guarded smoke passed (569.891 s); 27 new
+  regressions. Final refusal-flag correction is host-tested only; see evidence.
+- Next: verified asset staging/transfer, local corruption refusal, then one
+  guarded transfer qualification. Reuse the solved lifecycle; all 156 variants
+  remain pending. Remaining 19A estimate: 3–4 sessions / 1.5–3 hours.
+- Settings: **`gpt-5.6-sol` / `high`**; both keep. Live lifecycle is proven;
+  provisioning/observation separation and asset integrity still need high effort.
+- All commands finished. Smoke exited 0, restored/off VM, ownership released;
+  no owned operation remains.

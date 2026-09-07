@@ -65,7 +65,11 @@ def parent_directory(path):
 def source_paths(root):
     try:
         result = subprocess.run(
-            ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+            # The installed controller runs as root in the pinned, trusted
+            # developer-owned checkout. Scope trust to this invocation/path;
+            # never change global Git configuration or allow every directory.
+            ['git', '-c', 'safe.directory=' + str(root),
+             'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
             cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
         paths = sorted(set(result.stdout.decode('utf-8').rstrip('\0').split('\0')))
     except (OSError, UnicodeError, subprocess.SubprocessError):
@@ -211,11 +215,15 @@ class VerifiedInputs:
         self._contracts.append(contract)
         return contract
 
-    def validate(self, contract, records, collector):
-        """Require preserved inputs as well as real scenario evidence to pass."""
-        self.recheck()
+    def recheck_contract(self, contract):
+        """Refuse a foreign plan before worker startup as well as at acceptance."""
         require(any(contract is item for item in self._contracts),
                 'provenance:foreign-contract')
+        self.recheck()
+
+    def validate(self, contract, records, collector):
+        """Require preserved inputs as well as real scenario evidence to pass."""
+        self.recheck_contract(contract)
         result = contract.validate(records, collector)
         self.recheck()
         return result

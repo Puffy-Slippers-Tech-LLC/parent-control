@@ -224,11 +224,21 @@ Filters accept input paths or stdin; none accepts an output path. Search accepts
 regular expressions or fixed strings, without a preprocessor. HTTPS fetch uses
 a fixed GET command with configuration disabled, HTTPS-only redirects and a
 timeout; no upload, credentials, output file or custom request options. Public
-read-only web requests remain authorized. Ordinary `rg -n` and `sed -n` reads are explicitly allowed machine-wide across
+read-only web requests remain authorized. The existing global `curl -fsSL`
+allowance remains effective for direct public reads with a quoted literal URL:
+`curl -fsSL 'https://example.com/path?query=value'`. Setup preserves that personal
+rule without adding a duplicate or broader allowance. A blanket project `curl`
+prompt previously overrode it even when the URL was correctly quoted; keep that
+override removed. Refresh changed project rules through
+`./setup.sh --codex-rules-only`, then restart Codex to load them.
+
+Ordinary `rg -n` and `sed -n` reads are explicitly allowed machine-wide across
 all paths. Project prompt rules must not blanket-match `rg` or `sed`, since
 that overrides the global allow. Prefix rules do not validate trailing options;
-use these direct allowances for trusted reads and the validated reader for
-untrusted arguments. `sort`, `uniq`, `gzip`, `curl` and `wget` retain their project
+use these direct allowances, including `curl -fsSL`, only for trusted reads and
+the validated reader for untrusted arguments. The curl prefix can also match
+trailing upload, custom-request or output options; the allowance does not
+authorize those operations. `sort`, `uniq`, `gzip` and `wget` retain their project
 prompt overrides. Use quoted ripgrep `--glob '*pattern*'` options instead of
 unquoted shell wildcards: Codex can classify shell expansion as an unsplit shell
 invocation, which the direct executable rule does not cover. Never grant a
@@ -285,7 +295,8 @@ by the validated helpers; project `prompt` overrides cover the relevant broad
 global families without editing personal global rules. A prefix checks initial
 arguments only, so adding an apparently safe subcommand is insufficient when
 trailing options can execute code. The explicitly authorized routine Make target
-prefixes above accept this limitation; they are not argument-confined helpers.
+prefixes and the existing `curl -fsSL` grant accept this limitation; they are not
+argument-confined helpers.
 
 The safety boundary trusts this checkout, its maintained test code/imports,
 configuration and installed dependencies. A filename pattern cannot prove that

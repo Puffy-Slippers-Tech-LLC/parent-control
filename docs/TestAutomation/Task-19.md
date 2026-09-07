@@ -135,49 +135,49 @@ handoff's settings for the next slice.
 
 ### Task 19A continuation — 2026-09-07
 
-**Completed boundary:** `tests/e2e/provenance.py` now supplies controller-owned
-`VerifiedInputs`: current tracked/untracked source bytes and modes, inventory,
-verified staged package/fixture assets, durable baseline/proof and a safe guest
-preparation identity. Package source mismatch, changed inputs and unsafe files
-refuse; observed preservation failures remain latched. Its contract/validation
-methods connect these independently captured identities to `EvidenceContract`
-and recheck around acceptance. All 33 families / 156 variants remain pending;
-the launcher still refuses at `e2e:execution-controller-unfinished`.
+**Completed boundary:** live credential-free qualification now captures
+`VerifiedInputs` after preparation, forwards its source map, and persists real
+observed stages before permitting subsequent guest actions. `Lease.__exit__`
+restores once, invokes its finalizer while held, then releases. Finalization
+checks provenance, host preservation and private reports. One guarded smoke
+passed in **569.891 seconds**, with all four observations and 12 durable ordered
+checkpoints. Worker, host/source preservation and baseline cleanup passed.
+This is solid implementation progress; all 156 scenario variants remain pending.
 
-**Next result:** build the controller's real ordered scenario-record collection
-and failure persistence around the qualified worker. Construct `VerifiedInputs`
-after lease preparation/private asset staging, pass `source_files` to the
-worker, recheck before startup, and use its `validate` after outer cleanup but
-before lease release. Reconcile actual executed stages/assertions with the
-inventory; never promote worker diagnostic success to a scenario pass. Prove
-missing/interrupted steps and provenance failure retain their original outcomes.
-Keep E2E-001 pending until 19B matching; do not open dispatch prematurely.
+**Next result:** connect verified asset staging/transfer to the guarded E2E
+transport. Reuse `stage_assets`, private staging permissions, `VerifiedInputs`
+and existing bootstrap/transport ownership. Prove stale/corrupted transfer
+refusal locally and one valid fresh-guest transfer after safety prerequisites.
+Provision only before the journey; keep observation read-only. Do not repeat
+the completed lifecycle smoke unchanged, open pending dispatch, invent E2E-001
+assertions, or create another inventory. Secret/capture transport, harmless
+console execution and final 19A acceptance remain subsequent boundaries.
 
-**Reuse:** the [provenance/worker contracts](../../tests/e2e/README.md), existing
-`runner.preflight`, `EvidenceContract`, `PrivateCollector`, `FailureLedger`,
-`e2e_worker.run_distribution` and `system_runner.Lease`/asset staging. The
-[qualified worker evidence](Evidence/19A-Worker-Integration-20260907.md) remains
-applicable. No backend investigation, baseline preparation or Task 14 rerun.
+**Reuse/evidence:** [live qualification and exact inputs](Evidence/19A-Live-Finalization-20260907.md),
+[recorder/worker contracts](../../tests/e2e/README.md#ordered-controller-records),
+`ScenarioRecorder`, shared `save_checkpoint`, `Qualification`, `PrivateCollector`
+and `Lease.finalize`. The original recorder/provenance unit evidence remains
+applicable. No backend/baseline/Task 14 investigation is needed.
 
-**Verification:** 41 new provenance regressions; 219 focused tests passed.
-`make check` passed 2,006 unit/contracts, 17 components, syntax and traceability;
-`git diff --check` passed. [Commands, limits and code
-digests](Evidence/19A-Input-Provenance-20260907.md). These are host tests with
-real files/Git/artifact verification and synthetic lease/scenario data. Live
-provenance, fresh guest asset/observation transfer, real scenario records and
-authenticated secret/capture transport remain acceptance work. No expensive
-VM experiment or unresolved test failure this slice.
+**Verification:** 27 new regression cases; 277 focused tests passed. The live
+dispatcher passed 276 isolated safety tests plus three subtests. `make check`
+passed 2,073 unit/contracts and 17 components. A post-smoke source-preservation
+failure-flag correction is host-tested only (24 smoke safety tests); success-path
+live evidence is retained with its original digest. No failed VM attempt or
+unresolved test failure remains. Repeated proof reads dominate runtime; about
+140 seconds of finalization is outside the current named timing buckets.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** input capture/refusal is proven locally; the same model is sufficient,
-but real event ordering, interruption persistence and lease-bound acceptance
-still need high effort. Do not repeat this completed provenance slice.
+**Reason:** live lifecycle ordering is now proven, so no model increase is
+needed; asset integrity across provisioning/observation boundaries still needs
+high effort. Estimate remaining 19A: **3–4 sessions / 1.5–3 hours**, provisional
+on secret/console findings. This slice took about 25 minutes, including its
+9.5-minute VM attempt; the next session should deliver transfer evidence.
 
-**State:** dev host and the existing guarded `ubuntu26.04` VM remain the scope.
-All commands finished, including make handle 33684 (exit 0); no VM/worker
-operation was started or remains. No current VM state is inferred. Concurrent
-AGENTS/permission-rule/documentation/test edits were preserved. No setup refresh
-or new permission grant was needed for this slice.
+**State:** dev host and existing guarded `ubuntu26.04` VM only. Smoke handle
+38410 exited 0 with complete lease, stopped worker, restored/off VM and released
+ownership. No operation remains. Raw captures stay private. Existing permission,
+AGENTS and related changes were preserved; no setup/permission changes occurred.
 
 ## Task 19B
 

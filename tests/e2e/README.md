@@ -8,8 +8,10 @@ and private collector have host-only regression coverage. The shared worker now
 uses the private collector for diagnostics and has passed one guarded VM smoke.
 The inventory-gated launcher and `make check-e2e` now support listing and
 explicit execution refusal before privilege checks. Controller-owned provenance
-capture and preservation checks now have host regression coverage. The execution
-controller's real scenario collection and dispatch remain unfinished.
+capture and preservation checks now have host regression coverage. Ordered
+controller recording and worker failure checkpoints also have host coverage.
+The credential-free qualification now wires lease finalization, provenance
+and observed-stage checkpoints; scenario execution dispatch remains unfinished.
 
 ## Inspect scope on the host
 
@@ -199,7 +201,9 @@ digest map required by `e2e_worker.run_distribution`. Source enumeration uses
 Git's tracked and nonignored untracked paths, hashes current bytes and modes in
 the artifact builder's format, and detects edits, additions, removals and file
 replacement. Missing tracked files refuse, matching the current builder's
-contract. Ignored build outputs are excluded. The capture rejects symlinks,
+contract. Root controller reads scope Git's `safe.directory` to this invocation's
+trusted checkout, without changing global configuration. Ignored build outputs
+are excluded. The capture rejects symlinks,
 hardlinks and special input files, pins parent directory opens and checks file
 identity around each read. Source capture records identities; it does not copy
 the checkout. The worker still stages verified distribution bytes separately.
@@ -241,6 +245,59 @@ phase/intervention categories and host-only CLI behavior. Runtime tests also
 cover exact result reconciliation, split outcomes, retained failures, provenance,
 private copies, tampering, secret exclusion and file/directory replacement.
 
+## Ordered controller records
+
+`recording.ScenarioRecorder(contract, collector)` consumes the frozen plan and
+inputs exposed as copies by `EvidenceContract`. Only ready declarations can
+construct that contract. There is no pending-case override or worker-result
+import. The current host tests use a separate temporary ready declaration;
+the existing graphical feasibility smoke is still not E2E-001 execution.
+
+`run_case(case_id, execute=..., cleanup=...)` invokes trusted controller
+callbacks in selection order. Scenario callbacks enter `step(step_id)` at the
+actual operation boundary. The recorder persists its start before yielding,
+then records the measured result. `continuity(boot=..., sessions=...)` translates
+private observed identities to run-local aliases; a reused session identifier
+after a reboot receives a new alias. `artifact` accepts only reviewed bytes
+through the private collector. `assertion` requires its declared step and
+corresponding evidence kind; missing assertions fail at step completion.
+Neither a returned worker success nor an omitted action creates passing records.
+
+Checkpoints are fsynced, uniquely numbered `event-NNNNNN.json` files. They retain
+only the current case snapshot and fixed event names, including action start,
+assertion, failure and `before-cleanup`. An uncatchable termination leaves the
+last durable action start incomplete; it is not resumable or acceptable.
+After a caught failure, only real executed records remain; outer cleanup may
+run despite missing journey steps or an expired action deadline. Cleanup and
+report errors are added without replacing the original exception or failure.
+No raw exception message, account identity or authentication capture is exported.
+
+`run_worker(verified, directory, lease, ledger, observe=..., validate=...)`
+rechecks the independently owned contract and inputs before starting the
+qualified worker. It forwards `source_files` and connects worker failures to
+the recorder before worker cleanup. The trusted observation callback still
+must record actual stages/assertions. Worker guard refusals are also retained;
+a failed checkpoint cannot prevent worker or callback-server cleanup.
+
+The outer `cleanup` callback owns `Lease.finish()` and actual host/source/VM
+preservation checks, and returns the exact `CLEANUP_FIELDS`. It must retain
+the held lease. Call `recorder.validate(verified)` after cleanup and before
+release; it requires a complete, held lease and uses `VerifiedInputs.validate`
+around the final report copy. Any `acceptance-rejected.json` is a terminal
+failure, including if a late input/copy change follows an initial gate pass.
+An `acceptance.json` file alone never establishes success. A failed report write
+preserves earlier checkpoints and raises the original error; it cannot promise
+new durable evidence when storage itself is unavailable.
+
+Live wiring must call cleanup once, validate before lease release, and retain
+records on worker/bootstrap/interruption paths. `Lease.__exit__` performs its sole
+`finish()` attempt, invokes its trusted `finalize(lease)` callback while held even
+after cleanup failure, then releases. The callback must only check and report;
+never restore or release again. Earlier errors retain precedence through
+finalization and release failures. Scenario dispatch, reviewed screen production
+and authenticated transport remain acceptance work. Test-tool
+activation is `none` (next invocation); no product data or installation changes.
+
 ## Shared guarded worker
 
 `e2e_worker.run_distribution` now runs the qualified, fixed credential-free
@@ -280,4 +337,20 @@ execution boundary, report failure and combined cleanup/original failures. It
 is automatically included in the dispatcher's isolated safety prerequisites.
 The [worker integration evidence](../../docs/TestAutomation/Evidence/19A-Worker-Integration-20260907.md)
 records the real run. The launcher preflight is now implemented; actual scenario
-records and live use of the verified-input gate remain the next controller boundary.
+records and authenticated transport remain unfinished.
+
+The smoke's `Qualification` controller captures `VerifiedInputs` after offline
+bootstrap, rechecks before worker startup, and supplies its `source_files` map.
+It uses `recording.save_checkpoint`, the same fsynced snapshot envelope as
+`ScenarioRecorder`, for actual stage starts/observations, worker failures, and
+before/after outer cleanup. A stage observation must be durable before its
+reply permits the next guest action. Screens are represented only by dimensions
+and digests; raw captures remain private and unapproved for export.
+
+Finalization checks source/baseline and host preservation while the completed
+lease is held, writes the diagnostic report, verifies its private copies and
+rechecks provenance before release. A `finalization-rejected` event is terminal,
+including after an earlier candidate pass. The final `result.json` also accounts
+for release/connection errors. These reports have diagnostic qualification scope,
+no scenario ID, no inventory override and no customer assertions. All 156
+variants, including E2E-001, remain pending.

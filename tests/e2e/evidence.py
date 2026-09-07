@@ -111,6 +111,15 @@ class EvidenceContract:
         ledger = self._failures_by_case[case_id]
         return {'failures': ledger.snapshot(), 'first_failure': ledger.first_failure}
 
+    @property
+    def plan(self):
+        """Controller schedule; callers cannot mutate the frozen acceptance plan."""
+        return copy.deepcopy(self._plan)
+
+    @property
+    def inputs(self):
+        return copy.deepcopy(self._inputs)
+
     def validate(self, records, collector):
         """Return a passing summary only after exact reconciliation and rehashing.
 

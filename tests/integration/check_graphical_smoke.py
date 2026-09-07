@@ -17,6 +17,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 
 import graphical_backend
 from owned_commands import Commands, require
@@ -27,6 +28,9 @@ from vm_transport import Transport
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/e2e'))
 import e2e_worker
+from private_artifacts import EvidenceError, PrivateCollector
+from provenance import VerifiedInputs
+from recording import save_checkpoint
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
 # All session names and identifiers stay inside this guest process. This is a
@@ -109,11 +113,12 @@ def screenshot(directory, name):
 
 
 class Smoke:
-    def __init__(self, directory, lease, commands, host_key):
+    def __init__(self, directory, lease, commands, host_key, progress=None):
         self.directory, self.lease, self.commands = directory, lease, commands
         self.host_key = host_key
         self.steps = []
         self.vm = None
+        self.progress = progress
 
     def step(self):
         if len(self.steps) == len(STAGES):
@@ -126,6 +131,8 @@ class Smoke:
         request = json.loads(path.read_text())
         require(set(request) == {'stage', 'screenshot'} and request['stage'] == stage,
                 'smoke:stage-request')
+        if self.progress is not None:
+            self.progress(stage, None)
         self.lease.guard()
         if stage == 'ready':
             require(request['screenshot'] is None, 'smoke:early-screenshot')
@@ -147,21 +154,26 @@ class Smoke:
         require(self.vm.call(['/usr/bin/python3', '-c', OBSERVATION], timeout=110) == b'greeter-ready\n',
                 'smoke:greeter-observation-failed')
         self.steps.append({'stage': stage, **reply})
+        if self.progress is not None:
+            # Persist the actual corroboration before acknowledging the next
+            # guest action. Raw screenshots/SSH identities never enter reports.
+            self.progress(stage, self.steps[-1])
         pending = self.directory / f'{stage}.reply.tmp'
         pending.write_text(json.dumps(reply))
         pending.rename(self.directory / f'{stage}.reply.json')
         runner.log('graphical:' + stage + '-observed')
 
 
-def run_backend(directory, lease, commands, host_key, ledger, expected_inputs):
-    smoke = Smoke(directory, lease, commands, host_key)
+def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
+                *, progress=None, on_failure=None):
+    smoke = Smoke(directory, lease, commands, host_key, progress)
     def validate():
         require(len(smoke.steps) == len(STAGES), 'smoke:missing-stages')
         module_result(directory)
     try:
         worker_result = e2e_worker.run_distribution(
             directory, lease, ledger, expected_inputs=expected_inputs,
-            observe=smoke.step, validate=validate)
+            observe=smoke.step, validate=validate, on_failure=on_failure)
         return {'steps': smoke.steps, 'worker_evidence': worker_result}
     finally:
         original = sys.exception()
@@ -171,6 +183,125 @@ def run_backend(directory, lease, commands, host_key, ledger, expected_inputs):
             ledger.fail_outcome('collection', 'smoke:step-report-failed')
             if original is None:
                 raise
+
+
+class Qualification:
+    """Live diagnostic checkpoints, without an inventory or scenario override."""
+
+    def __init__(self, directory, commands, ledger, collector, result, host_before):
+        self.directory, self.commands, self.ledger = directory, commands, ledger
+        self.collector, self.result, self.host_before = collector, result, host_before
+        self.verified = None
+        self.sequence = 0
+        self.started = time.monotonic()
+        self.active_stage = None
+
+    def checkpoint(self, event):
+        self.sequence += 1
+        try:
+            save_checkpoint(self.collector, self.sequence, event, {
+                'scope': 'credential-free-worker-qualification',
+                'active_stage': self.active_stage,
+                'monotonic_seconds': time.monotonic() - self.started,
+                'result': self.result, **self.ledger.data(),
+            })
+        except BaseException:
+            self.ledger.fail_outcome('collection', 'smoke:checkpoint-failed')
+            raise
+
+    def progress(self, stage, observed):
+        require(stage in STAGES, 'smoke:stage-request')
+        self.active_stage = stage
+        if observed is None:
+            self.checkpoint('stage-started')
+        else:
+            self.result['steps'].append(dict(observed))
+            self.active_stage = None
+            self.checkpoint('stage-observed')
+
+    def failure(self, category, code):
+        # The worker has already put its fixed failure code in the shared ledger.
+        self.checkpoint('worker-failed')
+
+    def execute(self, lease, guestfs):
+        try:
+            self.checkpoint('attempt-started')
+            with self.ledger.measure('preparation'):
+                lease.prepare()
+                host_key = runner.bootstrap(self.commands, lease, self.directory,
+                                            guestfs, observation_only=True)
+                lease.guard(off=True)
+                lease.save('isolated')
+                self.verified = VerifiedInputs(lease=lease)
+                self.result['provenance'] = self.verified.inputs
+                self.checkpoint('inputs-captured')
+            with self.ledger.measure('test'):
+                self.verified.recheck()
+                self.result.update(run_backend(
+                    self.directory, lease, self.commands, host_key, self.ledger,
+                    self.verified.source_files, progress=self.progress, on_failure=self.failure))
+        except BaseException as error:
+            code = str(error) if isinstance(error, EvidenceError) else runner.error_category(error)
+            if not any(v['outcome'] == 'failed' for v in self.ledger.outcomes.values()):
+                self.ledger.fail_outcome('infrastructure', code)
+            raise
+        finally:
+            original = sys.exception()
+            try:
+                self.checkpoint('before-cleanup')
+            except BaseException:
+                if original is None:
+                    raise
+
+    def finalize(self, lease):
+        """Check and report after restoration, before the sole lease release."""
+        self.result['lease_phase'] = lease.state['phase']
+        self.result['preservation'] = {'source': False, 'host': False}
+        first = None
+        try:
+            require(lease.fd is not None and lease.state['phase'] == 'complete',
+                    'smoke:cleanup-lease-required')
+            require(self.verified is not None, 'smoke:inputs-not-captured')
+            self.verified.recheck()
+            self.result['preservation']['source'] = True
+        except BaseException as error:
+            first = error
+            self.ledger.fail_outcome('infrastructure', 'smoke:final-provenance-failed')
+        try:
+            require(runner.host_fingerprint(self.commands) == self.host_before,
+                    'smoke:host-state-changed')
+            self.result['preservation']['host'] = True
+        except BaseException as error:
+            first = first if first is not None else error
+            self.ledger.fail_outcome('cleanup', 'smoke:host-state-unverifiable')
+        try:
+            if first is None and not any(v['outcome'] == 'failed' for v in self.ledger.outcomes.values()):
+                require(self.result.get('worker_evidence', {}).get('outcome') == 'passed',
+                        'smoke:worker-evidence-missing')
+                self.ledger.pass_outcome('infrastructure')
+                self.ledger.pass_outcome('collection')
+                self.result['outcome'] = 'passed'
+            self.checkpoint('after-cleanup')
+            self.collector.verify([])
+            if self.verified is not None and self.result['preservation']['source']:
+                # A late refusal must revoke the earlier successful boundary's
+                # preservation flag in the terminal failure checkpoint too.
+                self.result['preservation']['source'] = False
+                self.verified.recheck()
+                self.result['preservation']['source'] = True
+        except BaseException as error:
+            first = first if first is not None else error
+            self.ledger.fail_outcome('collection' if isinstance(error, EvidenceError)
+                                     and str(error).startswith('artifact:') else 'infrastructure',
+                                     'smoke:final-report-rejected')
+        if first is not None:
+            self.result['outcome'] = 'failed'
+            try:
+                self.checkpoint('finalization-rejected')
+            except BaseException:
+                pass
+            raise first
+        runner.log('graphical:finalized-with-lease-held')
 
 
 def main():
@@ -209,21 +340,15 @@ def main():
             lease = runner.Lease(source, commands,
                                  lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
                                  ledger=ledger, graphics_type='vnc')
-        with lease:
-            result['baseline_sha256'] = lease.state['baseline_sha256']
-            with ledger.measure('preparation'):
-                lease.prepare()
-                host_key = runner.bootstrap(commands, lease, directory, guestfs, observation_only=True)
-                lease.guard(off=True)
-                lease.save('isolated')
-            with ledger.measure('test'):
-                result.update(run_backend(directory, lease, commands, host_key, ledger,
-                                          result['inputs_sha256']))
-                require(inputs() == result['inputs_sha256'], 'smoke:source-inputs-changed')
-                ledger.pass_outcome('infrastructure')
-                ledger.pass_outcome('collection')
-        result['outcome'] = 'passed'
+        with PrivateCollector(run_id='qualification-' + uuid.uuid4().hex, secrets=[]) as collector:
+            result['qualification_evidence'] = str(collector.path)
+            qualification = Qualification(directory, commands, ledger, collector, result, host_before)
+            lease.finalize = qualification.finalize
+            with lease:
+                result['baseline_sha256'] = lease.state['baseline_sha256']
+                qualification.execute(lease, guestfs)
     except (Exception, KeyboardInterrupt) as error:
+        result['outcome'] = 'failed'
         result['category'] = runner.record_caught_failure(ledger, error)
         result['exception_type'] = type(error).__name__
     finally:

@@ -23,6 +23,15 @@ def git(root, *args):
     subprocess.run(['git', *args], cwd=root, check=True, capture_output=True)
 
 
+def test_source_git_trust_is_scoped_to_the_selected_checkout(tmp_path):
+    from unittest.mock import patch, Mock
+    with patch.object(provenance.subprocess, 'run', return_value=Mock(stdout=b'file\0')) as run:
+        assert provenance.source_paths(tmp_path) == ['file']
+    args = run.call_args.args[0]
+    assert args[:3] == ['git', '-c', 'safe.directory=' + str(tmp_path)]
+    assert '*' not in args and run.call_args.kwargs['cwd'] == tmp_path
+
+
 @pytest.fixture
 def lease():
     state = {'phase': 'finalized', 'proof': {'disk': 'retained-proof'},

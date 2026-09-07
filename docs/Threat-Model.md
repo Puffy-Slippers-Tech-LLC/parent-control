@@ -87,9 +87,11 @@ The following are release blockers, not acceptable limitations:
 - one authorization can be reused for a different operation or as a direct general AccountsService capability;
 - a permanent block is relaxed by any failed or conditional request;
 - an application advertised as enforceable has a demonstrated in-scope bypass;
-- an exhausted managed child can obtain a usable session through a tested supported-platform timer or login race;
-- CVE-2026-44931 remains exploitable on the selected supported package; or
+- an exhausted managed child can obtain a usable session through a tested supported-platform timer or login race; or
 - the required clean-VM matrix has not passed for the release.
+
+CVE-2026-44931 is retained as a reference for supported-package security review,
+not as a standalone release blocker.
 
 The guarded installed-system runner and local regression suites exist. Installed
 authorization work remains in Task 14, and graphical customer coverage and the

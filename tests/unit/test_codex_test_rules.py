@@ -57,11 +57,54 @@ def test_validated_routes_only_match_allow_rules(command):
     'journalctl --vacuum-time=1s', 'systemctl restart sshd',
     'pkexec /usr/bin/head /etc/shadow', 'gdbus call --address unix:path=/tmp/bus',
     'rg --pre /tmp/arbitrary needle', 'sort input -o /tmp/output',
-    'curl -fsSL https://example.com -X POST', 'env -u GDK_BACKEND /tmp/arbitrary',
+    'wget -qO- https://example.com --post-data=example', 'env -u GDK_BACKEND /tmp/arbitrary',
 ])
 def test_legacy_global_allow_cannot_override_project_prompt(command):
     decisions = [rule['decision'] for rule in entries() if matches(rule['pattern'], shlex.split(command))]
     assert 'prompt' in decisions
+
+
+@pytest.mark.parametrize('url', [
+    'https://example.com/path',
+    'https://example.com/~project/path?key=value&other=value',
+    'https://gitlab.freedesktop.org/pwithnall/malcontent/-/raw/0.14.0/meson.build',
+])
+def test_saved_curl_public_fetch_allow_is_not_overridden_or_duplicated(url):
+    # Model the user's existing global rule without reading personal policy or
+    # adding a second maintained allowance. The reported command was already
+    # correctly quoted; a project prompt caused the conflict after parsing.
+    saved_rule = {'pattern': ['curl', '-fsSL'], 'decision': 'allow'}
+    argv = shlex.split(f'curl -fsSL {shlex.quote(url)}')
+    maintained_rules = [*entries('codex-read-only.rules'), *entries()]
+    assert not any(matches(rule['pattern'], argv) for rule in maintained_rules)
+    decisions = {rule['decision'] for rule in [saved_rule, *maintained_rules]
+                 if matches(rule['pattern'], argv)}
+    assert decisions == {'allow'}
+
+
+@pytest.mark.parametrize('command', [
+    'curl', 'curl -X POST https://example.com',
+    'curl --data example https://example.com',
+    'curl -T /tmp/input https://example.com',
+    'curl -o /tmp/output https://example.com',
+    "bash -lc 'curl -fsSL https://example.com'",
+    'env curl -fsSL https://example.com',
+])
+def test_restoring_saved_curl_prefix_does_not_add_other_allowances(command):
+    saved_rule = {'pattern': ['curl', '-fsSL'], 'decision': 'allow'}
+    rules = [saved_rule, *entries('codex-read-only.rules'), *entries()]
+    assert not any(rule['decision'] == 'allow' and matches(rule['pattern'], shlex.split(command))
+                   for rule in rules)
+
+
+def test_saved_curl_prefix_does_not_validate_trailing_arguments():
+    # This is a policy-language boundary, never a network request. The direct
+    # saved prefix is for trusted public reads; the validated fetch helper is
+    # required when arguments are untrusted or must be confined by code.
+    saved_rule = {'pattern': ['curl', '-fsSL'], 'decision': 'allow'}
+    rules = [saved_rule, *entries('codex-read-only.rules'), *entries()]
+    argv = ['curl', '-fsSL', 'https://example.com', '-X', 'POST']
+    assert {rule['decision'] for rule in rules if matches(rule['pattern'], argv)} == {'allow'}
 
 
 @pytest.mark.parametrize('executable', ['make', '/usr/bin/make'])

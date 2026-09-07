@@ -90,13 +90,15 @@ def variables(directory, server, run):
 
 
 def run_distribution(directory, lease, ledger, *, expected_inputs, observe, validate,
-                     timeout=600):
+                     timeout=600, on_failure=None):
     """Run fixed trusted code against an existing isolated lease, then retain reports.
 
     observe/validate are controller functions, never supplied by the guest or
     CLI. Validation must reconcile actual module results and completed stages.
     A zero worker exit alone cannot pass. Final VM/host/source restoration and
     full inventory EvidenceContract acceptance remain the outer owner's job.
+    on_failure is a trusted controller hook for durable scenario checkpoints;
+    a broken hook cannot prevent either resource's cleanup or replace the error.
     """
     require(type(timeout) in (int, float) and 0 < timeout <= 600, 'e2e:timeout')
     require(isinstance(lease.state['run'], str)
@@ -125,6 +127,13 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
             first_error = first_error or error
             failures.record(category, code, monotonic_seconds=time.monotonic() - started)
             ledger.fail_outcome(category, 'e2e:' + code)
+            if on_failure is not None:
+                try:
+                    on_failure(category, code)
+                except BaseException:
+                    failures.record('collection', 'scenario-checkpoint-failed',
+                                    monotonic_seconds=time.monotonic() - started)
+                    ledger.fail_outcome('collection', 'e2e:scenario-checkpoint-failed')
 
         def save(name):
             result.update(failures=failures.snapshot(), first_failure=failures.first_failure,

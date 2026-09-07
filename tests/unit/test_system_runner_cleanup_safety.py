@@ -121,6 +121,58 @@ def test_cleanup_failure_is_recorded_without_replacing_original_body_failure():
     lease.release.assert_called_once()
 
 
+@pytest.mark.parametrize('body_error', [False, True])
+@pytest.mark.parametrize('cleanup_error', [False, True])
+@pytest.mark.parametrize('final_error', [False, True])
+@pytest.mark.parametrize('release_error', [False, True])
+def test_finalization_runs_once_while_held_and_preserves_first_error(
+        body_error, cleanup_error, final_error, release_error):
+    events = []
+    errors = [RuntimeError('private body'), RuntimeError('private cleanup'),
+              KeyboardInterrupt('private final'), RuntimeError('private release')]
+    ledger = runner.RunLedger()
+    lease = runner.Lease(Mock(), Mock(), Mock(), ledger=ledger)
+    lease.fd = 42
+    lease.state = {'phase': 'running'}
+
+    def finish():
+        assert lease.fd == 42
+        events.append('finish')
+        if cleanup_error:
+            raise errors[1]
+        lease.state['phase'] = 'complete'
+
+    def finalize(held):
+        assert held is lease and held.fd == 42
+        assert held.state['phase'] == ('running' if cleanup_error else 'complete')
+        events.append('finalize')
+        if final_error:
+            raise errors[2]
+
+    def release():
+        events.append('release')
+        lease.fd = None
+        if release_error:
+            raise errors[3]
+
+    lease.finish, lease.finalize, lease.release = finish, finalize, release
+    expected = next((error for fault, error in zip(
+        (body_error, cleanup_error, final_error, release_error), errors) if fault), None)
+    with patch.object(runner.Lease, '__enter__', return_value=lease):
+        try:
+            with lease:
+                events.append('body')
+                if body_error:
+                    raise errors[0]
+        except BaseException as caught:
+            assert caught is expected
+        else:
+            assert expected is None
+    assert events == ['body', 'finish', 'finalize', 'release']
+    assert lease.fd is None
+    assert 'private' not in str(ledger.data())
+
+
 def test_cleanup_failure_also_retains_an_unclassified_body_infrastructure_failure():
     ledger = runner.RunLedger()
     lease = runner.Lease(Mock(), Mock(), Mock(), ledger=ledger)

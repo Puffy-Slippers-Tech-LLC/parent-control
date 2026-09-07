@@ -170,7 +170,7 @@ failed test assertion.
 The installed suite covers real package content/ownership, service and D-Bus
 readiness, PAM/Polkit/session integration, execution policy and actual reboot.
 Installed authorization coverage is being extended; the
-[Task 14 handoff](../../docs/TestAutomation/Task-14.md#continuation-handoff--2026-09-05-incomplete)
+[Task 14 handoff](../../docs/TestAutomation/Task-14.md#continuation-handoff--2026-09-06-incomplete)
 owns its current status. These tests are not complete graphical E2E acceptance.
 The future E2E runner must obey the
 [real customer-operations contract](../../docs/TestAutomation/E2E-Coverage.md).
@@ -198,7 +198,10 @@ The future E2E runner must obey the
 - `system_caller.py`: drops real/effective/saved credentials, opens a fresh
   system-bus connection and verifies the bus-reported UID. Structured replies
   and private-state assertions stay in private diagnostics, without exposing
-  account contents in public assertion errors.
+  account contents in public assertion errors. The guarded batch protocol accepts
+  UID 0 only with literal `allow_root: true`; `call`/`batch` expose that explicit
+  keyword for root method coverage. The same kernel and bus identity checks apply.
+  Ordinary callers, persistent callers and authentication agents still reject UID 0.
 - `system_caller.PersistentCaller(uid)`: context-managed real caller connection
   with `name`, `call(method, signature, args)`, and separate `send(operation)` /
   `receive(timeout)` operations. EOF closes it; bounded context cleanup signals
@@ -209,6 +212,11 @@ The future E2E runner must obey the
   readiness on its inherited notification pipe. Polkit resolves the broker's
   real bus-name challenge to that process. Startup failure reports only a fixed
   category and child exit status; terminal bytes are never exported.
+  The wrapper runs the guest guard and establishes its controlling terminal,
+  then drops real/effective/saved credentials to the persistent caller's verified
+  UID before executing `pkttyagent`. Polkit binds the authentication session to
+  the subject user; registering a root agent for an unprivileged subject can
+  prompt successfully but its helper response has the wrong UID.
   `prompt(selected_uid, other_uid)` checks the
   selected identity and waits for terminal echo to be disabled;
   `authenticate(password, succeeds=...)` drives the real PAM challenge. Terminal
@@ -217,6 +225,10 @@ The future E2E runner must obey the
   Denied challenges also report an allowlisted helper failure stage (PAM or
   authority response, or `unclassified`); arbitrary helper stderr and terminal
   contents are never exported, and the category alone does not prove the cause.
+  Known authority responses are further reduced to fixed session-lookup,
+  authenticated-identity, response-caller, or D-Bus transport categories. Unknown
+  responses retain `authority-response`; a diagnostic never substitutes for the
+  actual grant or denial assertions.
   `FixturePassword` generates distinct temporary
   credentials and sets them through guarded guest stdin without diagnostic
   export. Agent cleanup signals only its directly spawned pidfd; run

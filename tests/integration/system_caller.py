@@ -58,7 +58,7 @@ class TextAgent:
             notify_read, notify_write = os.pipe()
             self.child = subprocess.Popen(
                 ['/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_caller.py'),
-                 '--agent', subject, str(notify_write)],
+                 '--agent', subject, str(notify_write), str(caller.uid)],
                 stdin=slave, stdout=slave, stderr=slave, pass_fds=(notify_write,))
             self.pidfd = os.pidfd_open(self.child.pid)
             os.close(slave)
@@ -102,6 +102,7 @@ class TextAgent:
             (b'agent-wrapper:guard', 'wrapper-guard'),
             (b'agent-wrapper:session', 'wrapper-session'),
             (b'agent-wrapper:terminal', 'wrapper-terminal'),
+            (b'agent-wrapper:identity', 'wrapper-identity'),
             (b'agent-wrapper:executable-missing', 'executable-missing'),
             (b'agent-wrapper:exec', 'wrapper-exec'),
             (b'Authorization not available', 'authority-unavailable'),
@@ -182,6 +183,8 @@ class TextAgent:
                 if marker in terminal:
                     category = value
                     break
+            if category == 'authority-response':
+                category = self._authority_response_category(terminal)
             print('onpc-system: stage=authentication-helper outcome=denied '
                   f'category={category}', flush=True)
         if self.record_diagnostic is not None:
@@ -191,6 +194,38 @@ class TextAgent:
             self.record_diagnostic(expected='accepted' if succeeds else 'denied',
                                    outcome=outcome, helper_category=category)
         guest.require(terminal.endswith(expected), 'agent:unexpected-' + outcome)
+
+    @staticmethod
+    def _authority_response_category(terminal):
+        # Polkit 127's response errors distinguish session lookup and identity
+        # rejection. Match only the helper's error line; never retain its cookie,
+        # account, bus name, or arbitrary GError message in public evidence.
+        prefix = b'polkit-agent-helper-1: error response to PolicyKit daemon:'
+        for line in terminal.splitlines():
+            _, marker, response = line.partition(prefix)
+            if not marker:
+                continue
+            # The consumed Password: prompt can leave whitespace or terminal
+            # control bytes before stderr on this same line.
+            response = response.strip()
+            for message, category in (
+                (b'No session for cookie', 'authority-response-no-session'),
+                (b'The authenticated identity is wrong', 'authority-response-wrong-identity'),
+                (b'Only uid 0 may invoke this method. This incident has been logged.',
+                 'authority-response-caller-not-root'),
+            ):
+                if response == (b'GDBus.Error:org.freedesktop.PolicyKit1.Error.Failed: ' +
+                                message):
+                    return category
+            for name, category in (
+                (b'AccessDenied', 'authority-response-bus-denied'),
+                (b'NoReply', 'authority-response-no-reply'),
+                (b'ServiceUnknown', 'authority-response-service-unknown'),
+                (b'NameHasNoOwner', 'authority-response-no-owner'),
+            ):
+                if response.startswith(b'GDBus.Error:org.freedesktop.DBus.Error.' + name + b': '):
+                    return category
+        return 'authority-response'
 
     def close(self):
         try:
@@ -251,6 +286,7 @@ class PersistentCaller:
                           isinstance(ready.get('name'), str) and ready['name'].startswith(':'),
                           'caller:stream-identity')
             self.name = ready['name']
+            self.uid = ready['uid']
         except BaseException:
             self.close()
             raise
@@ -317,8 +353,11 @@ class PersistentCaller:
         self.close()
 
 
-def drop_identity(uid):
-    guest.require(type(uid) is int and uid > 0, 'caller:uid')
+def drop_identity(uid, *, allow_root=False):
+    # Only an explicitly opted-in broker caller may retain UID 0. Authentication
+    # agents and ordinary callers continue to require a non-root identity.
+    guest.require(type(uid) is int and (uid > 0 or (uid == 0 and allow_root is True)),
+                  'caller:uid')
     account = pwd.getpwuid(uid)
     os.initgroups(account.pw_name, account.pw_gid)
     os.setresgid(account.pw_gid, account.pw_gid, account.pw_gid)
@@ -363,7 +402,7 @@ def execute(connection, operation, Gio, GLib):
         return {'error': Gio.DBusError.get_remote_error(error) or 'transport-error'}
 
 
-def run_agent(subject, notify_fd):
+def run_agent(subject, notify_fd, uid):
     stage = 'guard'
     try:
         guest.guard()
@@ -371,6 +410,13 @@ def run_agent(subject, notify_fd):
         os.setsid()
         stage = 'terminal'
         fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+        # Polkit binds the authentication cookie to the subject's user. A root
+        # agent registered for an unprivileged caller can prompt successfully,
+        # but its helper response carries the wrong UID and is rejected.
+        # Match a normal user agent, dropping real/effective/saved credentials
+        # before pkttyagent opens its bus or invokes the maintained PAM helper.
+        stage = 'identity'
+        drop_identity(int(uid))
         os.environ.update(LANG='C', LC_ALL='C')
         stage = 'exec'
         os.execv('/usr/bin/pkttyagent', ['pkttyagent', '--process', subject,
@@ -383,8 +429,8 @@ def run_agent(subject, notify_fd):
 
 
 def main():
-    if len(sys.argv) == 4 and sys.argv[1] == '--agent':
-        run_agent(sys.argv[2], sys.argv[3])
+    if len(sys.argv) == 5 and sys.argv[1] == '--agent':
+        run_agent(sys.argv[2], sys.argv[3], sys.argv[4])
         return
     guest.guard()
     import gi
@@ -392,7 +438,7 @@ def main():
     from gi.repository import Gio, GLib
 
     request = json.loads(sys.stdin.readline())
-    drop_identity(request['uid'])
+    drop_identity(request['uid'], allow_root=request.get('allow_root') is True)
     connection = Gio.DBusConnection.new_for_address_sync(
         'unix:path=/run/dbus/system_bus_socket',
         Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |

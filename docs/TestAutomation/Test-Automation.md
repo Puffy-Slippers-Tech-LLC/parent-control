@@ -21,7 +21,7 @@ The [current continuation](Continuation.md) points to the next session's task
 and handoff. The reordered backlog brings [F1](Task-F1.md)'s focused diagnosis
 forward from Tasks 28/27 and [19P](Task-19.md#task-19p)'s feasibility check from
 19A. Neither restarts completed setup. Task 14's existing work remains in its
-[continuation handoff](Task-14.md#continuation-handoff--2026-09-05-incomplete).
+[continuation handoff](Task-14.md#continuation-handoff--2026-09-06-incomplete).
 Finish an already-running owned guarded attempt and its cleanup before changing
 implementation tasks. Do not duplicate changing evidence or machine state here.
 

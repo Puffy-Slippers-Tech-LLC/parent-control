@@ -142,6 +142,47 @@ def test_password_installation_uses_stdin_without_diagnostics(monkeypatch):
     assert password._value not in repr(args).encode()
 
 
+@pytest.mark.parametrize('response,category', [
+    (b'org.freedesktop.PolicyKit1.Error.Failed: No session for cookie',
+     'authority-response-no-session'),
+    (b'org.freedesktop.PolicyKit1.Error.Failed: The authenticated identity is wrong',
+     'authority-response-wrong-identity'),
+    (b'org.freedesktop.PolicyKit1.Error.Failed: Only uid 0 may invoke this method. '
+     b'This incident has been logged.', 'authority-response-caller-not-root'),
+    *[(b'org.freedesktop.DBus.Error.' + name + b': private-user secret-cookie', category)
+      for name, category in (
+          (b'AccessDenied', 'authority-response-bus-denied'),
+          (b'NoReply', 'authority-response-no-reply'),
+          (b'ServiceUnknown', 'authority-response-service-unknown'),
+          (b'NameHasNoOwner', 'authority-response-no-owner'))],
+    (b'org.freedesktop.PolicyKit1.Error.Failed: No session for cookie private-value',
+     'authority-response'),
+    (b'unknown: private-user secret-cookie', 'authority-response'),
+])
+def test_authority_response_reason_is_reduced_before_failed_assertion(
+        monkeypatch, capsys, response, category):
+    diagnostic = b'polkit-agent-helper-1: error response to PolicyKit daemon: GDBus.Error:'
+    instance = agent()
+    password = caller.FixturePassword()
+    instance.pending = (password._value + b' private-user secret-cookie\n \x1b[0m' +
+                        diagnostic + response + b'\r\nAUTHENTICATION FAILED')
+    monkeypatch.setattr(caller.termios, 'tcgetattr', Mock(return_value=[0, 0, 0, 0]))
+    monkeypatch.setattr(caller.os, 'write', Mock(side_effect=lambda fd, data: len(data)))
+    with pytest.raises(caller.guest.GuestError, match='agent:unexpected-denied'):
+        instance.authenticate(password)
+    instance.record_diagnostic.assert_called_once_with(
+        expected='accepted', outcome='denied', helper_category=category)
+    assert capsys.readouterr() == (
+        'onpc-system: stage=authentication outcome=denied\n'
+        f'onpc-system: stage=authentication-helper outcome=denied category={category}\n', '')
+
+
+def test_authority_response_reason_ignores_unrelated_terminal_lines():
+    terminal = (b'polkit-agent-helper-1: error response to PolicyKit daemon: unknown\n'
+                b'GDBus.Error:org.freedesktop.PolicyKit1.Error.Failed: No session for cookie')
+    assert caller.TextAgent._authority_response_category(terminal) == 'authority-response'
+
+
 @pytest.mark.parametrize('terminal,expected', [
     (b'Error registering authentication agent: private-user :1.123', 'polkit-registration'),
     (b'agent-wrapper:executable-missing', 'executable-missing'),

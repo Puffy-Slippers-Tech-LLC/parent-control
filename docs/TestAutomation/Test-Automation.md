@@ -20,8 +20,9 @@ after a solved problem. It replaces automatic ten-minute session endings.
 The [current continuation](Continuation.md) points to the next session's task
 and handoff. The reordered backlog brings [F1](Task-F1.md)'s focused diagnosis
 forward from Tasks 28/27 and [19P](Task-19.md#task-19p)'s feasibility check from
-19A. Neither restarts completed setup. Task 14's existing work remains in its
-[continuation handoff](Task-14.md#continuation-handoff--2026-09-06-incomplete).
+19A. Neither restarts completed setup. Task 14 is accepted; its
+[completion handoff](Task-14.md#completion-handoff--2026-09-06-accepted) retains
+the final evidence. Task 19A is next.
 Finish an already-running owned guarded attempt and its cleanup before changing
 implementation tasks. Do not duplicate changing evidence or machine state here.
 
@@ -179,7 +180,7 @@ not release passes. Use measured slice/attempt times to forecast remaining work.
 
 - [x] [Task F1 — Focused installed diagnosis, moved forward from Tasks 28/27](Task-F1.md)
 - [x] [Task 19P — Prove graphical backend compatibility](Task-19.md#task-19p)
-- [ ] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md)
+- [x] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md)
 - [ ] [Task 19A — Add the guarded os-autoinst worker and console transport](Task-19.md#task-19a)
 - [ ] [Task 19B — Add stable screen matching and graphical smoke](Task-19.md#task-19b)
 - [ ] [Task 20 — Automate clean installation, reboot, and startup readiness](Task-20.md)

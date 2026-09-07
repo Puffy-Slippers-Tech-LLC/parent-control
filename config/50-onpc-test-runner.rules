@@ -1,0 +1,11 @@
+// Development-only: the installed root-owned dispatcher validates its test
+// category and arguments before running code from the configured checkout.
+// Never authorize make, an interpreter, a shell, or another pkexec target.
+polkit.addRule(function(action, subject) {
+    if (action.id === "org.freedesktop.policykit.exec" &&
+        action.lookup("program") === "/usr/local/libexec/onpc-test-runner" &&
+        action.lookup("user") === "root" &&
+        subject.local && subject.active && subject.isInGroup("sudo")) {
+        return polkit.Result.YES;
+    }
+});

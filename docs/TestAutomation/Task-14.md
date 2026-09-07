@@ -45,48 +45,58 @@ Follow the [bounded workflow](Implementation-Workflow.md). Both child and kiosk
 selected-parent cases now prove deliberate wrong-password denial, a valid
 password and an actual grant. All six authenticated live-state revalidation
 variants and the previously registered authorization area have passed.
-Root's method permissions are now verified in a focused selection. Next finish
-stale/deleted accounts, selected identity/eligibility and requester disconnect.
+Root's method permissions, stale/deleted selections, and authenticated in-flight
+target deletion on both request surfaces now pass in focused VM selections.
+Requester disconnect/cancellation and fresh-connection recovery now pass on
+both paths. Next reconcile the method/role and account-requirement coverage,
+batch any concrete missing identity/eligibility assertions, and finish acceptance.
 Preserve existing registrations.
 Use isolated fixtures/cooldowns; a selected case must not require unrelated
 cases to run first. Finish with the full authorization area once.
 
 ## Continuation handoff — 2026-09-06 (incomplete)
 
-**Next result:** implement and verify stale/deleted identity assertions, beginning
-with actual deletion of a selected target and approver, refreshed discovery and
-fail-closed requests without changes to surviving accounts. Task 14 remains unchecked.
-**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: raise.
-**Reason:** root permissions and the existing authentication helper are proven;
-the next slice must distinguish NSS/AccountsService identity lifecycle and
-broker revalidation, requiring more security reasoning than the root matrix.
-Scope remains this development host and the existing guarded `ubuntu26.04` VM.
+**Next result:** finish the finite Task 14 coverage audit and acceptance. Compare
+the registered installed cases with the broker method/role matrix and explicit
+account requirements. List any concrete missing identity/eligibility assertions,
+implement only those gaps as a batch, update requirement mappings, then run one
+complete authorization-area acceptance. Do not carry forward an undefined
+“remaining variants” investigation or repeat completed focused matrices just
+to resume. Task 14 remains unchecked. Scope: development host and existing
+guarded `ubuntu26.04` VM.
 
-**Proven this session:** added explicit root opt-in to the guarded caller helper
-and seven credential/agent regressions. One new installed case exercised all
-17 root method cells, observable management writes, other-account isolation,
-request-only denials, discovery/approver exclusion and log-component restrictions.
-The focused run passed **five exact executions**, including four install/reboot
-prerequisites; all four outcome domains passed. Isolated cleanup checks passed
-30 tests, caller checks 25, and `make check` passed 1,210 unit/contracts plus
-17 components and static/traceability checks. [Inputs and evidence](Evidence/Task-14-2026-09-06-Root.md).
-The prior [225-execution area pass](Evidence/Task-14-2026-09-06-Authorization.md)
-already proves both authentication surfaces and all six live-state variants.
+**Next-session settings:** `gpt-5.6-sol` / `medium`; model: keep; effort: lower.
+**Reason:** live authentication and cancellation ordering are resolved. Coverage
+reconciliation and mappings can use the proven installed helpers with medium
+effort; reassess only if the audit identifies a new concurrency boundary.
 
-**Next action:** extend `tests/system/test_authorization.py` using isolated
-disposable account fixtures, `call`/`batch`, `account_state` and, where needed,
-`PersistentCaller`. Establish the actual account-deletion observation before
-asserting stale-identity denial; preserve other accounts and retained evidence.
-Use host-safe collection, isolated safety prerequisites, fresh inputs and the
-smallest registered selection. No deletion experiment has been attempted and
-no unresolved root/authentication blocker remains. Do not repeat solved work.
-Still missing: stale/deleted identities, remaining selected identity/eligibility
-changes, requester-disconnect completion, final requirement/matrix audit and
-complete-area task acceptance.
+**Completed this session:** registered requester disconnect/cancellation and
+fresh-connection recovery for both child and kiosk. The bus name disappeared
+during a real prompt; Polkit denied the vanished subject. Closing the owned
+agent then released the transaction. Correlated broker denial, no write-stage
+entries and unchanged state across all seven role accounts were verified.
+Each surface then authenticated with the same credentials on a fresh connection
+and received a real grant; cleanup revoked it and respected the cooldown.
+This proves explicit agent cancellation, not automatic prompt dismissal or a
+separately forced post-approval `caller_alive` branch.
 
-**State:** root run session 79852 exited 0; evidence is
-`/tmp/onpc-system-o0xgf72y/evidence`. Baseline/domain restoration and host
-preservation passed; final domain check was `shut off`. No operation is pending.
-All new caller/system-test code was exercised in the VM; subsequent edits are
-documentation only. One VM attempt, approximately 5.6 minutes of runner stages;
-no retry. Prior working-tree edits remain preserved.
+**Verification:** third VM attempt passed all **five exact executions** and all
+four outcome domains. First failure disproved successful authentication after
+subject exit; second established that terminal failure alone does not complete
+the transaction. Both failures remain retained; the third followed that concrete
+lifecycle correction. **146 focused tests**, **30 isolated safety tests**, and
+dispatcher **175 tests / 3 subtests** passed. Final `make check`: **1,225 unit/
+contract and 17 component tests** passed. Seven selected hashes match; **275**
+public guest files passed the scoped identity scan.
+[Evidence, commands, all attempts and timings](Evidence/Task-14-2026-09-06-Requester-Disconnect.md).
+
+**Remaining:** requirement/method-matrix audit and full-area acceptance, including
+the extracted stale-selection helper and new disconnect case together. No active
+blocker remains. Preserve [in-flight deletion](Evidence/Task-14-2026-09-06-InFlight-Deletion.md)
+and [stale-selection](Evidence/Task-14-2026-09-06-Deletion-Qualification.md)
+evidence. Full Task 14 and release acceptance are pending.
+
+**State:** final build **42128**, VM **14234**, checks **90893**, and manifest
+read **15742** exited **0**. Evidence: `/tmp/onpc-system-8zftfkk4/evidence`.
+Baseline restored, domain **shut off**, all owned operations finished. The slice
+overran its estimate to complete the evidence-based correction and cleanup.

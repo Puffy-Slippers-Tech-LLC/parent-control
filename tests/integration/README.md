@@ -142,8 +142,17 @@ make check-system ARTIFACT_DIR=/tmp/onpc-test-artifacts/run-input \
     AREA=authorization TEST='test_method_role_matrix[ListManagedUsers-child1]'
 ```
 
-From an administrator's graphical session the equivalent is
-`pkexec make -C /Data/Code/PST/parent-control check-system ARTIFACT_DIR=<verified-directory>`.
+From an administrator's active local graphical session, use the installed
+argument-validating dispatcher. Its development Polkit rule avoids an
+authentication dialog for local `sudo`-group members:
+
+```sh
+pkexec /usr/local/libexec/onpc-test-runner system \
+    --artifacts <verified-directory>
+```
+
+Do not authorize or invoke `pkexec make` for this purpose; `make` is a general
+execution engine and bypasses the dispatcher's argument boundary.
 The command resets guest disk changes since the retained baseline. Never run
 it on an unleased VM containing work that must be kept. `VM_IMAGE` is refused.
 

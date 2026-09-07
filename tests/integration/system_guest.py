@@ -188,6 +188,19 @@ def installed():
     require(bool(run(['fapolicyd-cli', '--list'])), 'loaded-execution-rules')
 
 
+def retain_identity_for_redaction(uid):
+    """Keep a private pre-mutation identity for collection after deletion/rename."""
+    guard()
+    import pwd
+    account = pwd.getpwuid(uid)
+    require(account.pw_uid >= 1000, 'redaction-identity-range')
+    directory = PAYLOAD / 'private' / 'redaction-identities'
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    descriptor, _ = tempfile.mkstemp(suffix='.json', dir=directory)
+    with os.fdopen(descriptor, 'w') as stream:
+        json.dump((account.pw_name, account.pw_gecos, account.pw_dir), stream)
+
+
 def collect(marker, outcome):
     """Copy only text diagnostics, redacting copies using the existing collector helper."""
     sys.path.insert(0, str(Path(__file__).parent / 'guest'))
@@ -197,6 +210,12 @@ def collect(marker, outcome):
     # Account names, home paths and host names are additional PII beyond secrets.
     import pwd
     identities = [(p.pw_name, p.pw_gecos, p.pw_dir) for p in pwd.getpwall() if p.pw_uid >= 1000]
+    for source in sorted((PAYLOAD / 'private' / 'redaction-identities').glob('*.json')):
+        require(source.is_file() and not source.is_symlink(), 'redaction-identity-file')
+        identity = json.loads(source.read_text())
+        require(isinstance(identity, list) and len(identity) == 3 and
+                all(isinstance(value, str) for value in identity), 'redaction-identity-format')
+        identities.append(identity)
 
     def redacted(contents):
         contents = redact_text(contents, marker['run'])

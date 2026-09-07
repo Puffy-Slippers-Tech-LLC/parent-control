@@ -311,6 +311,18 @@ def test_password_case_registers_its_additional_fixture_prerequisite():
     assert selection.prerequisites[-1] == 'fixture-passwords'
 
 
+@pytest.mark.parametrize('case', (
+    'test_authenticated_request_rejects_deleted_target',
+    'test_requester_disconnect_during_approval',
+))
+def test_inflight_case_registers_passwords_and_exact_execution(case):
+    inventories = {**INVENTORIES, 'authorization': (*INVENTORIES['authorization'], case)}
+    selection = runner.resolve_selection('authorization', case, inventories=inventories)
+    assert selection.prerequisites[-1] == 'fixture-passwords'
+    assert [(item.phase, item.case_id) for item in selection.executions
+            if not item.prerequisite] == [('authorization', case)]
+
+
 def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
     first = runner.resolve_selection(
         'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)

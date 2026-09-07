@@ -48,6 +48,11 @@ runner's artifact path, area/test selectors, listing and qualification flag.
 The launcher runs all `tests/unit/test_*cleanup_safety.py` modules and
 `test_graphical_lease.py` as the invoking user before executing the selected
 test as root. New cleanup implementations must add matching safety regressions.
+The development Polkit rule permits only this installed dispatcher targeting
+root, without password prompts for active local members of Ubuntu's `sudo`
+group. It does not authorize `make`, shells, interpreters, other programs,
+remote/inactive sessions or non-administrators. The dispatcher still validates
+every argument; authorization trusts test code and its imports in this checkout.
 
 `setup.sh` also installs the versioned `config/codex-tests.rules` as the project
 `.codex/rules/tests.rules`, approving both privileged categories and
@@ -92,11 +97,13 @@ dependencies or system policies. This development-only helper activates on its
 next invocation and is not installed in the product package.
 Codex must
 trust the project configuration and be restarted after the rule is installed.
-Linux Polkit authentication still applies. This grants trust to future test
-code and its imports in this checkout; it is not a sandbox for malicious tests.
+The dispatcher's narrowly scoped development Polkit rule activates immediately
+and removes its Ubuntu authentication prompt for an active local `sudo`-group
+member. This grants trust to future test code and its imports in this checkout;
+it is not a sandbox for malicious tests.
 The installed dispatcher changes only when setup reinstalls it. It activates
-on its next invocation (`none`), adds no service or Polkit policy, and is not
-part of the product package. Run setup again if the checkout moves.
+on its next invocation (`none`), adds no service, and is not part of the product
+package. Run setup again if the checkout moves.
 
 For authorized test-environment installation or refresh, invoke `./setup.sh`,
 the existing approved setup entry point. This includes graphical AppArmor
@@ -104,7 +111,8 @@ policy installation and refresh. Invoking `tools/install_graphical_test_policy.p
 directly through `pkexec /usr/bin/python3` does not match the test-category rules
 and causes a separate Codex approval request. Use setup for these prerequisites
 and the dispatcher for tests; future integration checks are already covered
-without adding per-file rules. OS authentication is separate from Codex approval.
+without adding per-file rules. Codex approval and Polkit authorization remain
+separate controls even though both are configured for the dispatcher.
 
 Graphical attachment from the classic VS Code snap requires the anonymous Unix
 stream peer rule in both libvirtd and QEMU policy. `setup.sh` compiles proposed

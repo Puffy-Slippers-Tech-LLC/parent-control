@@ -37,21 +37,26 @@ def main():
         os.replace(temporary, destination)
     finally:
         Path(temporary).unlink(missing_ok=True)
-    # Install authorization only after the validated, root-owned helper exists.
+    # Install authorization only after both validated, root-owned helpers exist.
     # polkitd watches this directory; activation is immediate (none).
-    destination = Path('/etc/polkit-1/rules.d/50-onpc-screenshot-export.rules')
-    descriptor, temporary = tempfile.mkstemp(prefix='.onpc-screenshot-policy-', dir=destination.parent)
-    try:
-        with os.fdopen(descriptor, 'wb') as stream:
-            stream.write((root / 'config/50-onpc-screenshot-export.rules').read_bytes())
-            stream.flush()
-            os.fchmod(stream.fileno(), 0o644)
-            os.fchown(stream.fileno(), 0, 0)
-            os.fsync(stream.fileno())
-        os.replace(temporary, destination)
-    finally:
-        Path(temporary).unlink(missing_ok=True)
-    print('test-runner-install: installed root-owned development tools and scoped screenshot authorization')
+    policies = (
+        ('50-onpc-screenshot-export.rules', '.onpc-screenshot-policy-'),
+        ('50-onpc-test-runner.rules', '.onpc-test-runner-policy-'),
+    )
+    for name, prefix in policies:
+        destination = Path('/etc/polkit-1/rules.d') / name
+        descriptor, temporary = tempfile.mkstemp(prefix=prefix, dir=destination.parent)
+        try:
+            with os.fdopen(descriptor, 'wb') as stream:
+                stream.write((root / 'config' / name).read_bytes())
+                stream.flush()
+                os.fchmod(stream.fileno(), 0o644)
+                os.fchown(stream.fileno(), 0, 0)
+                os.fsync(stream.fileno())
+            os.replace(temporary, destination)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
+    print('test-runner-install: installed root-owned development tools and scoped authorizations')
 
 
 if __name__ == '__main__':

@@ -138,54 +138,48 @@ for the remaining boundary; do not rebuild already implemented interfaces.
 
 ### Task 19A continuation — 2026-09-07
 
-**Completed boundary:** credential-free live qualification captures
-`VerifiedInputs`, forwards its source map and persists observed stages before
-the next action. Cleanup runs once; finalization checks provenance, host
-preservation and private reports before lease release. One guarded smoke passed
-in **569.891 seconds**, with four observations and 12 durable checkpoints.
-All 156 scenario variants remain pending.
+**Completed boundary:** stale/unreadable starting sources now refuse before
+libvirt connection or lease acquisition, with their specific failure category
+retained. Five new regressions and a real installed-launcher denial prove this
+early check; held-lease provenance checks remain mandatory. Concurrent work
+independently corrected uncommitted-deletion handling in builder/provenance;
+that implementation was preserved and verified. Transfer qualification is
+**not yet passed**; all 156 customer variants remain pending.
 
-**Next result:** connect verified asset staging/transfer to the guarded E2E
-transport. Reuse `stage_assets`, private staging permissions, `VerifiedInputs`
-and existing bootstrap/transport ownership. Prove stale/corrupted transfer
-refusal locally and one valid fresh-guest transfer after safety prerequisites.
-Provision only before the journey; keep observation read-only. Do not repeat
-the completed lifecycle smoke unchanged, open pending dispatch, invent E2E-001
-assertions, or create another inventory. Secret/capture transport, harmless
-console execution and final 19A acceptance remain subsequent boundaries.
+**Next result:** first establish that other checkout edits have ended. Then
+build fresh inputs with `tools/run-tests artifacts build` and run
+`tools/run-tests e2e --qualify-transfer --artifacts <new-output>` once. Inspect
+offline receipt, booted-asset observation, terminal result and held-lease
+finalization. Do not repeat setup, baseline/backend investigation or the
+unchanged lifecycle smoke. Secret/capture and harmless console transport follow.
 
-**Reuse/evidence:** [live qualification and exact inputs](Evidence/19A-Live-Finalization-20260907.md),
-[recorder/worker contracts](../../tests/e2e/README.md#ordered-controller-records),
-`ScenarioRecorder`, shared `save_checkpoint`, `Qualification`, `PrivateCollector`
-and `Lease.finalize`. The original recorder/provenance unit evidence remains
-applicable. No backend/baseline/Task 14 investigation is needed.
+**Evidence/attempts:** [this slice](Evidence/19A-Source-Preflight-20260907.md)
+retains the third transfer attempt: concurrent deletion during capture caused
+`provenance:recheck-failed`; transfer never started. Cleanup/host preservation
+passed in 252.326 seconds. A deliberate early refusal then completed in 1.211
+seconds without acquiring a lease. The
+[first two failures](Evidence/19A-Asset-Transfer-20260907.md) remain unchanged:
+source-ordering is fixed/live-proven, and the inventory-prefix correction still
+needs live qualification. Do not spend another VM attempt while sources change;
+this session's request to pause other edits received no answer.
 
-**Next reads/check:** `system_runner.stage_assets`/`bootstrap`,
-`vm_transport.Transport`, `provenance.VerifiedInputs`, and
-`check_graphical_smoke.Qualification`. Start local transfer/refusal verification
-with `tools/run-unit-tests tests/unit/test_e2e_provenance.py tests/unit/test_system_runner_cleanup_safety.py -q`,
-extending the selection for new transfer tests. No package-bearing artifact is
-nominated: verify/build current inputs through the approved artifact category.
-
-**Verification:** [exact commands, counts and digests](Evidence/19A-Live-Finalization-20260907.md)
-retain the 277 focused tests, `make check` and isolated live safety results.
-The final failure-flag correction is host-tested only. One successful live
-attempt; zero failed attempts on this boundary; no transfer attempt yet.
-Source/transport/lease changes require affected revalidation; a fresh chat alone
-does not. Repeated proof reads and about 140 seconds of unbucketed finalization
-are a timing lead for 27C/28A, not permission to weaken checks.
+**Next reads/check:** `provenance.preflight_source`, `AssetTransfer`,
+`Qualification`, and the [transfer contract](../../tests/e2e/README.md#asset-transfer-qualification).
+Final focused result: 82 tests including actual-checkout/deletion coverage.
+Final `make check` handle 82692 exited 0: 2,136 unit/contracts, 17 components,
+syntax/traceability; `git diff --check` passed. Earlier full check failed only
+on the concurrently deleted file; the subsequent correction passed. Only docs
+changed after final checks. No artifact is nominated for reuse.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** live lifecycle is proven; provisioning/observation separation and
-asset integrity still need high effort. Estimate remaining 19A:
-**3–4 sessions / 1.5–3 hours**, provisional
-on secret/console findings. This slice took about 25 minutes, including its
-9.5-minute VM attempt; the next session should deliver transfer evidence.
+**Reason:** early refusal and deletion compatibility are proven; live transfer
+acceptance and secret/console boundaries still need high effort. Remaining 19A:
+**2–3 sessions / 1.5–2.5 hours of active work**, plus unbounded waiting for other
+edits to finish. Solid guard progress was made, but live acceptance did not advance.
 
-**State:** dev host and existing guarded `ubuntu26.04` VM only. Smoke handle
-38410 exited 0 with complete lease, stopped worker, restored/off VM and released
-ownership. No operation remains. Raw captures stay private. Existing permission,
-AGENTS and related changes were preserved; no setup/permission changes occurred.
+**State:** dev host and existing guarded `ubuntu26.04` VM only. Handles 73916
+and 91370 exited 1 (the latter intentionally); all checks finished. VM confirmed
+off at 22:54 UTC, ownership released, no operation pending. Logs/evidence preserved.
 
 ## Task 19B
 

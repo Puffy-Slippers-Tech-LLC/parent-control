@@ -40,6 +40,33 @@ def test_backend_poll_failure_still_closes_worker_and_callback(tmp_path):
     server.close.assert_called_once()
 
 
+def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
+    def stage(_source, destination, _commands):
+        destination.mkdir()
+    with patch.object(smoke.os, 'geteuid', return_value=0), \
+            patch.object(smoke.os, 'getegid', return_value=0), \
+            patch.object(smoke.os, 'umask'), patch.object(smoke.signal, 'signal'), \
+            patch.object(smoke.tempfile, 'mkdtemp', return_value=str(tmp_path)), \
+            patch.object(smoke, 'inputs', return_value={}), \
+            patch.object(smoke.graphical_backend, 'check', return_value={}), \
+            patch.object(smoke, 'schedule_preflight'), \
+            patch.object(smoke.runner, 'artifact_source', return_value=tmp_path), \
+            patch.object(smoke.runner, 'stage_assets', side_effect=stage), \
+            patch.object(smoke, 'preflight_source', side_effect=smoke.EvidenceError(
+                'provenance:package-source-mismatch')), \
+            patch.object(smoke.importlib, 'import_module') as imports, \
+            patch.object(smoke.runner.baseline, 'LibvirtSource') as source, \
+            patch.object(smoke.runner, 'Lease') as lease:
+        assert smoke.main(assets=tmp_path) == 1
+    imports.assert_not_called()
+    source.assert_not_called()
+    lease.assert_not_called()
+    result = json.loads((tmp_path / 'result.json').read_text())
+    assert result['category'] == 'provenance:package-source-mismatch'
+    assert result['lease_phase'] is None
+    assert result['outcomes']['infrastructure']['outcome'] == 'failed'
+
+
 def test_failed_observation_never_releases_graphical_input(tmp_path):
     import json
     (tmp_path / 'ready.request.json').write_text(json.dumps({'stage': 'ready', 'screenshot': None}))
@@ -241,3 +268,37 @@ def test_stage_checkpoint_failure_prevents_guest_acknowledgement(tmp_path):
             controller.step()
     assert progress.call_count == 2
     assert not (tmp_path / 'ready.reply.json').exists()
+
+
+def test_transfer_failure_is_durable_and_prevents_worker_with_one_outer_cleanup(qualification):
+    controller, lease = qualification
+    controller.assets = controller.directory / 'assets'
+    transfer = Mock()
+    transfer.provision.side_effect = smoke.EvidenceError('transfer:copied-digest-mismatch')
+    with patch.object(smoke, 'AssetTransfer', return_value=transfer), \
+            patch.object(smoke, 'run_backend') as run:
+        with pytest.raises(smoke.EvidenceError, match='copied-digest-mismatch'):
+            with lease:
+                controller.execute(lease, Mock())
+    run.assert_not_called()
+    lease.finish.assert_called_once()
+    lease.release.assert_called_once()
+    docs = reports(controller)
+    assert 'asset-transfer-started' in [d['event'] for d in docs]
+    assert 'asset-transfer-verified' not in [d['event'] for d in docs]
+    assert docs[-1]['result']['outcome'] == 'failed'
+    assert docs[-1]['outcomes']['infrastructure']['category'] == 'transfer:copied-digest-mismatch'
+
+
+def test_booted_asset_refusal_prevents_first_graphical_action(tmp_path):
+    (tmp_path / 'ready.request.json').write_text(json.dumps({'stage': 'ready', 'screenshot': None}))
+    transfer = Mock()
+    transfer.observe.side_effect = smoke.EvidenceError('transfer:booted-assets-mismatch')
+    controller = smoke.Smoke(tmp_path, Mock(state={'run': 'a' * 32}), Mock(), 'host-key',
+                             transfer=transfer)
+    with patch.object(smoke.runner, 'address', return_value='192.0.2.1'), \
+            patch.object(smoke, 'Transport'):
+        with pytest.raises(smoke.EvidenceError, match='booted-assets-mismatch'):
+            controller.step()
+    assert not (tmp_path / 'ready.reply.json').exists()
+    assert not controller.steps

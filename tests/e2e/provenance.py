@@ -71,12 +71,25 @@ def source_paths(root):
             ['git', '-c', 'safe.directory=' + str(root),
              'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
             cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
-        paths = sorted(set(result.stdout.decode('utf-8').rstrip('\0').split('\0')))
+        # The artifact builder sorts Path components, not whole path strings.
+        # E.g. .codex/rules precedes .codex-staged with Path ordering; reversing
+        # those bytes produces an incompatible digest despite unchanged inputs.
+        paths = sorted(set(result.stdout.decode('utf-8').rstrip('\0').split('\0')), key=Path)
     except (OSError, UnicodeError, subprocess.SubprocessError):
         raise EvidenceError('provenance:source-list-failed') from None
     require(paths and all(p and not Path(p).is_absolute() and '..' not in Path(p).parts
                           for p in paths), 'provenance:source-path')
-    return paths
+    present = []
+    for relative in paths:
+        try:
+            # Match the artifact builder's current working-tree inputs. lstat
+            # keeps dangling links and special files visible to safety checks.
+            (root / relative).lstat()
+        except FileNotFoundError:
+            continue
+        present.append(relative)
+    require(present, 'provenance:source-path')
+    return present
 
 
 def snapshot(root, *, source=False):
@@ -143,6 +156,26 @@ def baseline_inputs(lease):
             'environment_id': 'ubuntu26-04-' + digest(state['guest'])}
 
 
+def preflight_source(assets, *, root=ROOT):
+    """Reject stale package inputs before acquiring or preparing the guest.
+
+    This early check is diagnostic only. VerifiedInputs still captures and
+    rechecks all source, asset and baseline identities under the held lease.
+    """
+    try:
+        captured = snapshot(root, source=True)
+        manifest = build_test_artifacts.verify(assets)
+        require(manifest['source']['digest_sha256'] == captured['sha256'],
+                'provenance:package-source-mismatch')
+        require(snapshot(root, source=True) == captured, 'provenance:source-changed')
+    except Exception as error:
+        print('e2e:source-preflight-rejected', file=sys.stderr, flush=True)
+        code = str(error) if isinstance(error, EvidenceError) else 'provenance:source-preflight-failed'
+        raise EvidenceError(code) from None
+    print('e2e:source-preflight-verified', file=sys.stderr, flush=True)
+    return {'source_sha256': captured['sha256'], 'scope': 'before-lease-diagnostic'}
+
+
 class VerifiedInputs:
     """Freeze expected inputs independently, and latch any preservation failure.
 
@@ -195,6 +228,11 @@ class VerifiedInputs:
     @property
     def source_files(self):
         return copy.deepcopy(self._source['files'])
+
+    @property
+    def asset_files(self):
+        require(self._assets is not None, 'provenance:assets-required')
+        return copy.deepcopy(self._assets['files'])
 
     def recheck(self):
         require(self._failure is None, self._failure or 'provenance:previous-failure')

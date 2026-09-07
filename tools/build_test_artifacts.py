@@ -72,7 +72,18 @@ def _source_paths() -> list[Path]:
     paths = [Path(line) for line in result.stdout.splitlines() if line]
     if not paths or any(path.is_absolute() or ".." in path.parts for path in paths):
         raise ArtifactError("source input list is invalid")
-    return sorted(paths)
+    present = []
+    for path in paths:
+        try:
+            # Git's index includes unstaged deletions. Hash/copy the current
+            # working tree, but retain links and special files for rejection.
+            (REPOSITORY / path).lstat()
+        except FileNotFoundError:
+            continue
+        present.append(path)
+    if not present:
+        raise ArtifactError("source input list is empty")
+    return sorted(present)
 
 
 def _source_digest(paths: list[Path]) -> str:

@@ -80,31 +80,44 @@ APT := sudo apt
 endif
 
 build: check-release-version
-	@dpkg-checkbuilddeps || (echo 'Run ./setup.sh --dependencies-only to install build prerequisites' >&2; exit 1)
-	dpkg-buildpackage --build=binary --no-sign -a$(DEB_HOST_ARCH)
+	@set -e; \
+	step='checking build prerequisites'; \
+	trap 'status=$$?; if [ "$$status" -ne 0 ]; then printf "FAIL: build: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
+	dpkg-checkbuilddeps || (echo 'Run ./setup.sh --dependencies-only to install build prerequisites' >&2; exit 1); \
+	step='building package'; \
+	dpkg-buildpackage --build=binary --no-sign -a$(DEB_HOST_ARCH); \
+	step='reading package version'; \
 	version=$$(dpkg-parsechangelog -S Version); \
+	step='reading package architecture'; \
 	architecture=$$(dpkg-architecture -qDEB_HOST_ARCH); \
+	step='collecting build artifacts'; \
 	output_dir="$(CURDIR)/output"; \
 	mkdir -p "$$output_dir"; \
 	mv "../oh-no-parent-control_$${version}_$${architecture}.deb" "$$output_dir/"; \
 	ddeb_file="../oh-no-parent-control-dbgsym_$${version}_$${architecture}.ddeb"; \
 	if test -f "$$ddeb_file"; then mv "$$ddeb_file" "$$output_dir/"; fi; \
 	mv "../oh-no-parent-control_$${version}_$${architecture}.changes" "$$output_dir/"; \
-	mv "../oh-no-parent-control_$${version}_$${architecture}.buildinfo" "$$output_dir/"
+	mv "../oh-no-parent-control_$${version}_$${architecture}.buildinfo" "$$output_dir/"; \
+	printf '\033[32mSUCCESS: build completed. Artifacts are in %s\033[0m\n' "$$output_dir"
 
 installdeb:
 	@set -e; \
+	step='checking prerequisites'; \
+	trap 'status=$$?; if [ "$$status" -ne 0 ]; then printf "FAIL: installdeb: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
 	if ! command -v dpkg-parsechangelog >/dev/null 2>&1 || ! command -v dpkg-architecture >/dev/null 2>&1; then \
 		echo "Run ./setup.sh --dependencies-only to install dpkg-dev" >&2; \
 		exit 1; \
 	fi; \
+	step='reading package version'; \
 	version="$$(dpkg-parsechangelog -S Version)"; \
+	step='reading package architecture'; \
 	architecture="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
+	step='locating built package'; \
 	deb_file="$(CURDIR)/output/oh-no-parent-control_$${version}_$${architecture}.deb"; \
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
-	$(APT) --fix-broken install --reinstall "$$deb_file"; \
-	"$(LIBEXECDIR)/oh-no-parent-control-reboot-notice"
+	step='installing package with APT'; \
+	exec $(APT) install "$$deb_file"
 
 uninstalldeb:
 	$(APT) remove oh-no-parent-control
@@ -255,7 +268,8 @@ _install-product-files:
 	install -m 0755 broker/oh-no-parent-control-broker "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-migrate-state "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-uninstall "$(DESTDIR)$(LIBEXECDIR)/"
-	install -m 0755 tools/oh-no-parent-control-reboot-notice "$(DESTDIR)$(LIBEXECDIR)/"
+	install -d "$(DESTDIR)$(SYSCONFDIR)/apt/apt.conf.d"
+	install -m 0644 data/apt/99zz-oh-no-parent-control-reboot-notice "$(DESTDIR)$(SYSCONFDIR)/apt/apt.conf.d/"
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"
 	install -m 0755 tools/execution_policy_probe "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe"

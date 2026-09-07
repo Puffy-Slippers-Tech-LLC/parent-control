@@ -41,6 +41,23 @@ def test_full_listing_keeps_pending_cases_and_exact_digest():
         (ROOT / 'tests/e2e/scenarios.json').read_bytes()).hexdigest()
 
 
+def test_transfer_qualification_has_no_scenario_override(tmp_path):
+    assets = tmp_path / 'onpc-assets'
+    assets.mkdir()
+    # A generated /tmp/onpc-* parent meets the same public artifact boundary.
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix='onpc-transfer-test-') as directory:
+        options = ['--qualify-transfer', '--artifacts=' + directory]
+        plan = runner['preflight'](options)
+        assert plan == {'mode': 'asset-transfer-qualification', 'artifacts': directory}
+        assert dispatcher['selection'](ROOT, ['e2e', *options])[-2:] == options
+        for extra in ('--list', '--scenario=E2E-001', '--scenario='):
+            with pytest.raises(ValueError, match='qualification-cannot-select-scenarios'):
+                runner['preflight']([*options, extra])
+    with pytest.raises(ValueError, match='missing-artifact-directory'):
+        runner['preflight'](options)
+
+
 @pytest.mark.parametrize('selector,count', [('E2E-001', 1), ('E2E-023/fullscreen', 1)])
 def test_selected_listing_uses_exact_inventory_scope(selector, count):
     plan = runner['preflight'](['--list', '--scenario=' + selector])

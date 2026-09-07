@@ -234,6 +234,47 @@ the launcher remains closed until real scenario collection is connected.
 
 ## Verify edits
 
+### Asset transfer qualification
+
+`tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-<verified-build>`
+runs the existing guarded credential-free graphical worker with package/fixture
+delivery. Build current inputs with `tools/run-tests artifacts build` first.
+The qualification rejects scenario/list selectors; all pending customer cases
+stay closed. This is diagnostic runner evidence, with no product installation.
+Refresh the installed dispatcher through `./setup.sh --test-tools-only` when
+adding this option. Test-tool activation is `none` (next invocation), with no
+product schema or package activation change.
+
+Before acquiring a lease or connecting to libvirt, `preflight_source` compares
+the staged artifact's source digest with the current checkout and checks for
+changes during that comparison. Stale or unreadable inputs produce a private
+terminal diagnostic and refuse without VM preparation. This early check does
+not replace `VerifiedInputs` or any held-lease preservation check. Keep the
+checkout unchanged from artifact building through finalization; edits after
+preflight still invalidate the attempt. Intentional tracked-file deletions
+before a fresh build are represented in current inputs by the builder and
+provenance scanner; deletions or reappearances during an attempt still refuse.
+
+The controller freezes artifacts with `stage_assets`, makes the staging root
+0700, and binds it to `VerifiedInputs`. `AssetTransfer.provision` accepts only
+that same held, isolated, never-started lease. After offline SSH bootstrap and
+before worker startup, it uses the existing guarded `mounted_guest` and public
+libguestfs upload/checksum APIs to copy pinned descriptors into the fresh fixed
+`/var/lib/onpc-e2e-assets` directory. Package alias and exact transfer inventory
+must match controller-captured digests. Files become root-owned 0644 and
+directories 0755 so later real terminal installation can read these nonsecret
+assets. Existing destinations, stale inputs, special files, changed copied
+bytes, extra entries and a second provisioning call refuse. No package is
+installed, no product state is written and no host share is attached.
+
+After boot, `AssetTransfer.observe` uses the guarded SSH transport for a fixed
+read-only tree, ownership, mode and digest check. Only count/digest evidence
+returns. A mismatch prevents the ready acknowledgement and latches failure;
+later replies cannot clear it. Ordered checkpoints retain transfer start and
+successful offline verification. The outer lease owns all cleanup, including
+partial transfer failure; the transfer helper never boots, stops or restores.
+This does not complete the remaining authenticated secret/console transport.
+
 ```sh
 tools/run-unit-tests tests/unit/test_e2e_inventory.py tests/unit/test_e2e_evidence.py -q
 ```

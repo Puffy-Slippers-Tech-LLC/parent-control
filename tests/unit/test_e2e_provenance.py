@@ -25,11 +25,20 @@ def git(root, *args):
 
 def test_source_git_trust_is_scoped_to_the_selected_checkout(tmp_path):
     from unittest.mock import patch, Mock
+    (tmp_path / 'file').write_text('source input')
     with patch.object(provenance.subprocess, 'run', return_value=Mock(stdout=b'file\0')) as run:
         assert provenance.source_paths(tmp_path) == ['file']
     args = run.call_args.args[0]
     assert args[:3] == ['git', '-c', 'safe.directory=' + str(tmp_path)]
     assert '*' not in args and run.call_args.kwargs['cwd'] == tmp_path
+
+
+def test_real_checkout_provenance_matches_artifact_builder():
+    builder = provenance.build_test_artifacts
+    paths = builder._source_paths()
+    captured = provenance.snapshot(ROOT, source=True)
+    assert list(captured['files']) == [p.as_posix() for p in paths]
+    assert captured['sha256'] == builder._source_digest(paths)
 
 
 @pytest.fixture
@@ -54,6 +63,9 @@ def source(tmp_path):
         target = root / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / name).read_bytes())
+    (root / '.codex').mkdir()
+    (root / '.codex/rules').write_text('fixture input\n')
+    (root / '.codex-staged').write_text('sibling input\n')
     git(root, 'add', '.')
     # Include a real untracked input and a real uncommitted tracked edit.
     (root / 'local-change.py').write_text('current input\n')
@@ -102,6 +114,54 @@ def test_captures_current_source_compatible_with_builder_and_returns_copies(sour
     assert captured.source_files and captured.inputs['source_sha256'] != 'forged'
 
 
+@pytest.mark.parametrize('change', ['delete', 'delete-directory', 'staged-delete', 'rename'])
+def test_removed_source_matches_artifact_builder(source, lease, monkeypatch, tmp_path, change):
+    builder = provenance.build_test_artifacts
+    monkeypatch.setattr(builder, 'REPOSITORY', source)
+    original = provenance.snapshot(source, source=True)
+    target = source / '.codex/rules'
+    if change == 'rename':
+        target.rename(source / 'renamed-input')
+    else:
+        target.unlink()
+    if change == 'delete-directory':
+        target.parent.rmdir()
+    elif change == 'staged-delete':
+        git(source, 'add', '-u')
+    captured = provenance.snapshot(source, source=True)
+    paths = builder._source_paths()
+    assert '.codex/rules' not in captured['files']
+    assert captured['sha256'] != original['sha256']
+    assert list(captured['files']) == [p.as_posix() for p in paths]
+    assert captured['sha256'] == builder._source_digest(paths)
+    if change == 'rename':
+        assert 'renamed-input' in captured['files']
+    destination = tmp_path / 'source-copy'
+    builder._copy_source(paths, destination)
+    assert not (destination / '.codex/rules').exists()
+    assert sorted(p.relative_to(destination) for p in destination.rglob('*') if p.is_file()) == paths
+    verified = provenance.VerifiedInputs(root=source, lease=lease)
+    target.parent.mkdir(exist_ok=True)
+    target.write_text('restored input')
+    with pytest.raises(provenance.EvidenceError, match='source-changed'):
+        verified.recheck()
+
+
+def test_dangling_source_link_is_not_treated_as_deleted(source, lease, monkeypatch):
+    target = source / '.codex/rules'
+    target.unlink()
+    target.symlink_to(source / 'missing')
+    builder = provenance.build_test_artifacts
+    monkeypatch.setattr(builder, 'REPOSITORY', source)
+    assert '.codex/rules' in provenance.source_paths(source)
+    paths = builder._source_paths()
+    assert Path('.codex/rules') in paths
+    with pytest.raises(builder.ArtifactError, match='not a regular file'):
+        builder._source_digest(paths)
+    with pytest.raises(provenance.EvidenceError, match='unsafe-file'):
+        provenance.VerifiedInputs(root=source, lease=lease)
+
+
 @pytest.mark.parametrize('name', ['tests/requirements.json', 'tests/e2e/runner.py',
                                   'tests/e2e/scenarios.json', 'local-change.py'])
 @pytest.mark.parametrize('mutation', ['edit', 'remove', 'mode', 'replace'])
@@ -130,6 +190,34 @@ def test_new_source_file_is_detected(source, lease):
     (source / 'new-test.py').write_text('new input')
     with pytest.raises(provenance.EvidenceError, match='source-changed'):
         captured.recheck()
+
+
+def test_source_preflight_accepts_current_package_without_vm(source, assets):
+    result = provenance.preflight_source(assets, root=source)
+    assert result == {'source_sha256': provenance.snapshot(source, source=True)['sha256'],
+                      'scope': 'before-lease-diagnostic'}
+
+
+@pytest.mark.parametrize('change', ['edit', 'remove', 'during-verification'])
+def test_source_preflight_refuses_changed_inputs_without_exposing_paths(
+        source, assets, change, monkeypatch, capsys):
+    target = source / 'tests/e2e/runner.py'
+    if change == 'remove':
+        target.unlink()
+    elif change == 'edit':
+        target.write_text('private-canary')
+    else:
+        original = provenance.build_test_artifacts.verify
+        def verify(path):
+            result = original(path)
+            target.write_text('private-canary')
+            return result
+        monkeypatch.setattr(provenance.build_test_artifacts, 'verify', verify)
+    with pytest.raises(provenance.EvidenceError, match='provenance:') as failure:
+        provenance.preflight_source(assets, root=source)
+    output = capsys.readouterr().err + str(failure.value)
+    assert 'source-preflight-rejected' in output
+    assert 'private-canary' not in output and str(target) not in output
 
 
 @pytest.mark.parametrize('kind', ['symlink', 'parent-symlink', 'hardlink', 'fifo'])

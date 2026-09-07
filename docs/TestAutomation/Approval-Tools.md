@@ -97,6 +97,7 @@ argument; the launcher expands file patterns without a shell.
 | Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
 | Graphical customer journeys, variants and fault/recovery scenarios | `tools/run-tests e2e --list --scenario E2E-001` | Host-safe `runner.py` inventory preflight; invalid/pending execution refuses before privilege checks; actual scenario controller remains unfinished |
+| Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Future fast suite and complete gate (Task 28A) | `tools/run-tests fast --component broker --type contract` / `tools/run-tests all` | Fixed `test-fast`/`test-all` targets; currently refuse because those targets are unfinished |
 
 Routine `make check`, `make build`, `make check-release-version`, `make check-unit`,

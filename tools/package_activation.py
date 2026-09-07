@@ -20,12 +20,12 @@ MANIFEST_VERSION = 1
 
 def activation_for(path: str) -> str:
     """Return the activation required when an installed path changes."""
-    # This command is run unconditionally by postinst before activation is
-    # calculated; changing the command itself needs no later activation.
+    # These lifecycle commands and notices take effect on invocation;
+    # changing them needs no running-service or session activation.
     if path in {
         "usr/libexec/oh-no-parent-control-migrate-state",
         "usr/libexec/oh-no-parent-control-uninstall",
-        "usr/libexec/oh-no-parent-control-reboot-notice",
+        "etc/apt/apt.conf.d/99zz-oh-no-parent-control-reboot-notice",
         "usr/lib/oh-no-parent-control/broker/oh_no_parent_control/uninstall.py",
     }:
         return "none"

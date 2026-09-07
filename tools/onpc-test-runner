@@ -47,6 +47,7 @@ def selection(root, argv):
     e2e.add_argument('--artifacts', type=Path)
     e2e.add_argument('--scenario')
     e2e.add_argument('--list', action='store_true')
+    e2e.add_argument('--qualify-transfer', action='store_true')
     vm = categories.add_parser('vm', allow_abbrev=False)
     vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key'))
@@ -70,6 +71,8 @@ def selection(root, argv):
     if args.category == 'e2e':
         target = confined_file(root, 'tests/e2e/runner.py')
         options = ['--list'] if args.list else []
+        if args.qualify_transfer:
+            options.append('--qualify-transfer')
         if args.scenario is not None:
             options.append('--scenario=' + args.scenario)
         if args.artifacts is not None:

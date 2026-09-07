@@ -51,5 +51,6 @@ It does not reopen previously qualified deletion/disconnect experiments.
 Noninteractive, unsafe-name and remote administrator exclusions now pass through
 real AccountsService and broker calls. The remote fixture uses OpenLDAP/SSSD,
 with no private AccountsService edits or mocked installed evidence. The bounded
-eligibility gaps are resolved. Keep Task 14 unchecked until the final inputs pass
-the complete authorization area; E2E account requirements remain planned.
+eligibility gaps are resolved. The final inputs passed the complete authorization
+area in the [final acceptance](Task-14-20260906-Final-Acceptance.md); Task 14 is
+accepted. E2E account requirements remain planned.

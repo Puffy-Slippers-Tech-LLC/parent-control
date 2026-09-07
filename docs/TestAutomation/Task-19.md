@@ -71,15 +71,10 @@ syntax and traceability) plus `git diff --check`. Review exports were deleted
 through the approved helper; raw evidence remains private. The final runner
 exited successfully with `lease_phase=complete`; no VM operation is pending.
 
-**Next action:** resume [Task 14's active slice](Task-14.md#continuation-handoff--2026-09-06-incomplete).
-First inspect the retained `authority-response` evidence and helper handling,
-add locally validated discriminating diagnostics, then use F1's selected case.
-Do not repeat 19P or launch an unchanged authentication attempt.
-**Next-session settings:** `gpt-6-astra` / `high`; model: raise; effort: raise
-relative to 19P's confirmed `gpt-5.6-luna` / `low` qualification settings.
-**Reason:** graphical feasibility is solved; Task 14 resumes an unresolved real
-Polkit authentication boundary requiring security reasoning. This keeps Task
-14's own model and effort recommendation. Confirm both next session.
+**Next action:** Task 14 subsequently passed final acceptance; proceed to
+[Task 19A's active handoff](#task-19a-continuation--2026-09-06). The previous
+Polkit investigation and 19P qualification are complete. Use the active
+handoff's settings for the next slice.
 
 ## Task 19A
 
@@ -137,6 +132,41 @@ Polkit authentication boundary requiring security reasoning. This keeps Task
   and observation transports on the approved VM, owned cleanup, redacted
   artifacts, and the enumerable scenario contract. No backend compatibility
   or customer coverage is claimed without executed evidence.
+
+### Task 19A continuation — 2026-09-06
+
+**Next result:** establish `tests/e2e/scenarios.json` and its versioned validation
+and selection contract, with host-safe tests for unknown/empty selections,
+explicitly pending scenarios, required fields and evidence expectations. Read
+`E2E-Coverage.md` to enumerate the required scenario/variant dimensions. Keep
+future customer scenarios pending until their owning implementations execute.
+This is the first bounded 19A slice, not full runner acceptance.
+
+**Reuse:** Task 19P already qualified `generalhw`, API 48, the public display
+attachment, worker, namespace bridge, guarded lease and cleanup. Start with
+`tests/integration/graphical_worker.py`, `graphical_lease.py`,
+`check_graphical_smoke.py` and its distribution when the new contract needs
+existing interfaces. F1 owns installed selection/provenance conventions.
+There is currently no `tests/e2e` directory or `check-e2e` target; establish the
+contract first, then carry it into the guarded launcher in the following slice.
+Do not repeat backend research, baseline preparation or completed Task 14 tests
+merely to resume. No live VM experiment is needed for inventory validation.
+
+**Verification:** focused host-safe contract/selector tests, `make check` if code
+changes, and `git diff --check`. Later runner slices must run applicable isolated
+cleanup prerequisites before live integration and prove secrets, observations,
+asset verification and baseline restoration before accepting all of 19A.
+
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: raise.
+**Reason:** Task 14's acceptance is complete. Scenario/evidence and guard contract
+design requires more reasoning; the proven backend and bounded contract slice
+permit keeping the same model instead of the task's original stronger default.
+
+**State:** Task 14's [final acceptance](Evidence/Task-14-20260906-Final-Acceptance.md)
+passed with baseline restored, VM independently confirmed shut off, and every
+command finished. No owned operation or unresolved blocker remains. Authorized
+scope remains the development host and existing guarded `ubuntu26.04` VM.
+Only acceptance/handoff documentation was changed in this session.
 
 ## Task 19B
 

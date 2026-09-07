@@ -57,44 +57,42 @@ assertions and a broker fix; unsafe-name fixture locality and independent exclus
 now pass after bounded public readiness observation. Real OpenLDAP/SSSD standard
 and administrator fixtures now pass public classification, discovery exclusions,
 direct selections and remote caller checks. The broker locality requirement for
-management is fixed and verified. Preserve all registrations; only final
-full-area acceptance remains for Task 14.
+management is fixed and verified. The final full-area acceptance passed; preserve
+all registrations as regression coverage.
 
-## Continuation handoff — 2026-09-06 (incomplete)
+<!-- Preserve incoming links from historical evidence records. -->
+<a id="continuation-handoff--2026-09-06-incomplete"></a>
 
-**Next result:** run the complete registered authorization area against a fresh,
-verified current-input build. If it and `make check` / `git diff --check` pass,
-accept Task 14 and advance the continuation to the next master-checklist task.
-The finite eligibility gaps are resolved; do not repeat remote fixture research,
-method audits, or solved name/locality/deletion/disconnect investigations.
+## Completion handoff — 2026-09-06 (accepted)
 
-**Next-session settings:** `gpt-5.6-sol` / `medium`; model: keep; effort: lower.
-**Reason:** real LDAP/NSS/AccountsService provisioning and broker remote-caller
-exclusion are now proven. Remaining work is registered-suite acceptance and
-review using established helpers, so medium effort should suffice.
+**Completed this session:** built verified current inputs and ran the complete
+registered authorization area once. All **233 executions** passed: 229
+authorization cases plus four installation/reboot prerequisites. Exact expected
+and executed identities match without duplicates, failures or skips. Product,
+infrastructure, collection and cleanup all passed. Reviewed redacted broker
+logs and eligibility/remote/authentication evidence. Task 14 is checked complete
+in the master backlog; no Task 14 implementation or acceptance remains.
 
-**Completed this session:** implemented guarded OpenLDAP/SSSD fixtures and
-`test_remote_accounts_are_excluded`, with selected-input provenance and declared
-prerequisites. Both directory identities resolve through NSS and public
-AccountsService as nonlocal, nonsystem, unlocked and interactive, with safe
-names and verified standard/admin roles. Discovery exclusions, child/kiosk
-approver selection, remote child targets, and both real remote callers pass;
-all six direct boundaries return `AccessDenied`, with seven local accounts'
-state unchanged. Fixed broker management authorization to require locality as
-well as administrator status, preserving root; added revalidation regression.
+**Verification:** `make check` passed **1,293 unit + 17 component tests** and
+source/traceability checks. Isolated safety selection passed **49 + 3 subtests**;
+the privileged dispatcher passed **175 + 3 subtests** before VM operations.
+`git diff --check` passed. One VM attempt, recorded stages **516.706 seconds**;
+no new investigation or rerun. [Commands, hashes and evidence](Evidence/Task-14-20260906-Final-Acceptance.md).
+This is Task 14 acceptance, not complete system or graphical E2E acceptance.
+Broader account/customer requirements retain their pending scope.
 
-**Verification:** two selected attempts. First failed fixture installation on an
-obsolete SSSD pin; live archive verification resolved it to `2.12.0-1ubuntu5.4`.
-Second passed all five executions and all four outcome categories. No remote
-fixture blocker remains. `make check`: **1,293 + 17 passed** before the pin-only
-correction; **93** focused tests passed afterward. Full-area acceptance remains
-pending. [Evidence, commands, hashes and timings](Evidence/Task-14-20260906-Remote.md).
+**State:** evidence `/tmp/onpc-system-9670iwjl/evidence`; build session **9454**,
+local check **42905** and VM controller **98893** all exited **0**. Baseline
+restoration/verification completed and `ubuntu26.04` was independently confirmed
+**shut off**. No owned operation remains. Scope is the development host and
+existing guarded VM. Only documentation changed after verification; no host
+product/account changes were made.
 
-**State:** successful evidence `/tmp/onpc-system-1rwcidgj/evidence`; build
-**46285** and VM **92878** exited **0**. First failure retained at
-`/tmp/onpc-system-_7_od9yt/evidence`, with completed cleanup reconciled after user
-interruption. Final VM state confirmed **shut off**, baseline restored, all
-operations finished. Only documentation followed the successful VM run. Scope
-remains this development host and existing guarded `ubuntu26.04` VM; no host
-product/account changes or new VM. Existing uncommitted work is preserved.
-Task 14 stays unchecked until final authorization-area acceptance.
+**Next result:** begin [Task 19A's first slice](Task-19.md#task-19a-continuation--2026-09-06):
+establish the E2E scenario inventory/selection contract and host-safe validation,
+reusing 19P's proven worker, transport and lease instead of repeating feasibility.
+
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: raise.
+**Reason:** suite acceptance is complete. The next bounded slice needs careful
+scenario/evidence and guard contract design; the existing backend implementation
+keeps it within the same model's scope, with higher reasoning effort.

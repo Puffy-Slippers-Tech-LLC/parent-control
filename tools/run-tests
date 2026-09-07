@@ -1,10 +1,10 @@
 #!/usr/bin/python3 -IB
-"""Run scoped, isolated UI tests after cleanup-safety prerequisites."""
+"""Run a validated project test category. Use --list to see the entry points."""
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_launcher import main
+from test_commands import main
 
 if __name__ == '__main__':
-    sys.exit(main(category='ui'))
+    sys.exit(main())

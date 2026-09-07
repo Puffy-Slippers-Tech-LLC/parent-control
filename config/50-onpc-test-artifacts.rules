@@ -2,10 +2,16 @@
 // The helper confines reads to project test/log storage and exports only new
 // caller-owned copies. No general root command or source modification is granted.
 polkit.addRule(function(action, subject) {
-    if (action.id === "org.freedesktop.policykit.exec" &&
-        action.lookup("program") === "/usr/local/libexec/onpc-test-artifacts" &&
-        action.lookup("user") === "root" &&
-        subject.local && subject.active && subject.isInGroup("sudo")) {
-        return polkit.Result.YES;
+    if (action.id === "com.puffyslippers.onpc.development.test-artifacts") {
+        // Missing details are the caller's noninteractive pkcheck; execution
+        // requests supply both fields and must match the installed root helper.
+        if (((!action.lookup("user") && !action.lookup("program")) ||
+             (action.lookup("user") === "root" &&
+              action.lookup("program") === "/usr/local/libexec/onpc-test-artifacts")) &&
+            subject.local && subject.active && subject.isInGroup("sudo")) {
+            return polkit.Result.YES;
+        }
+        // Excluded callers are denied instead of opening an authentication dialog.
+        return polkit.Result.NO;
     }
 });

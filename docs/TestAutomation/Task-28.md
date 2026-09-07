@@ -37,6 +37,12 @@ Verification below is task acceptance; edits use the smallest affected selection
      diagnostics. Combine static, unit/property/contracts, private-D-Bus, GTK,
      child JS/GJS, and nested-Shell checks in `test-fast`. Route non-VM UI
      through `tools/run-ui-tests`; run safety prerequisites in isolation.
+     Reuse the [validated approval entry points](Approval-Tools.md):
+     `tools/run-tests fast` and `all` already reserve the fixed aggregate targets;
+     system/E2E dispatch must use the installed category helper, with its VM
+     lease and argument validation. Do not add broad Make, shell, pytest or
+     libvirt approval rules. New tests and registered scenarios use these
+     existing category-wide rules.
   2. Provide documented `COMPONENT`/`TYPE` local selectors, `AREA` system
      selectors (retaining F1's focused `TEST` option), and `SCENARIO` E2E
      selection, including variants and both request surfaces where shared code is involved. `LIST=1` lists scope,

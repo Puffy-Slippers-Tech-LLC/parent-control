@@ -19,7 +19,7 @@ problem. A fresh chat does not require rerunning unaffected tests.
 | `tests/ui/` | Parent, shared request form, feedback UI and nested-Shell component behavior. | Private compositor, D-Bus/AT-SPI/XDG/settings; preview/fake dependencies are declared component inputs. |
 | `tests/child/` | Platform-neutral child JavaScript and GJS adapters. | Node and GJS runners; component evidence, not installed GNOME/PAM acceptance. |
 | `tests/system/` | Installed package, real caller credentials and OS integration. | Only through the guarded VM runner; excluded from default host discovery. |
-| `tests/e2e/` (planned) | Complete graphical customer journeys and declared real fault/recovery scenarios. | Real product, OS, authentication and guest keyboard/mouse. No mocked outcomes or VM checkpoint shortcuts. |
+| `tests/e2e/` | [Scenario inventory and selection contract](e2e/README.md); graphical execution remains pending. | Host-safe declaration validation is implemented. Future journeys require real product, OS, authentication and guest input, with no mocked outcomes or VM checkpoint shortcuts. |
 
 The current pytest discovery paths and markers are defined in
 [pyproject.toml](../pyproject.toml) and [conftest.py](conftest.py). Default pytest
@@ -30,102 +30,57 @@ guest. Do not use generic `check-marker`/`check-coverage` as an E2E launcher.
 
 ## Cleanup-safety prerequisites
 
-### Approved privileged test categories
+### Approved test and diagnostic categories
 
-`setup.sh` installs a root-owned `/usr/local/libexec/onpc-test-runner`, bound
-to this checkout. Use these entry points for Codex privileged test runs:
-
-```sh
-pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_worker
-pkexec /usr/local/libexec/onpc-test-runner system --artifacts /tmp/onpc-test-artifacts/first --area authorization
-```
-
-The integration category accepts any direct `tests/integration/check_*.py`
-file with a lowercase alphanumeric/underscore name and no script arguments.
-Future checks need no individual approval. Helpers, arbitrary paths, symlinks,
-and arbitrary command arguments are refused. The system category accepts the
-runner's artifact path, area/test selectors, listing and qualification flag.
-The launcher runs all `tests/unit/test_*cleanup_safety.py` modules and
-`test_graphical_lease.py` as the invoking user before executing the selected
-test as root. New cleanup implementations must add matching safety regressions.
-The development Polkit rule permits only this installed dispatcher targeting
-root, without password prompts for active local members of Ubuntu's `sudo`
-group. It does not authorize `make`, shells, interpreters, other programs,
-remote/inactive sessions or non-administrators. The dispatcher still validates
-every argument; authorization trusts test code and its imports in this checkout.
-
-`setup.sh` also installs the versioned `config/codex-tests.rules` as the project
-`.codex/rules/tests.rules`, approving both privileged categories and
-unprivileged unit-test commands beginning with
-`/usr/bin/python3 -B -m pytest`. For privileged artifact inspection, use
-`pkexec /usr/local/libexec/onpc-test-artifacts` as described below.
-For temporary screenshot cleanup, run
-`tools/cleanup-screenshots /tmp/onpc-19p-gdm.png /tmp/onpc-19p-selected.png`.
-The reusable approval covers varying explicit filenames. The helper validates
-the entire selection before deletion: only caller-owned regular `onpc-*.png`
-files directly inside `/tmp` are accepted, with no symlinks, directories,
-traversal, or wildcard arguments. Missing files are harmless. It prints counts
-without filenames and runs without privilege. Trust includes edits to this
-helper; the prefix rule itself does not validate arguments.
-Export privileged graphical smoke screenshots with the installed helper:
+Use the [approval tools guide](../docs/TestAutomation/Approval-Tools.md) for the
+complete current/future category matrix, validated options, targeted VM control,
+read-only system diagnostics, and trust boundaries. Stable entry points are:
 
 ```sh
-pkexec /usr/local/libexec/onpc-export-screenshot /tmp/onpc-graphical-smoke-EXAMPLE/testresults/smoke-2.png /tmp/onpc-example.png
+tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' tests/unit/test_graphical_lease.py -q
+tools/run-tests component 'tests/component/test_*.py' -q
+tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py' -q
+tools/run-tests integration check_graphical_worker
+tools/run-tests system --artifacts /tmp/onpc-test-artifacts/first --area authorization
+tools/run-tests e2e --list
+tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500
+tools/test-vm status
 ```
 
-It accepts a regular, singly linked PNG-signature file (up to 32 MiB) directly
-inside a graphical smoke run's `testresults` directory. It rejects symlinks in
-every source component, unsafe ownership or write permissions, and existing
-destinations. Exports are new `/tmp/onpc-*.png` files with mode `600` and the
-invoking account's UID and primary GID; no caller-selected ownership or options
-are accepted. Errors omit paths and account details. An output I/O failure may
-leave a new root-owned partial file; the helper never deletes files on failure.
-The helper is installed root-owned by `setup.sh`; its dedicated Codex prefix
-approves screenshot export without approving general privileged `install`.
-The development Polkit rule permits this exact installed helper, targeting root,
-without password prompts for active local members of Ubuntu's `sudo` group.
-Other programs, remote/inactive sessions, and non-administrators receive no
-authorization from this rule. The helper still validates every argument.
-Run `./setup.sh --test-tools-only` to
-refresh the dispatcher, exporter, and Codex rules without dependency installation,
-then restart Codex. Development-only activation is `none` (next invocation);
-there is no product package integration or saved-data migration.
+Always quote filename patterns and parametrized IDs. The launchers validate
+every selection and option, expand globs without a shell, preserve exit status,
+and run cleanup prerequisites automatically before host-integrated operations.
+Unit/property/contract selections stay in `tests/unit`, components in
+`tests/component`, and UI tests in `tests/ui`. Arbitrary pytest config/plugins,
+external paths, symlinks, shell commands and Make argument injection are refused.
 
-Use `./setup.sh --codex-rules-only` to refresh only Codex rules without installing
-dependencies or system policies. This development-only helper activates on its
-next invocation and is not installed in the product package.
-Codex must
-trust the project configuration and be restarted after the rule is installed.
-The dispatcher's narrowly scoped development Polkit rule activates immediately
-and removes its Ubuntu authentication prompt for an active local `sudo`-group
-member. This grants trust to future test code and its imports in this checkout;
-it is not a sandbox for malicious tests.
-The installed dispatcher changes only when setup reinstalls it. It activates
-on its next invocation (`none`), adds no service, and is not part of the product
-package. Run setup again if the checkout moves.
+The root-owned test dispatcher supports integration, system, E2E and pinned-VM
+operations. Its Codex approval and Polkit authorization are separate controls.
+It trusts the configured checkout's test code and imports. New files within a
+supported category need no per-file approvals. Planned E2E and aggregate runners
+remain unavailable until implemented; registering an approval is not test
+coverage. The updated rules replace broad direct pytest/privileged-reader grants
+and restrict relevant old global approvals; use the validated entry points.
 
-For authorized test-environment installation or refresh, invoke `./setup.sh`,
-the existing approved setup entry point. This includes graphical AppArmor
-policy installation and refresh. Invoking `tools/install_graphical_test_policy.py`
-directly through `pkexec /usr/bin/python3` does not match the test-category rules
-and causes a separate Codex approval request. Use setup for these prerequisites
-and the dispatcher for tests; future integration checks are already covered
-without adding per-file rules. Codex approval and Polkit authorization remain
-separate controls even though both are configured for the dispatcher.
+Install or refresh with `./setup.sh --test-tools-only`, then restart Codex with
+the project trusted. Use `./setup.sh --codex-rules-only` for rule-only updates.
+Installation can require one-time administrator authentication. Installed
+Polkit grants permit active local administrators and deny excluded callers;
+the new checkout wrappers check permission without requesting authentication.
 
-Graphical attachment from the classic VS Code snap requires the anonymous Unix
-stream peer rule in both libvirtd and QEMU policy. `setup.sh` compiles proposed
-policy before writing and preserves site additions. The QEMU rule uses the
-supported `abstractions/libvirt-qemu.d` drop-in directory and takes effect when
-libvirt next starts a guest; setup does not reload active guest profiles. These
-development-only changes have product package activation `none`.
+Temporary screenshot cleanup still uses `tools/cleanup-screenshots` with
+explicit caller-owned `/tmp/onpc-*.png` filenames. Privileged graphical smoke
+exports still use
+`pkexec /usr/local/libexec/onpc-export-screenshot SOURCE /tmp/onpc-new.png`;
+the source must be a regular PNG directly inside an
+`/tmp/onpc-graphical-smoke-*/testresults/` directory. See the helper's validation
+tests for ownership, size/signature and no-overwrite guarantees.
 
-For a descriptor failure, `integration check_graphical_attachment` compares the
-two public graphics APIs during one guarded boot. It checks a real VNC greeting
-and retains a root-private, receive-only syscall trace. Its fixed diagnostic
-pauses preserve kernel audit messages after startup profile loads. This is an
-explicit diagnostic, not a daily suite or graphical journey. The dispatcher
-includes its attachment/cleanup safety regressions before use.
+Full `./setup.sh` also maintains graphical AppArmor policy. Classic VS Code
+snap attachment needs anonymous graphics-socket peer rules in libvirtd and
+QEMU; the QEMU drop-in activates at the next guest start. Development helpers
+activate on invocation (`none`), Polkit watches installed rules, and Codex
+requires restart. No product package or saved-data change is involved.
 
 ### Prompt-free test artifact access
 
@@ -179,7 +134,7 @@ For the existing aggregate local/system commands, this cleanup-only selection
 covers the current UI, nested-Shell, VM controller and persistent caller paths:
 
 ```sh
-/usr/bin/python3 -B -m pytest \
+tools/run-unit-tests \
   tests/unit/test_ui_cleanup_safety.py \
   tests/unit/test_child_preview_cleanup_safety.py \
   tests/unit/test_prepare_host_cleanup_safety.py \
@@ -189,9 +144,10 @@ covers the current UI, nested-Shell, VM controller and persistent caller paths:
 ```
 
 For a focused test, select the safety modules for every cleanup implementation
-it uses. New controllers must add their own ownership regressions. Future
-`test-*` dispatch runs the applicable prerequisites automatically, including
-for focused selections; today's commands do not all provide that orchestration.
+it uses. New controllers must add their own ownership regressions. The validated
+category launchers now run these prerequisites automatically for focused and
+aggregate protected operations. Direct legacy Make entry points still require
+explicit safety prerequisites.
 
 The developing graphical adapter additionally requires
 `tests/unit/test_graphical_lease.py` in isolation before its live use. It covers

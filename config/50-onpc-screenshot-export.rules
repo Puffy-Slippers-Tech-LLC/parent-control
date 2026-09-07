@@ -1,10 +1,16 @@
 // Development-only: the installed root-owned helper validates all arguments.
 // Never authorize an interpreter, general copy tool, or another pkexec target.
 polkit.addRule(function(action, subject) {
-    if (action.id === "org.freedesktop.policykit.exec" &&
-        action.lookup("program") === "/usr/local/libexec/onpc-export-screenshot" &&
-        action.lookup("user") === "root" &&
-        subject.local && subject.active && subject.isInGroup("sudo")) {
-        return polkit.Result.YES;
+    if (action.id === "com.puffyslippers.onpc.development.export-screenshot") {
+        // Missing details are the caller's noninteractive pkcheck; execution
+        // requests supply both fields and must match the installed root helper.
+        if (((!action.lookup("user") && !action.lookup("program")) ||
+             (action.lookup("user") === "root" &&
+              action.lookup("program") === "/usr/local/libexec/onpc-export-screenshot")) &&
+            subject.local && subject.active && subject.isInGroup("sudo")) {
+            return polkit.Result.YES;
+        }
+        // Excluded callers are denied instead of opening an authentication dialog.
+        return polkit.Result.NO;
     }
 });

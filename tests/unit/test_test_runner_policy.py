@@ -25,7 +25,7 @@ RULE = Path(__file__).resolve().parents[2] / 'config/50-onpc-test-runner.rules'
     ({'program': None}, False),
 ])
 def test_authorization_scope(override, allowed):
-    request = dict(id='org.freedesktop.policykit.exec',
+    request = dict(id='com.puffyslippers.onpc.development.test-runner',
                    program='/usr/local/libexec/onpc-test-runner',
                    user='root', local=True, active=True, admin=True)
     request.update(override)

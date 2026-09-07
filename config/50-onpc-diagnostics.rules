@@ -1,13 +1,12 @@
-// Development-only: the installed root-owned dispatcher validates its test
-// category and arguments before running code from the configured checkout.
-// Never authorize make, an interpreter, a shell, or another pkexec target.
+// Read-only operations are validated by this installed root-owned program.
+// No generic journalctl, systemctl, shell or interpreter authorization.
 polkit.addRule(function(action, subject) {
-    if (action.id === "com.puffyslippers.onpc.development.test-runner") {
+    if (action.id === "com.puffyslippers.onpc.development.diagnostics") {
         // Missing details are the caller's noninteractive pkcheck; execution
         // requests supply both fields and must match the installed root helper.
         if (((!action.lookup("user") && !action.lookup("program")) ||
              (action.lookup("user") === "root" &&
-              action.lookup("program") === "/usr/local/libexec/onpc-test-runner")) &&
+              action.lookup("program") === "/usr/local/libexec/onpc-diagnostics")) &&
             subject.local && subject.active && subject.isInGroup("sudo")) {
             return polkit.Result.YES;
         }

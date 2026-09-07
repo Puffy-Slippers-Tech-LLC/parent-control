@@ -45,6 +45,14 @@ the implementation model-confirmation step.
 
 ## Daily commands
 
+For Codex execution, use the validated category commands in the
+[test and diagnostic approval guide](TestAutomation/Approval-Tools.md).
+`tools/run-tests --list` includes current layers and stable routes for the
+planned suites. The planned E2E and aggregate routes refuse execution until
+their guarded runners exist; approval coverage is not suite implementation.
+The same guide covers read-only system diagnostics and maintenance of only the
+pinned test VM, with no recurring per-file or per-operation authorization.
+
 The intended interface is four commands. **These targets and their selectors
 are not implemented yet**; Task 28A owns their complete dispatch and CI. The
 smaller [F1 task](TestAutomation/Task-F1.md) brings guarded installed selectors

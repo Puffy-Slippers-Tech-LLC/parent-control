@@ -72,7 +72,7 @@ through the approved helper; raw evidence remains private. The final runner
 exited successfully with `lease_phase=complete`; no VM operation is pending.
 
 **Next action:** Task 14 subsequently passed final acceptance; proceed to
-[Task 19A's active handoff](#task-19a-continuation--2026-09-06). The previous
+[Task 19A's active handoff](#task-19a-continuation--2026-09-07). The previous
 Polkit investigation and 19P qualification are complete. Use the active
 handoff's settings for the next slice.
 
@@ -133,40 +133,50 @@ handoff's settings for the next slice.
   artifacts, and the enumerable scenario contract. No backend compatibility
   or customer coverage is claimed without executed evidence.
 
-### Task 19A continuation — 2026-09-06
+### Task 19A continuation — 2026-09-07
 
-**Next result:** establish `tests/e2e/scenarios.json` and its versioned validation
-and selection contract, with host-safe tests for unknown/empty selections,
-explicitly pending scenarios, required fields and evidence expectations. Read
-`E2E-Coverage.md` to enumerate the required scenario/variant dimensions. Keep
-future customer scenarios pending until their owning implementations execute.
-This is the first bounded 19A slice, not full runner acceptance.
+**Completed boundary:** `tests/e2e/scenarios.json` contains 33 families and 156
+explicit pending variants. `inventory.py` validates schema, exact selection,
+matrix closure, ownership, references, attempt phases, interventions and minimum
+evidence declarations. Family selection retains every variant; runnable
+selection refuses pending work. About/feedback and installation mapping gaps
+remain explicitly owned. See the [contract](../../tests/e2e/README.md) and
+[input digests/results](Evidence/19A-Inventory-20260907.md). This completes the
+first inventory slice, not Task 19A or any customer coverage.
 
-**Reuse:** Task 19P already qualified `generalhw`, API 48, the public display
-attachment, worker, namespace bridge, guarded lease and cleanup. Start with
-`tests/integration/graphical_worker.py`, `graphical_lease.py`,
-`check_graphical_smoke.py` and its distribution when the new contract needs
-existing interfaces. F1 owns installed selection/provenance conventions.
-There is currently no `tests/e2e` directory or `check-e2e` target; establish the
-contract first, then carry it into the guarded launcher in the following slice.
-Do not repeat backend research, baseline preparation or completed Task 14 tests
-merely to resume. No live VM experiment is needed for inventory validation.
+**Next result:** implement the runtime evidence validator and private collector
+consuming this selection contract. Reconcile exact case/step/assertion identities,
+current-input provenance, outcomes and cleanup; refuse missing/extra/duplicate,
+skipped/failed/stale records and unsafe artifact references. Prove a valid
+synthetic record and deliberate refusal cases locally, including secret
+exclusion and preservation of the first failure. The current evidence fields
+are declarations only. Keep all actual scenarios pending during these host tests.
 
-**Verification:** focused host-safe contract/selector tests, `make check` if code
-changes, and `git diff --check`. Later runner slices must run applicable isolated
-cleanup prerequisites before live integration and prove secrets, observations,
-asset verification and baseline restoration before accepting all of 19A.
+**Reuse:** 19P's qualified `generalhw`, API 48, `graphical_worker.py`,
+`graphical_lease.py` and `check_graphical_smoke.py`; F1's split outcome/provenance
+conventions. No backend research or baseline preparation rerun is needed.
+After collection is proven, the following slice wires the guarded distribution/
+launcher and `check-e2e`; fresh boot/observation, secrets, digest-verified assets
+and safe cleanup still require real acceptance. Stable screen matching remains
+19B. Do not repeat this inventory implementation or completed Task 14 acceptance.
 
-**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: raise.
-**Reason:** Task 14's acceptance is complete. Scenario/evidence and guard contract
-design requires more reasoning; the proven backend and bounded contract slice
-permit keeping the same model instead of the task's original stronger default.
+**Verification:** 102 focused tests passed; isolated cleanup prerequisites passed
+175 tests plus 3 subtests; `make check` passed 1,395 unit/contracts, 17 components
+and static/traceability checks; `git diff --check` passed. The sandbox initially
+denied local socket operations. Explicit filenames matched the existing pytest
+approval after a wildcard escalation was interrupted; no rule change was needed.
+All edits are host-verified only. Zero VM attempts; no product blocker.
 
-**State:** Task 14's [final acceptance](Evidence/Task-14-20260906-Final-Acceptance.md)
-passed with baseline restored, VM independently confirmed shut off, and every
-command finished. No owned operation or unresolved blocker remains. Authorized
-scope remains the development host and existing guarded `ubuntu26.04` VM.
-Only acceptance/handoff documentation was changed in this session.
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
+**Reason:** inventory/selection is proven and bounds the collector implementation,
+so the same model suffices; artifact containment, secret exclusion and truthful
+failure/provenance handling still warrant high reasoning effort.
+
+**State:** authorized scope remains this development host and the existing
+guarded `ubuntu26.04` VM. All commands exited; no owned operation remains.
+This slice neither queried nor changed the VM; its last shut-off observation
+is historical. About 16 minutes of work/verification plus an interrupted
+approval wait; no live preparation/test/cleanup time.
 
 ## Task 19B
 

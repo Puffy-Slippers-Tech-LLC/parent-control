@@ -88,7 +88,7 @@ restoration/verification completed and `ubuntu26.04` was independently confirmed
 existing guarded VM. Only documentation changed after verification; no host
 product/account changes were made.
 
-**Next result:** begin [Task 19A's first slice](Task-19.md#task-19a-continuation--2026-09-06):
+**Next result:** begin [Task 19A's first slice](Task-19.md#task-19a):
 establish the E2E scenario inventory/selection contract and host-safe validation,
 reusing 19P's proven worker, transport and lease instead of repeating feasibility.
 

@@ -99,6 +99,11 @@ delivery case block its acceptance rather than silently substituting a mock.
 
 Task 19A establishes `tests/e2e/scenarios.json` as the executable scenario
 inventory. Each later E2E task expands and implements its assigned entries.
+The [inventory validator and selection interface](../../tests/e2e/README.md)
+now enumerate the starting cases, all explicitly pending. E2E-030–033 also
+record About/license, feedback draft/review, authorized delivery and declared
+transport-failure retry obligations omitted from the table below. Their missing
+normative requirement links remain explicit gaps for the owning tasks.
 The inventory must contain stable scenario and variant IDs, category,
 responsible task, requirement IDs, affected components, supported environment,
 explicit preconditions, ordered customer actions, declared interventions,

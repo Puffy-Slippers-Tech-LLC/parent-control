@@ -47,6 +47,14 @@ replacement of a resource requires a deliberate ownership-reviewed operation.
 
 ## Reset boundary and host preservation
 
+For explicitly authorized maintenance, use the
+[pinned VM commands](../../docs/TestAutomation/Approval-Tools.md#the-one-test-vm)
+(`tools/test-vm status`, `start`, `reboot`, `send-key`, `screenshot`, `stop`,
+`reset`). They share this controller's lock and provenance and never accept
+another domain, URI, disk, XML or snapshot. A maintenance attempt must be stopped
+before starting a system/E2E run. Routine test runs continue through their
+existing guarded controllers; raw `virsh` commands bypass these contracts.
+
 Only the guarded runner may perform a normal test reset under its exclusive
 lease, outside a complete independent attempt. It restores the retained
 baseline, removes writable host shares and transfer channels before boot,

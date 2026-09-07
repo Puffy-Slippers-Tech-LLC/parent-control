@@ -1,0 +1,2002 @@
+{
+  "schema_version": 1,
+  "evidence_contract": {
+    "schema_version": 1,
+    "run_fields": ["run_id", "scenario_id", "variant_id", "source_sha256", "inventory_sha256", "package_sha256", "assets_sha256", "environment_id", "baseline_sha256", "started_at", "ended_at", "steps", "artifacts", "outcomes", "first_failure", "cleanup"],
+    "step_fields": ["step_id", "phase", "operation", "outcome", "monotonic_seconds", "boot_id", "session_ids", "assertion_ids", "artifact_ids"],
+    "outcomes": ["product", "infrastructure", "collection", "cleanup"]
+  },
+  "scenarios": [
+    {
+      "id": "E2E-001",
+      "title": "Fresh boot and graphical/observation transport",
+      "category": "runner-smoke",
+      "owners": ["19B"],
+      "requirements": [],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["runner"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "observe", "description": "Recognize real GDM on a fresh product-free boot using stable screen matching."},
+          {"id": "step-2", "operation": "ui", "description": "Switch to the supported guest console, enter a harmless observation command, and return to graphics."},
+          {"id": "step-3", "operation": "observe", "description": "Match GDM again and retain the command result and screen."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Real GDM is recognized before and after console use; keyboard input reaches the guest."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Harmless command evidence identifies this boot; baseline and host inputs are preserved."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "No customer session is provisioned for this smoke; verify host/source identities and state unchanged."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 600,
+      "matrix": {
+        "dimensions": {
+          "transport": ["gdm-observation"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "gdm-observation", "owner": "19B", "parameters": {"transport": "gdm-observation"}, "status": "pending", "pending_reason": "Task 19B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-002",
+      "title": "Clean install, reboot and ready GDM",
+      "category": "customer-journey",
+      "owners": ["20"],
+      "requirements": [],
+      "requirement_gap": "Task 20 must assign normative installation/startup requirement IDs; the lifecycle contract is currently unmapped.",
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/SystemDesign/Lifecycle.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "fixture-credentials-via-secret-api"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Boot the product-free guest; use a real administrator terminal and authentication to install the verified package."},
+          {"id": "step-2", "operation": "ui", "description": "Observe the reboot notice and perform the requested actual machine reboot."},
+          {"id": "step-3", "operation": "observe", "description": "Verify usable GDM and enforcement readiness before a managed sign-in."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Installation and reboot notice are visible; GDM returns without an unmanaged desktop exposure."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Package digest, changed boot identity, startup services and enforcement readiness match the attempt."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "installation": ["clean"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "clean", "owner": "20", "parameters": {"installation": "clean"}, "status": "pending", "pending_reason": "Task 20 must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-003",
+      "title": "Parent discovery and navigation",
+      "category": "customer-journey",
+      "owners": ["21A"],
+      "requirements": ["ONPC-CORE-ACCOUNTS-002", "ONPC-COMP-PARENT-002", "ONPC-CORE-APPS-001"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "declared-account-eligibility-fixtures"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Log in as Parent, launch from the app grid, and inspect eligible children or the empty state."},
+          {"id": "step-2", "operation": "ui", "description": "For existing-and-new, create another local child through supported OS UI after installation, then rediscover and select each child."},
+          {"id": "step-3", "operation": "observe", "description": "Navigate each child status and catalog; verify administrator, system, remote and kiosk accounts are excluded."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Each selection shows that child data; the empty state clearly explains the absence of eligible children."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Read-only account and per-child catalog identities corroborate discovery and isolation."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "children": ["existing-and-new", "none"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "existing-and-new", "owner": "21A", "parameters": {"children": "existing-and-new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "none", "owner": "21A", "parameters": {"children": "none"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-004",
+      "title": "Standard user cannot manage policy",
+      "category": "customer-journey",
+      "owners": ["21A"],
+      "requirements": ["ONPC-CORE-ACCOUNTS-001", "ONPC-COMP-PARENT-001"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Log in as a standard user and attempt to launch Parent through the selected customer route."},
+          {"id": "step-2", "operation": "observe", "description": "Observe denial and absence of management controls; do not substitute direct D-Bus attacks for this UI case."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-2", "description": "No management window becomes available."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-2", "description": "No grant or policy state changes after denied access."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-2", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "launch": ["app-grid", "terminal"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "app-grid", "owner": "21A", "parameters": {"launch": "app-grid"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "terminal", "owner": "21A", "parameters": {"launch": "terminal"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-005",
+      "title": "Allowance validation, automatic saves and live control",
+      "category": "customer-journey",
+      "owners": ["21A", "21B"],
+      "requirements": ["ONPC-CORE-TIME-001", "ONPC-CORE-TIME-003", "ONPC-CORE-TIME-004", "ONPC-CORE-TIME-005", "ONPC-COMP-PARENT-003", "ONPC-COMP-PARENT-005"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Log in as Parent and establish the selected time state through real allowance changes and, when needed, kiosk approval."},
+          {"id": "step-2", "operation": "ui", "description": "Exercise allowance 0 and 1440 minutes, values just outside both bounds, and invalid input; inspect loading, saving and remaining-time explanations."},
+          {"id": "step-3", "operation": "ui", "description": "Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save."},
+          {"id": "step-4", "operation": "ui", "description": "Enter or resume the selected child session and attempt allowed and blocked apps after each transition."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-4", "description": "Boundary validation, conflicting-control inhibition and time explanations are correct; child behavior tracks each saved transition."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-4", "description": "Verify saved allowance, grant preservation/clearing, child-component activation and app policy per transition; invalid values never commit."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-4", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "time": ["daily-only", "grant-only", "combined"],
+          "session": ["new", "retained"]
+        },
+        "full_combinations": [
+          ["time", "session"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "daily-only-new", "owner": "21A", "parameters": {"time": "daily-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "daily-only-retained", "owner": "21A", "parameters": {"time": "daily-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "grant-only-new", "owner": "21A", "parameters": {"time": "grant-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "grant-only-retained", "owner": "21A", "parameters": {"time": "grant-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "combined-new", "owner": "21A", "parameters": {"time": "combined", "session": "new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "combined-retained", "owner": "21A", "parameters": {"time": "combined", "session": "retained"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-006",
+      "title": "App policy editing and matching",
+      "category": "customer-journey",
+      "owners": ["21B"],
+      "requirements": ["ONPC-COMP-PARENT-004", "ONPC-CORE-APPS-006", "ONPC-CORE-APPS-008", "ONPC-CORE-ACCOUNTS-004"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "digest-identified-native-and-appimage-fixtures"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "As Parent set the selected control mode, search/filter the child catalog and choose the selected match mode."},
+          {"id": "step-2", "operation": "ui", "description": "Sequentially save allowed, hard-blocked and soft-blocked rules while matching child apps and another user apps are open."},
+          {"id": "step-3", "operation": "ui", "description": "As the child try matching and nonmatching targets after each save; verify other-user use continues."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Autosave applies each rule, blocked child apps close and nonmatching/other-user apps remain usable."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Current executable/filter/process identities and saved match patterns agree with visible effects."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "control": ["enabled", "disabled"],
+          "match": ["precise", "pattern"]
+        },
+        "full_combinations": [
+          ["control", "match"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "enabled-precise", "owner": "21B", "parameters": {"control": "enabled", "match": "precise"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "enabled-pattern", "owner": "21B", "parameters": {"control": "enabled", "match": "pattern"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "disabled-precise", "owner": "21B", "parameters": {"control": "disabled", "match": "precise"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "disabled-pattern", "owner": "21B", "parameters": {"control": "disabled", "match": "pattern"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-007",
+      "title": "Cancel then confirm revocation with open apps",
+      "category": "customer-journey",
+      "owners": ["21B", "25B"],
+      "requirements": ["ONPC-CORE-RECOVERY-001", "ONPC-CORE-ACCOUNTS-004"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Establish the selected daily time, real grant and child sessions; open child and other-user apps."},
+          {"id": "step-2", "operation": "ui", "description": "Parent opens revocation confirmation, checks its warning, then cancels; confirm state is unchanged."},
+          {"id": "step-3", "operation": "ui", "description": "Parent confirms revocation and observes child blocked apps and time across the retained sessions."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Cancel has no effect; confirmed revocation closes only the selected child blocked apps."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Grant is removed, daily usage/allowance preserved and all selected-child session effects verified."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "daily": ["zero", "remaining"],
+          "sessions": ["single", "multiple"]
+        },
+        "full_combinations": [
+          ["daily", "sessions"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "zero-single", "owner": "21B", "parameters": {"daily": "zero", "sessions": "single"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "zero-multiple", "owner": "21B", "parameters": {"daily": "zero", "sessions": "multiple"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "remaining-single", "owner": "21B", "parameters": {"daily": "remaining", "sessions": "single"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "remaining-multiple", "owner": "21B", "parameters": {"daily": "remaining", "sessions": "multiple"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-008",
+      "title": "Natural daily exhaustion, retained unlock and fresh login denial",
+      "category": "customer-journey",
+      "owners": ["22A"],
+      "requirements": ["ONPC-CORE-TIME-007", "ONPC-CORE-TIME-008", "ONPC-CORE-TIME-009"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Parent enables a short daily-only allowance; child signs in and uses the desktop."},
+          {"id": "step-2", "operation": "wait", "description": "Consume the actual allowance naturally; do not jump clocks, inject usage, or invoke Lock."},
+          {"id": "step-3", "operation": "ui", "description": "Verify lock without logout; for fresh-login log out via the normal interface, then attempt the selected entry with the correct password."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Natural expiry locks the child; zero-time entry is denied with the time-limit explanation."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Measured usage exhausts daily allowance; expiry retains the session until the explicit logout and never ends another session."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "entry": ["retained-unlock", "fresh-login"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "retained-unlock", "owner": "22A", "parameters": {"entry": "retained-unlock"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "fresh-login", "owner": "22A", "parameters": {"entry": "fresh-login"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-009",
+      "title": "Grant expiry followed by kiosk approval and unlock",
+      "category": "customer-journey",
+      "owners": ["22A"],
+      "requirements": ["ONPC-CORE-TIME-010", "ONPC-CORE-APPS-011"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Obtain a short grant through real kiosk authentication and log into the child desktop with open apps."},
+          {"id": "step-2", "operation": "wait", "description": "Let the grant expire naturally and verify retained-session lock."},
+          {"id": "step-3", "operation": "ui", "description": "Obtain a replacement kiosk grant with the selected soft-app choice and unlock with the correct child password."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Expiry locks without logout; a new grant permits unlock with the selected app access."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Grant identity, retained session and replacement-policy/process effects agree with each approval."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "soft-apps": ["excluded", "included"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "excluded", "owner": "22A", "parameters": {"soft-apps": "excluded"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "included", "owner": "22A", "parameters": {"soft-apps": "included"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-010",
+      "title": "Switch User while child time expires",
+      "category": "customer-journey",
+      "owners": ["22A"],
+      "requirements": ["ONPC-CORE-TIME-008", "ONPC-CORE-TIME-009"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Give the child a short grant through the UI, sign in, then Switch User to the selected other foreground user."},
+          {"id": "step-2", "operation": "wait", "description": "Let the retained child grant expire naturally while interacting with the other desktop."},
+          {"id": "step-3", "operation": "ui", "description": "Switch back and attempt child unlock without new time."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Other foreground user is uninterrupted and zero-time child unlock is denied."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "The actual retained sessions survive with child-only lock enforcement."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "foreground": ["parent", "other-child"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "parent", "owner": "22A", "parameters": {"foreground": "parent"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "other-child", "owner": "22A", "parameters": {"foreground": "other-child"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-011",
+      "title": "Countdown and visibility transitions",
+      "category": "customer-journey",
+      "owners": ["22B"],
+      "requirements": ["ONPC-COMP-CHILD-002", "ONPC-COMP-CHILD-003", "ONPC-COMP-CHILD-005"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Establish the selected time sources through Parent settings and real approval, then log in as child."},
+          {"id": "step-2", "operation": "wait", "description": "Observe actual minute ticks and final-second countdown with measured monotonic intervals."},
+          {"id": "step-3", "operation": "ui", "description": "Visit unlocked desktop, lock screen and GDM using normal controls; verify panel visibility and refresh on return."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Countdown formatting follows actual time and appears only on the usable unlocked child desktop."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Read-only daily/grant values and session identities explain the displayed maximum remaining time."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "time": ["daily-only", "grant-only", "combined"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "daily-only", "owner": "22B", "parameters": {"time": "daily-only"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "grant-only", "owner": "22B", "parameters": {"time": "grant-only"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "combined", "owner": "22B", "parameters": {"time": "combined"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-012",
+      "title": "Single child overlay and selected-parent approval",
+      "category": "customer-journey",
+      "owners": ["23A"],
+      "requirements": ["ONPC-CORE-REQUEST-001", "ONPC-CORE-REQUEST-005", "ONPC-CORE-REQUEST-006", "ONPC-CORE-REQUEST-009", "ONPC-CORE-REQUEST-010", "ONPC-CORE-REQUEST-011", "ONPC-COMP-CHILD-004"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "two-eligible-parents", "fixture-credentials-via-secret-api"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "In the enabled child desktop open the request panel repeatedly and confirm only one overlay with fixed child identity."},
+          {"id": "step-2", "operation": "ui", "description": "Select the chosen eligible parent, duration and soft-app option; open the real authentication prompt."},
+          {"id": "step-3", "operation": "ui", "description": "Enter only that parent credential through secret-safe input and observe atomic success, app effects and overlay closure."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "The real prompt identifies exactly the displayed request and selected parent; one approval completes it."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Time and app access commit together; excluded soft apps close required child apps before granting, included soft apps preserve open processes."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "soft-apps": ["excluded", "included"],
+          "approver": ["first", "second"]
+        },
+        "full_combinations": [
+          ["soft-apps", "approver"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "excluded-first", "owner": "23A", "parameters": {"soft-apps": "excluded", "approver": "first"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "excluded-second", "owner": "23A", "parameters": {"soft-apps": "excluded", "approver": "second"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "included-first", "owner": "23A", "parameters": {"soft-apps": "included", "approver": "first"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "included-second", "owner": "23A", "parameters": {"soft-apps": "included", "approver": "second"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-013",
+      "title": "Authentication denial and cancellation retry",
+      "category": "customer-journey",
+      "owners": ["23A", "24B"],
+      "requirements": ["ONPC-CORE-REQUEST-013", "ONPC-CORE-RECOVERY-004"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Open the selected request surface and submit a real request with explicit child, parent and choices."},
+          {"id": "step-2", "operation": "ui", "description": "Enter a wrong password or cancel the real authentication prompt as selected; inspect the preserved form and access."},
+          {"id": "step-3", "operation": "ui", "description": "Retry from the same form and authenticate successfully."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Wrong password shows denial; cancel returns without an error; both permit successful retry."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "The denied/cancelled attempt grants no time or policy relaxation; only successful retry commits."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "surface": ["child-overlay", "kiosk"],
+          "outcome": ["wrong-password", "cancel"]
+        },
+        "full_combinations": [
+          ["surface", "outcome"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "child-overlay-wrong-password", "owner": "23A", "parameters": {"surface": "child-overlay", "outcome": "wrong-password"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "child-overlay-cancel", "owner": "23A", "parameters": {"surface": "child-overlay", "outcome": "cancel"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-wrong-password", "owner": "24B", "parameters": {"surface": "kiosk", "outcome": "wrong-password"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-cancel", "owner": "24B", "parameters": {"surface": "kiosk", "outcome": "cancel"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-014",
+      "title": "Shared duration boundaries and duplicate submission",
+      "category": "customer-journey",
+      "owners": ["23B", "24B"],
+      "requirements": ["ONPC-CORE-REQUEST-004", "ONPC-COMP-KIOSK-004", "ONPC-CORE-RECOVERY-007"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Open the selected surface. For predefined test each offered duration; for custom test 0.1 and 1440, interior fractions, just outside bounds, empty and nonnumeric values; for rest-of-day select that choice."},
+          {"id": "step-2", "operation": "ui", "description": "Check invalid values are refused before authentication; for valid values compare the footer and request details."},
+          {"id": "step-3", "operation": "ui", "description": "Submit valid choices with rapid duplicate clicks and authenticate the one real request."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Both surfaces enforce boundaries, correct estimates and at most one in-progress prompt/submission."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Exactly one grant transaction occurs per deliberate valid request; rejected values never grant access."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "surface": ["child-overlay", "kiosk"],
+          "choice": ["predefined", "custom", "rest-of-day"]
+        },
+        "full_combinations": [
+          ["surface", "choice"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "child-overlay-predefined", "owner": "23B", "parameters": {"surface": "child-overlay", "choice": "predefined"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "child-overlay-custom", "owner": "23B", "parameters": {"surface": "child-overlay", "choice": "custom"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "child-overlay-rest-of-day", "owner": "23B", "parameters": {"surface": "child-overlay", "choice": "rest-of-day"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-predefined", "owner": "24B", "parameters": {"surface": "kiosk", "choice": "predefined"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-custom", "owner": "24B", "parameters": {"surface": "kiosk", "choice": "custom"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-rest-of-day", "owner": "24B", "parameters": {"surface": "kiosk", "choice": "rest-of-day"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-015",
+      "title": "Request surface exit behavior",
+      "category": "customer-journey",
+      "owners": ["23B", "24B"],
+      "requirements": ["ONPC-CORE-REQUEST-014", "ONPC-CORE-REQUEST-015", "ONPC-COMP-CHILD-005"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape."},
+          {"id": "step-2", "operation": "observe", "description": "Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-2", "description": "Each exit reaches its surface-specific destination and preserves the underlying child desktop where applicable."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-2", "description": "Only approved exit changes grant state; cancellation never logs out the child session."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-2", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "surface": ["child-overlay", "kiosk"],
+          "exit": ["cancel", "escape", "approved"]
+        },
+        "full_combinations": [
+          ["surface", "exit"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "child-overlay-cancel", "owner": "23B", "parameters": {"surface": "child-overlay", "exit": "cancel"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "child-overlay-escape", "owner": "23B", "parameters": {"surface": "child-overlay", "exit": "escape"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "child-overlay-approved", "owner": "23B", "parameters": {"surface": "child-overlay", "exit": "approved"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-cancel", "owner": "24B", "parameters": {"surface": "kiosk", "exit": "cancel"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-escape", "owner": "24B", "parameters": {"surface": "kiosk", "exit": "escape"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-approved", "owner": "24B", "parameters": {"surface": "kiosk", "exit": "approved"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-016",
+      "title": "Restricted request station",
+      "category": "customer-journey",
+      "owners": ["24A"],
+      "requirements": ["ONPC-CORE-REQUEST-002", "ONPC-COMP-KIOSK-001", "ONPC-COMP-KIOSK-006"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Enter the dedicated kiosk from GDM; attempt desktop, terminal, settings and Parent access through available UI routes."},
+          {"id": "step-2", "operation": "ui", "description": "Perform the selected real request outcome and repeat restricted-session checks where the kiosk remains active."},
+          {"id": "step-3", "operation": "ui", "description": "Use the normal exit to return to GDM."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Kiosk remains request-only before and after the request, with a working return to sign-in."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "The real dedicated session has no general desktop or management authority."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "request": ["approved", "denied", "cancelled"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "approved", "owner": "24A", "parameters": {"request": "approved"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "denied", "owner": "24A", "parameters": {"request": "denied"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "cancelled", "owner": "24A", "parameters": {"request": "cancelled"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-017",
+      "title": "Kiosk selection and unavailable requests",
+      "category": "customer-journey",
+      "owners": ["24B"],
+      "requirements": ["ONPC-CORE-ACCOUNTS-002", "ONPC-CORE-ACCOUNTS-003", "ONPC-CORE-REQUEST-003", "ONPC-COMP-KIOSK-003"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "declared-account-eligibility-fixtures"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Enter kiosk with the declared account fixtures; for disabled-child disable control through Parent before entering."},
+          {"id": "step-2", "operation": "ui", "description": "Switch among offered children and approvers where available and try to submit a request."},
+          {"id": "step-3", "operation": "observe", "description": "Inspect loaded choices, empty/ineligible/disabled explanations and request availability."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Only eligible accounts are offered; unavailable or disabled targets cannot submit."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Displayed account identity and enabled state match real services; rejected requests do not mutate access."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "accounts": ["multiple", "no-child", "no-parent", "ineligible-parent", "disabled-child"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "multiple", "owner": "24B", "parameters": {"accounts": "multiple"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "no-child", "owner": "24B", "parameters": {"accounts": "no-child"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "no-parent", "owner": "24B", "parameters": {"accounts": "no-parent"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "ineligible-parent", "owner": "24B", "parameters": {"accounts": "ineligible-parent"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "disabled-child", "owner": "24B", "parameters": {"accounts": "disabled-child"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-018",
+      "title": "Per-child cross-surface choices and separate mute",
+      "category": "customer-journey",
+      "owners": ["24B"],
+      "requirements": ["ONPC-CORE-REQUEST-016", "ONPC-CORE-ACCOUNTS-004"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "In the starting surface select the child, duration, fractional custom value, approver, soft-app choice and mute."},
+          {"id": "step-2", "operation": "ui", "description": "Exit normally and visit the other request surface for that child; inspect remembered selections and its separately remembered mute."},
+          {"id": "step-3", "operation": "ui", "description": "Visit another child and return to verify choices are independent per child and shared only as specified."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Cross-surface selections persist per child; mute remains independent for each surface."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Read-only preference identities corroborate choices and other-child isolation."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "direction": ["overlay-to-kiosk", "kiosk-to-overlay"],
+          "child": ["first", "second"]
+        },
+        "full_combinations": [
+          ["direction", "child"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "overlay-to-kiosk-first", "owner": "24B", "parameters": {"direction": "overlay-to-kiosk", "child": "first"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "overlay-to-kiosk-second", "owner": "24B", "parameters": {"direction": "overlay-to-kiosk", "child": "second"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-to-overlay-first", "owner": "24B", "parameters": {"direction": "kiosk-to-overlay", "child": "first"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-to-overlay-second", "owner": "24B", "parameters": {"direction": "kiosk-to-overlay", "child": "second"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-019",
+      "title": "Supported launch routes and policy matches",
+      "category": "customer-journey",
+      "owners": ["25A"],
+      "requirements": ["ONPC-CORE-APPS-007", "ONPC-CORE-APPS-008", "ONPC-CORE-APPS-009"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "digest-identified-native-snap-flatpak-appimage-fixtures"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route."},
+          {"id": "step-2", "operation": "ui", "description": "As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported."},
+          {"id": "step-3", "operation": "ui", "description": "Repeat the corresponding launch as another user and verify continued use."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Allowed and nonmatching targets launch; blocked matching targets cannot be used, not merely hidden."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Actual executable or sandbox application identity, filter and process evidence explain each decision."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "route": ["native-grid", "native-desktop", "native-file-manager", "native-command", "snap-grid", "snap-command", "flatpak-grid", "flatpak-command"],
+          "policy": ["allowed", "hard-blocked", "soft-blocked"],
+          "control": ["enabled", "disabled"]
+        },
+        "full_combinations": [
+          ["route", "policy", "control"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "native-grid-allowed-enabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-grid-allowed-disabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-grid-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-grid-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-grid-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-grid-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-desktop-allowed-enabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-desktop-allowed-disabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-desktop-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-desktop-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-desktop-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-desktop-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-file-manager-allowed-enabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-file-manager-allowed-disabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-file-manager-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-file-manager-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-file-manager-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-file-manager-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-command-allowed-enabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-command-allowed-disabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-command-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-command-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-command-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "native-command-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-grid-allowed-enabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-grid-allowed-disabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-grid-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-grid-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-grid-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-grid-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-command-allowed-enabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-command-allowed-disabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-command-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-command-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-command-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "snap-command-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-grid-allowed-enabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-grid-allowed-disabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-grid-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-grid-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-grid-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-grid-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-command-allowed-enabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-command-allowed-disabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-command-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-command-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-command-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "flatpak-command-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-020",
+      "title": "Catalog update/disappearance between display and save",
+      "category": "customer-journey",
+      "owners": ["25A"],
+      "requirements": ["ONPC-CORE-APPS-010"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Parent displays a child application and selects a rule without completing the save interaction."},
+          {"id": "step-2", "operation": "ui", "description": "Use a real supported package operation in another administrator terminal to update or remove the application."},
+          {"id": "step-3", "operation": "ui", "description": "Complete the rule edit and inspect the catalog; attempt the updated app when present."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "A new executable receives the rule; disappearance does not silently erase the saved rule."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Verified before/after app identities and stored rule target match the real package operation."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "change": ["update", "remove"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "update", "owner": "25A", "parameters": {"change": "update"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "remove", "owner": "25A", "parameters": {"change": "remove"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-021",
+      "title": "Multi-session child-only transaction effects",
+      "category": "customer-journey",
+      "owners": ["25B"],
+      "requirements": ["ONPC-CORE-APPS-006", "ONPC-CORE-REQUEST-010", "ONPC-CORE-REQUEST-011", "ONPC-CORE-REQUEST-012", "ONPC-CORE-RECOVERY-001"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Use real repeated login and Switch User operations to retain multiple child and other-user sessions with real apps open."},
+          {"id": "step-2", "operation": "ui", "description": "Perform the selected Parent save, real approval or confirmed revocation through its customer interface."},
+          {"id": "step-3", "operation": "ui", "description": "Visit each retained desktop to inspect required process closure/preservation and continued other-user use."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Each session shows exactly the selected transaction effects; other users remain uninterrupted."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Identity-recorded process and session evidence proves all selected-child sessions and other-user isolation."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "transaction": ["save", "approve-without-soft", "approve-with-soft", "revoke"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "save", "owner": "25B", "parameters": {"transaction": "save"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "approve-without-soft", "owner": "25B", "parameters": {"transaction": "approve-without-soft"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "approve-with-soft", "owner": "25B", "parameters": {"transaction": "approve-with-soft"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "revoke", "owner": "25B", "parameters": {"transaction": "revoke"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-022",
+      "title": "Customer lifecycle persistence and resume",
+      "category": "customer-journey",
+      "owners": ["26B"],
+      "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003", "ONPC-COMP-CHILD-005"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Configure allowance/app rules and remembered choices through UI, then approve a real short grant."},
+          {"id": "step-2", "operation": "ui", "description": "Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return."},
+          {"id": "step-3", "operation": "wait", "description": "Where expiry is selected, wait the real remaining duration without changing the guest clock."},
+          {"id": "step-4", "operation": "ui", "description": "Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-4", "description": "Real return/login behavior, choices and policy match time available after the boundary."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-4", "description": "Boot/session continuity records the actual transition; stored preferences and current grant explain enforcement."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-4", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "boundary": ["app-restart", "sign-out-in", "reboot", "idle", "suspend-wake"],
+          "grant": ["active", "expired"]
+        },
+        "full_combinations": [
+          ["boundary", "grant"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "app-restart-active", "owner": "26B", "parameters": {"boundary": "app-restart", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "app-restart-expired", "owner": "26B", "parameters": {"boundary": "app-restart", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "sign-out-in-active", "owner": "26B", "parameters": {"boundary": "sign-out-in", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "sign-out-in-expired", "owner": "26B", "parameters": {"boundary": "sign-out-in", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "reboot-active", "owner": "26B", "parameters": {"boundary": "reboot", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "reboot-expired", "owner": "26B", "parameters": {"boundary": "reboot", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "idle-active", "owner": "26B", "parameters": {"boundary": "idle", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "idle-expired", "owner": "26B", "parameters": {"boundary": "idle", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "suspend-wake-active", "owner": "26B", "parameters": {"boundary": "suspend-wake", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "suspend-wake-expired", "owner": "26B", "parameters": {"boundary": "suspend-wake", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-023",
+      "title": "Zero allowance to kiosk approval, real gameplay and expiry",
+      "category": "customer-journey",
+      "owners": ["26C"],
+      "requirements": ["ONPC-CORE-TIME-008", "ONPC-CORE-TIME-009", "ONPC-CORE-REQUEST-002", "ONPC-CORE-REQUEST-009"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "pinned-real-offline-game-and-level-digests", "fixture-credentials-via-secret-api"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Log in as Parent from GDM, open Parent from the app grid, select the child, enable control and save zero daily minutes; make the real game usable."},
+          {"id": "step-2", "operation": "ui", "description": "Use Switch User preserving the parent session; attempt correct-password child login and verify time-limit denial with no child desktop."},
+          {"id": "step-3", "operation": "ui", "description": "Enter kiosk from GDM, select child and approver, request a short supported grant, authenticate through the real secret-safe system prompt and return normally to GDM."},
+          {"id": "step-4", "operation": "ui", "description": "Log in as child, verify desktop/countdown, launch the pinned game from app grid, enter the reproducible offline level in the selected display mode and play using real input."},
+          {"id": "step-5", "operation": "wait", "description": "Continue gameplay until the real grant expires; verify lock, inaccessible game input, surviving child session/game and uninterrupted parent/other-user sessions."},
+          {"id": "step-6", "operation": "ui", "description": "Attempt unlock with the correct password and verify zero-time denial before ending and collecting the attempt."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-6", "description": "The entire parent-to-denial-to-approval-to-gameplay-to-lock journey is continuous; gameplay and final denial are visibly proved."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-6", "description": "Input digests, natural grant expiry, boot/session continuity and identity-recorded surviving game corroborate every transition."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-6", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "gameplay": ["windowed", "fullscreen"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "windowed", "owner": "26C", "parameters": {"gameplay": "windowed"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"id": "fullscreen", "owner": "26C", "parameters": {"gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-024",
+      "title": "Additional time accumulates during gameplay",
+      "category": "customer-journey",
+      "owners": ["26C"],
+      "requirements": ["ONPC-CORE-REQUEST-008", "ONPC-CORE-REQUEST-009"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "pinned-real-offline-game-and-level-digests"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Through Parent settings and real approval establish the selected dominant time source, then log in as child and play the real offline game."},
+          {"id": "step-2", "operation": "ui", "description": "While time remains request additional time in the child overlay and authenticate successfully."},
+          {"id": "step-3", "operation": "wait", "description": "Resume actual gameplay through the extended interval and observe eventual natural expiry and lock."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Countdown gains the selected duration over the larger current balance and gameplay continues until actual expiry."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Measured daily use, preexisting grant and approved duration corroborate accumulation without shortening expiry."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "time": ["daily-dominant", "grant-dominant"],
+          "gameplay": ["windowed", "fullscreen"]
+        },
+        "full_combinations": [
+          ["time", "gameplay"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "daily-dominant-windowed", "owner": "26C", "parameters": {"time": "daily-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"id": "daily-dominant-fullscreen", "owner": "26C", "parameters": {"time": "daily-dominant", "gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"id": "grant-dominant-windowed", "owner": "26C", "parameters": {"time": "grant-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"id": "grant-dominant-fullscreen", "owner": "26C", "parameters": {"time": "grant-dominant", "gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-025",
+      "title": "Replacement grant precedence at session entry",
+      "category": "customer-journey",
+      "owners": ["26C"],
+      "requirements": ["ONPC-CORE-APPS-011", "ONPC-COMP-BROKER-009"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Configure app rules, obtain a real grant and use the child session with relevant apps open."},
+          {"id": "step-2", "operation": "wait", "description": "Let that grant expire naturally and observe lock with retained apps alive."},
+          {"id": "step-3", "operation": "ui", "description": "Before the selected session entry obtain a real replacement grant with the selected soft-app choice, then enter through GDM/unlock normally."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Replacement grant controls entry and app behavior; included soft apps preserve retained apps while excluded soft apps close required child apps during approval."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Current grant identity and live filter show session entry respects the replacement and does not apply stale expired-grant policy."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "soft-apps": ["excluded", "included"],
+          "entry": ["new-login", "retained-unlock"]
+        },
+        "full_combinations": [
+          ["soft-apps", "entry"]
+        ],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "excluded-new-login", "owner": "26C", "parameters": {"soft-apps": "excluded", "entry": "new-login"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"id": "excluded-retained-unlock", "owner": "26C", "parameters": {"soft-apps": "excluded", "entry": "retained-unlock"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"id": "included-new-login", "owner": "26C", "parameters": {"soft-apps": "included", "entry": "new-login"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"id": "included-retained-unlock", "owner": "26C", "parameters": {"soft-apps": "included", "entry": "retained-unlock"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-026",
+      "title": "Customer package update and activation",
+      "category": "customer-journey",
+      "owners": ["26C"],
+      "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/Package-Update.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "digest-verified-activation-packages"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Parent configures policy and request choices through real UI; child uses the app under that policy."},
+          {"id": "step-2", "operation": "ui", "description": "Use the documented real package update operation and follow its required process, session or reboot activation notice."},
+          {"id": "step-3", "operation": "ui", "description": "Log in or resume as required and use the installed product with preserved settings and enforced rules."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-3", "description": "Required activation is explained and real post-update use works with preserved choices."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-3", "description": "Release/supplemental package digests, actual activation transition and persisted settings agree."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "activation": ["process", "session", "reboot"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "process", "owner": "26C", "parameters": {"activation": "process"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"id": "session", "owner": "26C", "parameters": {"activation": "session"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"id": "reboot", "owner": "26C", "parameters": {"activation": "reboot"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-027",
+      "title": "Install through remove, reinstall and purge",
+      "category": "customer-journey",
+      "owners": ["26C"],
+      "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/SystemDesign/Package-Removal.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "From the product-free baseline install through the real package command and reboot normally."},
+          {"id": "step-2", "operation": "ui", "description": "Configure policy and preferences through UI and use the child account under that policy."},
+          {"id": "step-3", "operation": "ui", "description": "Remove through the real package command, reboot and verify ordinary usable login."},
+          {"id": "step-4", "operation": "ui", "description": "Reinstall and use retained settings, then purge through the actual package command and verify the documented clean state."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-4", "description": "The continuous install/use/remove/reinstall/purge journey preserves usable login and documented settings semantics."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-4", "description": "Actual package transitions and Task 18C read-only removal assertions corroborate file/account/policy cleanup without in-journey restore."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-4", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 3600,
+      "matrix": {
+        "dimensions": {
+          "lifecycle": ["continuous"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "continuous", "owner": "26C", "parameters": {"lifecycle": "continuous"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-028",
+      "title": "Startup, usage and authentication-agent failure recovery",
+      "category": "fault-recovery",
+      "owners": ["20", "22A", "22B", "24A"],
+      "requirements": ["ONPC-COMP-BROKER-010", "ONPC-CORE-TIME-008", "ONPC-COMP-CHILD-003", "ONPC-CORE-RECOVERY-008"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Establish the selected startup, child session or kiosk boundary through real customer operations."},
+          {"id": "step-2", "operation": "fault", "description": "Trigger the selected real startup dependency, zero-time entry, usage-service read or authentication-agent failure through a declared guarded fault control."},
+          {"id": "step-3", "operation": "observe", "description": "Verify visible safe denial/relock, preserved last-known estimate where applicable and no false success."},
+          {"id": "step-4", "operation": "fault", "description": "Remove the declared fault using supported service/environment recovery and record actual recovery."},
+          {"id": "step-5", "operation": "ui", "description": "Retry the original customer operation and verify recovery without new hidden policy or time state."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [
+        {"step_id": "step-2", "actor": "declared guarded guest fault control", "evidence": "Record the real intervention and corroborate its effect with read-only service/account/process state and continuity."},
+        {"step_id": "step-4", "actor": "declared guarded guest fault control", "evidence": "Record the real intervention and corroborate its effect with read-only service/account/process state and continuity."}
+      ],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-5", "description": "The selected failure is safe and actionable; the real recovery permits a later valid operation."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-5", "description": "Real failure/recovery evidence, unchanged unauthorized state and current service/session identities explain the screens."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-5", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen", "intervention"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "fault": ["startup-enforcement", "zero-time-exposure", "usage-read", "kiosk-auth-agent"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "startup-enforcement", "owner": "20", "parameters": {"fault": "startup-enforcement"}, "status": "pending", "pending_reason": "Task 20 must implement this complete journey and its assertions.", "executable": null},
+        {"id": "zero-time-exposure", "owner": "22A", "parameters": {"fault": "zero-time-exposure"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "usage-read", "owner": "22B", "parameters": {"fault": "usage-read"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "kiosk-auth-agent", "owner": "24A", "parameters": {"fault": "kiosk-auth-agent"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-029",
+      "title": "Transactional failure, rollback and identity races",
+      "category": "fault-recovery",
+      "owners": ["21B", "25B", "26A"],
+      "requirements": ["ONPC-CORE-RECOVERY-004", "ONPC-CORE-RECOVERY-005", "ONPC-CORE-RECOVERY-006", "ONPC-CORE-RECOVERY-007", "ONPC-COMP-BROKER-007"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Through Parent/request UI establish actual policy, time and open-app preconditions for the selected transaction boundary."},
+          {"id": "step-2", "operation": "fault", "description": "Cause the selected real save failure, account eligibility change, requester disconnect, concurrent operation, reload failure or partial process termination; record actor and exact intervention."},
+          {"id": "step-3", "operation": "observe", "description": "Observe failure/rollback or fail-closed partial-termination behavior; do not present closed apps as restored."},
+          {"id": "step-4", "operation": "fault", "description": "Remove the declared cause through supported controls and record recovery."},
+          {"id": "step-5", "operation": "ui", "description": "Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [
+        {"step_id": "step-2", "actor": "declared guarded guest fault control", "evidence": "Record the real intervention and corroborate its effect with read-only service/account/process state and continuity."},
+        {"step_id": "step-4", "actor": "declared guarded guest fault control", "evidence": "Record the real intervention and corroborate its effect with read-only service/account/process state and continuity."}
+      ],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-5", "description": "Failure is visible without a false grant or partial policy success; later valid retry recovers."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-5", "description": "Serialized real transaction, prior time, restored/fail-closed rules and per-user process effects meet the selected failure contract."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-5", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen", "intervention"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "fault": ["failed-save", "stale-identity", "disconnect", "concurrent-transaction", "policy-reload", "partial-termination"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "failed-save", "owner": "21B", "parameters": {"fault": "failed-save"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "stale-identity", "owner": "26A", "parameters": {"fault": "stale-identity"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "disconnect", "owner": "26A", "parameters": {"fault": "disconnect"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "concurrent-transaction", "owner": "26A", "parameters": {"fault": "concurrent-transaction"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "policy-reload", "owner": "26A", "parameters": {"fault": "policy-reload"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "partial-termination", "owner": "25B", "parameters": {"fault": "partial-termination"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-030",
+      "title": "Installed About and license access",
+      "category": "customer-journey",
+      "owners": ["21A"],
+      "requirements": [],
+      "requirement_gap": "Task 21A must link About/license access to a stable normative requirement ID; E2E-Coverage requires this omitted surface.",
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Log in as Parent, launch the installed app, open About and follow its license/copyright information."},
+          {"id": "step-2", "operation": "ui", "description": "Close the informational view and return to the same selected child without changing policy."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-2", "description": "Installed About and license information are readable and the parent can return to normal use."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-2", "description": "Displayed version/license agrees with the installed digest-identified package; policy is unchanged."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-2", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "surface": ["parent"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "parent", "owner": "21A", "parameters": {"surface": "parent"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-031",
+      "title": "Feedback drafts, validation and attachment review",
+      "category": "customer-journey",
+      "owners": ["21A"],
+      "requirements": [],
+      "requirement_gap": "Task 21A must assign stable normative feedback draft/export requirement IDs from the existing design.",
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/SystemDesign/Logging-and-Feedback.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "synthetic-feedback-and-attachment-fixtures"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Open installed Parent feedback with synthetic nonpersonal test content; exercise the selected draft, validation, attachment review/removal or explicit diagnostic export flow."},
+          {"id": "step-2", "operation": "ui", "description": "Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-2", "description": "Editing, validation, attachment review, disclosure and cancellation behave as documented without external delivery."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-2", "description": "Read-only exported fixture metadata and local draft behavior match the declared contract without private preference/credential disclosure."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-2", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "flow": ["draft-reopen", "validation", "attachments", "diagnostic-export"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "draft-reopen", "owner": "21A", "parameters": {"flow": "draft-reopen"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "validation", "owner": "21A", "parameters": {"flow": "validation"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "attachments", "owner": "21A", "parameters": {"flow": "attachments"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "diagnostic-export", "owner": "21A", "parameters": {"flow": "diagnostic-export"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-032",
+      "title": "Authorized feedback delivery",
+      "category": "customer-journey",
+      "owners": ["26C"],
+      "requirements": [],
+      "requirement_gap": "Task 26C must map delivery/retry requirements and qualify the actual service profile with explicit delivery authorization.",
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/SystemDesign/Logging-and-Feedback.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Open installed feedback, compose synthetic content, review attachments/privacy disclosure and explicitly send to the authorized dedicated test recipient on the supported real service."},
+          {"id": "step-2", "operation": "observe", "description": "Observe the actual service confirmation and corroborate the dedicated recipient receipt without substituting a mock transport."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-2", "description": "Delivery result is visible; only a real confirmed service response establishes success."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-2", "description": "Dedicated recipient receipt and safe service/idempotency evidence corroborate delivery for this attempt."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-2", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen", "delivery"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "delivery": ["success"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "success", "owner": "26C", "parameters": {"delivery": "success"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+      ]
+    },
+    {
+      "id": "E2E-033",
+      "title": "Authorized feedback retry after a real transport failure",
+      "category": "fault-recovery",
+      "owners": ["26C"],
+      "requirements": [],
+      "requirement_gap": "Task 26C must map delivery/retry requirements and qualify the actual service profile with explicit delivery authorization.",
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/SystemDesign/Logging-and-Feedback.md"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Compose synthetic feedback and review the authorized real service and dedicated recipient profile."},
+          {"id": "step-2", "operation": "fault", "description": "Use the declared guest network control to interrupt the real delivery transport before Send; do not replace the server or forge responses."},
+          {"id": "step-3", "operation": "ui", "description": "Send through the actual feedback UI and observe its retry state."},
+          {"id": "step-4", "operation": "fault", "description": "Restore the real network connection within the documented retry window and record recovery."},
+          {"id": "step-5", "operation": "observe", "description": "Observe bounded automatic retry, confirmed success and the dedicated recipient receipt for the frozen submission."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+        ]
+      },
+      "interventions": [
+        {"step_id": "step-2", "actor": "declared guarded guest fault control", "evidence": "Record the real intervention and corroborate its effect with read-only service/account/process state and continuity."},
+        {"step_id": "step-4", "actor": "declared guarded guest fault control", "evidence": "Record the real intervention and corroborate its effect with read-only service/account/process state and continuity."}
+      ],
+      "assertions": {
+        "visible": [
+          {"id": "visible-result", "step_id": "step-5", "description": "The real transport failure and eventual delivery are visible; no mock success is accepted."}
+        ],
+        "backend": [
+          {"id": "backend-result", "step_id": "step-5", "description": "Declared network failure/recovery and safe receipt/idempotency evidence establish retry of the same frozen report."}
+        ],
+        "other_user": [
+          {"id": "other-user-result", "step_id": "step-5", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen", "intervention", "delivery"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "delivery": ["retry"]
+        },
+        "full_combinations": [],
+        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+      },
+      "variants": [
+        {"id": "retry", "owner": "26C", "parameters": {"delivery": "retry"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+      ]
+    }
+  ]
+}

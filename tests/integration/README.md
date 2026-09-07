@@ -31,7 +31,7 @@ table as evidence of the installed guest's environment.
 
 Task 19P's candidate backend is the pinned os-autoinst `generalhw` package.
 After the isolated `test_system_runner_cleanup_safety.py` prerequisites, run
-`/usr/bin/python3 -B tests/integration/graphical_backend.py` for a read-only
+`tools/run-tests backend` for a read-only
 package/API/dependency check. It requires neither root nor VM access and reports
 tooling readiness only. `setup.sh` includes the Perl dependency missing from
 the backend package's dependency declaration. The

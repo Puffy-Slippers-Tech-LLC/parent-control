@@ -38,7 +38,7 @@ def test_rejects_non_category_paths_and_code(checkout, name):
 
 
 def test_rejects_extra_arguments(checkout):
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         select(checkout, ['integration', 'check_future_feature', '--command', 'id'])
 
 
@@ -56,7 +56,7 @@ def test_system_selector_stays_a_single_argument(checkout):
 
 @pytest.mark.parametrize('arguments', [[], ['--artifacts', 'relative'], ['--command', 'id']])
 def test_system_rejects_invalid_options(checkout, arguments):
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         select(checkout, ['system', *arguments])
 
 

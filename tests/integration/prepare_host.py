@@ -1,3 +1,4 @@
+
 #!/usr/bin/python3
 """Create a reusable internal baseline snapshot of the existing ubuntu26.04 VM.
 

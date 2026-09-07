@@ -7,7 +7,6 @@ prefix_rule(
     match = [
         "tools/cleanup-screenshots /tmp/onpc-19p-gdm.png /tmp/onpc-future.png",
         "./tools/cleanup-screenshots /tmp/onpc-selected.png",
-        "/Data/Code/PST/parent-control/tools/cleanup-screenshots /tmp/onpc-dismissed.png",
     ],
     not_match = ["rm -f /tmp/onpc-selected.png", "pkexec tools/cleanup-screenshots /tmp/onpc-selected.png"],
 )
@@ -35,47 +34,18 @@ prefix_rule(
     not_match = ["pkexec /usr/bin/cp /etc/shadow /tmp/onpc-copy", "pkexec /tmp/onpc-test-artifacts read /etc/shadow"],
 )
 
-# Read-only privileged diagnostics: approve tools independently of temporary
-# artifact names, log dates, byte/line limits, and other read-only arguments.
-# Keep this list to utilities without file-writing or command-execution options.
-# In particular, do not add shells, interpreters, find, sed, sort, or journalctl
-# here: their unrestricted arguments can execute commands or modify files.
-prefix_rule(
-    pattern = ["pkexec", ["/usr/bin/head", "/usr/bin/tail", "/usr/bin/cat", "/usr/bin/ls", "/bin/ls", "/usr/bin/stat", "/usr/bin/wc", "/usr/bin/readlink", "/usr/bin/grep"]],
-    decision = "allow",
-    justification = "Read diagnostic files and metadata without per-path or per-option approval, including privileged test artifacts and project logs.",
-    match = [
-        "pkexec /usr/bin/head -c 1500 /tmp/onpc-graphical-smoke-n4cvanbk/testresults/result-smoke.json",
-        "pkexec /usr/bin/tail -n 200 /var/log/oh-no-parent-control/daemon/2026-09-06.log",
-        "pkexec /usr/bin/cat /tmp/onpc-future-run/testresults/result-smoke.json",
-        "pkexec /usr/bin/ls -la /tmp/onpc-future-run/testresults",
-        "pkexec /bin/ls -la /tmp/onpc-future-run/testresults",
-        "pkexec /usr/bin/stat /tmp/onpc-future-run/testresults/result-smoke.json",
-        "pkexec /usr/bin/wc -c /tmp/onpc-future-run/testresults/result-smoke.json",
-        "pkexec /usr/bin/readlink -f /var/log/oh-no-parent-control",
-        "pkexec /usr/bin/grep -n ERROR /var/log/oh-no-parent-control/daemon/2026-09-06.log",
-    ],
-    not_match = [
-        "pkexec /bin/bash -c id",
-        "pkexec /usr/bin/python3 -c print(1)",
-        "pkexec /usr/bin/find /tmp -delete",
-        "pkexec /usr/bin/sed -i s/a/b/ /tmp/result",
-        "pkexec /usr/bin/sort -o /tmp/result /tmp/input",
-        "pkexec /usr/bin/journalctl --vacuum-time=1s",
-        "pkexec /usr/bin/rm /tmp/result",
-    ],
-)
-
 # This root-owned dispatcher is bound to this checkout by setup.sh.
 # Trust includes future check_*.py tests and edits to their imported code.
 prefix_rule(
-    pattern = ["pkexec", "/usr/local/libexec/onpc-test-runner", ["integration", "system"]],
+    pattern = ["pkexec", "/usr/local/libexec/onpc-test-runner", ["integration", "system", "e2e", "vm"]],
     decision = "allow",
     justification = "Run project test categories through the installed dispatcher, with validated selection and automatic unprivileged cleanup prerequisites.",
     match = [
         "pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_worker",
         "pkexec /usr/local/libexec/onpc-test-runner integration check_future_feature",
         "pkexec /usr/local/libexec/onpc-test-runner system --area authorization --list",
+        "pkexec /usr/local/libexec/onpc-test-runner e2e --list",
+        "pkexec /usr/local/libexec/onpc-test-runner vm reboot",
     ],
     not_match = [
         "pkexec /usr/bin/python3 -B /tmp/random.py",
@@ -84,19 +54,99 @@ prefix_rule(
     ],
 )
 
-# Unit tests run unprivileged in this checkout. This prefix approves the whole
-# pytest category; trailing arguments may select the unit-test folder, any test
-# file in it, or individual test cases, with normal pytest options.
+# Quoted wildcards are expanded by this unprivileged checkout helper. It
+# validates unit paths and pytest options; trust includes edits to the helper
+# and the tests it loads. Always quote globs so the shell does not expand them.
 prefix_rule(
-    pattern = ["/usr/bin/python3", "-B", "-m", "pytest"],
+    pattern = [["tools/run-unit-tests", "./tools/run-unit-tests", "/Data/Code/PST/parent-control/tools/run-unit-tests"]],
     decision = "allow",
-    justification = "Run unprivileged project unit tests with pytest.",
+    justification = "Run unprivileged unit tests through a launcher that validates selections and expands quoted patterns inside tests/unit.",
     match = [
-        "/usr/bin/python3 -B -m pytest tests/unit -q",
-        "/usr/bin/python3 -B -m pytest tests/unit/test_future_cleanup_safety.py::test_cleanup -q",
+        "tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' tests/unit/test_graphical_lease.py -q",
+        "./tools/run-unit-tests tests/unit -q",
     ],
     not_match = [
-        "/usr/bin/python3 -m pytest tests/unit -q",
-        "/usr/bin/python3 -B tests/unit/test_graphical_transport_cleanup_safety.py",
+        "pkexec tools/run-unit-tests tests/unit",
+        "bash -lc 'tools/run-unit-tests tests/unit/*'",
     ],
+)
+
+# Each entry point validates its own arguments; no generic tools/* prefix.
+prefix_rule(
+    pattern = [["tools/run-tests", "./tools/run-tests", "/Data/Code/PST/parent-control/tools/run-tests",
+                "tools/run-ui-tests", "./tools/run-ui-tests", "/Data/Code/PST/parent-control/tools/run-ui-tests",
+                "tools/diagnose", "./tools/diagnose", "/Data/Code/PST/parent-control/tools/diagnose",
+                "tools/test-vm", "./tools/test-vm", "/Data/Code/PST/parent-control/tools/test-vm",
+                "tools/read-only", "./tools/read-only", "/Data/Code/PST/parent-control/tools/read-only"]],
+    decision = "allow",
+    justification = "Use validated category, system diagnostic, or pinned test-VM operations.",
+    match = [
+        "tools/run-tests component 'tests/component/test_*.py' -q",
+        "tools/run-tests child-node 'tests/child/**/*.test.mjs'",
+        "tools/run-tests static all",
+        "tools/run-tests artifacts build",
+        "tools/run-tests fast --component broker",
+        "tools/run-tests all",
+        "tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py' -q",
+        "tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500",
+        "tools/test-vm send-key 28",
+        "tools/read-only search --fixed-strings test_runner tests tools",
+        "tools/read-only fetch 'https://example.com/path?key=value'",
+    ],
+    not_match = ["tools/random-script", "pkexec tools/test-vm start", "bash -lc 'tools/run-tests all'"],
+)
+
+prefix_rule(
+    pattern = ["pkexec", "/usr/local/libexec/onpc-diagnostics"],
+    decision = "allow",
+    justification = "Run fixed read-only diagnostics without general root utilities or pagers.",
+    match = ["pkexec /usr/local/libexec/onpc-diagnostics journal --kernel"],
+    not_match = ["pkexec /usr/bin/journalctl --vacuum-time=1s"],
+)
+
+# Restrictive project overrides also take precedence over old global allow
+# entries. An allow cannot cancel a prompt. Use the validated entry points above.
+# No global rules are changed by setup.
+prefix_rule(
+    pattern = [["virsh", "/usr/bin/virsh", "virt-manager", "/usr/bin/virt-manager"]],
+    decision = "prompt",
+    justification = "Use tools/test-vm for the pinned guest; raw libvirt commands can target other VMs or redefine host resources.",
+)
+prefix_rule(
+    pattern = [["python3", "/usr/bin/python3", "python", "/usr/bin/python",
+                ".venv/onpc-ui-tests/bin/python"]],
+    decision = "prompt",
+    justification = "Use tools/run-tests; a general interpreter or pytest command can execute arbitrary paths and plugins.",
+)
+prefix_rule(
+    pattern = [["make", "/usr/bin/make", "env", "/usr/bin/env",
+                "bash", "/bin/bash", "/usr/bin/bash", "sh", "/bin/sh", "/usr/bin/sh"]],
+    decision = "prompt",
+    justification = "Use tools/run-tests; trailing Make options, assignments and targets can execute unrelated code.",
+)
+prefix_rule(
+    pattern = [["rg", "/usr/bin/rg", "sed", "/usr/bin/sed", "sort", "/usr/bin/sort",
+                "uniq", "/usr/bin/uniq", "gzip", "/usr/bin/gzip",
+                "curl", "/usr/bin/curl", "wget", "/usr/bin/wget"]],
+    decision = "prompt",
+    justification = "Use tools/read-only for searches, filters and HTTPS reads; unrestricted arguments can run preprocessors, overwrite files, or send modifying network requests.",
+)
+prefix_rule(
+    pattern = ["pkexec", ["make", "/usr/bin/make", "/usr/bin/python3", "/bin/bash", "/usr/bin/bash",
+                         "/bin/sh", "/usr/bin/sh", "/usr/bin/virsh", "/usr/bin/journalctl",
+                         "/usr/bin/systemctl", "/usr/bin/head", "/usr/bin/tail", "/usr/bin/cat",
+                         "/usr/bin/ls", "/bin/ls", "/usr/bin/stat", "/usr/bin/wc",
+                         "/usr/bin/readlink", "/usr/bin/grep"]],
+    decision = "prompt",
+    justification = "Use the installed test, artifact or diagnostics helper for validated privileged operations.",
+)
+prefix_rule(
+    pattern = [["journalctl", "/usr/bin/journalctl", "systemctl", "/usr/bin/systemctl"]],
+    decision = "prompt",
+    justification = "Use tools/diagnose; unrestricted options can modify the system or launch a pager.",
+)
+prefix_rule(
+    pattern = ["gdbus", "call"],
+    decision = "prompt",
+    justification = "D-Bus calls can mutate system state; use supported diagnostic or test entry points.",
 )

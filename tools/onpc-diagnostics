@@ -1,0 +1,166 @@
+#!/usr/bin/python3 -IB
+"""Read system diagnostics with fixed commands, no pagers, writes or command options."""
+
+import argparse
+from contextlib import ExitStack
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ValueError('invalid diagnostic request; use --help')
+
+
+def bounded(value):
+    number = int(value)
+    if not 0 <= number <= 1048576:
+        raise ValueError('requested limit is outside 0..1048576')
+    return number
+
+
+def text_value(value):
+    if not value or len(value) > 512 or any(ord(c) < 32 for c in value):
+        raise ValueError('invalid diagnostic value')
+    return value
+
+
+def unit(value):
+    if not re.fullmatch(r'[A-Za-z0-9_*?@.\[\]:\\-]{1,256}', value) or value.startswith('-'):
+        raise ValueError('invalid unit pattern')
+    return value
+
+
+def arguments(argv):
+    parser = Parser(description=__doc__, allow_abbrev=False)
+    commands = parser.add_subparsers(dest='action', required=True)
+    systemd = commands.add_parser('systemctl', allow_abbrev=False)
+    systemd.add_argument('operation', choices=('status', 'show', 'cat', 'list-units',
+                                             'list-unit-files', 'is-active', 'is-enabled'))
+    systemd.add_argument('units', nargs='*', type=unit)
+    systemd.add_argument('--property', action='append', default=[], type=unit)
+    journal = commands.add_parser('journal', allow_abbrev=False)
+    journal.add_argument('--unit', action='append', default=[], type=unit)
+    journal.add_argument('--lines', type=bounded, default=200)
+    journal.add_argument('--since', type=text_value)
+    journal.add_argument('--until', type=text_value)
+    journal.add_argument('--boot', type=int)
+    journal.add_argument('--kernel', action='store_true')
+    journal.add_argument('--output', choices=('short-iso', 'json'), default='short-iso')
+    for name in ('read', 'tail', 'list', 'stat'):
+        files = commands.add_parser(name, allow_abbrev=False)
+        files.add_argument('path')
+        if name in ('read', 'tail'):
+            files.add_argument('--bytes', type=bounded, default=16000)
+        if name == 'read':
+            files.add_argument('--offset', type=bounded, default=0)
+    for name in ('processes', 'disks', 'mounts', 'memory', 'cpu', 'kernel', 'network',
+                 'sockets', 'packages', 'sessions'):
+        commands.add_parser(name, allow_abbrev=False)
+    return parser.parse_args(argv)
+
+
+def command(args):
+    if args.action == 'systemctl':
+        if args.property and args.operation != 'show':
+            raise ValueError('property selection requires show')
+        return ['/usr/bin/systemctl', '--no-pager', '--no-ask-password', '--full',
+                *('--property=' + value for value in args.property),
+                args.operation, '--', *args.units]
+    if args.action == 'journal':
+        result = ['/usr/bin/journalctl', '--no-pager', '--quiet', '--lines=' + str(args.lines),
+                  '--output=' + args.output, *('--unit=' + value for value in args.unit)]
+        for key in ('since', 'until', 'boot'):
+            value = getattr(args, key)
+            if value is not None:
+                result.append('--' + key + '=' + str(value))
+        if args.kernel:
+            result.append('--dmesg')
+        return result
+    return {
+        'processes': ['/usr/bin/ps', '-eo', 'pid,ppid,uid,stat,etime,comm'],
+        'disks': ['/usr/bin/lsblk', '--json', '--output', 'NAME,TYPE,SIZE,FSTYPE,MOUNTPOINTS'],
+        'mounts': ['/usr/bin/findmnt', '--json', '--output', 'TARGET,SOURCE,FSTYPE'],
+        'memory': ['/usr/bin/free', '--bytes'],
+        'cpu': ['/usr/bin/lscpu'],
+        'kernel': ['/usr/bin/uname', '-a'],
+        'network': ['/usr/sbin/ip', '-brief', 'address', 'show'],
+        'sockets': ['/usr/bin/ss', '-lntup'],
+        'packages': ['/usr/bin/dpkg-query', '--show', '--showformat=${binary:Package}\t${Version}\n'],
+        'sessions': ['/usr/bin/loginctl', '--no-pager', '--no-ask-password', 'list-sessions'],
+    }.get(args.action)
+
+
+def file_parts(value):
+    text_value(value)
+    parts = value.split('/')
+    if parts[0] or any(part in ('', '.', '..') for part in parts[1:]):
+        raise ValueError('expected an absolute diagnostic path without traversal')
+    path = Path(value)
+    roots = ('/var/log', '/etc/systemd', '/etc/polkit-1', '/etc/apparmor.d', '/etc/fapolicyd',
+             '/usr/lib/systemd', '/usr/share/polkit-1', '/run/systemd/system',
+             '/var/lib/dpkg/info', '/Data/virt-manager/oh-no-parent-control-baseline-state')
+    if not any(path.is_relative_to(root) for root in roots):
+        raise ValueError('path is outside diagnostic storage; use ordinary readers or test-artifacts')
+    return parts[1:]
+
+
+def read_file(args):
+    parts = file_parts(args.path)
+    # Pin every component; never open symlinks, device files or blocking FIFOs.
+    with ExitStack() as stack:
+        def opened(name, flags, parent=None):
+            fd = os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+            stack.callback(os.close, fd)
+            return fd
+        parent = opened('/', os.O_RDONLY | os.O_DIRECTORY)
+        for part in parts[:-1]:
+            parent = opened(part, os.O_RDONLY | os.O_DIRECTORY, parent)
+        fd = opened(parts[-1], os.O_RDONLY | os.O_NONBLOCK, parent)
+        info = os.fstat(fd)
+        directory = stat.S_ISDIR(info.st_mode)
+        if not directory and not (stat.S_ISREG(info.st_mode) and info.st_nlink == 1):
+            raise ValueError('expected a regular singly linked file or directory')
+        if args.action == 'stat':
+            print(json.dumps({'bytes': info.st_size, 'mode': oct(stat.S_IMODE(info.st_mode)),
+                              'kind': 'directory' if directory else 'file', 'mtime_ns': info.st_mtime_ns}))
+        elif args.action == 'list' and directory:
+            print(json.dumps(sorted(os.listdir(fd))))
+        elif args.action in ('read', 'tail') and not directory:
+            offset = max(0, info.st_size - args.bytes) if args.action == 'tail' else args.offset
+            os.lseek(fd, offset, os.SEEK_SET)
+            remaining = min(args.bytes, max(0, info.st_size - offset))
+            while remaining:
+                chunk = os.read(fd, min(65536, remaining))
+                if not chunk:
+                    break
+                sys.stdout.buffer.write(chunk)
+                remaining -= len(chunk)
+        else:
+            raise ValueError('operation does not match file type')
+
+
+def main(argv=None):
+    try:
+        args = arguments(sys.argv[1:] if argv is None else argv)
+        selected = command(args)
+        if selected is None:
+            read_file(args)
+            return 0
+        env = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+               'SYSTEMD_PAGER': '', 'SYSTEMD_COLORS': '0', 'PAGER': '/bin/cat',
+               'SYSTEMD_PAGERSECURE': '1'}
+        return subprocess.run(selected, env=env, stdin=subprocess.DEVNULL,
+                              timeout=60, check=False).returncode
+    except (ValueError, OSError, subprocess.TimeoutExpired):
+        print('diagnostics: invalid request, inaccessible source, or command failure; use --help', file=sys.stderr)
+        return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main())

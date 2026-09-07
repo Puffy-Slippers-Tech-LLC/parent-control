@@ -10,6 +10,10 @@ usage() {
     echo "Usage: ./setup.sh [--codex-rules-only|--test-tools-only]"
 }
 
+install_codex_rules() {
+    /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py"
+}
+
 if (( $# > 1 )); then
     usage >&2
     exit 2
@@ -17,7 +21,7 @@ fi
 case "${1-}" in
     "") ;;
     --codex-rules-only)
-        install -D -m 0644 "$script_dir/config/codex-tests.rules" "$script_dir/.codex/rules/tests.rules"
+        install_codex_rules
         echo "setup: installed project Codex test rules; restart Codex with this project trusted"
         exit 0
         ;;
@@ -27,7 +31,7 @@ case "${1-}" in
             test_tools_install=(pkexec "${test_tools_install[@]}")
         fi
         "${test_tools_install[@]}"
-        install -D -m 0644 "$script_dir/config/codex-tests.rules" "$script_dir/.codex/rules/tests.rules"
+        install_codex_rules
         echo "setup: installed development test tools and rules; restart Codex with this project trusted"
         exit 0
         ;;
@@ -111,9 +115,12 @@ fi
     python3-libvirt=12.0.0-1build1 \
     python3-guestfs=1:1.58.1-3ubuntu3 \
     python3-pytest=9.0.2-4 \
+    python3-pytest-cov \
     python3-requests \
     python3-venv \
     qemu-utils=1:10.2.1+ds-1ubuntu3.2 \
+    curl \
+    ripgrep \
     shellcheck=0.11.0-2
 
 # The graphical backend does not need recommended host networking services or
@@ -159,7 +166,7 @@ if (( EUID != 0 )); then
     graphical_policy_install=(sudo "${graphical_policy_install[@]}")
 fi
 "${graphical_policy_install[@]}"
-install -D -m 0644 "$script_dir/config/codex-tests.rules" "$script_dir/.codex/rules/tests.rules"
+install_codex_rules
 echo "setup: installed project Codex test rules; restart Codex with this project trusted"
 
 echo "Development dependencies installed. Run: make check or make check-component"

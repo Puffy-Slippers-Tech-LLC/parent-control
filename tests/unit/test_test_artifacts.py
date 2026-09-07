@@ -111,7 +111,9 @@ def test_command_reads_bounded_byte_slices(artifact, monkeypatch, args, expected
     monkeypatch.setitem(namespace, 'CHECKOUT', str(checkout))
     monkeypatch.setitem(namespace, 'caller', lambda: (os.getuid(), os.getgid()))
     output = io.BytesIO()
-    monkeypatch.setattr(namespace['sys'], 'stdout', Mock(buffer=output))
+    # A real text stream implements fileno/isatty as argparse's public color
+    # detection expects, including with a clean launcher environment.
+    monkeypatch.setattr(namespace['sys'], 'stdout', io.TextIOWrapper(output))
     assert HELPER['main']([args[0], str(source), *args[1:]]) == 0
     assert output.getvalue() == expected
 
@@ -147,7 +149,7 @@ def test_requires_pkexec_caller_identity(monkeypatch, identity):
     ({'local': False}, False), ({'active': False}, False), ({'admin': False}, False),
 ])
 def test_actual_polkit_rule_authorizes_only_installed_helper(override, allowed):
-    request = dict(id='org.freedesktop.policykit.exec',
+    request = dict(id='com.puffyslippers.onpc.development.test-artifacts',
                    program='/usr/local/libexec/onpc-test-artifacts',
                    user='root', local=True, active=True, admin=True)
     request.update(override)

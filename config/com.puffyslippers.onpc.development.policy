@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD polkit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<policyconfig>
+  <vendor>Puffy Slippers Tech LLC</vendor>
+  <!-- Default denial is deliberate: missing scoped rules never trigger an auth dialog. -->
+  <action id="com.puffyslippers.onpc.development.test-runner">
+    <description>Run validated development tests on the configured checkout</description>
+    <message>Development test runner authorization is unavailable</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/onpc-test-runner</annotate>
+  </action>
+  <action id="com.puffyslippers.onpc.development.diagnostics">
+    <description>Read validated system diagnostics</description>
+    <message>Development diagnostics authorization is unavailable</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/onpc-diagnostics</annotate>
+  </action>
+  <action id="com.puffyslippers.onpc.development.test-artifacts">
+    <description>Inspect and export validated development test artifacts</description>
+    <message>Development test artifact authorization is unavailable</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/onpc-test-artifacts</annotate>
+  </action>
+  <action id="com.puffyslippers.onpc.development.export-screenshot">
+    <description>Export a validated graphical test screenshot</description>
+    <message>Development screenshot export authorization is unavailable</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/onpc-export-screenshot</annotate>
+  </action>
+</policyconfig>

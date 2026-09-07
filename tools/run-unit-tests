@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Run scoped, isolated UI tests after cleanup-safety prerequisites."""
+"""Run validated unit/property/contract selections from this checkout."""
 from pathlib import Path
 import sys
 
@@ -7,4 +7,4 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_launcher import main
 
 if __name__ == '__main__':
-    sys.exit(main(category='ui'))
+    sys.exit(main(category='unit'))

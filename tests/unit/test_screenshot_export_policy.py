@@ -25,7 +25,7 @@ RULE = Path(__file__).resolve().parents[2] / 'config/50-onpc-screenshot-export.r
     ({'program': None}, False),
 ])
 def test_authorization_scope(override, allowed):
-    request = dict(id='org.freedesktop.policykit.exec',
+    request = dict(id='com.puffyslippers.onpc.development.export-screenshot',
                    program='/usr/local/libexec/onpc-export-screenshot',
                    user='root', local=True, active=True, admin=True)
     request.update(override)

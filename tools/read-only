@@ -1,0 +1,79 @@
+#!/usr/bin/python3 -IB
+"""Validated unprivileged searches, text filters and public HTTPS reads."""
+import argparse
+import os
+from pathlib import Path
+import sys
+from urllib.parse import urlsplit
+
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ValueError('invalid read-only request; use --help')
+
+
+def command(argv):
+    parser = Parser(description=__doc__, allow_abbrev=False)
+    actions = parser.add_subparsers(dest='action', required=True)
+    search = actions.add_parser('search', allow_abbrev=False)
+    search.add_argument('--fixed-strings', action='store_true')
+    search.add_argument('--ignore-case', action='store_true')
+    search.add_argument('pattern')
+    search.add_argument('paths', nargs='*')
+    files = actions.add_parser('files', allow_abbrev=False)
+    files.add_argument('paths', nargs='*')
+    for name in ('sort', 'unique', 'gzip'):
+        sub = actions.add_parser(name, allow_abbrev=False)
+        sub.add_argument('paths', nargs='*')
+    slice_parser = actions.add_parser('slice', allow_abbrev=False)
+    slice_parser.add_argument('first', type=int)
+    slice_parser.add_argument('last', type=int)
+    slice_parser.add_argument('paths', nargs='*')
+    fetch = actions.add_parser('fetch', allow_abbrev=False)
+    fetch.add_argument('url')
+    args = parser.parse_args(argv)
+    if any(any(ord(c) < 32 for c in item) for item in argv):
+        raise ValueError('control characters are not supported')
+    if args.action == 'fetch':
+        url = urlsplit(args.url)
+        if url.scheme != 'https' or not url.hostname or url.username or url.password:
+            raise ValueError('expected a public HTTPS URL without credentials')
+        return ['/usr/bin/curl', '--disable', '--globoff', '-fsSL', '--proto', '=https',
+                '--proto-redir', '=https', '--max-time', '60', '--', args.url]
+    paths = args.paths
+    if args.action == 'search':
+        prefix = (['/usr/bin/rg', '--no-config', '-n'] if os.access('/usr/bin/rg', os.X_OK)
+                  else ['/usr/bin/grep', '-rn', '-F' if args.fixed_strings else '-E'])
+        return [*prefix, *(['--fixed-strings'] if args.fixed_strings else []),
+                *(['--ignore-case'] if args.ignore_case else []),
+                '--', args.pattern, *(paths or ['.'])]
+    if args.action == 'files':
+        if os.access('/usr/bin/rg', os.X_OK):
+            return ['/usr/bin/rg', '--no-config', '--files', '--', *(paths or ['.'])]
+        # Absolute operands cannot become find expressions/options. No expression
+        # comes from the caller; this fallback only prints regular-file names.
+        return ['/usr/bin/find', *(str(Path(path).absolute()) for path in paths or ['.']),
+                '-type', 'f', '-print']
+    if args.action in ('sort', 'unique'):
+        return ['/usr/bin/sort', *(['-u'] if args.action == 'unique' else []), '--', *paths]
+    if args.action == 'gzip':
+        return ['/usr/bin/gzip', '-dc', '--', *paths]
+    if not 1 <= args.first <= args.last <= 10000000:
+        raise ValueError('invalid inclusive line interval')
+    return ['/usr/bin/sed', '-n', f'{args.first},{args.last}p', '--', *paths]
+
+
+def main(argv=None):
+    try:
+        if os.geteuid() == 0:
+            raise ValueError('use this reader without privilege')
+        selected = command(sys.argv[1:] if argv is None else argv)
+        env = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
+        os.execve(selected[0], selected, env)
+    except (ValueError, OSError):
+        print('read-only: invalid request or execution failure; use --help', file=sys.stderr)
+        return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main())

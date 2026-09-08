@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / 'tests/e2e'))
 import evidence
 import execution
 import e2e_worker
-from private_artifacts import PrivateCollector
+from private_artifacts import EvidenceError, PrivateCollector
 sys.path.pop(0)
 REAL_BOOTSTRAP = execution.system.bootstrap
 
@@ -228,6 +228,59 @@ def test_preparation_failure_retains_diagnostics_and_only_owned_cleanup(harness,
     else:
         harness.source.close.assert_not_called()
     assert 'private-canary' not in json.dumps(documents(harness))
+
+
+@pytest.mark.parametrize('boundary', ['preflight', 'capture', 'contract'])
+@pytest.mark.parametrize('code', [
+    'provenance:source-changed', 'provenance:assets-changed', 'provenance:baseline-changed',
+])
+def test_pre_recorder_provenance_refusal_survives_owned_cleanup(harness, monkeypatch, boundary, code):
+    error = EvidenceError(code)
+    if boundary == 'preflight':
+        execution.preflight_source.side_effect = error
+    elif boundary == 'capture':
+        monkeypatch.setattr(execution, 'VerifiedInputs', Mock(side_effect=error))
+    else:
+        monkeypatch.setattr(execution.VerifiedInputs, 'contract', Mock(side_effect=error))
+    # Later connection cleanup cannot replace the first, specific refusal.
+    harness.source.close.side_effect = RuntimeError('private-canary-close')
+    result = run(harness)
+    expected = {'category': 'infrastructure', 'code': code}
+    assert result['outcome'] == 'failed'
+    assert result['first_failure'] == expected
+    assert result['outcomes']['infrastructure']['category'] == code
+    assert result['acceptance_candidate'] is None
+    harness.worker.assert_not_called()
+    records = documents(harness)
+    assert not any(d.get('event') == 'case-started' for d in records)
+    if boundary == 'preflight':
+        assert not harness.leases
+        execution.open_source.assert_not_called()
+    else:
+        assert next(d for d in records if d.get('event') == 'before-lease-cleanup')['first_failure'] == expected
+        harness.leases[0].finish.assert_called_once()
+        harness.leases[0].release.assert_called_once()
+        harness.source.close.assert_called_once()
+        assert result['outcomes']['cleanup']['outcome'] == 'failed'
+    assert records[-1]['first_failure'] == expected
+    assert 'private-canary' not in json.dumps([result, records])
+
+
+@pytest.mark.parametrize('error', [
+    EvidenceError('provenance:private-canary'),
+    EvidenceError('provenance:source-changed private-canary'),
+    EvidenceError('provenance:source-changed', 'private-canary'),
+    EvidenceError({'private-canary': 'value'}),
+    RuntimeError('provenance:source-changed'),
+])
+def test_pre_recorder_exception_text_is_never_exported(harness, monkeypatch, error):
+    monkeypatch.setattr(execution.VerifiedInputs, 'contract', Mock(side_effect=error))
+    result = run(harness)
+    assert result['first_failure'] == {'category': 'infrastructure', 'code': 'execution:attempt-failed'}
+    assert 'private-canary' not in json.dumps([result, documents(harness)])
+    harness.worker.assert_not_called()
+    harness.leases[0].finish.assert_called_once()
+    harness.leases[0].release.assert_called_once()
 
 
 @pytest.mark.parametrize('interrupt', [False, True])

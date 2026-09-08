@@ -89,6 +89,11 @@ The sole canonical smoke is harness coverage, with no product requirement IDs
 or customer acceptance claim. Host/source/baseline preservation and held-lease
 terminal evidence remain the existing controller's responsibility. Test-tool
 activation is `none` (next invocation); no setup or product data change is needed.
+Before a scenario recorder exists, the invocation retains reviewed, fixed
+provenance refusal codes through cleanup. Unknown exception text stays private
+and produces `execution:attempt-failed`; a later cleanup failure cannot replace
+the first refusal. A source-change refusal requires an unchanged checkout for
+the next complete attempt, including preparation and terminal collection.
 Before lease acquisition, the controller fsyncs a private
 `input/selected-inputs.json` containing the source preflight identity, inventory
 identity and exact case. The shared SSH bootstrap binds its guest observation

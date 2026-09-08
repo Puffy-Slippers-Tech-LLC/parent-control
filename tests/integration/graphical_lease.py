@@ -38,6 +38,7 @@ class Adapter:
         self.run = lease.state['run']
         self.phase = 'initial'
         self.display = None
+        self.serial = None
 
     def revalidate(self):
         try:
@@ -45,8 +46,15 @@ class Adapter:
                     self.lease.state['run'] == self.run, 'graphics:expired-lease')
             self.lease.guard()
         except BaseException:
-            self.close_display()
+            try:
+                self.close_serial()
+            finally:
+                self.close_display()
             raise
+
+    def close_serial(self):
+        if self.serial is not None:
+            self.serial.close()
 
     def close_display(self):
         if self.display is not None:
@@ -125,6 +133,10 @@ class Adapter:
         if action == 'status':
             return 'off' if self.lease.view.snapshot()[1] else 'on'
         if action == 'off':
+            # generalhw begins with an off-state assertion before power-on.
+            # Preserve the prepared pipes until the actual running shutdown.
+            if self.phase not in ('initial', 'ready'):
+                self.close_serial()
             self.close_display()
             # Initial poweroff is an asserted, guarded off state. Subsequent
             # poweroff stops only the instance the lease recorded at start.
@@ -231,8 +243,13 @@ class CallbackServer:
                 raise
 
     def close(self):
-        self.adapter.close_display()
-        self.listener.close()
+        try:
+            self.adapter.close_serial()
+        finally:
+            try:
+                self.adapter.close_display()
+            finally:
+                self.listener.close()
 
 
 def callback(path, run, action):

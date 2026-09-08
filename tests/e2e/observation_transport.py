@@ -32,19 +32,30 @@ class ReadOnlyObservations:
         """
         require(not self._failed, 'observation:previous-failure')
         try:
-            require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session'),
+            require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session',
+                                                      'serial-password', 'serial-session'),
                     'observation:unknown-probe')
             program, timeout = {
                 'assets': (guest_observations.ASSETS, 120),
                 'greeter': (guest_observations.GREETER, 110),
                 'parent-session': (guest_observations.PARENT_SESSION, 110),
+                'serial-password': (guest_observations.SERIAL_PASSWORD, 20),
+                'serial-session': (guest_observations.SERIAL_SESSION, 110),
             }[name]
             self._guard()
             raw = self._transport.call(['/usr/bin/python3', '-c', program], timeout=timeout)
             self._guard()
             require(isinstance(raw, bytes) and 0 < len(raw) <= 1024,
                     'observation:invalid-output')
-            if name == 'parent-session':
+            if name == 'serial-password':
+                require(raw == b'serial-password-safe\n', 'observation:invalid-output')
+                result = {'serial_login_process_verified': True,
+                          'terminal_echo_disabled': True}
+            elif name == 'serial-session':
+                require(raw == b'serial-session-ready\n', 'observation:invalid-output')
+                result = {'fixture_role': 'parent', 'active_local_serial_session': True,
+                          'unexpected_user_session': False}
+            elif name == 'parent-session':
                 require(raw == b'parent-session-ready\n', 'observation:invalid-output')
                 result = {'fixture_role': 'parent', 'active_local_graphical_session': True,
                           'unexpected_user_session': False}

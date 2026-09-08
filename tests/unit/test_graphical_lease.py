@@ -116,6 +116,21 @@ def start_adapter(lease):
     return adapter
 
 
+def test_serial_pipes_survive_initial_off_and_close_before_actual_stop(prepared):
+    lease, _ = prepared
+    adapter = graphical.Adapter(lease)
+    adapter.serial = Mock()
+    adapter.request('off', adapter.run)
+    adapter.request('off', adapter.run)
+    adapter.serial.close.assert_not_called()
+    adapter.request('on', adapter.run)
+    def closed():
+        assert not lease.view.snapshot()[1]
+    adapter.serial.close.side_effect = closed
+    adapter.request('off', adapter.run)
+    adapter.serial.close.assert_called_once()
+
+
 def test_graphics_uses_public_fd_and_stop_revokes_transferred_duplicate(prepared):
     lease, _ = prepared
     adapter = start_adapter(lease)

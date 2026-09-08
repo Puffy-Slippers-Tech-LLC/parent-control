@@ -29,6 +29,12 @@ def observer():
     ('parent-session', guest_observations.PARENT_SESSION, 110,
      {'fixture_role': 'parent', 'active_local_graphical_session': True,
       'unexpected_user_session': False}, b'parent-session-ready\n'),
+    ('serial-password', guest_observations.SERIAL_PASSWORD, 20,
+     {'serial_login_process_verified': True,
+      'terminal_echo_disabled': True}, b'serial-password-safe\n'),
+    ('serial-session', guest_observations.SERIAL_SESSION, 110,
+     {'fixture_role': 'parent', 'active_local_serial_session': True,
+      'unexpected_user_session': False}, b'serial-session-ready\n'),
 ])
 def test_fixed_probe_checks_ownership_before_and_after_output(observer, name, program, timeout, result, raw):
     reader, transport = observer
@@ -130,16 +136,21 @@ def test_authentication_requires_exact_safe_success(observer, raw):
         reader.read('parent-session')
 
 
+@pytest.mark.parametrize('serial', [False, True])
 @pytest.mark.parametrize('fault', [None, 'wrong-user', 'inactive', 'remote', 'tty',
                                   'wrong-service', 'greeter', 'duplicate', 'other-session'])
-def test_actual_guest_authentication_probe_rejects_wrong_sessions(fault, capsys):
+def test_actual_guest_authentication_probe_rejects_wrong_sessions(fault, capsys, serial):
     from types import SimpleNamespace
     from unittest.mock import patch
     parent = dict(Class='user', Active='yes', Remote='no', Type='wayland',
                   Service='gdm-password', User='1234')
+    if serial:
+        parent.update(Type='tty', TTY='ttyS0', Service='login')
     fields = {'wrong-user': ('User', '9876'), 'inactive': ('Active', 'no'),
               'remote': ('Remote', 'yes'), 'tty': ('Type', 'tty'),
               'wrong-service': ('Service', 'sshd'), 'greeter': ('Class', 'greeter')}
+    if serial:
+        fields['tty'] = ('TTY', 'ttyS1')
     if fault in fields:
         key, value = fields[fault]
         parent[key] = value
@@ -163,8 +174,9 @@ def test_actual_guest_authentication_probe_rejects_wrong_sessions(fault, capsys)
     with patch.dict(sys.modules, modules):
         if fault:
             with pytest.raises(SystemExit) as caught:
-                exec(guest_observations.PARENT_SESSION, {})
+                exec(guest_observations.SERIAL_SESSION if serial else guest_observations.PARENT_SESSION, {})
             assert caught.value.code == 1
         else:
-            exec(guest_observations.PARENT_SESSION, {})
-    assert capsys.readouterr().out == ('parent-session-not-ready\n' if fault else 'parent-session-ready\n')
+            exec(guest_observations.SERIAL_SESSION if serial else guest_observations.PARENT_SESSION, {})
+    prefix = 'serial' if serial else 'parent'
+    assert capsys.readouterr().out == prefix + ('-session-not-ready\n' if fault else '-session-ready\n')

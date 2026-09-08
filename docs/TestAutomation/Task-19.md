@@ -138,47 +138,50 @@ for the remaining boundary; do not rebuild already implemented interfaces.
 
 ### Task 19A continuation — 2026-09-07
 
-**Solid progress:** actual fixture GDM authentication now passes on the existing
-guarded VM. Reviewed account needles replace first-tile geometry. The parent
-password needle refuses the account list and the other fixture parent's prompt,
-then matches the intended identity, empty field/visibility control and focus
-outline at 100%. Public secret-safe password input produces an independently
-verified active local fixture session. The complete run passed infrastructure,
-collection, shutdown, baseline restoration and source/host preservation.
+**Solid progress:** the missing public serial command now has live evidence:
+exclusive attachment to the existing lease-owned serial device, real fixture
+password input, independently verified local serial login, actual shell
+readiness, fixed command output, logout and graphical-console return.
+The [serial evidence](Evidence/19A-Serial-20260907.md) retains five attempts and
+all input identities. The final controller/module results pass and source,
+host, collection and baseline cleanup are verified. All 156 variants remain pending.
 
-**Evidence:** [authentication record](Evidence/19A-Authentication-20260907.md)
-retains all three attempts, source/needle digests and private paths. First
-selection failed at 96% because tightly masked needle edges affected blur;
-retaining surrounding fixture pixels fixed it without reducing the threshold.
-Corrected selection passed in 560.444 seconds; authentication passed in 908.051
-seconds. Preserve the original failure. Final focused checks: 218 passed (72367).
-`make check`: 2,334 unit/contracts, 17 components and syntax/traceability passed
-(89531); `git diff --check` passed. Later edits are documentation and the credential entry point's
-descriptive docstring; runtime/needle bytes remain those of the live pass.
-No package artifact is nominated; obtain current inputs when one is needed.
+**Acceptance gap discovered:** the final raw trace emits a generalhw
+shutdown-status diagnostic: its expected status-1 response while the VM is on
+throws under upstream `autodie`, despite the module-based exit policy returning
+zero. Owned poweroff and outer restoration passed. **19A is not accepted.**
+Next eliminate that diagnostic using supported public lifecycle behavior and
+prevent unexplained backend failures being hidden by a module pass; do not
+fake off-state or patch backend internals. Then wire public
+`runner.preflight/main` to real `ScenarioRecorder`/`EvidenceContract` execution.
+It still refuses with `e2e:execution-controller-unfinished`.
 
-**Next observable result:** execute one harmless command through the supported
-public serial console, retain its evidence, and finish guarded cleanup. Reuse
-the proven credentials, reviewed GDM login, observation capability and lease.
-Do not repeat provisioning or needle discovery. Read `e2e_worker.variables`
-(serial is still disabled), `graphical_lease.Adapter`, distribution `main.pm`,
-and the [credential/observation contract](../../tests/e2e/README.md#credential-staging-and-password-capture-boundary).
-After serial execution, wire public `runner.preflight/main` to real scenario
-evidence; it still refuses with `e2e:execution-controller-unfinished`.
-Complete 19A acceptance afterward. All 156 variants remain pending.
+**Reuse / next reads:** `graphical_serial.SerialConsole`,
+`graphical_lease.lifecycle_variables`, public `testapi::power`,
+`e2e_worker.run_distribution`, and the
+[serial contract](../../tests/e2e/README.md#public-serial-console-qualification).
+The SOL grabber stays disabled; the public bidirectional pipe console is enabled
+separately. Do not repeat needle/provisioning discovery. Fixes already proven:
+initial-off pipe lifetime, login's wiped argv, CRCRLF normalization, no-echo
+verification, shell readiness and control-tolerant output matching. Four earlier
+failures remain retained; each corrected attempt addressed new evidence.
+
+**Verification/state:** final focused selection 95 passed. `make check` (7100):
+2,391 unit/contracts, 17 components, syntax and traceability passed; 57 new
+host cases. `git diff --check` passed. Successful live handle 73411 exited zero
+in 634.743 seconds; result
+`/tmp/onpc-graphical-smoke-ufk7y6s8/result.json`. All handles exited, lease
+complete, baseline restored, VM confirmed off (`state=5, id=-1`).
+No screenshot exports or recovery remain. Subsequent edits are documentation
+only; no package artifact is nominated.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** fixture authentication now has real positive/negative evidence;
-console ownership, secret handling and scenario evidence still need security
-reasoning. **Remaining 19A planning estimate:** 3–5 sessions / 4–8 hours,
-low confidence until the serial command passes; reassess after that checkpoint.
-This covers console integration, launcher/evidence wiring and acceptance,
-excluding Task 19B and customer scenarios.
-
-**State:** dev host and pinned VM only. All command handles exited, all leases
-completed, and final VM status was off (`state=5`, `id=-1`). Four temporary
-review/derived PNGs were cleaned through the approved helper. Original private
-evidence is preserved; no operation needs recovery.
+**Reason:** console/authentication now work, but truthful backend outcomes,
+ownership and public evidence integration still need security reasoning.
+**Remaining 19A estimate:** **2–3 sessions / 3–5 hours**, moderate-to-low
+confidence; includes status correction, launcher/evidence wiring and acceptance,
+excluding 19B/customer scenarios. The five investigative attempts consumed
+63.95 minutes of live-run time; the extended session closed the command boundary.
 
 ## Task 19B
 

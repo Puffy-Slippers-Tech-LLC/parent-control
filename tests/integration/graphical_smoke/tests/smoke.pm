@@ -5,6 +5,7 @@ use testapi;
 use JSON::PP;
 use Time::HiRes qw(time sleep);
 use onpc_password ();
+use onpc_serial ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -50,6 +51,9 @@ sub run {
     die 'smoke:keyboard-no-change' unless wait_screen_change(sub { send_key('esc'); }, 15);
     wait_still_screen(1, 10);
     capture('dismissed');
+    if ($ready->{serial}) {
+        onpc_serial::run(\&exchange);
+    }
     if ($ready->{authenticate}) {
         # Prove the role-specific password needle refuses the account list
         # before allowing any secret operation. A failed assertion stops here.

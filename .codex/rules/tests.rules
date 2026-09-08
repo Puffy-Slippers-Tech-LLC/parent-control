@@ -91,6 +91,8 @@ prefix_rule(
         "tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500",
         "tools/test-vm send-key 28",
         "tools/read-only search --fixed-strings test_runner tests tools",
+        "tools/read-only links docs/TestAutomation/Continuation.md tests/e2e/README.md",
+        "tools/read-only words --after '### Active handoff' docs/TestAutomation/Task-19.md",
         "tools/read-only fetch 'https://example.com/path?key=value'",
     ],
     not_match = ["tools/random-script", "pkexec tools/test-vm start", "bash -lc 'tools/run-tests all'"],
@@ -102,6 +104,26 @@ prefix_rule(
     justification = "Run fixed read-only diagnostics without general root utilities or pagers.",
     match = ["pkexec /usr/local/libexec/onpc-diagnostics journal --kernel"],
     not_match = ["pkexec /usr/bin/journalctl --vacuum-time=1s"],
+)
+
+# Slice inspection runs through its isolated, executable checkout entry point.
+# Keep this separate from Python: an allow cannot override the interpreter
+# prompt, and neither --help nor a script filename makes arbitrary code safe.
+prefix_rule(
+    pattern = [["tools/codex_slices.py", "./tools/codex_slices.py", "/Data/Code/PST/parent-control/tools/codex_slices.py"],
+               ["--help", "-h", "status"]],
+    decision = "allow",
+    justification = "Inspect the trusted slice launcher's help or saved status; these routes do not start workers or change control state.",
+    match = ["tools/codex_slices.py --help", "./tools/codex_slices.py -h", "tools/codex_slices.py status"],
+    not_match = ["python3 tools/codex_slices.py --help", "tools/codex_slices.py start", "tools/random.py --help"],
+)
+prefix_rule(
+    pattern = [["tools/codex_slices.py", "./tools/codex_slices.py", "/Data/Code/PST/parent-control/tools/codex_slices.py"],
+               ["start", "run", "stop", "--max-slices", "--max-api-retries", "--reconciled"]],
+    decision = "prompt",
+    justification = "Starting or controlling unattended Codex workers needs authorization for that work; only help and status are preapproved.",
+    match = ["tools/codex_slices.py start --max-slices 1", "tools/codex_slices.py stop"],
+    not_match = ["tools/codex_slices.py --help", "tools/codex_slices.py status"],
 )
 
 # Restrictive project overrides also take precedence over old global allow
@@ -116,7 +138,7 @@ prefix_rule(
     pattern = [["python3", "/usr/bin/python3", "python", "/usr/bin/python",
                 ".venv/onpc-ui-tests/bin/python"]],
     decision = "prompt",
-    justification = "Use tools/run-tests; a general interpreter or pytest command can execute arbitrary paths and plugins.",
+    justification = "Use tools/run-tests for tests, tools/read-only for document checks, tools/codex_slices.py for inspection, or native apply_patch for edits; general Python can execute arbitrary code.",
 )
 # Routine Make targets are explicitly authorized in this trusted checkout.
 # A blanket make prompt would override both this rule and saved target allows.
@@ -145,7 +167,7 @@ prefix_rule(
 prefix_rule(
     pattern = [["env", "/usr/bin/env", "bash", "/bin/bash", "/usr/bin/bash", "sh", "/bin/sh", "/usr/bin/sh"]],
     decision = "prompt",
-    justification = "Use direct approved commands or validated helpers; unrestricted shell scripts and environment wrappers need separate approval.",
+    justification = "Use direct approved commands; tools/read-only handles quoted --path-glob searches, links and words, and native apply_patch handles workspace edits. General shell scripts need separate approval.",
 )
 prefix_rule(
     pattern = [["sort", "/usr/bin/sort",

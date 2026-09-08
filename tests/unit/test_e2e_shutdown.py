@@ -13,15 +13,25 @@ use warnings;
 use JSON::PP;
 our $mode = shift;
 our @events;
+our $selected = '';
 BEGIN { $INC{'testapi.pm'} = 1; $INC{'basetest.pm'} = 1; }
 package basetest;
 sub new { bless {}, shift; }
 package testapi;
 use Exporter 'import';
-our @EXPORT = qw(wait_still_screen wait_screen_change assert_and_click send_key
+our @EXPORT = qw(wait_still_screen assert_and_click send_key select_console
                  check_screen record_info console power check_shutdown);
 sub wait_still_screen { }
-sub wait_screen_change { $_[0]->(); return 1; }
+sub current_console { return $main::selected; }
+sub select_console {
+    die 'wrong initial console' unless @_ == 1 && $_[0] eq 'sut';
+    push @main::events, 'select-graphics';
+    $main::selected = $_[0];
+}
+sub assert_screen {
+    push @main::events, 'match';
+    return 1;
+}
 sub assert_and_click { }
 sub send_key { }
 sub check_screen { return 0; }
@@ -49,7 +59,6 @@ package main;
 require shift;
 {
     no warnings 'redefine';
-    *sleep = sub {};
     *capture = sub {
         push @events, $_[0];
         die 'private-canary' if $mode eq 'step-error';
@@ -81,6 +90,7 @@ def test_complete_attempt_powers_off_and_verifies_before_success(mode):
     events = data['events']
     assert bool(data['ok']) == (mode in ('plain', 'serial', 'authenticated'))
     if data['ok']:
+        assert events.index('select-graphics') < events.index('match') < events.index('gdm')
         assert events[-4:] == ['disable-vnc', 'poweroff', 'verify-off', 'record:shutdown']
         completed_stage = {'plain': 'dismissed', 'serial': 'serial-complete',
                            'authenticated': 'authenticated'}[mode]

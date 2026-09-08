@@ -6,6 +6,7 @@ use JSON::PP;
 use Time::HiRes qw(time sleep);
 use onpc_password ();
 use onpc_serial ();
+use onpc_gdm ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -34,22 +35,16 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
-    # The guest-side greeter session can become active while Plymouth is still
-    # handing the display to GDM.  Give that supported session transition time
-    # to render before asking for a stable feasibility capture.  Task 19B will
-    # replace this fixed-baseline settling period with needle-based readiness.
-    sleep 10;
-    wait_still_screen(2, 30);
+    # generalhw opens graphics during boot without setting testapi's selected
+    # console. Establish that public selection before checking its identity.
+    select_console('sut');
+    # Backend/session readiness can precede GDM rendering. Wait for the
+    # reviewed account region instead of sleeping through that transition.
+    onpc_gdm::wait_list(90);
     my $screen = capture('gdm');
-    # Match only the reviewed canonical fixture label. The match area's center
-    # is inside that account tile; no baseline ordering/coordinate fallback.
-    die 'smoke:mouse-no-change' unless wait_screen_change(sub {
-        assert_and_click('onpc-gdm-parent-account', timeout => 30, mousehide => 1);
-    }, 15);
-    wait_still_screen(1, 10);
+    onpc_gdm::select_parent();
     capture('selected');
-    die 'smoke:keyboard-no-change' unless wait_screen_change(sub { send_key('esc'); }, 15);
-    wait_still_screen(1, 10);
+    onpc_gdm::dismiss_prompt();
     capture('dismissed');
     if ($ready->{serial}) {
         onpc_serial::run(\&exchange);
@@ -62,8 +57,8 @@ sub run {
         wait_still_screen(1, 10);
         die 'smoke:wrong-role-prompt' if check_screen('onpc-gdm-parent-masked-password', 1);
         record_info('prompt-refusal', 'Parent password needle refused the account list and other fixture prompt.');
-        send_key('esc');
-        assert_and_click('onpc-gdm-parent-account', timeout => 30, mousehide => 1);
+        onpc_gdm::dismiss_prompt();
+        onpc_gdm::select_parent();
         onpc_password::enter_password('parent', 'gdm');
         send_key('ret');
         # The controller waits for the actual canonical fixture's local GDM

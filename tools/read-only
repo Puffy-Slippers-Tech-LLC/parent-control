@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Validated unprivileged searches, text filters and public HTTPS reads."""
+"""Validated unprivileged searches, document checks, filters and public HTTPS reads."""
 import argparse
 import glob
 import os
@@ -40,9 +40,29 @@ def command(argv):
     slice_parser.add_argument('paths', nargs='*')
     fetch = actions.add_parser('fetch', allow_abbrev=False)
     fetch.add_argument('url')
+    links = actions.add_parser('links', allow_abbrev=False,
+                               help='check local inline Markdown link destinations without fetching URLs')
+    links.add_argument('paths', nargs='+')
+    words = actions.add_parser('words', allow_abbrev=False,
+                               help='count source words in a file or between exact text markers')
+    words.add_argument('--after')
+    words.add_argument('--before')
+    words.add_argument('path')
     args = parser.parse_args(argv)
     if any(any(ord(c) < 32 for c in item) for item in argv):
         raise ValueError('control characters are not supported')
+    if args.action in ('links', 'words'):
+        selected = ['/usr/bin/python3', '-IB', str(Path(__file__).with_name('document_checks.py').resolve()),
+                    args.action]
+        if args.action == 'links':
+            return [*selected, '--', *args.paths]
+        for name in ('after', 'before'):
+            value = getattr(args, name)
+            if value is not None:
+                if not value:
+                    raise ValueError('text markers must not be empty')
+                selected.append(f'--{name}={value}')
+        return [*selected, '--', args.path]
     if args.action == 'fetch':
         url = urlsplit(args.url)
         if url.scheme != 'https' or not url.hostname or url.username or url.password:

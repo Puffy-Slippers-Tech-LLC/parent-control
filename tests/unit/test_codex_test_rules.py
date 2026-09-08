@@ -1,6 +1,7 @@
 """Routine commands stay approved; scoped restrictions dominate saved allows."""
 import ast
 from pathlib import Path
+import runpy
 import shlex
 import shutil
 import subprocess
@@ -14,6 +15,15 @@ BASELINE_SEARCH = [
     '--glob', '/tools/*baseline*', '--glob', '/tools/*baseline*/**',
     '--glob', '/tests/integration/baseline*', '--glob', '/tests/integration/baseline*/**',
     '.',
+]
+SETUP_PATTERN = 'codex_slices|codex-slices|apply_patch|execpolicy|codex-rules'
+SETUP_PATHS = [
+    'setup.sh', 'docs/TestAutomation/Unattended-Sessions.md',
+    'docs/TestAutomation/Unattended-Prompt.md', 'tests/unit/test_codex_slices.py',
+]
+SETUP_SEARCH = [
+    'tools/read-only', 'search', '--path-glob', 'tools/setup*',
+    SETUP_PATTERN, *SETUP_PATHS,
 ]
 
 
@@ -32,12 +42,96 @@ def matches(pattern, argv):
                                             else value == token for token, value in zip(pattern, argv))
 
 
+@pytest.mark.parametrize('entrypoint', [
+    'tools/codex_slices.py', './tools/codex_slices.py', '@CHECKOUT@/tools/codex_slices.py',
+])
+@pytest.mark.parametrize('action', ['--help', '-h', 'status'])
+def test_slice_inspection_has_only_allow_matches(entrypoint, action):
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    assert {rule['decision'] for rule in rules
+            if matches(rule['pattern'], [entrypoint, action])} == {'allow'}
+
+
+@pytest.mark.parametrize('command', [
+    'python3 tools/codex_slices.py --help', 'python3 -',
+    'python3 -c arbitrary', '/usr/bin/python3 tools/codex_slices.py status',
+    'tools/codex_slices.py start --max-slices 1', 'tools/codex_slices.py run',
+    './tools/codex_slices.py stop', 'tools/codex_slices.py --reconciled start',
+])
+def test_inspection_allowance_does_not_cancel_interpreter_or_worker_prompts(command):
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    assert {rule['decision'] for rule in rules
+            if matches(rule['pattern'], shlex.split(command))} == {'prompt'}
+
+
+@pytest.mark.parametrize('command', [
+    'tools/random.py --help', 'tools/codex_slices.py --max-slices=1 start',
+    'tools/codex_slices.py --command arbitrary', 'tools/codex_slices.py',
+    'pkexec tools/codex_slices.py status', 'apply_patch arbitrary',
+])
+def test_inspection_does_not_grant_other_programs_or_unrecognized_argument_forms(command):
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    assert not any(rule['decision'] == 'allow' and matches(rule['pattern'], shlex.split(command))
+                   for rule in rules)
+
+
+@pytest.mark.parametrize('script', [
+    f'rg -n {shlex.quote(SETUP_PATTERN)} setup.sh tools/setup* '
+    + shlex.join(SETUP_PATHS[1:]),
+    "python3 - <<'PY'\nfrom pathlib import Path\n"
+    "p = Path('docs/TestAutomation/Task-19.md')\np.write_text('updated')\nPY",
+])
+def test_reported_opaque_scripts_keep_shell_prompt(script):
+    # Evaluate the unsplit argv from the actual approval report. Do not claim
+    # that shlex splitting a script tests Codex's command-tool shell parser.
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    assert {rule['decision'] for rule in rules
+            if matches(rule['pattern'], ['/bin/bash', '-lc', script])} == {'prompt'}
+
+
+def test_reported_setup_search_uses_existing_generic_reader_allowance():
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    assert {rule['decision'] for rule in rules
+            if matches(rule['pattern'], SETUP_SEARCH)} == {'allow'}
+
+
+@pytest.mark.parametrize('unsafe', ['missing', 'not-executable', 'symlink'])
+def test_renderer_requires_inspection_launcher_and_preserves_quoted_checkout_paths(tmp_path, unsafe):
+    root = tmp_path / 'checkout with "quotes"'
+    (root / 'tools').mkdir(parents=True)
+    (root / 'config').mkdir()
+    (root / 'config/codex-tests.rules').write_bytes((ROOT / 'config/codex-tests.rules').read_bytes())
+    for name in ('run-unit-tests', 'run-ui-tests', 'run-tests', 'diagnose', 'test-vm',
+                 'cleanup-screenshots', 'read-only'):
+        (root / 'tools' / name).touch(mode=0o755)
+    launcher = root / 'tools/codex_slices.py'
+    if unsafe == 'not-executable':
+        launcher.touch(mode=0o644)
+    elif unsafe == 'symlink':
+        launcher.symlink_to(root / 'tools/read-only')
+    installer = runpy.run_path(str(ROOT / 'tools/install_codex_rules.py'))
+    with pytest.raises(ValueError, match='missing or nonexecutable launcher'):
+        installer['render'](root)
+    launcher.unlink(missing_ok=True)
+    launcher.touch(mode=0o755)
+    rendered = installer['render'](root)
+    assert installer['render'](root) == rendered
+    rules = []
+    for statement in ast.parse(rendered).body:
+        rules.append({key.arg: ast.literal_eval(key.value) for key in statement.value.keywords})
+    assert {rule['decision'] for rule in rules
+            if matches(rule['pattern'], [str(launcher), '--help'])} == {'allow'}
+
+
 @pytest.mark.parametrize('command', [
     "tools/run-tests component 'tests/component/test_*.py' -q",
     "tools/run-tests child-node 'tests/child/**/*.test.js'", 'tools/run-tests static',
     'tools/run-tests artifacts build', 'tools/run-tests fast --type contract',
     'tools/run-tests all', 'tools/run-tests e2e --list',
     "tools/read-only search --path-glob 'tests/integration/fixture*' 'password|credential|parent2|child2' tests/fixtures",
+    'tools/read-only links docs/TestAutomation/Continuation.md docs/TestAutomation/Task-19.md tests/e2e/README.md',
+    "tools/read-only words --after '### Task 19B continuation — 2026-09-08' docs/TestAutomation/Task-19.md",
+    "tools/read-only words --after '### Future task' --before '### Next task' docs/future.md",
     "tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py'",
     'tools/diagnose journal --lines 900', 'tools/test-vm reboot',
     'pkexec /usr/local/libexec/onpc-test-runner vm stop',

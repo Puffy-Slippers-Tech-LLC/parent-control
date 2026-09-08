@@ -26,7 +26,7 @@ review changes no task order or completion status.
 - Graphical declarations, input provenance, evidence gate and private collection:
   [E2E contracts](../../tests/e2e/README.md). `ScenarioRecorder` and the shared
   worker and public authenticated dispatch have live E2E-034 acceptance. Reuse
-  the [19B handoff](Task-19.md#task-19b-continuation--2026-09-07) for current limits.
+  the [19B handoff](Task-19.md#task-19b-continuation--2026-09-08) for current limits.
 - Native/Flatpak process and package assets:
   [artifact contract](../../tests/integration/README.md#package-and-fixture-inputs).
   Snap and real-game delivery remain work; sleeping fixtures cannot prove gameplay.
@@ -38,7 +38,7 @@ review changes no task order or completion status.
 
 | Task | Reuse and opportunity | Quality boundary to retain |
 | --- | --- | --- |
-| [19B](Task-19.md#task-19b) | Add needles/readiness to the accepted public controller; reuse `controller_qualification.py`, the recorded stages and same-lease helpers. Reconcile shared E2E-001/E2E-034 scope as they converge. | Three complete qualification smokes for the changed harness; actual input, screen and console evidence. Ordinary runs must not multiply implementation-only qualification. |
+| [19B](Task-19.md#task-19b) | Add needles/readiness to the accepted public controller; reuse `controller_qualification.py`, the recorded stages and same-lease helpers. E2E-001 now supersedes E2E-034; retain one canonical ordinary smoke. | Three complete qualification smokes for the changed harness; actual input, screen and console evidence. Ordinary runs must not multiply implementation-only qualification. |
 | [20](Task-20.md) | Reuse package assertions and asset transport for E2E-002 and startup faults. | Actual authenticated installation/reboot, independent broker and fapolicyd readiness; resolve installation requirement links. |
 | [15A](Task-15.md#task-15a) | Extend F1 with one installed enforcement area and native/Snap/Flatpak case data; publish launch witnesses for 25A. | Every required platform, route, identity/matching boundary and other-user outcome. |
 | [15B](Task-15.md#task-15b) | One owned-process controller and rollback witness set serves later 17B/21B/25B/26A. | Kernel identity, all relevant sessions, irreversible partial termination and unrelated-process survival. |
@@ -54,8 +54,9 @@ review changes no task order or completion status.
 
 Use `tests/e2e/scenarios.json` as the starting inventory, inspect only assigned
 families, and extend gaps instead of creating a second list. The review found
-33 families / 156 pending variants from the original matrix, plus the accepted
-E2E-034 harness case: 34 families / 157 variants in total. This is not customer
+33 families / 156 variants, with 155 pending and E2E-001 ready for
+qualification. E2E-001 supersedes the accepted E2E-034 harness declaration;
+historical evidence retains its identity without duplicate ordinary execution. This is not customer
 coverage or a final coverage limit. Family `owners` can name several tasks; each variant's `owner` is its
 single execution owner. Related tasks link that execution without copying it.
 
@@ -88,7 +89,7 @@ single execution owner. Related tasks link that execution without copying it.
 
 ## Resolve before the affected batch
 
-- **Scope/layer reconciliation:** the 156 declarations remain pending, not
+- **Scope/layer reconciliation:** the 155 customer/fault declarations remain pending, not
   executed coverage. Task 21A must replace E2E-003's OS-UI account creation with
   a recorded supported fixture event and live Parent discovery. Before changing
   case groupings/layers, follow the [matrix rules](E2E-Coverage.md#bound-the-matrix-before-expanding-it)

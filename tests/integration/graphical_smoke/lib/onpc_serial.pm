@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use testapi ();
 use onpc_password ();
+use onpc_gdm ();
 
 my $attempted = 0;
 
@@ -60,7 +61,9 @@ sub run {
         die 'serial:logout' unless testapi::wait_serial(qr/ login: \z/,
             timeout => 30, quiet => 1, record_output => 0);
         $exchange->('serial-logout', undef);
-        testapi::select_console('sut');
+        testapi::record_info('serial-logout', 'Real serial logout independently acknowledged before graphical return.');
+        onpc_gdm::return_from_serial();
+        $exchange->('gdm-return', undef);
         testapi::record_info('serial-command', 'Real fixture serial login, fixed command output, logout and graphical return verified.');
         1;
     };

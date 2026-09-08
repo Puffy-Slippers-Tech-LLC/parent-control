@@ -56,6 +56,67 @@ Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 changing unrelated system/user rules. These reads cover any working directory
 or repository; select a repository with the command tool's working directory.
 
+## Launcher inspection and workspace edits
+
+Use the executable checkout entry point for slice-launcher inspection:
+
+```sh
+tools/codex_slices.py --help
+tools/codex_slices.py status
+```
+
+The maintained rule covers `--help`, `-h` and `status`, with `tools/`, `./tools/`
+and the rendered absolute checkout path. Python runs in isolated mode without
+bytecode writes. Help exits during argument parsing; status reads the fixed
+saved state without starting a worker or changing it. Starting, stopping or
+reconciling unattended work still needs authorization for that work. These
+development-only changes activate on invocation (`none`); rules load after
+`./setup.sh --codex-rules-only` and a Codex restart.
+
+`python3 tools/codex_slices.py --help` matches the general interpreter prompt.
+Adding a longer allow cannot override that prompt. Nor does `--help` make an
+arbitrary script safe to execute. Keep the interpreter restriction and use the
+reviewed executable route. Additional inspected tools need their own reviewed
+argument boundary before joining maintained allowances.
+
+For authorized workspace text edits, use Codex's native `apply_patch` tool with
+explicit paths and enough context to identify the intended replacement. This
+covers changing filenames, headings, dates and replacement text in task handoffs
+and evidence documents without executing an inline Python program. It stays
+subject to workspace write permissions and needs no shell-prefix allowance.
+The reported `python3 -` heredoc rewrote a document, but an allowance for that
+prefix would also accept arbitrary imports, process execution and writes outside
+the intended document. Prefix rules cannot inspect Python semantics. Do not add
+a Python, shell or generic shell-patch allowance for this operation.
+
+The existing `tools/read-only` allowance also covers local document checks:
+
+```sh
+tools/read-only links docs/TestAutomation/Continuation.md docs/TestAutomation/Task-19.md docs/TestAutomation/Evidence/19B-Ordered-Recorder-20260908.md tests/e2e/README.md
+tools/read-only words --after '### Task 19B continuation — 2026-09-08' docs/TestAutomation/Task-19.md
+```
+
+`links` checks inline Markdown link/image destination files relative to each
+document, ignoring code spans/fences, URLs and fragment-only links. It accepts
+plain, angle-wrapped and balanced/escaped-parenthesis destinations and optional
+titles. It does not fetch URLs or validate anchors, reference-style links or
+HTML links. Exit status is 0 for no missing targets, 1 for missing targets and
+2 for an invalid request/read failure. Failures report the document's argument
+number and line, without copying source prose or destinations into diagnostics.
+
+`words` counts whitespace-separated source words in one UTF-8 file, optionally
+after/before exact text markers. Each marker must appear exactly once in the
+selected text; absent or ambiguous markers fail. Without `--before`, counting
+continues to the end of the file, as in the reported Python handoff check. Both
+checks accept regular files up to 8 MiB, refuse final symlinks and special files,
+and expose no code, command, output-file or interpreter options. Filenames and
+markers can vary under the same existing helper rule; no per-document approval
+or rule refresh is needed for these added operations.
+
+These boundaries follow the [official rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/rules#understand-rule-fields):
+patterns match literal argument prefixes, the strictest matching decision wins,
+and `match`/`not_match` examples test a rule rather than validate runtime arguments.
+
 ## Category coverage and future additions
 
 Setup authorization is separate from runtime test authorization. The installed
@@ -96,7 +157,7 @@ argument; the launcher expands file patterns without a shell.
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify /tmp/onpc-...` / `compare /tmp/onpc-first /tmp/onpc-second` | Fixed builder; explicit existing project artifact inputs |
 | Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
-| Graphical journeys, harness qualification, variants and fault/recovery scenarios | `tools/run-tests e2e --list --scenario E2E-001` / `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-034` | Host-safe inventory preflight; invalid/pending execution refuses before privilege checks. Ready callbacks use the accepted guarded controller; E2E-034 has live serial/evidence/cleanup proof. Original 156 variants remain pending |
+| Graphical journeys, harness qualification, variants and fault/recovery scenarios | `tools/run-tests e2e --list --scenario E2E-001` / `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` | Host-safe inventory preflight; invalid/pending execution refuses before privilege checks. Ready callbacks use the accepted guarded controller; E2E-001 supersedes E2E-034 and adds ordered GDM-return evidence; three public qualifications remain 19B acceptance. Other 155 variants remain pending |
 | Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Future fast suite and complete gate (Task 28A) | `tools/run-tests fast --component broker --type contract` / `tools/run-tests all` | Fixed `test-fast`/`test-all` targets; currently refuse because those targets are unfinished |
 

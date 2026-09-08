@@ -5,15 +5,20 @@ For the remaining implementation, repeat this exact prompt in each new session:
 
 > Continue the next unfinished task in docs/Test-Automation.md. This is the dev and host machine.
 
+To automate that loop until the checklist is complete, run
+`tools/codex_slices.py start`. Each slice gets a fresh Codex session.
+See [unattended sessions](TestAutomation/Unattended-Sessions.md) for progress,
+safe stopping, permissions and interruption recovery. The launcher displays
+session output live and appends only end-of-session reports to
+[the slice summary log](Test-Automation-Slice-Summary.md). That log is for the
+operator; implementation sessions must not read or edit its accumulated history.
+
 ## Continue implementation in fresh sessions
 
 1. Follow [Continuation.md](TestAutomation/Continuation.md) to the active task
    and its next bounded result. The [workflow](TestAutomation/Implementation-Workflow.md#start-with-one-bounded-result)
    owns task selection, execution, verification and handoff rules.
-2. At each new implementation session, including the same task, confirm the
-   model and reasoning effort recommended by the **latest handoff** and reply
-   **“Go ahead.”** The agent states the reason and cannot switch settings itself.
-3. Implement and verify one coherent slice, normally planned for 15–30 minutes.
+2. Implement and verify one coherent slice, normally planned for 15–30 minutes.
    Finish the current operation and safe cleanup before handing off. The agent
    saves the next action, reusable evidence and reassessed settings, then tells
    you that you can end the session. Start a new session with the same prompt.
@@ -30,8 +35,7 @@ selection, old transcript, completed investigation or repeated test is needed
 merely because the chat is new.
 
 An explicit request to run tests uses the commands below. A documentation
-review edits the relevant guides. Neither starts implementation or requires
-the implementation model-confirmation step.
+review edits the relevant guides.
 
 ## Daily commands
 
@@ -43,6 +47,8 @@ and refuses pending selections before VM access. Future aggregate routes still
 refuse until their runners exist; approval coverage is not suite implementation.
 The same guide covers read-only system diagnostics and maintenance of only the
 pinned test VM, with no recurring per-file or per-operation authorization.
+
+[IMPORTANT] **Try your best to use commands that does not need user approve or show PoliKit prompt.**
 
 The intended interface is four commands. **These targets and their selectors
 are not implemented yet**; Task 28A owns their complete dispatch and CI. The
@@ -96,8 +102,8 @@ included in today's `make check`.
 | `make check-system LIST=1 [AREA=<area> [TEST=<case-id>]]` | Host-safe installed-case inventory and prerequisite resolution; no artifacts, root, or VM use. |
 | `make check-system ARTIFACT_DIR=<verified-directory>` | Existing guarded installed-system runner; detailed coverage is still being completed. |
 | `make check-system ARTIFACT_DIR=<verified-directory> AREA=<area> [TEST=<case-id>]` | Guarded partial installed run for registered `package` or `authorization` scope, including required package/reboot phases. |
-| `make check-e2e LIST=1 [SCENARIO=<family-or-variant>]` | Host-safe inventory through the validated E2E launcher; E2E-034 is runnable, while the original 156 variants remain pending. |
-| `make check-e2e ARTIFACT_DIR=<verified-directory> [SCENARIO=<family-or-variant>]` | Ready Python callbacks dispatch through the accepted guarded controller. E2E-034 qualifies real serial execution and final evidence/cleanup; pending selections refuse before privilege or VM access. Stable E2E-001 matching remains Task 19B. |
+| `make check-e2e LIST=1 [SCENARIO=<family-or-variant>]` | Host-safe inventory through the validated E2E launcher; E2E-001 is runnable; the other 155 variants remain pending. |
+| `make check-e2e ARTIFACT_DIR=<verified-directory> [SCENARIO=<family-or-variant>]` | Ready Python callbacks dispatch through the accepted guarded controller. E2E-001 combines stable GDM/serial-return evidence with the accepted controller; its three public qualifications remain Task 19B. Pending selections refuse before privilege or VM access. |
 
 Selected runs record their exact expected and executed JUnit identities and
 reject missing, additional, duplicate, failed, or skipped cases. They are

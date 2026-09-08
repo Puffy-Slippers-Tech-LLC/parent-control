@@ -59,6 +59,27 @@ def test_unchanged_selection_refuses_acknowledgement(tmp_path):
     assert not (tmp_path / 'selected.reply.json').exists()
 
 
+@pytest.mark.parametrize('capture', [None, 'smoke-1.png'])
+def test_return_requires_independent_greeter_before_ack_and_keeps_capture_sealed(tmp_path, capture):
+    events = []
+    controller = smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key', serial=True,
+        progress=lambda stage, observed: events.append((stage, observed)))
+    controller.steps = [{'stage': stage} for stage in smoke.SERIAL_STAGES[:-1]]
+    controller.vm = Mock(read=Mock(return_value={'unexpected_user_session': False}))
+    (tmp_path / 'gdm-return.request.json').write_text(json.dumps(
+        {'stage': 'gdm-return', 'screenshot': capture}))
+    if capture is not None:
+        with pytest.raises(RuntimeError, match='authentication-capture-refused'):
+            controller.step()
+        assert not (tmp_path / 'gdm-return.reply.json').exists()
+        controller.vm.read.assert_not_called()
+    else:
+        controller.step()
+        controller.vm.read.assert_called_once_with('greeter')
+        assert events[-1] == ('gdm-return', {'stage': 'gdm-return', 'unexpected_user_session': False})
+        assert (tmp_path / 'gdm-return.reply.json').exists()
+
+
 def test_generalhw_uses_documented_32_bit_vnc_depth(tmp_path):
     selected = smoke.e2e_worker.variables(tmp_path, Mock(path=tmp_path / 'callback.sock'), 'a' * 32)
     assert selected['GENERAL_HW_VNC_DEPTH'] == 32

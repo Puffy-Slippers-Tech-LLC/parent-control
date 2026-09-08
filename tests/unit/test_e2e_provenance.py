@@ -361,6 +361,8 @@ def test_pending_inventory_still_cannot_execute(source, lease):
     path = source / 'tests/e2e/scenarios.json'
     document = json.loads(path.read_bytes())
     document['scenarios'] = document['scenarios'][:1]
+    document['scenarios'][0]['variants'][0].update(status='pending',
+        pending_reason='Synthetic unfinished callback.', executable=None)
     path.write_text(json.dumps(document))
     captured = provenance.VerifiedInputs(root=source, lease=lease)
     with pytest.raises(ValueError, match='selection:pending'):

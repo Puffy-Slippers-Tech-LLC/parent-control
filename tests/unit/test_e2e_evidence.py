@@ -25,9 +25,11 @@ SECRET = 'fixture-only-password-9!'
 
 @pytest.fixture
 def attempt(tmp_path):
-    """Only a temporary declaration is ready; repository scenarios stay pending."""
+    """A synthetic recorder contract with no guest credential provisioning."""
     document, _ = inventory.read_json(inventory.INVENTORY)
     document['scenarios'] = document['scenarios'][:1]
+    document['scenarios'][0]['duration_seconds'] = 600
+    document['scenarios'][0]['preconditions'].remove('fixture-credentials-via-secret-api')
     for relative in ('tests/requirements.json', 'docs/TestAutomation/E2E-Coverage.md'):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)

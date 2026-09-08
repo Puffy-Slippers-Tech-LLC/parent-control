@@ -82,3 +82,32 @@ def test_generic_password_prompt_cannot_authorize_a_fixture_role(distribution):
         base.with_suffix(suffix).rename(dist / ('needles/onpc-gdm-masked-password' + suffix))
     with pytest.raises(RuntimeError, match='needle-name'):
         worker.distribution_inputs()
+
+
+@pytest.mark.parametrize('point', [None, {}, 'center', {'xpos': True, 'ypos': 10},
+    {'xpos': 0, 'ypos': 10}, {'xpos': 200, 'ypos': 10}, {'xpos': 10, 'ypos': 40},
+    {'xpos': 10, 'ypos': 10, 'id': 'unexpected'}, {'xpos': 10, 'ypos': 10}])
+def test_account_click_point_must_stay_inside_matched_region(distribution, point):
+    dist, base = distribution
+    account = base.with_name('onpc-gdm-parent-account')
+    doc = json.loads(base.with_suffix('.json').read_bytes())
+    doc['tags'] = [account.name]
+    doc['area'][0]['click_point'] = point
+    base.with_suffix('.png').rename(account.with_suffix('.png'))
+    base.with_suffix('.json').unlink()
+    account.with_suffix('.json').write_text(json.dumps(doc))
+    if point == {'xpos': 10, 'ypos': 10}:
+        worker.distribution_inputs()
+    else:
+        with pytest.raises(RuntimeError, match='needle-click-point'):
+            worker.distribution_inputs()
+
+
+def test_password_prompt_cannot_add_a_click_point(distribution):
+    _, base = distribution
+    path = base.with_suffix('.json')
+    doc = json.loads(path.read_bytes())
+    doc['area'][0]['click_point'] = {'xpos': 10, 'ypos': 10}
+    path.write_text(json.dumps(doc))
+    with pytest.raises(RuntimeError, match='needle-click-point'):
+        worker.distribution_inputs()

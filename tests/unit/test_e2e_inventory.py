@@ -46,10 +46,10 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert [case['case_id'] for case in plan['cases']] == expected
     assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
                                      if case['status'] == 'pending']
-    assert len(plan['pending_cases']) == 156
+    assert len(plan['pending_cases']) == 155
     assert plan['scope'] == 'full'
     assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
-        'E2E-034/serial-controller']
+        'E2E-001/gdm-observation']
     assert all(case['assertions'] and case['expected_evidence'] for case in plan['cases'])
     assert plan['evidence_contract']['outcomes'] == ['product', 'infrastructure', 'collection', 'cleanup']
 
@@ -81,7 +81,7 @@ def test_invalid_selection_fails_without_broadening(document, selector, category
         inventory.resolve_selection(document, selector)
 
 
-@pytest.mark.parametrize('selector', [None, 'E2E-001', 'E2E-023/fullscreen'])
+@pytest.mark.parametrize('selector', [None, 'E2E-002', 'E2E-023/fullscreen'])
 def test_pending_selection_cannot_run(document, selector):
     with pytest.raises(inventory.InventoryError, match='selection:pending'):
         inventory.resolve_selection(document, selector, require_runnable=True)

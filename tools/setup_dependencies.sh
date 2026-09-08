@@ -56,6 +56,7 @@ add-apt-repository -y universe
     mutter-dev-bin=50.1-0ubuntu2.2 \
     nodejs=22.22.1+dfsg+~cs22.19.15-1ubuntu1 \
     openssh-client=1:10.2p1-2ubuntu3.6 \
+    openssl=3.5.5-1ubuntu3.5 \
     pipewire=1.6.2-1ubuntu1.1 \
     python3 \
     python3-dbusmock=0.38.1-1 \

@@ -235,9 +235,61 @@ def test_unsafe_worker_directory_refuses_before_lease_or_spawn(attempt):
 def test_vars_cannot_be_overwritten_or_exported_as_reviewed_evidence(attempt):
     path = attempt.directory / 'vars.json'
     path.write_text('private-canary')
-    with pytest.raises(FileExistsError):
+    with pytest.raises(ValueError, match='secret:stage-failed'):
         attempt.run()
     runtime.Worker.assert_not_called()
     assert path.read_text() == 'private-canary'
     assert all(p.suffix == '.json' for p in attempt.collector.path.iterdir())
     assert 'private-canary' not in json.dumps(report(attempt))
+
+
+@pytest.mark.parametrize('interrupt', [False, True])
+def test_secret_staging_failure_closes_callback_without_spawning(attempt, monkeypatch, interrupt):
+    error = KeyboardInterrupt('private-canary') if interrupt else OSError('private-canary')
+    monkeypatch.setattr(runtime.SecretVariables, 'stage', Mock(side_effect=error))
+    with pytest.raises(type(error)) as caught:
+        attempt.run()
+    assert caught.value is error
+    runtime.Worker.assert_not_called()
+    attempt.server.close.assert_called_once()
+    attempt.options['observe'].assert_not_called()
+    assert report(attempt)['outcome'] == 'failed'
+    assert 'private-canary' not in json.dumps(report(attempt))
+
+
+def test_unprovisioned_credentials_refuse_before_callback_or_worker(attempt):
+    from fixture_credentials import FixtureCredentials
+    with pytest.raises(ValueError, match='credential:provisioning-required'):
+        attempt.run(credentials=FixtureCredentials())
+    runtime.CallbackServer.assert_not_called()
+    runtime.Worker.assert_not_called()
+    assert not list(attempt.directory.iterdir())
+
+
+def test_provisioned_fixture_registry_scans_worker_reports_and_stages_same_values(attempt, monkeypatch):
+    from fixture_credentials import FixtureCredentials
+    from private_artifacts import PrivateCollector, EvidenceError
+    credentials = FixtureCredentials()
+    credentials._ready, credentials._lease = True, attempt.lease
+    attempt.lease.state.update(phase='isolated', domain_id=None)
+    seen = []
+    def collector(**kwargs):
+        seen.append(kwargs['secrets'])
+        return PrivateCollector(**kwargs, parent=attempt.directory)
+    monkeypatch.setattr(runtime, 'PrivateCollector', collector)
+    result = attempt.run(credentials=credentials)
+    assert seen == [credentials.variables.registered_secrets]
+    staged = json.loads((attempt.directory / 'vars.json').read_bytes())
+    assert {value for key, value in staged.items() if key.startswith('_SECRET_')} == set(seen[0])
+    assert result['scope'] == 'fixture-secret-worker'
+    assert all(value not in json.dumps(result) for value in seen[0])
+    with PrivateCollector(run_id='worker-export-check', secrets=seen[0], parent=attempt.directory) as scanner:
+        with pytest.raises(EvidenceError, match='secret-detected'):
+            scanner.copy(attempt.directory, 'vars.json', 'vars', 'backend', reviewed=True)
+
+
+def test_arbitrary_secret_mapping_cannot_enter_worker(attempt):
+    with pytest.raises(RuntimeError, match='fixture-credentials'):
+        attempt.run(credentials={'parent': 'private-canary'})
+    runtime.CallbackServer.assert_not_called()
+    runtime.Worker.assert_not_called()

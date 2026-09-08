@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import struct
 import sys
 import time
 
@@ -23,13 +24,55 @@ sys.path.pop(0)
 
 from evidence import FailureLedger
 from private_artifacts import PrivateCollector
+from secret_variables import SecretVariables
 
 DISTRIBUTION = ROOT / 'tests/integration/graphical_smoke'
 COMMAND = ('/usr/bin/isotovideo', '--exit-status-from-test-results')
 
 
+def validate_needles(files):
+    """Bounded public PNG/JSON pairs, frozen with the executable distribution.
+
+    This checks the asset contract, not visual semantics. A reviewed real
+    empty/focused/masked prompt and live positive/negative matches are still
+    required before password input is enabled for a surface.
+    """
+    names = {name for name in files if name.startswith('needles/')}
+    for name in names:
+        require(re.fullmatch(r'needles/onpc-(gdm|polkit|lock)-(parent|child|other-parent|other-child)'
+                             r'-masked-password\.(png|json)', name),
+                'e2e:needle-name')
+        require(name.rsplit('.', 1)[0] + ('.png' if name.endswith('.json') else '.json') in names,
+                'e2e:needle-pair')
+    for name in sorted(names):
+        if not name.endswith('.json'):
+            continue
+        png = files[name[:-5] + '.png']
+        require(len(png) >= 24 and png[:16] == b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR',
+                'e2e:needle-png')
+        width, height = struct.unpack('!II', png[16:24])
+        require(640 <= width <= 4096 and 480 <= height <= 2160, 'e2e:needle-size')
+        try:
+            document = json.loads(files[name])
+        except (ValueError, UnicodeError):
+            require(False, 'e2e:needle-json')
+        require(type(document) is dict and set(document) == {'tags', 'area'}
+                and document['tags'] == [Path(name).stem]
+                and type(document['area']) is list and 1 <= len(document['area']) <= 8,
+                'e2e:needle-schema')
+        for area in document['area']:
+            require(type(area) is dict and set(area) == {'xpos', 'ypos', 'width', 'height',
+                                                       'type', 'match'}
+                    and area['type'] == 'match'
+                    and all(type(area[key]) is int for key in ('xpos', 'ypos', 'width', 'height', 'match'))
+                    and 99 <= area['match'] <= 100
+                    and 0 <= area['xpos'] < width and 0 <= area['ypos'] < height
+                    and 1 <= area['width'] <= width - area['xpos']
+                    and 1 <= area['height'] <= height - area['ypos'], 'e2e:needle-area')
+
+
 def distribution_inputs():
-    """Freeze the exact maintained Perl distribution, including uncommitted edits.
+    """Freeze maintained Perl and validated needle pairs, including local edits.
 
     No arbitrary worker variables, extra schedule, checkpoints, executable
     overrides or credential input are accepted at this boundary.
@@ -42,7 +85,9 @@ def distribution_inputs():
         if stat.S_ISDIR(metadata.st_mode):
             continue
         require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
-                and path.suffix == '.pm' and metadata.st_size <= 1024 * 1024,
+                and (path.suffix == '.pm' or (path.parent == DISTRIBUTION / 'needles'
+                                              and path.suffix in ('.json', '.png')))
+                and metadata.st_size <= 1024 * 1024,
                 'e2e:distribution-file')
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         with os.fdopen(fd, 'rb') as stream:
@@ -54,6 +99,7 @@ def distribution_inputs():
         result[path.relative_to(DISTRIBUTION).as_posix()] = data
         require(len(result) <= 128, 'e2e:distribution-size')
     require('main.pm' in result and 'tests/smoke.pm' in result, 'e2e:distribution-incomplete')
+    validate_needles(result)
     return result
 
 
@@ -72,7 +118,7 @@ def stage_distribution(directory, expected_inputs):
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'wb') as stream:
             stream.write(data)
-    (destination / 'needles').mkdir(mode=0o700)
+    (destination / 'needles').mkdir(mode=0o700, exist_ok=True)
     return hashlib.sha256(json.dumps(actual, sort_keys=True).encode()).hexdigest()
 
 
@@ -90,7 +136,7 @@ def variables(directory, server, run):
 
 
 def run_distribution(directory, lease, ledger, *, expected_inputs, observe, validate,
-                     timeout=600, on_failure=None):
+                     timeout=600, on_failure=None, credentials=None):
     """Run fixed trusted code against an existing isolated lease, then retain reports.
 
     observe/validate are controller functions, never supplied by the guest or
@@ -120,7 +166,15 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
               'outcome': 'failed', 'distribution_sha256': None,
               'raw_capture': 'private-not-approved-for-export',
               'worker_stopped': False, 'callback_closed': False}
-    with PrivateCollector(run_id=run_id, secrets=[]) as collector:
+    # Credentials may come only from completed, same-lease provisioning. The
+    # fixed smoke still performs no password entry; all raw output stays private.
+    if credentials is not None:
+        from fixture_credentials import FixtureCredentials
+        require(type(credentials) is FixtureCredentials, 'e2e:fixture-credentials')
+    secrets = credentials.worker_secrets(lease) if credentials is not None else SecretVariables()
+    if credentials is not None:
+        result['scope'] = 'fixture-secret-worker'
+    with PrivateCollector(run_id=run_id, secrets=secrets.registered_secrets) as collector:
         result['evidence_directory'] = str(collector.path)
         def fail(category, code, error):
             nonlocal first_error
@@ -143,10 +197,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
         try:
             result['distribution_sha256'] = stage_distribution(directory, expected_inputs)
             server = CallbackServer(adapter, directory)
-            fd = os.open(directory / 'vars.json',
-                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-            with os.fdopen(fd, 'w') as stream:
-                json.dump(variables(directory, server, lease.state['run']), stream)
+            secrets.stage(directory, variables(directory, server, lease.state['run']))
             worker = Worker(directory, server.path, lease.state['run'], list(COMMAND))
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:

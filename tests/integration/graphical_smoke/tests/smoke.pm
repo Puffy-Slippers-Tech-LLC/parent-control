@@ -4,6 +4,7 @@ use base 'basetest';
 use testapi;
 use JSON::PP;
 use Time::HiRes qw(time sleep);
+use onpc_password ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -25,7 +26,7 @@ sub exchange {
 
 sub capture {
     my ($stage) = @_;
-    my $result = save_screenshot();
+    my $result = onpc_password::capture_before_authentication();
     die 'smoke:no-screenshot' unless $result && $result->{screenshot};
     return exchange($stage, $result->{screenshot});
 }

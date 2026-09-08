@@ -375,8 +375,87 @@ The reports use `FailureLedger` and `PrivateCollector`; they are explicitly
 credential-free worker diagnostics, **not** `EvidenceContract` scenario results
 or proof of outer VM/host restoration. The outer smoke result owns those checks.
 Raw vars/logs/screens stay private and are never copied as reviewed artifacts.
-An empty secret registry is appropriate only for this fixed credential-free
-distribution; authenticated scenarios need the remaining secret/capture work.
+An empty secret registry is appropriate only when no fixture credentials are
+provisioned. The credential qualification supplies the same frozen registry to
+the outer collector, worker collector and variable staging.
+
+### Credential staging and password capture boundary
+
+`SecretVariables` freezes controller-supplied fixture passwords for the fixed
+`parent`, `child`, `other-parent` and `other-child` roles. It accepts only 1–256
+printable ASCII characters, rejecting control characters that could submit a
+command or change fields. The mapping has a redacted representation. Supply its
+`registered_secrets` to `PrivateCollector` **before** staging or starting a worker;
+use that same frozen instance for `stage(directory, public_variables)`. No CLI,
+environment or command argument carries the passwords. The worker accepts only
+a successfully provisioned `FixtureCredentials` belonging to the same held,
+isolated, never-booted lease; arbitrary password mappings are refused.
+
+Staging creates `vars.json` once as 0600 beneath a descriptor-pinned, caller-owned
+0700 directory, refuses symlinks/existing entries and caller-supplied secret
+variable names, syncs the write, and checks directory identity afterward. A
+failed/interrupted write stays private and cannot be retried over that file.
+Every fixture password uses an `_SECRET_ONPC_*_PASSWORD` name. os-autoinst's
+secret-filtered saves omit those names, but its initial vars and automatic
+backend output can still contain secrets: **never export raw vars/logs/captures**.
+
+The maintained Perl `lib/onpc_password.pm` provides `enter_password(role, surface)`
+for fixed `gdm`, `polkit` and `lock` surfaces. It requires `NOVIDEO=1`, a registered
+variable, and a successful public `assert_screen` for the fixed
+`onpc-<surface>-<role>-masked-password` tag immediately before public `type_password`.
+Callers cannot override the password API's `secret` option. The needle contract
+must prove the selected fixture identity together with its empty, focused and
+masked password field; no generic password-field tag, coordinate or terminal
+fallback exists. The helper does not submit or assert authentication
+success. Unknown inputs and any API failure permanently refuse subsequent input.
+
+The credential-free smoke now routes explicit screenshots through
+`capture_before_authentication()`. Capture failure prevents later input, and
+starting any password operation permanently closes that helper's capture route,
+including on prompt failure. Exceptions crossing this boundary contain fixed
+codes only. This does **not** disable automatic os-autoinst screenshots; all raw
+captures remain private and unapproved for export. Trusted distribution code
+must use the helper; this is not a sandbox against code calling testapi directly.
+
+`FixtureCredentials` generates independent random passwords for the four
+canonical fixture roles. The baseline does not retain its manually supplied
+setup password. Provisioning uses the maintained
+[virt-customize password-file interface](https://libguestfs.org/virt-customize.1.html)
+on the exclusively held offline disk, with networking disabled. It validates
+fixture UIDs and shells against accepted baseline records, stages 0600 files in
+a pinned 0700 directory, and refuses repeated provisioning. Only these four
+password hashes may change: password aging, unrelated shadow entries (including
+root), and the entire passwd file must remain identical. The pinned OpenSSL
+verifier receives each password on stdin and returns its hash only in memory.
+Failures expose fixed codes, invalidate worker access, and leave restoration to
+the outer lease. Private password files and raw backend output are not exportable
+evidence; their values are registered before provisioning and capture.
+
+Run `tools/run-tests integration check_graphical_credentials` for its guarded
+qualification: provision, verify all four passwords, stage the worker secrets,
+execute the existing credential-free graphical actions, and restore the baseline.
+This route has no arguments, performs no login, and does not open customer
+scenario dispatch. The [live evidence](../../docs/TestAutomation/Evidence/19A-Fixture-Credentials-20260907.md)
+records a complete pass and the separately passed asset-transfer qualification.
+
+Distribution staging now accepts strictly paired PNG/JSON needles under
+`needles/onpc-<surface>-<role>-masked-password.*`, with matching tags, bounded
+dimensions/rectangles and 99–100% match thresholds. Both files enter the same
+source digest map and frozen copy as Perl sources. Missing pairs, extra fields,
+generic tags, links and changed bytes refuse before backend startup. Structural
+validation does not establish visual meaning: no real needles are qualified yet.
+The feasibility smoke's first tile selects an unrelated baseline account; its
+private captures must not become public needle assets or authorize a fixture
+password. First select the intended fixture using reviewed screen matching,
+then prove the identity and empty/focused/masked field together. Keep password
+entry disabled until real positive and negative matches are verified.
+
+Host regressions execute the real Perl helper with stubbed public testapi calls,
+and cover provisioning ownership, password verification, private storage,
+secret-scanned evidence, needle inputs and interrupted staging/worker cleanup.
+Live password input and serial-console execution remain unfinished. Test-tool
+activation is `none` (next invocation); product data and accepted baseline are
+unchanged. `setup.sh` installs the pinned OpenSSL dependency on clean hosts.
 
 ### Read-only observation capability
 

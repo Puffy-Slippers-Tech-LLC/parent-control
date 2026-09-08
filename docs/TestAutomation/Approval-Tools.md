@@ -213,6 +213,7 @@ the unprivileged `tools/read-only` launcher:
 
 ```sh
 tools/read-only search --fixed-strings 'cleanup' tests tools
+tools/read-only search --path-glob 'tests/integration/fixture*' 'password|credential|parent2|child2' tests/fixtures
 tools/read-only files tests tools
 tools/read-only slice 10 80 tests/README.md
 tools/read-only sort input.txt
@@ -246,6 +247,30 @@ invocation, which the direct executable rule does not cover. Never grant a
 generic shell to solve that parsing limitation.
 
 ### Ripgrep searches without shell expansion
+
+Default to `tools/read-only search --path-glob 'path/prefix*' 'regex' literal/path`
+when path operands need filename expansion. `search` and `files` accept repeated
+`--path-glob` options and expand them inside the unprivileged helper, keeping
+the command visible to the existing approval prefix. Patterns use ordinary
+filename globbing (`*`, `?`, brackets), without shell evaluation, variable/tilde
+expansion, or recursive `**` expansion. A matched directory is passed to the
+search tool for its normal traversal. An unmatched pattern fails the whole
+request before execution; it never falls back to searching the current directory.
+Literal paths remain literal. Keep every pattern quoted. No setup refresh or
+Codex restart is needed for this checkout helper change.
+
+For the reported graphical/E2E unit-test search, use this direct command from
+the checkout:
+
+```sh
+rg -n 'perl|subprocess.run|Test::More' --glob '/tests/unit/test_graphical*' --glob '/tests/unit/test_e2e*' .
+```
+
+The unquoted paths `tests/unit/test_graphical* tests/unit/test_e2e*` caused the
+shell-level approval request. These quoted filters select matching files
+directly under `tests/unit`; the literal `.` keeps their anchors relative to
+the checkout. Pass the command directly to the execution tool without adding
+`bash -lc`. The installed allowance already covers it; no refresh is required.
 
 The installed `rg -n` prefix already allows every direct line-numbered search,
 independent of regex and paths. A command such as

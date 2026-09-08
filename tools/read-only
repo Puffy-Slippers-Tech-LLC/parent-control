@@ -1,6 +1,7 @@
 #!/usr/bin/python3 -IB
 """Validated unprivileged searches, text filters and public HTTPS reads."""
 import argparse
+import glob
 import os
 from pathlib import Path
 import sys
@@ -12,15 +13,23 @@ class Parser(argparse.ArgumentParser):
         raise ValueError('invalid read-only request; use --help')
 
 
+class UnmatchedPathGlob(ValueError):
+    """Report an empty selection without exposing paths or search text."""
+
+
 def command(argv):
     parser = Parser(description=__doc__, allow_abbrev=False)
     actions = parser.add_subparsers(dest='action', required=True)
     search = actions.add_parser('search', allow_abbrev=False)
     search.add_argument('--fixed-strings', action='store_true')
     search.add_argument('--ignore-case', action='store_true')
+    search.add_argument('--path-glob', action='append', default=[],
+                        help='expand a quoted filename pattern internally; repeatable, must match')
     search.add_argument('pattern')
     search.add_argument('paths', nargs='*')
     files = actions.add_parser('files', allow_abbrev=False)
+    files.add_argument('--path-glob', action='append', default=[],
+                       help='expand a quoted filename pattern internally; repeatable, must match')
     files.add_argument('paths', nargs='*')
     for name in ('sort', 'unique', 'gzip'):
         sub = actions.add_parser(name, allow_abbrev=False)
@@ -41,6 +50,11 @@ def command(argv):
         return ['/usr/bin/curl', '--disable', '--globoff', '-fsSL', '--proto', '=https',
                 '--proto-redir', '=https', '--max-time', '60', '--', args.url]
     paths = args.paths
+    for pattern in getattr(args, 'path_glob', []):
+        selected = sorted(glob.glob(pattern))
+        if not selected:
+            raise UnmatchedPathGlob('filename pattern matched no paths')
+        paths.extend(selected)
     if args.action == 'search':
         prefix = (['/usr/bin/rg', '--no-config', '-n'] if os.access('/usr/bin/rg', os.X_OK)
                   else ['/usr/bin/grep', '-rn', '-F' if args.fixed_strings else '-E'])
@@ -70,6 +84,10 @@ def main(argv=None):
         selected = command(sys.argv[1:] if argv is None else argv)
         env = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
         os.execve(selected[0], selected, env)
+    except UnmatchedPathGlob:
+        print('read-only: filename pattern matched no paths; check --path-glob selection',
+              file=sys.stderr)
+        return 2
     except (ValueError, OSError):
         print('read-only: invalid request or execution failure; use --help', file=sys.stderr)
         return 2

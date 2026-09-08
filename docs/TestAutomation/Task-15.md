@@ -7,6 +7,13 @@ checkpoint is used. These are real installed-system tests. Their direct OS
 calls and deterministic process fixtures cannot replace the graphical customer
 journeys required by [E2E-Coverage.md](E2E-Coverage.md).
 
+**Operator clearance — 2026-09-08:** the
+[all-task VM clearance](Implementation-Workflow.md#vm-availability-for-all-tasks)
+resolves the earlier writer-pause request, including contrary next-action text
+in linked historical evidence. Finish the active local slice and cleanup, then
+prioritize guarded VM qualification. Carry the clearance into future handoffs.
+Runtime acceptance remains pending until the required tests pass.
+
 ## Implementation slices
 
 Use the [implementation workflow](Implementation-Workflow.md). These are small
@@ -57,44 +64,48 @@ Verification below is task acceptance; edits use the smallest affected selection
 
 ## Task 15A continuation — 2026-09-08
 
-**15A remains unchecked.** Fixed relative native command lookup with sixteen
-filesystem-backed regressions. System fallback now ignores inherited administrator
-PATH/current directory and canonicalizes native symlinks before wrapper exclusion.
-Selected-child binary precedence remains intact. The fixed discovery policy is
-documented; arbitrary session PATH/profile evaluation is outside this proof.
-Scope remains the development host and existing guarded VM; no installed test ran.
+**15A remains unchecked.** Registered `test_native_missing_launcher_retains_policy`
+removes its dedicated launcher after hard-rule activation, verifies catalog
+disappearance and saved-policy retention through a public re-save, then requires
+child denial and other-child allowance. Shared hard/soft transitions continue in
+both screen-time states. Removal checks the fixed fixture's captured identity;
+guest/credential guards and owned one-shot launches remain intact.
+Development-host/existing guarded VM scope persists.
 
-**Verification:** initial selection reproduced six failures with 25 passes.
-Final catalog/consumer selection passed 173 tests plus 30 subtests. `make check`
-handle 10923 exited 0: 2,811 unit/contracts, 17 components, syntax and traceability
-passed. Scoped whitespace/link checks passed. Commands, timings, source hashes
-and original failures are in [PATH evidence](Evidence/15A-Catalog-Path-Isolation-20260908.md).
-Earlier [desktop precedence](Evidence/15A-Catalog-Precedence-20260908.md) and
-[native registration](Evidence/15A-Native-Registration-20260908.md) evidence is
-retained. No requirement mapping was promoted. Later documentation edits require
-fresh artifact provenance.
+**Verification:** 58 isolated safety tests and 379 focused tests plus 16 subtests
+passed. Real catalog parsing, broker saves and rule rendering support substituted
+OS boundaries; installed enforcement remains unqualified. Inventory selects the
+new case plus four prerequisites. Scoped whitespace/links passed. Commands,
+timings and hashes are in
+[retention evidence](Evidence/15A-Native-Missing-Launcher-20260908.md), linking prior
+evidence. No mapping was promoted. Documentation requires fresh artifacts.
 
-**Next result:** without writer coordination, extend installed catalog fixture
-assertions for child-only/system launchers and administrator exclusion, with
-host regressions. Read `system_enforcement.py:provision_native`,
-`tests/system/test_enforcement.py`, `tests/unit/test_system_enforcement.py`, and
-the native registration evidence. Do not claim installed acceptance from mocks.
+**Broad-check failure:** `make check` handle 41657 exited 2: 3,023 passed, one
+failure in `test_gateway_frame_stays_fixed_with_animated_gateway_energy`.
+Concurrent kiosk edits replaced the test's expected `randint` expression with
+weighted `choices`. Narrow inspection confirmed this mismatch. Preserve the
+other writer's work; its source/assertion reconciliation is required before a
+broad pass. Later component/syntax stages did not run. No unchanged retry occurred.
 
-Once writers explicitly pause through collection, run isolated cleanup checks,
-build via `tools/run-tests artifacts build`, and qualify
-`test_native_command_policy_is_uid_scoped` through the registered system
-`enforcement` area and its four prerequisites. No expensive 15A attempt has been
-spent. The [19B blocker](Task-19.md#task-19b-continuation--2026-09-08) persists;
-a clean-status sample is insufficient. Native routes/patterns/screen-time,
-Snap/Flatpak runtime and full-area acceptance remain pending.
+**Next result:** use the operator clearance above for guarded native runtime
+qualification, including retention. Finish edits, run isolated cleanup checks,
+build via `tools/run-tests artifacts build`, and run system `enforcement` with
+its prerequisite closure. Keep checkout inputs unchanged through terminal
+collection and cleanup; do not reinstate the resolved historical hold. Start
+with the runner guide's current artifact and cleanup prerequisites, then
+`system_enforcement.py:native_policy_transition` and the focused command in
+current evidence if inputs change. Never execute guest code on the host.
+No expensive 15A attempt has been spent.
+[19B qualification](Task-19.md#task-19b-continuation--2026-09-08) is also cleared.
+Native routes/update, Snap/Flatpak and full-area runtime acceptance remain pending.
 
 **Cleanup:** all commands exited and results were collected; no owned process,
-lease, screenshot or recovery remains. No VM operation started; VM state was
-not inferred. Unrelated edits were preserved. No approval or Polkit denial occurred.
+lease, screenshot or recovery remains. No VM operation or state inference.
+Unrelated edits preserved; no approval/Polkit denial occurred.
 
 **Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep,
-pinned by the slice launcher. **Reason:** local command lookup isolation passes;
-installed catalog and kernel enforcement still need qualification.
+pinned by the slice launcher. **Reason:** retention witnesses pass locally;
+guarded runtime is next, with concurrent broad-check failure preserved.
 **Remaining 15A:** sessions **Unknown**, minutes **Unknown**; live matrix timings
 and Snap/Flatpak helper qualification are missing.
 

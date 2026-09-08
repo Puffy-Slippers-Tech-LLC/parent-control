@@ -252,7 +252,11 @@ INVENTORIES = {
         'test_method_role_matrix[ListManagedUsers-child1]',
         'test_real_selected_parent_authentication[child1]',
     ),
-    'enforcement': ('test_native_command_policy_is_uid_scoped',),
+    'enforcement': ('test_native_command_policy_is_uid_scoped',
+                    'test_native_whitespace_policy_is_uid_scoped',
+                    'test_native_future_pattern_is_uid_scoped',
+                    'test_native_missing_launcher_retains_policy',
+                    'test_native_catalog_is_selected_child_scoped'),
 }
 
 
@@ -599,8 +603,8 @@ def test_junit_reconciliation_rejects_incomplete_or_unhealthy_identities(tmp_pat
         runner.reconcile_junit(tmp_path, 'authorization', selection)
 
 
-def test_enforcement_selection_freezes_helpers_and_only_package_prerequisites(tmp_path):
-    case = INVENTORIES['enforcement'][0]
+@pytest.mark.parametrize('case', INVENTORIES['enforcement'])
+def test_enforcement_selection_freezes_helpers_and_only_package_prerequisites(tmp_path, case):
     selection = runner.resolve_selection('enforcement', case, inventories=INVENTORIES)
     assert selection.phases == ('installed', 'rebooted', 'enforcement')
     assert [(item.area, item.case_id) for item in selection.executions if not item.prerequisite] == [

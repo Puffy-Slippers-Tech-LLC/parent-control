@@ -209,24 +209,32 @@ regressions passed. See [current evidence](Evidence/19B-Provenance-Diagnostics-2
 and the [ordered-recorder record](Evidence/19B-Ordered-Recorder-20260908.md).
 Dev-host/existing guarded VM authorization persists.
 
-**Blocker and attempt limit:** a third public invocation encountered concurrent
+**Operator clearance — 2026-09-08:** the
+[all-task VM clearance](Implementation-Workflow.md#vm-availability-for-all-tasks)
+resolves the pending writer-pause request and supersedes contrary scheduling
+instructions in both linked evidence records. Finish any active local slice
+and cleanup, then resume public E2E-001 qualification with fresh artifacts.
+Carry the clearance into subsequent handoffs. The guarded runner still checks
+ownership, provenance and cleanup for each attempt.
+
+**Historical failed attempts:** a third public invocation encountered concurrent
 source edits despite clean status before/after building. It rejected provenance
 before graphical execution; the old handler retained only
 `execution:attempt-failed`, so its exact underlying code is unproven. The
-reporting gap is now locally corrected. Do not retry from another clean-status
-sample or fresh build. Other writers must explicitly pause through terminal
-collection; that request is pending. Preserve unrelated edits listed in the
+reporting gap is now locally corrected. The operator clearance above supersedes
+the pending coordination request; a clean-status sample alone was not the
+basis for clearing it. Preserve unrelated edits listed in the
 evidence. No permissions, provenance exclusions, or manifests were changed.
 
-**Next observable result:** after writer coordination, three consecutive public
+**Next observable result:** with the operator hold cleared, three consecutive public
 E2E-001 qualifications, with private screen/serial/secret-exclusion and terminal
 cleanup review. Build fresh inputs using `tools/run-tests artifacts build`, then
 `tools/run-tests e2e --artifacts <new-output> --scenario E2E-001`.
 No further standalone helper diagnosis is indicated. Read
 `execution.py:attempt_failure,attempt`, `controller_qualification.py:matched_screens`,
 and the [public contract](../../tests/e2e/README.md#maintain-declarations).
-If coordination is unavailable, select independent local
-[Task 15A](Task-15.md#task-15a) work; Task 20 remains dependent on 19B.
+Do not defer these runs for the resolved coordination request. Coordinate VM
+use sequentially with [Task 15A](Task-15.md#task-15a); Task 20 remains dependent on 19B.
 
 **Verification and cleanup:** focused checks 82970: 100 passed. Final
 `make check` 98536: 2,686 unit/contracts, 17 components, syntax and traceability
@@ -243,6 +251,6 @@ invalidate the live attempt's artifact inputs.
 **Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep,
 pinned by the slice launcher. **Reason:** provenance diagnostics are host-proven;
 live ordered evidence and terminal cleanup still need qualification.
-**Remaining 19B:** sessions **Unknown**, minutes **Unknown** until writers pause;
+**Remaining 19B:** sessions **Unknown**, minutes **Unknown** pending live results;
 three complete qualifications remain, and no current public callback duration
 was measured. 19A needs zero further sessions.

@@ -155,6 +155,13 @@ let it own implementation of this backlog while it runs. Existing guarded test
 launchers continue to serialize VM access. Source changes are kept in the same
 checkout, including uncommitted changes; starting a session does not reset Git.
 
+The [VM clearance](Implementation-Workflow.md#vm-availability-for-all-tasks)
+applies to the whole backlog and supersedes historical writer-pause requests.
+Each fresh slice reads the current unattended prompt and task documents; an
+already-running slice finishes its current work and cleanup before applying
+the next-action change. No launcher restart is needed to load the revised
+prompt at the next slice boundary. Keep this clearance in subsequent handoffs.
+
 An explicit transient API failure before any tool use is retried with increasing
 delay, capped at one hour. The default permits 12 consecutive retries; change
 this with `--max-api-retries N` (0 disables retries). A tool-using interrupted

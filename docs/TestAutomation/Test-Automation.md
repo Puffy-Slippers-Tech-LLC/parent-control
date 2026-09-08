@@ -52,6 +52,10 @@ evidence or the VM baseline as documentation cleanup.
 
 ## Shared implementation and acceptance rules
 
+- The operator has cleared the historical VM/writer-pause hold for **all
+  tasks**. Apply [VM availability for all tasks](Implementation-Workflow.md#vm-availability-for-all-tasks),
+  including its precedence over earlier evidence and handoffs. Proceed with
+  dependency-ready guarded runs; no repeated coordination confirmation is due.
 - Use maintained public APIs. The broker remains the policy and authorization
   authority. Preserve real caller validation and other-user isolation.
 - Installed-system tests use actual processes, credentials and OS services.

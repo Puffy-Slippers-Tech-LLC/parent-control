@@ -43,6 +43,35 @@ A slice is one unresolved boundary, a fix plus verification, or several cases
 using a proven helper. Plan one or two meaningful experiments, usually 15–30
 minutes; this is an estimate, not a completion deadline.
 
+## VM availability for all tasks
+
+**Operator instruction — 2026-09-08:** the user confirmed there are no
+concurrent VM operations and cleared the VM/writer-pause hold for **every
+task**. This supersedes pending coordination requests and local-only fallback
+instructions in earlier handoffs and evidence. Carry this clearance into future
+handoffs; do not require another writer-pause confirmation, a clean Git status,
+or a new session approval merely to use the already-authorized test VM.
+
+At the next safe slice boundary, select dependency-ready installed/E2E work
+using the checklist and current handoff. Finish an active owned operation and
+cleanup before starting the next. Do not add local-only slices because of the
+resolved hold. Task dependencies, implementation readiness and acceptance
+requirements still apply.
+
+Use the approved guarded runner, which acquires the shared VM lease. An off VM
+status alone does not prove lease availability; let the runner check it. If it
+reports an actual busy owner or unfinished operation, reconcile that operation
+under the existing ownership rules. Never delete locks or take over a VM.
+
+Source provenance is checked separately from VM availability. Finish edits,
+build fresh artifacts when required, and make no checkout edits during the
+attempt through terminal collection and cleanup. Existing uncommitted changes
+are valid captured inputs. A new provenance refusal requires diagnosis of its
+recorded cause under the attempt limits; it does not restore a blanket VM hold
+across the backlog. Report any new blocker with current evidence, affected
+scope and the concrete next action. Historical failed results remain failed;
+their old scheduling instructions do not override this clearance.
+
 ## Reassess model and effort at every handoff
 
 Reevaluate model and effort separately for the next slice at every handoff.
@@ -140,7 +169,8 @@ multiply equivalent full journeys without an app-specific reason.
 3. Run the smallest guarded selection and its prerequisite closure through the
    [approved categories](Approval-Tools.md#category-coverage-and-future-additions).
    F1's installed selectors are implemented; register new areas there. Graphical
-   listing/refusal is implemented, execution remains gated by 19A. Never invoke
+   execution uses the accepted 19A controller for ready declarations; pending
+   selections still refuse before VM access. Never invoke
    guest pytest on the host, invent a selector, or bypass VM guards.
 4. Fix the demonstrated cause. Prove a real success, deliberate denial/failure
    and one interaction before expanding cases. A shared prerequisite failure

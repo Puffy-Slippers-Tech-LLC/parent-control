@@ -108,7 +108,11 @@ def test_authentication_attempts_survive_failed_pytest_and_public_export(monkeyp
         'package': ('test_installed_package', 'test_reboot_applies_installation'),
         'authorization': tuple(f'test_real_selected_parent_authentication[{surface}]'
                                for surface in ('child1', 'kiosk')),
-        'enforcement': ('test_native_command_policy_is_uid_scoped',),
+        'enforcement': ('test_native_command_policy_is_uid_scoped',
+                        'test_native_whitespace_policy_is_uid_scoped',
+                        'test_native_future_pattern_is_uid_scoped',
+                        'test_native_missing_launcher_retains_policy',
+                        'test_native_catalog_is_selected_child_scoped'),
     })
     ledger = runner.RunLedger()
     ledger.fail_outcome('product', 'pytest:failed:authorization')

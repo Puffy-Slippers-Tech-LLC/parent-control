@@ -33,6 +33,7 @@ from .selection_store import SelectionStore
 from .snowflakes import SnowflakeField
 from .floating_islands import FloatingIslands
 from .lava import LavaBands
+from .lightning import LightningDischarge
 from .chrome import (
     ABOUT, BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, HELP,
     MENU, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
@@ -360,15 +361,19 @@ class LightningSizzle:
             )
             self._gain.set_property("volume", 0.0 if self._muted else volume)
 
-    def play(self, duration_seconds, fade_rate):
+    def play(self, duration_seconds, fade_rate, brightness=1.0):
         """Fade this bolt's sizzle with its matching visual lightning fade."""
-        if self._pipeline is None:
+        if self._pipeline is None or duration_seconds <= 0:
             return
         now_us = GLib.get_monotonic_time()
         duration_us = int(max(0.0, duration_seconds) * 1_000_000)
         self._active_bolts.append(
-            (now_us + duration_us, duration_us, fade_rate),
+            (now_us + duration_us, duration_us, fade_rate, brightness),
         )
+        # Brief flashes need their attack now, not at the next 50 ms fade
+        # tick. Each return flash also carries its actual remaining light.
+        self._sizzle_level = max(self._sizzle_level, brightness)
+        self._apply_volume()
         self._pipeline.set_state(Gst.State.PLAYING)
         LOG.debug(
             "lightning sizzle started duration_ms=%d", int(duration_seconds * 1_000),
@@ -383,8 +388,8 @@ class LightningSizzle:
         ]
         if self._active_bolts:
             self._sizzle_level = max(
-                ((ends_at_us - now_us) / duration_us) ** fade_rate
-                for ends_at_us, duration_us, fade_rate in self._active_bolts
+                brightness * ((ends_at_us - now_us) / duration_us) ** fade_rate
+                for ends_at_us, duration_us, fade_rate, brightness in self._active_bolts
                 if duration_us > 0
             )
             self._apply_volume()
@@ -534,95 +539,46 @@ class GatewayBackground(Gtk.Widget):
         self._append_gateway_energy(snapshot, width, height, now)
 
     def _new_lightning_bolt(self, starts_at):
-        """Create one non-repeating bolt from a crystal into the gate."""
+        """Anchor an angular discharge to a crystal and the nearest gate rail."""
         source_index = self._random.randrange(len(CRYSTAL_LIGHTNING_TIPS))
         source_x, source_y = CRYSTAL_LIGHTNING_TIPS[source_index]
+        top, bottom = (
+            (GATEWAY_INNER_CORNERS[0], GATEWAY_INNER_CORNERS[3])
+            if source_x < GATEWAY_INNER_CORNERS[0][0]
+            else (GATEWAY_INNER_CORNERS[1], GATEWAY_INNER_CORNERS[2])
+        )
+        target_y = max(
+            top[1] + 0.045,
+            min(bottom[1] - 0.045, source_y + self._random.uniform(-0.15, 0.15)),
+        )
+        channel = LightningDischarge(self._random)
         return {
             "starts_at": starts_at,
-            "duration": self._random.uniform(0.85, 1.35),
+            "duration": channel.duration,
             "source_x": source_x,
             "source_y": source_y,
             "source_index": source_index,
-            "target_x": self._random.uniform(0.44, 0.56),
-            "target_y": self._random.uniform(0.42, 0.56),
-            # Store a unique irregular path with the bolt so it stays stable
-            # while it travels, but no two strikes share a zig-zag pattern.
-            "path_offsets": self._new_winding_offsets(),
-            "detail_offsets": self._new_secondary_offsets(),
-            "winding": self._random.uniform(0.08, 0.16),
-            "jaggedness": self._random.uniform(8, 24),
-            # A few intense strikes create the bright, high-energy flashes
-            # while dimmer ones keep the scene from looking uniformly lit.
-            "brightness": self._random.uniform(0.28, 2.4),
-            "fade_rate": self._random.uniform(0.68, 1.35),
-            # A broad range keeps the scene from looking like duplicated
-            # effects: some bolts are hairline flashes while others dominate
-            # the background with a heavy strike.
-            "thickness": self._random.uniform(0.22, 6.6),
-            "branches": tuple(
-                (
-                    self._random.uniform(0.16, 0.82),
-                    self._random.uniform(0.06, 0.18),
-                    self._random.choice((-1, 1)),
-                    self._random.uniform(-1.0, 1.0),
-                    # Forks do not inherit identical brightness or decay.
-                    # This keeps a single strike from reading as a copied
-                    # bundle of lines as it approaches the gateway.
-                    self._random.uniform(0.20, 2.4),
-                    self._random.uniform(0.45, 1.7),
-                    self._random.uniform(0.35, 1.25),
-                )
-                # A strike may remain unbranched, or split into up to four
-                # independently lit offshoots.
-                for _branch in range(self._random.randint(0, 4))
-            ),
+            "target_x": top[0],
+            "target_y": target_y,
+            "channel": channel,
         }
 
     def _launch_lightning_burst(self, elapsed):
-        """Queue a staggered, randomly sized set of crystal ejections."""
-        ejection_count = self._random.randint(1, 4)
-        starts_at = elapsed + self._random.uniform(0.06, 0.28)
+        """Leave irregular quiet intervals between short crystal discharges."""
+        ejection_count = self._random.choices((1, 2, 3), weights=(6, 3, 1))[0]
+        starts_at = elapsed + self._random.uniform(0.08, 0.3)
         for _ejection in range(ejection_count):
-            self._lightning_bolts.append(self._new_lightning_bolt(starts_at))
-            # Each ejection gets its own moment; later bolts can still overlap
-            # a fading earlier bolt without appearing simultaneously.
-            starts_at += self._random.uniform(0.12, 0.38)
-        self._next_lightning_burst_at = starts_at + self._random.uniform(0.45, 1.25)
-
-    def _new_winding_offsets(self):
-        """Build gentle, irregular turns that resolve at the gateway."""
-        anchors = [0.0]
-        for _anchor in range(3):
-            anchors.append(self._random.uniform(-0.85, 0.85))
-        anchors.append(0.0)
-        return self._smooth_offsets(anchors)
-
-    def _new_secondary_offsets(self):
-        """Build smaller smooth bends that flicker within the broad route."""
-        anchors = [0.0]
-        for _anchor in range(8):
-            anchors.append(self._random.uniform(-0.9, 0.9))
-        anchors.append(0.0)
-        return self._smooth_offsets(anchors)
-
-    @staticmethod
-    def _smooth_offsets(anchors):
-        offsets = []
-        for point in range(22):
-            position = point / 21 * (len(anchors) - 1)
-            anchor_index = min(int(position), len(anchors) - 2)
-            fraction = position - anchor_index
-            # Cosine interpolation gives each broad turn a smooth entry and
-            # exit, rather than connecting random points with sharp corners.
-            smooth_fraction = (1 - math.cos(math.pi * fraction)) / 2
-            offsets.append(
-                anchors[anchor_index] * (1 - smooth_fraction)
-                + anchors[anchor_index + 1] * smooth_fraction
-            )
-        return tuple(offsets)
+            bolt = self._new_lightning_bolt(starts_at)
+            self._lightning_bolts.append(bolt)
+            starts_at += bolt["duration"] + self._random.uniform(0.10, 0.32)
+        self._next_lightning_burst_at = starts_at + self._random.uniform(0.9, 2.4)
+        LOG.debug(
+            "gateway lightning burst strikes=%d next_burst_in_ms=%d",
+            ejection_count, int((self._next_lightning_burst_at - elapsed) * 1_000),
+        )
 
     def _append_gateway_energy(self, snapshot, width, height, elapsed):
-        """Draw bright, randomly sourced lightning moving into the gateway."""
+        """Flash stable, forked channels in the artwork's coordinate space."""
         if not self._lightning_enabled:
             return
 
@@ -641,129 +597,31 @@ class GatewayBackground(Gtk.Widget):
         )
 
         for bolt in self._lightning_bolts:
-            progress = (elapsed - bolt["starts_at"]) / bolt["duration"]
-            if not 0 <= progress <= 1:
+            age = elapsed - bolt["starts_at"]
+            if age < 0:
                 continue
-            if not bolt.get("sizzle_started"):
-                bolt["sizzle_started"] = True
+            channel = bolt["channel"]
+            active = channel.active_flash(age)
+            if active is not None and bolt.get("sizzle_flash") != active[0]:
+                flash_index, flash = active
+                bolt["sizzle_flash"] = flash_index
                 if self._lightning_sizzle is not None:
-                    self._lightning_sizzle(bolt["duration"], bolt["fade_rate"])
+                    self._lightning_sizzle(
+                        flash.starts_at + flash.duration - age,
+                        flash.fade_rate, flash.light(age),
+                    )
             source_x = image_x + bolt["source_x"] * image_width
             source_y = image_y + bolt["source_y"] * image_height
             source_y += self._floating_islands.offset(
                 bolt["source_index"], elapsed,
             ) * image_height
-            target_x, target_y = bolt["target_x"] * width, bolt["target_y"] * height
-            vector_x, vector_y = target_x - source_x, target_y - source_y
-            vector_length = math.hypot(vector_x, vector_y)
-            perpendicular_x, perpendicular_y = -vector_y / vector_length, vector_x / vector_length
-            # A lightning flash is brightest at its origin, then loses energy
-            # while travelling into the gateway instead of staying uniformly
-            # bright for its whole journey.
-            opacity = min(
-                1.0,
-                0.98 * bolt["brightness"] * (1 - progress) ** bolt["fade_rate"],
+            target = (
+                image_x + bolt["target_x"] * image_width,
+                image_y + bolt["target_y"] * image_height,
             )
-            # Energy collapses into a thin line near the gateway, matching
-            # the rapid fade rather than retaining a broad neon stroke.
-            thickness = bolt["thickness"] * (1 - progress) ** 1.35
-            bend_scale = vector_length * bolt["winding"]
-
-            points = []
-            for step, (path_offset, detail_offset) in enumerate(zip(
-                bolt["path_offsets"], bolt["detail_offsets"],
-            )):
-                point_progress = progress * step / (len(bolt["path_offsets"]) - 1)
-                jitter = (
-                    bend_scale * path_offset
-                    + bolt["jaggedness"] * detail_offset
-                )
-                points.append((
-                    source_x + vector_x * point_progress + perpendicular_x * jitter,
-                    source_y + vector_y * point_progress + perpendicular_y * jitter,
-                ))
-
-            context.move_to(*points[0])
-            for point in points[1:]:
-                context.line_to(*point)
-            context.set_source_rgba(0.29, 0.08, 1.0, opacity * 0.62)
-            context.set_line_width(20 * thickness)
-            context.stroke_preserve()
-            context.set_source_rgba(0.60, 0.40, 1.0, opacity * 0.88)
-            context.set_line_width(8 * thickness)
-            context.stroke_preserve()
-            context.set_source_rgba(0.98, 0.96, 1.0, opacity)
-            context.set_line_width(2.4 * thickness)
-            context.stroke()
-
-            # Each optional fork carries individual brightness and fade
-            # values, so it fades naturally instead of mirroring the trunk.
-            for (
-                branch_at,
-                branch_length,
-                branch_side,
-                branch_bend,
-                branch_lightness,
-                branch_fade_rate,
-                branch_taper_rate,
-            ) in bolt["branches"]:
-                if branch_at >= progress:
-                    continue
-                branch_x = source_x + vector_x * branch_at
-                branch_y = source_y + vector_y * branch_at
-                path_position = branch_at * (len(bolt["path_offsets"]) - 1)
-                path_index = int(path_position)
-                path_fraction = path_position - path_index
-                path_offset = (
-                    bolt["path_offsets"][path_index] * (1 - path_fraction)
-                    + bolt["path_offsets"][path_index + 1] * path_fraction
-                )
-                detail_offset = (
-                    bolt["detail_offsets"][path_index] * (1 - path_fraction)
-                    + bolt["detail_offsets"][path_index + 1] * path_fraction
-                )
-                jitter = bend_scale * path_offset + bolt["jaggedness"] * detail_offset
-                branch_x += perpendicular_x * jitter
-                branch_y += perpendicular_y * jitter
-                end_x = branch_x - vector_x * branch_length
-                end_y = branch_y - vector_y * branch_length
-                end_x += perpendicular_x * vector_length * branch_length * 0.85 * branch_side
-                end_y += perpendicular_y * vector_length * branch_length * 0.85 * branch_side
-                context.move_to(branch_x, branch_y)
-                context.line_to(
-                    (branch_x + end_x) / 2
-                    + perpendicular_x * vector_length * branch_length * branch_bend * 0.45,
-                    (branch_y + end_y) / 2
-                    + perpendicular_y * vector_length * branch_length * branch_bend * 0.45,
-                )
-                context.line_to(end_x, end_y)
-                branch_opacity = (
-                    0.98
-                    * branch_lightness
-                    * (1 - progress) ** branch_fade_rate
-                )
-                # Forks lose physical width as well as light.  Their taper
-                # rates are independent, so some disappear as hairlines
-                # while others keep a thicker glow a little longer.
-                branch_thickness = (
-                    thickness * (1 - progress) ** branch_taper_rate
-                )
-                context.set_source_rgba(
-                    0.38,
-                    0.12,
-                    1.0,
-                    branch_opacity * 0.44,
-                )
-                context.set_line_width(9 * branch_thickness)
-                context.stroke_preserve()
-                context.set_source_rgba(
-                    0.94,
-                    0.88,
-                    1.0,
-                    branch_opacity * 0.84,
-                )
-                context.set_line_width(1.7 * branch_thickness)
-                context.stroke()
+            channel.draw(
+                context, (source_x, source_y), target, image_width / 1672, age,
+            )
 
 
 def _gateway_form_scale(width, height, form_width, form_height):

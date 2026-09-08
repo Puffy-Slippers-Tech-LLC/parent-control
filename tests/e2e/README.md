@@ -5,12 +5,13 @@
 currently **pending**. Inventory validation is host unit coverage; it does not
 establish graphical behavior or complete Task 19A. The shared worker has guarded
 live evidence for graphical input, fixture credential provisioning, asset
-transfer and fixture GDM authentication. Qualification reports record provenance,
+transfer, fixture GDM authentication and a real serial command. Qualification reports record provenance,
 observed stages, failures and held-lease finalization through the private
 collector. These reports do not replace scenario `EvidenceContract` records.
 The inventory-gated launcher and `make check-e2e` support listing and explicit
-execution refusal before privilege checks; scenario execution dispatch and the
-public serial-command smoke remain unfinished.
+execution refusal before privilege checks; scenario execution dispatch and a
+discovered generalhw shutdown-status diagnostic remain unfinished. See the
+[serial evidence and acceptance gap](../../docs/TestAutomation/Evidence/19A-Serial-20260907.md).
 
 ## Inspect scope on the host
 
@@ -462,15 +463,64 @@ live positive/negative qualification before input. No coordinate fallback exists
 Host regressions execute the real Perl helper with stubbed public testapi calls,
 and cover provisioning ownership, password verification, private storage,
 secret-scanned evidence, needle inputs and interrupted staging/worker cleanup.
-GDM parent password input has passed; serial-console execution remains unfinished. Test-tool
+GDM parent password input and the serial-command qualification have passed. Test-tool
 activation is `none` (next invocation); product data and accepted baseline are
 unchanged. `setup.sh` installs the pinned OpenSSL dependency on clean hosts.
+
+### Public serial console qualification
+
+Run `tools/run-tests integration check_graphical_serial` through the existing
+guarded dispatcher. This fixed qualification takes no arguments. It reuses
+fixture credentials and GDM checks, then performs serial login, a harmless
+`printf`, real logout and public graphical-console selection. It never opens
+pending customer scenario dispatch or claims full 19A acceptance.
+
+`graphical_serial.SerialConsole` connects the lease-validated running VM's
+existing `serial0` through libvirt's public `openConsole` and a nonblocking
+stream. `VIR_DOMAIN_CONSOLE_SAFE` requires exclusive attachment; no force flag
+or direct host PTY access exists. The controller pumps bounded buffers through
+two private, inode-checked FIFOs; the maintained public `virtio-terminal`
+console uses these through `add_console`. The generalhw SOL grabber remains
+disabled. Initial off-state assertions preserve prepared pipes; actual shutdown,
+ownership loss and callback cleanup close the serial resources. No extra
+process or host listener is introduced. Offline preparation enables only the
+stock password-authenticated getty in this attempt, then outer restoration
+removes that preparation along with the fixture passwords.
+
+`onpc_serial::run` is currently a fixed qualification flow, not an arbitrary
+command/password interface. It requires the selected fixture's exact terminal
+echo followed by the password prompt. The read-only `serial-password` probe
+independently verifies the standard login executable and argv without autologin,
+process/session/terminal identity and start time, and canonical no-echo flags.
+The standard login program wipes its username argument: do not recover account
+selection from argv or loosen the terminal echo check. Match the public
+`wait_serial` return normalization for getty's CRCRLF output. Diagnostic prompt
+records contain only a match boolean and line-ending counts.
+
+Only after those checks does public `type_password` receive the registered
+fixture secret. The `serial-session` probe then verifies the real fixture UID
+and sole active local `login` session on `ttyS0`. Wait for the shell prompt
+before commands: logind activation can precede shell readiness. Split the
+expected output marker across command arguments so echo cannot pass its
+assertion; allow terminal controls preceding output and bounded CR/LF endings.
+Controller observations drain pending serial input before blocking on SSH.
+All explicit post-authentication captures remain sealed and raw worker output
+stays private. These helpers activate on invocation (`none`), with no product,
+host setup or saved-data migration change.
+
+The [retained serial result](../../docs/TestAutomation/Evidence/19A-Serial-20260907.md)
+proves the command and restored/off VM. Its generalhw status callback still
+emits a backend diagnostic when truthfully reporting that the VM is on; the
+module-based exit policy does not reject it. Resolve that outcome gap through
+supported lifecycle behavior before 19A acceptance. Do not fake status, patch
+private backend APIs or treat this selected qualification as customer coverage.
 
 ### Read-only observation capability
 
 The graphical controller keeps SSH readiness in its provisioning boundary,
 then exposes `ReadOnlyObservations` to stage/asset observation code. Its only
-operation is `read('assets')`, `read('greeter')` or `read('parent-session')`. The versioned programs in
+operation is `read()` for the fixed `assets`, `greeter`, `parent-session`,
+`serial-password` and `serial-session` probes. The versioned programs in
 `guest_observations.py` are fixed: scenarios cannot supply shell commands,
 paths, stdin, timeout overrides, package operations, policy writes or resets.
 Adding a probe requires maintained code, explicit output validation and tests;
@@ -490,9 +540,9 @@ Raw command diagnostics still belong to private controller storage, not reviewed
 evidence. This is a capability boundary for trusted Python scenario code, not
 a sandbox against code that deliberately imports the provisioning transport.
 
-All three probes have guarded live evidence. Host tests cover program logic,
+All five probes have guarded live evidence. Host tests cover program logic,
 routing, refusal, output and interruption behavior. This SSH observation
-interface does not satisfy the remaining public serial-command smoke or full
+interface corroborates the public serial-command smoke; it does not establish full
 scenario evidence/capture acceptance. The helpers are development-only,
 activate on next invocation (`none`), and change no product data or setup policy.
 
@@ -502,7 +552,7 @@ execution boundary, report failure and combined cleanup/original failures. It
 is automatically included in the dispatcher's isolated safety prerequisites.
 The [worker integration evidence](../../docs/TestAutomation/Evidence/19A-Worker-Integration-20260907.md)
 records the real run. The launcher preflight is now implemented; actual scenario
-records and authenticated transport remain unfinished.
+records and public scenario execution remain unfinished.
 
 The smoke's `Qualification` controller captures `VerifiedInputs` after offline
 bootstrap, rechecks before worker startup, and supplies its `source_files` map.

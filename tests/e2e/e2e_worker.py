@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
 from graphical_lease import Adapter, CallbackServer, lifecycle_variables
 from graphical_worker import Worker
+from graphical_serial import SerialConsole
 from owned_commands import require
 sys.path.pop(0)
 
@@ -122,12 +123,15 @@ def stage_distribution(directory, expected_inputs):
     return hashlib.sha256(json.dumps(actual, sort_keys=True).encode()).hexdigest()
 
 
-def variables(directory, server, run):
+def variables(directory, server, run, *, serial=False):
     return {
         'BACKEND': 'generalhw', 'DISTRI': 'onpc-smoke',
         'CASEDIR': str(directory / 'distribution'),
         'WORKER_HOSTNAME': '127.0.0.1', 'GENERAL_HW_VNC_IP': '127.0.0.1',
         'GENERAL_HW_VNC_PORT': 5900, 'GENERAL_HW_NO_SERIAL': 1,
+        # The stock generalhw SOL grabber remains disabled. This is a separate
+        # public bidirectional console using controller-owned private pipes.
+        'ONPC_SERIAL_SMOKE': int(serial),
         # Qualified public rgb888 path; the pinned client's 16-bit changed
         # ZRLE rectangles do not decode this QEMU display correctly.
         'GENERAL_HW_VNC_DEPTH': 32, 'NOVIDEO': 1,
@@ -136,7 +140,7 @@ def variables(directory, server, run):
 
 
 def run_distribution(directory, lease, ledger, *, expected_inputs, observe, validate,
-                     timeout=600, on_failure=None, credentials=None):
+                     timeout=600, on_failure=None, credentials=None, serial=False):
     """Run fixed trusted code against an existing isolated lease, then retain reports.
 
     observe/validate are controller functions, never supplied by the guest or
@@ -147,6 +151,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
     a broken hook cannot prevent either resource's cleanup or replace the error.
     """
     require(type(timeout) in (int, float) and 0 < timeout <= 600, 'e2e:timeout')
+    require(type(serial) is bool and (not serial or credentials is not None), 'e2e:serial-credentials')
     require(isinstance(lease.state['run'], str)
             and re.fullmatch(r'[0-9a-f]{32}', lease.state['run']), 'e2e:run')
     directory = Path(directory)
@@ -197,7 +202,9 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
         try:
             result['distribution_sha256'] = stage_distribution(directory, expected_inputs)
             server = CallbackServer(adapter, directory)
-            secrets.stage(directory, variables(directory, server, lease.state['run']))
+            if serial:
+                adapter.serial = SerialConsole(adapter, directory)
+            secrets.stage(directory, variables(directory, server, lease.state['run'], serial=serial))
             worker = Worker(directory, server.path, lease.state['run'], list(COMMAND))
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:
@@ -210,7 +217,11 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                     result['outcome'] = 'passed'
                     break
                 server.serve_once()
-                observe()
+                if serial:
+                    adapter.serial.step()
+                    observe(adapter.serial)
+                else:
+                    observe()
             else:
                 require(False, 'e2e:deadline')
         except BaseException as error:

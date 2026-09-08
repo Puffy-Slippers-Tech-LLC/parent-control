@@ -68,4 +68,8 @@ sub capture_before_authentication {
     return $result;
 }
 
+sub seal_capture {
+    $authentication_started = 1;
+}
+
 1;

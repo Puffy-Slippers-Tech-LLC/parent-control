@@ -96,3 +96,53 @@ else:
     print('parent-session-not-ready')
     raise SystemExit(1)
 '''
+
+
+# Read terminal attributes and the exact systemd-owned login process, without
+# consuming input or changing termios. The graphical fixture needle contract
+# does not apply to a terminal; this independently proves its no-echo boundary.
+SERIAL_PASSWORD = '''import os,pathlib,stat,subprocess,termios
+pid = int(subprocess.run(['systemctl','show','serial-getty@ttyS0.service',
+                         '--property=MainPID','--value'], capture_output=True,
+                        text=True, check=True, timeout=10).stdout.strip())
+assert pid > 1
+proc = pathlib.Path('/proc') / str(pid)
+assert (proc/'exe').resolve() == pathlib.Path('/usr/bin/login')
+args = (proc/'cmdline').read_bytes().split(b'\\0')
+# util-linux intentionally wipes the supplied username before PAM. Identity
+# selection is therefore asserted from the real terminal echo by the worker.
+# Accept only the stock password-authenticated argv; refuse -f/autologin.
+visible = [value for value in args if value]
+assert visible and visible[0] in (b'/bin/login', b'/usr/bin/login', b'login')
+assert visible[1:] in ([b'--'], [b'-p',b'--'])
+def identity():
+    fields = (proc/'stat').read_text().rpartition(') ')[2].split()
+    assert len(fields) >= 20
+    # Documented proc_pid_stat fields: pgrp, session, tty_nr, tpgid, starttime.
+    assert [int(value) for value in fields[2:6]] == [pid,pid,os.makedev(4,64),pid]
+    return fields[19]
+starttime = identity()
+fd = os.open('/dev/ttyS0', os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY | os.O_NOFOLLOW)
+try:
+    device = os.fstat(fd)
+    assert stat.S_ISCHR(device.st_mode) and device.st_rdev == os.makedev(4,64)
+    assert (proc/'fd/0').stat().st_rdev == device.st_rdev
+    flags = termios.tcgetattr(fd)[3]
+    assert flags & termios.ICANON and not flags & (termios.ECHO | termios.ECHONL)
+    assert (proc/'exe').resolve() == pathlib.Path('/usr/bin/login')
+    assert (proc/'cmdline').read_bytes().split(b'\\0') == args
+    assert identity() == starttime
+finally:
+    os.close(fd)
+print('serial-password-safe')
+'''
+
+# Same strict other-user gate as graphical login, with an explicitly different
+# expected session. No root or SSH login can satisfy real fixture serial login.
+SERIAL_SESSION = PARENT_SESSION.replace(
+    "props.get('Type') in ('wayland', 'x11') and\n                  props.get('Service') == 'gdm-password'",
+    "props.get('Type') == 'tty' and props.get('TTY') == 'ttyS0' and\n                  props.get('Service') == 'login'"
+).replace("'-p', 'Type', '-p', 'Remote', '-p', 'Service', '-p', 'User'",
+          "'-p', 'Type', '-p', 'Remote', '-p', 'Service', '-p', 'User', '-p', 'TTY'").replace(
+    'parent-session-ready', 'serial-session-ready').replace(
+    'parent-session-not-ready', 'serial-session-not-ready')

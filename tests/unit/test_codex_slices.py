@@ -10,6 +10,7 @@ import pty
 import re
 import select
 import signal
+import threading
 import time
 
 import pytest
@@ -19,6 +20,119 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('codex_slices', ROOT / 'tools/codex_slices.py')
 loop = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(loop)
+
+
+@pytest.mark.parametrize('detach', [False, True])
+def test_start_monitors_owned_run_without_changing_it(tmp_path, monkeypatch, capsys, detach):
+    storage = tmp_path / loop.STORAGE
+    loop.private_directory(storage)
+    loop.write_json(storage / 'state.json', {'status': 'running', 'request_id': 'unchanged'})
+    before = (storage / 'state.json').read_bytes()
+    ready = threading.Event()
+    finish = threading.Event()
+    errors = []
+
+    def supervisor():
+        try:
+            with loop.exclusive(storage), loop.MonitorHub(storage, loop.LiveOutput(None)) as hub:
+                ready.set()
+                deadline = time.monotonic() + 3
+                while time.monotonic() < deadline:
+                    with hub.lock:
+                        connected = bool(hub.clients)
+                    if connected:
+                        break
+                    time.sleep(0.01)
+                assert connected
+                hub.live.write('ongoing progress\n')
+                if detach:
+                    assert finish.wait(3)
+                    assert (storage / 'state.json').read_bytes() == before
+                    with pytest.raises(loop.Busy):
+                        with loop.exclusive(storage):
+                            pass
+        except BaseException as exc:
+            errors.append(exc)
+
+    original = loop.LiveOutput.display
+
+    def display(self, text, **kwargs):
+        if detach and self.stream is not None and text == 'ongoing progress\n':
+            raise KeyboardInterrupt
+        return original(self, text, **kwargs)
+
+    monkeypatch.setattr(loop.LiveOutput, 'display', display)
+    monkeypatch.setattr(loop, 'preflight', lambda root: pytest.fail('monitor must not launch Codex'))
+    thread = threading.Thread(target=supervisor)
+    thread.start()
+    try:
+        assert ready.wait(3)
+        assert loop.main(['start', '--max-slices', '9', '--reconciled'], root=tmp_path) == 0
+        assert (storage / 'state.json').read_bytes() == before
+        assert not (storage / 'STOP').exists()
+        assert not (storage / 'KILL').exists()
+    finally:
+        finish.set()
+        thread.join(4)
+    assert not thread.is_alive()
+    assert not errors
+    output = capsys.readouterr().out
+    assert 'Monitoring ongoing session' in output
+    assert ('Monitor detached' if detach else 'ongoing progress') in output
+    assert sorted(path.name for path in storage.iterdir()) == ['lock', 'state.json']
+
+
+def test_old_running_launcher_is_left_unchanged(tmp_path, monkeypatch, capsys):
+    storage = tmp_path / loop.STORAGE
+    loop.private_directory(storage)
+    monkeypatch.setattr(loop.time, 'sleep', lambda _: None)
+    with loop.exclusive(storage):
+        assert loop.main(['start'], root=tmp_path) == 2
+    assert 'no monitor endpoint' in capsys.readouterr().err
+    assert not (storage / 'state.json').exists()
+
+
+def test_monitor_fanout_reconnect_and_bounded_buffer(tmp_path):
+    storage = tmp_path / loop.STORAGE
+    live = loop.LiveOutput(None)
+
+    def wait_clients(hub, count):
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            with hub.lock:
+                if len(hub.clients) == count:
+                    return
+            time.sleep(0.01)
+        pytest.fail('monitor connections did not settle')
+
+    def connect():
+        client = loop.socket.socket(loop.socket.AF_UNIX, loop.socket.SOCK_STREAM)
+        client.settimeout(3)
+        client.connect(loop.monitor_address(storage))
+        return client
+
+    with loop.MonitorHub(storage, live) as hub:
+        with connect() as first, connect() as second:
+            wait_clients(hub, 2)
+            live.markdown('**shared progress**')
+            for client in (first, second):
+                with client.makefile('r') as stream:
+                    block = json.loads(stream.readline())
+                assert block['text'] == '**shared progress**'
+                assert block['markdown'] is True
+        wait_clients(hub, 0)
+        live.write('unobserved output is discarded')
+        with connect() as reconnected:
+            wait_clients(hub, 1)
+            live.write('next slice')
+            with reconnected.makefile('r') as stream:
+                assert json.loads(stream.readline())['text'] == 'next slice'
+            # Saturation disconnects only the monitor, without retaining output.
+            hub.publish({'text': 'x' * (8 * 1024 * 1024)})
+            wait_clients(hub, 0)
+            assert reconnected.recv(1) == b''
+    assert live.monitor is None
+    assert not storage.exists()
 
 FAKE_CODEX = r'''#!/usr/bin/python3
 import json
@@ -40,6 +154,9 @@ def emit(value):
 thread_id = sys.argv[sys.argv.index('resume') + 1] if 'resume' in sys.argv else str(uuid.uuid4())
 emit({'type': 'thread.started', 'thread_id': thread_id})
 emit({'type': 'turn.started'})
+if step.get('signal_exit'):
+    import signal
+    signal.raise_signal(signal.SIGTERM)
 if step.get('kill'):
     import signal
     import time
@@ -51,11 +168,13 @@ if step.get('kill'):
     time.sleep(10)
     raise SystemExit('kill did not interrupt the worker')
 if step.get('tools', True):
-    emit({'type': 'item.started', 'item': {'id': 'cmd', 'type': 'command_execution', 'command': 'sensitive-placeholder'}})
+    command = step.get('command', 'sensitive-placeholder')
+    emit({'type': 'item.started', 'item': {'id': 'cmd', 'type': 'command_execution', 'command': command}})
     emit({'type': 'item.completed', 'item': {'id': 'cmd', 'type': 'command_execution',
-          'command': 'sensitive-placeholder', 'aggregated_output': 'live-command-result\n',
+          'command': command, 'aggregated_output': step.get('output', 'live-command-result\n'),
           'status': 'completed', 'exit_code': 0}})
-emit({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'sensitive-placeholder'}})
+emit({'type': 'item.completed', 'item': {'type': 'agent_message',
+      'text': step.get('message', 'sensitive-placeholder')}})
 print('live-stderr-placeholder', file=sys.stderr, flush=True)
 if step.get('await_gate'):
     import time
@@ -141,6 +260,28 @@ def complete(**fields):
     return {'status': 'complete', 'cleanup_complete': True, 'made_progress': True, 'blocker': 'none', **fields}
 
 
+@pytest.fixture
+def start_and_wait(monkeypatch):
+    children = []
+    popen = loop.subprocess.Popen
+
+    def record_child(command, *args, **kwargs):
+        process = popen(command, *args, **kwargs)
+        if 'run' in command:
+            children.append(process)
+        return process
+
+    monkeypatch.setattr(loop.subprocess, 'Popen', record_child)
+
+    def start(root, *options):
+        assert loop.main(['start', *options], root=root) == 0
+        assert children[-1].wait(timeout=10) == 0
+
+    yield start
+    for child in children:
+        child.wait(timeout=10)
+
+
 def test_two_fresh_sessions_keep_pinned_settings_despite_handoff_changes(rig):
     root = rig([{'settings': True}, {'check_all': True, 'result': complete()}])
     assert run(root) == 0
@@ -202,7 +343,7 @@ def test_clean_blocker_stops_without_claiming_completion(rig):
 
 
 @pytest.mark.parametrize('ignore_interrupt', [False, True])
-def test_kill_interrupts_and_resume_reuses_exact_thread_then_returns_to_fresh_slices(rig, ignore_interrupt):
+def test_kill_interrupts_and_start_reuses_exact_thread_then_returns_to_fresh_slices(rig, start_and_wait, ignore_interrupt):
     root = rig([{'kill': True, 'ignore_interrupt': ignore_interrupt}, {},
                 {'check_all': True, 'result': complete()}])
     started = time.monotonic()
@@ -213,9 +354,7 @@ def test_kill_interrupts_and_resume_reuses_exact_thread_then_returns_to_fresh_sl
     thread = state['thread_id']
     assert state['last_session']['outcome'] == 'killed'
     assert len(calls(root)) == 1
-    with pytest.raises(loop.Error, match='reconciliation'):
-        run(root)
-    assert loop.main(['resume'], root=root) == 0
+    start_and_wait(root)
     launched = calls(root)
     assert len(launched) == 3
     assert launched[1]['argv'][-3:] == ['resume', thread, '-']
@@ -237,7 +376,7 @@ def test_kill_during_retry_wait_prevents_another_worker(rig, monkeypatch):
     assert len(calls(root)) == 1
 
 
-def test_resume_preflight_failure_preserves_killed_session(rig, monkeypatch):
+def test_start_preflight_failure_preserves_killed_session(rig, monkeypatch):
     root = rig([])
     storage = root / loop.STORAGE
     loop.private_directory(storage)
@@ -245,20 +384,45 @@ def test_resume_preflight_failure_preserves_killed_session(rig, monkeypatch):
              'thread_id': '718e11b8-1c72-471d-9222-fb2b37283ed4'}
     loop.write_json(storage / 'state.json', state)
     monkeypatch.setattr(loop.shutil, 'which', lambda _: None)
-    assert loop.main(['resume'], root=root) == 2
+    assert loop.main(['start'], root=root) == 2
     assert loop.read_state(storage) == state
 
 
-@pytest.mark.parametrize('state', [{}, {'status': 'complete'},
+@pytest.mark.parametrize('state', [{'status': 'killed', 'resumable': True},
                                  {'status': 'killed', 'thread_id': 'invalid', 'resumable': True},
                                  {'status': 'killed', 'thread_id': 'old-ephemeral'}])
-def test_resume_refuses_missing_or_unsaved_session(rig, state):
+def test_start_refuses_missing_or_unsaved_killed_thread(rig, state):
     root = rig([])
     storage = root / loop.STORAGE
     loop.private_directory(storage)
     loop.write_json(storage / 'state.json', state)
-    assert loop.main(['resume'], root=root) == 2
+    assert loop.main(['start'], root=root) == 2
     assert calls(root) == []
+    assert loop.read_state(storage) == state
+
+
+@pytest.mark.parametrize('state, options', [
+    ({}, []), ({'status': 'stopped'}, []), ({'status': 'complete'}, []),
+    ({'status': 'killed', 'resumable': True,
+      'thread_id': '718e11b8-1c72-471d-9222-fb2b37283ed4'}, ['--reconciled']),
+])
+def test_start_launches_fresh_when_no_resume_needed(rig, start_and_wait, state, options):
+    root = rig([{'check_all': True, 'result': complete()}])
+    storage = root / loop.STORAGE
+    loop.private_directory(storage)
+    loop.write_json(storage / 'state.json', state)
+    start_and_wait(root, *options)
+    assert len(calls(root)) == 1
+    assert 'resume' not in calls(root)[0]['argv']
+    assert loop.read_state(storage)['status'] == 'complete'
+
+
+def test_separate_resume_command_is_removed(rig):
+    root = rig([])
+    with pytest.raises(SystemExit) as error:
+        loop.main(['resume'], root=root)
+    assert error.value.code == 2
+    assert not (root / loop.STORAGE).exists()
 
 
 def test_kill_command_targets_request_without_signaling_saved_pid(rig, monkeypatch):
@@ -604,6 +768,261 @@ class TerminalBuffer(io.StringIO):
         return True
 
 
+@pytest.mark.parametrize('held_pipes', [('stdout',), ('stderr',), ('stdout', 'stderr')])
+@pytest.mark.parametrize('step, status, code', [
+    ({'stop': True}, 'stopped', 0),
+    ({'kill': True}, 'killed', 0),
+    ({'kill': True, 'ignore_interrupt': True}, 'killed', 0),
+    ({'signal_exit': True}, 'killed', 2),
+])
+def test_shutdown_exits_with_red_notice_even_when_pipes_remain_open(
+        rig, monkeypatch, held_pipes, step, status, code):
+    root = rig([step])
+    monkeypatch.setenv('TERM', 'xterm-256color')
+    monkeypatch.delenv('NO_COLOR', raising=False)
+    terminal = TerminalBuffer()
+    monkeypatch.setattr(loop.sys, 'stdout', terminal)
+    popen = loop.subprocess.Popen
+    writers = []
+    children = []
+
+    def launch(command, **kwargs):
+        if '--help' in command:
+            return popen(command, **kwargs)
+        readers = {}
+        for name in held_pipes:
+            reader, writer = os.pipe()
+            readers[name] = reader
+            writers.append(writer)
+            kwargs[name] = writer
+        child = popen(command, **kwargs)
+        children.append(child)
+        for name, reader in readers.items():
+            setattr(child, name, os.fdopen(reader, 'r', encoding='utf-8'))
+        return child
+
+    monkeypatch.setattr(loop.subprocess, 'Popen', launch)
+    finished = loop.threading.Event()
+
+    def close_writers():
+        while writers:
+            os.close(writers.pop())
+
+    def release_on_timeout():
+        # A regression must fail on elapsed time rather than hang the suite.
+        if not finished.wait(8):
+            close_writers()
+
+    watchdog = loop.threading.Thread(target=release_on_timeout)
+    watchdog.start()
+    try:
+        started = time.monotonic()
+        assert run(root) == code
+        assert time.monotonic() - started < 6
+        assert all(child.poll() is not None for child in children)
+        assert loop.read_state(root / loop.STORAGE)['status'] == status
+        assert len(calls(root)) == 1
+        output = terminal.getvalue()
+        notice = '\x1b[1;31m' + output.rsplit('\x1b[1;31m', 1)[-1]
+        assert f'Session {status}' in notice
+        assert 'Launcher exiting' in notice
+        assert '\x1b[1;31m' in notice and notice.endswith('\x1b[0m')
+        terminal.write('shell still usable\n')
+        assert terminal.getvalue().endswith('shell still usable\n')
+    finally:
+        finished.set()
+        watchdog.join()
+        close_writers()
+        for child in children:
+            child.wait(timeout=12)
+
+
+@pytest.mark.parametrize('action', ['start', 'run'])
+@pytest.mark.parametrize('step, status', [({'stop': True}, 'stopped'), ({'kill': True}, 'killed')])
+def test_stopped_launcher_exits_without_closing_real_terminal(rig, monkeypatch, action, step, status):
+    root = rig([step])
+    monkeypatch.setenv('TERM', 'xterm-256color')
+    monkeypatch.delenv('NO_COLOR', raising=False)
+    master, slave = pty.openpty()
+    children = []
+    popen = loop.subprocess.Popen
+
+    def record_child(command, *args, **kwargs):
+        child = popen(command, *args, **kwargs)
+        children.append(child)
+        return child
+
+    try:
+        with os.fdopen(slave, 'w', buffering=1) as terminal:
+            if action == 'start':
+                with monkeypatch.context() as patch:
+                    patch.setattr(loop.sys, 'stdout', terminal)
+                    patch.setattr(loop.subprocess, 'Popen', record_child)
+                    assert loop.main(['start'], root=root) == 0
+            else:
+                record_child([loop.sys.executable, '-I', '-B', str(root / 'tools/codex_slices.py'), 'run'],
+                             stdin=loop.subprocess.DEVNULL, stdout=terminal, stderr=terminal,
+                             start_new_session=True)
+            for child in children:
+                assert child.wait(timeout=8) == 0
+            terminal.write('shell still usable\n')
+            output = ''
+            while select.select([master], [], [], 0.1)[0]:
+                output += os.read(master, 65536).decode()
+            assert f'Session {status}' in loop.LiveOutput.clean(output)
+            assert '\x1b[1;31mSession' in output
+            assert 'shell still usable' in output
+            assert loop.read_state(root / loop.STORAGE)['status'] == status
+            if action == 'start':
+                log = (root / loop.STORAGE / 'launcher.log').read_text()
+                assert f'Session {status}' in log and '\x1b[' not in log
+    finally:
+        for child in children:
+            child.wait(timeout=12)
+        os.close(master)
+
+
+DOCUMENT_EXCERPT = (
+    '<!-- Preserve incoming links from historical evidence records. -->\n'
+    '<a id="continuation-handoff"></a>\n\n'
+    '## Completion handoff\n\n'
+    '**Completed this session:** built verified inputs and ran the checks.\n'
+)
+
+
+@pytest.mark.parametrize('command', [
+    'cat docs/Continuation.md',
+    '/usr/bin/cat -- "docs/Completion handoff.MD"',
+    'head -n 20 docs/Continuation.md',
+    'tail -20 docs/Continuation.markdown',
+    "sed -n '1,20p' docs/Continuation.md",
+    "sed -n '20,$p' -- docs/Continuation.md",
+    'tools/read-only slice 1 20 docs/Continuation.md',
+    '/bin/bash -lc "sed -n \'1,20p\' docs/Continuation.md"',
+])
+def test_terminal_renders_markdown_file_excerpt_once(monkeypatch, command):
+    monkeypatch.setenv('TERM', 'xterm-256color')
+    monkeypatch.delenv('NO_COLOR', raising=False)
+    stream = TerminalBuffer()
+    live = loop.LiveOutput(stream)
+    for kind, output in [('item.started', ''),
+                         ('item.updated', DOCUMENT_EXCERPT[:110]),
+                         ('item.completed', DOCUMENT_EXCERPT)]:
+        live.event({'type': kind, 'item': {
+            'id': 'read', 'type': 'command_execution', 'command': command,
+            'aggregated_output': output, 'exit_code': 0, 'status': 'completed'}})
+        if kind != 'item.completed':
+            assert live.clean(stream.getvalue()) == f'\n$ {command}\n'
+    styled = stream.getvalue()
+    assert '\x1b[' in styled
+    output = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', styled)
+    assert output.count('Completion handoff') == (2 if 'Completion handoff.MD' in command else 1)
+    assert 'Completed this session:' in output
+    assert '## Completion' not in output and '**Completed' not in output
+    assert '<!--' not in output and '<a id=' not in output
+    assert 'Command completed (exit 0).' in output
+    assert not live.items
+
+
+@pytest.mark.parametrize('command', [
+    'cat docs/example.unknownextension', 'cat -n docs/example.md',
+    "rg -n '##' docs/example.md", 'git diff -- docs/example.md',
+    'cat docs/example.md docs/example.py', 'cat docs/example.md | head',
+    'cat docs/example.md; cat docs/other.md',
+    'cat docs/example.md && cat docs/other.md',
+    'cat $(echo docs/example.md)', 'cat docs/*.md',
+    "sed -n '1,20p;=' docs/example.md", 'cat "unterminated.md', None,
+])
+def test_other_command_output_stays_literal_and_streams(monkeypatch, command):
+    monkeypatch.setenv('TERM', 'xterm-256color')
+    stream = TerminalBuffer()
+    live = loop.LiveOutput(stream)
+    for kind, output in [('item.updated', '## literal\n'),
+                         ('item.completed', '## literal\n**output**\n')]:
+        live.event({'type': kind, 'item': {
+            'id': 'command', 'type': 'command_execution', 'command': command,
+            'aggregated_output': output, 'exit_code': 0}})
+        assert output in stream.getvalue()
+    assert stream.getvalue().count('## literal') == 1
+    assert '## literal\n**output**\n' in stream.getvalue()
+
+
+@pytest.mark.parametrize('fallback', ['redirected', 'dumb', 'missing', 'failed'])
+def test_markdown_file_read_plain_fallback(monkeypatch, fallback):
+    monkeypatch.setenv('TERM', 'dumb' if fallback == 'dumb' else 'xterm')
+    if fallback == 'missing':
+        monkeypatch.setattr(loop, 'Console', None)
+    stream = io.StringIO() if fallback == 'redirected' else TerminalBuffer()
+    live = loop.LiveOutput(stream)
+    for kind in ('item.updated', 'item.completed'):
+        live.event({'type': kind, 'item': {
+            'id': 'read', 'type': 'command_execution', 'command': 'cat docs/example.md',
+            'aggregated_output': DOCUMENT_EXCERPT, 'exit_code': 1 if fallback == 'failed' else 0}})
+        if fallback != 'failed' or kind == 'item.completed':
+            assert DOCUMENT_EXCERPT in stream.getvalue()
+    assert stream.getvalue().count(DOCUMENT_EXCERPT) == 1
+    if fallback != 'failed':
+        assert '\x1b[' not in stream.getvalue()
+
+
+@pytest.mark.parametrize('command,source', [
+    ('/bin/bash -lc "sed -n \'350,372p\' tests/integration/system_caller.py"',
+     '    return self\n\ndef drop_identity(uid, *, allow_root=False):\n'
+     '    # Only an explicitly opted-in caller may retain UID 0.\n'
+     '    os.setresuid(uid, uid, uid)\n'),
+    ('tools/read-only slice 1 20 child/example.js', 'const enabled = true;\n'),
+    ('cat config/example.json', '{"enabled": true}\n'),
+    ('head -n 20 tools/example.sh', 'if true; then\n    echo "hello"\nfi\n'),
+])
+def test_terminal_highlights_source_excerpt_once(monkeypatch, command, source):
+    monkeypatch.setenv('TERM', 'xterm-256color')
+    monkeypatch.delenv('NO_COLOR', raising=False)
+    stream = TerminalBuffer()
+    live = loop.LiveOutput(stream)
+    for kind, output in [('item.started', ''), ('item.updated', source[:12]),
+                         ('item.completed', source)]:
+        live.event({'type': kind, 'item': {
+            'id': 'source', 'type': 'command_execution', 'command': command,
+            'aggregated_output': output, 'exit_code': 0, 'status': 'completed'}})
+        if kind != 'item.completed':
+            assert live.clean(stream.getvalue()) == f'\n$ {command}\n'
+    styled = stream.getvalue()
+    excerpt = styled[styled.index(command) + len(command):]
+    excerpt = excerpt[:excerpt.index('Command')]
+    assert '\x1b[' in excerpt
+    # Token colors must occur inside the source, not only in command labels.
+    assert source not in styled
+    plain = live.clean(styled)
+    for line in source.splitlines():
+        if line:
+            assert plain.count(line) == 1
+    assert 'Command completed (exit 0).' in plain
+    assert not live.items
+
+
+@pytest.mark.parametrize('fallback', ['redirected', 'dumb', 'missing', 'no_color', 'failed'])
+def test_source_excerpt_fallback_and_sanitization(monkeypatch, fallback):
+    monkeypatch.setenv('TERM', 'dumb' if fallback == 'dumb' else 'xterm-256color')
+    if fallback == 'missing':
+        monkeypatch.setattr(loop, 'Console', None)
+    if fallback == 'no_color':
+        monkeypatch.setenv('NO_COLOR', '1')
+    stream = io.StringIO() if fallback == 'redirected' else TerminalBuffer()
+    live = loop.LiveOutput(stream)
+    source = 'def example():\n    return True\n'
+    live.event({'type': 'item.completed', 'item': {
+        'id': 'source', 'type': 'command_execution', 'command': 'cat example.py',
+        'aggregated_output': '\x1b[2J\x1b]0;untrusted title\x07' + source,
+        'exit_code': 1 if fallback == 'failed' else 0}})
+    styled = stream.getvalue()
+    assert '\x1b[2J' not in styled and 'untrusted title' not in styled
+    assert source in live.clean(styled)
+    if fallback in ('redirected', 'dumb', 'missing'):
+        assert '\x1b[' not in styled
+    if fallback == 'no_color':
+        assert not re.search(r'\x1b\[(?:3[0-9]|9[0-7]|38;)', styled)
+
+
 def test_terminal_renders_completed_markdown_once(monkeypatch):
     assert loop.Console is not None, 'Run ./setup.sh --dependencies-only for python3-rich'
     monkeypatch.setenv('TERM', 'xterm-256color')
@@ -639,6 +1058,45 @@ def test_markdown_plain_fallback(monkeypatch, fallback):
     live = loop.LiveOutput(stream)
     live.markdown('## Heading\n\n**text**\n')
     assert stream.getvalue() == '## Heading\n\n**text**\n'
+
+
+@pytest.mark.parametrize('file_excerpt', [False, True])
+def test_terminal_markdown_tracks_output_descriptor_width(monkeypatch, file_excerpt):
+    import termios
+
+    monkeypatch.setenv('TERM', 'xterm')
+    monkeypatch.setenv('COLUMNS', '80')
+    master, slave = pty.openpty()
+    try:
+        stream = TerminalBuffer()
+        monkeypatch.setattr(stream, 'fileno', lambda: slave)
+        live = loop.LiveOutput(stream)
+        for width in (120, 48, 160):
+            termios.tcsetwinsize(slave, (24, width))
+            stream.seek(0)
+            stream.truncate()
+            if file_excerpt:
+                # Exercise the list excerpt shown by the launcher's sed reads,
+                # including headings and list indentation at the actual width.
+                excerpt = '\n'.join((ROOT / 'docs/Specification.md').read_text().splitlines()[35:42])
+                live.event({'type': 'item.completed', 'item': {
+                    'id': 'read', 'type': 'command_execution',
+                    'command': '/bin/bash -lc "sed -n \'36,42p\' docs/Specification.md"',
+                    'aggregated_output': excerpt, 'exit_code': 0, 'status': 'completed'}})
+                output = live.clean(stream.getvalue())
+                lines = output.split('\n', 2)[2].split('\nCommand completed', 1)[0].splitlines()
+                assert 'Application access' in output
+            else:
+                live.markdown('# System design\n\n' + 'flowing text ' * 40)
+                lines = live.clean(stream.getvalue()).splitlines()
+                assert len(lines[0]) == width
+                lines = lines[3:]
+            assert all(len(line) <= width for line in lines)
+            # Rich pads lines; only visible prose proves wrapping uses the width.
+            assert max(len(line.rstrip()) for line in lines) > width - 15
+    finally:
+        os.close(slave)
+        os.close(master)
 
 
 def test_terminal_markdown_sanitizes_input_and_survives_closed_stream(monkeypatch):
@@ -678,8 +1136,18 @@ def test_live_renderer_shows_incremental_messages_commands_and_tool_results():
 
 
 @pytest.mark.parametrize('close_terminal', [False, True])
-def test_detached_live_output_uses_terminal_and_survives_its_closure(rig, monkeypatch, close_terminal):
-    root = rig([{'await_gate': True, 'check_all': True, 'result': complete()}])
+@pytest.mark.parametrize('source_file', [False, True])
+def test_detached_live_output_uses_terminal_and_survives_its_closure(rig, monkeypatch, close_terminal, source_file):
+    monkeypatch.setenv('TERM', 'xterm-256color')
+    monkeypatch.setenv('TERM_PROGRAM', 'vscode')
+    monkeypatch.setenv('COLORTERM', 'truecolor')
+    monkeypatch.delenv('NO_COLOR', raising=False)
+    root = rig([{'await_gate': True, 'check_all': True, 'result': complete(),
+                 'command': ('/bin/bash -lc "sed -n \'350,372p\' tests/integration/system_caller.py"'
+                             if source_file else "sed -n '1,20p' docs/Continuation.md"),
+                 'output': ('def drop_identity(uid, *, allow_root=False):\n    return uid\n'
+                            if source_file else DOCUMENT_EXCERPT),
+                 'message': '## Rendered heading\n\nA **rendered phrase**.\n'}])
     master, slave = pty.openpty()
     children = []
     popen = loop.subprocess.Popen
@@ -703,9 +1171,21 @@ def test_detached_live_output_uses_terminal_and_survives_its_closure(rig, monkey
             assert loop.main(['start'], root=root) == 0
             assert len(children) == 1
             deadline = time.monotonic() + 5
-            while 'sensitive-placeholder' not in ''.join(chunks) and time.monotonic() < deadline:
+            while 'rendered phrase' not in ''.join(chunks) and time.monotonic() < deadline:
                 collect()
-            assert 'sensitive-placeholder' in ''.join(chunks)
+            output = ''.join(chunks)
+            assert 'rendered phrase' in output
+            assert '\x1b[' in output
+            assert '## Rendered heading' not in output
+            assert '**rendered phrase**' not in output
+            if source_file:
+                assert 'def drop_identity' in loop.LiveOutput.clean(output)
+                assert 'def drop_identity' not in output
+            else:
+                assert 'Completion handoff' in output
+            assert '## Completion handoff' not in output
+            assert '**Completed this session:**' not in output
+            assert '<!--' not in output and '<a id=' not in output
             if close_terminal:
                 os.close(master)
                 master = None
@@ -722,11 +1202,16 @@ def test_detached_live_output_uses_terminal_and_survives_its_closure(rig, monkey
         assert loop.read_state(root / loop.STORAGE)['status'] == 'complete'
         assert 'Completed slice result 0.' in (root / loop.SUMMARY).read_text()
         if not close_terminal:
-            assert 'Completed slice result 0.' in ''.join(chunks)
+            output = ''.join(chunks)
+            assert 'Completed slice result 0.' in output
+            assert '### ' not in output and '**' not in output
         saved = (root / loop.STORAGE / 'launcher.log').read_text()
         assert 'sensitive-placeholder' not in saved
         assert 'live-stderr-placeholder' not in saved
         assert 'message-after-terminal-closure' not in saved
+        assert 'Rendered heading' not in saved
+        assert 'Completion handoff' not in saved
+        assert '\x1b[' not in saved
     finally:
         # Release and await only the explicitly spawned fake supervisor. No signals.
         (root / 'terminal-closed').touch()

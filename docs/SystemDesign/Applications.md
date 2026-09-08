@@ -12,8 +12,16 @@ Implementation: [catalog.py](../../broker/oh_no_parent_control/catalog.py), [exe
 The parent selects policy by desktop ID, but enforcement uses the corresponding
 native executable path, public Snap command path, or full Flatpak ref. The
 broker discovers launchers from the selected child's user XDG directories
-before system directories, so the catalog reflects that child's app grid. On
-every app-policy save it resolves each still-present desktop ID again; a
+before system directories, so the catalog reflects that child's app grid. The
+first file for each desktop ID takes precedence even if it is hidden or cannot
+be listed; a lower-priority launcher does not replace that child's override.
+Relative native commands use an explicit absolute desktop `Path`, when present,
+then the selected child's `.local/bin` and `bin`. Bare command names fall back
+to `/usr/local/bin`, `/usr/bin`, and `/bin`, in that order, without inheriting
+the broker's administrator `PATH` or current directory. Native targets are
+canonicalized before generic-wrapper exclusion. This fixed discovery policy
+does not evaluate account shell profiles or arbitrary session PATH changes.
+On every app-policy save it resolves each still-present desktop ID again; a
 self-updated executable is not replaced by a stale target, while a missing
 app's saved rule remains intact. After installing and verifying the complete
 policy, the broker stops applications

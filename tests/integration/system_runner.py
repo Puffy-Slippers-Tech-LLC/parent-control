@@ -42,10 +42,11 @@ PAYLOAD = '/var/tmp/onpc-system-input'
 TAG = 'onpc-system-run:'
 QUALIFICATION_CASE = 'test_method_role_matrix[ListManagedUsers-parent1]'
 QUALIFICATION_FAILURE = 'harness:qualification-failure'
-PHASE_ORDER = ('installed', 'rebooted', 'authorization')
+PHASE_ORDER = ('installed', 'rebooted', 'authorization', 'enforcement')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'authorization': ROOT / 'tests/system/test_authorization.py',
+    'enforcement': ROOT / 'tests/system/test_enforcement.py',
 }
 COMMON_SELECTED_INPUTS = (
     ('tests/integration/system_guest.py', 'system_guest.py'),
@@ -57,16 +58,20 @@ AREA_SELECTED_HELPERS = {
     'package': (),
     'authorization': (('tests/integration/system_caller.py', 'system_caller.py'),
                       ('tests/integration/system_remote_accounts.py', 'system_remote_accounts.py')),
+    'enforcement': (('tests/integration/system_caller.py', 'system_caller.py'),
+                    ('tests/integration/system_enforcement.py', 'system_enforcement.py')),
 }
 PHASE_DEPENDENCIES = {
     'installed': (),
     'rebooted': ('installed',),
     'authorization': ('installed', 'rebooted'),
+    'enforcement': ('installed', 'rebooted'),
 }
 PHASE_PREREQUISITES = {
     'installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
     'rebooted': ('installed-phase', 'guest-reboot', 'boot-readiness'),
     'authorization': ('rebooted-phase', 'authorization-accounts'),
+    'enforcement': ('rebooted-phase', 'native-enforcement-fixture'),
 }
 require = baseline.require
 Error = baseline.CaptureError
@@ -192,8 +197,8 @@ def collect_area_cases(area, *, invoke=None):
 
 
 def case_phases(area, case_id):
-    if area == 'authorization':
-        return ('authorization',)
+    if area in ('authorization', 'enforcement'):
+        return (area,)
     package = {
         'test_installed_package': ('installed', 'rebooted'),
         'test_first_install_requests_reboot': ('installed',),
@@ -956,17 +961,20 @@ def installed_run(vm, lease, directory, selection, ledger=None):
                     ledger.fail_outcome(domain, 'pytest:failed:rebooted' if domain == 'product'
                                         else error_category(error))
                     raise
-        if 'authorization' in selection.phases:
-            lease.save('pytest-authorization')
+        for phase in ('authorization', 'enforcement'):
+            if phase not in selection.phases:
+                continue
+            lease.save('pytest-' + phase)
             with ledger.measure('test'):
                 try:
-                    vm.call(pytest_command(run, 'authorization', selection), timeout=900)
+                    vm.call(pytest_command(run, phase, selection), timeout=900)
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')
-                    qualification_pending = selection.qualification_failure and domain == 'product'
+                    qualification_pending = (selection.qualification_failure and
+                                             phase == 'authorization' and domain == 'product')
                     if not qualification_pending:
-                        ledger.fail_outcome(domain, 'pytest:failed:authorization' if domain == 'product'
+                        ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
                                             else error_category(error))
                     raise
         outcome = 'passed'

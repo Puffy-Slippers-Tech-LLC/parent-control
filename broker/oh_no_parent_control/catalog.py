@@ -31,6 +31,9 @@ SYSTEM_APPLICATION_DIRS = (
     Path("/var/lib/flatpak/exports/share/applications"),
     Path("/var/lib/snapd/desktop/applications"),
 )
+SYSTEM_EXECUTABLE_DIRS = (
+    Path("/usr/local/bin"), Path("/usr/bin"), Path("/bin"),
+)
 LOG = logging.getLogger("oh-no-parent-control.catalog")
 
 
@@ -156,9 +159,18 @@ def _executable_target(entry, home: Path):
         candidates.extend((home / ".local/bin" / executable, home / "bin" / executable))
         resolved = next(
             (os.path.realpath(candidate) for candidate in candidates if candidate.is_file()),
-            shutil.which(executable) or "",
+            "",
         )
+        if not resolved and not os.path.dirname(executable):
+            # Never use the broker's inherited administrator PATH. A relative
+            # path with a directory component must not make which() consult
+            # the broker's working directory either.
+            system_path = os.pathsep.join(map(str, SYSTEM_EXECUTABLE_DIRS))
+            system_target = shutil.which(executable, path=system_path)
+            if system_target:
+                resolved = os.path.realpath(system_target)
     if not resolved or resolved in GENERIC_LAUNCHERS or not os.path.isfile(resolved):
+        LOG.debug("catalog launcher outcome=rejected reason=unavailable-native-target")
         return None
     return resolved
 
@@ -209,11 +221,16 @@ def list_apps(user: UserAccount):
         *SYSTEM_APPLICATION_DIRS,
     )
     result = {}
+    seen = set()
     for directory in directories:
         for filename in _launcher_files(directory) or ():
             desktop_id = _desktop_id(directory, filename)
-            if desktop_id in result:
+            if desktop_id in seen:
                 continue
+            # Precedence belongs to the desktop ID, even when its selected
+            # entry is hidden or cannot be listed. A lower-priority copy must
+            # not resurrect a launcher suppressed by the child's override.
+            seen.add(desktop_id)
             application = _application(filename, desktop_id, home)
             if application:
                 result[desktop_id] = application

@@ -17,9 +17,17 @@ in that terminal as the CLI emits them. The launcher renders a text stream,
 not the interactive Codex screen. The launcher does not log session output;
 Codex saves its own conversation for resuming.
 The process can keep running after you close the terminal; output after closure
-is discarded. Starting without a terminal also discards live output. Use `run`
-in a dedicated terminal for uninterrupted viewing and another terminal for
-`status` or `stop`.
+is discarded unless another monitor is connected. Starting without a terminal
+also discards unobserved live output. Run `start` again while the launcher is
+ongoing to attach a foreground monitor of future output, including subsequent
+slices. This does not start or resume work, change limits, or modify session
+state; Ctrl+C disconnects only that monitor. Multiple terminals can monitor the
+same run. Output is passed through a same-user local socket, never saved to a
+new log, and missed output is not replayed. A slow monitor may be disconnected
+to keep the worker moving. The monitor exits when its connection closes.
+Launchers already running code from before monitoring support cannot accept a
+monitor; `start` reports that limitation and leaves their work unchanged.
+Use `run` in a dedicated terminal and another terminal for `status` or `stop`.
 
 The default has no slice-count or overall time limit. The computer
 must remain powered on and awake, Codex authentication and usage capacity must
@@ -47,12 +55,18 @@ controlling the loop still needs authorization for that work. Use the native
 Codex or a running test. In foreground mode Ctrl+C has the same behavior. Start
 again with the original command to continue from the saved documents.
 
+When the session stops or is killed, the launcher prints a bold red status
+message in its live terminal and exits automatically. The terminal stays open;
+no additional Ctrl+C is needed. Redirected output stays plain text. Shutdown
+does not wait for output pipes inherited by tools after the Codex child exits,
+and does not signal those tools. Interrupted work still requires reconciliation.
+
 To interrupt the active session without waiting for its slice to finish:
 
 ```sh
 tools/codex_slices.py kill
 tools/codex_slices.py status
-tools/codex_slices.py resume
+tools/codex_slices.py start
 ```
 
 `kill` targets this launcher's current run. The supervisor checks the request
@@ -63,8 +77,9 @@ interrupted work and cleanup remain unconfirmed. Wait for `status` to show
 `killed` before resuming; the checkout lock still prevents overlapping workers.
 If an owned operation still holds that lock, collect/reconcile it first.
 
-`resume` runs in the foreground and uses the killed session's exact saved
-Codex thread ID. Its first instruction is to reconcile interrupted operations
+`start` runs detached and automatically uses the killed session's exact saved
+Codex thread ID; otherwise it starts a fresh session. Use `run` for the same
+behavior in the foreground. The resumed session's first instruction is to reconcile interrupted operations
 and cleanup before continuing. After a verified handoff, the usual fresh-session
 loop continues; `--max-slices` and `--max-api-retries` also apply. `stop` and
 foreground Ctrl+C retain their existing safe-boundary behavior. Runs started
@@ -186,8 +201,18 @@ can still capture what you choose to display.
 
 On an interactive terminal, assistant messages and session summaries render as
 Markdown with headings, emphasis, lists, tables and highlighted code blocks.
-Messages render once their CLI item completes; command output continues to stream
-as it arrives. Rendering uses `python3-rich`, included by
+Each block uses the live output terminal's current width, including after a
+resize; inherited `COLUMNS` does not constrain it. Already printed blocks keep
+their rendered line breaks. Launcher code changes take effect on the next
+launcher invocation; an existing supervisor retains the renderer it loaded.
+Messages render once their CLI item completes. Simple reads of a single `.md` or
+`.markdown` file (`cat`, `head`, `tail`, `sed -n` line ranges, and
+`tools/read-only slice`) also render on successful command completion, including
+reads wrapped by the CLI's shell. The same single-file reads of source files
+use syntax highlighting for recognized languages, including Python, JavaScript,
+JSON and shell. Command labels and exit statuses are also styled. Other command output streams as it arrives;
+search results, diffs, numbered source and mixed commands stay literal.
+Rendering uses `python3-rich`, included by
 `./setup.sh --dependencies-only`. If it is unavailable, output is redirected, or
 `TERM=dumb`, the launcher uses plain text. `NO_COLOR` disables rendering colors
 while keeping the terminal layout. Saved summaries remain ordinary Markdown.

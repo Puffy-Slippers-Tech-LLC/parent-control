@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import codecs
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import fcntl
@@ -12,9 +13,13 @@ import math
 import os
 from pathlib import Path
 import re
+import selectors
+import shlex
 import shutil
 import signal
+import socket
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -25,8 +30,9 @@ import uuid
 try:
     from rich.console import Console
     from rich.markdown import Markdown
+    from rich.syntax import Syntax
 except ImportError:
-    Console = Markdown = None
+    Console = Markdown = Syntax = None
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +76,139 @@ class Error(Exception):
     """A condition that must stop the loop without starting another worker."""
 
 
+class Busy(Error):
+    """The checkout is owned by an existing supervisor or worker."""
+
+
+def monitor_address(storage):
+    # Linux abstract sockets avoid persistent output files and pathname limits.
+    identity = hashlib.sha256(os.fsencode(storage.resolve())).hexdigest()
+    return f'\0onpc-slices-{os.getuid()}-{identity}'
+
+
+def same_user(connection):
+    credentials = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+    return struct.unpack('3i', credentials)[1] == os.getuid()
+
+
+class MonitorHub:
+    """Bounded, memory-only output fanout; slow monitors never block workers."""
+
+    def __init__(self, storage, live):
+        self.storage, self.live = storage, live
+        self.clients = {}
+        self.lock = threading.Lock()
+        self.stopping = threading.Event()
+
+    def __enter__(self):
+        self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            self.server.bind(monitor_address(self.storage))
+            self.server.listen(16)
+            self.server.setblocking(False)
+        except BaseException:
+            self.server.close()
+            raise
+        self.thread = threading.Thread(target=self.serve, daemon=True)
+        self.live.monitor = self
+        self.thread.start()
+        return self
+
+    def publish(self, block):
+        packet = (json.dumps(block) + '\n').encode('utf-8')
+        with self.lock:
+            for client, pending in list(self.clients.items()):
+                if len(pending) + len(packet) > 8 * 1024 * 1024:
+                    client.close()
+                    del self.clients[client]
+                else:
+                    pending.extend(packet)
+
+    def serve(self):
+        while not self.stopping.is_set():
+            with self.lock:
+                try:
+                    client, _ = self.server.accept()
+                except BlockingIOError:
+                    pass
+                else:
+                    if same_user(client) and len(self.clients) < 16:
+                        client.setblocking(False)
+                        self.clients[client] = bytearray()
+                    else:
+                        client.close()
+                for client, pending in list(self.clients.items()):
+                    if not pending:
+                        try:
+                            if client.recv(1, socket.MSG_PEEK) == b'':
+                                client.close()
+                                del self.clients[client]
+                        except BlockingIOError:
+                            pass
+                        except OSError:
+                            client.close()
+                            del self.clients[client]
+                        continue
+                    try:
+                        sent = client.send(pending)
+                        del pending[:sent]
+                    except BlockingIOError:
+                        pass
+                    except OSError:
+                        client.close()
+                        del self.clients[client]
+            self.stopping.wait(0.02)
+
+    def __exit__(self, *exc):
+        self.live.monitor = None
+        # Give final status output a bounded opportunity to drain.
+        deadline = time.monotonic() + 0.25
+        while time.monotonic() < deadline:
+            with self.lock:
+                if not any(self.clients.values()):
+                    break
+            time.sleep(0.01)
+        self.stopping.set()
+        self.thread.join()
+        for client in self.clients:
+            client.close()
+        self.server.close()
+
+
+def attach_monitor(storage):
+    """Follow future output only; never modify state or signal the supervisor."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+        # The checkout lock may precede listener startup by a short interval.
+        for attempt in range(20):
+            try:
+                connection.connect(monitor_address(storage))
+                break
+            except (ConnectionRefusedError, FileNotFoundError):
+                if attempt == 19:
+                    raise Error('An existing worker holds the checkout lock but has no monitor endpoint. '
+                                'It may predate monitoring support; its session was left unchanged.')
+                time.sleep(0.05)
+        if not same_user(connection):
+            raise Error('Monitor endpoint belongs to another user.')
+        live = LiveOutput(sys.stdout)
+        live.write('Monitoring ongoing session. Ctrl+C detaches only this monitor.\n')
+        try:
+            with connection.makefile('r', encoding='utf-8') as stream:
+                for line in stream:
+                    try:
+                        block = json.loads(line)
+                    except ValueError:
+                        break  # A disconnected slow monitor may have a partial block.
+                    live.display(**block)
+                    if live.stream is None:
+                        return 0
+        except KeyboardInterrupt:
+            live.write('\nMonitor detached; session left unchanged.\n')
+            return 0
+        live.write('\nMonitor connection closed. Use status to inspect the session.\n')
+    return 0
+
+
 def stamp():
     return datetime.now(timezone.utc).isoformat(timespec='seconds')
 
@@ -79,11 +218,55 @@ def summary_timestamp():
     return datetime.now().astimezone().strftime('%Y-%m-%d %H:%M %Z')
 
 
+def file_read_path(command):
+    """Recognize simple file reads for display only; never execute or read paths.
+
+    Keep searches, diffs, numbered source, pipelines and mixed output literal.
+    Unwrap the CLI's shell command string without evaluating shell syntax.
+    """
+    if not isinstance(command, str):
+        return None
+    try:
+        words = shlex.split(command)
+        if (len(words) == 3 and Path(words[0]).name in ('bash', 'sh')
+                and words[1] in ('-c', '-lc')):
+            words = shlex.split(words[2])
+    except ValueError:
+        return None
+    if not words:
+        return None
+    program, args = Path(words[0]).name, words[1:]
+    if program == 'cat':
+        paths = args
+    elif program in ('head', 'tail'):
+        if len(args) >= 2 and args[0] == '-n' and re.fullmatch(r'[+-]?\d+', args[1]):
+            paths = args[2:]
+        elif args and re.fullmatch(r'-\d+', args[0]):
+            paths = args[1:]
+        else:
+            paths = args
+    elif (program == 'sed' and len(args) >= 2 and args[0] == '-n'
+          and re.fullmatch(r'(?:\d+|\$)(?:,(?:\d+|\$))?p', args[1])):
+        paths = args[2:]
+    elif (program == 'read-only' and len(args) >= 3 and args[0] == 'slice'
+          and args[1].isdigit() and args[2].isdigit()):
+        paths = args[3:]
+    else:
+        return None
+    if paths[:1] == ['--']:
+        paths = paths[1:]
+    if (len(paths) == 1 and not paths[0].startswith('-')
+            and not any(char in paths[0] for char in '\n\r;|&<>`$*?[]')):
+        return paths[0]
+    return None
+
+
 class LiveOutput:
     """Display CLI events without copying their contents to a log or state file."""
 
     def __init__(self, stream):
         self.stream = stream
+        self.monitor = None
         self.lock = threading.Lock()
         self.items = {}
         self.console = None
@@ -98,23 +281,39 @@ class LiveOutput:
         text = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', text)
         return ''.join(char for char in text if char in '\n\t' or char.isprintable())
 
-    def write(self, text):
-        self.display(text, markdown=False)
+    def write(self, text, *, style=None):
+        self.display(text, markdown=False, style=style)
 
     def markdown(self, text):
         self.display(text, markdown=True)
 
-    def display(self, text, *, markdown):
+    def display(self, text, *, markdown=False, lexer=None, style=None):
         if not text:
             return
         text = self.clean(text)
         with self.lock:
+            if self.monitor is not None:
+                self.monitor.publish(dict(text=text, markdown=markdown, lexer=lexer, style=style))
             if self.stream is not None:
                 try:
+                    if self.console is not None:
+                        # Detached supervisors retain a separate terminal fd;
+                        # standard streams and inherited COLUMNS may be stale.
+                        # Query each block so subsequent output follows resizes.
+                        try:
+                            columns = os.get_terminal_size(self.stream.fileno()).columns
+                        except (AttributeError, OSError, ValueError):
+                            columns = 0
+                        self.console.width = columns if columns > 0 else None
                     if markdown and self.console is not None:
                         # Only the renderer may generate terminal formatting.
                         # Disable OSC links; show destinations as ordinary text.
                         self.console.print(Markdown(text, hyperlinks=False))
+                    elif lexer and self.console is not None:
+                        self.console.print(Syntax(text, lexer, background_color='default',
+                                                  word_wrap=True))
+                    elif style and self.console is not None:
+                        self.console.print(text, style=style, end='', soft_wrap=True)
                     else:
                         self.stream.write(text)
                     self.stream.flush()
@@ -158,14 +357,28 @@ class LiveOutput:
                     if kind == 'item.completed':
                         self.write('\n')
         elif item_type == 'command_execution':
+            command = item.get('command', previous.get('command', ''))
             if not previous:
-                self.write(f"\n$ {item.get('command', '')}\n")
+                self.write(f'\n$ {command}\n', style='bold cyan')
             output = item.get('aggregated_output', '')
             before = previous.get('aggregated_output', '')
             if isinstance(output, str) and isinstance(before, str):
-                self.write(output[len(before):] if output.startswith(before) else output)
+                path = file_read_path(command) if self.console is not None else None
+                markdown = path is not None and Path(path).suffix.lower() in ('.md', '.markdown')
+                lexer = Syntax.guess_lexer(path) if path and not markdown else None
+                if markdown or lexer not in (None, 'text', 'default'):
+                    # Render complete excerpts once so partial Markdown blocks
+                    # and multiline source tokens retain their context.
+                    if kind == 'item.completed':
+                        if item.get('exit_code') == 0:
+                            self.display(output, markdown=markdown, lexer=lexer)
+                        else:
+                            self.write(output)
+                else:
+                    self.write(output[len(before):] if output.startswith(before) else output)
             if kind == 'item.completed':
-                self.write(f"\nCommand {item.get('status', 'completed')} (exit {item.get('exit_code', 'unknown')}).\n")
+                self.write(f"\nCommand {item.get('status', 'completed')} (exit {item.get('exit_code', 'unknown')}).\n",
+                           style='dim green' if item.get('exit_code') == 0 else 'bold red')
         elif item != previous:
             # File changes, MCP results, search and plan updates are terminal-only.
             self.write(f'\n{item_type}: {json.dumps(item, ensure_ascii=False)}\n')
@@ -304,7 +517,7 @@ def exclusive(storage):
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise Error('Another loop or its Codex child still holds this checkout lock.') from exc
+            raise Busy('Another loop or its Codex child still holds this checkout lock.') from exc
         yield descriptor
     finally:
         # Closing our copy preserves the lock if an interrupted worker inherited it.
@@ -388,6 +601,61 @@ def interrupt_child(process, requested, finished, killed):
             return
 
 
+def child_output(process):
+    """Drain both pipes while the owned child lives, with a bounded exit drain.
+
+    A tool can inherit either pipe and outlive Codex. Its open descriptor must
+    not keep the supervisor running after Codex exits. Never signal that tool.
+    """
+    decoders = {pipe: codecs.getincrementaldecoder('utf-8')('replace')
+                for pipe in (process.stdout, process.stderr)}
+    pending = ''
+    exit_remaining = None
+    with selectors.DefaultSelector() as selector:
+        for pipe in decoders:
+            os.set_blocking(pipe.fileno(), False)
+            selector.register(pipe, selectors.EVENT_READ)
+        while selector.get_map():
+            if process.poll() is not None and exit_remaining is None:
+                # Drain at most one pipe capacity after exit. This includes
+                # every byte already buffered even when rendering is slow,
+                # while bounding output from an inherited writer that continues.
+                exit_remaining = {key.fileobj: fcntl.fcntl(key.fd, fcntl.F_GETPIPE_SZ)
+                                  for key in selector.get_map().values()}
+            ready = selector.select(timeout=0.05)
+            if not ready and exit_remaining is not None:
+                break
+            for key, _mask in ready:
+                pipe = key.fileobj
+                try:
+                    limit = min(65536, exit_remaining[pipe]) if exit_remaining is not None else 65536
+                    data = os.read(pipe.fileno(), limit)
+                except BlockingIOError:
+                    continue
+                text = decoders[pipe].decode(data)
+                if exit_remaining is not None:
+                    exit_remaining[pipe] -= len(data)
+                if not data or (exit_remaining is not None and exit_remaining[pipe] == 0):
+                    selector.unregister(pipe)
+                if pipe is process.stderr:
+                    if text:
+                        yield pipe, text
+                else:
+                    pending += text
+                    lines = pending.split('\n')
+                    pending = lines.pop()
+                    for line in lines:
+                        yield pipe, line + '\n'
+        for pipe, decoder in decoders.items():
+            text = decoder.decode(b'', final=True)
+            if pipe is process.stdout:
+                pending += text
+            elif text:
+                yield pipe, text
+        if pending:
+            yield process.stdout, pending
+
+
 def invoke(root, attempt, command, lock_fd, update, live):
     """Display both streams live, retaining only allowlisted lifecycle metadata."""
     observed = {'completed': False, 'failed': False, 'transient': False,
@@ -409,21 +677,19 @@ def invoke(root, attempt, command, lock_fd, update, live):
             stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace',
             start_new_session=True, pass_fds=(lock_fd,),
         )
-        def drain_stderr():
-            for line in process.stderr:
-                live.write(line)
-
-        drain = threading.Thread(target=drain_stderr, daemon=True)
-        drain.start()
         watcher = threading.Thread(target=interrupt_child, args=(
             process, lambda: kill_requested(root / STORAGE, request_id), finished, killed),
             daemon=True)
         watcher.start()
+        output = child_output(process)
         try:
             update(cli_pid=process.pid)
             process.stdin.write(prompt)
             process.stdin.close()
-            for line in process.stdout:
+            for pipe, line in output:
+                if pipe is process.stderr:
+                    live.write(line)
+                    continue
                 try:
                     event = json.loads(line)
                     if not isinstance(event, dict):
@@ -479,13 +745,12 @@ def invoke(root, attempt, command, lock_fd, update, live):
                     pass
             # Keep the pipe open and drain it on a supervisor write/parse error;
             # closing a live worker's stdout could abort it with SIGPIPE.
-            for _line in process.stdout:
+            for _pipe, _line in output:
                 pass
             process.stdout.close()
             process.wait()
             finished.set()
             watcher.join()
-            drain.join()
             process.stderr.close()
             live.items.clear()
     observed['killed'] = killed.is_set()
@@ -516,21 +781,26 @@ def wait_retry(delay, stopping, stop_requested):
         stop_requested.wait(min(1, max(0, deadline - time.monotonic())))
 
 
+def saved_thread(state):
+    if not state.get('resumable'):
+        raise Error('The killed session was not saved for resumption; reconcile it before using --reconciled.')
+    try:
+        return str(uuid.UUID(state['thread_id']))
+    except (KeyError, ValueError, TypeError, AttributeError) as exc:
+        raise Error('The killed session has no saved thread ID to resume; reconcile it before using --reconciled.') from exc
+
+
 def run(root, args):
     storage = root / STORAGE
     private_directory(storage)
-    with exclusive(storage) as lock_fd, live_output(args) as live:
+    with exclusive(storage) as lock_fd, live_output(args) as live, MonitorHub(storage, live):
         state = read_state(storage)
-        resume_thread = None
-        if getattr(args, 'action', None) == 'resume':
-            if state.get('status') != 'killed' or not state.get('resumable'):
-                raise Error('No killed, saved session is available to resume.')
-            try:
-                resume_thread = str(uuid.UUID(state['thread_id']))
-            except (KeyError, ValueError, TypeError, AttributeError) as exc:
-                raise Error('The killed session has no saved thread ID to resume.') from exc
         request_id = getattr(args, 'request_id', None) or str(uuid.uuid4())
         own_start = state.get('status') == 'launching' and state.get('request_id') == request_id
+        resume_thread = None
+        if ((state.get('status') == 'killed' and not args.reconciled)
+                or (own_start and state.get('thread_id') is not None)):
+            resume_thread = saved_thread(state)
         if state.get('status') in ('launching', 'running', 'needs-review', 'killed') and not (args.reconciled or own_start or resume_thread):
             raise Error('Previous work needs reconciliation; see state.json and the saved handoff. '
                         'Use --reconciled only after checking the recorded operation and cleanup.')
@@ -539,10 +809,10 @@ def run(root, args):
             state.update(fields, updated=stamp())
             write_json(storage / 'state.json', state)
 
-        def announce(message):
-            print(message, flush=True)
+        def announce(message, *, style=None):
             if live.stream is not sys.stdout:
-                live.write(message + '\n')
+                print(message, flush=True)
+            live.write(message + '\n', style=style)
 
         executable = preflight(root)
         tasks = checklist(root)
@@ -578,9 +848,11 @@ def run(root, args):
             while True:
                 if kill_requested(storage, request_id):
                     update(status='killed', reason='operator-kill')
+                    announce('Session killed. Launcher exiting.', style='bold red')
                     return 0
                 if stopping() or (args.max_slices and completed_slices >= args.max_slices):
                     update(status='stopped', reason='slice-boundary')
+                    announce('Session stopped at a safe slice boundary. Launcher exiting.', style='bold red')
                     return 0
                 tasks = checklist(root)
                 if expected - tasks.keys():
@@ -614,12 +886,14 @@ def run(root, args):
                 session.update(completed_at=summary_timestamp(),
                                duration_minutes=math.ceil(max(0, time.monotonic() - session['started']) / 60))
                 write_json(attempt / 'exit.json', {'exit_code': code, **observed})
-                if observed.get('killed') or kill_requested(storage, request_id):
+                if observed.get('killed') or kill_requested(storage, request_id) or code < 0:
+                    operator_kill = observed.get('killed') or kill_requested(storage, request_id)
                     finish_session(root, session, 'killed',
-                                   'Operator interrupted the session; work and cleanup are unconfirmed.', live, update)
-                    update(status='killed', reason='operator-kill', cli_pid=None)
-                    announce('Session killed. Use resume to continue the saved conversation.')
-                    return 0
+                                   'Session interrupted; work and cleanup are unconfirmed.', live, update)
+                    update(status='killed', reason='operator-kill' if operator_kill else 'worker-signal', cli_pid=None)
+                    announce('Session killed. Launcher exiting. Use start to continue the saved conversation.',
+                             style='bold red')
+                    return 0 if operator_kill else 2
                 # Retry only an explicit transient failed turn that never called
                 # a tool. Errors after tools ran require operation reconciliation.
                 if (code != 0 and observed['failed'] and observed['transient']
@@ -646,7 +920,8 @@ def run(root, args):
                 if result['status'] == 'blocked':
                     finish_session(root, session, 'blocked', 'Cleanup confirmed; outside input required.', live, update)
                     update(status='blocked', reason=result['blocker'])
-                    announce('No ready work can proceed. Read the current task handoff for the blocker.')
+                    announce('Session stopped: no ready work can proceed. Read the current task handoff for the blocker.',
+                             style='bold red')
                     return 2
                 if result['status'] == 'complete':
                     if not all(current.values()):
@@ -674,6 +949,8 @@ def run(root, args):
                 except (Error, OSError):
                     announce('The session summary could not be confirmed; reconcile the current attempt.')
             update(status='needs-review', reason='unconfirmed-handoff')
+            announce('Session stopped: review required. Launcher exiting; inspect the current task handoff.',
+                     style='bold red')
             if isinstance(exc, OSError):
                 raise Error(f'Local I/O or process startup failed (errno {exc.errno}); '
                             'reconcile the current task handoff and owned operations before restarting.') from exc
@@ -685,12 +962,13 @@ def run(root, args):
 
 def main(argv=None, *, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('action', choices=('start', 'run', 'status', 'stop', 'kill', 'resume'),
-                        help='start detached; run foreground; status inspect; stop at slice boundary; '
-                             'kill interrupt now; resume killed conversation in foreground')
+    parser.add_argument('action', choices=('start', 'run', 'status', 'stop', 'kill'),
+                        help='start detached, resume a killed conversation, or monitor an ongoing run; '
+                             'run foreground; '
+                             'status inspect; stop at slice boundary; kill interrupt now')
     parser.add_argument('--max-slices', type=int, default=0, help='Stop after this many slices; 0 runs until complete.')
     parser.add_argument('--max-api-retries', type=int, default=12, help='Retries per consecutive transient failure before tool use.')
-    parser.add_argument('--reconciled', action='store_true', help='Operator has reconciled an interrupted run and all owned cleanup.')
+    parser.add_argument('--reconciled', action='store_true', help='Start fresh after the operator has reconciled an interrupted run and all owned cleanup.')
     parser.add_argument('--request-id', help=argparse.SUPPRESS)
     parser.add_argument('--live-output-fd', type=int, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
@@ -731,12 +1009,14 @@ def main(argv=None, *, root=ROOT):
             private_directory(storage)
             with exclusive(storage):
                 state = read_state(storage)
-                if state.get('status') in ('launching', 'running', 'needs-review', 'killed') and not args.reconciled:
+                resume_thread = (saved_thread(state)
+                                 if state.get('status') == 'killed' and not args.reconciled else None)
+                if state.get('status') in ('launching', 'running', 'needs-review') and not args.reconciled:
                     raise Error('Previous work needs reconciliation; read state.json and the task handoff.')
                 preflight(root)
                 request_id = str(uuid.uuid4())
                 state.update(status='launching', request_id=request_id, resumable=True,
-                             thread_id=None, updated=stamp())
+                             thread_id=resume_thread, updated=stamp())
                 write_json(storage / 'state.json', state)
             command = [sys.executable, '-I', '-B', str(root / 'tools/codex_slices.py'), 'run',
                        '--max-slices', str(args.max_slices), '--max-api-retries', str(args.max_api_retries),
@@ -765,6 +1045,17 @@ def main(argv=None, *, root=ROOT):
             print('Launcher exited; read output/codex-slices/launcher.log and run status.')
             return code
         return run(root, args)
+    except Busy as exc:
+        if args.action == 'start':
+            try:
+                return attach_monitor(storage)
+            except KeyboardInterrupt:
+                return 0
+            except (Error, OSError) as monitor_error:
+                print(f'codex-slices: {monitor_error}', file=sys.stderr)
+                return 2
+        print(f'codex-slices: {exc}', file=sys.stderr)
+        return 2
     except Error as exc:
         print(f'codex-slices: {exc}', file=sys.stderr)
         return 2

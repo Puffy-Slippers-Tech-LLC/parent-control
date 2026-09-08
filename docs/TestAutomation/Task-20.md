@@ -60,3 +60,30 @@ Verification below is task acceptance; edits use the smallest affected selection
 - Completion criteria: a digest-identified release package passes a real clean
   installation and reboot with visible and backend readiness evidence. Register
   and run the separate E2E-028 startup-failure variants as well.
+
+### Task 20 continuation — 2026-09-08
+
+**Ready and next in checklist order.** [Task 19B is accepted](Evidence/19B-Acceptance-20260908.md)
+after three consecutive reviewed public qualifications. No earlier entry is
+bypassed; preserve [Task 15A's later saved work](Task-15.md#task-15a-continuation--2026-09-08).
+No Task 20 implementation or acceptance is claimed by this scheduling handoff.
+
+**Next bounded result:** audit E2E-002 and assigned E2E-028 declarations against
+the startup lifecycle contract and existing worker/asset/observation capabilities.
+Resolve E2E-002's requirement gap and implement the smallest missing capability
+needed for real terminal installation and actual reboot. Keep unrelated fixture
+setup in supported provisioning helpers and startup faults separately declared.
+Use focused host checks before the first ready guarded journey; pending
+declarations must retain their public refusal until implemented.
+
+The operator's [all-task VM clearance](Implementation-Workflow.md#vm-availability-for-all-tasks)
+remains effective. No renewed coordination confirmation is due. The previous
+session's commands exited, terminal cleanup passed, the VM was freshly confirmed
+off and all three screenshot exports were removed; no operation needs recovery.
+Build fresh package-bearing inputs after handoff edits for the next live attempt.
+
+**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep,
+pinned by the slice launcher. **Reason:** the qualified harness now supports the
+first product installation/reboot/readiness boundary and its separate fault cases.
+**Remaining Task 20:** sessions **Unknown**, minutes **Unknown**; its capability
+and variant audit has not yet established implementation scope or live timing.

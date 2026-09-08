@@ -42,6 +42,7 @@ def test_exports_bytes_with_private_mode_and_caller_ownership(artifacts):
 
 
 @pytest.mark.parametrize('source', ['/etc/shadow', '/tmp/onpc-x.png',
+    '/tmp/onpc-e2e-attempt-x/testresults/smoke-1.png',
     '/tmp/onpc-graphical-smoke-x/testresults/../../secret.png',
     '/tmp/onpc-graphical-smoke-x/testresults/*.png'])
 def test_rejects_unapproved_source_paths(artifacts, source):

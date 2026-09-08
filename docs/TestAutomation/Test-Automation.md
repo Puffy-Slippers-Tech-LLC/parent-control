@@ -25,7 +25,9 @@ forward from Tasks 28/27 and [19P](Task-19.md#task-19p)'s feasibility check from
 [completion handoff](Task-14.md#completion-handoff--2026-09-06-accepted) retains
 the final evidence. Task 19A is also accepted; its
 [controller audit](Evidence/19A-Controller-Acceptance-20260907.md) retains the
-live execution and failure evidence. Task 19B is next.
+live execution and failure evidence. Select the next eligible entry in the
+checklist's order under the [session procedure](Implementation-Workflow.md#start-with-one-bounded-result);
+the continuation must reflect that selection.
 Finish an already-running owned guarded attempt and its cleanup before changing
 implementation tasks. Do not duplicate changing evidence or machine state here.
 
@@ -39,7 +41,8 @@ docs/Test-Automation.md” requests a test run; it does not advance this backlog
 ## Implementing one task
 
 Follow the [session procedure](Implementation-Workflow.md#start-with-one-bounded-result)
-and its verification/handoff rules; they are maintained there once. Use the
+and its [output](Implementation-Workflow.md#reduce-unnecessary-model-output),
+verification and handoff rules; they are maintained there once. Use the
 checklist below for completion and each task's dependencies, deliverables and
 acceptance criteria for scope. A completed slice alone never checks off a task.
 
@@ -130,8 +133,12 @@ explicitly instead of silently inventing a new guarantee or discarding a gap.
 This is the single authoritative checklist. Each linked section is one task;
 its initial model/effort recommendation remains there. The active handoff owns
 the reassessed recommendation for its remaining slice. Task numbers identify coverage
-ownership, not equal effort or an obligation to wait for unrelated earlier
-numbers. No second checklist is needed for individual slices.
+ownership, not equal effort or numeric execution order. The displayed checklist
+order governs selection: take the earliest ready unchecked entry and record any
+earlier deferral under the [session procedure](Implementation-Workflow.md#start-with-one-bounded-result).
+Recheck deferrals at each safe slice boundary; a later task's active handoff does
+not override an earlier task whose blocker has cleared. No second checklist is
+needed for individual slices.
 
 The order delivers focused feedback and resolves graphical feasibility first,
 then proves installed authorization and the graphical install path before
@@ -143,7 +150,7 @@ not release passes. Use measured slice/attempt times to forecast remaining work.
 - [x] [Task 19P — Prove graphical backend compatibility](Task-19.md#task-19p)
 - [x] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md)
 - [x] [Task 19A — Add the guarded os-autoinst worker and console transport](Task-19.md#task-19a)
-- [ ] [Task 19B — Add stable screen matching and graphical smoke](Task-19.md#task-19b)
+- [x] [Task 19B — Add stable screen matching and graphical smoke](Task-19.md#task-19b)
 - [ ] [Task 20 — Automate clean installation, reboot, and startup readiness](Task-20.md)
 - [ ] [Task 15A — Test installed catalog and application launch enforcement](Task-15.md#task-15a)
 - [ ] [Task 15B — Test process confinement and execution-policy rollback](Task-15.md#task-15b)

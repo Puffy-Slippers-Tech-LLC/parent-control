@@ -15,9 +15,11 @@ operator; implementation sessions must not read or edit its accumulated history.
 
 ## Continue implementation in fresh sessions
 
-1. Follow [Continuation.md](TestAutomation/Continuation.md) to the active task
-   and its next bounded result. The [workflow](TestAutomation/Implementation-Workflow.md#start-with-one-bounded-result)
-   owns task selection, execution, verification and handoff rules.
+1. Select the earliest ready unchecked task in the
+   [master checklist's order](TestAutomation/Test-Automation.md#unfinished-tasks),
+   reconciling [Continuation.md](TestAutomation/Continuation.md) with that order.
+   The [workflow](TestAutomation/Implementation-Workflow.md#start-with-one-bounded-result)
+   owns task selection, blocker rechecks, execution, verification and handoff rules.
 2. Implement and verify one coherent slice, normally planned for 15–30 minutes.
    Finish the current operation and safe cleanup before handing off. The agent
    saves the next action, reusable evidence and reassessed settings, then tells
@@ -28,6 +30,12 @@ repeated context and rediscovery first; lower model/effort only when the next
 slice's quality can be preserved. Budgets trigger review, never weaker checks.
 The [reuse map](TestAutomation/Reuse-Map.md) identifies opportunities across all
 remaining tasks; consult only the relevant row during implementation.
+
+Apply the [output rules](TestAutomation/Implementation-Workflow.md#reduce-unnecessary-model-output)
+to avoid repeated scripts, command transcripts and irrelevant tool reads.
+Model-written commands use output tokens; tool results sent back to the model
+use input tokens. Local terminal rendering and retained artifacts add no model
+tokens unless their contents are sent to a model. Keep full diagnostic evidence.
 
 The prompt establishes development/host scope and the existing guarded test VM.
 Preserve that authorization and the compact handoff across sessions; no machine

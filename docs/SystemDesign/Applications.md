@@ -76,7 +76,12 @@ remain usable.
 
 Every broker `AppFilter` write synchronously reconciles the aggregate fapolicyd
 policy. The renderer replaces and reloads the rule file only when its contents
-change; identical contents return without a reload. The broker also subscribes
+change; identical contents return without a reload. The broker uses
+the public rules-only reload interface: it compiles with `fagenrules` and
+notifies with `fapolicyd-cli --reload-rules`, avoiding the trust-database refresh
+triggered by `fagenrules --load` (SIGHUP). Command success alone does not
+acknowledge daemon activation; installed transition qualification and an active
+policy acknowledgement remain Task 15A work. The broker subscribes
 to AccountsService
 `PropertiesChanged` and rescans every 30 seconds so supported external changes
 and new safe nonmatches are reconciled. Rule replacement is atomic; reload

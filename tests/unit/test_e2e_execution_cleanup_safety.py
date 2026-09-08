@@ -1,12 +1,14 @@
 """Public controller, real recorder/collector/lease exit; VM operations substituted."""
 
 import copy
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 import hashlib
 import json
+import os
 from pathlib import Path
 import runpy
 import sys
+import tempfile
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -147,6 +149,48 @@ def test_public_ready_plan_executes_real_callback_and_finalizes_after_lease_exit
     harness.source.close.assert_called_once()
     assert all(c._fd is None for c in harness.collectors)
     assert 'private-canary' not in json.dumps(documents(harness))
+
+
+@pytest.mark.parametrize('preparation_fails', [False, True])
+def test_retained_attempt_screens_support_guarded_export(harness, monkeypatch, preparation_fails):
+    helper = runpy.run_path(str(ROOT / 'tools/onpc-export-screenshot'))
+    with ExitStack() as owned:
+        def allocate(**kwargs):
+            return owned.enter_context(tempfile.TemporaryDirectory(**kwargs))
+        monkeypatch.setattr(execution, 'tempfile', SimpleNamespace(mkdtemp=allocate))
+        # Export has a fixed /tmp scope, independent of the process temp default.
+        monkeypatch.setattr(tempfile, 'tempdir', str(harness.root))
+        if preparation_fails:
+            execution.graphical_backend.check.side_effect = RuntimeError('private-canary')
+        result = run(harness)
+        assert result['outcome'] == ('failed' if preparation_fails else 'passed')
+        raw = Path(result['raw_directory'])
+        assert raw.stat().st_mode & 0o777 == 0o700
+        assert raw.stat().st_uid == os.getuid()
+        assert (raw / 'private').stat().st_mode & 0o777 == 0o700
+        results = raw / 'testresults'
+        results.mkdir(mode=0o700)
+        source = results / 'smoke-1.png'
+        payload = helper['PNG_SIGNATURE'] + b'synthetic screen'
+        source.write_bytes(payload)
+        source.chmod(0o600)
+        destination = Path('/tmp') / (raw.name + '-export.png')
+        try:
+            helper['export'](str(source), str(destination), os.getuid(), os.getgid())
+            assert destination.read_bytes() == payload
+            assert destination.stat().st_mode & 0o777 == 0o600
+            assert destination.stat().st_uid == os.getuid()
+            assert source.read_bytes() == payload
+        finally:
+            if destination.exists():
+                destination.unlink()
+        assert all(c._fd is None for c in harness.collectors)
+        if preparation_fails:
+            assert not harness.leases
+            execution.open_source.assert_not_called()
+        else:
+            assert result['lease_phase'] == 'complete'
+            harness.source.close.assert_called_once()
 
 
 def test_public_preparation_satisfies_real_bootstrap_input_contract(harness, monkeypatch):

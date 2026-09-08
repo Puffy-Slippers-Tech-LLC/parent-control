@@ -173,6 +173,9 @@ bootstrap, serial transport or controller acceptance merely because the chat is 
 
 ## Task 19B
 
+Accepted on 2026-09-08; the work list below defines the accepted scope.
+See the [acceptance audit](Evidence/19B-Acceptance-20260908.md).
+
 - Title: Add stable screen matching and graphical smoke.
 - Depends on: Task 19A.
 - Complexity: medium. This uses the established runner and console contracts.
@@ -200,6 +203,84 @@ bootstrap, serial transport or controller acceptance merely because the chat is 
   or VM state shortcuts. Screen/step evidence records actual input and outcomes.
 
 ### Task 19B continuation — 2026-09-08
+
+**19B accepted — three consecutive complete public qualifications passed.**
+Qualification 3 passed E2E-001/gdm-observation, nine ordered observations,
+six 100% matches, the deliberate mismatch and all terminal gates. Direct review
+confirmed initial GDM, the empty focused `[Parent user]` prompt and GDM return.
+The [acceptance audit](Evidence/19B-Acceptance-20260908.md) maps every deliverable
+to evidence and retains exact inputs, invocation, verification and cleanup.
+This is runner-smoke qualification; customer cases remain pending.
+
+The dispatcher passed 521 isolated safety tests and three subtests. The prior
+final-code `make check` remains applicable; no implementation changed here.
+No test failed or action was denied. A truncated diagnostic JSON read was
+recovered with the helper's bounded larger read. Original failures and the
+excluded unreviewed runtime pass remain preserved in earlier evidence.
+
+**Cleanup:** build 91346 and public run 56706 exited 0. Worker/callback shutdown,
+collection, source/host preservation and baseline restoration passed; final
+lease phase `complete`. Fresh VM status was off. All three private review
+exports were removed through the approved helper. All commands exited; no
+owned operation or recovery remains.
+
+**Next selection:** [Task 20](Task-20.md#task-20-continuation--2026-09-08) is the
+earliest ready unchecked entry, now that 19B is accepted. Audit E2E-002 and the
+assigned E2E-028 variants, then implement the first bounded clean-install
+journey capability. Preserve [15A's saved work](Task-15.md#task-15a-continuation--2026-09-08).
+No earlier entry is bypassed. The operator's all-task VM clearance remains
+effective; no renewed coordination confirmation is due. Build fresh inputs
+after these documentation edits when the next live selection is ready.
+
+**Current next-session settings:** `gpt-6-astra` / `high`; model: keep; effort:
+keep, pinned by the slice launcher. **Reason:** the harness is qualified; Task 20
+introduces the first product installation, actual reboot and readiness journey.
+**Remaining 19B:** **0 sessions / 0 minutes**; all acceptance requirements passed.
+
+#### Previous qualification 2 handoff (superseded by acceptance above)
+
+**Public qualification 2 of 3 passed.**
+E2E-001/gdm-observation exited 0 with nine ordered observations, six 100% positive
+matches, the deliberate mismatch, serial command and terminal cleanup passed.
+Initial GDM, the selected `[Parent user]` empty password prompt and post-serial
+GDM return were directly reviewed through the unchanged guarded exporter.
+See [qualification 2 evidence](Evidence/19B-Qualification-2-20260908.md) for
+exact inputs, private evidence, timings and the reusable invocation.
+
+The dispatcher passed 521 isolated safety tests and three subtests. No code,
+helper or permission changed, and no failure or denial occurred this slice.
+Package, fixtures, inventory, baseline and worker distribution match
+[qualification 1](Evidence/19B-Storage-Qualification-20260908.md); source/asset
+identity changes reflect its documentation handoff. That evidence retains the
+storage fix, corrected two-test fixture failure, 90 focused passes and applicable
+`make check` (3,060 unit/contracts, 17 components, syntax/traceability).
+
+**Next bounded result:** fresh build and public qualification 3, then the
+acceptance audit. The [earlier runtime pass](Evidence/19B-Public-Runtime-20260908.md) lacks visual
+review and does not count toward the required three; do not move or alias its
+old captures. Preserve qualifications 1 and 2 unless relevant implementation/tool/input
+changes invalidate their behavior. Raw captures remain private; video is disabled
+by the established secret-safe contract and is not claimed reviewed.
+
+**Selection and scope:** 19B remains the earliest ready unchecked task, with
+19A accepted. The all-task VM clearance below remains effective. Task 20 follows
+19B acceptance; preserve 15A's independent saved work. No earlier entry is bypassed.
+
+**Current cleanup:** build 86081 and public run 79356 exited 0.
+Worker/callback shutdown, baseline restoration, host/source preservation and
+collection passed; lease phase `complete`. Fresh VM inspection confirmed off.
+All three review exports were removed through the approved helper. No owned
+operation or recovery remains. Handoff edits require fresh build artifacts,
+not repetition of the retained reviewed qualifications.
+
+**Current next-session settings:** `gpt-6-astra` / `high`; model: keep; effort:
+keep, pinned by the slice launcher. **Reason:** two complete public qualifications
+now pass; one repetition and acceptance remain.
+**Remaining 19B:** **1–2 sessions / 30–55 minutes**, based on one further roughly
+23-minute invocation plus build, review and acceptance, assuming no new failure
+or relevant code change. Stage totals alone omit finalization time.
+
+#### Previous preparation handoff (retained failure context)
 
 **19B remains unchecked; 19A remains accepted.** The canonical ordered E2E-001
 recorder and six-match reconciliation remain implemented. This slice fixed
@@ -233,8 +314,11 @@ cleanup review. Build fresh inputs using `tools/run-tests artifacts build`, then
 No further standalone helper diagnosis is indicated. Read
 `execution.py:attempt_failure,attempt`, `controller_qualification.py:matched_screens`,
 and the [public contract](../../tests/e2e/README.md#maintain-declarations).
-Do not defer these runs for the resolved coordination request. Coordinate VM
-use sequentially with [Task 15A](Task-15.md#task-15a); Task 20 remains dependent on 19B.
+Do not defer these runs for the resolved coordination request. At the next safe
+boundary, return to 19B before more [Task 15A](Task-15.md#task-15a) work. After
+19B's full acceptance, select [Task 20](Task-20.md), then resume 15A's saved
+handoff. A new deferral requires current evidence and a return condition under
+the [task-selection rule](Implementation-Workflow.md#start-with-one-bounded-result).
 
 **Verification and cleanup:** focused checks 82970: 100 passed. Final
 `make check` 98536: 2,686 unit/contracts, 17 components, syntax and traceability

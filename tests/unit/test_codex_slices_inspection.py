@@ -21,7 +21,8 @@ SPEC.loader.exec_module(loop)
     (['status'], None), (['status', '--reconciled'], None),
     (['status', '--max-slices', '1', '--max-api-retries', '2'], None),
     (['status', 'start'], 2), (['status', 'run'], 2), (['status', 'stop'], 2),
-    (['status', 'kill'], 2), (['status', 'resume'], 2),
+    (['status', 'kill'], 2), (['status', 'resume'], 2), (['status', 'restart'], 2),
+    (['status', '--restart-of', 'old-run', '--request-id', '718e11b8-1c72-471d-9222-fb2b37283ed4'], 2),
     (['status', '-c', 'arbitrary'], 2), (['status', '--command', 'arbitrary'], 2),
     (['status', '--max-sl', '1'], 2),
 ])
@@ -39,7 +40,7 @@ def test_inspection_cannot_mutate_or_dispatch_even_with_trailing_arguments(
     def refuse(*_args, **_kwargs):
         pytest.fail('inspection attempted a write, worker or control operation')
 
-    for name in ('run', 'preflight', 'private_directory', 'write_json', 'exclusive'):
+    for name in ('run', 'wait_for_restart', 'preflight', 'private_directory', 'write_json', 'exclusive'):
         monkeypatch.setattr(loop, name, refuse)
     monkeypatch.setattr(loop.subprocess, 'Popen', refuse)
     if exit_code is None:

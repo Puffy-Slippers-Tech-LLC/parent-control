@@ -1997,6 +1997,63 @@
       "variants": [
         {"id": "retry", "owner": "26C", "parameters": {"delivery": "retry"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
       ]
+    },
+    {
+      "id": "E2E-034",
+      "title": "Public serial controller and terminal evidence qualification",
+      "category": "runner-smoke",
+      "owners": ["19A"],
+      "requirements": [],
+      "requirement_gap": null,
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "components": ["runner"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "fixture-credentials-via-secret-api"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Provision verified assets, random fixture passwords and the stock serial getty in the exclusively held offline attempt."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Start the qualified worker, boot the fresh guest and independently observe its boot identity, asset receipt and session-free greeter."}
+        ],
+        "steps": [
+          {"id": "gdm", "operation": "observe", "description": "Record the worker's initial GDM capture digest and dimensions; this makes no stable screen-matching claim."},
+          {"id": "selected", "operation": "ui", "description": "Use the existing qualified guest input to select the fixture account and observe the changed capture with no user session."},
+          {"id": "dismissed", "operation": "ui", "description": "Dismiss the empty prompt and observe the changed capture; retain raw screens privately without export."},
+          {"id": "serial-password", "operation": "ui", "description": "Select serial and enter the fixture username; independently verify the real login process and disabled terminal echo before secret input."},
+          {"id": "serial-authenticated", "operation": "ui", "description": "Enter the registered fixture password through the secret-safe API and independently verify its sole active local serial session."},
+          {"id": "serial-command", "operation": "ui", "description": "Enter the fixed harmless printf and require actual command output, independently corroborated session and unchanged boot identity."},
+          {"id": "serial-logout", "operation": "ui", "description": "Perform real logout, return to graphics and independently verify GDM with no remaining user session."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "Require successful backend completion, verified poweroff and stopped worker/callback; collect stage trace and continuity metadata without raw authentication output."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "The existing sole lease owner restores the accepted baseline; validate source, host, artifact and terminal invocation evidence before accepting the result."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "screen-transition", "step_id": "dismissed", "description": "The qualified worker captures distinct full-size screens across actual account selection and dismissal. Stable GDM needle qualification remains E2E-001."}
+        ],
+        "backend": [
+          {"id": "serial-command", "step_id": "serial-command", "description": "The public serial API matches actual harmless command output, with the independently verified fixture session and unchanged boot."}
+        ],
+        "other_user": [
+          {"id": "session-isolation", "step_id": "serial-logout", "description": "No non-observer user session remains after the real fixture logout; GDM is active."}
+        ]
+      },
+      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {"transport": ["serial-controller"]},
+        "full_combinations": [],
+        "rationale": "One complete public-controller attempt qualifies preparation, credential and asset forwarding, actual serial stages and held-lease evidence finalization together. Existing component regressions cover rejection and interruption. No customer scenario or E2E-001 dimension is replaced."
+      },
+      "variants": [
+        {"id": "serial-controller", "owner": "19A", "parameters": {"transport": "serial-controller"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/controller_qualification.py", "test_id": "serial-controller"}}
+      ]
     }
   ]
 }

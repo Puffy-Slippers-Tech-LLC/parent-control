@@ -1,4 +1,4 @@
-"""Host-safe E2E entry point and preflight; guarded execution remains unfinished.
+"""Host-safe E2E preflight and dispatch to the guarded scenario controller.
 
 Preflight is repeated by the category dispatcher before any privilege check or
 cleanup prerequisite. It cannot turn worker diagnostics into scenario evidence.
@@ -55,11 +55,15 @@ def preflight(argv, *, root=ROOT):
     plan['mode'] = 'list-only' if args.list else 'execution-preflight'
     if args.list:
         return plan
-    # This path is reached only for a fully runnable selection. Keep it closed
-    # until independently verified provenance and real EvidenceContract records
-    # are connected to the guarded worker. File existence/status is insufficient.
     validate_artifact_path(args.artifacts)
-    raise ValueError('e2e:execution-controller-unfinished')
+    if not args.artifacts.is_dir():
+        raise ValueError('e2e:missing-artifact-directory')
+    for case in plan['cases']:
+        path = confined_file(root, case['executable']['path'])
+        if path.suffix != '.py':
+            raise ValueError('e2e:python-controller-callback-required')
+    plan['artifacts'] = str(args.artifacts)
+    return plan
 
 
 def validate_artifact_path(path):
@@ -103,6 +107,10 @@ def main(argv=None):
             sys.path.insert(0, str(ROOT / 'tests/integration'))
             import check_graphical_smoke
             return check_graphical_smoke.main(assets=Path(plan['artifacts']))
+        if plan['mode'] == 'execution-preflight':
+            sys.path.insert(0, str(ROOT / 'tests/e2e'))
+            import execution
+            return execution.main(plan)
         print(json.dumps(plan, indent=2))
         return 0
     except (ValueError, OSError) as error:

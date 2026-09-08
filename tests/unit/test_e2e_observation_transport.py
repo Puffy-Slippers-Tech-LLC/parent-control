@@ -22,6 +22,7 @@ def observer():
 
 
 @pytest.mark.parametrize('name,program,timeout,result,raw', [
+    ('boot', guest_observations.BOOT, 20, {'boot_sha256': 'a' * 64}, b'a' * 64 + b'\n'),
     ('assets', guest_observations.ASSETS, 120, {'files': 3, 'sha256': 'a' * 64},
      (json.dumps({'files': 3, 'sha256': 'a' * 64}, sort_keys=True) + '\n').encode()),
     ('greeter', guest_observations.GREETER, 110,
@@ -49,6 +50,24 @@ def test_fixed_probe_checks_ownership_before_and_after_output(observer, name, pr
     transport.call.assert_called_once_with(['/usr/bin/python3', '-c', program], timeout=timeout)
     transport.reboot.assert_not_called()
     transport.copy.assert_not_called()
+
+
+@pytest.mark.parametrize('raw', [b'', b'A' * 64 + b'\n', b'a' * 63 + b'\n',
+                                b'a' * 64, b'a' * 64 + b'\nprivate-canary'])
+def test_boot_identity_rejects_malformed_or_private_output(observer, raw):
+    reader, transport = observer
+    transport.call.return_value = raw
+    with pytest.raises(EvidenceError, match='invalid-output'):
+        reader.read('boot')
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.read('boot')
+
+
+def test_boot_probe_hashes_actual_kernel_identity(capsys):
+    import hashlib
+    exec(guest_observations.BOOT, {})
+    actual = (Path('/proc/sys/kernel/random/boot_id').read_text()).encode()
+    assert capsys.readouterr().out == hashlib.sha256(actual).hexdigest() + '\n'
 
 
 @pytest.mark.parametrize('probe', ['reboot', 'checkpoint', 'restore', 'set-grant', 'install',

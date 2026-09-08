@@ -78,8 +78,9 @@ handoff's settings for the next slice.
 
 ## Task 19A
 
-The work list defines full acceptance. Resume the [active handoff](#task-19a-continuation--2026-09-07)
-for the remaining boundary; do not rebuild already implemented interfaces.
+Accepted on 2026-09-07; the work list below defines the accepted scope.
+The [completion record](#task-19a-continuation--2026-09-07) links its evidence.
+Continue with [19B](#task-19b-continuation--2026-09-07).
 
 - Title: Add the guarded os-autoinst worker and console transport.
 - Depends on: Task 19P and F1; the preferred schedule follows Task 14.
@@ -144,53 +145,31 @@ for the remaining boundary; do not rebuild already implemented interfaces.
 
 ### Task 19A continuation — 2026-09-07
 
-**Solid progress:** implemented the scenario recorder/lease bridge and
-authenticated serial forwarding; 43 new host regressions pass. The
-[recording evidence](Evidence/19A-Lease-Recording-20260907.md) retains changes,
-test results and exact file digests. **19A is not accepted; all 156 variants
-remain pending.** Development-host and the existing guarded VM scope persist.
+**19A accepted; solid progress made.** The new public
+`E2E-034/serial-controller` qualification passed actual fixture provisioning,
+verified asset transfer, eight serial/graphical worker stages, all scenario
+assertions, secret-checked collection, baseline restoration and final invocation
+exit 0. The [acceptance audit](Evidence/19A-Controller-Acceptance-20260907.md)
+covers all eight deliverables and preserves exact inputs, failures and timings.
 
-**Proven boundary:** `LeasedScenario` records cleanup start before the real
-`Lease.__exit__`, which remains the sole restoration/release owner. Its finalizer
-checks the original lease/run/domain/ledger, actual off state and provenance,
-then completes ordered evidence and validates private copies while held.
-`result()` also refuses release failures. `ScenarioRecorder.run_worker` forwards
-same-lease provisioned credentials/serial mode and refuses secrets absent from
-the collector's original frozen registry. Host tests execute the real recorder,
-collector, evidence gate and lease exit; VM operations are substituted. Reuse
-the separately proven [live serial/shutdown path](Evidence/19A-Shutdown-20260907.md).
+The first live attempt exposed a missing selected-input manifest in public SSH
+preparation. The controller now fsyncs that input before VM acquisition and
+checks the credential tool pin. A regression executes the real bootstrap
+composition. The corrected attempt passed through the ordinary launcher;
+no inventory override, new cleanup owner or backend change was needed.
+**All original 156 cases, including E2E-001, remain pending.** The additional
+qualification establishes harness behavior only.
 
-**Next observable result:** wire `runner.preflight/main` to guarded public
-execution, preparation-failure evidence and final invocation reporting using
-this bridge. Read `tests/e2e/runner.py`, `leased_recording.py:LeasedScenario`,
-`check_graphical_smoke.py:Qualification/main`, and the
-[recording contract](../../tests/e2e/README.md#ordered-controller-records).
-Resolve exact runnable selections, execute actual scenario callbacks, retain
-first failure and account for connection-close errors. First test the public
-path with temporary synthetic declarations. Keep pending cases closed; do not
-relabel qualification as E2E-001 acceptance. The deliberate
-`e2e:execution-controller-unfinished` gate remains.
+Final `make check` (14188) passed 2,502 unit/contracts, 17 components, syntax
+and stage traceability; 17 new host cases were added. Both live attempts and
+all command handles exited. Handle 33292 survived a chat interruption and was
+resumed without duplicate execution. Final VM status was off (`state=5, id=-1`).
+No operation needs recovery. Later edits are documentation only; new
+package-bearing attempts require fresh verified build inputs.
 
-**Scope/attempts:** public wiring required resolving the synchronous recorder's
-cleanup timing and secret-registry gap first; that dependency is now tested.
-No live experiment was needed. Do not recreate the bridge or repeat the resolved
-console/shutdown diagnosis next session. Preparation before recorder creation
-and public terminal reporting remain controller work.
-
-**Verification/state:** final four-module selection passed 104 tests; final
-`make check` (42383) passed 2,453 unit/contracts, 17 components, syntax and stage
-traceability. `git diff --check` passed. All handles exited; no VM operation,
-setup, export or recovery was started. Read-only VM status confirmed off
-(`state=5, id=-1`). Subsequent edits are documentation only; no package artifact
-is nominated. The evidence records the exact reusable focused command. A new
-package-bearing attempt still needs current verified source/package inputs.
-
-**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** recorder lifecycle and secret forwarding have host proof; public
-dispatch and failure reporting still cross ownership/evidence boundaries.
-**Remaining 19A estimate:** **1–2 substantial sessions / 2–3 hours**,
-moderate-to-low confidence, excluding 19B/customer scenarios. The previous
-forecast was optimistic about the recorder/lease integration effort.
+**Remaining 19A: zero sessions.** Use the [19B handoff](#task-19b-continuation--2026-09-07)
+for the next implementation result and settings. Do not reopen public dispatch,
+bootstrap, serial transport or controller acceptance merely because the chat is new.
 
 ## Task 19B
 
@@ -219,3 +198,47 @@ forecast was optimistic about the recorder/lease integration effort.
 - Completion criteria: stable public-API graphical/serial automation is ready
   for user journeys, without host-window automation, unguarded domain access,
   or VM state shortcuts. Screen/step evidence records actual input and outcomes.
+
+### Task 19B continuation — 2026-09-07
+
+**Next observable result:** replace fixed render settling with stable GDM and
+return-to-graphics matching, then implement E2E-001's actual ordered evidence
+through the accepted public controller. Dev-host and the existing guarded VM
+scope persist. 19A is complete; the original 156 variants remain pending.
+
+**Reuse/read first:** `tests/e2e/controller_qualification.py:execute`,
+`tests/integration/graphical_smoke/tests/smoke.pm`, its `lib/onpc_password.pm`
+and `lib/onpc_serial.pm`, the current paired needles, and the E2E-001 declaration.
+Use the [public execution contract](../../tests/e2e/README.md#public-execution-and-terminal-reporting)
+and [19A acceptance](Evidence/19A-Controller-Acceptance-20260907.md) for proven
+interfaces. The same source-verified worker, fixed observation probes, secret
+registry, asset provisioner and lease finalizer already work together. There is
+no bootstrap or serial blocker to rediscover.
+
+**Qualification boundary:** E2E-034 collects screen dimensions/digests only;
+it does not accept stable screen meaning. Add reviewed needles/readiness and
+actual pre/post-console screen assertions, preserve secret-safe capture, and
+run three complete corrected-input qualification attempts for the changed
+harness. Preserve failures and apply the two-attempt diagnostic rule. Reuse
+the current callback rather than introducing another controller. Reconcile
+shared E2E-001/E2E-034 coverage as their implementations converge so ordinary
+execution does not multiply implementation-only qualification work.
+
+**Verification/state:** final host check passed 2,502 unit/contracts and 17
+components; E2E-034 passed final public output/exit 0. All handles exited and
+the VM was confirmed off. No export, recovery or setup operation remains.
+Documentation edits followed acceptance, so build fresh package artifacts for
+the next VM run. First focused host selection: `tools/run-unit-tests
+tests/unit/test_e2e_needle_inputs.py tests/unit/test_e2e_shutdown.py
+tests/unit/test_graphical_smoke.py
+tests/unit/test_e2e_controller_qualification_cleanup_safety.py -q`; run after
+the affected edits, with isolated safety prerequisites before live controls.
+
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
+**Reason:** transport/controller composition is proven; screen matching and
+credential/capture readiness still cross a safety boundary.
+**Remaining 19B:** approximately **two substantial sessions / 3–5 hours**,
+moderate-to-low confidence. The measured public invocation took 25 minutes
+(worker 49 seconds); three full qualifications may consume about 75 minutes
+before needle/readiness implementation and corrections. Reassess after its
+first stable batch. 19A needs no further session.

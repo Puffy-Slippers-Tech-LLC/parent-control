@@ -44,9 +44,12 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     expected = [item['id'] + '/' + variant['id'] for item in document['scenarios']
                 for variant in item['variants']]
     assert [case['case_id'] for case in plan['cases']] == expected
-    assert plan['pending_cases'] == expected
+    assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
+                                     if case['status'] == 'pending']
+    assert len(plan['pending_cases']) == 156
     assert plan['scope'] == 'full'
-    assert all(case['executable'] is None for case in plan['cases'])
+    assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
+        'E2E-034/serial-controller']
     assert all(case['assertions'] and case['expected_evidence'] for case in plan['cases'])
     assert plan['evidence_contract']['outcomes'] == ['product', 'infrastructure', 'collection', 'cleanup']
 

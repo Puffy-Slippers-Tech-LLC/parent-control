@@ -32,9 +32,11 @@ class FapolicydPolicy:
             rules_path: Path = Path(
                 "/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules"
             ),
-            reload_command=("/usr/sbin/fagenrules", "--load")):
+            reload_command=("/usr/sbin/fapolicyd-cli", "--reload-rules"),
+            compile_command=("/usr/sbin/fagenrules",)):
         self._rules_path = rules_path
         self._reload_command = tuple(reload_command)
+        self._compile_command = tuple(compile_command)
         self._lock = threading.Lock()
 
     @staticmethod
@@ -254,9 +256,21 @@ class FapolicydPolicy:
             raise ExecutionPolicyError("could not write execution policy") from error
 
     def _reload(self) -> None:
+        # fagenrules --load sends SIGHUP, which also refreshes the trust DB.
+        # Repeated policy saves must not queue behind a package database scan.
+        # Compile first, then use the public rules-only notification. Neither
+        # command's exit status is an acknowledgement of daemon activation.
+        for stage, command in (
+                ("compile", self._compile_command),
+                ("notify", self._reload_command)):
+            LOG.info("execution policy reload stage=%s", stage)
+            self._run_reload_command(command, stage)
+
+    @staticmethod
+    def _run_reload_command(command: tuple[str, ...], stage: str) -> None:
         try:
             completed = subprocess.run(
-                self._reload_command,
+                command,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -265,6 +279,10 @@ class FapolicydPolicy:
                 text=True,
             )
         except (OSError, subprocess.SubprocessError) as error:
+            LOG.error("execution policy reload stage=%s outcome=failed error_type=%s",
+                      stage, type(error).__name__)
             raise ExecutionPolicyError("could not reload execution policy") from error
         if completed.returncode != 0:
+            LOG.error("execution policy reload stage=%s outcome=failed returncode=%d",
+                      stage, completed.returncode)
             raise ExecutionPolicyError("could not reload execution policy")

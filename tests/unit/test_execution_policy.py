@@ -64,7 +64,7 @@ class ExecutionPolicyTests(unittest.TestCase):
     def test_reconcile_atomically_writes_and_loads_rules(self):
         with tempfile.TemporaryDirectory() as temporary:
             rules_path = Path(temporary) / "89-oh-no-parent-control.rules"
-            policy = FapolicydPolicy(rules_path, ("fagenrules", "--load"))
+            policy = FapolicydPolicy(rules_path)
             completed = SimpleNamespace(returncode=0, stdout="", stderr="")
             with mock.patch(
                     "oh_no_parent_control.execution_policy.subprocess.run",
@@ -72,7 +72,10 @@ class ExecutionPolicyTests(unittest.TestCase):
                 policy.reconcile({1001: ("/usr/bin/game",)})
 
             self.assertIn("uid=1001", rules_path.read_text(encoding="utf-8"))
-            self.assertEqual(run.call_args.args[0], ("fagenrules", "--load"))
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                ("/usr/sbin/fagenrules",),
+                ("/usr/sbin/fapolicyd-cli", "--reload-rules"),
+            ])
 
     def test_failed_reload_restores_previous_rules(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -81,6 +84,7 @@ class ExecutionPolicyTests(unittest.TestCase):
             policy = FapolicydPolicy(rules_path)
             outcomes = [
                 SimpleNamespace(returncode=1, stdout="", stderr="bad"),
+                SimpleNamespace(returncode=0, stdout="", stderr=""),
                 SimpleNamespace(returncode=0, stdout="", stderr=""),
             ]
             with mock.patch(
@@ -94,7 +98,7 @@ class ExecutionPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             rules_path = Path(temporary) / "89-oh-no-parent-control.rules"
             rules_path.write_text("old\n", encoding="utf-8")
-            policy = FapolicydPolicy(rules_path, ("fagenrules", "--load"))
+            policy = FapolicydPolicy(rules_path)
             completed = SimpleNamespace(returncode=0, stdout="", stderr="")
             with mock.patch(
                     "oh_no_parent_control.execution_policy.subprocess.run",
@@ -102,7 +106,10 @@ class ExecutionPolicyTests(unittest.TestCase):
                 policy.remove()
 
             self.assertFalse(rules_path.exists())
-            self.assertEqual(run.call_args.args[0], ("fagenrules", "--load"))
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                ("/usr/sbin/fagenrules",),
+                ("/usr/sbin/fapolicyd-cli", "--reload-rules"),
+            ])
 
     def test_failed_remove_reload_restores_previous_rules(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -112,6 +119,7 @@ class ExecutionPolicyTests(unittest.TestCase):
             outcomes = [
                 SimpleNamespace(returncode=1, stdout="", stderr="bad"),
                 SimpleNamespace(returncode=0, stdout="", stderr=""),
+                SimpleNamespace(returncode=0, stdout="", stderr=""),
             ]
             with mock.patch(
                     "oh_no_parent_control.execution_policy.subprocess.run",
@@ -119,6 +127,54 @@ class ExecutionPolicyTests(unittest.TestCase):
                 policy.remove()
 
             self.assertEqual(rules_path.read_text(encoding="utf-8"), "old\n")
+
+    def test_notification_failure_recompiles_restored_rules_before_notifying(self):
+        for operation in ("reconcile", "remove"):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as temporary:
+                rules_path = Path(temporary) / "89-oh-no-parent-control.rules"
+                rules_path.write_text("old\n", encoding="utf-8")
+                policy = FapolicydPolicy(rules_path)
+                seen = []
+
+                def run(command, **kwargs):
+                    seen.append((command, rules_path.read_bytes() if rules_path.exists() else None))
+                    return SimpleNamespace(returncode=1 if len(seen) == 2 else 0)
+
+                with mock.patch("oh_no_parent_control.execution_policy.subprocess.run", side_effect=run):
+                    with self.assertRaisesRegex(ExecutionPolicyError, "could not reload"):
+                        if operation == "reconcile":
+                            policy.reconcile({1001: ("/usr/bin/game",)})
+                        else:
+                            policy.remove()
+                self.assertEqual(len(seen), 4)
+                self.assertEqual(seen[2:], [
+                    (("/usr/sbin/fagenrules",), b"old\n"),
+                    (("/usr/sbin/fapolicyd-cli", "--reload-rules"), b"old\n"),
+                ])
+
+    def test_compile_failure_never_notifies_candidate(self):
+        policy = FapolicydPolicy()
+        with mock.patch("oh_no_parent_control.execution_policy.subprocess.run",
+                        return_value=SimpleNamespace(returncode=1)) as run:
+            with self.assertRaises(ExecutionPolicyError):
+                policy._reload()
+        self.assertEqual([call.args[0] for call in run.call_args_list], [
+            ("/usr/sbin/fagenrules",),
+        ])
+
+    def test_reload_command_errors_are_bounded_and_do_not_log_output(self):
+        import subprocess
+
+        for error in (OSError("private-output"), subprocess.TimeoutExpired("private-command", 15)):
+            with self.subTest(error=type(error).__name__):
+                policy = FapolicydPolicy()
+                with mock.patch("oh_no_parent_control.execution_policy.subprocess.run",
+                                side_effect=error) as run:
+                    with self.assertLogs("oh-no-parent-control.execution-policy", level="ERROR") as logs:
+                        with self.assertRaises(ExecutionPolicyError):
+                            policy._reload()
+                self.assertEqual(run.call_args.kwargs["timeout"], 15)
+                self.assertNotIn("private-", " ".join(logs.output))
 
 
 if __name__ == "__main__":

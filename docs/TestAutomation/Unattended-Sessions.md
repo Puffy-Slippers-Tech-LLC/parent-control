@@ -24,7 +24,9 @@ slices. This does not start or resume work, change limits, or modify session
 state; Ctrl+C disconnects only that monitor. Multiple terminals can monitor the
 same run. Output is passed through a same-user local socket, never saved to a
 new log, and missed output is not replayed. A slow monitor may be disconnected
-to keep the worker moving. The monitor exits when its connection closes.
+to keep the worker moving. The launcher sends an explicit shutdown event after
+its final output so monitors exit without waiting for socket closure. A closed
+connection also ends the monitor.
 Launchers already running code from before monitoring support cannot accept a
 monitor; `start` reports that limitation and leaves their work unchanged.
 Use `run` in a dedicated terminal and another terminal for `status` or `stop`.
@@ -54,6 +56,31 @@ controlling the loop still needs authorization for that work. Use the native
 `stop` requests a stop at the next safe slice boundary. It does not terminate
 Codex or a running test. In foreground mode Ctrl+C has the same behavior. Start
 again with the original command to continue from the saved documents.
+
+To reload launcher code changed by another session, queue a restart:
+
+```sh
+tools/codex_slices.py restart
+```
+
+The command returns promptly. A detached waiter requests the existing safe
+stop, waits for the current session's handoff and cleanup and for the old
+launcher/worker lock to be released, then executes the launcher file from disk.
+Edits made while it waits are included. This also works with an older running
+launcher that already supports the run-specific `stop` protocol. The new run
+is detached, with live output in the terminal that issued `restart`; existing
+monitors disconnect when the old launcher exits. Use `start` to attach again.
+
+A later `stop` or `kill` cancels the queued restart, and repeated `restart`
+requests replace the pending one. Completion ends the loop without relaunching;
+a blocker, interrupted work or unconfirmed cleanup prevents automatic restart.
+If no launcher is ongoing, `restart` starts no work; use `start` instead.
+Restart messages go to `output/codex-slices/launcher.log`.
+
+Saved `--max-slices` and `--max-api-retries` limits carry forward unless supplied
+on `restart`. The slice count starts over for the new run. Older launchers that
+did not save these limits use defaults (unlimited slices, 12 retries), so pass
+the original limits explicitly when restarting those runs.
 
 When the session stops or is killed, the launcher prints a bold red status
 message in its live terminal and exits automatically. The terminal stays open;
@@ -86,6 +113,28 @@ foreground Ctrl+C retain their existing safe-boundary behavior. Runs started
 by the older ephemeral launcher cannot be resumed; stop those normally and
 start the updated launcher. A kill before Codex reports a thread ID has no
 conversation to resume; reconcile it and use `start --reconciled` instead.
+
+## Token use and output
+
+Each fresh or resumed worker receives the concise-output instructions in the
+[prompt](Unattended-Prompt.md), and the launcher's report schema requests a
+concise, self-contained summary. Follow the shared
+[output rules](Implementation-Workflow.md#reduce-unnecessary-model-output):
+avoid repeated scripts, patches, command transcripts and irrelevant tool reads;
+retain material findings, failures, verification, cleanup and recovery details.
+The pinned model/effort and acceptance checks are unchanged, and brevity does
+not impose a new response-length or tool-output limit.
+
+Live rendering, monitor fanout and saving already-produced output are local
+operations with no additional model tokens. They remain fully available for
+operator diagnosis. Model-written commands and reports use output tokens, and
+tool results read by the worker use input tokens. Hiding the terminal stream
+cannot recover tokens already used. No measured saving is claimed; existing
+lifecycle usage counts remain available without reading raw session history.
+
+Prompt/workflow changes apply at the next slice boundary, including under an
+existing supervisor. Launcher/schema code changes apply on its next invocation;
+finish current work and cleanup before restarting an ongoing launcher.
 
 ## Cumulative session summaries
 

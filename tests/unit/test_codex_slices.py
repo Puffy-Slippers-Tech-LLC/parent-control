@@ -92,6 +92,51 @@ def test_old_running_launcher_is_left_unchanged(tmp_path, monkeypatch, capsys):
     assert not (storage / 'state.json').exists()
 
 
+def test_monitor_exits_after_shutdown_notice_without_waiting_for_socket_eof(tmp_path, capsys):
+    storage = tmp_path / loop.STORAGE
+    ready = threading.Event()
+    finished = threading.Event()
+    errors = []
+    notice = 'Session stopped at a safe slice boundary. Launcher exiting.\n'
+    retained = None
+
+    def supervisor():
+        nonlocal retained
+        try:
+            with loop.MonitorHub(storage, loop.LiveOutput(None)) as hub:
+                ready.set()
+                deadline = time.monotonic() + 3
+                while time.monotonic() < deadline:
+                    with hub.lock:
+                        if hub.clients:
+                            retained = next(iter(hub.clients)).dup()
+                            break
+                    time.sleep(0.01)
+                assert retained is not None
+                hub.live.write(notice)
+            # A retained socket descriptor prevents EOF even after hub cleanup.
+            # A regression times out instead of hanging the test suite.
+            assert finished.wait(3), 'monitor waited for EOF after launcher shutdown'
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            if retained is not None:
+                retained.close()
+
+    thread = threading.Thread(target=supervisor)
+    thread.start()
+    try:
+        assert ready.wait(3)
+        assert loop.attach_monitor(storage) == 0
+    finally:
+        finished.set()
+        thread.join(4)
+    assert not thread.is_alive()
+    assert not errors
+    assert notice in capsys.readouterr().out
+    assert not storage.exists()
+
+
 def test_monitor_fanout_reconnect_and_bounded_buffer(tmp_path):
     storage = tmp_path / loop.STORAGE
     live = loop.LiveOutput(None)
@@ -147,7 +192,10 @@ root = Path.cwd()
 calls = root / 'calls.jsonl'
 number = len(calls.read_text().splitlines()) if calls.exists() else 0
 with calls.open('a') as stream:
-    stream.write(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read()}) + '\n')
+    stream.write(json.dumps({
+        'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
+        'schema': json.loads(Path(sys.argv[sys.argv.index('--output-schema') + 1]).read_text()),
+    }) + '\n')
 step = json.loads((root / 'steps.json').read_text())[number]
 def emit(value):
     print(json.dumps(value), flush=True)
@@ -294,6 +342,11 @@ def test_two_fresh_sessions_keep_pinned_settings_despite_handoff_changes(rig):
         assert '--ephemeral' not in call['argv']
         assert '--ignore-rules' not in call['argv']
         assert 'sensitive-placeholder' not in call['prompt']
+        assert 'Keep progress and the final report concise:' in call['prompt']
+        assert 'Preserve necessary implementation, reasoning, tests, diagnostics, evidence' in call['prompt']
+        assert call['schema'] == loop.SCHEMA
+        description = call['schema']['properties']['summary']['description']
+        assert 'Expand when necessary for a correct handoff.' in description
         assert call['argv'][call['argv'].index('--model') + 1] == 'gpt-6-astra'
         assert 'model_reasoning_effort="high"' in call['argv']
         assert 'model_reasoning_effort="max"' not in call['argv']
@@ -359,6 +412,8 @@ def test_kill_interrupts_and_start_reuses_exact_thread_then_returns_to_fresh_sli
     assert len(launched) == 3
     assert launched[1]['argv'][-3:] == ['resume', thread, '-']
     assert 'reconcile' in launched[1]['prompt']
+    assert 'Keep progress and the final report concise:' in launched[1]['prompt']
+    assert launched[1]['schema'] == loop.SCHEMA
     assert 'resume' not in launched[2]['argv']
     assert loop.read_state(root / loop.STORAGE)['status'] == 'complete'
 
@@ -533,6 +588,142 @@ def test_stop_during_detached_start_is_not_lost(rig):
     assert loop.run(root, args) == 0
     assert loop.read_state(storage)['status'] == 'stopped'
     assert calls(root) == []
+
+
+@pytest.mark.parametrize('old_launcher, terminal_output', [(False, False), (False, True), (True, False)])
+def test_restart_queues_safe_stop_then_execs_code_updated_while_waiting(
+        rig, monkeypatch, old_launcher, terminal_output):
+    root = rig([{}, {'check_all': True, 'result': complete()}])
+    children = []
+    popen = loop.subprocess.Popen
+    master, slave = pty.openpty() if terminal_output else (None, None)
+    terminal = os.fdopen(slave, 'w', buffering=1) if terminal_output else None
+
+    def record(command, **kwargs):
+        child = popen(command, **kwargs)
+        if '--restart-of' in command:
+            children.append(child)
+        return child
+
+    monkeypatch.setattr(loop.subprocess, 'Popen', record)
+    invoke = loop.invoke
+
+    def queue_restart(*args, **kwargs):
+        storage = root / loop.STORAGE
+        state = loop.read_state(storage)
+        if old_launcher:
+            # Older in-memory supervisors only know the STOP/run-ID protocol.
+            state.pop('max_slices')
+            state.pop('max_api_retries')
+            loop.write_json(storage / 'state.json', state)
+        with monkeypatch.context() as patch:
+            if terminal_output:
+                patch.setattr(loop.sys, 'stdout', terminal)
+            options = ['--max-slices', '2', '--max-api-retries', '7'] if terminal_output else []
+            assert loop.main(['restart', *options], root=root) == 0
+        assert children[0].poll() is None
+        assert calls(root) == []
+        marker = json.loads((storage / 'STOP').read_text())
+        assert marker['request_id'] == state['request_id']
+        # The detached waiter is already loaded. Only an exec after the stop
+        # can pick up this subsequent edit to the launcher file.
+        launcher = root / 'tools/codex_slices.py'
+        launcher.write_text(launcher.read_text().replace("MODEL = 'gpt-6-astra'", "MODEL = 'reloaded-model'"))
+        return invoke(*args, **kwargs)
+
+    monkeypatch.setattr(loop, 'invoke', queue_restart)
+    try:
+        assert run(root, limit=3, retries=4) == 0
+        assert children[0].wait(timeout=10) == 0
+        if terminal_output:
+            output = ''
+            while select.select([master], [], [], 0.1)[0]:
+                output += os.read(master, 65536).decode()
+            assert 'reloaded-model / high' in output
+            assert 'Completed slice result 1.' in output
+    finally:
+        for child in children:
+            child.wait(timeout=10)
+        if terminal is not None:
+            terminal.close()
+            os.close(master)
+    launched = calls(root)
+    assert len(launched) == 2
+    assert launched[0]['argv'][launched[0]['argv'].index('--model') + 1] == 'gpt-6-astra'
+    assert launched[1]['argv'][launched[1]['argv'].index('--model') + 1] == 'reloaded-model'
+    state = loop.read_state(root / loop.STORAGE)
+    assert state['status'] == 'complete'
+    assert state['sessions_started'] == 2
+    assert state['max_slices'] == (2 if terminal_output else 0 if old_launcher else 3)
+    assert state['max_api_retries'] == (7 if terminal_output else 12 if old_launcher else 4)
+    assert (root / loop.SUMMARY).read_text().count('## Session ') == 2
+    log = (root / loop.STORAGE / 'launcher.log').read_text()
+    assert 'Reloading launcher code from disk' in log
+    assert 'sensitive-placeholder' not in log
+
+
+@pytest.mark.parametrize('outcome, expected_code', [
+    ('stopped', 0), ('complete', 0), ('blocked', 2), ('needs-review', 2),
+    ('killed', 2), ('running', 2), ('stop', 0), ('kill', 0), ('superseded', 0),
+    ('other-run', 0),
+])
+def test_restart_waiter_requires_lock_safe_state_and_current_request(rig, monkeypatch, outcome, expected_code):
+    root = rig([])
+    storage = root / loop.STORAGE
+    loop.private_directory(storage)
+    old_id, new_id = str(loop.uuid.uuid4()), str(loop.uuid.uuid4())
+    state = {'status': 'running', 'request_id': old_id, 'resumable': True}
+    loop.write_json(storage / 'state.json', state)
+    marker = {'request_id': old_id, 'restart_id': new_id}
+    loop.write_json(storage / 'STOP', marker)
+    reexecs = []
+    monkeypatch.setattr(loop.os, 'execv', lambda *args: reexecs.append(args))
+    held = loop.exclusive(storage)
+    held.__enter__()
+    released = False
+
+    def finish(_delay):
+        nonlocal released
+        assert not reexecs
+        assert not released
+        if outcome in ('stop', 'kill'):
+            assert loop.main([outcome], root=root) == 0
+        elif outcome == 'superseded':
+            loop.write_json(storage / 'STOP', {**marker, 'restart_id': 'newer-request'})
+        elif outcome == 'other-run':
+            loop.write_json(storage / 'state.json', {**state, 'request_id': 'another-run'})
+        else:
+            loop.write_json(storage / 'state.json', {**state, 'status': outcome})
+        held.__exit__(None, None, None)
+        released = True
+
+    monkeypatch.setattr(loop.time, 'sleep', finish)
+    try:
+        code = loop.main(['run', '--restart-of', old_id, '--request-id', new_id,
+                          '--max-slices', '2', '--max-api-retries', '7'], root=root)
+        assert code == (None if outcome == 'stopped' else expected_code)
+    finally:
+        if not released:
+            held.__exit__(None, None, None)
+    assert len(reexecs) == (1 if outcome == 'stopped' else 0)
+    if reexecs:
+        assert reexecs[0] == (loop.sys.executable, [
+            loop.sys.executable, '-I', '-B', str(root / 'tools/codex_slices.py'), 'run',
+            '--request-id', new_id, '--max-slices', '2', '--max-api-retries', '7'])
+        assert loop.read_state(storage)['request_id'] == new_id
+    assert calls(root) == []
+
+
+@pytest.mark.parametrize('status', [None, 'stopped', 'complete', 'blocked', 'needs-review', 'killed'])
+def test_restart_without_ongoing_launcher_does_not_start_work(rig, monkeypatch, status):
+    root = rig([])
+    storage = root / loop.STORAGE
+    if status is not None:
+        loop.private_directory(storage)
+        loop.write_json(storage / 'state.json', {'status': status})
+    monkeypatch.setattr(loop.subprocess, 'Popen', lambda *a, **kw: pytest.fail('unexpected launch'))
+    assert loop.main(['restart'], root=root) == 0
+    assert not (storage / 'STOP').exists()
 
 
 def test_detached_start_targets_this_checkout_and_preserves_records(rig):
@@ -746,13 +937,17 @@ def test_summary_symlink_is_not_followed(rig):
     assert len(calls(root)) == 1
 
 
-def test_foreground_displays_session_output_but_preserves_only_the_end_report(rig, capsys):
-    root = rig([{'check_all': True, 'result': complete()}])
+@pytest.mark.parametrize('tool_output', [
+    'live-command-result\n',
+    'live-command-result\n' + 'diagnostic detail\n' * 6000 + 'end-of-diagnostics\n',
+], ids=['ordinary', 'large-diagnostics'])
+def test_foreground_displays_session_output_but_preserves_only_the_end_report(rig, capsys, tool_output):
+    root = rig([{'check_all': True, 'result': complete(), 'output': tool_output}])
     assert run(root) == 0
     output = capsys.readouterr().out
     assert 'Codex:\nsensitive-placeholder' in output
     assert '$ sensitive-placeholder' in output
-    assert 'live-command-result' in output
+    assert tool_output in output  # Local display must not truncate already-produced evidence.
     assert 'live-stderr-placeholder' in output
     assert 'Completed slice result 0.' in output
     for path in [root / loop.SUMMARY, *(root / loop.STORAGE).rglob('*')]:

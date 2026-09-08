@@ -155,7 +155,9 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
         report['evidence_directory'] = str(collector.path)
         checkpoint('preparation-started')
         with ledger.measure('preparation'):
-            directory = Path(tempfile.mkdtemp(prefix='onpc-e2e-attempt-'))
+            # Keep retained worker PNGs inside the existing guarded export
+            # scope, including when the caller has configured another TMPDIR.
+            directory = Path(tempfile.mkdtemp(prefix='onpc-graphical-smoke-', dir='/tmp'))
             directory.chmod(0o700)
             report['raw_directory'] = str(directory)
             private = directory / 'private'

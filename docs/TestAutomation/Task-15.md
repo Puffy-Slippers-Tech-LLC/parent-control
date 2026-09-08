@@ -64,50 +64,58 @@ Verification below is task acceptance; edits use the smallest affected selection
 
 ## Task 15A continuation — 2026-09-08
 
-**15A remains unchecked.** Registered `test_native_missing_launcher_retains_policy`
-removes its dedicated launcher after hard-rule activation, verifies catalog
-disappearance and saved-policy retention through a public re-save, then requires
-child denial and other-child allowance. Shared hard/soft transitions continue in
-both screen-time states. Removal checks the fixed fixture's captured identity;
-guest/credential guards and owned one-shot launches remain intact.
-Development-host/existing guarded VM scope persists.
+**Scheduling correction — 2026-09-08:** preserve this unfinished work while
+returning to [19B qualification](Task-19.md#task-19b-continuation--2026-09-08),
+then [Task 20](Task-20.md), in master-checklist order. The old 19B writer hold is
+cleared; 15A's independent eligibility no longer gives it scheduling priority.
+Resume the next boundary below after those tasks are accepted, unless a new
+evidenced blocker or explicit user instruction changes selection under the
+[workflow](Implementation-Workflow.md#start-with-one-bounded-result).
 
-**Verification:** 58 isolated safety tests and 379 focused tests plus 16 subtests
-passed. Real catalog parsing, broker saves and rule rendering support substituted
-OS boundaries; installed enforcement remains unqualified. Inventory selects the
-new case plus four prerequisites. Scoped whitespace/links passed. Commands,
-timings and hashes are in
-[retention evidence](Evidence/15A-Native-Missing-Launcher-20260908.md), linking prior
-evidence. No mapping was promoted. Documentation requires fresh artifacts.
+**15A remains unchecked; corrected command-policy case passed.** Development-host and
+existing guarded VM scope persists. The all-task operator clearance in the
+[workflow](Implementation-Workflow.md#vm-availability-for-all-tasks) remains valid;
+no renewed writer-pause confirmation is due.
 
-**Broad-check failure:** `make check` handle 41657 exited 2: 3,023 passed, one
-failure in `test_gateway_frame_stays_fixed_with_animated_gateway_energy`.
-Concurrent kiosk edits replaced the test's expected `randint` expression with
-weighted `choices`. Narrow inspection confirmed this mismatch. Preserve the
-other writer's work; its source/assertion reconciliation is required before a
-broad pass. Later component/syntax stages did not run. No unchanged retry occurred.
+**Verified change:** `FapolicydPolicy._reload` compiles with `fagenrules` and then
+uses public `fapolicyd-cli --reload-rules`. The former `fagenrules --load` sent
+SIGHUP, triggering the trust scan observed in the first failed run. Forward and
+rollback paths share the rules-only sequence, bounded subprocesses and PII-safe
+stage/error logs. Activation classification remains `process-restart`.
 
-**Next result:** use the operator clearance above for guarded native runtime
-qualification, including retention. Finish edits, run isolated cleanup checks,
-build via `tools/run-tests artifacts build`, and run system `enforcement` with
-its prerequisite closure. Keep checkout inputs unchanged through terminal
-collection and cleanup; do not reinstate the resolved historical hold. Start
-with the runner guide's current artifact and cleanup prerequisites, then
-`system_enforcement.py:native_policy_transition` and the focused command in
-current evidence if inputs change. Never execute guest code on the host.
-No expensive 15A attempt has been spent.
-[19B qualification](Task-19.md#task-19b-continuation--2026-09-08) is also cleared.
-Native routes/update, Snap/Flatpak and full-area runtime acceptance remain pending.
+**Verification:** 185 focused tests/four subtests passed; isolated safety and
+dispatcher safety each passed 519 tests/three subtests. Fresh artifacts
+`/tmp/onpc-test-artifacts-gyyw4imz` qualified
+`test_native_command_policy_is_uid_scoped` plus four package/reboot prerequisites.
+Handle 31652 exited 0. All ten policy stages and twenty launches passed, including
+hard/soft restoration and other-child allowance in both screen-time states.
+The journal shows eight live ruleset changes without policy-save trust scans.
+[Evidence, digests and commands](Evidence/15A-Rules-Only-Reload-20260908.md).
+The first failed runtime remains failed; no mappings promoted.
 
-**Cleanup:** all commands exited and results were collected; no owned process,
-lease, screenshot or recovery remains. No VM operation or state inference.
-Unrelated edits preserved; no approval/Polkit denial occurred.
+**Next 15A boundary when resumed:** successful notification still does not acknowledge daemon
+activation. Establish a supported bounded active-policy acknowledgement, including
+rollback failure semantics, before claiming synchronous transactions. Read
+`execution_policy.py:_reload/reconcile`, its unit tests, the boot-only
+`tools/execution_policy_ready.py` canary and this evidence's upstream references.
+Validate locally, then rebuild and qualify the registered native area under the
+existing VM guards. Do not substitute launch retries, sleeps or private APIs.
+Two live activation attempts spent (failure, corrected pass), plus one earlier
+safety refusal; no unchanged retry. Fresh inputs are required after this handoff.
+
+**Remaining:** acknowledgement, other native variants/routes/update, Snap/Flatpak
+and full acceptance. The historical kiosk `make check` failure remains in linked
+evidence; this slice did not rerun the broad check. Preserve unrelated edits.
+
+**Cleanup:** all commands exited; collection and baseline/host restoration passed.
+Fresh VM status: state 5, ID -1. No owned process, lease, screenshot or recovery
+remains; no approval/Polkit denial occurred.
 
 **Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep,
-pinned by the slice launcher. **Reason:** retention witnesses pass locally;
-guarded runtime is next, with concurrent broad-check failure preserved.
-**Remaining 15A:** sessions **Unknown**, minutes **Unknown**; live matrix timings
-and Snap/Flatpak helper qualification are missing.
+pinned by the slice launcher. **Reason:** rules-only reload is qualified, but
+active-policy acknowledgement still requires transaction reasoning.
+**Remaining 15A:** sessions **Unknown**, minutes **Unknown**; the 5.4-minute
+selected run does not size acknowledgement and remaining platform work.
 
 ## Task 15B
 

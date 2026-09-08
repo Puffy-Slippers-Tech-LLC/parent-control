@@ -62,6 +62,12 @@ SCHEMA = {
         'blocker': {'type': 'string', 'enum': list(BLOCKERS)},
         'summary': {
             'type': 'object',
+            'description': (
+                'Concise, self-contained session report. Preserve material findings, '
+                'failures, verification scope, cleanup and next actions. Reference '
+                'evidence paths and test IDs instead of repeating scripts, patches, '
+                'commands or tool output. Expand when necessary for a correct handoff.'
+            ),
             'properties': {key: {'type': 'string'} for key in SUMMARY_FIELDS},
             'required': list(SUMMARY_FIELDS),
             'additionalProperties': False,
@@ -161,6 +167,9 @@ class MonitorHub:
 
     def __exit__(self, *exc):
         self.live.monitor = None
+        # End the monitor stream explicitly after the final output. A retained
+        # socket descriptor must not leave monitors waiting indefinitely for EOF.
+        self.publish({'type': 'launcher.exiting'})
         # Give final status output a bounded opportunity to drain.
         deadline = time.monotonic() + 0.25
         while time.monotonic() < deadline:
@@ -199,6 +208,8 @@ def attach_monitor(storage):
                         block = json.loads(line)
                     except ValueError:
                         break  # A disconnected slow monitor may have a partial block.
+                    if block == {'type': 'launcher.exiting'}:
+                        return 0
                     live.display(**block)
                     if live.stream is None:
                         return 0
@@ -262,7 +273,12 @@ def file_read_path(command):
 
 
 class LiveOutput:
-    """Display CLI events without copying their contents to a log or state file."""
+    """Render CLI events locally; this display is not sent back to the worker.
+
+    Filtering this stream cannot reduce that worker's model tokens. Control
+    unnecessary generation through PROMPT/SCHEMA and focused worker tool reads.
+    Keep command output available here for the operator's diagnosis.
+    """
 
     def __init__(self, stream):
         self.stream = stream
@@ -820,7 +836,8 @@ def run(root, args):
         if expected - tasks.keys():
             raise Error('Recorded tasks disappeared from the checklist; reconcile its completion record.')
         expected.update(tasks)
-        update(status='launching', request_id=request_id, resumable=True, thread_id=resume_thread)
+        update(status='launching', request_id=request_id, resumable=True, thread_id=resume_thread,
+               max_slices=args.max_slices, max_api_retries=args.max_api_retries)
         stop_requested = threading.Event()
 
         def request_stop(_signum, _frame):
@@ -960,27 +977,97 @@ def run(root, args):
                 signal.signal(sig, handler)
 
 
+def wait_for_restart(root, args):
+    """Wait for the old run's lock, then exec the launcher as it exists on disk.
+
+    This runs in a detached process so even a supervisor loaded before restart
+    support can finish via its existing STOP protocol. Never signal that process
+    or infer successful cleanup merely from its disappearance.
+    """
+    storage = root / STORAGE
+    private_directory(storage)
+    startup_deadline = time.monotonic() + 5
+    while True:
+        try:
+            request = json.loads((storage / 'STOP').read_text())
+        except (FileNotFoundError, ValueError):
+            request = {}
+        if (not isinstance(request, dict)
+                or request.get('request_id') != args.restart_of
+                or request.get('restart_id') != args.request_id
+                or kill_requested(storage, args.restart_of)):
+            print('Queued restart cancelled by a newer control request.', flush=True)
+            return 0
+        try:
+            with exclusive(storage):
+                state = read_state(storage)
+                if state.get('request_id') != args.restart_of:
+                    print('Queued restart cancelled: another run has taken over.', flush=True)
+                    return 0
+                if state.get('status') == 'launching' and time.monotonic() < startup_deadline:
+                    # start releases its reservation lock before its child boots.
+                    pass
+                elif state.get('status') == 'complete':
+                    print('Queued restart cancelled: all documented tasks are complete.', flush=True)
+                    return 0
+                elif state.get('status') != 'stopped':
+                    raise Error('Queued restart refused: the previous run did not stop at a safe boundary. '
+                                'Inspect status and the current task handoff.')
+                else:
+                    state.update(status='launching', request_id=args.request_id, thread_id=None,
+                                 resumable=True, updated=stamp())
+                    write_json(storage / 'state.json', state)
+                    break
+        except Busy:
+            pass
+        time.sleep(0.1)
+    command = [sys.executable, '-I', '-B', str(root / 'tools/codex_slices.py'), 'run',
+               '--request-id', args.request_id, '--max-slices', str(args.max_slices),
+               '--max-api-retries', str(args.max_api_retries)]
+    if args.live_output_fd is not None:
+        os.set_inheritable(args.live_output_fd, True)
+        command.extend(('--live-output-fd', str(args.live_output_fd)))
+    print('Previous launcher stopped safely. Reloading launcher code from disk.', flush=True)
+    os.execv(sys.executable, command)
+
+
 def main(argv=None, *, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('action', choices=('start', 'run', 'status', 'stop', 'kill'),
+    parser.add_argument('action', choices=('start', 'run', 'status', 'stop', 'restart', 'kill'),
                         help='start detached, resume a killed conversation, or monitor an ongoing run; '
                              'run foreground; '
-                             'status inspect; stop at slice boundary; kill interrupt now')
-    parser.add_argument('--max-slices', type=int, default=0, help='Stop after this many slices; 0 runs until complete.')
-    parser.add_argument('--max-api-retries', type=int, default=12, help='Retries per consecutive transient failure before tool use.')
+                             'status inspect; stop at slice boundary; restart after safe stop; kill interrupt now')
+    parser.add_argument('--max-slices', type=int, help='Stop after this many slices; default 0 runs until complete; restart inherits the saved limit.')
+    parser.add_argument('--max-api-retries', type=int, help='Retries per consecutive transient failure before tool use; default 12; restart inherits the saved limit.')
     parser.add_argument('--reconciled', action='store_true', help='Start fresh after the operator has reconciled an interrupted run and all owned cleanup.')
     parser.add_argument('--request-id', help=argparse.SUPPRESS)
     parser.add_argument('--live-output-fd', type=int, help=argparse.SUPPRESS)
+    parser.add_argument('--restart-of', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.request_id:
         try:
             args.request_id = str(uuid.UUID(args.request_id))
         except ValueError:
             parser.error('request-id must be a UUID')
-    if args.max_slices < 0 or not 0 <= args.max_api_retries <= 100:
+    if args.restart_of and (args.action != 'run' or not args.request_id):
+        parser.error('restart-of requires run and request-id')
+    if args.action == 'restart' and args.reconciled:
+        parser.error('restart cannot bypass handoff checks with --reconciled')
+    if ((args.max_slices is not None and args.max_slices < 0)
+            or (args.max_api_retries is not None and not 0 <= args.max_api_retries <= 100)):
         parser.error('max-slices must be nonnegative; max-api-retries must be between 0 and 100')
     try:
         storage = root / STORAGE
+        saved = read_state(storage) if args.action == 'restart' else {}
+        if args.max_slices is None:
+            args.max_slices = saved.get('max_slices', 0)
+        if args.max_api_retries is None:
+            args.max_api_retries = saved.get('max_api_retries', 12)
+        if (type(args.max_slices) is not int or args.max_slices < 0
+                or type(args.max_api_retries) is not int or not 0 <= args.max_api_retries <= 100):
+            raise Error('Saved launcher limits are invalid; specify valid limits explicitly.')
+        if args.restart_of:
+            return wait_for_restart(root, args)
         if args.action == 'status':
             state = read_state(storage)
             print(json.dumps(state or {'status': 'not-started'}, indent=2, sort_keys=True))
@@ -1005,6 +1092,18 @@ def main(argv=None, *, root=ROOT):
             write_json(storage / 'KILL', {'requested': stamp(), 'request_id': state.get('request_id')})
             print('Kill requested. The active Codex child will be interrupted immediately; use status to confirm exit.')
             return 0
+        if args.action == 'restart':
+            state = read_state(storage)
+            if state.get('status') not in ('launching', 'running', 'retry-wait', 'between-slices'):
+                print('No ongoing launcher to restart. Use start to begin a run.')
+                return 0
+            if not state.get('request_id'):
+                raise Error('The ongoing launcher has no run identity; stop it and use start after it exits.')
+            private_directory(storage)
+            request_id = str(uuid.uuid4())
+            args.restart_of = state['request_id']
+            write_json(storage / 'STOP', {'requested': stamp(), 'request_id': args.restart_of,
+                                         'restart_id': request_id})
         if args.action == 'start':
             private_directory(storage)
             with exclusive(storage):
@@ -1016,13 +1115,17 @@ def main(argv=None, *, root=ROOT):
                 preflight(root)
                 request_id = str(uuid.uuid4())
                 state.update(status='launching', request_id=request_id, resumable=True,
-                             thread_id=resume_thread, updated=stamp())
+                             thread_id=resume_thread, updated=stamp(),
+                             max_slices=args.max_slices, max_api_retries=args.max_api_retries)
                 write_json(storage / 'state.json', state)
+        if args.action in ('start', 'restart'):
             command = [sys.executable, '-I', '-B', str(root / 'tools/codex_slices.py'), 'run',
                        '--max-slices', str(args.max_slices), '--max-api-retries', str(args.max_api_retries),
                        '--request-id', request_id]
             if args.reconciled:
                 command.append('--reconciled')
+            if args.restart_of:
+                command.extend(('--restart-of', args.restart_of))
             terminal_fds = ()
             if sys.stdout.isatty():
                 # Duplicate before redirecting the child's stdout to launcher.log.
@@ -1040,7 +1143,11 @@ def main(argv=None, *, root=ROOT):
             try:
                 code = child.wait(timeout=1)
             except subprocess.TimeoutExpired:
-                print(f'Launcher started (PID {child.pid}). Use status or stop to manage it.')
+                if args.action == 'restart':
+                    print('Restart queued. The current slice will finish and clean up, then the launcher '
+                          'will reload from disk. Use stop to cancel the restart.')
+                else:
+                    print(f'Launcher started (PID {child.pid}). Use status or stop to manage it.')
                 return 0
             print('Launcher exited; read output/codex-slices/launcher.log and run status.')
             return code

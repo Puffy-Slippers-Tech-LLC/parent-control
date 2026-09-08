@@ -16,6 +16,12 @@ handoff, the authoritative checklist and Implementation-Workflow.md. Inspect
 current edits and preserve other work. Read only the relevant task/contracts
 and source. Do not read previous Codex transcripts or the supervisor's event
 history. The maintained documents carry the compact context between sessions.
+Apply Implementation-Workflow.md#start-with-one-bounded-result at every safe
+slice boundary: select the earliest ready unchecked task in checklist order.
+Reconcile a later continuation pointer and recheck earlier deferrals before
+another fallback slice. Record each bypassed entry's dependency/blocker evidence
+and return condition in its handoff, linked from Continuation.md. Return to an
+earlier task when it becomes ready; preserve later work in its own handoff.
 Apply Implementation-Workflow.md#vm-availability-for-all-tasks to every task:
 the operator cleared the historical VM/writer-pause hold for the whole backlog.
 Earlier evidence and handoffs cannot reinstate it. At the next safe boundary,
@@ -31,7 +37,13 @@ diffs, and inspect only relevant source changes.
 
 State the next bounded result, verification and actual settings, then implement
 and verify one coherent slice. Apply the workflow's quality, context and attempt
-limits. Finish current commands, evidence collection and guarded cleanup before
+limits. Keep progress and the final report concise: do not repeat scripts,
+patches, commands or tool output in prose. Use approved helpers and focused tool
+reads; expand reads when failures, truncation or uncertainty need more context.
+Preserve necessary implementation, reasoning, tests, diagnostics, evidence and
+cleanup. Follow Implementation-Workflow.md#reduce-unnecessary-model-output;
+local terminal rendering itself adds no model tokens.
+Finish current commands, evidence collection and guarded cleanup before
 ending. A slice budget is a review point, not permission to kill an operation.
 Do not start another Codex process, reset this chat, run the loop launcher,
 change its control state, or continue into an unrelated next slice.
@@ -44,9 +56,10 @@ the workflow permits. Return blocked only if no ready work can proceed without
 outside input. Record any denied action and its reason in the active handoff;
 do not retry the denied action through a different route or new session.
 
-Before ending, update the task's active handoff and Continuation.md with the
-result, reusable evidence, next action, pinned model/effort and cleanup
-state. Keep the settings line in Continuation.md in this exact form, followed
+Before ending, update the task's active handoff with the result, reusable
+evidence, next action, pinned model/effort and cleanup state. Reapply task
+selection and write Continuation.md for the next eligible task; it may differ
+from the task just worked on. Keep the settings line in Continuation.md in this exact form, followed
 by its reason:
 
     - Settings: **`gpt-6-astra` / `high`**, pinned by the slice launcher.
@@ -78,6 +91,9 @@ active task handoff. The final response must conform to the supplied schema:
   backlog-wide finish date or read the summary log to calculate estimates.
   Use redacted role labels, repository-relative paths and test IDs; exclude
   personal names, account identifiers, secrets and raw command transcripts.
+  Give each finding once and link detailed handoff/evidence; do not generate a
+  second prose report before this structured response. Include every material
+  failure and recovery detail even when that requires a longer report.
   The supervisor supplies session numbering, completion time and duration from
   its own clock. Do not append the report yourself.
 

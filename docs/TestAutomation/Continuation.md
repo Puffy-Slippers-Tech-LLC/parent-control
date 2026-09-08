@@ -1,24 +1,33 @@
 # Current implementation continuation
 
 Updated: 2026-09-08. The [master checklist](Test-Automation.md#unfinished-tasks)
-owns completion.
+owns task order and completion.
 
-- **15A missing-launcher retention verified locally; runtime pending**;
-  [handoff](Task-15.md#task-15a-continuation--2026-09-08).
-- Checks: 58 isolated safety, 379 focused tests plus 16 subtests passed;
-  inventory/links/whitespace passed. `make check`: 3,023 passed, one concurrent
-  kiosk source-contract failure; later stages did not run.
+- **Next: Task 20 — first clean-install/reboot/readiness journey boundary**;
+  [active handoff](Task-20.md#task-20-continuation--2026-09-08).
+  Audit E2E-002 and assigned E2E-028 variants against the startup contract,
+  resolve the requirement gap and select the smallest missing capability for
+  the real customer installation journey. Keep fault variants separately declared.
+- **19B accepted:** all three consecutive public E2E-001 qualifications passed
+  direct visual review and terminal cleanup; see the
+  [acceptance audit](Evidence/19B-Acceptance-20260908.md). The earlier unreviewed
+  runtime pass is excluded. Do not rerun accepted qualifications for a new handoff.
+- **Then:** finish Task 20 before resuming
+  [15A's saved work](Task-15.md#task-15a-continuation--2026-09-08). Its active-policy
+  acknowledgement, rollback and remaining matrix work stays preserved there.
 - **All-task VM clearance (2026-09-08):** the user confirmed no concurrent VM
   operations. The [shared rule](Implementation-Workflow.md#vm-availability-for-all-tasks)
   supersedes old writer-pause requests in every task and evidence record.
   Preserve this clearance in subsequent handoffs; no renewed confirmation is due.
-- **Next:** build fresh inputs and qualify registered native cases, including
-  retention. Keep checkout inputs unchanged from
-  build through terminal collection; preserve lease and provenance checks.
-- [19B is cleared to resume](Task-19.md#task-19b-continuation--2026-09-08);
-  three public qualifications remain pending; 19A accepted. Prioritize live
-  qualification over further local-only expansion for the resolved hold.
-- All commands exited; no owned cleanup remains. No VM operation this slice.
+- **Selection:** recheck earlier deferrals at every safe slice boundary under the
+  [workflow](Implementation-Workflow.md#start-with-one-bounded-result). The cleared
+  hold is not a blocker. Any new bypass needs current evidence and a return
+  condition. Task 20 is the earliest ready entry; no earlier entry was bypassed.
+  Finish or reconcile owned operations and cleanup before switching.
 - Settings: **`gpt-6-astra` / `high`**, pinned by the slice launcher.
-  Reason: retention witnesses pass locally; guarded runtime is next, with broad-check failure preserved.
-- Remaining 15A sessions/minutes: **Unknown**, pending live and platform evidence.
+  Reason: the harness is qualified; the first product installation, actual reboot
+  and readiness journey requires the pinned settings.
+- Remaining 19B: **0 sessions / 0 minutes**. Task 20 estimates are **Unknown**
+  until its implementation/variant audit identifies the missing capability.
+- All session commands exited; terminal cleanup passed and fresh VM status was
+  off. All three review exports were removed; no owned operation or recovery is pending.

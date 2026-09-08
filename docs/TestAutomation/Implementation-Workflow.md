@@ -10,13 +10,25 @@ omission of necessary work. This is the single implementation session procedure.
 
 1. Use the applicable `AGENTS.md` instructions already supplied in context;
    read any missing or changed instructions. Read [Continuation.md](Continuation.md),
-   the selected task section/active handoff and the relevant
-   [checklist](Test-Automation.md#unfinished-tasks) entry. Resume that unfinished
-   task if its dependencies are met; otherwise select the first ready unchecked
-   task. Reconcile a stale pointer against the checklist, handoff and current
-   files. A blocker stays unchecked and blocks dependent acceptance; independent
-   ready work may proceed. If nothing is ready, save the concrete blocker. If
-   all entries are complete, record completion and stop without rerunning suites.
+   the [master checklist](Test-Automation.md#unfinished-tasks), and relevant task
+   sections/active handoffs. At every safe slice boundary, select the earliest
+   unchecked task in checklist order whose dependencies are accepted and which
+   has no current evidenced blocker. Finish or reconcile any already-owned
+   operation and cleanup before switching tasks. The continuation records this
+   selection; it cannot give later work priority merely because it was started.
+   Correct a stale pointer before beginning another implementation slice.
+
+   Before bypassing an earlier unchecked entry, record its unmet dependency or
+   concrete blocker, supporting evidence and return condition in that task's
+   handoff; link the deferral from the continuation. Reassess those conditions
+   at each selection using current handoffs and operator instructions, without
+   repeating unchanged failed attempts. Once an earlier task becomes ready,
+   return to it at the next safe boundary and preserve the later task's progress
+   in its own handoff. A resolved hold cannot justify another fallback slice.
+   Explicit user-directed task selection takes precedence; record its scope and
+   when checklist order resumes. Blocked entries remain unchecked and block
+   dependent acceptance. If nothing is ready, save the concrete blocker. If all
+   entries are complete, record completion and stop without rerunning suites.
 2. State one next observable result, its smallest verification, planned slice
    budget, and the latest handoff's model/effort with its reason. Confirm both
    settings and wait for **“Go ahead”** at each fresh implementation session,
@@ -132,6 +144,49 @@ These are user controls, not shell commands for the agent to execute.
 [Official command documentation](https://learn.chatgpt.com/docs/developer-commands).
 Automatic compaction does not extend the agreed slice.
 
+## Reduce unnecessary model output
+
+Optimize what enters or leaves the model. The launcher forwards CLI events to
+the terminal without feeding that display back to its worker. Hiding or
+restyling those events cannot reduce that worker's token usage.
+
+| Content or operation | Token effect and handling |
+| --- | --- |
+| Model-written prose, scripts, patches and tool-call arguments | Output tokens. Generate necessary implementation once; avoid repeating it in reports. |
+| Tool results sent back to the model, including file/log excerpts and screenshots | Input/context tokens. Select relevant evidence and expand when needed. |
+| Local terminal rendering, saving existing output, or artifacts never sent to a model | No additional model tokens from those operations. Preserve useful detail. |
+
+This distinction follows the official [tool-calling flow](https://developers.openai.com/api/docs/guides/function-calling#how-it-works)
+and the CLI's [event stream](https://learn.chatgpt.com/docs/non-interactive-mode#make-output-machine-readable).
+Capturing launcher output in another assistant's tool result makes that captured
+text input to that assistant; ordinary operator terminal display does not.
+Saving model-written prose in a file still requires generating it, and reading
+it later adds context. File storage alone is not a token-saving technique.
+
+- Keep regular progress updates brief and useful: findings, stage changes and
+  the next check. Do not narrate every tool call, print a script before executing
+  it, or repeat patches, commands and results already available from tools.
+- Write necessary code through the approved editing tools and reuse maintained
+  helpers for recurring operations. Keep code readable, logging sufficient and
+  tests complete; do not minify scripts or bypass approval boundaries for brevity.
+- Use focused reads and supported quiet/summary options through the approved
+  launchers. Retain exit status, failure/skip/missing-case information and evidence
+  paths. Full diagnostics stay in the existing artifacts; inspect relevant failure
+  context before deciding. Expand an output limit or read the omitted range when
+  truncation hides needed information. Do not hide errors, pipe tests through
+  filters that conceal their status, or rerun tests merely to recover output.
+- Report changed behavior, verification scope/results, material failures, cleanup
+  and next action. Link evidence and use test IDs instead of copying code, full
+  logs or passing-case lists. Preserve exact reproduction commands/selectors,
+  input/run identities and recovery details once in the active handoff or evidence
+  where needed. Keep summaries self-contained about the result and its limits.
+
+These are defaults for removing repetition, not hard response/tool-output caps.
+Expand whenever correctness, diagnosis or recovery requires it. Do not lower the
+launcher's pinned model/effort, skip required checks, delete evidence or weaken
+cleanup to shorten a transcript. Compare already-exposed usage for comparable
+verified work; fewer terminal lines or artifact bytes do not establish savings.
+
 ## Reuse established tools and bound harness work
 
 Keep the existing pytest/Hypothesis/coverage.py and Node/GJS foundations,
@@ -240,8 +295,10 @@ finite count cannot prove zero flakiness.
 
 ## Handoff format and cost review
 
-Update one active 200–400-word handoff in the task document. Link long historical
-evidence without removing logs/artifacts. Include:
+Update one active handoff in the task document, normally 200–400 words. Use less
+when sufficient and more when material evidence or recovery requires it; do not
+pad to a target. Link long evidence without copying it or removing logs/artifacts.
+Include:
 
 - Task/slice, next observable result, and authorized machine/VM scope.
 - [Next-session settings](#reassess-model-and-effort-at-every-handoff): exact
@@ -257,9 +314,13 @@ evidence without removing logs/artifacts. Include:
   Record outstanding operation identities. Historical “VM off” is not current
   state; never duplicate another session's work or overwrite its active handoff.
 
-Then update [Continuation.md](Continuation.md): task/status, handoff link, next
-slice, same settings/reason. Aim near 100 words; no copied logs or second
-checklist. Check both records against current changes/evidence, preserving
+Reapply [task selection](#start-with-one-bounded-result), then update
+[Continuation.md](Continuation.md) for the selected next task: task/status,
+handoff link, next slice, and that task's settings/reason. Do not automatically
+carry forward the task just worked on. Link any earlier deferred entries' blocker
+records and return conditions; keep the completed slice's evidence in its task
+handoff. Aim near 100 words; no copied logs or second checklist.
+Check both records against current changes/evidence, preserving
 unrelated edits; no commit is required. An interrupted handoff is reconciled
 from files/evidence, never reconstructed by rerunning an experiment.
 

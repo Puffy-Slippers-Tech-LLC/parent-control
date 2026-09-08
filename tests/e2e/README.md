@@ -3,8 +3,10 @@
 `scenarios.json` is the versioned inventory for
 [E2E coverage](../../docs/TestAutomation/E2E-Coverage.md): 33 families and
 156 variants. `E2E-001/gdm-observation` is registered for public execution;
-the other 155 variants remain **pending**. Ready is not an acceptance pass:
-Task 19B still requires three complete public qualifications.
+the other 155 variants remain **pending**.
+[Task 19B is accepted](../../docs/TestAutomation/Evidence/19B-Acceptance-20260908.md)
+after three complete, visually reviewed public qualifications. This establishes
+runner-smoke behavior, not customer acceptance.
 [Task 19A is accepted](../../docs/TestAutomation/Evidence/19A-Controller-Acceptance-20260907.md).
 Its former E2E-034/serial-controller declaration is superseded by E2E-001,
 which retains controller preparation, credentials/assets, command, continuity
@@ -425,6 +427,17 @@ connection and complete lease attempt. Cases run serially; the first failure
 stops further cases, leaving their expected identities visibly unexecuted.
 All attempts must match the first attempt's full independently captured inputs.
 One public libvirt event loop serves these separate connections for the process.
+
+Raw attempts use `/tmp/onpc-graphical-smoke-<run>` with mode 0700, matching
+the existing screenshot export helper's fixed scope regardless of `TMPDIR`.
+After terminal cleanup, selected nonsecret `testresults/<image>.png` captures
+can be inspected through `pkexec /usr/local/libexec/onpc-export-screenshot`
+with a new `/tmp/onpc-<name>.png` destination. Remove review exports through
+`tools/cleanup-screenshots`; retain private raw evidence. The helper's ownership,
+path and file checks still apply. Older `onpc-e2e-attempt-*` captures remain
+outside this export scope and must not be moved or aliased to bypass it.
+This controller-only storage change activates on the next invocation (`none`);
+it requires no installed-helper refresh or product data migration.
 
 The controller stages and verifies artifacts before VM acquisition, prepares
 the existing lease and observation bootstrap, then captures `VerifiedInputs`.

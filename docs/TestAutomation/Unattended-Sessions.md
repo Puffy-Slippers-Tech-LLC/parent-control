@@ -14,7 +14,8 @@ tools/codex_slices.py start
 This returns your shell prompt and starts a detached local process. Live Codex
 messages, commands, command results, changes and tool updates continue to appear
 in that terminal as the CLI emits them. The launcher renders a text stream,
-not the interactive Codex screen. Session output is not written to a log.
+not the interactive Codex screen. The launcher does not log session output;
+Codex saves its own conversation for resuming.
 The process can keep running after you close the terminal; output after closure
 is discarded. Starting without a terminal also discards live output. Use `run`
 in a dedicated terminal for uninterrupted viewing and another terminal for
@@ -45,6 +46,31 @@ controlling the loop still needs authorization for that work. Use the native
 `stop` requests a stop at the next safe slice boundary. It does not terminate
 Codex or a running test. In foreground mode Ctrl+C has the same behavior. Start
 again with the original command to continue from the saved documents.
+
+To interrupt the active session without waiting for its slice to finish:
+
+```sh
+tools/codex_slices.py kill
+tools/codex_slices.py status
+tools/codex_slices.py resume
+```
+
+`kill` targets this launcher's current run. The supervisor checks the request
+while Codex is running, sends SIGINT to its exact child, and uses SIGKILL after
+two seconds if that child remains alive. It never signals saved PIDs, process
+groups, unrelated sessions or VM operations. It records a `killed` outcome;
+interrupted work and cleanup remain unconfirmed. Wait for `status` to show
+`killed` before resuming; the checkout lock still prevents overlapping workers.
+If an owned operation still holds that lock, collect/reconcile it first.
+
+`resume` runs in the foreground and uses the killed session's exact saved
+Codex thread ID. Its first instruction is to reconcile interrupted operations
+and cleanup before continuing. After a verified handoff, the usual fresh-session
+loop continues; `--max-slices` and `--max-api-retries` also apply. `stop` and
+foreground Ctrl+C retain their existing safe-boundary behavior. Runs started
+by the older ephemeral launcher cannot be resumed; stop those normally and
+start the updated launcher. A kill before Codex reports a thread ID has no
+conversation to resume; reconcile it and use `start --reconciled` instead.
 
 ## Cumulative session summaries
 
@@ -81,11 +107,11 @@ continue to apply.
 The [implementation workflow](Implementation-Workflow.md) still owns selection,
 scope, verification, acceptance and the compact handoff. Each worker reads
 Continuation.md, the relevant active task and current files. The supervisor
-never resumes or forks the previous conversation and never sends its transcript
-to the next session. Standard project instructions and user configuration still
-load normally. Every worker uses `--ephemeral`, so Codex does not persist its
-session rollout to disk. Recovery relies on the task handoff, operation evidence
-and control metadata, rather than a saved conversation.
+starts a fresh conversation at each normal slice boundary. Only explicit
+`resume` reopens the killed conversation. Standard project instructions and user
+configuration still load normally. Workers persist sessions in Codex's own
+session storage so they can be resumed. Recovery also uses the task handoff,
+operation evidence and control metadata.
 
 The supervisor pins every slice to `gpt-6-astra` with `high` reasoning effort
 in the launcher code. Continuation.md records these settings for the handoff:
@@ -137,8 +163,9 @@ delete locks, state, or logs to bypass a refusal.
 ## Prerequisites and progress records
 
 Use an already installed, signed-in Codex CLI with `exec --approve-for-me`,
-`--ephemeral`, `--json`, `--output-schema` and `--output-last-message` support. The launcher
-checks these flags before running. It uses automatic approval review with the
+`--json`, `--output-schema` and `--output-last-message` support, plus
+`exec resume --output-schema`. The launcher checks these flags before running.
+It uses automatic approval review with the
 workspace sandbox and retains existing user/project rules. Account and managed
 policy must permit that mode; denied actions remain blocked. Existing machine
 preparation remains through [setup.sh](../../setup.sh), as described in the
@@ -156,6 +183,14 @@ The cumulative summary document is ordinary repository documentation, so final
 reports must contain no PII or secrets. Existing task evidence and application
 logs follow their own retention rules. Shell redirection or terminal recording
 can still capture what you choose to display.
+
+On an interactive terminal, assistant messages and session summaries render as
+Markdown with headings, emphasis, lists, tables and highlighted code blocks.
+Messages render once their CLI item completes; command output continues to stream
+as it arrives. Rendering uses `python3-rich`, included by
+`./setup.sh --dependencies-only`. If it is unavailable, output is redirected, or
+`TERM=dumb`, the launcher uses plain text. `NO_COLOR` disables rendering colors
+while keeping the terminal layout. Saved summaries remain ordinary Markdown.
 
 The host-safe supervisor regressions use a fake local Codex executable:
 

@@ -201,50 +201,48 @@ bootstrap, serial transport or controller acceptance merely because the chat is 
 
 ### Task 19B continuation — 2026-09-08
 
-**Solid progress:** E2E-001 now implements the complete ordered public recorder.
-Nine acknowledged stages include independent GDM-return observation; every
-stage checkpoints before further input. The completed module's private match
-screens must prove return after real serial logout, with only fixed metadata
-exported. Explicit post-password capture stays sealed. E2E-001 supersedes the
-duplicate E2E-034 declaration without dropping controller assertions. Inventory:
-33 families / 156 variants; one ready runner smoke, 155 pending variants.
-19A remains accepted; **19B remains unchecked**. See the
-[implementation and refusal evidence](Evidence/19B-Ordered-Recorder-20260908.md).
+**19B remains unchecked; 19A remains accepted.** The canonical ordered E2E-001
+recorder and six-match reconciliation remain implemented. This slice fixed
+pre-recorder provenance diagnostics: reviewed fixed refusal codes now survive
+cleanup, while arbitrary exception text stays private. Fourteen new host
+regressions passed. See [current evidence](Evidence/19B-Provenance-Diagnostics-20260908.md)
+and the [ordered-recorder record](Evidence/19B-Ordered-Recorder-20260908.md).
 Dev-host/existing guarded VM authorization persists.
 
-**Next observable result:** three complete public E2E-001 qualifications on an
-unchanged checkout, followed by screen/serial/secret-exclusion and terminal
-cleanup review. No callback implementation or standalone helper diagnosis needs
-repeating. Read `controller_qualification.py:execute,matched_screens`,
-`check_graphical_smoke.py:Smoke,SERIAL_STAGES`, the E2E-001 declaration, and the
-[public contract](../../tests/e2e/README.md#maintain-declarations).
+**Blocker and attempt limit:** a third public invocation encountered concurrent
+source edits despite clean status before/after building. It rejected provenance
+before graphical execution; the old handler retained only
+`execution:attempt-failed`, so its exact underlying code is unproven. The
+reporting gap is now locally corrected. Do not retry from another clean-status
+sample or fresh build. Other writers must explicitly pause through terminal
+collection; that request is pending. Preserve unrelated edits listed in the
+evidence. No permissions, provenance exclusions, or manifests were changed.
 
-**Concrete blocker:** two public invocations encountered concurrent source
-changes. First refused before the lease; the rebuilt attempt passed preparation
-but failed `provenance:source-changed` during credential setup. Unrelated
-`docs/TestAutomation/Unattended-Prompt.md` and `tools/codex_slices.py` appeared
-during the attempt and were preserved. Other writers must pause before another
-expensive attempt; the pause was requested but not confirmed. Do not loop,
-exclude source paths, or modify manifests. No graphical worker ran, so this is
-not evidence of a callback/needle failure or a successful qualification.
+**Next observable result:** after writer coordination, three consecutive public
+E2E-001 qualifications, with private screen/serial/secret-exclusion and terminal
+cleanup review. Build fresh inputs using `tools/run-tests artifacts build`, then
+`tools/run-tests e2e --artifacts <new-output> --scenario E2E-001`.
+No further standalone helper diagnosis is indicated. Read
+`execution.py:attempt_failure,attempt`, `controller_qualification.py:matched_screens`,
+and the [public contract](../../tests/e2e/README.md#maintain-declarations).
+If coordination is unavailable, select independent local
+[Task 15A](Task-15.md#task-15a) work; Task 20 remains dependent on 19B.
 
-**Verification/state:** final `make check` 8195 passed 2,540 unit/contracts,
-17 components, syntax/traceability; 19 new host cases. Isolated safety: 447 plus
-3 subtests. All handles exited; restoration reached lease phase `complete`;
-VM confirmed off. Source preservation, collection and overall cleanup evidence
-remain failed, as recorded. Exact inputs, paths and 742 seconds of guarded
-attempt stages are in the evidence. Unrelated additions and later handoff edits
-postdate the host check; new package-bearing attempts require fresh artifacts.
+**Verification and cleanup:** focused checks 82970: 100 passed. Final
+`make check` 98536: 2,686 unit/contracts, 17 components, syntax and traceability
+passed. Scoped diff/link checks passed. Public handle 11203 exited 1 after
+447 safety tests plus 3 subtests passed; preparation/cleanup took 313.162 s.
+Case evidence is `/tmp/onpc-e2e-evidence-8kwwwfzd/invocation-000003.json`;
+raw input/output is `/tmp/onpc-e2e-attempt-eb6yvjvg`. Infrastructure failed;
+product/collection did not run; cleanup passed with lease phase `complete`.
+All handles exited, current VM status is off, and no exports or recovery remain.
+Original failed evidence is unchanged; no approval/Polkit denial occurred.
+Source digests are in the evidence; reporting and later documentation changes
+invalidate the live attempt's artifact inputs.
 
-**Next command:** once writers are paused, `tools/run-tests artifacts build`,
-then `tools/run-tests e2e --artifacts <new-output> --scenario E2E-001` (the
-launcher supplies isolated safety checks). Preserve all failures and finish
-three consecutive complete qualifications plus final acceptance checks.
-
-**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** helper matching and host recorder refusals are proven; real ordered
-screen evidence and terminal cleanup still need qualification.
-**Remaining 19B:** **one uninterrupted substantial session / 90–120 minutes**
-after writers pause; allow another correction session for a newly exposed
-callback defect. This advances from the incoming 2–3-hour implementation estimate.
-19A needs zero further sessions.
+**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep,
+pinned by the slice launcher. **Reason:** provenance diagnostics are host-proven;
+live ordered evidence and terminal cleanup still need qualification.
+**Remaining 19B:** sessions **Unknown**, minutes **Unknown** until writers pause;
+three complete qualifications remain, and no current public callback duration
+was measured. 19A needs zero further sessions.

@@ -19,7 +19,7 @@ import uuid
 
 from fixture_credentials import FixtureCredentials, preflight as credential_preflight
 from leased_recording import LeasedScenario
-from private_artifacts import PrivateCollector, require
+from private_artifacts import EvidenceError, PrivateCollector, require
 from provenance import VerifiedInputs, preflight_source
 from recording import ScenarioRecorder
 
@@ -29,6 +29,30 @@ import graphical_backend
 from owned_commands import Commands
 import system_runner as system
 sys.path.pop(0)
+
+
+def attempt_failure(error):
+    """Retain reviewed provenance refusals even before a recorder exists.
+
+    Do not serialize arbitrary exception text, including code-shaped account
+    names or secrets. Unknown failures keep the generic infrastructure code.
+    """
+    if isinstance(error, KeyboardInterrupt):
+        return 'execution:interrupted'
+    codes = {
+        'provenance:source-changed', 'provenance:assets-changed',
+        'provenance:baseline-changed', 'provenance:package-source-mismatch',
+        'provenance:baseline-state-changed', 'provenance:baseline-proof-changed',
+        'provenance:baseline-identity-changed', 'provenance:file-changed',
+        'provenance:file-replaced', 'provenance:tree-changed',
+        'provenance:source-preflight-failed', 'provenance:capture-failed',
+        'provenance:recheck-failed',
+    }
+    if isinstance(error, EvidenceError) and len(error.args) == 1:
+        code = error.args[0]
+        if type(code) is str and code in codes:
+            return code
+    return 'execution:attempt-failed'
 
 
 @cache
@@ -206,8 +230,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                     for failure in failures:
                         fail(failure['category'], failure['code'])
                 if report['first_failure'] is None:
-                    fail('infrastructure', 'execution:interrupted' if isinstance(error, KeyboardInterrupt)
-                         else 'execution:attempt-failed')
+                    fail('infrastructure', attempt_failure(error))
                 try:
                     checkpoint('before-lease-cleanup')
                 except BaseException:
@@ -229,8 +252,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                     report['first_failure'] = {'category': category, 'code': value['category']}
                     break
         if report['first_failure'] is None:
-            fail('infrastructure', 'execution:interrupted' if isinstance(error, KeyboardInterrupt)
-                 else 'execution:attempt-failed')
+            fail('infrastructure', attempt_failure(error))
     finally:
         with ledger.measure('cleanup'):
             if host_before is not None:

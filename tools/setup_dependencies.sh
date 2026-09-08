@@ -68,6 +68,7 @@ add-apt-repository -y universe
     python3-pytest=9.0.2-4 \
     python3-pytest-cov \
     python3-requests \
+    python3-rich \
     python3-venv \
     qemu-utils=1:10.2.1+ds-1ubuntu3.2 \
     curl \

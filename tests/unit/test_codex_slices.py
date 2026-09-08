@@ -37,8 +37,19 @@ with calls.open('a') as stream:
 step = json.loads((root / 'steps.json').read_text())[number]
 def emit(value):
     print(json.dumps(value), flush=True)
-emit({'type': 'thread.started', 'thread_id': str(uuid.uuid4())})
+thread_id = sys.argv[sys.argv.index('resume') + 1] if 'resume' in sys.argv else str(uuid.uuid4())
+emit({'type': 'thread.started', 'thread_id': thread_id})
 emit({'type': 'turn.started'})
+if step.get('kill'):
+    import signal
+    import time
+    if step.get('ignore_interrupt'):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    storage = root / 'output/codex-slices'
+    state = json.loads((storage / 'state.json').read_text())
+    (storage / 'KILL').write_text(json.dumps({'request_id': state['request_id']}))
+    time.sleep(10)
+    raise SystemExit('kill did not interrupt the worker')
 if step.get('tools', True):
     emit({'type': 'item.started', 'item': {'id': 'cmd', 'type': 'command_execution', 'command': 'sensitive-placeholder'}})
     emit({'type': 'item.completed', 'item': {'id': 'cmd', 'type': 'command_execution',
@@ -139,7 +150,7 @@ def test_two_fresh_sessions_keep_pinned_settings_despite_handoff_changes(rig):
         assert call['argv'][0] == 'exec'
         assert 'resume' not in call['argv'] and 'fork' not in call['argv']
         assert '--approve-for-me' in call['argv']
-        assert '--ephemeral' in call['argv']
+        assert '--ephemeral' not in call['argv']
         assert '--ignore-rules' not in call['argv']
         assert 'sensitive-placeholder' not in call['prompt']
         assert call['argv'][call['argv'].index('--model') + 1] == 'gpt-6-astra'
@@ -188,6 +199,108 @@ def test_clean_blocker_stops_without_claiming_completion(rig):
     assert run(root) == 2
     assert loop.read_state(root / loop.STORAGE)['status'] == 'blocked'
     assert len(calls(root)) == 1
+
+
+@pytest.mark.parametrize('ignore_interrupt', [False, True])
+def test_kill_interrupts_and_resume_reuses_exact_thread_then_returns_to_fresh_slices(rig, ignore_interrupt):
+    root = rig([{'kill': True, 'ignore_interrupt': ignore_interrupt}, {},
+                {'check_all': True, 'result': complete()}])
+    started = time.monotonic()
+    assert run(root) == 0
+    assert time.monotonic() - started < 8
+    state = loop.read_state(root / loop.STORAGE)
+    assert state['status'] == 'killed'
+    thread = state['thread_id']
+    assert state['last_session']['outcome'] == 'killed'
+    assert len(calls(root)) == 1
+    with pytest.raises(loop.Error, match='reconciliation'):
+        run(root)
+    assert loop.main(['resume'], root=root) == 0
+    launched = calls(root)
+    assert len(launched) == 3
+    assert launched[1]['argv'][-3:] == ['resume', thread, '-']
+    assert 'reconcile' in launched[1]['prompt']
+    assert 'resume' not in launched[2]['argv']
+    assert loop.read_state(root / loop.STORAGE)['status'] == 'complete'
+
+
+def test_kill_during_retry_wait_prevents_another_worker(rig, monkeypatch):
+    root = rig([{'tools': False, 'failure': 'rate_limit exceeded'}])
+
+    def wait(_delay, stopping, _event):
+        assert loop.main(['kill'], root=root) == 0
+        assert stopping()
+
+    monkeypatch.setattr(loop, 'wait_retry', wait)
+    assert run(root, retries=1) == 0
+    assert loop.read_state(root / loop.STORAGE)['status'] == 'killed'
+    assert len(calls(root)) == 1
+
+
+def test_resume_preflight_failure_preserves_killed_session(rig, monkeypatch):
+    root = rig([])
+    storage = root / loop.STORAGE
+    loop.private_directory(storage)
+    state = {'status': 'killed', 'resumable': True,
+             'thread_id': '718e11b8-1c72-471d-9222-fb2b37283ed4'}
+    loop.write_json(storage / 'state.json', state)
+    monkeypatch.setattr(loop.shutil, 'which', lambda _: None)
+    assert loop.main(['resume'], root=root) == 2
+    assert loop.read_state(storage) == state
+
+
+@pytest.mark.parametrize('state', [{}, {'status': 'complete'},
+                                 {'status': 'killed', 'thread_id': 'invalid', 'resumable': True},
+                                 {'status': 'killed', 'thread_id': 'old-ephemeral'}])
+def test_resume_refuses_missing_or_unsaved_session(rig, state):
+    root = rig([])
+    storage = root / loop.STORAGE
+    loop.private_directory(storage)
+    loop.write_json(storage / 'state.json', state)
+    assert loop.main(['resume'], root=root) == 2
+    assert calls(root) == []
+
+
+def test_kill_command_targets_request_without_signaling_saved_pid(rig, monkeypatch):
+    root = rig([])
+    storage = root / loop.STORAGE
+    loop.private_directory(storage)
+    loop.write_json(storage / 'state.json', {'status': 'running', 'request_id': 'current',
+                                            'resumable': True, 'cli_pid': 1})
+    monkeypatch.setattr(os, 'kill', lambda *_: pytest.fail('signaled an unowned saved PID'))
+    assert loop.main(['kill'], root=root) == 0
+    assert loop.kill_requested(storage, 'current')
+    assert not loop.kill_requested(storage, 'previous')
+
+
+@pytest.mark.parametrize('exited', [False, True])
+def test_interrupt_child_cleanup_safety_signals_only_live_owned_child(exited):
+    class Child:
+        def __init__(self):
+            self.signals = []
+
+        def poll(self):
+            return 0 if exited else None
+
+        def send_signal(self, sig):
+            self.signals.append(sig)
+
+        def kill(self):
+            self.signals.append(signal.SIGKILL)
+
+    class Finished:
+        def __init__(self):
+            self.waits = 0
+
+        def wait(self, _timeout):
+            self.waits += 1
+            return self.waits > 2
+
+    child = Child()
+    killed = loop.threading.Event()
+    loop.interrupt_child(child, lambda: True, Finished(), killed)
+    assert child.signals == ([] if exited else [signal.SIGINT, signal.SIGKILL])
+    assert killed.is_set() is not exited
 
 
 @pytest.mark.parametrize('stop', ['file', 'signal', 'limit'])
@@ -484,6 +597,61 @@ def test_foreground_displays_session_output_but_preserves_only_the_end_report(ri
             assert 'sensitive-placeholder' not in saved
             assert 'live-command-result' not in saved
             assert 'live-stderr-placeholder' not in saved
+
+
+class TerminalBuffer(io.StringIO):
+    def isatty(self):
+        return True
+
+
+def test_terminal_renders_completed_markdown_once(monkeypatch):
+    assert loop.Console is not None, 'Run ./setup.sh --dependencies-only for python3-rich'
+    monkeypatch.setenv('TERM', 'xterm-256color')
+    monkeypatch.setenv('NO_COLOR', '1')
+    stream = TerminalBuffer()
+    live = loop.LiveOutput(stream)
+    message = ('## Readable heading\n\nA **bold phrase** and `inline code`.\n\n'
+               '- List entry\n\n| Name | Status |\n| --- | --- |\n| Example | Done |\n\n'
+               '```python\nprint("hello")\n```\n')
+    for kind, text in [('item.started', '## Readable'),
+                       ('item.updated', message), ('item.completed', message)]:
+        live.event({'type': kind, 'item': {'id': 'm', 'type': 'agent_message', 'text': text}})
+        if kind != 'item.completed':
+            assert stream.getvalue() == ''
+    output = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', stream.getvalue())
+    assert output.count('Readable heading') == 1
+    assert '## ' not in output and '**' not in output and '```' not in output
+    for expected in ('bold phrase', 'inline code', 'List entry', 'Example', 'Done', 'print'):
+        assert expected in output
+    assert not live.items
+    live.event({'type': 'item.completed', 'item': {
+        'id': 'final', 'type': 'agent_message',
+        'text': json.dumps(complete(summary={key: 'Done' for key in loop.SUMMARY_FIELDS}))}})
+    assert 'cleanup_complete' not in stream.getvalue()
+
+
+@pytest.mark.parametrize('fallback', ['redirected', 'dumb', 'missing'])
+def test_markdown_plain_fallback(monkeypatch, fallback):
+    monkeypatch.setenv('TERM', 'dumb' if fallback == 'dumb' else 'xterm')
+    if fallback == 'missing':
+        monkeypatch.setattr(loop, 'Console', None)
+    stream = io.StringIO() if fallback == 'redirected' else TerminalBuffer()
+    live = loop.LiveOutput(stream)
+    live.markdown('## Heading\n\n**text**\n')
+    assert stream.getvalue() == '## Heading\n\n**text**\n'
+
+
+def test_terminal_markdown_sanitizes_input_and_survives_closed_stream(monkeypatch):
+    monkeypatch.setenv('TERM', 'xterm')
+    stream = TerminalBuffer()
+    live = loop.LiveOutput(stream)
+    live.markdown('safe\x1b[2J\x1b]0;untrusted title\x07 text')
+    assert '\x1b[2J' not in stream.getvalue()
+    assert 'untrusted title' not in stream.getvalue()
+    stream.close()
+    live.markdown('## Terminal closed')
+    assert live.stream is None
+    live.markdown('## Still closed')
 
 
 def test_live_renderer_shows_incremental_messages_commands_and_tool_results():

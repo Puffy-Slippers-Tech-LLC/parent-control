@@ -21,6 +21,7 @@ SPEC.loader.exec_module(loop)
     (['status'], None), (['status', '--reconciled'], None),
     (['status', '--max-slices', '1', '--max-api-retries', '2'], None),
     (['status', 'start'], 2), (['status', 'run'], 2), (['status', 'stop'], 2),
+    (['status', 'kill'], 2), (['status', 'resume'], 2),
     (['status', '-c', 'arbitrary'], 2), (['status', '--command', 'arbitrary'], 2),
     (['status', '--max-sl', '1'], 2),
 ])

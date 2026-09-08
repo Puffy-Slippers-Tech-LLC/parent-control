@@ -22,6 +22,12 @@ import threading
 import time
 import uuid
 
+try:
+    from rich.console import Console
+    from rich.markdown import Markdown
+except ImportError:
+    Console = Markdown = None
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKLOG = Path('docs/TestAutomation/Test-Automation.md')
@@ -80,17 +86,37 @@ class LiveOutput:
         self.stream = stream
         self.lock = threading.Lock()
         self.items = {}
+        self.console = None
+        if (Console is not None and stream is not None and stream.isatty()
+                and os.environ.get('TERM') != 'dumb'):
+            self.console = Console(file=stream, markup=False, highlight=False)
+
+    @staticmethod
+    def clean(text):
+        # Keep line breaks/tabs, but discard terminal control sequences.
+        text = re.sub(r'\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)', '', text)
+        text = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', text)
+        return ''.join(char for char in text if char in '\n\t' or char.isprintable())
 
     def write(self, text):
+        self.display(text, markdown=False)
+
+    def markdown(self, text):
+        self.display(text, markdown=True)
+
+    def display(self, text, *, markdown):
         if not text:
             return
-        # Keep line breaks/tabs, but discard terminal control sequences.
-        text = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', text)
-        text = ''.join(char for char in text if char in '\n\t' or char.isprintable())
+        text = self.clean(text)
         with self.lock:
             if self.stream is not None:
                 try:
-                    self.stream.write(text)
+                    if markdown and self.console is not None:
+                        # Only the renderer may generate terminal formatting.
+                        # Disable OSC links; show destinations as ordinary text.
+                        self.console.print(Markdown(text, hyperlinks=False))
+                    else:
+                        self.stream.write(text)
                     self.stream.flush()
                 except (OSError, ValueError):
                     # A detached run must survive closure of its original terminal.
@@ -117,12 +143,20 @@ class LiveOutput:
             except ValueError:
                 final = None
             if not isinstance(final, dict) or set(final) != set(SCHEMA['required']):
-                before = previous.get('text', '')
-                if not previous:
-                    self.write('\nCodex:\n')
-                self.write(text[len(before):] if text.startswith(before) else '\n' + text)
-                if kind == 'item.completed':
-                    self.write('\n')
+                if self.console is not None:
+                    # Render complete blocks once: partial fences/tables cannot
+                    # be safely appended as separately formatted fragments.
+                    if kind == 'item.completed':
+                        self.write('\nCodex:\n')
+                        self.markdown(text)
+                        self.write('\n')
+                else:
+                    before = previous.get('text', '')
+                    if not previous:
+                        self.write('\nCodex:\n')
+                    self.write(text[len(before):] if text.startswith(before) else '\n' + text)
+                    if kind == 'item.completed':
+                        self.write('\n')
         elif item_type == 'command_execution':
             if not previous:
                 self.write(f"\n$ {item.get('command', '')}\n")
@@ -218,7 +252,7 @@ def finish_session(root, session, outcome, note, live, update):
     except OSError as exc:
         raise Error(f'Could not append the slice summary (errno {exc.errno}); '
                     'reconcile this attempt before restarting.') from exc
-    live.write(text + '\n')
+    live.markdown(text + '\n')
     update(last_session={'number': session['number'], 'completed_at': completed,
                          'duration_minutes': minutes, 'outcome': outcome},
            summary_path=str(SUMMARY))
@@ -333,6 +367,27 @@ def transient_error(value):
     ))
 
 
+def kill_requested(storage, request_id):
+    try:
+        request = json.loads((storage / 'KILL').read_text())
+    except FileNotFoundError:
+        return False
+    except ValueError:
+        return False
+    return isinstance(request, dict) and request.get('request_id') == request_id
+
+
+def interrupt_child(process, requested, finished, killed):
+    """Signal only our Popen child; never trust a saved PID or scan descendants."""
+    while not finished.wait(0.1):
+        if requested() and process.poll() is None:
+            killed.set()
+            process.send_signal(signal.SIGINT)
+            if not finished.wait(2) and process.poll() is None:
+                process.kill()
+            return
+
+
 def invoke(root, attempt, command, lock_fd, update, live):
     """Display both streams live, retaining only allowlisted lifecycle metadata."""
     observed = {'completed': False, 'failed': False, 'transient': False,
@@ -341,8 +396,13 @@ def invoke(root, attempt, command, lock_fd, update, live):
     prompt += '\nThe supervisor has selected these exact settings: '
     prompt += f'{command[command.index("--model") + 1]} / '
     prompt += command[command.index('-c') + 1].split('=', 1)[1] + '.\n'
-    # Ephemeral CLI sessions and this renderer retain no in-session transcript.
-    # Only the final structured report and allowlisted control metadata are saved.
+    if 'resume' in command:
+        prompt += ('\nResume the interrupted conversation. Before continuing, reconcile '
+                   'any interrupted tools, owned operations and cleanup; do not blindly '
+                   'repeat operations. Return the required structured report.\n')
+    request_id = read_state(root / STORAGE).get('request_id')
+    finished, killed = threading.Event(), threading.Event()
+    # Codex retains its own resumable session; supervisor logs contain metadata only.
     with (attempt / 'events.jsonl').open('x') as events:
         process = subprocess.Popen(
             command, cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -355,6 +415,10 @@ def invoke(root, attempt, command, lock_fd, update, live):
 
         drain = threading.Thread(target=drain_stderr, daemon=True)
         drain.start()
+        watcher = threading.Thread(target=interrupt_child, args=(
+            process, lambda: kill_requested(root / STORAGE, request_id), finished, killed),
+            daemon=True)
+        watcher.start()
         try:
             update(cli_pid=process.pid)
             process.stdin.write(prompt)
@@ -419,9 +483,12 @@ def invoke(root, attempt, command, lock_fd, update, live):
                 pass
             process.stdout.close()
             process.wait()
+            finished.set()
+            watcher.join()
             drain.join()
             process.stderr.close()
             live.items.clear()
+    observed['killed'] = killed.is_set()
     return process.returncode, observed
 
 
@@ -434,8 +501,12 @@ def preflight(root):
         raise Error('Codex CLI must be installed and signed in before starting this launcher.')
     help_result = subprocess.run([executable, 'exec', '--help'], capture_output=True, text=True, check=False)
     if help_result.returncode or not all(option in help_result.stdout for option in (
-            '--approve-for-me', '--ephemeral', '--output-schema', '--json', '--output-last-message')):
-        raise Error('This launcher requires Codex exec with auto-review, ephemeral sessions and structured output support.')
+            '--approve-for-me', '--output-schema', '--json', '--output-last-message')):
+        raise Error('This launcher requires Codex exec with auto-review and structured output support.')
+    resume_help = subprocess.run([executable, 'exec', 'resume', '--help'],
+                                 capture_output=True, text=True, check=False)
+    if resume_help.returncode or '--output-schema' not in resume_help.stdout:
+        raise Error('This launcher requires Codex exec resume with structured output support.')
     return executable
 
 
@@ -450,9 +521,17 @@ def run(root, args):
     private_directory(storage)
     with exclusive(storage) as lock_fd, live_output(args) as live:
         state = read_state(storage)
+        resume_thread = None
+        if getattr(args, 'action', None) == 'resume':
+            if state.get('status') != 'killed' or not state.get('resumable'):
+                raise Error('No killed, saved session is available to resume.')
+            try:
+                resume_thread = str(uuid.UUID(state['thread_id']))
+            except (KeyError, ValueError, TypeError, AttributeError) as exc:
+                raise Error('The killed session has no saved thread ID to resume.') from exc
         request_id = getattr(args, 'request_id', None) or str(uuid.uuid4())
         own_start = state.get('status') == 'launching' and state.get('request_id') == request_id
-        if state.get('status') in ('launching', 'running', 'needs-review') and not (args.reconciled or own_start):
+        if state.get('status') in ('launching', 'running', 'needs-review', 'killed') and not (args.reconciled or own_start or resume_thread):
             raise Error('Previous work needs reconciliation; see state.json and the saved handoff. '
                         'Use --reconciled only after checking the recorded operation and cleanup.')
 
@@ -465,13 +544,13 @@ def run(root, args):
             if live.stream is not sys.stdout:
                 live.write(message + '\n')
 
-        update(status='launching', request_id=request_id)
         executable = preflight(root)
         tasks = checklist(root)
         expected = set(state.get('tasks', ()))
         if expected - tasks.keys():
             raise Error('Recorded tasks disappeared from the checklist; reconcile its completion record.')
         expected.update(tasks)
+        update(status='launching', request_id=request_id, resumable=True, thread_id=resume_thread)
         stop_requested = threading.Event()
 
         def request_stop(_signum, _frame):
@@ -480,7 +559,7 @@ def run(root, args):
         old_signals = {sig: signal.signal(sig, request_stop) for sig in (signal.SIGINT, signal.SIGTERM)}
 
         def stopping():
-            if stop_requested.is_set():
+            if stop_requested.is_set() or kill_requested(storage, request_id):
                 return True
             try:
                 request = json.loads((storage / 'STOP').read_text())
@@ -497,6 +576,9 @@ def run(root, args):
         session = None
         try:
             while True:
+                if kill_requested(storage, request_id):
+                    update(status='killed', reason='operator-kill')
+                    return 0
                 if stopping() or (args.max_slices and completed_slices >= args.max_slices):
                     update(status='stopped', reason='slice-boundary')
                     return 0
@@ -504,7 +586,7 @@ def run(root, args):
                 if expected - tasks.keys():
                     raise Error('Recorded tasks disappeared from the checklist.')
                 expected.update(tasks)
-                if all(tasks.values()):
+                if all(tasks.values()) and not resume_thread:
                     update(status='complete', reason='checklist-complete', tasks=sorted(expected))
                     announce('All documented tasks are complete.')
                     return 0
@@ -516,13 +598,15 @@ def run(root, args):
                 number = state.get('sessions_started', 0) + 1
                 update(status='running', reason='slice', attempt=attempt.name,
                        model=model, effort=effort, tasks=sorted(expected),
-                       cli_pid=None, thread_id=None, sessions_started=number)
-                command = [executable, 'exec', '--approve-for-me', '--ephemeral', '--model', model,
+                       cli_pid=None, thread_id=resume_thread, resumable=True, sessions_started=number)
+                command = [executable, 'exec', '--approve-for-me', '--model', model,
                            '-c', f'model_reasoning_effort="{effort}"',
                            '--cd', str(root), '--json', '--color', 'never',
                            '--output-schema', str(attempt / 'schema.json'),
-                           '--output-last-message', str(attempt / 'result.json'), '-']
-                announce(f'{stamp()} Starting fresh session {number} with {model} / {effort}.')
+                           '--output-last-message', str(attempt / 'result.json')]
+                command += ['resume', resume_thread, '-'] if resume_thread else ['-']
+                announce(f'{stamp()} {"Resuming" if resume_thread else "Starting fresh"} session {number} with {model} / {effort}.')
+                resume_thread = None
                 session = {'number': number, 'model': model, 'effort': effort,
                            'attempt': attempt.name, 'started': time.monotonic(),
                            'report_attempted': False}
@@ -530,6 +614,12 @@ def run(root, args):
                 session.update(completed_at=summary_timestamp(),
                                duration_minutes=math.ceil(max(0, time.monotonic() - session['started']) / 60))
                 write_json(attempt / 'exit.json', {'exit_code': code, **observed})
+                if observed.get('killed') or kill_requested(storage, request_id):
+                    finish_session(root, session, 'killed',
+                                   'Operator interrupted the session; work and cleanup are unconfirmed.', live, update)
+                    update(status='killed', reason='operator-kill', cli_pid=None)
+                    announce('Session killed. Use resume to continue the saved conversation.')
+                    return 0
                 # Retry only an explicit transient failed turn that never called
                 # a tool. Errors after tools ran require operation reconciliation.
                 if (code != 0 and observed['failed'] and observed['transient']
@@ -595,7 +685,9 @@ def run(root, args):
 
 def main(argv=None, *, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('action', choices=('start', 'run', 'status', 'stop'))
+    parser.add_argument('action', choices=('start', 'run', 'status', 'stop', 'kill', 'resume'),
+                        help='start detached; run foreground; status inspect; stop at slice boundary; '
+                             'kill interrupt now; resume killed conversation in foreground')
     parser.add_argument('--max-slices', type=int, default=0, help='Stop after this many slices; 0 runs until complete.')
     parser.add_argument('--max-api-retries', type=int, default=12, help='Retries per consecutive transient failure before tool use.')
     parser.add_argument('--reconciled', action='store_true', help='Operator has reconciled an interrupted run and all owned cleanup.')
@@ -624,15 +716,27 @@ def main(argv=None, *, root=ROOT):
             write_json(storage / 'STOP', {'requested': stamp(), 'request_id': state.get('request_id')})
             print('Stop requested. The current slice will finish and clean up before the loop exits.')
             return 0
+        if args.action == 'kill':
+            state = read_state(storage)
+            if state.get('status') not in ('launching', 'running', 'retry-wait', 'between-slices'):
+                print('No ongoing session to kill.')
+                return 0
+            private_directory(storage)
+            if not state.get('resumable'):
+                raise Error('This run predates kill/resume support; use stop and restart the launcher.')
+            write_json(storage / 'KILL', {'requested': stamp(), 'request_id': state.get('request_id')})
+            print('Kill requested. The active Codex child will be interrupted immediately; use status to confirm exit.')
+            return 0
         if args.action == 'start':
             private_directory(storage)
             with exclusive(storage):
                 state = read_state(storage)
-                if state.get('status') in ('launching', 'running', 'needs-review') and not args.reconciled:
+                if state.get('status') in ('launching', 'running', 'needs-review', 'killed') and not args.reconciled:
                     raise Error('Previous work needs reconciliation; read state.json and the task handoff.')
                 preflight(root)
                 request_id = str(uuid.uuid4())
-                state.update(status='launching', request_id=request_id, updated=stamp())
+                state.update(status='launching', request_id=request_id, resumable=True,
+                             thread_id=None, updated=stamp())
                 write_json(storage / 'state.json', state)
             command = [sys.executable, '-I', '-B', str(root / 'tools/codex_slices.py'), 'run',
                        '--max-slices', str(args.max_slices), '--max-api-retries', str(args.max_api_retries),

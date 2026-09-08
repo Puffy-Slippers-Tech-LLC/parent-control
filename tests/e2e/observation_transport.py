@@ -32,16 +32,23 @@ class ReadOnlyObservations:
         """
         require(not self._failed, 'observation:previous-failure')
         try:
-            require(isinstance(name, str) and name in ('assets', 'greeter'),
+            require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session'),
                     'observation:unknown-probe')
-            program, timeout = ((guest_observations.ASSETS, 120) if name == 'assets'
-                                else (guest_observations.GREETER, 110))
+            program, timeout = {
+                'assets': (guest_observations.ASSETS, 120),
+                'greeter': (guest_observations.GREETER, 110),
+                'parent-session': (guest_observations.PARENT_SESSION, 110),
+            }[name]
             self._guard()
             raw = self._transport.call(['/usr/bin/python3', '-c', program], timeout=timeout)
             self._guard()
             require(isinstance(raw, bytes) and 0 < len(raw) <= 1024,
                     'observation:invalid-output')
-            if name == 'greeter':
+            if name == 'parent-session':
+                require(raw == b'parent-session-ready\n', 'observation:invalid-output')
+                result = {'fixture_role': 'parent', 'active_local_graphical_session': True,
+                          'unexpected_user_session': False}
+            elif name == 'greeter':
                 require(raw == b'greeter-ready\n', 'observation:invalid-output')
                 result = {'active_graphical_greeter': True, 'unexpected_user_session': False}
             else:

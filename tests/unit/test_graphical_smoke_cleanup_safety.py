@@ -304,3 +304,42 @@ def test_booted_asset_refusal_prevents_first_graphical_action(tmp_path):
             controller.step()
     assert not (tmp_path / 'ready.reply.json').exists()
     assert not controller.steps
+
+
+@pytest.mark.parametrize('fault', ['capture', 'observation', None])
+def test_authentication_stage_requires_safe_capture_and_real_session(tmp_path, fault):
+    (tmp_path / 'authenticated.request.json').write_text(json.dumps({
+        'stage': 'authenticated', 'screenshot': 'smoke-1.png' if fault == 'capture' else None}))
+    controller = smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key', authenticate=True)
+    controller.steps = [{'stage': stage} for stage in smoke.STAGES]
+    controller.vm = Mock()
+    controller.vm.read.return_value = {'fixture_role': 'parent', 'active_local_graphical_session': True,
+                                       'unexpected_user_session': False}
+    if fault == 'observation':
+        controller.vm.read.side_effect = smoke.EvidenceError('observation:probe-failed')
+    if fault:
+        with pytest.raises(smoke.EvidenceError if fault == 'observation' else RuntimeError):
+            controller.step()
+        assert not (tmp_path / 'authenticated.reply.json').exists()
+        assert len(controller.steps) == len(smoke.STAGES)
+    else:
+        controller.step()
+        assert (tmp_path / 'authenticated.reply.json').exists()
+        assert len(controller.steps) == len(smoke.AUTH_STAGES)
+    if fault == 'capture':
+        controller.vm.read.assert_not_called()
+    else:
+        controller.vm.read.assert_called_once_with('parent-session')
+
+
+def test_credential_worker_cannot_pass_without_authentication_stage(tmp_path):
+    controller = Mock(steps=list(smoke.STAGES), stages=smoke.AUTH_STAGES)
+    def worker(*args, **kwargs):
+        kwargs['validate']()
+    with patch.object(smoke, 'Smoke', return_value=controller), \
+            patch.object(smoke.e2e_worker, 'run_distribution', side_effect=worker), \
+            patch.object(smoke, 'module_result') as module:
+        with pytest.raises(RuntimeError, match='missing-stages'):
+            smoke.run_backend(tmp_path, Mock(), Mock(), 'host-key', smoke.runner.RunLedger(), {},
+                              credentials=Mock())
+    module.assert_not_called()

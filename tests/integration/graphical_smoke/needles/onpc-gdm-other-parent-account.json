@@ -1,0 +1,15 @@
+{
+  "tags": [
+    "onpc-gdm-other-parent-account"
+  ],
+  "area": [
+    {
+      "xpos": 442,
+      "ypos": 275,
+      "width": 118,
+      "height": 32,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

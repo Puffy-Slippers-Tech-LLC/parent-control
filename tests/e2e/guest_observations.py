@@ -59,3 +59,40 @@ else:
     raise SystemExit(1)
 '''
 
+
+# Canonical fixture login only. Resolve its real guest UID, never a preview UID.
+# This probe cannot start a session or accept an SSH/TTY session as a GUI login.
+PARENT_SESSION = '''import pwd,subprocess,time
+expected = str(pwd.getpwnam('onpc-parent-jamie').pw_uid)
+deadline = time.monotonic() + 90
+def call(*args):
+    remaining = deadline - time.monotonic()
+    assert remaining > 0
+    return subprocess.run(args, capture_output=True, text=True, check=True,
+                          timeout=min(10, remaining)).stdout
+while time.monotonic() < deadline:
+    rows = call('loginctl', 'list-sessions', '--no-legend', '--no-pager').splitlines()
+    assert len(rows) <= 32
+    parents = 0
+    unexpected = False
+    for row in rows:
+        props = dict(line.split('=', 1) for line in call(
+            'loginctl', 'show-session', row.split()[0], '-p', 'Class', '-p', 'Active',
+            '-p', 'Type', '-p', 'Remote', '-p', 'Service', '-p', 'User').splitlines())
+        observer = (props.get('User') == '0' and props.get('Service') == 'sshd' and
+                    props.get('Remote') == 'yes' and props.get('Type') not in ('wayland', 'x11'))
+        if props.get('Class') not in ('user', 'user-early') or observer:
+            continue
+        parent = (props.get('User') == expected and props.get('Active') == 'yes' and
+                  props.get('Remote') == 'no' and props.get('Type') in ('wayland', 'x11') and
+                  props.get('Service') == 'gdm-password')
+        parents += int(parent)
+        unexpected |= not parent
+    if parents == 1 and not unexpected:
+        print('parent-session-ready')
+        break
+    time.sleep(0.5)
+else:
+    print('parent-session-not-ready')
+    raise SystemExit(1)
+'''

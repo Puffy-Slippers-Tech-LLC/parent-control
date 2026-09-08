@@ -1,8 +1,8 @@
 #!/usr/bin/python3
-"""Fixed credential-free generalhw smoke on the existing exclusively leased VM.
+"""Fixed generalhw qualifications on the existing exclusively leased VM.
 
-Invoke only through the project test dispatcher. No arguments, product install,
-authentication input, arbitrary guest command, or public raw capture export.
+Invoke only through the project test dispatcher. The credential entry point
+adds fixture GDM authentication. No arbitrary guest command or raw capture export.
 """
 
 import hashlib
@@ -37,6 +37,7 @@ from observation_transport import ReadOnlyObservations
 from fixture_credentials import FixtureCredentials, preflight as credential_preflight
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
+AUTH_STAGES = (*STAGES, 'authenticated')
 
 
 def inputs():
@@ -90,18 +91,20 @@ def screenshot(directory, name):
 
 
 class Smoke:
-    def __init__(self, directory, lease, commands, host_key, progress=None, transfer=None):
+    def __init__(self, directory, lease, commands, host_key, progress=None, transfer=None,
+                 authenticate=False):
         self.directory, self.lease, self.commands = directory, lease, commands
         self.host_key = host_key
         self.steps = []
         self.vm = None
         self.progress = progress
         self.transfer = transfer
+        self.stages = AUTH_STAGES if authenticate else STAGES
 
     def step(self):
-        if len(self.steps) == len(STAGES):
+        if len(self.steps) == len(self.stages):
             return
-        stage = STAGES[len(self.steps)]
+        stage = self.stages[len(self.steps)]
         path = self.directory / f'{stage}.request.json'
         if not path.exists():
             return
@@ -123,8 +126,13 @@ class Smoke:
             transport.probe_ready(timeout=180)
             self.vm = ReadOnlyObservations(transport)
             reply = {'observation': 'active-greeter-no-user-session'}
+            reply['authenticate'] = self.stages == AUTH_STAGES
             if self.transfer is not None:
                 reply['assets'] = self.transfer.observe(self.vm)
+        elif stage == 'authenticated':
+            # No post-password screenshot may cross the explicit capture route.
+            require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
+            reply = self.vm.read('parent-session')
         else:
             reply = screenshot(self.directory, request['screenshot'])
             if stage != 'gdm':
@@ -132,7 +140,8 @@ class Smoke:
                 require((reply['width'], reply['height']) == (previous['width'], previous['height'])
                         and reply['sha256'] != previous['sha256'], 'smoke:unchanged-screen')
         # Corroborate each captured stage, not just SSH availability at boot.
-        self.vm.read('greeter')
+        if stage != 'authenticated':
+            self.vm.read('greeter')
         self.steps.append({'stage': stage, **reply})
         if self.progress is not None:
             # Persist the actual corroboration before acknowledging the next
@@ -146,9 +155,10 @@ class Smoke:
 
 def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
                 *, progress=None, on_failure=None, transfer=None, credentials=None):
-    smoke = Smoke(directory, lease, commands, host_key, progress, transfer)
+    smoke = Smoke(directory, lease, commands, host_key, progress, transfer,
+                  authenticate=credentials is not None)
     def validate():
-        require(len(smoke.steps) == len(STAGES), 'smoke:missing-stages')
+        require(len(smoke.steps) == len(smoke.stages), 'smoke:missing-stages')
         module_result(directory)
     try:
         worker_result = e2e_worker.run_distribution(
@@ -195,7 +205,8 @@ class Qualification:
             raise
 
     def progress(self, stage, observed):
-        require(stage in STAGES, 'smoke:stage-request')
+        require(stage in (AUTH_STAGES if self.credentials is not None else STAGES),
+                'smoke:stage-request')
         self.active_stage = stage
         if observed is None:
             self.checkpoint('stage-started')
@@ -318,7 +329,7 @@ def main(*, assets=None, provision_credentials=False):
         result['scope'] = 'credential-free-asset-transfer-qualification'
     credentials = FixtureCredentials() if provision_credentials else None
     if credentials is not None:
-        result['scope'] = 'fixture-credential-staging-qualification'
+        result['scope'] = 'fixture-authentication-qualification'
     started = time.monotonic()
     def interrupted(*_):
         raise KeyboardInterrupt

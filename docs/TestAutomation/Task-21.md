@@ -4,10 +4,11 @@ Execute 21A and 21B separately. Use Task 19's public graphical helpers and
 versioned guest assertions from the installed-system tasks.
 
 Follow [E2E-Coverage.md](E2E-Coverage.md), expanding the assigned scenario
-families only after auditing existing entries and dimensions. Configure through Parent's real
-UI; backend fixtures are installed application inputs or read-only assertions,
-never injected preferences, grants, or authentication. Each scenario is a
-continuous attempt on the existing VM, without intermediate resets.
+families only after auditing existing entries and dimensions. Saves and other
+asserted product transitions use Parent's real UI. Unrelated account, application
+and input-file setup follows the [prerequisite contract](E2E-Coverage.md#prepare-prerequisites-through-supported-helpers).
+Never inject tested grant/authentication outcomes. Each scenario is a continuous
+attempt on the existing VM, without intermediate resets.
 
 ## Implementation slices
 
@@ -38,17 +39,28 @@ Share helpers and reference canonical cases, without counting partial journeys.
 - Work:
   1. Log in as an eligible administrator, launch Parent from the app grid, and
      verify eligible children and exclusion of ineligible accounts.
-  2. Create a child after installation and prove dynamic discovery. Select each
-     child and check independent preferences, status, catalog, and loading gates.
-     Create that account through the real administrator account-management UI.
+  2. Keep Parent running and create a real eligible child through a supported
+     guest account CLI or public AccountsService fixture helper. Verify the
+     account exists and is eligible, then prove Parent discovers it without
+     restarting. Select each child and check independent preferences, status,
+     catalog and loading gates. Ubuntu's account-creation UI is outside scope.
+     Record creation as a normal fixture event, with bounded readiness and owned
+     cleanup. Reconcile E2E-003's pending `step-2` OS-UI declaration with this
+     setup/observation boundary before implementation; preserve its discovery
+     assertions and IDs. Do not hide the write in a read-only probe.
   3. Cover daily allowance boundaries from zero to 1440 minutes, application
      search/filter, all three displayed rules, and precise/version-tolerant
      matching controls using existing backend fixtures.
      Inventory installed Parent surfaces beyond those controls, including
      About/license access and feedback drafting, validation, attachment review,
-     cancel and retry behavior. Add explicit scenario variants for applicable
-     behavior; passing local fake-transport feedback tests is not installed
-     or external-delivery acceptance.
+     cancel and retry behavior. Use local component/property tests for exhaustive
+     independent validation values and representative installed journeys for
+     real integration, each meaningful control/flow and access restriction.
+     Generate synthetic attachments and test inputs through fixture helpers;
+     editing them in unrelated desktop apps is not a prerequisite. About/license
+     access needs a focused check, not an additional OS lifecycle matrix.
+     Passing local fake-transport feedback tests is not external-delivery
+     acceptance. Reconcile layer/case mappings under the coverage contract.
   4. Test standard-user launcher access and direct broker management denial,
      reusing Task 14's real-UID assertions. Record direct broker attacks as
      supplemental installed-system cases, not substitutes for launcher denial.

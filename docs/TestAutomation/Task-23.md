@@ -35,7 +35,10 @@ Verification below is task acceptance; edits use the smallest affected selection
      prompt is restricted to that identity and shows child/duration/soft choice.
   2. Use secret-safe password entry. Exercise authentication cancel, rejected
      password, and successful retry without lost choices or a consumed repeat
-     interval. Credentials must remain confined to the system prompt.
+     interval. Assert that denial/cancellation creates no grant or policy
+     relaxation and that retry commits exactly once; an Ubuntu rejection message
+     alone is insufficient. Use representative failures, not an upstream
+     password-policy matrix. Credentials remain confined to the system prompt.
   3. Approve without soft apps: prove all blocked child apps close across
      sessions before time becomes active and unrelated apps survive.
   4. Approve with soft apps: prove no open app closes, hard launches remain
@@ -66,7 +69,11 @@ Verification below is task acceptance; edits use the smallest affected selection
 - Recommended reasoning effort: `medium`
 - Work:
   1. Cover predefined, rest-of-day, minimum, maximum, fractional, and invalid
-     custom durations. Prove invalid input never invokes Polkit.
+     custom durations at the lowest effective layer. Keep exhaustive independent
+     values in the shared local form tests for both modes. Graphical cases cover
+     the distinct real duration flows and representative boundaries, including
+     invalid input never invoking Polkit. Reconcile existing declarations before
+     grouping/moving equivalent cases; retain approval and exit interactions.
   2. Verify at most one overlay, Escape, explicit cancel, success confirmation,
      automatic close, and post-close countdown refresh.
   3. Verify remembered duration, custom value, selected parent, and soft-app

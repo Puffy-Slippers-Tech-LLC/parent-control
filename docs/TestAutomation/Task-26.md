@@ -114,6 +114,10 @@ Verification below is task acceptance; edits use the smallest affected selection
      and guest requirements. Reuse the artifact contract for verified delivery;
      changes needed on the development machine belong in `setup.sh`. A sleeping
      process fixture, preview, menu-only launch, or fake game is insufficient.
+     Install and prepare the game's deterministic offline inputs through
+     supported fixture helpers. Test launching, real interaction and the app's
+     enforcement/expiry effects; game installation wizards, account sign-up,
+     gameplay correctness and unrelated game features are outside scope.
   3. Implement E2E-023 exactly as a continuous graphical attempt: parent login
      and zero allowance → Switch User preserving the parent → correct-password
      child denial → real kiosk request/authentication → child login → gameplay
@@ -139,7 +143,12 @@ Verification below is task acceptance; edits use the smallest affected selection
      declared transport-failure/retry cases. Resolve their normative requirement
      gaps and required service profile before readiness; use the supported
      service, dedicated test recipient and explicit delivery authorization.
-     Reuse 21A's draft/attachment helpers. Missing authorization or service
+     Reuse 21A's synthetic attachment/draft helpers. Bound this work to our
+     request format, disclosure, success/error handling and retry behavior;
+     exhaustive status/transport cases belong in local adapter tests. Retain a
+     focused real service success and declared failure/retry integration; do not
+     test the provider's general availability, account setup or delivery engine.
+     Missing authorization or service
      prerequisites remain a blocker for these cases, not permission to send
      routine feedback or substitute fake transport evidence.
 - Verification:

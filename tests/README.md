@@ -228,8 +228,13 @@ layers actually measured and include the separate child-language results.
 ## Maintaining regression coverage
 
 1. Identify the changed behavior and its authoritative specification/design
-   requirement. Add regression cases at the lowest effective layer and real
-   installed/customer coverage when the behavior spans those boundaries.
+   requirement, or the necessary harness safety guarantee. Follow the
+   [app scope and prerequisite rules](../docs/TestAutomation/E2E-Coverage.md#scope-tests-around-the-app).
+   Use supported fixture helpers for unrelated OS/account/asset setup. Add
+   regression cases at the lowest effective layer; exhaustive independent form
+   values belong in local tests, with real installed/customer coverage for the
+   boundaries and causal journeys that require it. App approval denial must
+   assert unchanged grants/policy and recovery, not just Ubuntu's error message.
 2. Classify the tests, their affected components/shared dependencies, runner,
    environment and safety prerequisites. Add them to the authoritative suite
    inventory when implemented; they must not be silently absent from `test-all`.

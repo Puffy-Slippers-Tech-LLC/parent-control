@@ -4,10 +4,12 @@ Execute 25A and 25B separately. Reuse Task 15's native, Snap, and Flatpak
 fixtures, launch assertions, and ownership-recorded process helpers.
 
 Follow [E2E-Coverage.md](E2E-Coverage.md). Expand assigned route, policy, and
-multi-user families into explicit variants. Configure policy and establish
-ordinary sessions through customer UIs; launch through the actual route under
-test, including real terminal input for a command route. No injected filter,
-grant, session state, or VM checkpoint replaces those operations. Process
+multi-user families into explicit variants. Use customer UIs for the policy
+edits and session transitions the journey asserts; declare unrelated starting
+configuration under the [prerequisite contract](E2E-Coverage.md#prepare-prerequisites-through-supported-helpers).
+Launch through the actual route under test, including real terminal input for
+a command route. No injected filter, grant, session state or VM checkpoint
+replaces an asserted operation. Process
 fixtures exercise real OS enforcement but do not prove gameplay; Task 26C
 additionally requires a real installed game and continuous customer journeys.
 
@@ -21,6 +23,14 @@ Verification below is task acceptance; edits use the smallest affected selection
 | --- | --- |
 | 25A | One graphical native allow/deny route; then adapt the proven route helper for each required platform/identity. |
 | 25B | One two-user process-isolation transaction; then retained sessions and the declared partial-failure variants. |
+
+Before expanding E2E-019's current 48 variants, record the app interaction each
+route/policy/control combination exercises. Reuse Task 15's fixture setup and
+backend assertions. Keep every supported route and interacting security case;
+avoid multiplying unrelated account creation, password values or presentation
+choices. Equivalent validation belongs in local tests under the
+[matrix rules](E2E-Coverage.md#bound-the-matrix-before-expanding-it), with explicit
+inventory/requirement reconciliation rather than silently omitted executions.
 
 ## Task 25A
 

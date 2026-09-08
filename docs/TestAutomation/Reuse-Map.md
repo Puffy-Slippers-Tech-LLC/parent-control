@@ -13,6 +13,11 @@ and preserve every required case, assertion, safety prerequisite and real
 customer operation. Task model defaults remain; reassess a smaller bounded
 slice only after its difficult boundary is proven.
 
+Apply the [app scope and prerequisite rules](E2E-Coverage.md#scope-tests-around-the-app)
+before expanding a task: reliable supported fixture setup, lowest effective
+test layer, and an explicit app risk for each expensive journey. This scope
+review changes no task order or completion status.
+
 ## Existing interfaces to find once
 
 - Installed selection, lease, staging, transport and real-caller assertions:
@@ -56,15 +61,15 @@ single execution owner. Related tasks link that execution without copying it.
 
 | Task | Reuse and opportunity | Quality boundary to retain |
 | --- | --- | --- |
-| [21A](Task-21.md#task-21a) | Batch compatible navigation/validation; use Task 14 witnesses for backend denial. | Real discovery/account creation and standard-user UI denial; resolve E2E-005 ownership and About/feedback requirement gaps below. |
+| [21A](Task-21.md#task-21a) | Provision accounts/input files with supported helpers; keep exhaustive values local and batch representative navigation/validation. | Live discovery of a real newly created account and standard-user UI denial; account-management UI is outside scope; resolve E2E-003 declarations and E2E-005 ownership below. |
 | [21B](Task-21.md#task-21b) | Introduce one real kiosk approval helper here for grant setup; share it with 22–24. | Real UI/password flow; selected-child transaction ordering and other-user effects; no injected grant to avoid a later dependency. |
 | [22A](Task-22.md#task-22a) | Reuse 16B/17B witnesses and 21B approval; share login/lock observations with 23/26. | Natural expiry, zero-time correct-password denial, retained/new sessions, both replacement choices and other foreground users. |
 | [22B](Task-22.md#task-22b) | Reuse established sessions for display boundaries and a separate dependency-loss case. | Actual minute/second transition and recovery; screen evidence cannot be replaced by backend time alone. |
 | [23A](Task-23.md#task-23a) | Extend the real approval helper by explicit surface and parent; reuse transaction witnesses. | Each parent, real denial/cancel/retry, both soft-app outcomes and exactly-once grants. |
-| [23B](Task-23.md#task-23b) | One shared form case table; compatible invalid/boundary values can share a declared journey. | Both local form modes, overlay exits and per-child preferences; kiosk graphical acceptance remains 24B. |
+| [23B](Task-23.md#task-23b) | One exhaustive local form table and representative graphical boundary/flow cases; group compatible values. | Both local form modes, actual overlay exits and per-child preferences; kiosk graphical acceptance remains 24B. |
 | [24A](Task-24.md#task-24a) | Extend existing kiosk entry with containment and real agent recovery. | Restricted session before/after requests; separate normal approval and fault/recovery attempts. |
 | [24B](Task-24.md#task-24b) | Reuse 23's data table and authentication; add kiosk targets, exits and cross-surface round trip. | Both graphical surfaces execute; child/parent eligibility, independent mute and return-to-GDM semantics remain distinct. |
-| [25A](Task-25.md#task-25a) | Reuse 15A assets/launch witnesses and one graphical route implementation per route. | Preserve the interacting matrix: E2E-019 currently has 48 variants. Sharing code does not collapse required executions. |
+| [25A](Task-25.md#task-25a) | Reuse 15A fixtures/witnesses; audit each of E2E-019's 48 variants for the route/policy/control interaction it protects. | Every supported route and security interaction remains covered; no unrelated setup/password/presentation cross-product or silent case deletion. |
 | [25B](Task-25.md#task-25b) | Extend 15B/21B process and transaction witnesses to multiple real graphical sessions. | Every targeted session, unrelated-user survival and separately observed partial failure. |
 | [26A](Task-26.md#task-26a) | Reconcile canonical existing faults before implementing only missing races/transitions. | Actual fault synchronization and reversible/irreversible outcomes; retain strong reasoning for adversarial races. |
 | [26B](Task-26.md#task-26b) | Use one persistence assertion set across declared restart boundaries. | Each required app/session/service/reboot/suspend boundary executes; prior state must arise from real UI use. |
@@ -83,6 +88,12 @@ single execution owner. Related tasks link that execution without copying it.
 
 ## Resolve before the affected batch
 
+- **Scope/layer reconciliation:** the 156 declarations remain pending, not
+  executed coverage. Task 21A must replace E2E-003's OS-UI account creation with
+  a recorded supported fixture event and live Parent discovery. Before changing
+  case groupings/layers, follow the [matrix rules](E2E-Coverage.md#bound-the-matrix-before-expanding-it)
+  and reconcile inventory, assertions and requirement links. This documentation
+  review changes no executable declaration or coverage status.
 - **21A/21B ownership:** E2E-005's six variants currently belong to 21A, but
   their complete allowance/grant/child-behavior journey crosses 21B's transaction
   boundary. Before accepting 21A, reconcile the pending declarations and task

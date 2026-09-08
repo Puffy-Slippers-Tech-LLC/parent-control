@@ -58,7 +58,12 @@ Verification below is task acceptance; edits use the smallest affected selection
   1. Use `pamtester` to exercise positive and negative account-management and
      product `gdm-password` authentication results. Cover administrator, kiosk,
      unrestricted unrelated-account, and applicable system-account exemptions;
-     unknown/malformed limit state must fail closed.
+     unknown/malformed limit state must fail closed. Keep at most one focused
+     wrong-password regression of the app-modified PAM stack to ensure usable
+     time never bypasses normal authentication. Do not expand Ubuntu password
+     policy/lockout matrices; correct-password zero-time denial and valid-grant
+     access are the product obligations. Provision identities through supported
+     guest helpers, not Ubuntu's account-management UI.
   2. Create real child sessions. Prove runtime caps are cleared only for managed
      children, broker restart clears their stale caps, and expiry does not end
      the live session or another user's foreground session.

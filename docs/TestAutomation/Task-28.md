@@ -130,8 +130,14 @@ Verification below is task acceptance; edits use the smallest affected selection
      Audit all customer scenario families and their variant matrix against
      architecture and lifecycle contracts too. Check actual ordered graphical
      operations, real authentication/gameplay/elapsed time/reboots, continuity,
-     other-user isolation, and declared fault categories. No mock, backend
-     shortcut, VM checkpoint, or separately passing fragment proves a journey.
+     other-user isolation, and declared fault categories. Check that each costly
+     case protects app behavior, app-owned OS integration or necessary harness
+     safety; unrelated Ubuntu/provider behavior belongs outside the product
+     matrix. Verify prerequisite writes were recorded separately and did not
+     produce an asserted outcome. Audit layer assignments and reasons for
+     combined/reassigned cases; source strings and test counts are not execution
+     evidence. No mock, outcome-producing shortcut, VM checkpoint or separately
+     passing fragment proves a required continuous journey.
   2. Run final-mode validation rejecting planned, missing, nonexistent, skipped,
      and expected-failing release mappings. Ensure flaky or failed evidence
      also prevents release even when a later attempt passes.

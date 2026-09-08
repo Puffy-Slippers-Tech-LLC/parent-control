@@ -51,7 +51,10 @@ Verification below is task acceptance; edits use the smallest affected selection
      service/journal/product logs, D-Bus/PAM replies, sessions, source/compiled
      rules, and process evidence. Implement one reference runner adapter.
   5. Document the exact schema, artifact allowlist, redaction API, and adapter
-     examples so 27B only wires established interfaces.
+     examples so 27B only wires established interfaces. Reuse current framework
+     outputs and F1/19A collectors; add fields/abstractions only for concrete
+     missing evidence or privacy guarantees. A new reporting framework is not a
+     prerequisite for unrelated product cases using the existing safe contract.
   6. Define and implement reconciliation of the expected suite/scenario/variant
      inventory with collection, executed assertions, and current-run evidence.
      Include non-pytest and harness/static results. A passing file or requirement

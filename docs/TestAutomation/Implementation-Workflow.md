@@ -99,7 +99,34 @@ These are user controls, not shell commands for the agent to execute.
 [Official command documentation](https://learn.chatgpt.com/docs/developer-commands).
 Automatic compaction does not extend the agreed slice.
 
+## Reuse established tools and bound harness work
+
+Keep the existing pytest/Hypothesis/coverage.py and Node/GJS foundations,
+python-dbusmock private buses, Dogtail/AT-SPI components, and os-autoinst with
+QEMU/libvirt for OS journeys. Use their maintained public interfaces and the
+versions in `tests/test-tools-ubuntu-26.04.txt` and `tests/ui/requirements.txt`.
+Qualify affected UI/backend behavior when those versions or interfaces change;
+established tool names alone do not establish that our adapter works.
+
+Before adding custom orchestration, identify the concrete missing capability
+in the current app scenario or required safety boundary. Prefer an existing
+fixture/API and a small adapter. Finish the bounded runner result and move to
+product coverage; do not create a general framework, duplicate scheduler,
+collector or selector for hypothetical future uses. Preserve owned cleanup,
+secret protection, provenance and failure reporting with focused regressions.
+
+Source/configuration checks may protect an actual interface or packaging rule.
+Prefer executable behavior over source-string or call-order assertions for
+runtime guarantees; retire redundant brittle checks when behavior is covered.
+Keep source contracts and harness qualification out of product coverage claims.
+
 ## Make every expensive attempt answer a question
+
+Before a live attempt, apply the [scope and prerequisite rules](E2E-Coverage.md#scope-tests-around-the-app):
+name the app regression or harness guarantee, choose the lowest effective layer,
+and separate supported fixture setup from the actions under test. Reuse bounded
+provisioning helpers for unrelated OS work. Do not automate an upstream GUI or
+multiply equivalent full journeys without an app-specific reason.
 
 1. Identify the first failing boundary, one hypothesis and its discriminating
    observation. Separate helper, product, environment, collection and cleanup.

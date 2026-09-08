@@ -54,11 +54,20 @@ evidence or the VM baseline as documentation cleanup.
   authority. Preserve real caller validation and other-user isolation.
 - Installed-system tests use actual processes, credentials and OS services.
   Local unit/component doubles do not fulfill installed or E2E acceptance.
-- Every graphical task follows [E2E-Coverage.md](E2E-Coverage.md). Enumerate
-  complete customer journeys and all required variants before implementing
-  them; keep visible, authoritative and other-user evidence. Fault/recovery and
-  controlled-environment cases are labeled separately and do not replace
-  ordinary customer operations.
+- Apply the [app scope and prerequisite rules](E2E-Coverage.md#scope-tests-around-the-app)
+  to every remaining task. Use reliable supported helpers for unrelated OS
+  setup; assert the app's response. Test app-owned PAM/Polkit integration, not
+  general Ubuntu password or account-management behavior.
+- Every graphical task follows [E2E-Coverage.md](E2E-Coverage.md). Audit each
+  variant's risk, layer and interacting dimensions before implementation. Keep
+  complete required journeys and visible, authoritative and other-user evidence;
+  place equivalent validation at its lowest effective layer. Fixture setup,
+  fault/recovery and controlled-environment events have distinct evidence and
+  cannot substitute for the product actions a journey claims to prove.
+- Reuse the [established tools and bounded harness](Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work).
+  Add infrastructure only for an identified scenario or safety gap. Source
+  contracts and runner qualification are supporting evidence, not customer
+  behavior or a reason to defer product coverage indefinitely.
 - Use the fixed existing VM and its guarded lease. The retained product-free
   baseline is an outer preparation/cleanup boundary only; no new snapshots,
   copies, overlays or in-journey restores. Source shares must be detached before

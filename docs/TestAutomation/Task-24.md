@@ -60,9 +60,15 @@ Verification below is task acceptance; edits use the smallest affected selection
 - Work:
   1. Verify eligible children/parents, child switching, loading gates, no-child
      and no-approver states, and the explanation when control is disabled.
+     Prepare real account/role fixtures with supported guest helpers; account
+     creation interfaces and third-party account administration are outside scope.
   2. Reuse Task 23 cases for invalid input, auth cancel, rejected password,
      both approval choices, and duplicate submission. Verify kiosk broker
-     targeting and selected-parent restriction with authoritative state.
+     targeting and selected-parent restriction with authoritative state. Keep
+     exhaustive equivalent input values in the shared local tests; execute the
+     distinct kiosk workflows and relevant boundaries graphically. Denial/cancel
+     must preserve app state and permit retry; generic password rejection alone
+     is not the assertion. Retain both surfaces' required integration cases.
   3. Verify explicit cancel and Escape return to GDM; approval returns after its
      brief confirmation. Keep these expectations distinct from overlay close.
   4. Round-trip remembered choices between kiosk and child overlay for each

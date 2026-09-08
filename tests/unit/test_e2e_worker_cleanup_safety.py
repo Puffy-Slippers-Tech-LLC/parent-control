@@ -28,6 +28,8 @@ def attempt(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, 'PrivateCollector', lambda **kwargs: collector)
     events = []
     adapter = Mock()
+    adapter.phase = 'stopped'
+    adapter.events = ['initial-off', 'poweron', 'poweroff', 'status-off', 'status-off', 'poweroff']
     worker = Mock()
     worker.poll.return_value = 0
     worker.close.side_effect = lambda: events.append('worker-close')
@@ -66,9 +68,65 @@ def test_completed_worker_requires_controller_validation_and_owned_cleanup(attem
     assert attempt.events == ['worker-before-cleanup', 'worker-close', 'server-close', 'worker-result']
     assert result['outcome'] == 'passed'
     assert result['worker_stopped'] and result['callback_closed']
+    assert result['shutdown_verified'] and not result['backend_failure_artifact']
+    assert result['backend_exit_status'] == 0
+    assert result['lifecycle'] == attempt.adapter.events
+    attempt.lease.guard.assert_called_once_with(off=True)
     assert report(attempt, 'worker-before-cleanup')['worker_stopped'] is False
     assert report(attempt)['scope'] == 'credential-free-worker'
     assert runtime.Worker.call_args.args[-1] == list(runtime.COMMAND)
+    assert runtime.COMMAND == ('/usr/bin/isotovideo',)
+
+
+@pytest.mark.parametrize('kind', ['file', 'empty', 'malformed', 'directory', 'dangling-link', 'fifo'])
+def test_backend_failure_artifact_refuses_zero_exit_and_preserves_private_evidence(attempt, kind):
+    import os
+    path = attempt.directory / 'base_state.json'
+    if kind == 'directory':
+        path.mkdir()
+    elif kind == 'dangling-link':
+        path.symlink_to(attempt.directory / 'absent-private-canary')
+    elif kind == 'fifo':
+        os.mkfifo(path)
+    else:
+        path.write_text({'file': '{"component":"backend","msg":"private-canary"}',
+                         'empty': '', 'malformed': 'private-canary'}[kind])
+    with pytest.raises(RuntimeError, match='backend-failure-artifact'):
+        attempt.run()
+    attempt.options['validate'].assert_not_called()
+    attempt.worker.close.assert_called_once()
+    attempt.server.close.assert_called_once()
+    final = report(attempt)
+    assert final['backend_failure_artifact'] is True
+    assert final['backend_exit_status'] == 0 and final['outcome'] == 'failed'
+    assert os.path.lexists(path)  # No deletion, rewriting, or target access.
+    assert 'private-canary' not in json.dumps(final)
+
+
+@pytest.mark.parametrize('phase,events', [
+    ('running', ['initial-off', 'poweron', 'status-on']),
+    ('ready', ['initial-off', 'status-off']),
+    ('stopped', ['initial-off', 'poweroff', 'status-off']),
+    ('stopped', ['initial-off', 'status-off', 'poweron', 'poweroff']),
+    ('stopped', ['initial-off', 'poweron', 'poweroff']),
+])
+def test_module_pass_cannot_replace_completed_shutdown(attempt, phase, events):
+    attempt.adapter.phase, attempt.adapter.events = phase, events
+    with pytest.raises(RuntimeError, match='shutdown-unverified'):
+        attempt.run()
+    attempt.options['validate'].assert_called_once()
+    attempt.worker.close.assert_called_once()
+    attempt.server.close.assert_called_once()
+    assert report(attempt)['shutdown_verified'] is False
+
+
+def test_changed_guest_after_worker_exit_cannot_pass_shutdown(attempt):
+    attempt.lease.guard.side_effect = RuntimeError('replacement-private-canary')
+    with pytest.raises(RuntimeError, match='replacement-private-canary'):
+        attempt.run()
+    attempt.worker.close.assert_called_once()
+    assert report(attempt)['outcome'] == 'failed'
+    assert not report(attempt)['shutdown_verified']
 
 
 @pytest.mark.parametrize('hook_fails', [False, True])

@@ -93,6 +93,7 @@ class PrivateCollector:
         require(isinstance(secrets, (tuple, list)) and all(
             isinstance(value, str) and value for value in secrets), 'artifact:secret-registry')
         self.run_id = run_id
+        self._registered_secrets = frozenset(secrets)
         self._secrets = set()
         for value in secrets:
             raw = value.encode('utf-8')
@@ -118,6 +119,17 @@ class PrivateCollector:
 
     def check_secrets(self, data):
         require(not any(value in data for value in self._secrets), 'artifact:secret-detected')
+
+    def require_secrets(self, secrets):
+        """Require worker credentials to have been registered before capture.
+
+        This never extends the frozen registry: earlier reports could already
+        contain an unregistered value. Only the controller calls this method.
+        """
+        self._check_directory()
+        require(isinstance(secrets, (tuple, list)) and all(
+            isinstance(value, str) and value in self._registered_secrets for value in secrets),
+            'artifact:unregistered-secret')
 
     def _check_directory(self):
         require(self._fd is not None, 'artifact:collector-closed')

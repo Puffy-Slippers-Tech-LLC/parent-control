@@ -28,7 +28,10 @@ from private_artifacts import PrivateCollector
 from secret_variables import SecretVariables
 
 DISTRIBUTION = ROOT / 'tests/integration/graphical_smoke'
-COMMAND = ('/usr/bin/isotovideo', '--exit-status-from-test-results')
+# Keep the backend's exit policy; controller validation separately rejects all
+# missing/failed/softfailed module results. Upstream's module-derived exit
+# option can overwrite an earlier backend error with passing module results.
+COMMAND = ('/usr/bin/isotovideo',)
 
 
 def validate_needles(files):
@@ -170,6 +173,8 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
     result = {'schema_version': 1, 'run_id': run_id, 'scope': 'credential-free-worker',
               'outcome': 'failed', 'distribution_sha256': None,
               'raw_capture': 'private-not-approved-for-export',
+              'backend_exit_status': None, 'backend_failure_artifact': None,
+              'lifecycle': [], 'shutdown_verified': False,
               'worker_stopped': False, 'callback_closed': False}
     # Credentials may come only from completed, same-lease provisioning. The
     # credential qualification performs GDM input; all raw output stays private.
@@ -212,8 +217,22 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                 adapter.revalidate()
                 status = worker.poll()
                 if status is not None:
+                    result['backend_exit_status'] = status
+                    # This upstream termination artifact is evidence of a fatal
+                    # backend/isotovideo error even when the process exits zero.
+                    # Presence alone refuses; never parse/export its raw message
+                    # or follow a link (including a dangling link) to its target.
+                    result['backend_failure_artifact'] = os.path.lexists(directory / 'base_state.json')
                     require(status == 0, 'e2e:backend-failed')
+                    require(not result['backend_failure_artifact'], 'e2e:backend-failure-artifact')
                     validate()
+                    events = adapter.events
+                    require(adapter.phase == 'stopped' and 'poweron' in events
+                            and 'poweroff' in events[events.index('poweron') + 1:]
+                            and 'status-off' in events[events.index('poweroff') + 1:],
+                            'e2e:shutdown-unverified')
+                    lease.guard(off=True)
+                    result['shutdown_verified'] = True
                     result['outcome'] = 'passed'
                     break
                 server.serve_once()
@@ -228,6 +247,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
             fail('infrastructure', 'worker-interrupted' if isinstance(error, KeyboardInterrupt)
                  else 'worker-execution-failed', error)
         finally:
+            result['lifecycle'] = list(adapter.events)
             # Persist the original failure before cleanup can fail or interrupt.
             try:
                 save('worker-before-cleanup')

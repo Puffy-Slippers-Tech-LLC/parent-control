@@ -72,6 +72,16 @@ sub run {
         record_info('authentication', 'Fixture graphical session independently verified.');
     }
     record_info('smoke', 'Credential-free mouse and keyboard screen changes completed.');
+    # End the complete attempt through the public lifecycle API. generalhw's
+    # final status command must observe a genuinely stopped lease-owned guest.
+    # Stop VNC polling/reconnects before revoking the owned graphics endpoint.
+    # The documented console proxy calls the console's public disable method.
+    console('sut')->disable();
+    power('off');
+    # assert_shutdown also takes a screenshot; after shutdown no display may
+    # be reacquired. Use its public status-only counterpart and fail explicitly.
+    die 'smoke:shutdown-unverified' unless check_shutdown(0);
+    record_info('shutdown', 'Owned guest poweroff and off-state verification completed.');
 }
 
 1;

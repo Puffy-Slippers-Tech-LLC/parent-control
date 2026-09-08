@@ -37,6 +37,7 @@ class Adapter:
         self.lease = lease
         self.run = lease.state['run']
         self.phase = 'initial'
+        self.events = []
         self.display = None
         self.serial = None
 
@@ -131,7 +132,10 @@ class Adapter:
         require(action in ('on', 'off', 'status', 'graphics'), 'graphics:unknown-action')
         self.revalidate()
         if action == 'status':
-            return 'off' if self.lease.view.snapshot()[1] else 'on'
+            state = 'off' if self.lease.view.snapshot()[1] else 'on'
+            self.events.append('status-' + state)
+            log('status-' + state)
+            return state
         if action == 'off':
             # generalhw begins with an off-state assertion before power-on.
             # Preserve the prepared pipes until the actual running shutdown.
@@ -143,9 +147,11 @@ class Adapter:
             if self.phase in ('initial', 'ready'):
                 self.lease.guard(off=True)
                 self.phase = 'ready'
+                self.events.append('initial-off')
             else:
                 self.lease.stop()
                 self.phase = 'stopped'
+                self.events.append('poweroff')
             log('poweroff-complete')
             return 'ok'
         if action == 'on':
@@ -154,6 +160,7 @@ class Adapter:
             self.phase = 'starting'
             self.lease.start()
             self.phase = 'running'
+            self.events.append('poweron')
             log('poweron-complete')
             return 'ok'
         require(self.phase == 'running' and not self.lease.view.snapshot()[1],

@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/e2e'))
 import recording
 import provenance
+import e2e_worker
 from private_artifacts import PrivateCollector, EvidenceError
 sys.path.pop(0)
 

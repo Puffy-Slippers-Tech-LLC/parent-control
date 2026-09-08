@@ -14,6 +14,9 @@ reader = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/read-on
     ['slice', '1', '0'], ['slice', '1e', '10'], ['slice', '1', '10', '--expression=e'],
     ['fetch', 'file:///etc/shadow'], ['fetch', 'https://user:password@example.com'],
     ['fetch', 'https://example.com', '--output=/tmp/file'], ['fetch', 'https://example.com', '-XPOST'],
+    ['links', '--command', 'arbitrary'], ['links', '--output=/tmp/result', 'doc.md'],
+    ['words', '--after', '', 'doc.md'], ['words', '-c', 'arbitrary', 'doc.md'],
+    ['words', '--before', 'end', '--output', '/tmp/result', 'doc.md'],
 ])
 def test_mutating_options_refused(args):
     with pytest.raises(ValueError):
@@ -36,6 +39,17 @@ def test_filter_paths_cannot_be_output_options():
     assert reader['command'](['sort', '--', '-o', 'file'])[-3:] == ['--', '-o', 'file']
     assert reader['command'](['slice', '2', '9', 'file']) == [
         '/usr/bin/sed', '-n', '2,9p', '--', 'file']
+
+
+def test_document_routes_pin_implementation_and_keep_inputs_as_data():
+    command = reader['command'](['links', '--', '-c', '$(touch sentinel).md'])
+    implementation = Path(reader['__file__']).with_name('document_checks.py').resolve()
+    assert command == ['/usr/bin/python3', '-IB', str(implementation),
+                       'links', '--', '-c', '$(touch sentinel).md']
+    command = reader['command'](['words', '--after=--command', '--before=$(touch sentinel)',
+                                '--', '--output=sentinel'])
+    assert command == ['/usr/bin/python3', '-IB', str(implementation), 'words',
+                       '--after=--command', '--before=$(touch sentinel)', '--', '--output=sentinel']
 
 
 @pytest.mark.parametrize('action', ['search', 'files'])
@@ -82,6 +96,28 @@ def test_literal_wildcard_path_is_not_implicitly_expanded(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
     (tmp_path / 'selected.txt').touch()
     assert reader['command'](['search', 'needle', '*.txt'])[-1] == '*.txt'
+
+
+def test_reported_setup_search_preserves_mixed_literal_paths_and_glob_scope(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    literal = [
+        'setup.sh', 'docs/TestAutomation/Unattended-Sessions.md',
+        'docs/TestAutomation/Unattended-Prompt.md', 'tests/unit/test_codex_slices.py',
+    ]
+    selected = [*literal, 'tools/setup_checkout.sh', 'tools/setup_privileges.py',
+                'tools/setup future/nested/implementation.py']
+    excluded = ['tools/other.py', 'tools/other/setup.py', 'other/setup.sh',
+                'docs/TestAutomation/Task-19.md']
+    for name in [*selected, *excluded]:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('apply_patch\n')
+    result = subprocess.run(reader['command']([
+        'search', '--path-glob', 'tools/setup*',
+        'codex_slices|codex-slices|apply_patch|execpolicy|codex-rules', *literal,
+    ]), capture_output=True, text=True, check=True, timeout=10)
+    assert set(result.stdout.splitlines()) == {f'{name}:1:apply_patch' for name in selected}
+    assert not result.stderr
 
 
 def test_unmatched_glob_diagnostic_does_not_echo_inputs(tmp_path, monkeypatch, capsys):

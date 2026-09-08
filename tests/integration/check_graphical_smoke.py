@@ -39,7 +39,8 @@ from graphical_serial import provision_getty
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
 AUTH_STAGES = (*STAGES, 'authenticated')
-SERIAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated', 'serial-command', 'serial-logout')
+SERIAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated', 'serial-command', 'serial-logout',
+                 'gdm-return')
 
 
 def inputs():
@@ -140,6 +141,11 @@ class Smoke:
             reply['serial'] = self.stages == SERIAL_STAGES
             if self.transfer is not None:
                 reply['assets'] = self.transfer.observe(self.vm)
+        elif stage == 'gdm-return':
+            # The match's automatic screenshot stays private. The callback
+            # reconciles it from the completed module, never reopening capture.
+            require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
+            reply = self.vm.read('greeter')
         elif stage.startswith('serial-'):
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
             if stage == 'serial-password':
@@ -161,7 +167,7 @@ class Smoke:
                 require((reply['width'], reply['height']) == (previous['width'], previous['height'])
                         and reply['sha256'] != previous['sha256'], 'smoke:unchanged-screen')
         # Corroborate each captured stage, not just SSH availability at boot.
-        if stage != 'authenticated' and not stage.startswith('serial-'):
+        if stage not in ('authenticated', 'gdm-return') and not stage.startswith('serial-'):
             self.vm.read('greeter')
         self.steps.append({'stage': stage, **reply})
         if self.progress is not None:

@@ -34,8 +34,8 @@ def checkout(tmp_path):
 
 def test_full_listing_keeps_pending_cases_and_exact_digest():
     plan = runner['preflight'](['--list'])
-    assert len(plan['cases']) == 157
-    assert len(plan['pending_cases']) == 156
+    assert len(plan['cases']) == 156
+    assert len(plan['pending_cases']) == 155
     assert plan['scope'] == 'full'
     assert plan['mode'] == 'list-only'
     assert plan['inventory_sha256'] == hashlib.sha256(
@@ -68,7 +68,7 @@ def test_selected_listing_uses_exact_inventory_scope(selector, count):
 
 @pytest.mark.parametrize('options,code', [
     ([], 'selection:pending'),
-    (['--scenario=E2E-001'], 'selection:pending'),
+    (['--scenario=E2E-002'], 'selection:pending'),
     (['--scenario=E2E-023/fullscreen', '--artifacts=/tmp/onpc-absent'], 'selection:pending'),
     (['--scenario=E2E-999'], 'selection:unknown'),
     (['--scenario=E2E-023/*'], 'selection:unknown'),
@@ -158,7 +158,7 @@ def test_ready_declaration_still_requires_valid_artifacts(checkout, artifact, co
     (['LIST=0'], 'LIST-must-be-1'),
     (['LIST=1', 'VM_IMAGE=unused'], 'VM_IMAGE-refused'),
     (['LIST=1', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'listing-does-not-use-artifacts'),
-    (['SCENARIO=E2E-001', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'selection:pending'),
+    (['SCENARIO=E2E-002', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'selection:pending'),
 ])
 def test_make_target_refusals(assignments, code):
     result = subprocess.run(['/usr/bin/make', '--no-print-directory', 'check-e2e', *assignments],

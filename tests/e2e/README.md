@@ -1,11 +1,15 @@
 # E2E inventory and runner contract
 
-`scenarios.json` is the versioned starting inventory for
-[E2E coverage](../../docs/TestAutomation/E2E-Coverage.md). The original 156
-variants remain **pending**. The additional `E2E-034/serial-controller` harness
-qualification has passed real public execution and final scenario evidence
-validation. [Task 19A is accepted](../../docs/TestAutomation/Evidence/19A-Controller-Acceptance-20260907.md);
-E2E-001's stable matching and customer coverage remain unfinished.
+`scenarios.json` is the versioned inventory for
+[E2E coverage](../../docs/TestAutomation/E2E-Coverage.md): 33 families and
+156 variants. `E2E-001/gdm-observation` is registered for public execution;
+the other 155 variants remain **pending**. Ready is not an acceptance pass:
+Task 19B still requires three complete public qualifications.
+[Task 19A is accepted](../../docs/TestAutomation/Evidence/19A-Controller-Acceptance-20260907.md).
+Its former E2E-034/serial-controller declaration is superseded by E2E-001,
+which retains controller preparation, credentials/assets, command, continuity
+and final evidence assertions and adds stable screen proof. Historical E2E-034
+results retain their original identities; ordinary suites execute one smoke.
 
 The shared worker has guarded live evidence for graphical input, fixture
 credentials, asset transfer, GDM authentication and a real serial command.
@@ -35,8 +39,8 @@ The lower-level `inventory.py --require-runnable` command also refuses any
 selection containing a pending variant; it still only lists and never executes
 anything. Pending cases are never silently filtered to obtain a successful selection.
 
-`tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` and
-`make check-e2e ARTIFACT_DIR=/tmp/onpc-... SCENARIO=E2E-001` currently fail with
+`tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-002` and
+`make check-e2e ARTIFACT_DIR=/tmp/onpc-... SCENARIO=E2E-002` fail with
 `selection:pending`, before artifact access, privilege checks, cleanup tests,
 worker imports or VM operations. Omitting the selector checks the entire
 inventory. `LIST=1` rejects artifact arguments; other nonempty `LIST` values and
@@ -48,7 +52,7 @@ same `runner.preflight`; refresh the latter with `./setup.sh --test-tools-only`
 after dispatcher changes. Development activation is `none` (next invocation),
 with no product or saved-data changes. Missing/unsafe inventory inputs fail
 closed. A fully ready selection requires existing safe artifacts and Python
-controller callbacks. The original 156 cases still refuse as pending.
+controller callbacks. The other 155 cases still refuse as pending.
 There is no bypass, checkpoint or resume option. Listing
 success is declaration inspection, never an E2E pass.
 
@@ -61,20 +65,30 @@ baseline's guest preparation. Execution dispatch must use that capture.
 
 ## Maintain declarations
 
-The additional `E2E-034/serial-controller` case exercises the public controller's
-real preparation, credential/asset forwarding, serial stages and final evidence
-gate. Run `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-034` with
-fresh verified build artifacts. It reuses the qualified serial worker and
-records stage acknowledgments before the next guest input. Actual kernel boot
-identities are independently read and hashed by the fixed `boot` observation;
-all eight observations must agree. No session identity is fabricated.
+Run the canonical smoke with
+`tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` using fresh
+verified build artifacts. Its callback reuses the qualified serial worker and
+records nine acknowledgments before the next guest action: readiness, initial
+GDM, selected empty prompt, Escape return, serial password boundary,
+authenticated serial session, command output, logout, and graphical return.
+The fixed `boot` observation independently hashes the actual kernel boot
+identity; all nine must agree. No session identity is fabricated.
 
-Its screen evidence contains only actual capture dimensions/digests, with raw
-captures retained privately. This qualifies controller composition, not stable
-GDM matching or customer behavior. E2E-001 and all original pending declarations
-retain their owners and acceptance requirements. The extra case uses the same
-inventory, dispatcher, collector and sole lease owner, with no override mode.
-Activation is `none` (next test invocation); no host setup or product data changes.
+E2E-001 retains its stable `step-1`/`step-2`/`step-3` IDs for graphical
+readiness, serial interaction and final graphical evidence. Each observation
+gets a durable recorder checkpoint even when several belong to one step.
+After worker shutdown, the final step validates the completed public module's
+ordered needle matches and requires the return match after the recorded serial
+logout. It reads only those private PNGs to retain dimensions and SHA-256;
+raw captures, terminal output and arbitrary module fields are never exported.
+Identical initial/return pixels are allowed: serial does not change GDM.
+Post-password explicit capture remains sealed; this uses the automatic private
+match result and does not introduce a new screenshot route.
+
+The sole canonical smoke is harness coverage, with no product requirement IDs
+or customer acceptance claim. Host/source/baseline preservation and held-lease
+terminal evidence remain the existing controller's responsibility. Test-tool
+activation is `none` (next invocation); no setup or product data change is needed.
 Before lease acquisition, the controller fsyncs a private
 `input/selected-inputs.json` containing the source preflight identity, inventory
 identity and exact case. The shared SSH bootstrap binds its guest observation
@@ -125,8 +139,8 @@ code: the launcher must enforce lifecycle, secret and observation boundaries.
 
 The inventory pins required run and step field names. `evidence.py` now checks
 runtime payloads against these declarations and `private_artifacts.py` verifies
-collected copies. Public controller integration has passed E2E-034; customer
-coverage and E2E-001 remain their owning tasks' work.
+collected copies. Public controller integration passed the former E2E-034; canonical E2E-001
+qualification and customer coverage remain their owning tasks' work.
 
 | Fields | Required meaning for the collector |
 | --- | --- |
@@ -192,7 +206,7 @@ redaction**. The collector does not OCR images, discover unknown PII, or establi
 that screenshots are safe. Producers must exclude authentication captures, raw
 worker vars/logs, account names and other PII before collection. Secret scanning
 (literal, JSON/URL/base64 and UTF-16 representations) is defense in depth.
-The worker integration exercises these boundaries; E2E-034 exports only capture
+The worker integration exercises these boundaries; The canonical smoke exports only capture
 metadata, with no new pixel/needle acceptance claim.
 
 Files are bounded to 16 MiB, copied as 0600 into 0700 storage, and identified
@@ -255,7 +269,7 @@ changes at these boundaries; they are not a filesystem monitor.
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
 VM provenance or customer behavior. E2E-034 supplies separate live public
-controller proof; the original 156 variants remain pending.
+controller proof; 155 customer/fault variants remain pending.
 
 ## Verify edits
 
@@ -393,7 +407,7 @@ checkpoint errors, cleanup failure, late validation and release failure.
 The serial transport has separate live qualification, and E2E-034 now proves
 this adapter within the public controller. Public dispatch and preparation/
 terminal failure reporting are connected as described below.
-Reviewed screens and E2E-001 remain 19B work. Test-tool activation is `none` (next
+E2E-001 public stability qualification remains 19B work. Test-tool activation is `none` (next
 invocation); no product data or installation changes.
 
 ### Public execution and terminal reporting
@@ -573,6 +587,41 @@ fixture pixels are retained in these assets; unrelated identities and clocks
 remain outside them. Other roles/surfaces still require reviewed needles and
 live positive/negative qualification before input. No coordinate fallback exists.
 
+### GDM readiness and graphical return
+
+`lib/onpc_gdm.pm` shares the existing reviewed GDM needles. `wait_list(90)`
+allows the initial display handoff to finish; later matches use 30-second
+deadlines. The smoke explicitly selects `sut` first: backend display activation
+alone does not set the public current-console identity. It requires that console
+and an actual account-label match. `select_parent()` matches/clicks that account and recognizes its empty,
+focused password prompt, then deliberately checks that the account-list needle
+refuses the prompt. `dismiss_prompt()` sends Escape and requires the list again.
+The serial helper calls `return_from_serial()` only after independently observed
+logout; it selects `sut` and requires a fresh account-list match before success.
+There is no fixed ten-second render delay or whole-screen stillness gate in
+this graphical/serial smoke path. The separate credential qualification retains
+its settling check at the other parent's negative-prompt boundary.
+
+Account needles have a single matched region and an explicit public
+`click_point`, relative to that region and strictly inside it. Staging rejects
+out-of-region points, extra point options, and password-needle click points.
+The [public test API](https://github.com/os-autoinst/os-autoinst/blob/master/testapi.pm)
+documents `assert_screen`, `assert_and_click` and console selection; the installed
+pinned API is also checked locally. Existing pixels, 100% thresholds, clock and
+animation exclusions remain unchanged.
+
+Each public match retains its screenshot and match details in the private
+`testresults/result-smoke.json`; missing screens fail at the declared deadline
+and leave private failure artifacts. Post-authentication explicit captures stay
+sealed, including after graphical return. Never export automatic captures or
+terminal logs as reviewed evidence without inspecting and redacting them.
+Run `tools/run-tests integration check_graphical_serial` for the smallest live
+helper qualification. Its live result is already retained; do not repeat it
+to resume implementation. E2E-001 now records the complete ordered evidence;
+Task 19B acceptance requires three complete public qualifications. The [helper qualification](../../docs/TestAutomation/Evidence/19B-GDM-Matching-20260908.md)
+retains the corrected live success, deliberate negative match, original failure
+and source identities; do not repeat it merely to resume implementation.
+
 Host regressions execute the real Perl helper with stubbed public testapi calls,
 and cover provisioning ownership, password verification, private storage,
 secret-scanned evidence, needle inputs and interrupted staging/worker cleanup.
@@ -681,6 +730,5 @@ lease is held, writes the diagnostic report, verifies its private copies and
 rechecks provenance before release. A `finalization-rejected` event is terminal,
 including after an earlier candidate pass. The final `result.json` also accounts
 for release/connection errors. These reports have diagnostic qualification scope,
-no scenario ID, no inventory override and no customer assertions. All original
-156 variants, including E2E-001, remain pending; E2E-034 separately exercises
-the public scenario recorder and terminal invocation gate.
+no scenario ID, no inventory override and no customer assertions. The 155 customer/fault variants remain pending. E2E-001 is the canonical
+public scenario recorder and terminal invocation smoke, superseding E2E-034.

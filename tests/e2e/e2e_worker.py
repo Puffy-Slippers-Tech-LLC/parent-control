@@ -65,7 +65,7 @@ def validate_needles(files):
                 and type(document['area']) is list and 1 <= len(document['area']) <= 8,
                 'e2e:needle-schema')
         for area in document['area']:
-            require(type(area) is dict and set(area) == {'xpos', 'ypos', 'width', 'height',
+            require(type(area) is dict and set(area) - {'click_point'} == {'xpos', 'ypos', 'width', 'height',
                                                        'type', 'match'}
                     and area['type'] == 'match'
                     and all(type(area[key]) is int for key in ('xpos', 'ypos', 'width', 'height', 'match'))
@@ -73,6 +73,13 @@ def validate_needles(files):
                     and 0 <= area['xpos'] < width and 0 <= area['ypos'] < height
                     and 1 <= area['width'] <= width - area['xpos']
                     and 1 <= area['height'] <= height - area['ypos'], 'e2e:needle-area')
+            if 'click_point' in area:
+                point = area['click_point']
+                require(name.endswith('-account.json') and len(document['area']) == 1
+                        and type(point) is dict and set(point) == {'xpos', 'ypos'}
+                        and all(type(point[key]) is int for key in ('xpos', 'ypos'))
+                        and 0 < point['xpos'] < area['width']
+                        and 0 < point['ypos'] < area['height'], 'e2e:needle-click-point')
 
 
 def distribution_inputs():

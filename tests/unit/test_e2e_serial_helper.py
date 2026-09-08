@@ -23,6 +23,12 @@ sub get_var { return $main::mode eq 'video' ? 0 : 1; }
 sub get_required_var { return $main::mode eq 'control' ? "unsafe\n" : 'private-canary'; }
 sub select_console { $main::selected = $_[0]; push @main::events, 'console:' . $_[0]; }
 sub current_console { return $main::mode eq 'console' ? 'sut' : $main::selected; }
+sub assert_screen {
+    die 'wrong graphical match' unless $_[0] eq 'onpc-gdm-parent-account' && $_[1] == 30;
+    push @main::events, 'gdm-match';
+    die 'private-canary' if $main::mode eq 'return-missing';
+    return 1;
+}
 sub wait_serial {
     my ($regex, %opts) = @_;
     die 'unsafe output' unless $opts{quiet} && !$opts{record_output};
@@ -79,7 +85,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, retry => $retry ? 1 : 0,
 
 
 @pytest.mark.parametrize('mode', ['ok', 'double-cr', 'ansi-output', 'shell-not-ready', 'video', 'console', 'prompt', 'wrong-echo', 'process',
-                                 'echo-enabled', 'probe-error', 'control', 'typing', 'echo'])
+                                 'echo-enabled', 'probe-error', 'control', 'typing', 'echo', 'return-missing'])
 def test_serial_secret_boundary_and_command_output(mode):
     result = subprocess.run(['/usr/bin/perl', '-I', str(LIB), '-e', PROBE, mode],
                             capture_output=True, text=True, timeout=10, check=True)
@@ -93,7 +99,10 @@ def test_serial_secret_boundary_and_command_output(mode):
         assert events.index('serial-authenticated') < events.index('serial-command')
         assert events.index('serial-authenticated') < events.index('shell-ready') < events.index('command')
         assert events.index('serial-command') < events.index('logout') < events.index('serial-logout')
-        assert events[-2:] == ['console:sut', 'record']
+        assert events[-5:] == ['console:sut', 'gdm-match', 'record', 'gdm-return', 'record']
+        assert events.index('serial-logout') < events.index('gdm-return')
+    elif mode == 'return-missing':
+        assert 'serial-logout' in events and events[-1] == 'gdm-match'
     elif mode in ('typing', 'echo', 'shell-not-ready'):
         assert 'password' in events and 'serial-command' not in events
         if mode == 'shell-not-ready':

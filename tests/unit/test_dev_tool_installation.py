@@ -78,7 +78,8 @@ def test_rules_render_for_a_checkout_with_spaces(tmp_path):
     root = tmp_path / 'checkout with spaces'
     (root / 'tools').mkdir(parents=True)
     (root / 'config').mkdir()
-    for name in ('run-tests', 'run-unit-tests', 'run-ui-tests', 'diagnose', 'test-vm', 'cleanup-screenshots', 'read-only'):
+    for name in ('run-tests', 'run-unit-tests', 'run-ui-tests', 'diagnose', 'test-vm',
+                 'cleanup-screenshots', 'read-only', 'codex_slices.py'):
         shutil.copy2(ROOT / 'tools' / name, root / 'tools' / name)
     shutil.copy2(ROOT / 'config/codex-tests.rules', root / 'config/codex-tests.rules')
     rendered = rules['render'](root)

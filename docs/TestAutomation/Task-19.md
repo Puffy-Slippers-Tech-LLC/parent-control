@@ -80,7 +80,7 @@ handoff's settings for the next slice.
 
 Accepted on 2026-09-07; the work list below defines the accepted scope.
 The [completion record](#task-19a-continuation--2026-09-07) links its evidence.
-Continue with [19B](#task-19b-continuation--2026-09-07).
+Continue with [19B](#task-19b-continuation--2026-09-08).
 
 - Title: Add the guarded os-autoinst worker and console transport.
 - Depends on: Task 19P and F1; the preferred schedule follows Task 14.
@@ -167,7 +167,7 @@ resumed without duplicate execution. Final VM status was off (`state=5, id=-1`).
 No operation needs recovery. Later edits are documentation only; new
 package-bearing attempts require fresh verified build inputs.
 
-**Remaining 19A: zero sessions.** Use the [19B handoff](#task-19b-continuation--2026-09-07)
+**Remaining 19A: zero sessions.** Use the [19B handoff](#task-19b-continuation--2026-09-08)
 for the next implementation result and settings. Do not reopen public dispatch,
 bootstrap, serial transport or controller acceptance merely because the chat is new.
 
@@ -199,46 +199,52 @@ bootstrap, serial transport or controller acceptance merely because the chat is 
   for user journeys, without host-window automation, unguarded domain access,
   or VM state shortcuts. Screen/step evidence records actual input and outcomes.
 
-### Task 19B continuation — 2026-09-07
+### Task 19B continuation — 2026-09-08
 
-**Next observable result:** replace fixed render settling with stable GDM and
-return-to-graphics matching, then implement E2E-001's actual ordered evidence
-through the accepted public controller. Dev-host and the existing guarded VM
-scope persist. 19A is complete; the original 156 variants remain pending.
+**Solid progress:** E2E-001 now implements the complete ordered public recorder.
+Nine acknowledged stages include independent GDM-return observation; every
+stage checkpoints before further input. The completed module's private match
+screens must prove return after real serial logout, with only fixed metadata
+exported. Explicit post-password capture stays sealed. E2E-001 supersedes the
+duplicate E2E-034 declaration without dropping controller assertions. Inventory:
+33 families / 156 variants; one ready runner smoke, 155 pending variants.
+19A remains accepted; **19B remains unchecked**. See the
+[implementation and refusal evidence](Evidence/19B-Ordered-Recorder-20260908.md).
+Dev-host/existing guarded VM authorization persists.
 
-**Reuse/read first:** `tests/e2e/controller_qualification.py:execute`,
-`tests/integration/graphical_smoke/tests/smoke.pm`, its `lib/onpc_password.pm`
-and `lib/onpc_serial.pm`, the current paired needles, and the E2E-001 declaration.
-Use the [public execution contract](../../tests/e2e/README.md#public-execution-and-terminal-reporting)
-and [19A acceptance](Evidence/19A-Controller-Acceptance-20260907.md) for proven
-interfaces. The same source-verified worker, fixed observation probes, secret
-registry, asset provisioner and lease finalizer already work together. There is
-no bootstrap or serial blocker to rediscover.
+**Next observable result:** three complete public E2E-001 qualifications on an
+unchanged checkout, followed by screen/serial/secret-exclusion and terminal
+cleanup review. No callback implementation or standalone helper diagnosis needs
+repeating. Read `controller_qualification.py:execute,matched_screens`,
+`check_graphical_smoke.py:Smoke,SERIAL_STAGES`, the E2E-001 declaration, and the
+[public contract](../../tests/e2e/README.md#maintain-declarations).
 
-**Qualification boundary:** E2E-034 collects screen dimensions/digests only;
-it does not accept stable screen meaning. Add reviewed needles/readiness and
-actual pre/post-console screen assertions, preserve secret-safe capture, and
-run three complete corrected-input qualification attempts for the changed
-harness. Preserve failures and apply the two-attempt diagnostic rule. Reuse
-the current callback rather than introducing another controller. Reconcile
-shared E2E-001/E2E-034 coverage as their implementations converge so ordinary
-execution does not multiply implementation-only qualification work.
+**Concrete blocker:** two public invocations encountered concurrent source
+changes. First refused before the lease; the rebuilt attempt passed preparation
+but failed `provenance:source-changed` during credential setup. Unrelated
+`docs/TestAutomation/Unattended-Prompt.md` and `tools/codex_slices.py` appeared
+during the attempt and were preserved. Other writers must pause before another
+expensive attempt; the pause was requested but not confirmed. Do not loop,
+exclude source paths, or modify manifests. No graphical worker ran, so this is
+not evidence of a callback/needle failure or a successful qualification.
 
-**Verification/state:** final host check passed 2,502 unit/contracts and 17
-components; E2E-034 passed final public output/exit 0. All handles exited and
-the VM was confirmed off. No export, recovery or setup operation remains.
-Documentation edits followed acceptance, so build fresh package artifacts for
-the next VM run. First focused host selection: `tools/run-unit-tests
-tests/unit/test_e2e_needle_inputs.py tests/unit/test_e2e_shutdown.py
-tests/unit/test_graphical_smoke.py
-tests/unit/test_e2e_controller_qualification_cleanup_safety.py -q`; run after
-the affected edits, with isolated safety prerequisites before live controls.
+**Verification/state:** final `make check` 8195 passed 2,540 unit/contracts,
+17 components, syntax/traceability; 19 new host cases. Isolated safety: 447 plus
+3 subtests. All handles exited; restoration reached lease phase `complete`;
+VM confirmed off. Source preservation, collection and overall cleanup evidence
+remain failed, as recorded. Exact inputs, paths and 742 seconds of guarded
+attempt stages are in the evidence. Unrelated additions and later handoff edits
+postdate the host check; new package-bearing attempts require fresh artifacts.
+
+**Next command:** once writers are paused, `tools/run-tests artifacts build`,
+then `tools/run-tests e2e --artifacts <new-output> --scenario E2E-001` (the
+launcher supplies isolated safety checks). Preserve all failures and finish
+three consecutive complete qualifications plus final acceptance checks.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** transport/controller composition is proven; screen matching and
-credential/capture readiness still cross a safety boundary.
-**Remaining 19B:** approximately **two substantial sessions / 3–5 hours**,
-moderate-to-low confidence. The measured public invocation took 25 minutes
-(worker 49 seconds); three full qualifications may consume about 75 minutes
-before needle/readiness implementation and corrections. Reassess after its
-first stable batch. 19A needs no further session.
+**Reason:** helper matching and host recorder refusals are proven; real ordered
+screen evidence and terminal cleanup still need qualification.
+**Remaining 19B:** **one uninterrupted substantial session / 90–120 minutes**
+after writers pause; allow another correction session for a newly exposed
+callback defect. This advances from the incoming 2–3-hour implementation estimate.
+19A needs zero further sessions.

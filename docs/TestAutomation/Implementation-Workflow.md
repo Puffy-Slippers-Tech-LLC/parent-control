@@ -25,6 +25,10 @@ omission of necessary work. This is the single implementation session procedure.
    requires this pause. Do not investigate code or run tests before confirmation.
    Explicit session instructions take precedence; do not request an approval
    already given for this session or repeat the machine-selection question.
+   The [unattended launcher](Unattended-Sessions.md) supplies explicit advance
+   authorization for its successive slices and selected settings, so those
+   sessions proceed without the interactive pause. All execution and acceptance
+   boundaries still apply.
 3. After confirmation, inspect working-tree status and relevant changes. For
    architecture read [System-Design.md](../System-Design.md), then the owning
    module and applicable specification IDs. The task's first slice and optional

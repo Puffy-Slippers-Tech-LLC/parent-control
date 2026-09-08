@@ -80,7 +80,7 @@ class ScenarioRecorder:
     def checkpoint(self, event):
         """Only fixed controller events and structured records enter reports."""
         require(event in {'case-started', 'step-started', 'step-ended', 'assertion',
-                          'failure', 'before-cleanup', 'case-ended', 'gate-rejected'},
+                          'failure', 'before-cleanup', 'case-ended', 'gate-rejected', 'observation'},
                 'recording:event')
         self._sequence += 1
         try:

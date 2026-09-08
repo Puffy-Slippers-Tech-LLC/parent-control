@@ -1,4 +1,4 @@
-"""Guarded, credential-free generalhw execution shared with the qualified smoke.
+"""Guarded generalhw execution shared with the qualified smoke.
 
 The caller owns the prepared lease and its outer restoration. This module owns
 only the callback server and recorded worker. It exports structured diagnostics,
@@ -40,7 +40,7 @@ def validate_needles(files):
     names = {name for name in files if name.startswith('needles/')}
     for name in names:
         require(re.fullmatch(r'needles/onpc-(gdm|polkit|lock)-(parent|child|other-parent|other-child)'
-                             r'-masked-password\.(png|json)', name),
+                             r'-(masked-password|account)\.(png|json)', name),
                 'e2e:needle-name')
         require(name.rsplit('.', 1)[0] + ('.png' if name.endswith('.json') else '.json') in names,
                 'e2e:needle-pair')
@@ -167,7 +167,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
               'raw_capture': 'private-not-approved-for-export',
               'worker_stopped': False, 'callback_closed': False}
     # Credentials may come only from completed, same-lease provisioning. The
-    # fixed smoke still performs no password entry; all raw output stays private.
+    # credential qualification performs GDM input; all raw output stays private.
     if credentials is not None:
         from fixture_credentials import FixtureCredentials
         require(type(credentials) is FixtureCredentials, 'e2e:fixture-credentials')

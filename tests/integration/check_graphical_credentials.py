@@ -1,8 +1,8 @@
 #!/usr/bin/python3
-"""Guarded fixture provisioning/staging qualification; no password entry yet.
+"""Guarded fixture provisioning and real GDM authentication qualification.
 
 The existing owner restores the accepted baseline before and after the entire
-attempt. This is runner qualification, never customer authentication evidence.
+attempt. This is runner qualification, not a complete customer scenario.
 """
 
 import sys

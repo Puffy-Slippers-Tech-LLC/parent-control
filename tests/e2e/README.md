@@ -3,15 +3,14 @@
 `scenarios.json` is the versioned starting inventory for
 [E2E coverage](../../docs/TestAutomation/E2E-Coverage.md). All 156 variants are
 currently **pending**. Inventory validation is host unit coverage; it does not
-establish graphical behavior or complete Task 19A. The runtime evidence gate
-and private collector have host-only regression coverage. The shared worker now
-uses the private collector for diagnostics and has passed one guarded VM smoke.
-The inventory-gated launcher and `make check-e2e` now support listing and
-explicit execution refusal before privilege checks. Controller-owned provenance
-capture and preservation checks now have host regression coverage. Ordered
-controller recording and worker failure checkpoints also have host coverage.
-The credential-free qualification now wires lease finalization, provenance
-and observed-stage checkpoints; scenario execution dispatch remains unfinished.
+establish graphical behavior or complete Task 19A. The shared worker has guarded
+live evidence for graphical input, fixture credential provisioning, asset
+transfer and fixture GDM authentication. Qualification reports record provenance,
+observed stages, failures and held-lease finalization through the private
+collector. These reports do not replace scenario `EvidenceContract` records.
+The inventory-gated launcher and `make check-e2e` support listing and explicit
+execution refusal before privilege checks; scenario execution dispatch and the
+public serial-command smoke remain unfinished.
 
 ## Inspect scope on the host
 
@@ -432,28 +431,38 @@ the outer lease. Private password files and raw backend output are not exportabl
 evidence; their values are registered before provisioning and capture.
 
 Run `tools/run-tests integration check_graphical_credentials` for its guarded
-qualification: provision, verify all four passwords, stage the worker secrets,
-execute the existing credential-free graphical actions, and restore the baseline.
-This route has no arguments, performs no login, and does not open customer
-scenario dispatch. The [live evidence](../../docs/TestAutomation/Evidence/19A-Fixture-Credentials-20260907.md)
-records a complete pass and the separately passed asset-transfer qualification.
+qualification: provision and verify all four passwords, stage the worker secrets,
+select the fixture parent by its reviewed label, reject the parent password
+needle on both the account list and the other fixture parent's prompt, then
+authenticate the intended parent through the secret-safe password API. The
+controller requires an independently verified active local GDM session for the
+canonical fixture before accepting the `authenticated` stage. It refuses explicit
+post-password screenshot uploads. The outer owner restores the baseline.
+This route has no arguments and does not open customer scenario dispatch.
+The [authentication evidence](../../docs/TestAutomation/Evidence/19A-Authentication-20260907.md)
+records the complete positive/negative live pass. The earlier
+[credential/transfer evidence](../../docs/TestAutomation/Evidence/19A-Fixture-Credentials-20260907.md)
+remains available with its original input identities.
 
 Distribution staging now accepts strictly paired PNG/JSON needles under
-`needles/onpc-<surface>-<role>-masked-password.*`, with matching tags, bounded
+`needles/onpc-<surface>-<role>-{account,masked-password}.*`, with matching tags, bounded
 dimensions/rectangles and 99–100% match thresholds. Both files enter the same
 source digest map and frozen copy as Perl sources. Missing pairs, extra fields,
 generic tags, links and changed bytes refuse before backend startup. Structural
-validation does not establish visual meaning: no real needles are qualified yet.
-The feasibility smoke's first tile selects an unrelated baseline account; its
-private captures must not become public needle assets or authorize a fixture
-password. First select the intended fixture using reviewed screen matching,
-then prove the identity and empty/focused/masked field together. Keep password
-entry disabled until real positive and negative matches are verified.
+validation does not establish visual meaning. Reviewed GDM parent/other-parent
+account labels and the parent password prompt now have live evidence at 100%.
+The password needle jointly matches the fixture identity, empty field/visibility
+control and focus outline, excluding the blinking caret. Retain a small surrounding
+pixel margin: the matcher's blur reads neighboring pixels, so masking exactly
+at a match rectangle can reduce even an identical region's score. Only reviewed
+fixture pixels are retained in these assets; unrelated identities and clocks
+remain outside them. Other roles/surfaces still require reviewed needles and
+live positive/negative qualification before input. No coordinate fallback exists.
 
 Host regressions execute the real Perl helper with stubbed public testapi calls,
 and cover provisioning ownership, password verification, private storage,
 secret-scanned evidence, needle inputs and interrupted staging/worker cleanup.
-Live password input and serial-console execution remain unfinished. Test-tool
+GDM parent password input has passed; serial-console execution remains unfinished. Test-tool
 activation is `none` (next invocation); product data and accepted baseline are
 unchanged. `setup.sh` installs the pinned OpenSSL dependency on clean hosts.
 
@@ -461,7 +470,7 @@ unchanged. `setup.sh` installs the pinned OpenSSL dependency on clean hosts.
 
 The graphical controller keeps SSH readiness in its provisioning boundary,
 then exposes `ReadOnlyObservations` to stage/asset observation code. Its only
-operation is `read('assets')` or `read('greeter')`. The versioned programs in
+operation is `read('assets')`, `read('greeter')` or `read('parent-session')`. The versioned programs in
 `guest_observations.py` are fixed: scenarios cannot supply shell commands,
 paths, stdin, timeout overrides, package operations, policy writes or resets.
 Adding a probe requires maintained code, explicit output validation and tests;
@@ -469,7 +478,11 @@ there is no guest-selected helper or dynamic command registration.
 
 Each read checks the pinned transport configuration and the existing lease
 guard before execution and before accepting output. Asset output must be the
-canonical count/digest receipt; greeter output must be the exact success marker.
+canonical count/digest receipt; greeter/session output must be its exact success marker.
+The parent-session probe resolves the canonical fixture's real guest UID and
+requires exactly one active local graphical `gdm-password` session. Wrong users,
+inactive/remote/TTY sessions, duplicates and other user sessions cannot pass.
+Only the root SSH observer session is exempted from the other-user gate.
 Only validated fields return to the controller. Unknown probes, malformed output,
 transport/ownership failures and interruption latch failure for that observer.
 Public diagnostics contain fixed codes, never raw guest output or exception text.
@@ -477,11 +490,10 @@ Raw command diagnostics still belong to private controller storage, not reviewed
 evidence. This is a capability boundary for trusted Python scenario code, not
 a sandbox against code that deliberately imports the provisioning transport.
 
-The asset and greeter probes now use this interface. Host tests cover their
-real program logic plus routing, refusal, output and interruption behavior;
-the changed live route still needs guarded qualification. This SSH observation
-interface does not satisfy the remaining authenticated serial-command smoke
-or masked-prompt/secret/capture acceptance. The helpers are development-only,
+All three probes have guarded live evidence. Host tests cover program logic,
+routing, refusal, output and interruption behavior. This SSH observation
+interface does not satisfy the remaining public serial-command smoke or full
+scenario evidence/capture acceptance. The helpers are development-only,
 activate on next invocation (`none`), and change no product data or setup policy.
 
 `tests/unit/test_e2e_worker_cleanup_safety.py` covers ownership refusal, stale

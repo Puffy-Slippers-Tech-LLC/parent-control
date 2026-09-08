@@ -26,6 +26,9 @@ def observer():
      (json.dumps({'files': 3, 'sha256': 'a' * 64}, sort_keys=True) + '\n').encode()),
     ('greeter', guest_observations.GREETER, 110,
      {'active_graphical_greeter': True, 'unexpected_user_session': False}, b'greeter-ready\n'),
+    ('parent-session', guest_observations.PARENT_SESSION, 110,
+     {'fixture_role': 'parent', 'active_local_graphical_session': True,
+      'unexpected_user_session': False}, b'parent-session-ready\n'),
 ])
 def test_fixed_probe_checks_ownership_before_and_after_output(observer, name, program, timeout, result, raw):
     reader, transport = observer
@@ -116,3 +119,52 @@ def test_greeter_requires_exact_safe_success(observer, raw):
     transport.call.return_value = raw
     with pytest.raises(EvidenceError, match='invalid-output'):
         reader.read('greeter')
+
+
+@pytest.mark.parametrize('raw', [b'parent-session-ready', b'greeter-ready\n',
+                               b'parent-session-ready\nprivate-canary', b'parent-session-not-ready\n'])
+def test_authentication_requires_exact_safe_success(observer, raw):
+    reader, transport = observer
+    transport.call.return_value = raw
+    with pytest.raises(EvidenceError, match='invalid-output'):
+        reader.read('parent-session')
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-user', 'inactive', 'remote', 'tty',
+                                  'wrong-service', 'greeter', 'duplicate', 'other-session'])
+def test_actual_guest_authentication_probe_rejects_wrong_sessions(fault, capsys):
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    parent = dict(Class='user', Active='yes', Remote='no', Type='wayland',
+                  Service='gdm-password', User='1234')
+    fields = {'wrong-user': ('User', '9876'), 'inactive': ('Active', 'no'),
+              'remote': ('Remote', 'yes'), 'tty': ('Type', 'tty'),
+              'wrong-service': ('Service', 'sshd'), 'greeter': ('Class', 'greeter')}
+    if fault in fields:
+        key, value = fields[fault]
+        parent[key] = value
+    sessions = {'parent': parent, 'observer': dict(Class='user', Active='yes', Remote='yes',
+                                                 Type='tty', Service='sshd', User='0')}
+    if fault in ('duplicate', 'other-session'):
+        sessions['extra'] = dict(parent, User='1234' if fault == 'duplicate' else '9876')
+    clock = [0]
+    def call(args, **kwargs):
+        assert kwargs['check'] and 0 < kwargs['timeout'] <= 10
+        assert args[:2] in (('loginctl', 'list-sessions'), ('loginctl', 'show-session'))
+        output = ('\n'.join(sessions) if args[1] == 'list-sessions' else
+                  '\n'.join(key + '=' + value for key, value in sessions[args[2]].items()))
+        return SimpleNamespace(stdout=output)
+    def account(name):
+        assert name == 'onpc-parent-jamie'
+        return SimpleNamespace(pw_uid=1234)
+    modules = {'subprocess': SimpleNamespace(run=call), 'pwd': SimpleNamespace(getpwnam=account),
+               'time': SimpleNamespace(monotonic=lambda: clock[0],
+                                       sleep=lambda _: clock.__setitem__(0, 100))}
+    with patch.dict(sys.modules, modules):
+        if fault:
+            with pytest.raises(SystemExit) as caught:
+                exec(guest_observations.PARENT_SESSION, {})
+            assert caught.value.code == 1
+        else:
+            exec(guest_observations.PARENT_SESSION, {})
+    assert capsys.readouterr().out == ('parent-session-not-ready\n' if fault else 'parent-session-ready\n')

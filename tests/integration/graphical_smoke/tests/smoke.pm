@@ -32,7 +32,7 @@ sub capture {
 }
 
 sub run {
-    exchange('ready', undef);
+    my $ready = exchange('ready', undef);
     # The guest-side greeter session can become active while Plymouth is still
     # handing the display to GDM.  Give that supported session transition time
     # to render before asking for a stable feasibility capture.  Task 19B will
@@ -40,18 +40,33 @@ sub run {
     sleep 10;
     wait_still_screen(2, 30);
     my $screen = capture('gdm');
-    # The first user tile is a large, stable target on this fixed product-free
-    # baseline. The tiny status icons vary with the GNOME theme and are not a
-    # suitable transport feasibility target; Task 19B adds needle-based UI
-    # helpers. Selecting a user remains credential-free and changes no state.
-    mouse_set(int($screen->{width} / 2), int($screen->{height} * 0.14));
-    wait_still_screen(1, 10);
-    die 'smoke:mouse-no-change' unless wait_screen_change(sub { mouse_click('left'); }, 15);
+    # Match only the reviewed canonical fixture label. The match area's center
+    # is inside that account tile; no baseline ordering/coordinate fallback.
+    die 'smoke:mouse-no-change' unless wait_screen_change(sub {
+        assert_and_click('onpc-gdm-parent-account', timeout => 30, mousehide => 1);
+    }, 15);
     wait_still_screen(1, 10);
     capture('selected');
     die 'smoke:keyboard-no-change' unless wait_screen_change(sub { send_key('esc'); }, 15);
     wait_still_screen(1, 10);
     capture('dismissed');
+    if ($ready->{authenticate}) {
+        # Prove the role-specific password needle refuses the account list
+        # before allowing any secret operation. A failed assertion stops here.
+        die 'smoke:prompt-false-positive' if check_screen('onpc-gdm-parent-masked-password', 1);
+        assert_and_click('onpc-gdm-other-parent-account', timeout => 30, mousehide => 1);
+        wait_still_screen(1, 10);
+        die 'smoke:wrong-role-prompt' if check_screen('onpc-gdm-parent-masked-password', 1);
+        record_info('prompt-refusal', 'Parent password needle refused the account list and other fixture prompt.');
+        send_key('esc');
+        assert_and_click('onpc-gdm-parent-account', timeout => 30, mousehide => 1);
+        onpc_password::enter_password('parent', 'gdm');
+        send_key('ret');
+        # The controller waits for the actual canonical fixture's local GDM
+        # session. No raw authentication screen or terminal output is exported.
+        exchange('authenticated', undef);
+        record_info('authentication', 'Fixture graphical session independently verified.');
+    }
     record_info('smoke', 'Credential-free mouse and keyboard screen changes completed.');
 }
 

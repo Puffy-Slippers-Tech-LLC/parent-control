@@ -38,8 +38,9 @@ the implementation model-confirmation step.
 For Codex execution, use the validated category commands in the
 [test and diagnostic approval guide](TestAutomation/Approval-Tools.md).
 `tools/run-tests --list` includes current layers and stable routes for the
-planned suites. The planned E2E and aggregate routes refuse execution until
-their guarded runners exist; approval coverage is not suite implementation.
+planned suites. E2E executes ready declarations through its guarded controller
+and refuses pending selections before VM access. Future aggregate routes still
+refuse until their runners exist; approval coverage is not suite implementation.
 The same guide covers read-only system diagnostics and maintenance of only the
 pinned test VM, with no recurring per-file or per-operation authorization.
 
@@ -95,8 +96,8 @@ included in today's `make check`.
 | `make check-system LIST=1 [AREA=<area> [TEST=<case-id>]]` | Host-safe installed-case inventory and prerequisite resolution; no artifacts, root, or VM use. |
 | `make check-system ARTIFACT_DIR=<verified-directory>` | Existing guarded installed-system runner; detailed coverage is still being completed. |
 | `make check-system ARTIFACT_DIR=<verified-directory> AREA=<area> [TEST=<case-id>]` | Guarded partial installed run for registered `package` or `authorization` scope, including required package/reboot phases. |
-| `make check-e2e LIST=1 [SCENARIO=<family-or-variant>]` | Host-safe inventory through the validated E2E launcher; all current variants are pending. |
-| `make check-e2e ARTIFACT_DIR=<verified-directory> [SCENARIO=<family-or-variant>]` | Implemented selection/refusal boundary; pending cases fail before privilege or VM access. Actual execution remains unfinished under Task 19A. |
+| `make check-e2e LIST=1 [SCENARIO=<family-or-variant>]` | Host-safe inventory through the validated E2E launcher; E2E-034 is runnable, while the original 156 variants remain pending. |
+| `make check-e2e ARTIFACT_DIR=<verified-directory> [SCENARIO=<family-or-variant>]` | Ready Python callbacks dispatch through the accepted guarded controller. E2E-034 qualifies real serial execution and final evidence/cleanup; pending selections refuse before privilege or VM access. Stable E2E-001 matching remains Task 19B. |
 
 Selected runs record their exact expected and executed JUnit identities and
 reject missing, additional, duplicate, failed, or skipped cases. They are

@@ -23,7 +23,9 @@ and handoff. The reordered backlog brings [F1](Task-F1.md)'s focused diagnosis
 forward from Tasks 28/27 and [19P](Task-19.md#task-19p)'s feasibility check from
 19A. Neither restarts completed setup. Task 14 is accepted; its
 [completion handoff](Task-14.md#completion-handoff--2026-09-06-accepted) retains
-the final evidence. Task 19A is next.
+the final evidence. Task 19A is also accepted; its
+[controller audit](Evidence/19A-Controller-Acceptance-20260907.md) retains the
+live execution and failure evidence. Task 19B is next.
 Finish an already-running owned guarded attempt and its cleanup before changing
 implementation tasks. Do not duplicate changing evidence or machine state here.
 
@@ -136,7 +138,7 @@ not release passes. Use measured slice/attempt times to forecast remaining work.
 - [x] [Task F1 — Focused installed diagnosis, moved forward from Tasks 28/27](Task-F1.md)
 - [x] [Task 19P — Prove graphical backend compatibility](Task-19.md#task-19p)
 - [x] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md)
-- [ ] [Task 19A — Add the guarded os-autoinst worker and console transport](Task-19.md#task-19a)
+- [x] [Task 19A — Add the guarded os-autoinst worker and console transport](Task-19.md#task-19a)
 - [ ] [Task 19B — Add stable screen matching and graphical smoke](Task-19.md#task-19b)
 - [ ] [Task 20 — Automate clean installation, reboot, and startup readiness](Task-20.md)
 - [ ] [Task 15A — Test installed catalog and application launch enforcement](Task-15.md#task-15a)

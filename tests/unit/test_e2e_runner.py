@@ -24,7 +24,7 @@ sys.path.pop(0)
 @pytest.fixture
 def checkout(tmp_path):
     for relative in ('tests/e2e/runner.py', 'tests/e2e/inventory.py',
-                     'tests/e2e/scenarios.json', 'tests/requirements.json',
+                     'tests/e2e/scenarios.json', 'tests/e2e/controller_qualification.py', 'tests/requirements.json',
                      'docs/TestAutomation/E2E-Coverage.md'):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -34,7 +34,8 @@ def checkout(tmp_path):
 
 def test_full_listing_keeps_pending_cases_and_exact_digest():
     plan = runner['preflight'](['--list'])
-    assert len(plan['cases']) == len(plan['pending_cases']) == 156
+    assert len(plan['cases']) == 157
+    assert len(plan['pending_cases']) == 156
     assert plan['scope'] == 'full'
     assert plan['mode'] == 'list-only'
     assert plan['inventory_sha256'] == hashlib.sha256(
@@ -136,9 +137,9 @@ def test_malformed_inventory_is_refused_without_echoing_contents(checkout):
     (None, 'artifacts-required'), ('relative', 'invalid-artifact-directory'),
     ('/tmp/unscoped', 'invalid-artifact-directory'),
     ('/tmp/onpc-test/../other', 'invalid-artifact-directory'),
-    ('/tmp/onpc-future', 'execution-controller-unfinished'),
+    ('/tmp/onpc-future', 'missing-artifact-directory'),
 ])
-def test_ready_declaration_cannot_enable_unfinished_controller(checkout, artifact, code):
+def test_ready_declaration_still_requires_valid_artifacts(checkout, artifact, code):
     path = checkout / 'tests/e2e/scenarios.json'
     document = json.loads(path.read_text())
     document['scenarios'] = document['scenarios'][:1]

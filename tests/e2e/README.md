@@ -1,17 +1,18 @@
 # E2E inventory and runner contract
 
 `scenarios.json` is the versioned starting inventory for
-[E2E coverage](../../docs/TestAutomation/E2E-Coverage.md). All 156 variants are
-currently **pending**. Inventory validation is host unit coverage; it does not
-establish graphical behavior or complete Task 19A. The shared worker has guarded
-live evidence for graphical input, fixture credential provisioning, asset
-transfer, fixture GDM authentication and a real serial command. Qualification reports record provenance,
-observed stages, failures and held-lease finalization through the private
-collector. These reports do not replace scenario `EvidenceContract` records.
-The inventory-gated launcher and `make check-e2e` support listing and explicit
-execution refusal before privilege checks; scenario execution dispatch remains
-unfinished. The discovered generalhw shutdown-status gap is resolved by the
-[shutdown qualification](../../docs/TestAutomation/Evidence/19A-Shutdown-20260907.md).
+[E2E coverage](../../docs/TestAutomation/E2E-Coverage.md). The original 156
+variants remain **pending**. The additional `E2E-034/serial-controller` harness
+qualification has passed real public execution and final scenario evidence
+validation. [Task 19A is accepted](../../docs/TestAutomation/Evidence/19A-Controller-Acceptance-20260907.md);
+E2E-001's stable matching and customer coverage remain unfinished.
+
+The shared worker has guarded live evidence for graphical input, fixture
+credentials, asset transfer, GDM authentication and a real serial command.
+Standalone qualification reports retain their diagnostic scope. Public ready
+Python callbacks use the same worker through `ScenarioRecorder`, the existing
+lease bridge and the `EvidenceContract` gate. Listing and pending-case refusal
+remain host-safe; a listing is never an execution pass.
 
 ## Inspect scope on the host
 
@@ -46,9 +47,9 @@ Both the unprivileged category launcher and installed dispatcher invoke the
 same `runner.preflight`; refresh the latter with `./setup.sh --test-tools-only`
 after dispatcher changes. Development activation is `none` (next invocation),
 with no product or saved-data changes. Missing/unsafe inventory inputs fail
-closed. Even a fully ready declaration cannot run until the execution controller
-is connected: `e2e:execution-controller-unfinished` is an explicit remaining
-implementation gate. There is no bypass, checkpoint or resume option. Listing
+closed. A fully ready selection requires existing safe artifacts and Python
+controller callbacks. The original 156 cases still refuse as pending.
+There is no bypass, checkpoint or resume option. Listing
 success is declaration inspection, never an E2E pass.
 
 The JSON includes canonical case IDs, owner, status/reason, parameters,
@@ -59,6 +60,27 @@ current source, requirement mappings, staged packages/assets and the verified
 baseline's guest preparation. Execution dispatch must use that capture.
 
 ## Maintain declarations
+
+The additional `E2E-034/serial-controller` case exercises the public controller's
+real preparation, credential/asset forwarding, serial stages and final evidence
+gate. Run `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-034` with
+fresh verified build artifacts. It reuses the qualified serial worker and
+records stage acknowledgments before the next guest input. Actual kernel boot
+identities are independently read and hashed by the fixed `boot` observation;
+all eight observations must agree. No session identity is fabricated.
+
+Its screen evidence contains only actual capture dimensions/digests, with raw
+captures retained privately. This qualifies controller composition, not stable
+GDM matching or customer behavior. E2E-001 and all original pending declarations
+retain their owners and acceptance requirements. The extra case uses the same
+inventory, dispatcher, collector and sole lease owner, with no override mode.
+Activation is `none` (next test invocation); no host setup or product data changes.
+Before lease acquisition, the controller fsyncs a private
+`input/selected-inputs.json` containing the source preflight identity, inventory
+identity and exact case. The shared SSH bootstrap binds its guest observation
+marker to that document's digest. This preparation input is required even for
+a product-free case; `VerifiedInputs` still independently verifies the full
+source/package/baseline contract under the lease.
 
 Schema version 1 has common family declarations inherited by each explicit
 variant. Every variant has a stable ID and one canonical owner from the
@@ -85,7 +107,7 @@ before those cases become ready. No existing requirement is marked covered.
 reason or requirement gap and an existing `tests/e2e/*.py` or `*.pm` reference
 (including subdirectories) plus its unique executable test ID. Validation never
 imports or runs those files. Ready means registered for execution, **not passed**;
-the future collector must reconcile actual scheduling and completed results
+the controller reconciles actual scheduling and completed results
 with the selected identities. References cannot traverse outside `tests/e2e`,
 including through a symlink.
 
@@ -103,12 +125,13 @@ code: the launcher must enforce lifecycle, secret and observation boundaries.
 
 The inventory pins required run and step field names. `evidence.py` now checks
 runtime payloads against these declarations and `private_artifacts.py` verifies
-collected copies. The controller integration and real acceptance are pending.
+collected copies. Public controller integration has passed E2E-034; customer
+coverage and E2E-001 remain their owning tasks' work.
 
 | Fields | Required meaning for the collector |
 | --- | --- |
 | `run_id`, `scenario_id`, `variant_id` | One independent attempt and its exact selected identity; reruns have new attempt IDs. |
-| `source_sha256`, `inventory_sha256`, `package_sha256`, `assets_sha256`, `environment_id`, `baseline_sha256` | Current input provenance. A product-free smoke records an explicit null package identity, never an invented package digest. |
+| `source_sha256`, `inventory_sha256`, `package_sha256`, `assets_sha256`, `environment_id`, `baseline_sha256` | Current input provenance. A smoke without package assets records an explicit null package identity, never an invented package digest. Transferred package bytes have their real digest even when not installed. |
 | `started_at`, `ended_at`, `steps` | Actual attempt boundaries and ordered step records, including failure/interruption. |
 | `artifacts` | Collected, validated private artifact references with content digests and redaction status; never credentials or arbitrary raw worker output. |
 | `outcomes`, `first_failure`, `cleanup` | Separate product, infrastructure, collection and cleanup outcomes; preserve the first failure and record lease/host/baseline restoration. A passing diagnostic retry cannot replace it. |
@@ -169,7 +192,8 @@ redaction**. The collector does not OCR images, discover unknown PII, or establi
 that screenshots are safe. Producers must exclude authentication captures, raw
 worker vars/logs, account names and other PII before collection. Secret scanning
 (literal, JSON/URL/base64 and UTF-16 representations) is defense in depth.
-Task 19A's worker integration must implement and exercise these capture boundaries.
+The worker integration exercises these boundaries; E2E-034 exports only capture
+metadata, with no new pixel/needle acceptance claim.
 
 Files are bounded to 16 MiB, copied as 0600 into 0700 storage, and identified
 by digest, size, kind, run and redaction policy. No path traversal, symlink,
@@ -224,14 +248,14 @@ Use `contract(run_id=..., selector=...)` to create the expected evidence contrac
 collector)` after outer cleanup but before releasing the lease. Validation
 checks inputs before and after the existing evidence gate and rejects contracts
 created elsewhere. Any observed input failure is latched: restoring bytes or a
-later successful worker result cannot clear it. The future controller must
-persist this fixed failure code with its other attempt outcomes. Checks detect
+later successful worker result cannot clear it. The controller persists
+this fixed failure code with its other attempt outcomes. Checks detect
 changes at these boundaries; they are not a filesystem monitor.
 
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
-VM provenance or customer behavior. All repository variants remain pending and
-the launcher remains closed until real scenario collection is connected.
+VM provenance or customer behavior. E2E-034 supplies separate live public
+controller proof; the original 156 variants remain pending.
 
 ## Verify edits
 
@@ -276,7 +300,7 @@ returns. A mismatch prevents the ready acknowledgement and latches failure;
 later replies cannot clear it. Ordered checkpoints retain transfer start and
 successful offline verification. The outer lease owns all cleanup, including
 partial transfer failure; the transfer helper never boots, stops or restores.
-This does not complete the remaining authenticated secret/console transport.
+Authenticated secret/console transport uses the separate contracts below.
 Host regressions execute the exact probe against filesystem fixtures, checking
 receipt agreement and malformed trees, ownership, permissions, links, special
 files and changed/missing/extra payloads. They do not replace live qualification.
@@ -366,11 +390,57 @@ Host regressions execute the real recorder, collector, evidence gate and
 `Lease.__exit__`, substituting only VM operations/provenance observations.
 They cover real private copies, action interruption, replacement identities,
 checkpoint errors, cleanup failure, late validation and release failure.
-The serial transport itself has separate live qualification; this adapter has
-host-only verification. Public scenario dispatch, preparation before recorder
-creation, and final invocation reporting remain unfinished under 19A; reviewed
-screens and E2E-001 remain 19B work. Test-tool activation is `none` (next
+The serial transport has separate live qualification, and E2E-034 now proves
+this adapter within the public controller. Public dispatch and preparation/
+terminal failure reporting are connected as described below.
+Reviewed screens and E2E-001 remain 19B work. Test-tool activation is `none` (next
 invocation); no product data or installation changes.
+
+### Public execution and terminal reporting
+
+`runner.main` imports `execution` only after host-safe preflight selects entirely
+ready cases. The installed category dispatcher still owns privilege checks and
+isolated safety prerequisites. `execution.main` requires root and the pinned
+checkout. Each selected case gets one new private raw directory, collector,
+connection and complete lease attempt. Cases run serially; the first failure
+stops further cases, leaving their expected identities visibly unexecuted.
+All attempts must match the first attempt's full independently captured inputs.
+One public libvirt event loop serves these separate connections for the process.
+
+The controller stages and verifies artifacts before VM acquisition, prepares
+the existing lease and observation bootstrap, then captures `VerifiedInputs`.
+The inventory digest and exact case declaration must still match preflight.
+It registers fixture secrets before any reports, including preparation reports.
+Failures before a recorder exists retain invocation diagnostics and use only
+the entered lease's restoration/release. No synthetic scenario actions are
+invented for failed preparation.
+
+A ready Python module defines `E2E_CASES = {'<test_id>': callback}`. The loader
+checks its bytes against the frozen source map before executing them and
+rechecks provenance before calling `callback(recorder, context)`. Module code
+is trusted checkout code; it is not a guest-supplied script or a CLI command.
+The callback return value never supplies acceptance. Record actual ordered
+actions, reviewed artifacts and assertions through the recorder. Use
+`context.run_worker(observe=..., validate=..., authenticate=False, serial=False)`
+once; its actual worker/transport/shutdown result supplies cleanup proof.
+Callbacks may use the existing bounded asset and credential provisioners with
+the context's verified inputs, guestfs, credentials, commands and lease, inside
+their declared setup steps. Credential provisioning and serial-getty setup
+must precede authenticated worker startup. The fixed worker distribution is
+still the qualified smoke; 19B owns stable screen matching and scenario work.
+
+`invocation-*.json` checkpoints retain preparation and post-restoration outcomes
+alongside the recorder's separate `event-*.json` stream. Host preservation and
+connection close run even after an earlier failure. Collection verifies the
+exact recorded artifact manifest, including failed-attempt copies. Errors use
+fixed codes, never exception text. The invocation collector retains expected
+case IDs, each completed attempt, and a terminal candidate. Per-case
+`acceptance.json` and terminal-candidate files are **not standalone passes**:
+the final JSON output and successful controller exit are required after all
+collector closes. A close or output/report failure cannot return success;
+storage failure may leave only earlier checkpoints. Host tests establish the
+failure behavior; the [19A acceptance audit](../../docs/TestAutomation/Evidence/19A-Controller-Acceptance-20260907.md)
+retains the separate live success and preparation-failure evidence.
 
 ## Shared guarded worker
 
@@ -555,16 +625,16 @@ The [retained serial result](../../docs/TestAutomation/Evidence/19A-Serial-20260
 proves the command. The subsequent
 [shutdown qualification](../../docs/TestAutomation/Evidence/19A-Shutdown-20260907.md)
 also proves clean backend completion, truthful off-state checking and restored
-baseline with the stricter worker outcome gate. Public scenario dispatch and
-scenario evidence integration remain required before 19A acceptance. This
-selected qualification is not customer coverage.
+baseline with the stricter worker outcome gate. E2E-034 subsequently passed
+public scenario dispatch and evidence integration. These selected harness
+qualifications are not customer coverage.
 
 ### Read-only observation capability
 
 The graphical controller keeps SSH readiness in its provisioning boundary,
 then exposes `ReadOnlyObservations` to stage/asset observation code. Its only
 operation is `read()` for the fixed `assets`, `greeter`, `parent-session`,
-`serial-password` and `serial-session` probes. The versioned programs in
+`serial-password`, `serial-session` and `boot` probes. The versioned programs in
 `guest_observations.py` are fixed: scenarios cannot supply shell commands,
 paths, stdin, timeout overrides, package operations, policy writes or resets.
 Adding a probe requires maintained code, explicit output validation and tests;
@@ -595,8 +665,8 @@ inputs, identity replacement, timeout, nonzero status, interruption at each
 execution boundary, report failure and combined cleanup/original failures. It
 is automatically included in the dispatcher's isolated safety prerequisites.
 The [worker integration evidence](../../docs/TestAutomation/Evidence/19A-Worker-Integration-20260907.md)
-records the real run. The launcher preflight is now implemented; actual scenario
-records and public scenario execution remain unfinished.
+records the real run. The launcher, actual scenario recording and public
+execution now have E2E-034 live acceptance.
 
 The smoke's `Qualification` controller captures `VerifiedInputs` after offline
 bootstrap, rechecks before worker startup, and supplies its `source_files` map.
@@ -611,5 +681,6 @@ lease is held, writes the diagnostic report, verifies its private copies and
 rechecks provenance before release. A `finalization-rejected` event is terminal,
 including after an earlier candidate pass. The final `result.json` also accounts
 for release/connection errors. These reports have diagnostic qualification scope,
-no scenario ID, no inventory override and no customer assertions. All 156
-variants, including E2E-001, remain pending.
+no scenario ID, no inventory override and no customer assertions. All original
+156 variants, including E2E-001, remain pending; E2E-034 separately exercises
+the public scenario recorder and terminal invocation gate.

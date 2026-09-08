@@ -1,8 +1,8 @@
 # Reuse across the remaining work
 
-Reviewed 2026-09-07 against all task documents, the current handoff, executable
-inventory and implemented runner interfaces. This review accepts no additional
-task: the [master checklist](Test-Automation.md#unfinished-tasks) owns completion
+Reviewed 2026-09-07 against task documents, the current handoff, executable
+inventory and implemented runner interfaces; updated after 19A acceptance.
+The [master checklist](Test-Automation.md#unfinished-tasks) owns completion
 and [Continuation.md](Continuation.md) owns the next slice. Read only the row
 for that slice; this map is not another mandatory whole-document startup read.
 
@@ -25,8 +25,8 @@ review changes no task order or completion status.
   F1 and Task 14 are accepted; new areas extend their existing dispatch.
 - Graphical declarations, input provenance, evidence gate and private collection:
   [E2E contracts](../../tests/e2e/README.md). `ScenarioRecorder` and the shared
-  worker exist; authenticated scenario dispatch is unfinished. Reuse the
-  [19A handoff](Task-19.md#task-19a-continuation--2026-09-07) for current limits.
+  worker and public authenticated dispatch have live E2E-034 acceptance. Reuse
+  the [19B handoff](Task-19.md#task-19b-continuation--2026-09-07) for current limits.
 - Native/Flatpak process and package assets:
   [artifact contract](../../tests/integration/README.md#package-and-fixture-inputs).
   Snap and real-game delivery remain work; sleeping fixtures cannot prove gameplay.
@@ -38,8 +38,7 @@ review changes no task order or completion status.
 
 | Task | Reuse and opportunity | Quality boundary to retain |
 | --- | --- | --- |
-| [19A](Task-19.md#task-19a) | Connect staging, worker, provenance and recording already present; finish asset, secret/console and controller boundaries as coherent slices. | One lifecycle owner; transfer integrity; read-only observation; real failure/cleanup evidence; dispatch stays closed until its contract works. |
-| [19B](Task-19.md#task-19b) | Add needles/readiness to the proven backend; retire feasibility geometry once replacement is qualified. | Three complete qualification smokes for the changed harness; actual input, screen and console evidence. Ordinary runs execute the smoke once. |
+| [19B](Task-19.md#task-19b) | Add needles/readiness to the accepted public controller; reuse `controller_qualification.py`, the recorded stages and same-lease helpers. Reconcile shared E2E-001/E2E-034 scope as they converge. | Three complete qualification smokes for the changed harness; actual input, screen and console evidence. Ordinary runs must not multiply implementation-only qualification. |
 | [20](Task-20.md) | Reuse package assertions and asset transport for E2E-002 and startup faults. | Actual authenticated installation/reboot, independent broker and fapolicyd readiness; resolve installation requirement links. |
 | [15A](Task-15.md#task-15a) | Extend F1 with one installed enforcement area and native/Snap/Flatpak case data; publish launch witnesses for 25A. | Every required platform, route, identity/matching boundary and other-user outcome. |
 | [15B](Task-15.md#task-15b) | One owned-process controller and rollback witness set serves later 17B/21B/25B/26A. | Kernel identity, all relevant sessions, irreversible partial termination and unrelated-process survival. |
@@ -55,8 +54,9 @@ review changes no task order or completion status.
 
 Use `tests/e2e/scenarios.json` as the starting inventory, inspect only assigned
 families, and extend gaps instead of creating a second list. The review found
-33 families / 156 pending variants, not 156 completed tests or a final coverage
-limit. Family `owners` can name several tasks; each variant's `owner` is its
+33 families / 156 pending variants from the original matrix, plus the accepted
+E2E-034 harness case: 34 families / 157 variants in total. This is not customer
+coverage or a final coverage limit. Family `owners` can name several tasks; each variant's `owner` is its
 single execution owner. Related tasks link that execution without copying it.
 
 | Task | Reuse and opportunity | Quality boundary to retain |
@@ -113,8 +113,9 @@ single execution owner. Related tasks link that execution without copying it.
   does not authorize sending feedback or preparing a replacement baseline.
 - **Provenance and timing:** document-only handoffs currently change the source
   identity used by package verification; follow the [reuse decision](Implementation-Workflow.md#decide-what-invalidates-earlier-verification).
-  The latest 19A smoke also exposes unbucketed finalization time and repeated
-  proof reads. Carry this measured lead into 27C/28A; do not weaken preservation
+  The accepted public 19A invocation took 1,520 seconds with a 49-second worker;
+  roughly 372 seconds of finalization is outside its stage timing buckets.
+  Carry this measured lead into 27C/28A; do not weaken preservation
   checks, cache a baseline proof or redesign the runner simply to shorten a wait.
 
 Maintain decisions in their task/contract when implemented, then remove the

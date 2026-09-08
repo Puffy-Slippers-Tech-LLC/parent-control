@@ -33,7 +33,7 @@ class ReadOnlyObservations:
         require(not self._failed, 'observation:previous-failure')
         try:
             require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session',
-                                                      'serial-password', 'serial-session'),
+                                                      'serial-password', 'serial-session', 'boot'),
                     'observation:unknown-probe')
             program, timeout = {
                 'assets': (guest_observations.ASSETS, 120),
@@ -41,13 +41,18 @@ class ReadOnlyObservations:
                 'parent-session': (guest_observations.PARENT_SESSION, 110),
                 'serial-password': (guest_observations.SERIAL_PASSWORD, 20),
                 'serial-session': (guest_observations.SERIAL_SESSION, 110),
+                'boot': (guest_observations.BOOT, 20),
             }[name]
             self._guard()
             raw = self._transport.call(['/usr/bin/python3', '-c', program], timeout=timeout)
             self._guard()
             require(isinstance(raw, bytes) and 0 < len(raw) <= 1024,
                     'observation:invalid-output')
-            if name == 'serial-password':
+            if name == 'boot':
+                require(re.fullmatch(rb'[0-9a-f]{64}\n', raw) is not None,
+                        'observation:invalid-output')
+                result = {'boot_sha256': raw.decode('ascii').strip()}
+            elif name == 'serial-password':
                 require(raw == b'serial-password-safe\n', 'observation:invalid-output')
                 result = {'serial_login_process_verified': True,
                           'terminal_echo_disabled': True}

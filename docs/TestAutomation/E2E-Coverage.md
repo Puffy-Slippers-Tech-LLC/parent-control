@@ -190,6 +190,7 @@ continuous journeys; Task 28B audits the complete executed inventory.
 | Scenario family | Owner | Required journey or outcome |
 | --- | --- | --- |
 | E2E-001 | 19B | Real boot, recognizable GDM, graphical/observation transport smoke; category `runner-smoke`. |
+| E2E-034 | 19A | Public controller preparation, credential/asset forwarding, actual serial command, independent boot continuity and terminal evidence/cleanup; harness qualification only, with no stable-screen or customer coverage claim. |
 | E2E-002 | 20 | Product absent → real package installation → actual reboot → usable, enforcement-ready GDM. |
 | E2E-003 | 21A | Parent login → app-grid launch → discover/select children; a supported fixture helper creates a real child while Parent stays open, then the UI discovers it. |
 | E2E-004 | 21A | Standard user attempts Parent access; management remains unavailable. Direct D-Bus attacks are separately labeled installed-system evidence. |

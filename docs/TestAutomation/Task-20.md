@@ -25,7 +25,11 @@ Verification below is task acceptance; edits use the smallest affected selection
   after installing the exact release artifact.
 - Work:
   1. Start from the before-product baseline and upload the exact `.deb`, fixture
-     bundle, and their digests through the controlled asset channel.
+     bundle, and their digests through the controlled asset channel. Provision
+     accounts and unrelated fixture apps through supported helpers. Installation
+     and reboot are asserted product lifecycle transitions in this task and
+     remain real customer operations; other tasks may use verified package
+     installation as prerequisite setup without replaying this acceptance case.
   2. Verify the product is absent, install the package through its real package
      path from the guest terminal with real administrator authentication,
      record output, and verify the product-created reboot marker. A hidden

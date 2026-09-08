@@ -5,6 +5,70 @@ tasks. It describes future work; an entry below is not evidence that a test has
 been implemented or passed. The [master plan](Test-Automation.md) owns task
 order; the [daily guide](../Test-Automation.md) owns the public command interface.
 
+## Scope tests around the app
+
+Every expensive test must name the app behavior, app-owned OS integration, or
+necessary harness safety guarantee it protects. Record the regression it would
+catch and the lowest layer that can establish that result. Test-count growth,
+upstream functionality and the availability of an automation API are not reasons
+to add a product scenario.
+
+| Boundary | Required focus |
+| --- | --- |
+| Product behavior | Policy, grants, expiry, discovery, approvals, request surfaces, isolation, persistence and package lifecycle. |
+| App-owned OS integration | The app's PAM/Polkit wiring, service ordering, execution rules and their effects on real users/processes. |
+| Unrelated prerequisites | Establish real accounts, roles, application assets and input files through reliable supported helpers; verify the resulting state. |
+| Harness safety | Owned cleanup, correct prompt targeting, secret exclusion, input integrity and failure reporting; keep qualification distinct from product coverage. |
+
+Do not build matrices for Ubuntu's password verifier, Users settings UI, package
+manager internals, third-party game correctness or delivery-provider reliability.
+Their app-facing integration boundaries still need focused evidence. For example,
+correct-password login/unlock denial at zero time is essential. Ordinary
+wrong-password login needs at most one focused regression of our modified PAM
+stack; it is not a password-policy matrix. Wrong-password or cancelled **app
+approval** must prove no grant/policy change, preserved choices and successful
+retry on each request surface. Wrong-prompt refusal qualifies secret input; it
+does not establish an application authentication outcome.
+
+## Prepare prerequisites through supported helpers
+
+Separate fixture setup from the actions and causal transitions the test claims
+to prove. Choose the simplest reliable existing CLI/API/helper, prefer verified
+local assets, and reuse it across cases. A prerequisite does not need a GUI
+workflow merely because a customer could create it that way.
+
+- Create real account/role fixtures through supported guest OS tools or public
+  AccountsService APIs. For dynamic discovery, keep Parent running, create the
+  account through the fixture helper at a recorded boundary, verify its real
+  eligibility, and observe Parent discover/select it without restarting. Account
+  creation is a fixture event; Parent's response is the tested behavior.
+- Stage fixture apps, a pinned offline game, synthetic attachments and input
+  data directly through verified asset/provisioning helpers. Install the product
+  with the real package manager during setup when installation is not the tested
+  transition. Keep the product absent at the start of clean-install tests.
+- Initial product configuration may use a maintained public product interface
+  when that configuration transition is outside the test's claim. Record the
+  setup and independently verify the state. Authorization still applies; grants
+  must result from a real authorized approval. Never write private product
+  records, forge grants/authentication, or use a production test hook. Approval,
+  save, revocation and persistence journeys retain their actual UI operations.
+- Provision only within the existing guarded attempt. Host dependency changes
+  still go through `setup.sh`; no new VM, baseline or in-journey restore is
+  permitted. Use bounded readiness checks, recorded fixture ownership and safe
+  cleanup. A failed prerequisite stops dependent execution; distinguish product
+  and infrastructure causes and never pass unexecuted product assertions.
+- Record the helper, input identities, timing and verified pre/postconditions.
+  A normal prerequisite event during a test is not a fault injection. Keep its
+  write capability separate from read-only observations and declared faults;
+  it cannot perform the outcome the test is asserting.
+
+Use only implemented validated runner capabilities. If a required fixture event
+is not representable in today's inventory/controller, the owning task must add
+the smallest supported provisioning contract and its focused safety checks
+before execution. Do not label a helper write as UI input/read-only evidence or
+open an unrestricted guest-command route. No setup shortcut may replace a step
+in E2E-023 or another explicitly continuous product journey.
+
 ## Customer journeys must exercise the real machine
 
 A customer E2E scenario is an uninterrupted sequence of actions on the real
@@ -18,11 +82,11 @@ product behavior and operating-system enforcement must be real.
   system D-Bus, broker, AccountsService, Malcontent, PAM, Polkit, fapolicyd, and
   installed application processes. No preview mode, fake service, stubbed
   reply, patched authorization, or test-only production path may participate.
-- Perform login, Switch User, logout, settings changes, requests, password
-  entry, approvals, revocation, app launching, and ordinary restart actions
-  through the interfaces available to the customer. A command-line operation
-  that is itself the documented customer operation, such as APT installation,
-  is entered in the guest terminal with real authorization.
+- Perform the login, Switch User, logout, settings, request, password, approval,
+  revocation, launch and restart operations asserted by the journey through the
+  customer's real interfaces. A tested command-line customer operation, such as
+  APT installation in the package journey, is entered in the guest terminal with
+  real authorization. Unrelated setup follows the prerequisite rules above.
 - Enter credentials only into the real login/authentication prompt using
   secret-safe input. A helper calling the broker, approving Polkit, setting a
   grant, or changing preferences cannot stand in for a customer action.
@@ -54,9 +118,11 @@ product behavior and operating-system enforcement must be real.
   the tested outcome or disturb the foreground session. A backend assertion
   cannot replace a visible success, denial, lock, or return-to-GDM assertion.
 
-Normal customer errors belong in customer journeys: invalid input, wrong
-passwords, cancelling authentication, duplicate clicks, and denied access must
-exercise the real UI and services too.
+Customer-error journeys exercise the app's response to representative invalid
+input, rejected/cancelled approval, duplicate submission and denied access using
+real UI and services. Assert product state and recovery, not only an upstream
+error message. Exhaustive local validation cases do not each require a new
+complete graphical journey.
 
 ## Distinguish supporting tests without weakening E2E
 
@@ -125,7 +191,7 @@ continuous journeys; Task 28B audits the complete executed inventory.
 | --- | --- | --- |
 | E2E-001 | 19B | Real boot, recognizable GDM, graphical/observation transport smoke; category `runner-smoke`. |
 | E2E-002 | 20 | Product absent → real package installation → actual reboot → usable, enforcement-ready GDM. |
-| E2E-003 | 21A | Parent login → app-grid launch → discover/select children, including a child created after installation. |
+| E2E-003 | 21A | Parent login → app-grid launch → discover/select children; a supported fixture helper creates a real child while Parent stays open, then the UI discovers it. |
 | E2E-004 | 21A | Standard user attempts Parent access; management remains unavailable. Direct D-Bus attacks are separately labeled installed-system evidence. |
 | E2E-005 | 21A/21B | Parent changes allowance boundaries, toggles control, observes saving/loading and remaining-time state, then verifies actual child behavior. |
 | E2E-006 | 21B | Parent edits allowed/hard/soft policy and exact/pattern matching → child attempts use → other user's applications remain usable. |
@@ -135,7 +201,7 @@ continuous journeys; Task 28B audits the complete executed inventory.
 | E2E-010 | 22A | Switch User while a grant expires; the other foreground user is uninterrupted and the child cannot resume without time. |
 | E2E-011 | 22B | Real countdown passes minutes/final seconds; visibility is correct on unlocked desktop, lock screen, and GDM. |
 | E2E-012 | 23A | Child panel → one overlay → select each eligible parent → real prompt → successful approval with and without soft apps. |
-| E2E-013 | 23A/24B | Wrong password → denial → successful retry, and authentication cancel → retry, on both request surfaces. |
+| E2E-013 | 23A/24B | Rejected/cancelled app approval preserves grants, policy and choices; successful retry commits once, on both request surfaces. |
 | E2E-014 | 23B/24B | Both surfaces exercise predefined/custom/rest-of-day choices, fractional bounds, invalid values, and duplicate submission. |
 | E2E-015 | 23B/24B | Cancel, Escape, and successful completion produce each surface's correct exit and countdown/selection behavior. |
 | E2E-016 | 24A | GDM → restricted kiosk session; no general desktop or management access before or after a request. |
@@ -162,6 +228,25 @@ product behavior to the inventory and identify its authoritative requirement; do
 it because the original functional specification did not mention it.
 
 ## Bound the matrix before expanding it
+
+Use thorough unit/property coverage for pure rules and meaningful boundaries,
+component tests for form behavior and dependency outcomes, installed tests for
+real OS integration, and focused graphical journeys for the wiring and causal
+transitions that need a desktop. A lower layer cannot establish a required
+graphical/security interaction, but an independent validation value need not
+repeat an entire VM journey. Cover both shared-form modes at the local layer
+and each surface's real approval, targeting, exit and persistence behavior.
+
+Audit existing pending declarations before implementing them. Record each
+variant's product risk, interacting dimensions and layer. Group compatible
+values in one journey, reuse a canonical case, or move equivalent validation to
+its effective layer with explicit requirement/case links. Reconcile the task,
+scenario matrix and `tests/requirements.json` together; validate inventory and
+stage traceability before execution. Preserve IDs for retained behavior and a
+reviewable rationale for any superseded declaration. Do not hide required cases
+with skips, mark them covered without execution, or silently weaken a specified
+security, supported-route or continuous-journey requirement. Existing pending
+entries remain pending until this reconciliation and their acceptance succeed.
 
 For the current task, create a finite case/variant list tied to specification
 IDs, required transitions and interacting dimensions. Reuse existing scenario

@@ -103,9 +103,15 @@ for the remaining boundary; do not rebuild already implemented interfaces.
      `VM_IMAGE`. No checkpoint/resume operation is available within a journey.
   4. Provide guest keyboard/mouse graphics and supported read-only observation
      transport. Keep complex assertions in versioned guest scripts/pytest;
-     customer actions use the real guest UI. Separate provisioning, observation,
-     and declared fault controls so a helper cannot silently set grants,
-     preferences, authentication results, session state, or expiry outcomes.
+     asserted customer actions use the real guest UI. Apply the
+     [prerequisite contract](E2E-Coverage.md#prepare-prerequisites-through-supported-helpers):
+     unrelated setup uses bounded supported helpers with verified real state.
+     Keep provisioning, read-only observation and declared fault capabilities
+     separate; record normal fixture events without disguising them as UI input
+     or faults. No helper may manufacture a grant, authentication, session or
+     expiry outcome that the journey claims to prove. Extend the existing
+     controller only for the concrete assigned capability; no general guest
+     command API or replacement orchestration framework is needed.
   5. Pass credentials through os-autoinst secret variables and its secret-safe
      password API. Exclude them from screenshots, output, and vars artifacts.
   6. Implement bounded startup, shutdown, interruption, copied-artifact

@@ -133,11 +133,20 @@ checks even when they have no product requirement ID. Avoid duplicate ordinary
 suite execution; safety prerequisites still run in isolation before the
 operations they protect.
 
-Customer E2E means real keyboard/mouse operations on the installed product and
-OS, real authentication and applications, real reboot/package operations, and
-natural elapsed-time expiry. No mocks, hidden state writes, fake clock,
-checkpoint restore, or saved-state resume may replace customer steps. Read-only
-backend evidence corroborates visible behavior and other-user isolation.
+Every expensive test must protect an app behavior, an app-owned OS integration,
+or a necessary harness safety guarantee. Use the cheapest reliable supported
+helper to establish unrelated prerequisites, such as real user accounts,
+fixture applications and attachment files. Ubuntu's account-management UI and
+general password behavior are not product acceptance targets. Follow the
+[scope and prerequisite rules](TestAutomation/E2E-Coverage.md#scope-tests-around-the-app).
+
+Customer E2E uses real keyboard/mouse input for the product operations and OS
+transitions the journey asserts, including real authentication, application use,
+reboot/package lifecycle and natural expiry where those are under test. Required
+causal steps cannot be replaced by mocks, hidden state writes, fake clocks,
+checkpoint restore or saved-state resume. Declared prerequisite setup is separate
+from those steps. Read-only backend evidence corroborates visible behavior and
+other-user isolation.
 Follow the [E2E operations and coverage contract](TestAutomation/E2E-Coverage.md)
 and enumerate the complete applicable scenario/variant matrix. The supplied
 parent → child denial → kiosk → gameplay → expiry example is one required

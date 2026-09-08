@@ -138,47 +138,65 @@ for the remaining boundary; do not rebuild already implemented interfaces.
 
 ### Task 19A continuation — 2026-09-07
 
-**Completed boundary:** asset and greeter corroboration now use a fixed read-only
-observation capability. Arbitrary commands/writes are refused before transport;
-lease/configuration checks surround each execution, safe output is validated,
-and failures/interruption prevent subsequent probes or graphical acknowledgement.
-This is solid host implementation progress, with 41 new cases. Transfer remains
-**unaccepted** and all 156 variants pending.
+**Completed boundary:** fixture credentials now have a full guarded live pass:
+four per-attempt passwords are provisioned offline, independently verified,
+staged privately into the worker and registered with both evidence collectors.
+Unrelated account records and password aging are preserved. Transfer attempt
+**5 passed**: 44 files, 92 tree entries, matching offline and booted receipts,
+graphical stages, held-lease finalization and source/host preservation. The
+user confirmed other editing had ended; neither run hit the old source blocker.
+Both runs restored the accepted baseline. **46 new regressions** also cover
+credential refusal/cleanup and verified PNG/JSON distribution inputs.
 
-**Next result:** implement private secret-variable staging and masked-prompt,
-password-input/capture-failure handling, with host refusal/interruption checks.
-This work is independent of concurrent checkout edits; do not start another
-source-blocked build/VM loop. Read `e2e_worker.run_distribution`, `PrivateCollector`,
-the [observation contract](../../tests/e2e/README.md#read-only-observation-capability)
-and the [secret findings](Evidence/19P-Backend-Preflight-2026-09-06.md#capture-cleanup-and-downstream-prerequisites).
-The supported console and harmless serial command still need implementation.
+**Next observable result:** select the intended fixture account using reviewed
+needles, prove its identity and empty/focused/masked prompt together, then connect
+the public serial console and harmless command. Private visual review found
+the feasibility smoke's first tile is an unrelated baseline account. Never enter
+a fixture password there or publish its raw captures as needle assets. The Perl
+guard now requires `onpc-<surface>-<role>-masked-password`; generic field matches
+are refused. Real needles, password entry and serial execution are still absent.
+Read `FixtureCredentials`, `e2e_worker.validate_needles`, `onpc_password.pm`,
+`Qualification` and the [credential contract](../../tests/e2e/README.md#credential-staging-and-password-capture-boundary).
+Reuse these implemented boundaries; do not reacquire baseline passwords or
+rebuild the worker/transfer helpers.
 
-**Evidence/attempts:** [this slice](Evidence/19A-Observation-Capability-20260907.md)
-records exact input hashes atop `fafe57e`: 124 focused checks passed (25855);
-`make check` (57433) passed 2,210 unit/contracts, 17 components and syntax/traceability.
-`git diff --check` passed; only docs changed afterward. No reusable artifact is
-nominated. Transfer attempt count stays **four**, with no new VM attempt.
-[Attempt 4](Evidence/19A-Asset-Observation-20260907.md) failed on concurrent source
-edits, with cleanup/preservation passing; earlier failures remain retained.
-
-**Live acceptance:** once local implementation is ready, establish a source-stable
-window, build with `tools/run-tests artifacts build`, then use
-`tools/run-tests e2e --qualify-transfer --artifacts <new-output>` once. Inspect
-offline/booted receipts, the changed observation route, terminal result and
-held-lease finalization. Clean Git status alone does not establish source stability.
-Reuse the accepted backend/baseline; authentication/serial and final 19A acceptance
-remain separate required evidence.
+**Verification:** [evidence](Evidence/19A-Fixture-Credentials-20260907.md) records
+both live source identities, receipts, timings and private paths. Final focused
+checks: 187 passed (88090); `make check`: 2,316 unit/contracts, 17 components and
+syntax/traceability passed (1248). Role-specific prompt guards were tightened
+after live visual review and have host coverage only; live runs entered no
+password. Later edits are documentation. No current artifact is nominated.
+Preserve the earlier four transfer failures; do not rerun unaffected transfer
+qualification merely to resume. Build fresh inputs when a package-bearing
+attempt is actually needed. All 156 customer variants remain pending.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** fixed observation routing is host-tested; authentication, capture
-and serial integration still require security/ownership reasoning. Revised
-remaining 19A estimate: **3–4 sessions / 2–3 active hours**, plus any wait for a
-stable checkout. The earlier forecast undercounted these unimplemented boundaries;
-this session removed one boundary but did not advance live acceptance.
+**Reason:** provisioning and transfer now have live evidence; account/prompt
+matching, authenticated console input and capture boundaries still need security
+reasoning. **Forecast correction after user review:** the repeated two-session /
+2–3-hour estimate is withdrawn. Earlier evidence repeatedly carried a similar
+forecast while authentication and serial execution remained absent. The two
+latest live passes close real provisioning/transfer boundaries, but do not prove
+the remaining integration fits that estimate. Each measured VM attempt took
+about 12 minutes; this does not predict implementation time.
 
-**State:** dev host and existing guarded VM only; all owned commands finished.
-No VM/lease operation was started. The prior 23:07 UTC VM-off observation was
-not refreshed. Original evidence/logs preserved; no pending operation to recover.
+Track remaining acceptance by observable results: (1) actual fixture
+authentication through reviewed account/prompt matching, (2) a harmless command
+over the supported public serial console with evidence and cleanup, and
+(3) remaining launcher/evidence wiring and complete 19A acceptance. The public
+`tests/e2e/runner.py` still explicitly refuses even ready scenario execution with
+`e2e:execution-controller-unfinished`; the earlier handoff omitted that gap.
+Reconcile it against 19A's launcher deliverable without implementing later
+customer variants or weakening the pending-case gate. Next session should aim
+to pass the first checkpoint. Additional helper tests alone do not satisfy it.
+If it remains blocked, report the exact failed boundary and actual reduction
+in remaining work. Reforecast from the remaining implementation after live
+authentication/console integration, not by carrying forward a session count.
+
+**State:** authorized dev host and pinned VM only. All command handles exited;
+both leases completed. Final `tools/test-vm status` reported off (`state=5`,
+`id=-1`). No operation needs recovery. Six review exports were removed using
+the approved helper; original private logs/evidence were preserved.
 
 ## Task 19B
 

@@ -1,0 +1,84 @@
+"""Needle input/provenance contract; synthetic pixels never qualify a prompt."""
+
+import hashlib
+import json
+from pathlib import Path
+import struct
+import sys
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'e2e'))
+import e2e_worker as worker
+sys.path.pop(0)
+
+
+@pytest.fixture
+def distribution(tmp_path, monkeypatch):
+    root = tmp_path / 'checkout'
+    dist = root / 'tests/integration/graphical_smoke'
+    (dist / 'tests').mkdir(parents=True)
+    (dist / 'needles').mkdir()
+    (dist / 'main.pm').write_text('1;')
+    (dist / 'tests/smoke.pm').write_text('1;')
+    base = dist / 'needles/onpc-gdm-parent-masked-password'
+    base.with_suffix('.png').write_bytes(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR' + struct.pack('!II', 1024, 768))
+    base.with_suffix('.json').write_text(json.dumps({'tags': [base.name], 'area': [
+        {'xpos': 400, 'ypos': 400, 'width': 200, 'height': 40, 'type': 'match', 'match': 100}]}))
+    monkeypatch.setattr(worker, 'ROOT', root)
+    monkeypatch.setattr(worker, 'DISTRIBUTION', dist)
+    return dist, base
+
+
+def test_needle_bytes_are_frozen_and_part_of_distribution_digest(tmp_path, distribution):
+    dist, _ = distribution
+    files = worker.distribution_inputs()
+    prefix = dist.relative_to(worker.ROOT).as_posix() + '/'
+    expected = {prefix + name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
+    out = tmp_path / 'work'
+    out.mkdir(mode=0o700)
+    digest = worker.stage_distribution(out, expected)
+    assert len(digest) == 64
+    for name, value in files.items():
+        assert (out / 'distribution' / name).read_bytes() == value
+    (dist / 'needles/onpc-gdm-parent-masked-password.png').write_bytes(files['needles/onpc-gdm-parent-masked-password.png'] + b'changed')
+    with pytest.raises(RuntimeError, match='inputs-changed'):
+        worker.stage_distribution(tmp_path, expected)
+    assert not (tmp_path / 'distribution').exists()
+
+
+@pytest.mark.parametrize('fault', ['missing-png', 'missing-json', 'symlink', 'unknown',
+    'bad-json', 'tag', 'property', 'exclude', 'threshold', 'offscreen', 'bool', 'empty', 'png', 'dimensions'])
+def test_invalid_or_unsafe_needle_refuses_before_staging(distribution, fault):
+    dist, base = distribution
+    path = base.with_suffix('.json')
+    doc = json.loads(path.read_bytes())
+    if fault.startswith('missing-'):
+        base.with_suffix('.' + fault[8:]).unlink()
+    elif fault == 'symlink':
+        (dist / 'needles/linked.png').symlink_to(base.with_suffix('.png'))
+    elif fault == 'unknown': (dist / 'needles/unknown.json').write_text('{}')
+    elif fault == 'bad-json': path.write_bytes(b'not-json')
+    elif fault == 'png': base.with_suffix('.png').write_bytes(b'not-png')
+    elif fault == 'dimensions':
+        raw = base.with_suffix('.png').read_bytes()
+        base.with_suffix('.png').write_bytes(raw[:16] + struct.pack('!II', 0, 768))
+    else:
+        if fault == 'tag': doc['tags'] = ['onpc-polkit-masked-password']
+        elif fault == 'property': doc['properties'] = ['workaround']
+        elif fault == 'exclude': doc['area'][0]['type'] = 'exclude'
+        elif fault == 'threshold': doc['area'][0]['match'] = 50
+        elif fault == 'offscreen': doc['area'][0]['width'] = 1024
+        elif fault == 'bool': doc['area'][0]['match'] = True
+        elif fault == 'empty': doc['area'] = []
+        path.write_text(json.dumps(doc))
+    with pytest.raises(RuntimeError, match='e2e:'):
+        worker.distribution_inputs()
+
+
+def test_generic_password_prompt_cannot_authorize_a_fixture_role(distribution):
+    dist, base = distribution
+    for suffix in ('.json', '.png'):
+        base.with_suffix(suffix).rename(dist / ('needles/onpc-gdm-masked-password' + suffix))
+    with pytest.raises(RuntimeError, match='needle-name'):
+        worker.distribution_inputs()

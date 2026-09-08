@@ -36,6 +36,8 @@ python3-guestfs=1:1.58.1-3ubuntu3
 qemu-utils=1:10.2.1+ds-1ubuntu3.2
 libguestfs-tools=1:1.58.1-3ubuntu3
 openssh-client=1:10.2p1-2ubuntu3.6
+# Offline fixture password verification, without credentials in argv.
+openssl=3.5.5-1ubuntu3.5
 # Debian package construction and metadata inspection for Task 13 artifacts.
 dpkg-dev
 

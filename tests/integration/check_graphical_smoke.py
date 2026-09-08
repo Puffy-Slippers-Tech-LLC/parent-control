@@ -34,17 +34,21 @@ from recording import save_checkpoint
 from asset_transfer import AssetTransfer
 from guest_observations import GREETER as OBSERVATION
 from observation_transport import ReadOnlyObservations
+from fixture_credentials import FixtureCredentials, preflight as credential_preflight
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
 
 
 def inputs():
     paths = [*sorted((ROOT / 'tests/integration').glob('*.py')),
-             *sorted((ROOT / 'tests/integration/graphical_smoke').rglob('*.pm')),
              *sorted((ROOT / 'tests/e2e').glob('*.py')),
              ROOT / 'tests/e2e/scenarios.json', ROOT / 'tests/requirements.json',
              ROOT / 'tests/test-tools-ubuntu-26.04.txt']
-    return {str(p.relative_to(ROOT)): runner.baseline.digest(p) for p in paths}
+    result = {str(p.relative_to(ROOT)): runner.baseline.digest(p) for p in paths}
+    prefix = e2e_worker.DISTRIBUTION.relative_to(ROOT).as_posix() + '/'
+    result.update({prefix + name: hashlib.sha256(data).hexdigest()
+                   for name, data in e2e_worker.distribution_inputs().items()})
+    return result
 
 
 def schedule_preflight(directory, commands):
@@ -141,7 +145,7 @@ class Smoke:
 
 
 def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
-                *, progress=None, on_failure=None, transfer=None):
+                *, progress=None, on_failure=None, transfer=None, credentials=None):
     smoke = Smoke(directory, lease, commands, host_key, progress, transfer)
     def validate():
         require(len(smoke.steps) == len(STAGES), 'smoke:missing-stages')
@@ -149,7 +153,7 @@ def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
     try:
         worker_result = e2e_worker.run_distribution(
             directory, lease, ledger, expected_inputs=expected_inputs,
-            observe=smoke.step, validate=validate, on_failure=on_failure)
+            observe=smoke.step, validate=validate, on_failure=on_failure, credentials=credentials)
         return {'steps': smoke.steps, 'worker_evidence': worker_result}
     finally:
         original = sys.exception()
@@ -164,7 +168,8 @@ def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
 class Qualification:
     """Live diagnostic checkpoints, without an inventory or scenario override."""
 
-    def __init__(self, directory, commands, ledger, collector, result, host_before, assets=None):
+    def __init__(self, directory, commands, ledger, collector, result, host_before, assets=None,
+                 credentials=None):
         self.directory, self.commands, self.ledger = directory, commands, ledger
         self.collector, self.result, self.host_before = collector, result, host_before
         self.verified = None
@@ -173,12 +178,14 @@ class Qualification:
         self.active_stage = None
         self.assets = assets
         self.transfer = None
+        self.credentials = credentials
 
     def checkpoint(self, event):
         self.sequence += 1
         try:
             save_checkpoint(self.collector, self.sequence, event, {
-                'scope': 'credential-free-worker-qualification',
+                'scope': ('fixture-credential-qualification' if self.credentials is not None
+                          else 'credential-free-worker-qualification'),
                 'active_stage': self.active_stage,
                 'monotonic_seconds': time.monotonic() - self.started,
                 'result': self.result, **self.ledger.data(),
@@ -213,6 +220,11 @@ class Qualification:
                 self.verified = VerifiedInputs(lease=lease, assets=self.assets)
                 self.result['provenance'] = self.verified.inputs
                 self.checkpoint('inputs-captured')
+                if self.credentials is not None:
+                    self.checkpoint('credential-provisioning-started')
+                    self.result['fixture_credentials'] = self.credentials.provision(
+                        lease, self.verified, self.directory, guestfs, self.commands)
+                    self.checkpoint('credential-provisioning-verified')
                 if self.assets is not None:
                     self.transfer = AssetTransfer(self.verified)
                     self.checkpoint('asset-transfer-started')
@@ -223,7 +235,7 @@ class Qualification:
                 self.result.update(run_backend(
                     self.directory, lease, self.commands, host_key, self.ledger,
                     self.verified.source_files, progress=self.progress, on_failure=self.failure,
-                    transfer=self.transfer))
+                    transfer=self.transfer, credentials=self.credentials))
         except BaseException as error:
             code = str(error) if isinstance(error, EvidenceError) else runner.error_category(error)
             if not any(v['outcome'] == 'failed' for v in self.ledger.outcomes.values()):
@@ -288,7 +300,7 @@ class Qualification:
         runner.log('graphical:finalized-with-lease-held')
 
 
-def main(*, assets=None):
+def main(*, assets=None, provision_credentials=False):
     require(assets is not None or len(sys.argv) == 1, 'smoke:invalid-arguments')
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
     require(Path.cwd() == ROOT == runner.baseline.guest_contract.CHECKOUT, 'smoke:checkout')
@@ -304,6 +316,9 @@ def main(*, assets=None):
               'evidence_directory': str(directory), 'steps': []}
     if assets is not None:
         result['scope'] = 'credential-free-asset-transfer-qualification'
+    credentials = FixtureCredentials() if provision_credentials else None
+    if credentials is not None:
+        result['scope'] = 'fixture-credential-staging-qualification'
     started = time.monotonic()
     def interrupted(*_):
         raise KeyboardInterrupt
@@ -312,6 +327,8 @@ def main(*, assets=None):
         with ledger.measure('preparation'):
             result['inputs_sha256'] = inputs()
             result['backend'] = graphical_backend.check(commands)
+            if credentials is not None:
+                credential_preflight(commands)
             schedule_preflight(directory, commands)
             staged = None
             if assets is not None:
@@ -332,9 +349,12 @@ def main(*, assets=None):
             lease = runner.Lease(source, commands,
                                  lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
                                  ledger=ledger, graphics_type='vnc')
-        with PrivateCollector(run_id='qualification-' + uuid.uuid4().hex, secrets=[]) as collector:
+        with PrivateCollector(run_id='qualification-' + uuid.uuid4().hex,
+                              secrets=credentials.variables.registered_secrets
+                              if credentials is not None else []) as collector:
             result['qualification_evidence'] = str(collector.path)
-            qualification = Qualification(directory, commands, ledger, collector, result, host_before, staged)
+            qualification = Qualification(directory, commands, ledger, collector, result, host_before,
+                                          staged, credentials)
             lease.finalize = qualification.finalize
             with lease:
                 result['baseline_sha256'] = lease.state['baseline_sha256']

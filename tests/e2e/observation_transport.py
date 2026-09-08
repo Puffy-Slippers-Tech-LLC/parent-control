@@ -10,6 +10,7 @@ import re
 import sys
 
 import guest_observations
+import installation_observations
 from private_artifacts import EvidenceError, require
 
 
@@ -33,7 +34,9 @@ class ReadOnlyObservations:
         require(not self._failed, 'observation:previous-failure')
         try:
             require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session',
-                                                      'serial-password', 'serial-session', 'boot'),
+                                                      'serial-password', 'serial-session', 'boot',
+                                                      'package-absent', 'package-installed',
+                                                      'install-password'),
                     'observation:unknown-probe')
             program, timeout = {
                 'assets': (guest_observations.ASSETS, 120),
@@ -42,6 +45,9 @@ class ReadOnlyObservations:
                 'serial-password': (guest_observations.SERIAL_PASSWORD, 20),
                 'serial-session': (guest_observations.SERIAL_SESSION, 110),
                 'boot': (guest_observations.BOOT, 20),
+                'package-absent': (installation_observations.ABSENT, 30),
+                'package-installed': (installation_observations.INSTALLED, 90),
+                'install-password': (installation_observations.SUDO_PASSWORD, 20),
             }[name]
             self._guard()
             raw = self._transport.call(['/usr/bin/python3', '-c', program], timeout=timeout)
@@ -52,6 +58,24 @@ class ReadOnlyObservations:
                 require(re.fullmatch(rb'[0-9a-f]{64}\n', raw) is not None,
                         'observation:invalid-output')
                 result = {'boot_sha256': raw.decode('ascii').strip()}
+            elif name == 'package-absent':
+                require(raw == b'package-absent\n', 'observation:invalid-output')
+                result = {'product_package_absent': True,
+                          'core_payload_absent': True, 'product_reboot_required': False}
+            elif name == 'package-installed':
+                result = json.loads(raw)
+                require(isinstance(result, dict) and set(result) == {
+                    'package_sha256', 'installed_identity_verified', 'product_reboot_required'}
+                    and result['installed_identity_verified'] is True
+                    and result['product_reboot_required'] is True
+                    and isinstance(result['package_sha256'], str)
+                    and re.fullmatch(r'[0-9a-f]{64}', result['package_sha256'])
+                    and raw == (json.dumps(result, sort_keys=True) + '\n').encode(),
+                    'observation:invalid-output')
+            elif name == 'install-password':
+                require(raw == b'install-password-safe\n', 'observation:invalid-output')
+                result = {'sudo_install_process_verified': True,
+                          'terminal_echo_disabled': True}
             elif name == 'serial-password':
                 require(raw == b'serial-password-safe\n', 'observation:invalid-output')
                 result = {'serial_login_process_verified': True,

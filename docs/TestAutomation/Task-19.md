@@ -232,9 +232,9 @@ No earlier entry is bypassed. The operator's all-task VM clearance remains
 effective; no renewed coordination confirmation is due. Build fresh inputs
 after these documentation edits when the next live selection is ready.
 
-**Current next-session settings:** `gpt-6-astra` / `high`; model: keep; effort:
-keep, pinned by the slice launcher. **Reason:** the harness is qualified; Task 20
-introduces the first product installation, actual reboot and readiness journey.
+**Next-session settings:** follow [Task 20's active handoff](Task-20.md#task-20-continuation--2026-09-08)
+and [Continuation.md](Continuation.md). The shared model policy supersedes
+the old blanket pin; the settings in previous qualifications record those runs.
 **Remaining 19B:** **0 sessions / 0 minutes**; all acceptance requirements passed.
 
 #### Previous qualification 2 handoff (superseded by acceptance above)

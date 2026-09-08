@@ -2,8 +2,8 @@
 
 `scenarios.json` is the versioned inventory for
 [E2E coverage](../../docs/TestAutomation/E2E-Coverage.md): 33 families and
-156 variants. `E2E-001/gdm-observation` is registered for public execution;
-the other 155 variants remain **pending**.
+157 variants. `E2E-001/gdm-observation` is registered for public execution;
+the other 156 variants remain **pending**.
 [Task 19B is accepted](../../docs/TestAutomation/Evidence/19B-Acceptance-20260908.md)
 after three complete, visually reviewed public qualifications. This establishes
 runner-smoke behavior, not customer acceptance.
@@ -54,7 +54,7 @@ same `runner.preflight`; refresh the latter with `./setup.sh --test-tools-only`
 after dispatcher changes. Development activation is `none` (next invocation),
 with no product or saved-data changes. Missing/unsafe inventory inputs fail
 closed. A fully ready selection requires existing safe artifacts and Python
-controller callbacks. The other 155 cases still refuse as pending.
+controller callbacks. The other 156 cases still refuse as pending.
 There is no bypass, checkpoint or resume option. Listing
 success is declaration inspection, never an E2E pass.
 
@@ -120,9 +120,14 @@ attachment/diagnostic review; E2E-032 covers authorized real delivery; E2E-033
 covers retry after a declared real transport fault. Delivery prerequisites are
 explicit authorization, a dedicated test recipient and the actual supported
 service profile. Inventory registration grants no delivery permission.
-Installation, About and feedback requirement-mapping gaps are explicit pending
+About and feedback requirement-mapping gaps are explicit pending
 work with owners and authoritative contract references. They must be mapped
 before those cases become ready. No existing requirement is marked covered.
+Task 20's [startup audit](../../docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md)
+maps clean installation to `ONPC-CORE-INSTALL-001` and startup gates to
+`ONPC-COMP-BROKER-010`. The retained `startup-enforcement` variant owns the
+fapolicyd/GDM failure; `startup-broker` independently owns broker reconciliation
+failure. All three Task 20 cases remain pending implementation and execution.
 
 `pending` requires a reason and a null executable. `ready` requires no pending
 reason or requirement gap and an existing `tests/e2e/*.py` or `*.pm` reference
@@ -276,7 +281,7 @@ changes at these boundaries; they are not a filesystem monitor.
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
 VM provenance or customer behavior. E2E-034 supplies separate live public
-controller proof; 155 customer/fault variants remain pending.
+controller proof; 156 customer/fault variants remain pending.
 
 ## Verify edits
 
@@ -748,5 +753,5 @@ lease is held, writes the diagnostic report, verifies its private copies and
 rechecks provenance before release. A `finalization-rejected` event is terminal,
 including after an earlier candidate pass. The final `result.json` also accounts
 for release/connection errors. These reports have diagnostic qualification scope,
-no scenario ID, no inventory override and no customer assertions. The 155 customer/fault variants remain pending. E2E-001 is the canonical
+no scenario ID, no inventory override and no customer assertions. The 156 customer/fault variants remain pending. E2E-001 is the canonical
 public scenario recorder and terminal invocation smoke, superseding E2E-034.

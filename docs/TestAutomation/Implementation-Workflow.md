@@ -30,18 +30,15 @@ omission of necessary work. This is the single implementation session procedure.
    dependent acceptance. If nothing is ready, save the concrete blocker. If all
    entries are complete, record completion and stop without rerunning suites.
 2. State one next observable result, its smallest verification, planned slice
-   budget, and the latest handoff's model/effort with its reason. Confirm both
-   settings and wait for **“Go ahead”** at each fresh implementation session,
-   including the same task. Explain that the documented
-   [session loop](../Test-Automation.md#continue-implementation-in-fresh-sessions)
-   requires this pause. Do not investigate code or run tests before confirmation.
-   Explicit session instructions take precedence; do not request an approval
-   already given for this session or repeat the machine-selection question.
-   The [unattended launcher](Unattended-Sessions.md) supplies explicit advance
-   authorization for its successive slices and selected settings, so those
-   sessions proceed without the interactive pause. All execution and acceptance
-   boundaries still apply.
-3. After confirmation, inspect working-tree status and relevant changes. For
+   budget, actual model/effort and the latest handoff's recommendation with its
+   reason. The user's continuation request or [launcher invocation](Unattended-Sessions.md)
+   authorizes the bounded work and choices under the model policy below; do not
+   add a separate “Go ahead” or model-selection pause. An interactive agent
+   cannot change its own running model: disclose a mismatch and arrange the
+   appropriate next session if the current capability is insufficient. Never
+   claim to switch models. Existing execution and acceptance boundaries apply;
+   do not repeat the machine-selection question.
+3. Inspect working-tree status and relevant changes. For
    architecture read [System-Design.md](../System-Design.md), then the owning
    module and applicable specification IDs. The task's first slice and optional
    [reuse-map row](Reuse-Map.md) route further reads. Follow contracts when the
@@ -86,28 +83,59 @@ their old scheduling instructions do not override this clearance.
 
 ## Reassess model and effort at every handoff
 
+**Operator policy — 2026-09-08:** quality is mandatory; conserving the weekly
+subscription usage allowance is the secondary objective. This replaces every
+blanket Astra/high pin and max-effort default, including instructions in older
+handoffs and evidence. Historical settings still describe those past runs.
+Selection under this policy is authorized for already-authorized work without
+another settings confirmation.
+
 Reevaluate model and effort separately for the next slice at every handoff.
 The latest applicable handoff overrides task-header defaults; revise it if
 intervening changes alter the difficulty. Mirror the result in Continuation.md.
 
-- Lower either setting for routine implementation, case tables or documentation
-  only with a settled contract, explicit expected result and adequate checks.
-  A short authorization, ownership, concurrency or evidence edit is not routine.
-- Raise either when unresolved design or security/concurrency reasoning needs
-  it. A failed test or long VM wait alone is not a reasoning difficulty.
-- Choose the least costly available combination expected to preserve quality;
-  retain stronger settings when capability is uncertain. Judge total work to a
-  verified result, including rereads/corrections/retries, not price per token.
-  Do not duplicate implementations merely to benchmark models.
+| Next slice | Starting choice and reassessment |
+| --- | --- |
+| Bounded implementation with settled contracts, proven helpers and meaningful acceptance checks | `gpt-5.6-sol` / `high`. This is the general implementation default. |
+| Unresolved architecture, authorization, concurrency, process ownership, difficult diagnosis across services, or broad semantic correctness review | `gpt-6-astra` / `high`. Select it upfront when needed; do not spend repeated weaker-model attempts discovering a known capability gap. |
+| Routine case expansion, adapters or UI work with established interfaces and expected results | Consider `gpt-5.6-terra` / `medium` or `high` only after confirming that the contract and checks are adequate. |
+| Mechanical documentation or mappings over verified decisions | Consider `gpt-5.6-luna` / `low` or `medium`; a change to privacy, evidence, acceptance or ownership policy is not mechanical. |
+
+- Initially retain `high` for substantive implementation while choosing the
+  model. Lower effort separately when the remaining reasoning is routine.
+  Use `xhigh` or `max` only for an identified reasoning need recorded in the
+  handoff, never because they were used before. A failed test or long VM wait
+  alone does not justify stronger settings.
+- Keep the same required tests, review, evidence and cleanup with every model.
+  No model choice guarantees correctness. Retain stronger capability when the
+  adequacy of a cheaper choice is uncertain, then reassess after the boundary
+  is proven. Repeated corrections require reconsidering that class of work.
+- Use **Standard processing**. Fast mode spends additional allowance for speed,
+  without increasing model intelligence. The launcher explicitly sets
+  `service_tier="default"`; a general user configuration must not silently
+  enable Fast mode for its workers.
+- Optimize allowance consumed per verified result, including context, reasoning,
+  corrections and retries. Raw token counts, credit rates and the weekly meter
+  are distinct: a stronger model can generate fewer tokens, and published
+  credit ratios do not establish an exact weekly-limit multiplier. Use only
+  already-exposed usage and real completed work; do not duplicate implementations
+  to benchmark models, read old transcripts or add a model call just to route a
+  slice. See [official usage guidance](https://learn.chatgpt.com/docs/pricing)
+  and [Standard/Fast processing](https://learn.chatgpt.com/docs/agent-configuration/speed).
 
 Record exact settings and a fresh reason even when keeping both:
 
 > **Next-session settings:** `<model>` / `<effort>`; model: lower/raise/keep;
 > effort: lower/raise/keep. **Reason:** `<what is now proven and what remains>`.
 
-Confirm at session start as above; within that session confirmation remains
-valid unless recommending a setting change. Never claim to switch models or
-read old transcripts to recover approval. Machine/VM authorization persists.
+The [launcher settings contract](Unattended-Sessions.md#model-and-effort-selection)
+defines the single machine-readable line in Continuation.md. The supervisor
+reads it before each fresh slice; it does not use the task header or global
+configuration as a silent fallback. A running worker records its actual settings
+separately from its next recommendation. If new evidence requires a stronger
+model, finish owned operations and save a precise handoff before the next
+session. Do not start a nested model process or weaken verification to stay on
+the current model. Machine/VM authorization persists.
 
 ## Keep context small and reset at problem boundaries
 
@@ -182,9 +210,9 @@ it later adds context. File storage alone is not a token-saving technique.
   where needed. Keep summaries self-contained about the result and its limits.
 
 These are defaults for removing repetition, not hard response/tool-output caps.
-Expand whenever correctness, diagnosis or recovery requires it. Do not lower the
-launcher's pinned model/effort, skip required checks, delete evidence or weaken
-cleanup to shorten a transcript. Compare already-exposed usage for comparable
+Expand whenever correctness, diagnosis or recovery requires it. Select model
+and effort under the policy above; never skip required checks, delete evidence
+or weaken cleanup to shorten a transcript. Compare already-exposed usage for comparable
 verified work; fewer terminal lines or artifact bytes do not establish savings.
 
 ## Reuse established tools and bound harness work

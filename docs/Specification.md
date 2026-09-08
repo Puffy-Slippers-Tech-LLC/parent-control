@@ -14,6 +14,10 @@ Terms used below:
 
 ## 1. Core end-to-end release acceptance
 
+### Installation and startup
+
+- [ONPC-CORE-INSTALL-001] On a clean supported Ubuntu computer without the product installed, a parent can install the release package through the documented package command with administrator authentication, see the required reboot notice, and restart the computer normally. After that reboot, the sign-in screen becomes usable with application enforcement ready and the installed product services available. Installation preserves existing accounts and unrelated settings.
+
 ### Accounts and access
 
 - [ONPC-CORE-ACCOUNTS-001] The Parent App is available to local administrators. A standard user cannot open it or perform management actions by launching it another way.

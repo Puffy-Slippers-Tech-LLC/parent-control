@@ -132,7 +132,10 @@ explicitly instead of silently inventing a new guarantee or discarding a gap.
 
 This is the single authoritative checklist. Each linked section is one task;
 its initial model/effort recommendation remains there. The active handoff owns
-the reassessed recommendation for its remaining slice. Task numbers identify coverage
+the reassessed recommendation for its remaining slice under the
+[quality and weekly-allowance policy](Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff).
+The launcher uses that choice from Continuation.md for each fresh session;
+historical pinned settings are not mandates. Task numbers identify coverage
 ownership, not equal effort or numeric execution order. The displayed checklist
 order governs selection: take the earliest ready unchecked entry and record any
 earlier deferral under the [session procedure](Implementation-Workflow.md#start-with-one-bounded-result).

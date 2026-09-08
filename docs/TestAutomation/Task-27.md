@@ -26,8 +26,10 @@ Verification below is task acceptance; edits use the smallest affected selection
 - Depends on: Task 26C.
 - Complexity: high. Secret exclusion, archive safety, and evidence integrity
   require careful handling across text, structured fields, images, and video.
-- Recommended Codex model: `gpt-5.6-sol`
+- Recommended Codex model: `gpt-6-astra`
 - Recommended reasoning effort: `high`
+- Model rationale: establish the privacy and evidence contract with Astra;
+  reassess routine adapters after the contract and its failure checks are proven.
 - Work:
   1. Define a versioned run manifest with run/suite/test/scenario/variant/step
      and requirement IDs, source revision and content digest including local
@@ -108,8 +110,11 @@ Verification below is task acceptance; edits use the smallest affected selection
 - Depends on: Task 27B.
 - Complexity: high. Existing workflows must be diagnosed for synchronization
   races without weakening assertions or retrying failures into passes.
-- Recommended Codex model: `gpt-5.6-terra`
+- Recommended Codex model: `gpt-5.6-sol`
 - Recommended reasoning effort: `high`
+- Model rationale: use Sol for bounded diagnosis over established runner
+  contracts; select Astra if an unresolved concurrency or ownership design
+  emerges. A long wait alone does not justify higher settings.
 - Work:
   1. Standardize bounded waits and diagnostic categories for boot, SSH, D-Bus,
      service readiness, needles, app start/exit, lock, and logout.

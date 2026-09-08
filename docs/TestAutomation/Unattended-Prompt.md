@@ -6,7 +6,12 @@ The user authorizes implementation and verification of successive slices within
 that plan and the existing guarded test-VM scope. Proceed with the exact model
 and effort supplied by the supervisor. The per-session “Go ahead” and settings
 confirmation are already given for this unattended run; do not pause for them.
-Every session is pinned to `gpt-6-astra` / `high`; record these settings in the handoff.
+Follow Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff:
+quality first, weekly allowance second. Sol high is the settled-implementation
+default; choose Astra high upfront for unresolved security, concurrency,
+ownership, difficult diagnosis or broad correctness review. Lower settings need
+a settled contract and adequate checks. There is no blanket model/effort pin;
+historical pinned settings cannot override this policy. Processing is Standard.
 This authorization does not override execution policy, an approval denial,
 Polkit policy, VM ownership, cleanup guards or requirements for an actual user
 decision outside the established scope. Never widen permissions to continue.
@@ -57,12 +62,21 @@ outside input. Record any denied action and its reason in the active handoff;
 do not retry the denied action through a different route or new session.
 
 Before ending, update the task's active handoff with the result, reusable
-evidence, next action, pinned model/effort and cleanup state. Reapply task
+evidence, next action, actual settings, reassessed next model/effort and cleanup state. Reapply task
 selection and write Continuation.md for the next eligible task; it may differ
-from the task just worked on. Keep the settings line in Continuation.md in this exact form, followed
-by its reason:
+from the task just worked on. Reassess from what is now proven and what remains;
+do not copy the current settings automatically. Write exactly one settings line
+in Continuation.md in this form, replacing both placeholders, followed by a fresh
+reason on the next line:
 
-    - Settings: **`gpt-6-astra` / `high`**, pinned by the slice launcher.
+    - Settings: **`<model>` / `<effort>`**.
+      Reason: <why these settings preserve quality for the next bounded result>.
+
+Use one of `gpt-5.6-sol`, `gpt-6-astra`, `gpt-5.6-terra`, `gpt-5.6-luna` and
+`low`, `medium`, `high`, `xhigh`, `max` under that policy. The supervisor validates
+and uses this choice for the next fresh session without a routing-model call or
+another approval pause. Missing, duplicate or unsupported settings stop launch;
+there is no silent fallback. Do not claim to switch this running conversation.
 
 Do not log PII or secrets. Describe any blocker and required intervention in the
 active task handoff. The final response must conform to the supplied schema:

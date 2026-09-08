@@ -24,9 +24,9 @@ slices. This does not start or resume work, change limits, or modify session
 state; Ctrl+C disconnects only that monitor. Multiple terminals can monitor the
 same run. Output is passed through a same-user local socket, never saved to a
 new log, and missed output is not replayed. A slow monitor may be disconnected
-to keep the worker moving. The launcher sends an explicit shutdown event after
-its final output so monitors exit without waiting for socket closure. A closed
-connection also ends the monitor.
+to keep the worker moving. The launcher queues an explicit shutdown event with
+its final notice so monitors exit without waiting for later socket teardown. A
+closed connection also ends the monitor.
 Launchers already running code from before monitoring support cannot accept a
 monitor; `start` reports that limitation and leaves their work unchanged.
 Use `run` in a dedicated terminal and another terminal for `status` or `stop`.
@@ -122,7 +122,7 @@ concise, self-contained summary. Follow the shared
 [output rules](Implementation-Workflow.md#reduce-unnecessary-model-output):
 avoid repeated scripts, patches, command transcripts and irrelevant tool reads;
 retain material findings, failures, verification, cleanup and recovery details.
-The pinned model/effort and acceptance checks are unchanged, and brevity does
+The selected model/effort and acceptance checks remain explicit, and brevity does
 not impose a new response-length or tool-output limit.
 
 Live rendering, monitor fanout and saving already-produced output are local
@@ -163,10 +163,10 @@ requires reconciliation. No in-session chatter is appended to this document.
 ## What carries between sessions
 
 The [unattended prompt](Unattended-Prompt.md) authorizes the documented successive
-slices and their model/effort settings when you launch the run. It overrides the
-interactive “Go ahead” pause for that run. Ordinary interactive sessions keep
-their existing confirmation procedure. Execution policies and actual denials
-continue to apply.
+slices and model/effort choices under the
+[quality and allowance policy](Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff)
+when you launch the run. There is no separate “Go ahead” or settings pause for
+authorized work. Execution policies and actual denials continue to apply.
 
 The [implementation workflow](Implementation-Workflow.md) still owns selection,
 scope, verification, acceptance and the compact handoff. Each worker reads
@@ -177,17 +177,50 @@ configuration still load normally. Workers persist sessions in Codex's own
 session storage so they can be resumed. Recovery also uses the task handoff,
 operation evidence and control metadata.
 
-The supervisor pins every slice to `gpt-6-astra` with `high` reasoning effort
-in the launcher code. Continuation.md records these settings for the handoff:
+## Model and effort selection
+
+The supervisor reads exactly one settings line from Continuation.md before
+**each fresh slice**, including after a normal stop/start or queued restart.
+The worker reassesses the next slice's model and effort separately under the
+policy above, records the reason in the active task handoff, and mirrors it in
+Continuation.md. For settled implementation the line is:
 
 ```text
-- Settings: **`gpt-6-astra` / `high`**, pinned by the slice launcher.
+- Settings: **`gpt-5.6-sol` / `high`**.
+  Reason: the contract and helper are proven; the next slice adds specified cases.
 ```
 
-Workers maintain that line and the task handoff; edits to the line cannot change
-the launch settings. There is no model substitution. The pinned model must be available to
-the signed-in account. Slice budgets remain review points, so an active VM
-attempt can exceed 30 minutes while it finishes collection and cleanup.
+Keep that exact punctuation and one line, substituting the selected model and
+effort. Supported models are `gpt-5.6-sol`, `gpt-6-astra`, `gpt-5.6-terra` and
+`gpt-5.6-luna`; efforts are `low`, `medium`, `high`, `xhigh` and `max`. Selection
+must follow the policy: higher efforts need a concrete reasoning justification,
+and routine work only qualifies for lower settings when its checks are adequate.
+Missing, duplicate, malformed or unsupported settings refuse before worker
+launch; no model call or silent fallback makes that decision. The selected
+model must be available to the signed-in account.
+
+Every worker receives explicit model, effort and `service_tier="default"`
+overrides, so a global Astra/max or Fast preference cannot override the handoff.
+The terminal and state record the selected settings and Standard processing.
+An interrupted conversation resumed by `start` keeps its recorded model/effort
+for reconciliation; after its clean handoff, fresh slices use Continuation.md
+again. Settings edits do not switch a running conversation. Missing or invalid
+saved resume settings require reconciliation rather than guessing a replacement.
+
+**Activation:** these are development-launcher changes (`none`), with no product
+data migration or helper installation. An already-running old supervisor keeps
+its loaded code; use the safe `restart` above to load changes at its next clean
+boundary. A stopped launcher's next `start` loads them directly. There is no
+blanket Astra pin; historical evidence records the settings actually used then.
+Slice budgets remain review points, so an active VM attempt can exceed 30
+minutes while it finishes collection and cleanup.
+
+The supervisor appends already-reported CLI token counts to each operator
+summary, including cached input and reasoning output when supplied. Missing
+counts are marked unreported. These subcounts must not be added again to their
+input/output totals. Raw tokens do not measure weekly allowance consumption;
+use the account's displayed allowance alongside verified progress when exposed.
+No new model call, transcript scan or replay benchmark is needed for this report.
 
 ## Completion and interruption
 
@@ -246,8 +279,9 @@ permission rules.
 Control metadata is private to the invoking user under the Git-ignored directory
 `output/codex-slices/`: `state.json`, append-only `launcher.log`, and a unique
 directory per attempt with the final structured response. Lifecycle events
-include timestamps, CLI thread IDs, exit status and token counts. `status` also
-shows the session count and latest completion time, duration and outcome. Raw
+include timestamps, CLI thread IDs, exit status and token counts. `cli_pid` is
+non-null only while that exact owned CLI child is live. `status` also shows the
+session count and latest completion time, duration and outcome. Raw
 CLI stderr, command output and in-session assistant prose go only to the live
 terminal, including for detached `start`; they never go to `launcher.log`.
 The cumulative summary document is ordinary repository documentation, so final

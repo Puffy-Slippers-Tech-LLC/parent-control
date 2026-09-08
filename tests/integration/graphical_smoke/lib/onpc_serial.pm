@@ -4,15 +4,24 @@ use warnings;
 use testapi ();
 use onpc_password ();
 use onpc_gdm ();
+use onpc_install ();
 
 my $attempted = 0;
 
 sub run {
-    my ($exchange) = @_;
+    return _run($_[0], 0, scalar @_);
+}
+
+sub run_install {
+    return _run($_[0], 1, scalar @_);
+}
+
+sub _run {
+    my ($exchange, $install, $count) = @_;
     die "serial:already-attempted\n" if $attempted++;
     onpc_password::seal_capture();
     my $ok = eval {
-        die 'serial:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+        die 'serial:arguments' unless $count == 1 && ref($exchange) eq 'CODE';
         die 'serial:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
         testapi::select_console('onpc-serial');
         die 'serial:console' unless testapi::current_console() eq 'onpc-serial';
@@ -48,15 +57,17 @@ sub run {
         # prompt before typing; login/PAM may still be initializing the tty.
         die 'serial:shell-prompt' unless testapi::wait_serial(qr/\$ \z/,
             timeout => 30, quiet => 1, record_output => 0);
-        # Split the marker in the typed command: terminal echo cannot pass the
-        # complete output assertion. This changes no guest file.
-        testapi::type_string("printf 'ONPC-SERIAL-%s\\n' 'OK'\n");
-        # Readline may emit bracketed-paste/CR controls immediately before
-        # stdout. The complete marker cannot occur in the split command echo,
-        # so a preceding LF is unnecessary and would reject valid terminals.
-        die 'serial:command-output' unless testapi::wait_serial(qr/ONPC-SERIAL-OK\r{0,2}\n/,
-            timeout => 15, quiet => 1, record_output => 0);
-        $exchange->('serial-command', undef);
+        if ($install) {
+            onpc_install::run($exchange);
+        } else {
+            # Split the marker: terminal echo cannot pass the complete output
+            # assertion. Readline may emit controls immediately before stdout;
+            # a preceding LF is unnecessary and rejects valid terminals.
+            testapi::type_string("printf 'ONPC-SERIAL-%s\\n' 'OK'\n");
+            die 'serial:command-output' unless testapi::wait_serial(qr/ONPC-SERIAL-OK\r{0,2}\n/,
+                timeout => 15, quiet => 1, record_output => 0);
+            $exchange->('serial-command', undef);
+        }
         testapi::type_string("exit\n");
         die 'serial:logout' unless testapi::wait_serial(qr/ login: \z/,
             timeout => 30, quiet => 1, record_output => 0);

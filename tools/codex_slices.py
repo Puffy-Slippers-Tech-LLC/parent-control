@@ -41,8 +41,9 @@ HANDOFF = Path('docs/TestAutomation/Continuation.md')
 PROMPT = Path('docs/TestAutomation/Unattended-Prompt.md')
 SUMMARY = Path('docs/Test-Automation-Slice-Summary.md')
 STORAGE = Path('output/codex-slices')
-MODEL = 'gpt-6-astra'
-EFFORT = 'high'
+MODELS = frozenset(('gpt-5.6-sol', 'gpt-6-astra', 'gpt-5.6-terra', 'gpt-5.6-luna'))
+EFFORTS = frozenset(('low', 'medium', 'high', 'xhigh', 'max'))
+USAGE_FIELDS = ('input_tokens', 'cached_input_tokens', 'output_tokens', 'reasoning_output_tokens')
 BLOCKERS = ('none', 'approval', 'environment', 'decision', 'no-ready-task')
 SUMMARY_FIELDS = {
     'task': 'Task',
@@ -303,6 +304,12 @@ class LiveOutput:
     def markdown(self, text):
         self.display(text, markdown=True)
 
+    def finish(self):
+        """Tell attached monitors that no more launcher output will follow."""
+        with self.lock:
+            if self.monitor is not None:
+                self.monitor.publish({'type': 'launcher.exiting'})
+
     def display(self, text, *, markdown=False, lexer=None, style=None):
         if not text:
             return
@@ -459,7 +466,11 @@ def finish_session(root, session, outcome, note, live, update):
             f"- Duration: {minutes} minutes (rounded up)\n"
             f"- Outcome: {outcome}\n"
             f"- Settings: `{session['model']}` / `{session['effort']}`\n"
+            '- Processing: Standard\n'
             f"- Attempt: `{session['attempt']}`\n")
+    usage = session.get('usage', {})
+    counts = '; '.join(f'{key}: {usage[key]}' for key in USAGE_FIELDS if key in usage)
+    text += f'- CLI token counts: {counts or "not reported"}. These are not weekly allowance measurements.\n'
     if note:
         text += f'- Supervisor: {note}\n'
     result = session.get('result')
@@ -561,6 +572,26 @@ def checklist(root):
 
 def handoff_digest(root):
     return hashlib.sha256((root / HANDOFF).read_bytes()).hexdigest()
+
+
+def session_settings(root, saved=None):
+    """Read one explicit handoff choice, or preserve an interrupted session's choice."""
+    if saved is None:
+        lines = [line for line in (root / HANDOFF).read_text().splitlines()
+                 if line.startswith('- Settings:')]
+        if len(lines) != 1:
+            raise Error('Continuation.md must contain exactly one - Settings: line; no model fallback is used.')
+        match = re.fullmatch(r'- Settings: \*\*`([a-z0-9.-]+)` / `([a-z]+)`\*\*\.', lines[0])
+        if match is None:
+            raise Error('Malformed Continuation.md settings; use - Settings: **`<model>` / `<effort>`**.')
+        model, effort = match.groups()
+    else:
+        model, effort = saved.get('model'), saved.get('effort')
+    if not isinstance(model, str) or model not in MODELS:
+        raise Error('Unsupported or missing model selection; review the documented model policy.')
+    if not isinstance(effort, str) or effort not in EFFORTS:
+        raise Error('Unsupported or missing reasoning effort; review the documented model policy.')
+    return model, effort
 
 
 def validate_result(path):
@@ -680,6 +711,8 @@ def invoke(root, attempt, command, lock_fd, update, live):
     prompt += '\nThe supervisor has selected these exact settings: '
     prompt += f'{command[command.index("--model") + 1]} / '
     prompt += command[command.index('-c') + 1].split('=', 1)[1] + '.\n'
+    prompt += ('Processing is Standard. These are this session\'s actual settings; '
+               'reassess the next slice under the model policy instead of copying them automatically.\n')
     if 'resume' in command:
         prompt += ('\nResume the interrupted conversation. Before continuing, reconcile '
                    'any interrupted tools, owned operations and cleanup; do not blindly '
@@ -732,11 +765,10 @@ def invoke(root, attempt, command, lock_fd, update, live):
                         usage = event.get('usage', {})
                         if isinstance(usage, dict):
                             metadata['usage'] = {
-                                key: usage[key] for key in (
-                                    'input_tokens', 'cached_input_tokens', 'output_tokens',
-                                    'reasoning_output_tokens',
-                                ) if type(usage.get(key)) is int and usage[key] >= 0
+                                key: usage[key] for key in USAGE_FIELDS
+                                if type(usage.get(key)) is int and usage[key] >= 0
                             }
+                            observed['usage'] = metadata['usage']
                     elif kind == 'turn.failed':
                         observed['failed'] = True
                         observed['transient'] = transient_error(event.get('error', {}))
@@ -825,10 +857,14 @@ def run(root, args):
             state.update(fields, updated=stamp())
             write_json(storage / 'state.json', state)
 
-        def announce(message, *, style=None):
+        def announce(message, *, style=None, final=False):
             if live.stream is not sys.stdout:
                 print(message, flush=True)
             live.write(message + '\n', style=style)
+            # Do not make an attached console wait for context-manager or
+            # socket teardown after it has already received the final notice.
+            if final:
+                live.finish()
 
         executable = preflight(root)
         tasks = checklist(root)
@@ -837,6 +873,7 @@ def run(root, args):
             raise Error('Recorded tasks disappeared from the checklist; reconcile its completion record.')
         expected.update(tasks)
         update(status='launching', request_id=request_id, resumable=True, thread_id=resume_thread,
+               cli_pid=None,
                max_slices=args.max_slices, max_api_retries=args.max_api_retries)
         stop_requested = threading.Event()
 
@@ -864,42 +901,51 @@ def run(root, args):
         try:
             while True:
                 if kill_requested(storage, request_id):
-                    update(status='killed', reason='operator-kill')
-                    announce('Session killed. Launcher exiting.', style='bold red')
+                    update(status='killed', reason='operator-kill', cli_pid=None)
+                    announce('Session killed. Launcher exiting.', style='bold red', final=True)
                     return 0
                 if stopping() or (args.max_slices and completed_slices >= args.max_slices):
-                    update(status='stopped', reason='slice-boundary')
-                    announce('Session stopped at a safe slice boundary. Launcher exiting.', style='bold red')
+                    update(status='stopped', reason='slice-boundary', cli_pid=None)
+                    announce('Session stopped at a safe slice boundary. Launcher exiting.',
+                             style='bold red', final=True)
                     return 0
                 tasks = checklist(root)
                 if expected - tasks.keys():
                     raise Error('Recorded tasks disappeared from the checklist.')
                 expected.update(tasks)
                 if all(tasks.values()) and not resume_thread:
-                    update(status='complete', reason='checklist-complete', tasks=sorted(expected))
-                    announce('All documented tasks are complete.')
+                    update(status='complete', reason='checklist-complete', tasks=sorted(expected),
+                           cli_pid=None)
+                    announce('All documented tasks are complete.', final=True)
                     return 0
-                model, effort = MODEL, EFFORT
+                model, effort = session_settings(root, state if resume_thread else None)
                 before = handoff_digest(root)
                 attempt = storage / ('slice-' + uuid.uuid4().hex)
                 private_directory(attempt)
                 write_json(attempt / 'schema.json', SCHEMA)
                 number = state.get('sessions_started', 0) + 1
                 update(status='running', reason='slice', attempt=attempt.name,
-                       model=model, effort=effort, tasks=sorted(expected),
+                       model=model, effort=effort, service_tier='default',
+                       settings_source='saved-session' if resume_thread else 'continuation', tasks=sorted(expected),
                        cli_pid=None, thread_id=resume_thread, resumable=True, sessions_started=number)
                 command = [executable, 'exec', '--approve-for-me', '--model', model,
                            '-c', f'model_reasoning_effort="{effort}"',
+                           '-c', 'service_tier="default"',
                            '--cd', str(root), '--json', '--color', 'never',
                            '--output-schema', str(attempt / 'schema.json'),
                            '--output-last-message', str(attempt / 'result.json')]
                 command += ['resume', resume_thread, '-'] if resume_thread else ['-']
-                announce(f'{stamp()} {"Resuming" if resume_thread else "Starting fresh"} session {number} with {model} / {effort}.')
+                announce(f'{stamp()} {"Resuming" if resume_thread else "Starting fresh"} session {number} with {model} / {effort}, Standard processing.')
+                attempted_thread = resume_thread
                 resume_thread = None
                 session = {'number': number, 'model': model, 'effort': effort,
                            'attempt': attempt.name, 'started': time.monotonic(),
                            'report_attempted': False}
                 code, observed = invoke(root, attempt, command, lock_fd, update, live)
+                # cli_pid identifies a currently owned live child, not
+                # historical metadata. Clear it before evaluating the outcome.
+                update(cli_pid=None)
+                session['usage'] = observed.get('usage', {})
                 session.update(completed_at=summary_timestamp(),
                                duration_minutes=math.ceil(max(0, time.monotonic() - session['started']) / 60))
                 write_json(attempt / 'exit.json', {'exit_code': code, **observed})
@@ -909,7 +955,7 @@ def run(root, args):
                                    'Session interrupted; work and cleanup are unconfirmed.', live, update)
                     update(status='killed', reason='operator-kill' if operator_kill else 'worker-signal', cli_pid=None)
                     announce('Session killed. Launcher exiting. Use start to continue the saved conversation.',
-                             style='bold red')
+                             style='bold red', final=True)
                     return 0 if operator_kill else 2
                 # Retry only an explicit transient failed turn that never called
                 # a tool. Errors after tools ran require operation reconciliation.
@@ -924,6 +970,9 @@ def run(root, args):
                     update(status='retry-wait', reason='transient-before-tools', retry=retries)
                     announce(f'Transient API failure before tool use; retrying in {delay}s.')
                     wait_retry(delay, stopping, stop_requested)
+                    # A resumed conversation still owns its earlier work. A
+                    # pre-tool transport retry must not replace it or its settings.
+                    resume_thread = attempted_thread
                     continue
                 if code != 0 or not observed['completed'] or observed['failed'] or observed['invalid_event']:
                     raise Error('Codex exited without a clean completed turn; inspect the current task handoff and owned operations.')
@@ -938,7 +987,7 @@ def run(root, args):
                     finish_session(root, session, 'blocked', 'Cleanup confirmed; outside input required.', live, update)
                     update(status='blocked', reason=result['blocker'])
                     announce('Session stopped: no ready work can proceed. Read the current task handoff for the blocker.',
-                             style='bold red')
+                             style='bold red', final=True)
                     return 2
                 if result['status'] == 'complete':
                     if not all(current.values()):
@@ -947,7 +996,7 @@ def run(root, args):
                         raise Error('Codex did not save a final completion handoff in Continuation.md.')
                     finish_session(root, session, 'complete', 'Checklist, cleanup and final handoff confirmed.', live, update)
                     update(status='complete', reason='checklist-and-handoff-complete', tasks=sorted(current))
-                    announce('All documented tasks are complete.')
+                    announce('All documented tasks are complete.', final=True)
                     return 0
                 if not result['made_progress'] or handoff_digest(root) == before:
                     raise Error('The slice reported no progress or did not update Continuation.md.')
@@ -965,9 +1014,9 @@ def run(root, args):
                     finish_session(root, session, 'needs-review', note, live, update)
                 except (Error, OSError):
                     announce('The session summary could not be confirmed; reconcile the current attempt.')
-            update(status='needs-review', reason='unconfirmed-handoff')
+            update(status='needs-review', reason='unconfirmed-handoff', cli_pid=None)
             announce('Session stopped: review required. Launcher exiting; inspect the current task handoff.',
-                     style='bold red')
+                     style='bold red', final=True)
             if isinstance(exc, OSError):
                 raise Error(f'Local I/O or process startup failed (errno {exc.errno}); '
                             'reconcile the current task handoff and owned operations before restarting.') from exc
@@ -1113,6 +1162,8 @@ def main(argv=None, *, root=ROOT):
                 if state.get('status') in ('launching', 'running', 'needs-review') and not args.reconciled:
                     raise Error('Previous work needs reconciliation; read state.json and the task handoff.')
                 preflight(root)
+                if resume_thread or not all(checklist(root).values()):
+                    session_settings(root, state if resume_thread else None)
                 request_id = str(uuid.uuid4())
                 state.update(status='launching', request_id=request_id, resumable=True,
                              thread_id=resume_thread, updated=stamp(),

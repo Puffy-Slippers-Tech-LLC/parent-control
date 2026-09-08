@@ -10,6 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/e2e'))
 import guest_observations
+import installation_observations
 from observation_transport import ReadOnlyObservations
 from private_artifacts import EvidenceError
 sys.path.pop(0)
@@ -23,6 +24,14 @@ def observer():
 
 @pytest.mark.parametrize('name,program,timeout,result,raw', [
     ('boot', guest_observations.BOOT, 20, {'boot_sha256': 'a' * 64}, b'a' * 64 + b'\n'),
+    ('package-absent', installation_observations.ABSENT, 30,
+     {'product_package_absent': True, 'core_payload_absent': True,
+      'product_reboot_required': False}, b'package-absent\n'),
+    ('package-installed', installation_observations.INSTALLED, 90,
+     {'package_sha256': 'a' * 64, 'installed_identity_verified': True,
+      'product_reboot_required': True},
+     (json.dumps({'package_sha256': 'a' * 64, 'installed_identity_verified': True,
+                  'product_reboot_required': True}, sort_keys=True) + '\n').encode()),
     ('assets', guest_observations.ASSETS, 120, {'files': 3, 'sha256': 'a' * 64},
      (json.dumps({'files': 3, 'sha256': 'a' * 64}, sort_keys=True) + '\n').encode()),
     ('greeter', guest_observations.GREETER, 110,
@@ -33,6 +42,9 @@ def observer():
     ('serial-password', guest_observations.SERIAL_PASSWORD, 20,
      {'serial_login_process_verified': True,
       'terminal_echo_disabled': True}, b'serial-password-safe\n'),
+    ('install-password', installation_observations.SUDO_PASSWORD, 20,
+     {'sudo_install_process_verified': True,
+      'terminal_echo_disabled': True}, b'install-password-safe\n'),
     ('serial-session', guest_observations.SERIAL_SESSION, 110,
      {'fixture_role': 'parent', 'active_local_serial_session': True,
       'unexpected_user_session': False}, b'serial-session-ready\n'),
@@ -68,6 +80,38 @@ def test_boot_probe_hashes_actual_kernel_identity(capsys):
     exec(guest_observations.BOOT, {})
     actual = (Path('/proc/sys/kernel/random/boot_id').read_text()).encode()
     assert capsys.readouterr().out == hashlib.sha256(actual).hexdigest() + '\n'
+
+
+@pytest.mark.parametrize('probe,raw', [
+    ('install-password', b'serial-password-safe\n'),
+    ('install-password', b'install-password-safe\nprivate-secret-canary'),
+    ('package-absent', b'package-absent\nprivate-secret-canary'),
+    ('package-absent', b'package-installed\n'),
+    ('package-installed', b'{}'),
+    ('package-installed', b'null'),
+    ('package-installed', b'\xff'),
+    *[('package-installed', (json.dumps(value, sort_keys=True) + '\n').encode())
+      for value in [
+          {'package_sha256': 'A' * 64, 'installed_identity_verified': True,
+           'product_reboot_required': True},
+          {'package_sha256': 'a' * 64, 'installed_identity_verified': 1,
+           'product_reboot_required': True},
+          {'package_sha256': 'a' * 64, 'installed_identity_verified': True,
+           'product_reboot_required': False},
+          {'package_sha256': 'a' * 64, 'installed_identity_verified': True,
+           'product_reboot_required': True, 'user': 'private-secret-canary'},
+      ]],
+])
+def test_package_observation_rejects_unsafe_or_unproven_output(observer, probe, raw, capsys):
+    reader, transport = observer
+    transport.call.return_value = raw
+    with pytest.raises(EvidenceError) as caught:
+        reader.read(probe)
+    assert 'private-secret-canary' not in str(caught.value)
+    assert 'private-secret-canary' not in capsys.readouterr().err
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.read('boot')
+    assert transport.call.call_count == 1
 
 
 @pytest.mark.parametrize('probe', ['reboot', 'checkpoint', 'restore', 'set-grant', 'install',

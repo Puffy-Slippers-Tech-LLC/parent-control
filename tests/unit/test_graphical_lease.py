@@ -89,6 +89,8 @@ def test_backend_off_on_off_sequence_never_restores_within_attempt(prepared):
     assert adapter.request('off', adapter.run) == 'ok'
     assert adapter.request('status', adapter.run) == 'off'
     assert lease.source.domain.revertToSnapshot.call_count == initial_restores
+    assert adapter.events == ['initial-off', 'status-off', 'poweron', 'status-on',
+                              'poweroff', 'poweroff', 'status-off']
     lease.source.domain.create.assert_called_once()
     assert lease.state['phase'] != 'complete'  # Outer lease still owns cleanup.
     with pytest.raises(RuntimeError, match='unexpected-poweron'):

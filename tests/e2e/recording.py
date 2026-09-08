@@ -161,15 +161,16 @@ class ScenarioRecorder:
         self._fail(category, code)
         self.checkpoint('failure')
 
-    def run_worker(self, verified, directory, lease, ledger, *, observe, validate, timeout=600):
+    def run_worker(self, verified, directory, lease, ledger, *, observe, validate, timeout=600,
+                   credentials=None, serial=False):
         """Run the qualified worker; observed stages remain scenario code's job.
 
         Neither module success nor worker diagnostics manufacture step/assertion
         records. Their exceptions enter the scenario ledger before worker cleanup.
         """
         require(self._case is not None, 'recording:case-state')
-        require(verified.lease is lease, 'recording:foreign-lease')
         try:
+            require(verified.lease is lease, 'recording:foreign-lease')
             verified.recheck_contract(self.contract)
         except BaseException:
             try:
@@ -180,9 +181,18 @@ class ScenarioRecorder:
         import e2e_worker
         before = len(self.contract.failure_state(self._case['case_id'])['failures'])
         try:
+            require(type(serial) is bool and (not serial or credentials is not None),
+                    'recording:serial-credentials')
+            if credentials is not None:
+                from fixture_credentials import FixtureCredentials
+                require(type(credentials) is FixtureCredentials, 'recording:fixture-credentials')
+                # Refuse unprovisioned/foreign credentials before worker startup,
+                # and require the scenario collector's original frozen registry.
+                self.collector.require_secrets(
+                    credentials.worker_secrets(lease).registered_secrets)
             return e2e_worker.run_distribution(directory, lease, ledger,
                 expected_inputs=verified.source_files, observe=observe, validate=validate,
-                timeout=timeout, on_failure=self.failure)
+                timeout=timeout, on_failure=self.failure, credentials=credentials, serial=serial)
         except BaseException as error:
             # Adapter and directory refusals happen before the worker owns any
             # resource and therefore before its failure hook is installed.

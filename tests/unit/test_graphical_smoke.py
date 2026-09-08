@@ -68,7 +68,7 @@ def test_success_requires_all_stages_even_with_zero_backend_status(tmp_path):
     worker, server = Mock(), Mock(path=tmp_path / 'callback.sock')
     worker.poll.return_value = 0
     tmp_path.chmod(0o700)
-    with patch.object(smoke.e2e_worker, 'Adapter'), \
+    with patch.object(smoke.e2e_worker, 'Adapter', return_value=Mock(events=[])), \
             patch.object(smoke.e2e_worker, 'CallbackServer', return_value=server), \
             patch.object(smoke.e2e_worker, 'Worker', return_value=worker):
         with pytest.raises(RuntimeError, match='missing-stages'):

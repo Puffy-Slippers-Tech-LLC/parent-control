@@ -144,50 +144,53 @@ for the remaining boundary; do not rebuild already implemented interfaces.
 
 ### Task 19A continuation — 2026-09-07
 
-**Solid progress:** the missing public serial command now has live evidence:
-exclusive attachment to the existing lease-owned serial device, real fixture
-password input, independently verified local serial login, actual shell
-readiness, fixed command output, logout and graphical-console return.
-The [serial evidence](Evidence/19A-Serial-20260907.md) retains five attempts and
-all input identities. The final controller/module results pass and source,
-host, collection and baseline cleanup are verified. All 156 variants remain pending.
+**Solid progress:** implemented the scenario recorder/lease bridge and
+authenticated serial forwarding; 43 new host regressions pass. The
+[recording evidence](Evidence/19A-Lease-Recording-20260907.md) retains changes,
+test results and exact file digests. **19A is not accepted; all 156 variants
+remain pending.** Development-host and the existing guarded VM scope persist.
 
-**Acceptance gap discovered:** the final raw trace emits a generalhw
-shutdown-status diagnostic: its expected status-1 response while the VM is on
-throws under upstream `autodie`, despite the module-based exit policy returning
-zero. Owned poweroff and outer restoration passed. **19A is not accepted.**
-Next eliminate that diagnostic using supported public lifecycle behavior and
-prevent unexplained backend failures being hidden by a module pass; do not
-fake off-state or patch backend internals. Then wire public
-`runner.preflight/main` to real `ScenarioRecorder`/`EvidenceContract` execution.
-It still refuses with `e2e:execution-controller-unfinished`.
+**Proven boundary:** `LeasedScenario` records cleanup start before the real
+`Lease.__exit__`, which remains the sole restoration/release owner. Its finalizer
+checks the original lease/run/domain/ledger, actual off state and provenance,
+then completes ordered evidence and validates private copies while held.
+`result()` also refuses release failures. `ScenarioRecorder.run_worker` forwards
+same-lease provisioned credentials/serial mode and refuses secrets absent from
+the collector's original frozen registry. Host tests execute the real recorder,
+collector, evidence gate and lease exit; VM operations are substituted. Reuse
+the separately proven [live serial/shutdown path](Evidence/19A-Shutdown-20260907.md).
 
-**Reuse / next reads:** `graphical_serial.SerialConsole`,
-`graphical_lease.lifecycle_variables`, public `testapi::power`,
-`e2e_worker.run_distribution`, and the
-[serial contract](../../tests/e2e/README.md#public-serial-console-qualification).
-The SOL grabber stays disabled; the public bidirectional pipe console is enabled
-separately. Do not repeat needle/provisioning discovery. Fixes already proven:
-initial-off pipe lifetime, login's wiped argv, CRCRLF normalization, no-echo
-verification, shell readiness and control-tolerant output matching. Four earlier
-failures remain retained; each corrected attempt addressed new evidence.
+**Next observable result:** wire `runner.preflight/main` to guarded public
+execution, preparation-failure evidence and final invocation reporting using
+this bridge. Read `tests/e2e/runner.py`, `leased_recording.py:LeasedScenario`,
+`check_graphical_smoke.py:Qualification/main`, and the
+[recording contract](../../tests/e2e/README.md#ordered-controller-records).
+Resolve exact runnable selections, execute actual scenario callbacks, retain
+first failure and account for connection-close errors. First test the public
+path with temporary synthetic declarations. Keep pending cases closed; do not
+relabel qualification as E2E-001 acceptance. The deliberate
+`e2e:execution-controller-unfinished` gate remains.
 
-**Verification/state:** final focused selection 95 passed. `make check` (7100):
-2,391 unit/contracts, 17 components, syntax and traceability passed; 57 new
-host cases. `git diff --check` passed. Successful live handle 73411 exited zero
-in 634.743 seconds; result
-`/tmp/onpc-graphical-smoke-ufk7y6s8/result.json`. All handles exited, lease
-complete, baseline restored, VM confirmed off (`state=5, id=-1`).
-No screenshot exports or recovery remain. Subsequent edits are documentation
-only; no package artifact is nominated.
+**Scope/attempts:** public wiring required resolving the synchronous recorder's
+cleanup timing and secret-registry gap first; that dependency is now tested.
+No live experiment was needed. Do not recreate the bridge or repeat the resolved
+console/shutdown diagnosis next session. Preparation before recorder creation
+and public terminal reporting remain controller work.
+
+**Verification/state:** final four-module selection passed 104 tests; final
+`make check` (42383) passed 2,453 unit/contracts, 17 components, syntax and stage
+traceability. `git diff --check` passed. All handles exited; no VM operation,
+setup, export or recovery was started. Read-only VM status confirmed off
+(`state=5, id=-1`). Subsequent edits are documentation only; no package artifact
+is nominated. The evidence records the exact reusable focused command. A new
+package-bearing attempt still needs current verified source/package inputs.
 
 **Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** console/authentication now work, but truthful backend outcomes,
-ownership and public evidence integration still need security reasoning.
-**Remaining 19A estimate:** **2–3 sessions / 3–5 hours**, moderate-to-low
-confidence; includes status correction, launcher/evidence wiring and acceptance,
-excluding 19B/customer scenarios. The five investigative attempts consumed
-63.95 minutes of live-run time; the extended session closed the command boundary.
+**Reason:** recorder lifecycle and secret forwarding have host proof; public
+dispatch and failure reporting still cross ownership/evidence boundaries.
+**Remaining 19A estimate:** **1–2 substantial sessions / 2–3 hours**,
+moderate-to-low confidence, excluding 19B/customer scenarios. The previous
+forecast was optimistic about the recorder/lease integration effort.
 
 ## Task 19B
 

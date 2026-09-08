@@ -31,7 +31,7 @@ def test_backend_poll_failure_still_closes_worker_and_callback(tmp_path):
     worker, server = Mock(), Mock(path=tmp_path / 'callback.sock')
     worker.poll.side_effect = RuntimeError('fixture backend failure')
     tmp_path.chmod(0o700)
-    with patch.object(smoke.e2e_worker, 'Adapter'), \
+    with patch.object(smoke.e2e_worker, 'Adapter', return_value=Mock(events=[])), \
             patch.object(smoke.e2e_worker, 'CallbackServer', return_value=server), \
             patch.object(smoke.e2e_worker, 'Worker', return_value=worker):
         with pytest.raises(RuntimeError, match='fixture backend failure'):

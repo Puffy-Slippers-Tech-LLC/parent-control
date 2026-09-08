@@ -9,9 +9,9 @@ transfer, fixture GDM authentication and a real serial command. Qualification re
 observed stages, failures and held-lease finalization through the private
 collector. These reports do not replace scenario `EvidenceContract` records.
 The inventory-gated launcher and `make check-e2e` support listing and explicit
-execution refusal before privilege checks; scenario execution dispatch and a
-discovered generalhw shutdown-status diagnostic remain unfinished. See the
-[serial evidence and acceptance gap](../../docs/TestAutomation/Evidence/19A-Serial-20260907.md).
+execution refusal before privilege checks; scenario execution dispatch remains
+unfinished. The discovered generalhw shutdown-status gap is resolved by the
+[shutdown qualification](../../docs/TestAutomation/Evidence/19A-Shutdown-20260907.md).
 
 ## Inspect scope on the host
 
@@ -325,25 +325,52 @@ qualified worker. It forwards `source_files` and connects worker failures to
 the recorder before worker cleanup. The trusted observation callback still
 must record actual stages/assertions. Worker guard refusals are also retained;
 a failed checkpoint cannot prevent worker or callback-server cleanup.
+The optional `credentials=...` and `serial=True` use the same provisioned
+`FixtureCredentials` instance as the worker. Before startup, the bridge checks
+its same-lease provisioning and requires every worker secret in the scenario
+collector's original registry. `PrivateCollector.require_secrets` only checks
+that frozen registry; it cannot add a secret after earlier reports were written.
+Unregistered, foreign, unprovisioned and invalid credentials refuse and latch
+scenario failure before worker construction.
 
-The outer `cleanup` callback owns `Lease.finish()` and actual host/source/VM
-preservation checks, and returns the exact `CLEANUP_FIELDS`. It must retain
-the held lease. Call `recorder.validate(verified)` after cleanup and before
-release; it requires a complete, held lease and uses `VerifiedInputs.validate`
-around the final report copy. Any `acceptance-rejected.json` is a terminal
+For the actual lease lifecycle, use
+`leased_recording.LeasedScenario(recorder, verified, cleanup=...)` inside the
+already prepared, held lease. Each independent attempt has one exact selected
+case and one declared outer cleanup step. Construction refuses an existing
+finalizer and stale inputs. `execute(callback)` records the scenario's actual
+actions, persists `before-cleanup`, and starts the cleanup step before returning
+to the owning lease context. It rechecks identity and provenance before calling
+scenario code. A worker success alone supplies no steps or assertions.
+
+`Lease.__exit__` remains the sole owner of `finish()` and release. Its finalizer
+checks the original lease/run/domain identity, completed restoration, actual
+off state and preserved inputs. It then calls the trusted, read-only `cleanup`
+callback with `(recorder, lease)` to check host/source/worker preservation and
+return the exact `CLEANUP_FIELDS`. The callback may copy reviewed cleanup
+evidence through the active cleanup step; it must never restore or release.
+The adapter ends that step and the case, then calls `recorder.validate(verified)`
+while held. The gate uses `VerifiedInputs.validate` around the final report copy.
+After leaving the lease context, call `attempt.result()`; it also refuses
+release failures recorded in the original lease ledger. The outer controller
+must still include connection-close failures in its final invocation outcome.
+The existing synchronous `recorder.run_case` remains available for controllers
+whose cleanup already completes before their callback returns.
+
+Any `acceptance-rejected.json` is a terminal
 failure, including if a late input/copy change follows an initial gate pass.
 An `acceptance.json` file alone never establishes success. A failed report write
 preserves earlier checkpoints and raises the original error; it cannot promise
 new durable evidence when storage itself is unavailable.
 
-Live wiring must call cleanup once, validate before lease release, and retain
-records on worker/bootstrap/interruption paths. `Lease.__exit__` performs its sole
-`finish()` attempt, invokes its trusted `finalize(lease)` callback while held even
-after cleanup failure, then releases. The callback must only check and report;
-never restore or release again. Earlier errors retain precedence through
-finalization and release failures. Scenario dispatch, reviewed screen production
-and authenticated transport remain acceptance work. Test-tool
-activation is `none` (next invocation); no product data or installation changes.
+Host regressions execute the real recorder, collector, evidence gate and
+`Lease.__exit__`, substituting only VM operations/provenance observations.
+They cover real private copies, action interruption, replacement identities,
+checkpoint errors, cleanup failure, late validation and release failure.
+The serial transport itself has separate live qualification; this adapter has
+host-only verification. Public scenario dispatch, preparation before recorder
+creation, and final invocation reporting remain unfinished under 19A; reviewed
+screens and E2E-001 remain 19B work. Test-tool activation is `none` (next
+invocation); no product data or installation changes.
 
 ## Shared guarded worker
 
@@ -364,6 +391,22 @@ caller-selected backend, schedule, checkpoint, guest command or password input.
 and revalidates its identity on every poll, including worker completion. The
 trusted observation and validation callbacks remain in the outer controller;
 worker exit zero cannot substitute for their stage/module assertions.
+
+The fixed command preserves isotovideo's normal backend exit policy instead of
+deriving exit status from module results. Any `base_state.json` entry rejects
+success, including empty, malformed or non-file entries; its potentially private
+message is neither parsed nor exported. After module/stage validation, the worker
+requires a recorded power-on, subsequent power-off and later off observation,
+adapter phase `stopped`, and a fresh `lease.guard(off=True)`. Reports retain only
+fixed lifecycle events, backend exit status, fatal-artifact presence and shutdown
+verification. These checks supplement the outer restoration/evidence gate.
+
+At the end of a complete smoke, `console('sut')->disable()` closes VNC through
+the public console API before `power('off')` delegates shutdown to the lease.
+Require `check_shutdown(0)` to succeed; `assert_shutdown` also captures a screen.
+Leaving VNC active after display revocation allows its background stall handler
+to attempt reconnection to a stopped guest. Graphics ownership must still refuse
+that request. Disabling the console ends observation; it does not change VM state.
 
 Private `worker-before-cleanup.json` and `worker-result.json` reports contain
 only fixed diagnostic fields, distribution digest, timing, failure history and
@@ -509,11 +552,12 @@ stays private. These helpers activate on invocation (`none`), with no product,
 host setup or saved-data migration change.
 
 The [retained serial result](../../docs/TestAutomation/Evidence/19A-Serial-20260907.md)
-proves the command and restored/off VM. Its generalhw status callback still
-emits a backend diagnostic when truthfully reporting that the VM is on; the
-module-based exit policy does not reject it. Resolve that outcome gap through
-supported lifecycle behavior before 19A acceptance. Do not fake status, patch
-private backend APIs or treat this selected qualification as customer coverage.
+proves the command. The subsequent
+[shutdown qualification](../../docs/TestAutomation/Evidence/19A-Shutdown-20260907.md)
+also proves clean backend completion, truthful off-state checking and restored
+baseline with the stricter worker outcome gate. Public scenario dispatch and
+scenario evidence integration remain required before 19A acceptance. This
+selected qualification is not customer coverage.
 
 ### Read-only observation capability
 

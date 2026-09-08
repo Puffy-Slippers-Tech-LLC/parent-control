@@ -252,6 +252,7 @@ INVENTORIES = {
         'test_method_role_matrix[ListManagedUsers-child1]',
         'test_real_selected_parent_authentication[child1]',
     ),
+    'enforcement': ('test_native_command_policy_is_uid_scoped',),
 }
 
 
@@ -577,7 +578,7 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path):
         ('authorization', 'test_real_selected_parent_authentication[child1]'),
     )
     vm.reboot.assert_called_once()
-    assert vm.call.call_count == 6
+    assert vm.call.call_count == 7
     assert vm.call.call_args_list[2].args[0] == runner.guest_command(RUN, 'collect', 'installed')
     assert ledger.outcomes['product'] == {'outcome': 'passed', 'category': None}
     assert ledger.outcomes['collection'] == {'outcome': 'passed', 'category': None}
@@ -592,10 +593,59 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path):
     ('identity', 'pytest:incorrect-test-identity:authorization'),
 ])
 def test_junit_reconciliation_rejects_incomplete_or_unhealthy_identities(tmp_path, fault, category):
-    selection = runner.resolve_selection(inventories=INVENTORIES)
+    selection = runner.resolve_selection('authorization', inventories=INVENTORIES)
     write_junit_results(tmp_path, selection, fault)
     with pytest.raises(runner.Error, match=category):
         runner.reconcile_junit(tmp_path, 'authorization', selection)
+
+
+def test_enforcement_selection_freezes_helpers_and_only_package_prerequisites(tmp_path):
+    case = INVENTORIES['enforcement'][0]
+    selection = runner.resolve_selection('enforcement', case, inventories=INVENTORIES)
+    assert selection.phases == ('installed', 'rebooted', 'enforcement')
+    assert [(item.area, item.case_id) for item in selection.executions if not item.prerequisite] == [
+        ('enforcement', case)]
+    assert len(selection.executions) == 5
+    assert 'native-enforcement-fixture' in selection.prerequisites
+    assert 'authorization-accounts' not in selection.prerequisites
+    digest = runner.stage_selected_inputs(selection, tmp_path)
+    manifest = json.loads((tmp_path / 'selected-inputs.json').read_text())
+    assert len(digest) == 64
+    assert {'test_enforcement.py', 'system_enforcement.py', 'system_caller.py',
+            'test_install_smoke.py'} <= manifest['files'].keys()
+    assert 'test_authorization.py' not in manifest['files']
+    command = runner.pytest_command(RUN, 'enforcement', selection)
+    assert command[-1] == f'{runner.PAYLOAD}/test_enforcement.py::{case}'
+
+
+@pytest.mark.parametrize('fault', ['missing', 'extra', 'duplicate', 'failure', 'skipped', 'identity'])
+def test_enforcement_results_must_match_executed_case(tmp_path, fault):
+    selection = runner.resolve_selection('enforcement', inventories=INVENTORIES)
+    write_junit_results(tmp_path, selection, fault)
+    with pytest.raises(runner.Error, match=':enforcement'):
+        runner.reconcile_junit(tmp_path, 'enforcement', selection)
+
+
+def test_enforcement_failure_keeps_product_attribution_and_collects(tmp_path):
+    vm, lease = Mock(), Mock()
+    lease.state = {'run': RUN}
+    vm.commands.last_returncode = 1
+    selection = runner.resolve_selection('enforcement', inventories=INVENTORIES)
+    failed_command = runner.pytest_command(RUN, 'enforcement', selection)
+
+    def invoke(command, **kwargs):
+        if command == failed_command:
+            raise runner.CommandError('command:failed:ssh')
+        return b''
+
+    vm.call.side_effect = invoke
+    ledger = runner.RunLedger()
+    with pytest.raises(runner.CommandError, match='command:failed:ssh'):
+        runner.installed_run(vm, lease, tmp_path, selection, ledger)
+    assert ledger.outcomes['product'] == {
+        'outcome': 'failed', 'category': 'pytest:failed:enforcement'}
+    assert vm.call.call_args.args[0] == runner.guest_command(RUN, 'collect', 'failed')
+    assert sum(call.args[0] == failed_command for call in vm.call.call_args_list) == 1
 
 
 def test_selected_pre_reboot_execution_omits_reboot_and_later_phases(tmp_path):

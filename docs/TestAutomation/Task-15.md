@@ -55,6 +55,49 @@ Verification below is task acceptance; edits use the smallest affected selection
 - Completion criteria: native, Snap, and Flatpak launch enforcement has positive,
   negative, and cross-user runtime evidence.
 
+## Task 15A continuation — 2026-09-08
+
+**15A remains unchecked.** Fixed relative native command lookup with sixteen
+filesystem-backed regressions. System fallback now ignores inherited administrator
+PATH/current directory and canonicalizes native symlinks before wrapper exclusion.
+Selected-child binary precedence remains intact. The fixed discovery policy is
+documented; arbitrary session PATH/profile evaluation is outside this proof.
+Scope remains the development host and existing guarded VM; no installed test ran.
+
+**Verification:** initial selection reproduced six failures with 25 passes.
+Final catalog/consumer selection passed 173 tests plus 30 subtests. `make check`
+handle 10923 exited 0: 2,811 unit/contracts, 17 components, syntax and traceability
+passed. Scoped whitespace/link checks passed. Commands, timings, source hashes
+and original failures are in [PATH evidence](Evidence/15A-Catalog-Path-Isolation-20260908.md).
+Earlier [desktop precedence](Evidence/15A-Catalog-Precedence-20260908.md) and
+[native registration](Evidence/15A-Native-Registration-20260908.md) evidence is
+retained. No requirement mapping was promoted. Later documentation edits require
+fresh artifact provenance.
+
+**Next result:** without writer coordination, extend installed catalog fixture
+assertions for child-only/system launchers and administrator exclusion, with
+host regressions. Read `system_enforcement.py:provision_native`,
+`tests/system/test_enforcement.py`, `tests/unit/test_system_enforcement.py`, and
+the native registration evidence. Do not claim installed acceptance from mocks.
+
+Once writers explicitly pause through collection, run isolated cleanup checks,
+build via `tools/run-tests artifacts build`, and qualify
+`test_native_command_policy_is_uid_scoped` through the registered system
+`enforcement` area and its four prerequisites. No expensive 15A attempt has been
+spent. The [19B blocker](Task-19.md#task-19b-continuation--2026-09-08) persists;
+a clean-status sample is insufficient. Native routes/patterns/screen-time,
+Snap/Flatpak runtime and full-area acceptance remain pending.
+
+**Cleanup:** all commands exited and results were collected; no owned process,
+lease, screenshot or recovery remains. No VM operation started; VM state was
+not inferred. Unrelated edits were preserved. No approval or Polkit denial occurred.
+
+**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep,
+pinned by the slice launcher. **Reason:** local command lookup isolation passes;
+installed catalog and kernel enforcement still need qualification.
+**Remaining 15A:** sessions **Unknown**, minutes **Unknown**; live matrix timings
+and Snap/Flatpak helper qualification are missing.
+
 ## Task 15B
 
 - Title: Test process confinement and execution-policy rollback.

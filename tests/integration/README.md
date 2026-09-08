@@ -84,8 +84,8 @@ coordinates host results and VM artifacts for the same source content.
 ## Running the current installed suite
 
 For implementation, use the [bounded diagnostic workflow](../../docs/TestAutomation/Implementation-Workflow.md).
-The current controller executes the complete installed/reboot/authorization
-scope when unselected. F1 can list the registered `package` and `authorization`
+The current controller executes the registered installed/reboot/authorization/
+enforcement scope when unselected. F1 can list the registered `package`, `authorization`, and `enforcement`
 cases and their explicit prerequisite closure without artifacts, root access,
 or VM operations:
 
@@ -93,6 +93,20 @@ or VM operations:
 make check-system LIST=1 AREA=authorization
 make check-system LIST=1 AREA=authorization TEST='test_real_selected_parent_authentication[child1]'
 ```
+
+Task 15A's first registered enforcement case is
+`test_native_command_policy_is_uid_scoped`. Inspect it with
+`tools/run-tests system --list --area enforcement --test test_native_command_policy_is_uid_scoped`.
+It requires the four package/reboot executions, then tests native command allow,
+hard denial, and restored allow with screen-time control disabled. The second
+child launches the same target at every step. Source/compiled rules and launch
+witnesses use existing private diagnostics; public properties contain role
+labels and digests. The probe drops and verifies credentials, then replaces its
+own pinned process with the one-shot fixture. Fixture files remain inside the
+guest until outer baseline cleanup. Host contracts are verified; installed
+runtime qualification remains pending in [Task 15A](../../docs/TestAutomation/Task-15.md#task-15a).
+This registration does not establish Snap, Flatpak, graphical-route, or full
+application requirement coverage.
 
 The listing uses pytest's public collection-only mode with project and third-party
 plugins disabled; it imports the test definitions but never executes guest

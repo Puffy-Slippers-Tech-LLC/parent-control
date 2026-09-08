@@ -34,8 +34,8 @@ def checkout(tmp_path):
 
 def test_full_listing_keeps_pending_cases_and_exact_digest():
     plan = runner['preflight'](['--list'])
-    assert len(plan['cases']) == 156
-    assert len(plan['pending_cases']) == 155
+    assert len(plan['cases']) == 157
+    assert len(plan['pending_cases']) == 156
     assert plan['scope'] == 'full'
     assert plan['mode'] == 'list-only'
     assert plan['inventory_sha256'] == hashlib.sha256(
@@ -69,6 +69,8 @@ def test_selected_listing_uses_exact_inventory_scope(selector, count):
 @pytest.mark.parametrize('options,code', [
     ([], 'selection:pending'),
     (['--scenario=E2E-002'], 'selection:pending'),
+    (['--scenario=E2E-028/startup-enforcement'], 'selection:pending'),
+    (['--scenario=E2E-028/startup-broker'], 'selection:pending'),
     (['--scenario=E2E-023/fullscreen', '--artifacts=/tmp/onpc-absent'], 'selection:pending'),
     (['--scenario=E2E-999'], 'selection:unknown'),
     (['--scenario=E2E-023/*'], 'selection:unknown'),

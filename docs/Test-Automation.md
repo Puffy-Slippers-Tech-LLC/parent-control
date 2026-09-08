@@ -25,9 +25,13 @@ operator; implementation sessions must not read or edit its accumulated history.
    saves the next action, reusable evidence and reassessed settings, then tells
    you that you can end the session. Start a new session with the same prompt.
 
-**Quality takes absolute precedence over token, cost and time savings.** Reduce
-repeated context and rediscovery first; lower model/effort only when the next
-slice's quality can be preserved. Budgets trigger review, never weaker checks.
+**Quality takes absolute precedence; conserving weekly usage allowance is the
+secondary objective.** Follow the
+[model policy](TestAutomation/Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff):
+Sol high for settled implementation, Astra high for unresolved hard boundaries,
+and lower settings only with adequate contracts and checks. Use Standard
+processing and reassess each slice; no blanket Astra/high or max-effort default.
+Reduce repeated context and rediscovery. Budgets trigger review, never weaker checks.
 The [reuse map](TestAutomation/Reuse-Map.md) identifies opportunities across all
 remaining tasks; consult only the relevant row during implementation.
 

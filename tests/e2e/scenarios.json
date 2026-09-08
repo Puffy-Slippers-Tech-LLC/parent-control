@@ -67,8 +67,8 @@
       "title": "Clean install, reboot and ready GDM",
       "category": "customer-journey",
       "owners": ["20"],
-      "requirements": [],
-      "requirement_gap": "Task 20 must assign normative installation/startup requirement IDs; the lifecycle contract is currently unmapped.",
+      "requirements": ["ONPC-CORE-INSTALL-001", "ONPC-COMP-BROKER-010"],
+      "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/SystemDesign/Lifecycle.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
@@ -81,7 +81,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Boot the product-free guest; use a real administrator terminal and authentication to install the verified package."},
+          {"id": "step-1", "operation": "ui", "description": "Prove the product is absent; use a real administrator terminal and authentication to install the digest-verified package through the documented package command; retain private output and verify the product-created reboot marker."},
           {"id": "step-2", "operation": "ui", "description": "Observe the reboot notice and perform the requested actual machine reboot."},
           {"id": "step-3", "operation": "observe", "description": "Verify usable GDM and enforcement readiness before a managed sign-in."}
         ],
@@ -95,13 +95,17 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Installation and reboot notice are visible; GDM returns without an unmanaged desktop exposure."}
+          {"id": "installation-notice", "step_id": "step-1", "description": "The real terminal installation succeeds and displays the required reboot notice; credentials are excluded from evidence."},
+          {"id": "visible-result", "step_id": "step-3", "description": "After the actual customer-requested reboot, GDM becomes usable only after fapolicyd readiness; no unmanaged desktop is exposed."}
         ],
         "backend": [
-          {"id": "backend-result", "step_id": "step-3", "description": "Package digest, changed boot identity, startup services and enforcement readiness match the attempt."}
+          {"id": "installation-result", "step_id": "step-1", "description": "Absence before installation, exact installed package digest and product-created reboot marker are independently observed."},
+          {"id": "backend-result", "step_id": "step-3", "description": "Boot identity changes without a baseline restore; installed files, ownership, services, D-Bus, Polkit, PAM, sessions, configuration, extension payload, logs and execution policy match the release package."},
+          {"id": "broker-readiness", "step_id": "step-3", "description": "Broker D-Bus object publication follows completed execution-policy reconciliation and required extension activation; a final active-service snapshot alone cannot prove ordering."},
+          {"id": "login-readiness", "step_id": "step-3", "description": "The live-policy canary denial completes fapolicyd startup before display-manager startup; correlate same-boot backend ordering with the GDM screen."}
         ],
         "other_user": [
-          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+          {"id": "other-user-result", "step_id": "step-3", "description": "Compare existing child, parent and unrelated-account identities and unrelated settings before installation and after reboot, allowing only documented package provisioning and enforcement changes. Reboot ends sessions; do not claim foreground process continuity across it."}
         ]
       },
       "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
@@ -111,7 +115,7 @@
           "installation": ["clean"]
         },
         "full_combinations": [],
-        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+        "rationale": "One clean customer journey covers real installation, reboot notice, actual reboot and independent broker/login readiness. Startup failures and recovery are separate E2E-028 attempts; no fault is injected into this success journey. Task 20 audit: docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md."
       },
       "variants": [
         {"id": "clean", "owner": "20", "parameters": {"installation": "clean"}, "status": "pending", "pending_reason": "Task 20 must implement this complete journey and its assertions.", "executable": null}
@@ -1652,7 +1656,7 @@
       "owners": ["20", "22A", "22B", "24A"],
       "requirements": ["ONPC-COMP-BROKER-010", "ONPC-CORE-TIME-008", "ONPC-COMP-CHILD-003", "ONPC-CORE-RECOVERY-008"],
       "requirement_gap": null,
-      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/SystemDesign/Lifecycle.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
@@ -1666,7 +1670,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Establish the selected startup, child session or kiosk boundary through real customer operations."},
           {"id": "step-2", "operation": "fault", "description": "Trigger the selected real startup dependency, zero-time entry, usage-service read or authentication-agent failure through a declared guarded fault control."},
-          {"id": "step-3", "operation": "observe", "description": "Verify visible safe denial/relock, preserved last-known estimate where applicable and no false success."},
+          {"id": "step-3", "operation": "observe", "description": "Verify the selected failure before recovery: startup-enforcement keeps fapolicyd unready and prevents managed GDM startup; startup-broker keeps the broker D-Bus object unpublished after failed execution-policy reconciliation while the healthy fapolicyd login gate is independently checked. Other variants verify safe denial/relock and preserved estimates where applicable."},
           {"id": "step-4", "operation": "fault", "description": "Remove the declared fault using supported service/environment recovery and record actual recovery."},
           {"id": "step-5", "operation": "ui", "description": "Retry the original customer operation and verify recovery without new hidden policy or time state."}
         ],
@@ -1683,26 +1687,29 @@
       ],
       "assertions": {
         "visible": [
+          {"id": "visible-failure", "step_id": "step-3", "description": "Capture the selected denial before removing the fault: no usable GDM for startup-enforcement; Parent operations unavailable for startup-broker, without requiring GDM to depend on broker readiness; safe denial/relock for the other faults."},
           {"id": "visible-result", "step_id": "step-5", "description": "The selected failure is safe and actionable; the real recovery permits a later valid operation."}
         ],
         "backend": [
+          {"id": "backend-failure", "step_id": "step-3", "description": "Independently prove the selected failed dependency and its denied readiness before removing the fault; a successful recovery alone cannot establish safe failure."},
           {"id": "backend-result", "step_id": "step-5", "description": "Real failure/recovery evidence, unchanged unauthorized state and current service/session identities explain the screens."}
         ],
         "other_user": [
-          {"id": "other-user-result", "step_id": "step-5", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
+          {"id": "other-user-result", "step_id": "step-5", "description": "Compare other child, parent and unrelated-user policy and grants before and after. Session/process continuity applies only where the declared startup or recovery transition does not end those sessions; account identities and unrelated settings must survive actual reboot. Verify no unintended policy change or interruption beyond the declared fault/lifecycle effect."}
         ]
       },
       "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen", "intervention"],
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "fault": ["startup-enforcement", "zero-time-exposure", "usage-read", "kiosk-auth-agent"]
+          "fault": ["startup-enforcement", "startup-broker", "zero-time-exposure", "usage-read", "kiosk-auth-agent"]
         },
         "full_combinations": [],
-        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+        "rationale": "Retain startup-enforcement for the fapolicyd/GDM gate and add startup-broker for independent broker reconciliation failure. Inject one failed dependency per complete attempt so one blocked gate cannot mask the other; observe failure before real recovery. Other owners retain their variants. Task 20 audit: docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md."
       },
       "variants": [
-        {"id": "startup-enforcement", "owner": "20", "parameters": {"fault": "startup-enforcement"}, "status": "pending", "pending_reason": "Task 20 must implement this complete journey and its assertions.", "executable": null},
+        {"id": "startup-enforcement", "owner": "20", "parameters": {"fault": "startup-enforcement"}, "status": "pending", "pending_reason": "Task 20 must implement a guarded fapolicyd readiness failure, prove managed GDM startup is denied, then recover in the same attempt.", "executable": null},
+        {"id": "startup-broker", "owner": "20", "parameters": {"fault": "startup-broker"}, "status": "pending", "pending_reason": "Task 20 must implement a guarded broker execution-policy reconciliation failure, prove its D-Bus object remains unpublished, then recover in the same attempt.", "executable": null},
         {"id": "zero-time-exposure", "owner": "22A", "parameters": {"fault": "zero-time-exposure"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
         {"id": "usage-read", "owner": "22B", "parameters": {"fault": "usage-read"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
         {"id": "kiosk-auth-agent", "owner": "24A", "parameters": {"fault": "kiosk-auth-agent"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null}

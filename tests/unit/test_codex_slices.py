@@ -114,9 +114,10 @@ def test_monitor_exits_after_shutdown_notice_without_waiting_for_socket_eof(tmp_
                     time.sleep(0.01)
                 assert retained is not None
                 hub.live.write(notice)
-            # A retained socket descriptor prevents EOF even after hub cleanup.
-            # A regression times out instead of hanging the test suite.
-            assert finished.wait(3), 'monitor waited for EOF after launcher shutdown'
+                # The terminal event accompanies the final notice. The monitor
+                # must not depend on later hub cleanup or socket EOF.
+                hub.live.finish()
+                assert finished.wait(3), 'monitor waited for launcher socket teardown'
         except BaseException as exc:
             errors.append(exc)
         finally:
@@ -237,8 +238,8 @@ if step.get('failure'):
 handoff = root / 'docs/TestAutomation/Continuation.md'
 if step.get('handoff', True):
     handoff.write_text(handoff.read_text() + f'\nNext observable result {number}.\n')
-if step.get('settings'):
-    handoff.write_text(handoff.read_text().replace('`model-one` / `high`', '`model-two` / `max`'))
+if 'settings' in step:
+    handoff.write_text(step['settings'])
 backlog = root / 'docs/TestAutomation/Test-Automation.md'
 if step.get('check_all'):
     backlog.write_text(backlog.read_text().replace('- [ ]', '- [x]'))
@@ -264,8 +265,8 @@ if not step.get('omit_result'):
     emit({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': json.dumps(response)}})
 if step.get('invalid_event'):
     print('sensitive-placeholder')
-emit({'type': 'turn.completed', 'usage': {'input_tokens': 10, 'output_tokens': 5,
-                                       'private': 'sensitive-placeholder'}})
+emit({'type': 'turn.completed', 'usage': step.get('usage', {
+    'input_tokens': 10, 'output_tokens': 5, 'private': 'sensitive-placeholder'})})
 '''
 
 
@@ -277,7 +278,7 @@ def rig(tmp_path, monkeypatch):
         '# Tasks\n\n## Unfinished tasks\n\n'
         '- [ ] [Task 19B — First](Task-19.md#task-19b)\n'
         '- [ ] [Task 20 — Second](Task-20.md)\n')
-    (tmp_path / loop.HANDOFF).write_text('- Settings: **`model-one` / `high`**, reason.\n')
+    (tmp_path / loop.HANDOFF).write_text('- Settings: **`gpt-5.6-sol` / `high`**.\n  Reason: settled contract.\n')
     (tmp_path / loop.PROMPT).write_bytes((ROOT / loop.PROMPT).read_bytes())
     (tmp_path / 'tools').mkdir()
     (tmp_path / 'tools/codex_slices.py').write_bytes((ROOT / 'tools/codex_slices.py').read_bytes())
@@ -330,12 +331,17 @@ def start_and_wait(monkeypatch):
         child.wait(timeout=10)
 
 
-def test_two_fresh_sessions_keep_pinned_settings_despite_handoff_changes(rig):
-    root = rig([{'settings': True}, {'check_all': True, 'result': complete()}])
+@pytest.mark.parametrize('model, effort', [
+    ('gpt-6-astra', 'high'), ('gpt-6-astra', 'xhigh'),
+    ('gpt-5.6-sol', 'medium'), ('gpt-5.6-terra', 'high'), ('gpt-5.6-luna', 'low'),
+])
+def test_each_fresh_session_uses_reassessed_model_and_effort(rig, model, effort):
+    settings = f'- Settings: **`{model}` / `{effort}`**.\n  Reason: reassessed next boundary.\n'
+    root = rig([{'settings': settings}, {'check_all': True, 'result': complete()}])
     assert run(root) == 0
     launched = calls(root)
     assert len(launched) == 2
-    for call in launched:
+    for call, selected in zip(launched, [('gpt-5.6-sol', 'high'), (model, effort)], strict=True):
         assert call['argv'][0] == 'exec'
         assert 'resume' not in call['argv'] and 'fork' not in call['argv']
         assert '--approve-for-me' in call['argv']
@@ -347,19 +353,98 @@ def test_two_fresh_sessions_keep_pinned_settings_despite_handoff_changes(rig):
         assert call['schema'] == loop.SCHEMA
         description = call['schema']['properties']['summary']['description']
         assert 'Expand when necessary for a correct handoff.' in description
-        assert call['argv'][call['argv'].index('--model') + 1] == 'gpt-6-astra'
-        assert 'model_reasoning_effort="high"' in call['argv']
+        assert call['argv'][call['argv'].index('--model') + 1] == selected[0]
+        assert f'model_reasoning_effort="{selected[1]}"' in call['argv']
         assert 'model_reasoning_effort="max"' not in call['argv']
+        assert 'service_tier="default"' in call['argv']
+        assert f'{selected[0]} / "{selected[1]}"' in call['prompt']
+        assert 'reassess the next slice' in call['prompt']
     storage = root / loop.STORAGE
     state = loop.read_state(storage)
     assert state['status'] == 'complete'
     assert state['sessions_started'] == 2
     assert state['last_session']['number'] == 2
+    assert (state['model'], state['effort']) == (model, effort)
+    assert state['service_tier'] == 'default'
+    assert state['settings_source'] == 'continuation'
     events = [path.read_text() for path in storage.glob('slice-*/events.jsonl')]
     assert len(events) == 2
     assert len({json.loads(event.splitlines()[0])['thread_id'] for event in events}) == 2
     assert all('sensitive-placeholder' not in event for event in events)
     assert all('"input_tokens": 10' in event for event in events)
+
+
+@pytest.mark.parametrize('settings', [
+    '', '- Settings: gpt-5.6-sol / high\n',
+    '- Settings: **`gpt-5.6-sol` / `high`**, pinned by an old launcher.\n',
+    '- Settings: **`gpt-5.6-sol` / `high`**.\n- Settings: **`gpt-6-astra` / `high`**.\n',
+    '- Settings: **`unknown-model` / `high`**.\n',
+    '- Settings: **`gpt-5.6-sol` / `ultra`**.\n',
+    '- Settings: **`--model=gpt-6-astra` / `high`**.\n',
+])
+def test_invalid_settings_refuse_before_worker_start(rig, settings):
+    root = rig([])
+    (root / loop.HANDOFF).write_text(settings)
+    assert loop.main(['start'], root=root) == 2
+    assert calls(root) == []
+    assert loop.read_state(root / loop.STORAGE) == {}
+
+
+def test_invalid_next_settings_stop_after_completed_slice(rig):
+    root = rig([{'settings': '- Settings: **`unknown-model` / `high`**.\n'}])
+    with pytest.raises(loop.Error, match='model selection'):
+        run(root)
+    assert len(calls(root)) == 1
+    state = loop.read_state(root / loop.STORAGE)
+    assert state['status'] == 'needs-review'
+    assert state['last_session']['outcome'] == 'continue'
+
+
+def test_unavailable_model_never_substitutes_another_model(rig):
+    root = rig([{'tools': False, 'failure': 'model_not_found'}])
+    with pytest.raises(loop.Error, match='clean completed turn'):
+        run(root, retries=3)
+    assert len(calls(root)) == 1
+    assert loop.read_state(root / loop.STORAGE)['model'] == 'gpt-5.6-sol'
+
+
+def test_resume_retry_retains_saved_thread_and_settings(rig, monkeypatch):
+    root = rig([{'tools': False, 'failure': '503 temporarily unavailable'},
+                {'check_all': True, 'result': complete()}])
+    storage = root / loop.STORAGE
+    loop.private_directory(storage)
+    thread = '718e11b8-1c72-471d-9222-fb2b37283ed4'
+    loop.write_json(storage / 'state.json', {
+        'status': 'killed', 'resumable': True, 'thread_id': thread,
+        'model': 'gpt-6-astra', 'effort': 'medium',
+    })
+    # Continuation.md recommends Sol high for the next fresh slice. It cannot
+    # replace the interrupted work during a transient resumption failure.
+    monkeypatch.setattr(loop, 'wait_retry', lambda *_: None)
+    assert run(root, retries=1) == 0
+    launched = calls(root)
+    assert len(launched) == 2
+    for call in launched:
+        assert call['argv'][-3:] == ['resume', thread, '-']
+        assert call['argv'][call['argv'].index('--model') + 1] == 'gpt-6-astra'
+        assert 'model_reasoning_effort="medium"' in call['argv']
+    assert loop.read_state(storage)['settings_source'] == 'saved-session'
+
+
+@pytest.mark.parametrize('usage, expected', [
+    ({'input_tokens': 100, 'cached_input_tokens': 80, 'output_tokens': 30,
+      'reasoning_output_tokens': 20, 'private': 'sensitive-placeholder'},
+     'input_tokens: 100; cached_input_tokens: 80; output_tokens: 30; reasoning_output_tokens: 20'),
+    ({'input_tokens': True, 'cached_input_tokens': -1, 'output_tokens': '30'}, 'not reported'),
+    (None, 'not reported'),
+])
+def test_summary_reports_only_actual_allowlisted_token_counts(rig, usage, expected):
+    root = rig([{'usage': usage, 'check_all': True, 'result': complete()}])
+    assert run(root) == 0
+    summary = (root / loop.SUMMARY).read_text()
+    assert f'- CLI token counts: {expected}. These are not weekly allowance measurements.' in summary
+    assert '- Processing: Standard' in summary
+    assert 'sensitive-placeholder' not in summary
 
 
 @pytest.mark.parametrize('step, message', [
@@ -407,6 +492,9 @@ def test_kill_interrupts_and_start_reuses_exact_thread_then_returns_to_fresh_sli
     thread = state['thread_id']
     assert state['last_session']['outcome'] == 'killed'
     assert len(calls(root)) == 1
+    # The next fresh slice may change settings; interrupted work retains its
+    # recorded model/effort until that conversation reaches a safe handoff.
+    (root / loop.HANDOFF).write_text('- Settings: **`gpt-6-astra` / `high`**.\n')
     start_and_wait(root)
     launched = calls(root)
     assert len(launched) == 3
@@ -415,6 +503,8 @@ def test_kill_interrupts_and_start_reuses_exact_thread_then_returns_to_fresh_sli
     assert 'Keep progress and the final report concise:' in launched[1]['prompt']
     assert launched[1]['schema'] == loop.SCHEMA
     assert 'resume' not in launched[2]['argv']
+    assert launched[1]['argv'][launched[1]['argv'].index('--model') + 1] == 'gpt-5.6-sol'
+    assert launched[2]['argv'][launched[2]['argv'].index('--model') + 1] == 'gpt-6-astra'
     assert loop.read_state(root / loop.STORAGE)['status'] == 'complete'
 
 
@@ -540,6 +630,7 @@ def test_stop_waits_for_clean_handoff_and_never_starts_next_slice(rig, stop, mon
     assert signal.getsignal(signal.SIGTERM) == previous
     state = loop.read_state(root / loop.STORAGE)
     assert state['status'] == 'stopped'
+    assert state['cli_pid'] is None
     assert 'Next observable result' in (root / loop.HANDOFF).read_text()
     assert len(calls(root)) == 1
 
@@ -593,7 +684,8 @@ def test_stop_during_detached_start_is_not_lost(rig):
 @pytest.mark.parametrize('old_launcher, terminal_output', [(False, False), (False, True), (True, False)])
 def test_restart_queues_safe_stop_then_execs_code_updated_while_waiting(
         rig, monkeypatch, old_launcher, terminal_output):
-    root = rig([{}, {'check_all': True, 'result': complete()}])
+    root = rig([{'settings': '- Settings: **`gpt-6-astra` / `high`**.\n'},
+                {'check_all': True, 'result': complete()}])
     children = []
     popen = loop.subprocess.Popen
     master, slave = pty.openpty() if terminal_output else (None, None)
@@ -628,7 +720,7 @@ def test_restart_queues_safe_stop_then_execs_code_updated_while_waiting(
         # The detached waiter is already loaded. Only an exec after the stop
         # can pick up this subsequent edit to the launcher file.
         launcher = root / 'tools/codex_slices.py'
-        launcher.write_text(launcher.read_text().replace("MODEL = 'gpt-6-astra'", "MODEL = 'reloaded-model'"))
+        launcher.write_text(launcher.read_text().replace('Processing is Standard.', 'Processing is Standard (reloaded).'))
         return invoke(*args, **kwargs)
 
     monkeypatch.setattr(loop, 'invoke', queue_restart)
@@ -639,7 +731,7 @@ def test_restart_queues_safe_stop_then_execs_code_updated_while_waiting(
             output = ''
             while select.select([master], [], [], 0.1)[0]:
                 output += os.read(master, 65536).decode()
-            assert 'reloaded-model / high' in output
+            assert 'gpt-6-astra / high' in output
             assert 'Completed slice result 1.' in output
     finally:
         for child in children:
@@ -649,8 +741,10 @@ def test_restart_queues_safe_stop_then_execs_code_updated_while_waiting(
             os.close(master)
     launched = calls(root)
     assert len(launched) == 2
-    assert launched[0]['argv'][launched[0]['argv'].index('--model') + 1] == 'gpt-6-astra'
-    assert launched[1]['argv'][launched[1]['argv'].index('--model') + 1] == 'reloaded-model'
+    assert launched[0]['argv'][launched[0]['argv'].index('--model') + 1] == 'gpt-5.6-sol'
+    assert launched[1]['argv'][launched[1]['argv'].index('--model') + 1] == 'gpt-6-astra'
+    assert 'Standard (reloaded)' not in launched[0]['prompt']
+    assert 'Standard (reloaded)' in launched[1]['prompt']
     state = loop.read_state(root / loop.STORAGE)
     assert state['status'] == 'complete'
     assert state['sessions_started'] == 2
@@ -776,7 +870,9 @@ def test_state_write_failure_awaits_the_exact_spawned_cli(rig, monkeypatch):
     assert 'sensitive-placeholder' not in str(error.value)
     assert len(calls(root)) == 1
     assert all(process.returncode is not None for process in spawned)
-    assert loop.read_state(root / loop.STORAGE)['status'] == 'needs-review'
+    state = loop.read_state(root / loop.STORAGE)
+    assert state['status'] == 'needs-review'
+    assert state['cli_pid'] is None
 
 
 def test_complete_checklist_needs_no_model_run(rig):

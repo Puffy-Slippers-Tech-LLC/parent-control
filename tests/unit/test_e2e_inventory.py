@@ -46,7 +46,7 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert [case['case_id'] for case in plan['cases']] == expected
     assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
                                      if case['status'] == 'pending']
-    assert len(plan['pending_cases']) == 155
+    assert len(plan['pending_cases']) == 156
     assert plan['scope'] == 'full'
     assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
         'E2E-001/gdm-observation']
@@ -81,10 +81,29 @@ def test_invalid_selection_fails_without_broadening(document, selector, category
         inventory.resolve_selection(document, selector)
 
 
-@pytest.mark.parametrize('selector', [None, 'E2E-002', 'E2E-023/fullscreen'])
+@pytest.mark.parametrize('selector', [None, 'E2E-002', 'E2E-023/fullscreen',
+    'E2E-028/startup-enforcement', 'E2E-028/startup-broker'])
 def test_pending_selection_cannot_run(document, selector):
     with pytest.raises(inventory.InventoryError, match='selection:pending'):
         inventory.resolve_selection(document, selector, require_runnable=True)
+
+
+def test_startup_selection_keeps_independent_failure_boundaries(document):
+    clean = inventory.resolve_selection(document, 'E2E-002')['cases'][0]
+    assert clean['requirement_gap'] is None
+    assert set(clean['requirements']) == {'ONPC-CORE-INSTALL-001', 'ONPC-COMP-BROKER-010'}
+    faults = inventory.resolve_selection(document, 'E2E-028')['cases']
+    assert {case['case_id'] for case in faults if case['owner'] == '20'} == {
+        'E2E-028/startup-enforcement', 'E2E-028/startup-broker'}
+    # A recovered final state cannot substitute for observing the failed gate.
+    for case in faults:
+        for kind in ('visible', 'backend'):
+            assert any(item['step_id'] == 'step-3' for item in case['assertions'][kind])
+    # Dropping either startup boundary must fail declared matrix closure.
+    chosen = family(document, 'E2E-028')
+    chosen['variants'] = [v for v in chosen['variants'] if v['id'] != 'startup-broker']
+    with pytest.raises(inventory.InventoryError, match='matrix:missing-value'):
+        inventory.validate_inventory(document)
 
 
 @pytest.mark.parametrize('scope', ['document', 'scenario', 'variant', 'step', 'evidence'])

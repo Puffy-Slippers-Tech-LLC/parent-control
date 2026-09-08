@@ -111,9 +111,12 @@ evidence; this slice did not rerun the broad check. Preserve unrelated edits.
 Fresh VM status: state 5, ID -1. No owned process, lease, screenshot or recovery
 remains; no approval/Polkit denial occurred.
 
-**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep,
-pinned by the slice launcher. **Reason:** rules-only reload is qualified, but
-active-policy acknowledgement still requires transaction reasoning.
+**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
+**Reason:** rules-only reload is qualified, but active-policy acknowledgement
+and rollback still require transaction reasoning. Reassess to Sol high for
+matrix expansion once that contract is proven; the shared
+[model policy](Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff)
+supersedes the earlier blanket pin.
 **Remaining 15A:** sessions **Unknown**, minutes **Unknown**; the 5.4-minute
 selected run does not size acknowledgement and remaining platform work.
 

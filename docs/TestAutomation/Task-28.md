@@ -121,8 +121,10 @@ Verification below is task acceptance; edits use the smallest affected selection
 - Depends on: Task 28A.
 - Complexity: high. Semantic coverage and evidence across the whole specification
   require judgment beyond a syntactically valid manifest.
-- Recommended Codex model: `gpt-5.6-sol`
+- Recommended Codex model: `gpt-6-astra`
 - Recommended reasoning effort: `high`
+- Model rationale: reserve Astra for the broad final correctness audit; use
+  lower settings only for subsequent bounded fixes with settled expectations.
 - Work:
   1. Audit every specification ID against executed behavior and collected
      evidence. Remove source-only acceptance claims; retain useful contracts.

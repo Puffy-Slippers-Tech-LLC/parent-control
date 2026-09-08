@@ -98,15 +98,87 @@ Task 15A's first registered enforcement case is
 `test_native_command_policy_is_uid_scoped`. Inspect it with
 `tools/run-tests system --list --area enforcement --test test_native_command_policy_is_uid_scoped`.
 It requires the four package/reboot executions, then tests native command allow,
-hard denial, and restored allow with screen-time control disabled. The second
-child launches the same target at every step. Source/compiled rules and launch
+hard denial, restored allow, soft denial, and restored allow again with screen-time
+control disabled, then repeats those transitions with screen-time control enabled
+through `SetParentControl`, retaining the original daily allowance. Intermediate
+allow rules and launch witnesses prevent stale hard rules from satisfying the
+soft assertion. Each save reads back the selected policy, screen-time setting
+and daily allowance before examining rules and launches. The second child
+launches the same target at every step. Source/compiled rules and launch
 witnesses use existing private diagnostics; public properties contain role
-labels and digests. The probe drops and verifies credentials, then replaces its
+labels and digests. Final restoration disables screen-time control through its
+dedicated API and restores original preferences, even after a failed enable reply;
+restoration failures fail the case without replacing an earlier scenario failure.
+The probe drops and verifies credentials, then replaces its
 own pinned process with the one-shot fixture. Fixture files remain inside the
 guest until outer baseline cleanup. Host contracts are verified; installed
 runtime qualification remains pending in [Task 15A](../../docs/TestAutomation/Task-15.md#task-15a).
 This registration does not establish Snap, Flatpak, graphical-route, or full
 application requirement coverage.
+
+`test_native_whitespace_policy_is_uid_scoped` runs the same transitions and
+other-child assertions using a fixed executable filename containing a space.
+Its quoted desktop entry must resolve to that exact target. Each deny stage
+requires the executable's current SHA-256 identity in both source and compiled
+rules; intervening allow stages require that denial to be absent. The launch
+probe accepts only maintained fixture variants and uses
+direct `execv` after credential verification. Private rule filenames and public
+property names include the variant to retain both cases in a combined run.
+Inspect its four package/reboot prerequisites with
+`tools/run-tests system --list --area enforcement --test test_native_whitespace_policy_is_uid_scoped`.
+Host regressions cover the scenario and failure witnesses; real installed
+enforcement remains unqualified.
+
+`test_native_future_pattern_is_uid_scoped` extends these transitions with a
+saved same-directory `Versioned-*.AppImage` pattern. A second matching version
+is created only after the first hard policy's source/compiled rules are captured.
+Its selected-child denial and other-child allowance must occur with those rules
+unchanged, without an exact denial for the future path. An existing unrelated
+executable remains allowed for both children. Each blocked stage requires the
+unrelated file's allowance before the directory denial in both rule files;
+restored stages reject retained pattern rules. The launch probe selects only
+the fixed `pattern`, `pattern-future`, and `pattern-unrelated` targets, preserving
+the same guest/credential checks and owned one-shot process. Fixture setup
+refuses existing paths; files remain in the guest for outer baseline cleanup.
+Inspect the case and its four package/reboot prerequisites with
+`tools/run-tests system --list --area enforcement --test test_native_future_pattern_is_uid_scoped`.
+Host regressions establish scenario behavior, catalog parsing and rule witnesses;
+installed kernel enforcement remains pending.
+
+`test_native_missing_launcher_retains_policy` removes its dedicated native
+launcher after witnessing the initial hard policy in source and compiled rules.
+The guest guard and captured file identity must match before unlinking the
+fixed launcher; replacements, changed files, links and unexpected directories
+are refused. The executable remains present. The broker catalog must omit the
+launcher while preferences retain its policy, including after a public
+`SetPreferences` save reconciles the missing catalog entry. Both rule files must
+still deny the selected child, and command launches must witness child denial
+and other-child allowance. The shared transitions continue through soft policy,
+screen-time enablement and policy restoration with the launcher absent. The
+outer baseline cleanup owns remaining fixture files. Inspect its prerequisite
+closure with
+`tools/run-tests system --list --area enforcement --test test_native_missing_launcher_retains_policy`.
+Host regressions use real catalog parsing, broker preference reconciliation and
+rule rendering with substituted OS boundaries. Installed execution is pending.
+
+`test_native_catalog_is_selected_child_scoped` uses the same prerequisite
+closure and reads the installed broker catalog as the parent while selecting
+child, other child, then child again. Distinct system/child/administrator
+targets prove launcher precedence; role-only launchers and a hidden child
+override prove scope membership. A shared system launcher with a relative
+command resolves to the selected child's `.local/bin` or the other child's
+`bin`, with a lower-priority child copy and administrator substitutions present.
+An administrator-only relative command must remain absent from both catalogs.
+An absolute desktop `Path` containing a space wins over child and system copies.
+Separate commands prove `/usr/local/bin` precedence and `/usr/bin` fallback,
+with administrator copies present. The fallback's higher-priority candidate
+must be absent before provisioning. No fixture is written through `/bin`, which
+may alias `/usr/bin` on the guest.
+Its provisioner refuses existing fixture
+files and symlinked directories, preserves existing account/system directory modes
+and ownership, and leaves fixture cleanup to the outer guest baseline.
+Host tests exercise real filesystem discovery and deliberate assertion faults;
+this case still requires installed VM qualification.
 
 The listing uses pytest's public collection-only mode with project and third-party
 plugins disabled; it imports the test definitions but never executes guest

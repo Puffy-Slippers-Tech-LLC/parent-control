@@ -16,6 +16,13 @@ handoff, the authoritative checklist and Implementation-Workflow.md. Inspect
 current edits and preserve other work. Read only the relevant task/contracts
 and source. Do not read previous Codex transcripts or the supervisor's event
 history. The maintained documents carry the compact context between sessions.
+Apply Implementation-Workflow.md#vm-availability-for-all-tasks to every task:
+the operator cleared the historical VM/writer-pause hold for the whole backlog.
+Earlier evidence and handoffs cannot reinstate it. At the next safe boundary,
+proceed with dependency-ready guarded VM work; do not add local-only slices or
+request another coordination confirmation because of that resolved hold.
+Preserve this clearance in each handoff. Actual runner refusals still require
+current evidence and scoped diagnosis under the existing guards.
 Never read, search, diff, edit or include docs/Test-Automation-Slice-Summary.md
 in context, including through broad repository reads. It is an operator-only,
 append-only log. The supervisor appends your final summary without reading its

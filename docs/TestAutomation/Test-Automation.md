@@ -16,7 +16,10 @@ active plan; reuse the implemented interfaces rather than repeating setup.
 Use the [implementation workflow](Implementation-Workflow.md): quality first,
 one bounded problem, focused experiments and a durable handoff. The
 [reuse map](Reuse-Map.md) routes every remaining task to shared work and records
-cross-task gaps found in the documentation review. Read only the selected row.
+cross-task gaps found in the documentation review. Read the selected row and its
+relevant contract/limitation links before investigating shared infrastructure.
+Publish shared fixes through the [reuse workflow](Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work)
+so later tasks inherit their implementation, regression coverage and known limits.
 
 The [current continuation](Continuation.md) points to the next session's task
 and handoff. The reordered backlog brings [F1](Task-F1.md)'s focused diagnosis

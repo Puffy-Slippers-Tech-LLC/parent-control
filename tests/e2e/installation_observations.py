@@ -158,7 +158,70 @@ SUDO_PASSWORD_STAGES = (
     for queue in ('empty', 'pending', 'unavailable')
     for echo in ('characters', 'newline', 'both'))
 
-_SUDO_PASSWORD_BODY = '''import array,fcntl,os,pathlib,pwd,stat,subprocess,termios
+# A compact fixed-field grammar avoids enumerating the diagnostic cross product.
+# These observations are advisory after a latched refusal, never input proof.
+LOGIN_RESOLUTION_FIELDS = {
+    'error': ('missing', 'permission', 'loop', 'not-directory', 'other'),
+    'link': ('expected', 'deleted', 'other', 'missing', 'permission', 'loop', 'not-directory'),
+    'target': ('expected', 'other', 'missing', 'permission', 'loop', 'not-directory', 'not-read'),
+    'identity': ('same', 'replaced', 'zombie', 'missing', 'unavailable'),
+    'leader': ('same', 'changed', 'missing', 'unavailable'),
+    'euid': ('root', 'nonroot', 'unavailable'),
+    'ptrace': ('set', 'unset', 'unavailable'),
+}
+LOGIN_RESOLUTION_PATTERN = (
+    r'getty-(?:initial|recipient|continuity)-exe-resolve'
+    + ''.join('-' + key + '-(?:' + '|'.join(values) + ')'
+              for key, values in LOGIN_RESOLUTION_FIELDS.items()))
+
+LOGIN_RESOLUTION_DIAGNOSTICS = '''
+def resolution_diagnostic(error, root, before, leader):
+    def category(error):
+        return {errno.ENOENT: 'missing', errno.ESRCH: 'missing',
+                errno.EACCES: 'permission', errno.EPERM: 'permission',
+                errno.ELOOP: 'loop', errno.ENOTDIR: 'not-directory'}.get(
+                    getattr(error, 'errno', None), 'other')
+    detail = {'error': category(error), 'link': 'other', 'target': 'not-read',
+              'identity': 'unavailable', 'leader': 'unavailable',
+              'euid': 'unavailable', 'ptrace': 'unavailable'}
+    # Only the selected process and the fixed expected executable are read.
+    # A successful diagnostic reread cannot erase the original failed resolve.
+    try:
+        target = os.readlink(root/'exe')
+        detail['link'] = ('expected' if target == '/usr/bin/login' else
+                          'deleted' if target == '/usr/bin/login (deleted)' else 'other')
+        if detail['link'] == 'expected':
+            try:
+                actual = pathlib.Path('/usr/bin/login').resolve(strict=True)
+                detail['target'] = 'expected' if actual == pathlib.Path('/usr/bin/login') else 'other'
+            except Exception as target_error:
+                detail['target'] = category(target_error)
+    except Exception as link_error:
+        detail['link'] = category(link_error)
+    try:
+        after = process(leader)[1]
+        detail['identity'] = ('replaced' if before[19] != after[19] or before[1:6] != after[1:6]
+                              else 'zombie' if after[0] in ('Z', 'X', 'x') else 'same')
+    except Exception as identity_error:
+        detail['identity'] = 'missing' if category(identity_error) == 'missing' else 'unavailable'
+    try:
+        current = int(subprocess.run(['systemctl','show','serial-getty@ttyS0.service',
+            '--property=MainPID','--value'], capture_output=True, text=True,
+            check=True, timeout=2).stdout.strip())
+        detail['leader'] = 'same' if current == leader else 'missing' if current == 0 else 'changed'
+    except Exception:
+        pass
+    try:
+        detail['euid'] = 'root' if os.geteuid() == 0 else 'nonroot'
+        rows = dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines())
+        detail['ptrace'] = 'set' if int(rows['CapEff'].strip(), 16) & (1 << 19) else 'unset'
+    except Exception:
+        pass
+    return ''.join('-' + key + '-' + value for key, value in detail.items())
+'''
+
+_SUDO_PASSWORD_BODY = '''import array,errno,fcntl,os,pathlib,pwd,stat,subprocess,termios
+''' + LOGIN_RESOLUTION_DIAGNOSTICS + '''
 stage = 'fixture-identity'
 uid = pwd.getpwnam('onpc-parent-jamie').pw_uid
 assert uid > 0
@@ -194,7 +257,11 @@ def login_identity(phase):
     stage = prefix + 'file-writable'
     assert not stat.S_IMODE(info.st_mode) & 0o022
     stage = prefix + 'exe-resolve'
-    actual = (root/'exe').resolve(strict=True)
+    try:
+        actual = (root/'exe').resolve(strict=True)
+    except Exception as error:
+        stage += resolution_diagnostic(error, root, root_fields, leader)
+        raise
     stage = prefix + 'exe-mismatch'
     assert actual == executable
     stage = prefix + 'credentials'

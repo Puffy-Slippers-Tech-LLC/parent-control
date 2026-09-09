@@ -14,6 +14,21 @@ my $attempted = 0;
 my $marker = 'ONPC-INSTALL-PASSWORD: ';
 my $suffix = '] Password: ';
 my $password_prompt = qr/\n\Q$marker$suffix\E\z/;
+my $reboot_notice = '*** REBOOT REQUIRED: reboot before using the kiosk session. ***';
+
+# wait_serial returns the retained output through the matched completion marker,
+# normalizing one CRLF layer. Inspect that private tail without exporting it or
+# stripping controls which could make overwritten/non-red text appear valid.
+sub _verify_notice {
+    my ($output) = @_;
+    my $red = "\e[1;31m" . $reboot_notice . "\e[0m";
+    my $exact = $output =~ /(?:\A|\n)\Q$red\E\r?\nONPC-INSTALL-OK\r?\n\z/;
+    testapi::record_info('install-notice',
+        'exact-text=' . (index($output, $reboot_notice) >= 0 ? 1 : 0)
+        . ' bold-red=' . (index($output, $red) >= 0 ? 1 : 0)
+        . ' final-output=' . ($exact ? 1 : 0));
+    die 'install:final-red-notice' unless $exact;
+}
 
 # A failed serial match retains its ring buffer. The documented negative-match
 # mode returns that buffer without recording it; never publish terminal bytes,
@@ -158,11 +173,14 @@ sub _run {
         testapi::type_string("\n");
         testapi::record_info('install-password-submitted', 'Single password and Enter submitted after independent proof.');
         $stage = 'command-output';
-        unless (testapi::wait_serial(qr/ONPC-INSTALL-OK\r{0,2}\n/,
-                timeout => 300, quiet => 1, record_output => 0)) {
+        my $output = testapi::wait_serial(qr/(?:\A|\n)ONPC-INSTALL-OK\r{0,2}\n/,
+            timeout => 300, quiet => 1, record_output => 0, buffer_size => 4096);
+        unless ($output) {
             eval { _command_diagnostic(); };
             die 'install:command-output';
         }
+        $stage = 'final-red-notice';
+        _verify_notice($output);
         $stage = 'result-proof';
         my $after = $exchange->('install-complete', undef);
         die 'install:result' unless $after->{installed_identity_verified}

@@ -48,9 +48,10 @@ Verification below is task acceptance; edits use the smallest affected selection
      and execution policy match the package.
   6. Prove a broker startup reconciliation failure prevents broker readiness and
      a fapolicyd readiness failure prevents managed graphical login startup.
-  7. Collect all startup evidence and update installation/startup requirement
-     mappings. Resolve E2E-002's existing `requirement_gap` against the normative
-     lifecycle contract before readiness; keep broker and fapolicyd startup
+  7. Collect all startup evidence and complete executable coverage for the
+     [startup audit's existing requirement mapping](Evidence/20-Startup-Audit-20260908.md).
+     E2E-002's declaration gap is resolved; runtime readiness remains unproven.
+     Keep broker and fapolicyd startup
      failures independently asserted even where they share scenario helpers.
 
 ### Terminal reboot-notice cases
@@ -84,56 +85,53 @@ output stays plain text.
 **Earliest ready task; not accepted.** [Task 19B remains accepted](Evidence/19B-Acceptance-20260908.md).
 No earlier entry is bypassed; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
 
-**Current result:** the [corrected deliberate-refusal qualification](Evidence/20-Install-Refusal-Corrected-20260908.md)
-passed. One fixed invalid password reached the independently proved sudo
-recipient, the first rejection was observed, no retry was submitted, the serial
-interrupt returned to the fixture shell, and independent probes found no
-installer child, package, payload or reboot marker. Serial logout, GDM return,
-collection and guarded cleanup passed. This was attempt thirteen overall: two
-qualifications passed and eleven historical failures remain failed. Product
-remained `not-run`; Task 20 and E2E-002 are not accepted. The historical
-intermittent executable refusal remains open.
+**Current result — 2026-09-09:** [recipient diagnostics and final-notice qualification](Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md).
+Fixed error/link/target, process/leader continuity and probe-privilege categories
+now follow a resolution refusal; recovery cannot authorize input. Attempt fifteen
+passed authenticated installation, exact final bold-red notice, package identity,
+reboot marker, logout and GDM return. Three qualifications passed; twelve historical
+failures remain failed. The intermittent refusal did not reproduce and is not
+claimed fixed; new diagnostics were tested locally.
 
-**Next bounded result:** extend the accepted authenticated-install path into the
-clean E2E-002 callback through the customer reboot and healthy startup boundary.
-Retain private terminal output while proving the successful command's final
-notice is exact and red, request the reboot through the visible guest interface,
-reconnect only after a changed boot identity, and correlate usable GDM with
-fapolicyd readiness and broker publication after reconciliation. Add fixed local
-failure/refusal and cleanup coverage, then make one guarded current-input attempt.
-Keep `E2E-028/startup-enforcement` and `startup-broker` as separate later fault
-attempts; the [startup audit](Evidence/20-Startup-Audit-20260908.md) owns their
-finite evidence contract.
+**Next bounded result:** extend the qualified install with a real customer reboot,
+changed boot identity and guarded reconnection. Preserve ordinary smoke's
+unchanged-boot contract. Then add GDM/fapolicyd and independent broker readiness,
+layout and the separate E2E-028 faults from the
+[startup audit](Evidence/20-Startup-Audit-20260908.md). Keep E2E-002 pending.
+Use diagnostics if recipient refusal recurs in required work; do not repeat
+installation solely to reproduce it.
 
-**Read list:** [lifecycle startup contract](../SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle),
-[scenario declaration](../../tests/e2e/scenarios.json),
-[successful install evidence](Evidence/20-Install-Explicit-Newline-20260908.md),
-`tests/e2e/installation_boundary.py`, `installation_observations.py`,
-`controller_qualification.py`, and the installed smoke/readiness helpers named
-by the startup audit. Preserve prompt/recipient/private-capture gates and do not
-turn tolerated best-effort stale-session cleanup into a readiness failure.
+**Read list:** `tests/e2e/installation_boundary.py`, `controller_qualification.py`,
+`e2e_worker.py`, `observation_transport.py`,
+`tests/integration/graphical_smoke/tests/smoke.pm`, `lib/onpc_install.pm`,
+`tests/system/test_install_smoke.py`, and the lifecycle contract linked above.
+Identify the smallest reboot transition; cover ownership loss/stale observations
+locally before a fresh guarded proof. Build fresh artifacts and run isolated
+cleanup-safety prerequisites before the protected operation.
 
-**Verification/cleanup:** fresh artifact source SHA256 `d2445afe08ce142e7fa0176968083022f59e4638d287c277d02a7bdaf0352295`
-and package SHA256 `760cb8bdbf03d9b68a273e171df502bb6e0b82e55ab4f6f2aaf39961388149b7`
-were verified. Isolated and dispatcher closures each passed 526 tests plus 3
-subtests. The guarded selection exited 0 in 1,227.72s; worker/callback/display
-closure, normal shutdown, baseline restoration/verification, host/source
-preservation and lease release passed. Final VM state is off; all commands
-exited and no recovery remains. No policy/Polkit denial. Handoff edits invalidate
-artifact reuse. Actual settings: `gpt-5.6-sol` / `high`, Standard.
+**Verification/cleanup:** 1784 focused tests passed; isolated and dispatcher safety
+closures each passed 546 tests plus 3 subtests. Two initial new-test assertion
+failures were corrected; details, selectors and digests are in the evidence.
+Live qualification exited 0 in 1282.288s; infrastructure/collection/cleanup passed,
+product aggregate `not-run`. Notice and GDM-image review passed. Worker/callback/
+display closed, shutdown verified, baseline restored/verified, preservation and
+lease release passed; fresh guarded VM status off. Screenshot export removed;
+all commands exited, no recovery remains. Ordinary artifact read required the
+approved privileged reader; no policy/Polkit denial. Handoff edits invalidate
+artifact reuse. Actual settings: `gpt-6-astra` / `high`, Standard.
 
 The [all-task VM clearance](Implementation-Workflow.md#vm-availability-for-all-tasks)
-persists. Selection rechecked: Task 20 remains earliest ready; no bypass.
-The authorized single attempt finished and no second run was started.
-**Next-session settings:** `gpt-6-astra` / `high`; model: raise; effort: keep.
-**Reason:** the next slice crosses the first customer-visible reboot, reconnect
-and two independent startup-ordering boundaries; Astra protects unresolved
-cross-boot ownership, evidence correlation and broad lifecycle correctness.
-Standard processing. Return to Sol high once those interfaces are settled.
-**Remaining refusal qualification:** sessions **0**, minutes **0**.
-**Remaining Task 20:** sessions **Unknown**, minutes **Unknown**. The current
-attempt took 20.5 minutes, but the clean reboot/readiness and two startup-fault
-batches still lack implemented callbacks and measured iteration cost.
+persists. Selection rechecked: Task 20 earliest ready, no bypass. One live attempt
+only; no launcher/control-state changes. The prior
+[Session 39 reconciliation](Evidence/20-Session-39-Reconciliation-20260909.md)
+is historical recovery evidence, not a new launch instruction.
+
+**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
+**Reason:** authentication/notice success is qualified, but ownership and observation
+continuity across a real reboot need design and first proof. Standard processing.
+**Remaining Task 20:** sessions **Unknown**, minutes **Unknown**. This qualification
+cost 21.4 minutes; cross-boot/readiness/fault work has no measured completion bound,
+and intermittent prerequisite failure remains possible.
 
 ### Operator follow-up after Session 34
 

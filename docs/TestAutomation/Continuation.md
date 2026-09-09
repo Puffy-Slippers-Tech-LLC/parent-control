@@ -1,36 +1,23 @@
 # Current implementation continuation
 
-Updated: 2026-09-08. The [master checklist](Test-Automation.md#unfinished-tasks)
+Updated: 2026-09-09. The [master checklist](Test-Automation.md#unfinished-tasks)
 owns task order and completion.
 
-- **Completed user-directed work: finished-test infrastructure refactor**;
-  [scope and verification](Evidence/Test-Support-Refactor-20260908.md).
-  All implemented regression suites passed, including 238 installed executions
-  and canonical E2E-001; guarded cleanup is complete. Checklist order resumes
-  below. Future live runs need fresh source-bound artifacts after these evidence edits.
-
-- **Next: Task 20 — implement the clean install/reboot/readiness boundary**;
+- **Next: Task 20 — real customer reboot, changed boot identity and reconnection**;
   [active handoff](Task-20.md#task-20-continuation--2026-09-08),
-  [latest evidence](Evidence/20-Install-Refusal-Corrected-20260908.md).
-  The corrected refusal path passed through shell return, no-retry/package/marker
-  absence, logout, GDM return and guarded cleanup. Extend the accepted successful
-  install boundary through the exact red final notice, visible customer reboot,
-  changed boot identity and healthy fapolicyd/broker readiness. Add local refusal
-  and cleanup coverage before one fresh guarded attempt. Keep the two E2E-028
-  startup faults separate. Eleven historical failures remain failed; the
-  intermittent executable refusal remains open.
-- **Selection rechecked:** Task 20 remains earliest ready; no bypass.
-  [19B is accepted](Evidence/19B-Acceptance-20260908.md);
+  [qualified installation and diagnostics](Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md).
+  Authentication and exact final red notice passed. Preserve ordinary smoke's
+  unchanged-boot contract; E2E-002 remains pending. Intermittent recipient refusal
+  did not recur and is not claimed fixed; diagnostics stay available.
+  Reuse the [installation findings and regressions](../../tests/e2e/README.md#installation-findings-to-carry-forward)
+  before extending the reboot boundary.
+- **Selection rechecked:** Task 20 earliest ready; no bypass.
   [15A's later work](Task-15.md#task-15a-continuation--2026-09-08) stays preserved.
-- **All-task VM clearance (2026-09-08) persists** under the
+- **All-task VM clearance persists** under the
   [shared rule](Implementation-Workflow.md#vm-availability-for-all-tasks).
-  No renewed coordination is due. Build fresh source-bound artifacts when ready.
+  All commands exited; baseline restored, lease released, VM off, export removed.
+  Build fresh source-bound inputs after handoff edits.
 - Settings: **`gpt-6-astra` / `high`**.
-  Reason: the first customer reboot/reconnect and independent startup-ordering
-  evidence cross unresolved lifecycle and ownership boundaries; Astra high
-  preserves correctness until those interfaces are settled. Standard processing.
-- The authorized single-attempt slice finished with a qualified pass. Existing subsequent
-  work authorization persists; do not change launcher controls from a worker.
-- Refusal qualification: **0 sessions / 0 minutes**. Full Task 20 remains
-  **Unknown sessions / Unknown minutes**. Cleanup complete; no recovery remains.
-  Handoff edits require fresh artifacts for the next guarded attempt.
+  Reason: installation is qualified, but process ownership and observation
+  continuity across an actual reboot still need design and first proof. Standard processing.
+- Task 20 estimates: **Unknown sessions / Unknown minutes**; see the handoff.

@@ -21,6 +21,14 @@ handoff, the authoritative checklist and Implementation-Workflow.md. Inspect
 current edits and preserve other work. Read only the relevant task/contracts
 and source. Do not read previous Codex transcripts or the supervisor's event
 history. The maintained documents carry the compact context between sessions.
+Before investigating shared infrastructure, read the selected task's Reuse-Map.md
+row and its relevant owning contract, regression and open-limitation links.
+Apply Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work:
+identify the reused helper and only the missing capability or evidenced change
+that warrants reopening a solution. Publish changed shared findings in the
+owning contract and affected map links before handoff; check that their
+qualification claims agree with retained evidence. Do not leave reusable
+solutions only in the task handoff or operator summary.
 Apply Implementation-Workflow.md#start-with-one-bounded-result at every safe
 slice boundary: select the earliest ready unchecked task in checklist order.
 Reconcile a later continuation pointer and recheck earlier deferrals before

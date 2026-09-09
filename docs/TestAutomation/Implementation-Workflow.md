@@ -40,9 +40,14 @@ omission of necessary work. This is the single implementation session procedure.
    do not repeat the machine-selection question.
 3. Inspect working-tree status and relevant changes. For
    architecture read [System-Design.md](../System-Design.md), then the owning
-   module and applicable specification IDs. The task's first slice and optional
-   [reuse-map row](Reuse-Map.md) route further reads. Follow contracts when the
-   boundary needs them; do not load every task, all evidence or the entire diff.
+   module and applicable specification IDs. Read the selected task's
+   [reuse-map row](Reuse-Map.md) and follow its relevant shared-contract and
+   limitation links before diagnosing or adding a helper. Compare the existing
+   implementation, regression coverage and recorded qualification with the
+   boundary needed now. In the handoff, link the reused contract and identify
+   only the missing capability or changed assumption. If reopening a solved
+   boundary, state the new evidence or invalidating change first; a new task or
+   chat alone is not a reason. Do not load every task, all evidence or the entire diff.
 4. Implement and verify the slice; preserve concurrent changes. Mark the task's
    one checklist entry complete only after all its deliverables and acceptance
    checks pass. Update reusable contracts and write the handoff below before
@@ -217,6 +222,33 @@ verified work; fewer terminal lines or artifact bytes do not establish savings.
 
 ## Reuse established tools and bound harness work
 
+When a shared problem is resolved or its qualification/diagnosis changes, update
+its owning contract with the established cause (or explicitly unknown cause),
+supported fix, canonical helper/symbol, regression file or case IDs, qualified
+scope and remaining limitations. Link retained live evidence where applicable;
+local checks alone do not establish live qualification. Update the affected
+[reuse-map rows](Reuse-Map.md) with that contract and its downstream consumers
+before ending the slice, even if the overall task remains unfinished. Keep
+attempt counts and the next experiment in the active task handoff; link them
+from the contract when an unresolved shared failure affects reuse. A passing
+attempt does not close an intermittent failure whose cause remains unknown.
+
+Before handing off, compare the owning contract, affected reuse-map links and
+active handoff against the newest retained evidence. Correct stale qualification
+claims in that same slice; keep historical evidence unchanged. Distinguish
+locally tested, live-qualified, unresolved and unimplemented boundaries. Store
+the durable problem/solution/regression record in the owning contract so it
+survives replacement of the active handoff; the operator summary is not a worker
+input. Link it rather than copying the investigation into downstream tasks.
+
+Before reopening a recorded solution, identify the changed input/interface,
+contradictory evidence or uncovered case. With none, continue using the existing
+helper and applicable evidence under the [verification reuse rules](#decide-what-invalidates-earlier-verification).
+If a reference is stale, reconcile it against the owning contract, current code
+and retained evidence; repair the link or status without rerunning an experiment
+merely to reconstruct the record. The map routes readers to these records; it
+must not duplicate changing inventory counts or become another result ledger.
+
 Keep the existing pytest/Hypothesis/coverage.py and Node/GJS foundations,
 python-dbusmock private buses, Dogtail/AT-SPI components, and os-autoinst with
 QEMU/libvirt for OS journeys. Use their maintained public interfaces and the
@@ -333,6 +365,8 @@ Include:
   model/effort, lower/raise/keep for each, and reason.
 - Proven facts/interfaces and the next read list: files/symbols/contract sections,
   not copied code or a retold investigation.
+- For shared fixes, links to the updated owning contract and affected reuse-map
+  rows, including regression coverage, qualification limits and downstream users.
 - Unresolved hypothesis, attempts spent, rejected explanations and next observation.
 - Tested inputs, command/selector, evidence paths/digests and later changes;
   identify host-only edits and what invalidates prior verification. Give the

@@ -97,13 +97,20 @@ class ReadOnlyObservations:
                     ('install-password-rejected:' + stage + '\n').encode(): stage
                     for stage in installation_observations.SUDO_PASSWORD_STAGES
                 }
-                if raw in refusals:
+                diagnostic = re.fullmatch(
+                    rb'install-password-rejected:('
+                    + installation_observations.LOGIN_RESOLUTION_PATTERN.encode('ascii')
+                    + rb')\n', raw)
+                condition = refusals.get(raw)
+                if diagnostic is not None:
+                    condition = diagnostic[1].decode('ascii')
+                if condition is not None:
                     # Persist the allowlisted condition in controller stderr
                     # before refusal stops the worker and its callback.
-                    print('e2e:install-password-rejected:' + refusals[raw],
+                    print('e2e:install-password-rejected:' + condition,
                           file=sys.stderr, flush=True)
                     if self._on_diagnostic is not None:
-                        self._on_diagnostic(refusals[raw])
+                        self._on_diagnostic(condition)
                     raise EvidenceError('observation:probe-failed')
                 require(raw == b'install-password-safe\n', 'observation:invalid-output')
                 result = {'sudo_install_process_verified': True,

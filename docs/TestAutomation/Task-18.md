@@ -94,9 +94,12 @@ Verification below is task acceptance; edits use the smallest affected selection
      install → reboot → configure/use → remove → reboot → reinstall → purge
      sequence on the guarded VM. No VM checkpoint creates an intermediate state.
   2. Verify real PAM, GDM, AccountsService, kiosk identity, services, fapolicyd,
-     generated integrations, and reboot markers across the sequence. Preserve
-     unrelated users, administrator-owned integrations, and other packages'
-     state. Read-only evidence corroborates actual package operations.
+     generated integrations, and reboot markers across the sequence. After
+     successful documented removal, the last printed output must be
+     `*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***`
+     and must be red on a capable terminal. Preserve unrelated users,
+     administrator-owned integrations, and other packages' state. Read-only
+     evidence corroborates actual package operations.
   3. Prove ordinary removal retains saved choices and reinstall uses them;
      prove explicit package purge performs only its documented product-owned
      cleanup. Do not manually delete or edit logs to manufacture evidence.

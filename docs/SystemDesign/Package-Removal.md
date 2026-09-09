@@ -99,8 +99,10 @@ first unpack removes only its attempt's bookkeeping.
 
 Successful removal records Ubuntu's reboot requirement so existing
 login-manager/PAM transactions are renewed at the next boot. The packaged
-APT `DPkg::Post-Invoke` hook prints the removal notice after dpkg's triggers,
-in bold red on a capable terminal and plain text in redirected output.
+APT `DPkg::Post-Invoke` hook prints
+`*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***`
+after dpkg's triggers as the last printed output, in bold red on a capable
+terminal and plain text in redirected output.
 `make uninstalldeb` uses this same production APT integration without a
 checkout helper. The hook is self-contained because the executable payload
 has already been removed. Its APT conffile survives ordinary removal and

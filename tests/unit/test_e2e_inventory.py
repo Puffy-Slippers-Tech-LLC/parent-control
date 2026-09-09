@@ -88,6 +88,22 @@ def test_pending_selection_cannot_run(document, selector):
         inventory.resolve_selection(document, selector, require_runnable=True)
 
 
+def test_package_reboot_notices_require_last_printed_red_output(document):
+    install = '*** REBOOT REQUIRED: reboot before using the kiosk session. ***'
+    removal = '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***'
+    notices = {
+        ('E2E-002', 'installation-notice'): install,
+        ('E2E-027', 'installation-notice'): install,
+        ('E2E-027', 'removal-notice'): removal,
+    }
+    for (sid, assertion_id), notice in notices.items():
+        item = next(assertion for assertion in family(document, sid)['assertions']['visible']
+                    if assertion['id'] == assertion_id)
+        assert notice in item['description']
+        assert 'last printed output' in item['description']
+        assert 'is red' in item['description']
+
+
 def test_startup_selection_keeps_independent_failure_boundaries(document):
     clean = inventory.resolve_selection(document, 'E2E-002')['cases'][0]
     assert clean['requirement_gap'] is None

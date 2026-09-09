@@ -118,6 +118,34 @@ def test_partial_io_and_backpressure_preserve_bytes(console):
     assert [call.args[0] for call in stream.send.call_args_list] == [b'hello', b'hello', b'llo']
 
 
+@pytest.mark.parametrize('chunk_size', [1, 16, 64, 4096])
+def test_full_install_command_survives_partial_sends_and_backpressure(console, chunk_size):
+    port, _, _, _, stream = console
+    command = (b"/usr/bin/sudo -k -p $'\\nONPC-INSTALL-PASSWORD: ' -- /usr/bin/apt-get install -y "
+               b"/var/lib/onpc-e2e-assets/package.deb && printf 'ONPC-INSTALL-%s\\n' 'OK'\n")
+    delivered = bytearray()
+    blocked = False
+
+    def send(data):
+        nonlocal blocked
+        blocked = not blocked
+        if blocked:
+            return -2
+        count = min(len(data), chunk_size)
+        delivered.extend(data[:count])
+        return count
+
+    stream.send.side_effect = send
+    assert os.write(port.fds[0], command) == len(command)
+    for _ in range(2 * len(command)):
+        port.step()
+        if not port.pending_in:
+            break
+    assert not port.pending_in
+    assert delivered == command
+    assert delivered.count(b'\n') == 1 and delivered.endswith(b"'OK'\n")
+
+
 def test_abort_failure_still_closes_connection_and_every_fd(console):
     port, _, connection, _, stream = console
     port.step()

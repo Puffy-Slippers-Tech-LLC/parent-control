@@ -36,15 +36,18 @@ def preflight(argv, *, root=ROOT):
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--scenario')
     parser.add_argument('--artifacts', type=Path)
-    parser.add_argument('--qualify-transfer', action='store_true')
+    qualification = parser.add_mutually_exclusive_group()
+    qualification.add_argument('--qualify-transfer', action='store_true')
+    qualification.add_argument('--qualify-install', action='store_true')
     args = parser.parse_args(argv)
-    if args.qualify_transfer:
+    if args.qualify_transfer or args.qualify_install:
         if args.list or args.scenario is not None:
             raise ValueError('e2e:qualification-cannot-select-scenarios')
         validate_artifact_path(args.artifacts)
         if not args.artifacts.is_dir():
             raise ValueError('e2e:missing-artifact-directory')
-        return {'mode': 'asset-transfer-qualification', 'artifacts': str(args.artifacts)}
+        return {'mode': ('authenticated-installation-qualification' if args.qualify_install
+                         else 'asset-transfer-qualification'), 'artifacts': str(args.artifacts)}
     if args.list and args.artifacts is not None:
         raise ValueError('e2e:listing-does-not-use-artifacts')
     api = runpy.run_path(str(confined_file(root, 'tests/e2e/inventory.py')))
@@ -103,9 +106,12 @@ def main(argv=None):
             os.execv(str(launcher), [str(launcher), 'e2e', *arguments])
             return 0
         plan = preflight(argv)
-        if plan['mode'] == 'asset-transfer-qualification':
+        if plan['mode'] in ('asset-transfer-qualification', 'authenticated-installation-qualification'):
             sys.path.insert(0, str(ROOT / 'tests/integration'))
             import check_graphical_smoke
+            if plan['mode'] == 'authenticated-installation-qualification':
+                return check_graphical_smoke.main(assets=Path(plan['artifacts']),
+                                                 provision_credentials=True, serial=True, install=True)
             return check_graphical_smoke.main(assets=Path(plan['artifacts']))
         if plan['mode'] == 'execution-preflight':
             sys.path.insert(0, str(ROOT / 'tests/e2e'))

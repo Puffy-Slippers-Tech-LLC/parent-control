@@ -5,8 +5,10 @@ package's preinst bootstrap during unpack, and executes the packaged notice
 helper after configuration/triggers. No host package or service is changed.
 """
 
+import errno
 import os
 from pathlib import Path
+import pty
 import subprocess
 import sys
 
@@ -19,6 +21,8 @@ SUCCESS = "PASS: Oh No! Parent Control package configuration completed successfu
 REBOOT = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
 PENDING = "run/oh-no-parent-control-package-configuration-complete"
 HOOK = "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice"
+RED = f"\033[1;31m{REBOOT}\033[0m"
+GREEN_SUCCESS = f"\033[1;32m{SUCCESS}\033[0m"
 
 
 def record(name, state="installed"):
@@ -54,6 +58,51 @@ def notice_machine(tmp_path):
     bootstrap = bootstrap.replace("-o root -g root ", "")
     (tmp_path / "bootstrap").write_text(bootstrap)
     return tmp_path, status, helper
+
+
+def capture(command, env, terminal):
+    env = {**env, "TERM": terminal or "xterm"}
+    if not terminal:
+        result = subprocess.run(
+            command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=10,
+        )
+        return result, result.stdout
+    master, slave = pty.openpty()
+    try:
+        result = subprocess.run(
+            command, env=env, stdout=slave, stderr=slave, timeout=10,
+        )
+        os.close(slave)
+        slave = None
+        chunks = []
+        while True:
+            try:
+                chunk = os.read(master, 65536)
+            except OSError as error:
+                if error.errno != errno.EIO:
+                    raise
+                break
+            if not chunk:
+                break
+            chunks.append(chunk)
+        output = b"".join(chunks).decode()
+    finally:
+        if slave is not None:
+            os.close(slave)
+        os.close(master)
+    return result, output
+
+
+@pytest.mark.parametrize("terminal", [None, "xterm", "dumb"])
+def test_install_reboot_notice_is_last_printed_and_red_on_capable_terminal(
+        notice_machine, terminal):
+    _, _, helper = notice_machine
+    result, output = capture([str(helper), "--configured"], os.environ, terminal)
+    assert result.returncode == 0, output
+    reboot = RED if terminal == "xterm" else REBOOT
+    assert output.rstrip().splitlines()[-2:] == [GREEN_SUCCESS, reboot], output
+    assert output.count(SUCCESS) == output.count(REBOOT) == 1
 
 
 @pytest.mark.parametrize("frontend", ["apt", "apt-get"])
@@ -160,7 +209,7 @@ sys.exit(1 if failure else 0)
         assert SUCCESS not in output
         assert REBOOT not in output
     else:
-        assert output.splitlines()[-2:] == [f"\033[1;32m{SUCCESS}\033[0m", REBOOT], output
+        assert output.splitlines()[-2:] == [GREEN_SUCCESS, REBOOT], output
         assert output.count(SUCCESS) == output.count(REBOOT) == 1
         assert not (root / PENDING).exists()
 

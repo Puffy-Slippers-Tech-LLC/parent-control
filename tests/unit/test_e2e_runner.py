@@ -42,15 +42,19 @@ def test_full_listing_keeps_pending_cases_and_exact_digest():
         (ROOT / 'tests/e2e/scenarios.json').read_bytes()).hexdigest()
 
 
-def test_transfer_qualification_has_no_scenario_override(tmp_path):
+@pytest.mark.parametrize('option,mode', [
+    ('--qualify-transfer', 'asset-transfer-qualification'),
+    ('--qualify-install', 'authenticated-installation-qualification'),
+])
+def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode):
     assets = tmp_path / 'onpc-assets'
     assets.mkdir()
     # A generated /tmp/onpc-* parent meets the same public artifact boundary.
     import tempfile
     with tempfile.TemporaryDirectory(prefix='onpc-transfer-test-') as directory:
-        options = ['--qualify-transfer', '--artifacts=' + directory]
+        options = [option, '--artifacts=' + directory]
         plan = runner['preflight'](options)
-        assert plan == {'mode': 'asset-transfer-qualification', 'artifacts': directory}
+        assert plan == {'mode': mode, 'artifacts': directory}
         assert dispatcher['selection'](ROOT, ['e2e', *options])[-2:] == options
         for extra in ('--list', '--scenario=E2E-001', '--scenario='):
             with pytest.raises(ValueError, match='qualification-cannot-select-scenarios'):
@@ -78,6 +82,7 @@ def test_selected_listing_uses_exact_inventory_scope(selector, count):
     (['--scenario=E2E-001,E2E-002'], 'selection:unknown'),
     (['--list', '--artifacts=/tmp/onpc-absent'], 'listing-does-not-use-artifacts'),
     (['--lis'], 'invalid-arguments'),
+    (['--qualify-transfer', '--qualify-install'], 'invalid-arguments'),
     (['--resume=private-value'], 'invalid-arguments'),
     (['--checkpoint=private-value'], 'invalid-arguments'),
     (['--command=private-value'], 'invalid-arguments'),

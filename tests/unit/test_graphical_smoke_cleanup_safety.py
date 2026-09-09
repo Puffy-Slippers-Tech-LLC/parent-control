@@ -184,6 +184,25 @@ def reports(controller):
     return [json.loads(path.read_text()) for path in sorted(controller.collector.path.glob('event-*.json'))]
 
 
+def test_install_recipient_refusal_is_durable_without_completed_step(qualification):
+    controller, _ = qualification
+    controller.install = True
+    transport = Mock(config={'run': 'fixture'})
+    transport.call.return_value = b'install-password-rejected:foreground-distinct\n'
+    observer = smoke.ReadOnlyObservations(transport, on_diagnostic=lambda condition:
+        controller.progress('install-password', {'recipient_refusal': condition}))
+    with pytest.raises(smoke.EvidenceError, match='probe-failed'):
+        observer.read('install-password')
+    report = reports(controller)[-1]
+    assert report['event'] == 'stage-rejected'
+    assert report['active_stage'] == 'install-password'
+    assert report['result']['installation_diagnostic'] == {'recipient_refusal': 'foreground-distinct'}
+    assert report['result']['steps'] == []
+    controller.failure('infrastructure', 'worker-execution-failed')
+    assert reports(controller)[-1]['result']['installation_diagnostic'] == {
+        'recipient_refusal': 'foreground-distinct'}
+
+
 @pytest.mark.parametrize('fault', [None, 'bootstrap', 'worker', 'interrupt', 'cleanup',
                                   'provenance', 'host', 'report', 'late-source'])
 def test_live_controller_ordering_and_retained_diagnostics(qualification, fault):

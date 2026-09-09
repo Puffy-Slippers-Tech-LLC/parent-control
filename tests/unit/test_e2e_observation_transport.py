@@ -45,6 +45,11 @@ def observer():
     ('install-password', installation_observations.SUDO_PASSWORD, 20,
      {'sudo_install_process_verified': True,
       'terminal_echo_disabled': True}, b'install-password-safe\n'),
+    ('sudo-implementation', installation_observations.SUDO_IMPLEMENTATION, 30,
+     {'implementation': 'sudo-rs', 'package_version': '0.2.13-0ubuntu1.2',
+      'executable': '/usr/lib/cargo/bin/sudo'},
+     (json.dumps({'implementation': 'sudo-rs', 'package_version': '0.2.13-0ubuntu1.2',
+                  'executable': '/usr/lib/cargo/bin/sudo'}, sort_keys=True) + '\n').encode()),
     ('serial-session', guest_observations.SERIAL_SESSION, 110,
      {'fixture_role': 'parent', 'active_local_serial_session': True,
       'unexpected_user_session': False}, b'serial-session-ready\n'),
@@ -62,6 +67,84 @@ def test_fixed_probe_checks_ownership_before_and_after_output(observer, name, pr
     transport.call.assert_called_once_with(['/usr/bin/python3', '-c', program], timeout=timeout)
     transport.reboot.assert_not_called()
     transport.copy.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['version', 'executable', 'implementation', 'extra', 'duplicate', 'trailing'])
+def test_sudo_identity_output_rejects_private_and_noncanonical_data(observer, fault, capsys):
+    reader, transport = observer
+    data = {'implementation': 'sudo-rs', 'package_version': '0.2.13-0ubuntu1.2',
+            'executable': '/usr/lib/cargo/bin/sudo'}
+    if fault in ('version', 'executable', 'implementation'):
+        data['package_version' if fault == 'version' else fault] = 'private-canary'
+    elif fault == 'extra':
+        data['private-canary'] = True
+    raw = json.dumps(data, sort_keys=True) + '\n'
+    if fault == 'duplicate':
+        raw = raw.replace('{', '{"implementation": "private-canary", ', 1)
+    if fault == 'trailing':
+        raw += 'private-canary'
+    transport.call.return_value = raw.encode()
+    with pytest.raises(EvidenceError):
+        reader.read('sudo-implementation')
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.read('sudo-implementation')
+    assert 'private-canary' not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('stage', installation_observations.SUDO_PASSWORD_STAGES)
+def test_sudo_condition_is_collected_before_terminal_refusal(observer, stage, capsys):
+    reader, transport = observer
+    transport.call.return_value = ('install-password-rejected:' + stage + '\n').encode()
+    with pytest.raises(EvidenceError, match='probe-failed'):
+        reader.read('install-password')
+    assert capsys.readouterr().err.splitlines() == [
+        'e2e:install-password-rejected:' + stage, 'e2e:observation-rejected']
+    assert transport.guard.call_count == 2
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.read('install-password')
+    assert transport.call.call_count == 1
+
+
+@pytest.mark.parametrize('raw', [
+    b'install-password-rejected:private-secret-canary\n',
+    b'install-password-rejected:sudo-command\nprivate-secret-canary',
+    b'install-password-rejected:sudo-command',
+    b'install-password-rejected:sudo-command\r\n',
+    b'install-password-rejected:sudo-command\ninstall-password-safe\n',
+])
+def test_sudo_diagnostic_accepts_only_exact_fixed_conditions(observer, raw, capsys):
+    reader, transport = observer
+    transport.call.return_value = raw
+    with pytest.raises(EvidenceError, match='invalid-output'):
+        reader.read('install-password')
+    assert capsys.readouterr().err == 'e2e:observation-rejected\n'
+
+
+def test_sudo_diagnostic_is_not_published_after_ownership_loss(observer, capsys):
+    reader, transport = observer
+    transport.call.return_value = b'install-password-rejected:sudo-command\n'
+    transport.guard.side_effect = [None, RuntimeError('private-secret-canary')]
+    with pytest.raises(EvidenceError, match='probe-failed'):
+        reader.read('install-password')
+    assert capsys.readouterr().err == 'e2e:observation-rejected\n'
+
+
+@pytest.mark.parametrize('write_fails', [False, True])
+def test_sudo_refusal_checkpoint_precedes_failure_and_cannot_enable_retry(observer, write_fails):
+    _, transport = observer
+    events = []
+    def save(condition):
+        events.append(condition)
+        if write_fails:
+            raise OSError('private-secret-canary')
+    reader = ReadOnlyObservations(transport, on_diagnostic=save)
+    transport.call.return_value = b'install-password-rejected:terminal-echo\n'
+    with pytest.raises(EvidenceError, match='probe-failed'):
+        reader.read('install-password')
+    assert events == ['terminal-echo']
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.read('install-password')
+    assert transport.call.call_count == 1
 
 
 @pytest.mark.parametrize('raw', [b'', b'A' * 64 + b'\n', b'a' * 63 + b'\n',

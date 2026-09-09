@@ -287,6 +287,28 @@ controller proof; 156 customer/fault variants remain pending.
 
 ### Asset transfer qualification
 
+The separate `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-<verified-build>`
+route qualifies the fixed authenticated installation boundary. It provisions
+verified assets and fixture credentials, then uses real serial login, fresh
+sudo authentication, package-result verification, logout and graphical return.
+Each installation request drains pending serial input before read-only probes;
+safe observations are checkpointed before replies. Capture remains sealed after
+authentication. No caller command, package path or scenario override is accepted.
+The installation preflight records the guest's selected sudo-rs executable and
+installed Ubuntu package version, and refuses revisions outside the audited
+0.2.13-0ubuntu1, 0.2.13-0ubuntu1.1 and 0.2.13-0ubuntu1.2 contract. The serial
+matcher accepts the exact custom prompt or sudo-rs wrapper with `Password: `,
+optionally preceded by Readline's exact bracketed-paste shutdown sequence;
+arbitrary controls and private PAM suffixes cannot authorize input. The
+installation proof's `terminal_echo_disabled` means password-character echo is
+off. Newline-only ECHONL is allowed: the password is printable ASCII and Enter
+is sent separately. Recipient identity/continuity, prompt, private capture and
+terminal failure/retry guards remain mandatory.
+This diagnostic does not reboot or establish complete E2E-002 readiness; the
+product selection remains pending. Refresh the installed dispatcher through
+`./setup.sh --test-tools-only` when adding this option. Test-tool activation is
+`none` (next invocation); no product data migration is involved.
+
 `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-<verified-build>`
 runs the existing guarded credential-free graphical worker with package/fixture
 delivery. Build current inputs with `tools/run-tests artifacts build` first.

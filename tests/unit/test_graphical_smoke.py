@@ -175,3 +175,71 @@ def test_schedule_failure_is_not_accepted_as_the_pinned_early_exit(tmp_path, sta
     commands.run.return_value = output
     with pytest.raises(RuntimeError, match='schedule-preflight-failed'):
         smoke.schedule_preflight(tmp_path, commands)
+
+
+@pytest.mark.parametrize('fault', [None, 'capture', 'observation', 'checkpoint'])
+def test_installation_drains_input_and_persists_each_proof_before_reply(tmp_path, fault):
+    events = []
+    verified = Mock(inputs={'package_sha256': 'a' * 64})
+    transfer = Mock(verified=verified)
+    boundary = smoke.InstallationBoundary(None, verified, transfer)
+    def progress(stage, observed):
+        assert not (tmp_path / f'{stage}.reply.json').exists()
+        events.append('checkpoint' if observed else 'started')
+        if observed and fault == 'checkpoint':
+            raise RuntimeError('checkpoint-failed')
+    controller = smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key', progress, transfer,
+                             authenticate=True, serial=True, installation=boundary)
+    observations = {
+        'boot': {'boot_sha256': 'b' * 64},
+        'serial-session': {'active_local_serial_session': True},
+        'package-absent': {'product_package_absent': True},
+        'sudo-implementation': {'implementation': 'sudo-rs', 'package_version': '0.2.13-0ubuntu1.2'},
+        'install-password': {'sudo_install_process_verified': True, 'terminal_echo_disabled': True},
+        'package-installed': {'package_sha256': 'a' * 64, 'installed_identity_verified': True,
+                              'product_reboot_required': True},
+    }
+    def read(name):
+        events.append('observe')
+        if fault == 'observation':
+            raise RuntimeError('private-canary')
+        return observations[name]
+    controller.vm = Mock(read=Mock(side_effect=read))
+    controller.steps = [{'stage': stage} for stage in smoke.INSTALL_STAGES[:6]]
+    port = Mock(pending_in=b'pending', step=Mock(side_effect=lambda: events.append('drain')))
+    for stage in boundary.STAGES:
+        events.clear()
+        (tmp_path / f'{stage}.request.json').write_text(json.dumps({
+            'stage': stage, 'screenshot': 'smoke-1.png' if fault == 'capture' else None}))
+        controller.step(port)
+        assert events == ['drain']
+        assert not (tmp_path / f'{stage}.reply.json').exists()
+        port.pending_in = b''
+        if fault:
+            with pytest.raises((RuntimeError, smoke.EvidenceError)):
+                controller.step(port)
+            assert not (tmp_path / f'{stage}.reply.json').exists()
+            if fault == 'capture':
+                controller.vm.read.assert_not_called()
+            return
+        controller.step(port)
+        assert events[:3] == ['drain', 'drain', 'started']
+        assert events[-1] == 'checkpoint'
+        reply = json.loads((tmp_path / f'{stage}.reply.json').read_text())
+        assert reply['boot_sha256'] == 'b' * 64
+        assert boundary.observer is controller.vm
+        port.pending_in = b'pending'
+    assert controller.steps[-1]['verified_package_digest']
+    assert controller.stages[len(controller.steps):] == ('serial-logout', 'gdm-return')
+
+
+@pytest.mark.parametrize('serial,authenticate,transfer_present', [
+    (False, True, True), (True, False, True), (True, True, False),
+])
+def test_installation_requires_credentials_serial_and_bound_assets(tmp_path, serial, authenticate,
+                                                                 transfer_present):
+    boundary = Mock()
+    with pytest.raises(RuntimeError, match='installation-prerequisites'):
+        smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key',
+                    transfer=boundary.transfer if transfer_present else None,
+                    serial=serial, authenticate=authenticate, installation=boundary)

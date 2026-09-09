@@ -15,10 +15,11 @@ from private_artifacts import EvidenceError, require
 
 
 class ReadOnlyObservations:
-    def __init__(self, transport):
+    def __init__(self, transport, *, on_diagnostic=None):
         self._transport = transport
         self._config = dict(transport.config)
         self._failed = False
+        self._on_diagnostic = on_diagnostic
 
     def _guard(self):
         require(self._transport.config == self._config, 'observation:transport-replaced')
@@ -36,7 +37,7 @@ class ReadOnlyObservations:
             require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session',
                                                       'serial-password', 'serial-session', 'boot',
                                                       'package-absent', 'package-installed',
-                                                      'install-password'),
+                                                      'install-password', 'sudo-implementation'),
                     'observation:unknown-probe')
             program, timeout = {
                 'assets': (guest_observations.ASSETS, 120),
@@ -48,6 +49,7 @@ class ReadOnlyObservations:
                 'package-absent': (installation_observations.ABSENT, 30),
                 'package-installed': (installation_observations.INSTALLED, 90),
                 'install-password': (installation_observations.SUDO_PASSWORD, 20),
+                'sudo-implementation': (installation_observations.SUDO_IMPLEMENTATION, 30),
             }[name]
             self._guard()
             raw = self._transport.call(['/usr/bin/python3', '-c', program], timeout=timeout)
@@ -72,7 +74,31 @@ class ReadOnlyObservations:
                     and re.fullmatch(r'[0-9a-f]{64}', result['package_sha256'])
                     and raw == (json.dumps(result, sort_keys=True) + '\n').encode(),
                     'observation:invalid-output')
+            elif name == 'sudo-implementation':
+                result = json.loads(raw)
+                require(isinstance(result, dict) and set(result) == {
+                    'implementation', 'package_version', 'executable'}
+                    and result['implementation'] == 'sudo-rs'
+                    and result['executable'] == '/usr/lib/cargo/bin/sudo'
+                    and isinstance(result['package_version'], str)
+                    and re.fullmatch(r'0\.2\.[0-9]{1,3}-[0-9]{1,3}ubuntu[0-9]{1,3}(?:\.[0-9]{1,3}){0,2}', result['package_version'])
+                    and raw == (json.dumps(result, sort_keys=True) + '\n').encode(),
+                    'observation:invalid-output')
+                print('e2e:sudo-implementation:' + raw.decode('ascii').strip(),
+                      file=sys.stderr, flush=True)
             elif name == 'install-password':
+                refusals = {
+                    ('install-password-rejected:' + stage + '\n').encode(): stage
+                    for stage in installation_observations.SUDO_PASSWORD_STAGES
+                }
+                if raw in refusals:
+                    # Persist the allowlisted condition in controller stderr
+                    # before refusal stops the worker and its callback.
+                    print('e2e:install-password-rejected:' + refusals[raw],
+                          file=sys.stderr, flush=True)
+                    if self._on_diagnostic is not None:
+                        self._on_diagnostic(refusals[raw])
+                    raise EvidenceError('observation:probe-failed')
                 require(raw == b'install-password-safe\n', 'observation:invalid-output')
                 result = {'sudo_install_process_verified': True,
                           'terminal_echo_disabled': True}

@@ -36,11 +36,15 @@ from guest_observations import GREETER as OBSERVATION
 from observation_transport import ReadOnlyObservations
 from fixture_credentials import FixtureCredentials, preflight as credential_preflight
 from graphical_serial import provision_getty
+from installation_boundary import InstallationBoundary
+import installation_observations
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
 AUTH_STAGES = (*STAGES, 'authenticated')
 SERIAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated', 'serial-command', 'serial-logout',
                  'gdm-return')
+INSTALL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated',
+                  *InstallationBoundary.STAGES, 'serial-logout', 'gdm-return')
 
 
 def inputs():
@@ -95,14 +99,18 @@ def screenshot(directory, name):
 
 class Smoke:
     def __init__(self, directory, lease, commands, host_key, progress=None, transfer=None,
-                 authenticate=False, serial=False):
+                 authenticate=False, serial=False, installation=None):
         self.directory, self.lease, self.commands = directory, lease, commands
         self.host_key = host_key
         self.steps = []
         self.vm = None
         self.progress = progress
         self.transfer = transfer
-        self.stages = SERIAL_STAGES if serial else AUTH_STAGES if authenticate else STAGES
+        require(installation is None or (serial and authenticate and transfer is not None
+                and installation.transfer is transfer), 'smoke:installation-prerequisites')
+        self.installation = installation
+        self.stages = (INSTALL_STAGES if installation is not None else
+                       SERIAL_STAGES if serial else AUTH_STAGES if authenticate else STAGES)
 
     def step(self, serial_console=None):
         if len(self.steps) == len(self.stages):
@@ -115,7 +123,7 @@ class Smoke:
         request = json.loads(path.read_text())
         require(set(request) == {'stage', 'screenshot'} and request['stage'] == stage,
                 'smoke:stage-request')
-        if stage.startswith('serial-'):
+        if stage.startswith(('serial-', 'install-')):
             # The stage request is published after the worker's input. Drain
             # those bytes before a blocking SSH observation; otherwise the
             # observer could wait for input still buffered in our own pipe.
@@ -135,12 +143,19 @@ class Smoke:
                       'domain_id': self.lease.view.domain_id, 'run': self.lease.state['run']}
             transport = Transport(config, self.commands, guard=lambda _: self.lease.guard())
             transport.probe_ready(timeout=180)
-            self.vm = ReadOnlyObservations(transport)
+            self.vm = ReadOnlyObservations(transport, on_diagnostic=(
+                lambda condition: self.progress('install-password',
+                    {'recipient_refusal': condition})) if self.progress is not None else None)
             reply = {'observation': 'active-greeter-no-user-session'}
             reply['authenticate'] = self.stages == AUTH_STAGES
             reply['serial'] = self.stages == SERIAL_STAGES
+            reply['install'] = self.installation is not None
             if self.transfer is not None:
                 reply['assets'] = self.transfer.observe(self.vm)
+        elif stage.startswith('install-'):
+            require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
+            self.installation.observer = self.vm
+            reply = self.installation.observe(stage)
         elif stage == 'gdm-return':
             # The match's automatic screenshot stays private. The callback
             # reconciles it from the completed module, never reopening capture.
@@ -167,7 +182,7 @@ class Smoke:
                 require((reply['width'], reply['height']) == (previous['width'], previous['height'])
                         and reply['sha256'] != previous['sha256'], 'smoke:unchanged-screen')
         # Corroborate each captured stage, not just SSH availability at boot.
-        if stage not in ('authenticated', 'gdm-return') and not stage.startswith('serial-'):
+        if stage not in ('authenticated', 'gdm-return') and not stage.startswith(('serial-', 'install-')):
             self.vm.read('greeter')
         self.steps.append({'stage': stage, **reply})
         if self.progress is not None:
@@ -181,9 +196,10 @@ class Smoke:
 
 
 def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
-                *, progress=None, on_failure=None, transfer=None, credentials=None, serial=False):
+                *, progress=None, on_failure=None, transfer=None, credentials=None, serial=False,
+                installation=None):
     smoke = Smoke(directory, lease, commands, host_key, progress, transfer,
-                  authenticate=credentials is not None, serial=serial)
+                  authenticate=credentials is not None, serial=serial, installation=installation)
     def validate():
         require(len(smoke.steps) == len(smoke.stages), 'smoke:missing-stages')
         module_result(directory)
@@ -207,7 +223,7 @@ class Qualification:
     """Live diagnostic checkpoints, without an inventory or scenario override."""
 
     def __init__(self, directory, commands, ledger, collector, result, host_before, assets=None,
-                 credentials=None, serial=False):
+                 credentials=None, serial=False, install=False):
         self.directory, self.commands, self.ledger = directory, commands, ledger
         self.collector, self.result, self.host_before = collector, result, host_before
         self.verified = None
@@ -218,12 +234,14 @@ class Qualification:
         self.transfer = None
         self.credentials = credentials
         self.serial = serial
+        self.install = install
 
     def checkpoint(self, event):
         self.sequence += 1
         try:
             save_checkpoint(self.collector, self.sequence, event, {
-                'scope': ('fixture-credential-qualification' if self.credentials is not None
+                'scope': ('authenticated-installation-qualification' if self.install else
+                          'fixture-credential-qualification' if self.credentials is not None
                           else 'credential-free-worker-qualification'),
                 'active_stage': self.active_stage,
                 'monotonic_seconds': time.monotonic() - self.started,
@@ -234,12 +252,18 @@ class Qualification:
             raise
 
     def progress(self, stage, observed):
-        require(stage in (SERIAL_STAGES if self.serial else
+        require(stage in (INSTALL_STAGES if self.install else SERIAL_STAGES if self.serial else
                           AUTH_STAGES if self.credentials is not None else STAGES),
                 'smoke:stage-request')
         self.active_stage = stage
         if observed is None:
             self.checkpoint('stage-started')
+        elif stage == 'install-password' and set(observed) == {'recipient_refusal'}:
+            # Refusal is diagnostic evidence, never a completed proof step.
+            require(observed['recipient_refusal'] in
+                    installation_observations.SUDO_PASSWORD_STAGES, 'smoke:diagnostic-condition')
+            self.result['installation_diagnostic'] = dict(observed)
+            self.checkpoint('stage-rejected')
         else:
             self.result['steps'].append(dict(observed))
             self.active_stage = None
@@ -275,12 +299,15 @@ class Qualification:
                     self.checkpoint('asset-transfer-started')
                     self.result['asset_transfer'] = self.transfer.provision(lease, guestfs)
                     self.checkpoint('asset-transfer-verified')
+                installation = (InstallationBoundary(None, self.verified, self.transfer)
+                                if self.install else None)
             with self.ledger.measure('test'):
                 self.verified.recheck()
                 self.result.update(run_backend(
                     self.directory, lease, self.commands, host_key, self.ledger,
                     self.verified.source_files, progress=self.progress, on_failure=self.failure,
-                    transfer=self.transfer, credentials=self.credentials, serial=self.serial))
+                    transfer=self.transfer, credentials=self.credentials, serial=self.serial,
+                    installation=installation))
         except BaseException as error:
             code = str(error) if isinstance(error, EvidenceError) else runner.error_category(error)
             if not any(v['outcome'] == 'failed' for v in self.ledger.outcomes.values()):
@@ -345,7 +372,9 @@ class Qualification:
         runner.log('graphical:finalized-with-lease-held')
 
 
-def main(*, assets=None, provision_credentials=False, serial=False):
+def main(*, assets=None, provision_credentials=False, serial=False, install=False):
+    require(type(install) is bool and (not install or (assets is not None and serial
+            and provision_credentials)), 'smoke:installation-prerequisites')
     require(type(serial) is bool and (not serial or provision_credentials), 'smoke:serial-credentials')
     require(assets is not None or len(sys.argv) == 1, 'smoke:invalid-arguments')
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
@@ -367,6 +396,8 @@ def main(*, assets=None, provision_credentials=False, serial=False):
         result['scope'] = 'fixture-authentication-qualification'
     if serial:
         result['scope'] = 'fixture-serial-command-qualification'
+    if install:
+        result['scope'] = 'authenticated-installation-qualification'
     started = time.monotonic()
     def interrupted(*_):
         raise KeyboardInterrupt
@@ -402,7 +433,7 @@ def main(*, assets=None, provision_credentials=False, serial=False):
                               if credentials is not None else []) as collector:
             result['qualification_evidence'] = str(collector.path)
             qualification = Qualification(directory, commands, ledger, collector, result, host_before,
-                                          staged, credentials, serial)
+                                          staged, credentials, serial, install)
             lease.finalize = qualification.finalize
             with lease:
                 result['baseline_sha256'] = lease.state['baseline_sha256']

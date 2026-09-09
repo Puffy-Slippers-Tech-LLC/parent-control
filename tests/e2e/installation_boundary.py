@@ -37,7 +37,16 @@ class InstallationBoundary:
                 self.transfer.observe(self.observer)
                 session = self.observer.read('serial-session')
                 absent = self.observer.read('package-absent')
-                result = {**absent, **session, 'verified_assets': True,
+                implementation = self.observer.read('sudo-implementation')
+                # These distribution revisions have the audited prompt/hidden
+                # input contract. Preserve observed identity before refusing a
+                # new version, so an unknown guest never receives a password.
+                require(implementation['implementation'] == 'sudo-rs'
+                        and implementation['package_version'] in (
+                            '0.2.13-0ubuntu1', '0.2.13-0ubuntu1.1', '0.2.13-0ubuntu1.2'),
+                        'install:sudo-implementation')
+                result = {**absent, **session, 'sudo_implementation': implementation,
+                          'verified_assets': True,
                           'installation_authorized': True}
             elif stage == 'install-password':
                 result = self.observer.read('install-password')
@@ -58,7 +67,7 @@ class InstallationBoundary:
                 raise KeyboardInterrupt('install:interrupted') from None
             if isinstance(error, EvidenceError) and str(error) in {
                 'install:phase', 'install:inputs-changed', 'install:boot-changed',
-                'install:package-mismatch',
+                'install:package-mismatch', 'install:sudo-implementation',
             }:
                 raise
             raise EvidenceError('install:observation-failed') from None

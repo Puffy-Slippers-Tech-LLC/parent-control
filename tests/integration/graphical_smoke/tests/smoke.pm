@@ -46,7 +46,9 @@ sub run {
     capture('selected');
     onpc_gdm::dismiss_prompt();
     capture('dismissed');
-    if ($ready->{serial}) {
+    if ($ready->{install}) {
+        onpc_serial::run_install(\&exchange);
+    } elsif ($ready->{serial}) {
         onpc_serial::run(\&exchange);
     }
     if ($ready->{authenticate}) {

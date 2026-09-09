@@ -21,6 +21,7 @@ PACKAGE = 'oh-no-parent-control'
 ASSET = '/var/lib/onpc-e2e-assets/package.deb'
 MARKER = '/run/reboot-required'
 PACKAGES = MARKER + '.pkgs'
+SUDO = '/usr/lib/cargo/bin/sudo'
 
 
 def execute_probe(program, *, files, query, metadata=None, fault=None):
@@ -40,7 +41,7 @@ def execute_probe(program, *, files, query, metadata=None, fault=None):
         def lstat(self):
             if self.value not in files:
                 raise FileNotFoundError
-            bad = fault if self.value in (ASSET, PACKAGES, MARKER) else None
+            bad = fault if self.value in (ASSET, PACKAGES, MARKER, SUDO) else None
             return SimpleNamespace(
                 st_mode=(stat.S_IFLNK if bad == 'symlink' or fault == 'dangling-payload' else
                          stat.S_IFDIR if bad == 'directory' else stat.S_IFREG)
@@ -49,7 +50,12 @@ def execute_probe(program, *, files, query, metadata=None, fault=None):
                 st_gid=1000 if bad == 'group' else 0,
                 st_nlink=2 if bad == 'hardlink' else 1)
 
-        def resolve(self):
+        def resolve(self, strict=False):
+            if self.value == '/usr/bin/sudo':
+                assert strict
+                if fault == 'resolve-error':
+                    raise FileNotFoundError('private-canary')
+                return GuestPath('/unexpected' if fault == 'other-implementation' else SUDO)
             return GuestPath('/unexpected') if fault == 'parent-symlink' else self
 
         def read_text(self):
@@ -65,6 +71,12 @@ def execute_probe(program, *, files, query, metadata=None, fault=None):
         if args[0] == '/usr/bin/dpkg-query':
             if isinstance(query, Exception):
                 raise query
+            if program == probes.SUDO_IMPLEMENTATION:
+                if args == ('/usr/bin/dpkg-query', '-S', SUDO):
+                    return SimpleNamespace(stdout='private-canary' if fault == 'package-owner' else 'sudo-rs: ' + SUDO + '\n')
+                assert args == ('/usr/bin/dpkg-query', '-W',
+                    '-f=${binary:Package}\t${Version}\t${db:Status-Status}\n', 'sudo-rs')
+                return SimpleNamespace(stdout=query)
             assert args in (
                 ('/usr/bin/dpkg-query', '-W', '-f=${Package}\t${db:Status-Status}\n'),
                 ('/usr/bin/dpkg-query', '-W',
@@ -140,3 +152,25 @@ def test_install_result_requires_artifact_identity_configured_package_and_produc
         assert json.loads(capsys.readouterr().out) == {
             'package_sha256': hashlib.sha256(files[ASSET]).hexdigest(),
             'installed_identity_verified': True, 'product_reboot_required': True}
+
+
+@pytest.mark.parametrize('fault', [None, 'resolve-error', 'other-implementation', 'package-owner',
+    'database-error', 'version', 'status', 'package', 'trailing', 'owner', 'group', 'writable',
+    'hardlink', 'directory', 'symlink', 'parent-symlink'])
+def test_sudo_implementation_requires_installed_owner_and_safe_package_identity(fault, capsys):
+    query = 'sudo-rs\t0.2.13-0ubuntu1.2\tinstalled\n'
+    if fault == 'database-error':
+        query = subprocess.CalledProcessError(2, 'dpkg-query', stderr='private-canary')
+    elif fault in ('version', 'status', 'package'):
+        query = query.replace({'version': '0.2.13-0ubuntu1.2', 'status': 'installed',
+                               'package': 'sudo-rs'}[fault], 'private-canary')
+    elif fault == 'trailing':
+        query += '\n'
+    if fault:
+        with pytest.raises((AssertionError, FileNotFoundError, subprocess.CalledProcessError)):
+            execute_probe(probes.SUDO_IMPLEMENTATION, files={SUDO: b''}, query=query, fault=fault)
+        assert capsys.readouterr().out == ''
+    else:
+        execute_probe(probes.SUDO_IMPLEMENTATION, files={SUDO: b''}, query=query)
+        assert json.loads(capsys.readouterr().out) == {
+            'implementation': 'sudo-rs', 'package_version': '0.2.13-0ubuntu1.2', 'executable': SUDO}

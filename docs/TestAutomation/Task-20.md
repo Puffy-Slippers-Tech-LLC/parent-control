@@ -33,7 +33,8 @@ Verification below is task acceptance; edits use the smallest affected selection
      installation as prerequisite setup without replaying this acceptance case.
   2. Verify the product is absent, install the package through its real package
      path from the guest terminal with real administrator authentication,
-     record output, and verify the product-created reboot marker. A hidden
+     record output, and verify the product-created reboot marker. The last
+     printed output must be the red kiosk reboot notice below. A hidden
      preinstalled image or helper installation is not this journey's evidence.
   3. Request an actual reboot through the customer-visible guest interface.
      Verify the boot identity changes and that GDM returns; do not reload VM
@@ -51,6 +52,22 @@ Verification below is task acceptance; edits use the smallest affected selection
      mappings. Resolve E2E-002's existing `requirement_gap` against the normative
      lifecycle contract before readiness; keep broker and fapolicyd startup
      failures independently asserted even where they share scenario helpers.
+
+### Terminal reboot-notice cases
+
+These are customer-visible package-output assertions, not extra scenario
+families. Capable terminals show the notice in red; redirected or `TERM=dumb`
+output stays plain text.
+
+- **Install (this task / E2E-002):** after a successful documented package
+  installation, the last printed output is
+  `*** REBOOT REQUIRED: reboot before using the kiosk session. ***` and is
+  red.
+- **Uninstall ([Task 18C](Task-18.md#task-18c) / E2E-027):** after a successful
+  documented package removal, the last printed output is
+  `*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***`
+  and is red. This task does not run the removal journey.
+
 - Verification:
   - Run runner cleanup-safety regressions in isolation before live scenarios.
   - Run every clean-install/startup-failure variant once as a complete attempt.
@@ -67,68 +84,142 @@ Verification below is task acceptance; edits use the smallest affected selection
 **Earliest ready task; not accepted.** [Task 19B remains accepted](Evidence/19B-Acceptance-20260908.md).
 No earlier entry is bypassed; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
 
-**Locally verified boundary:** [onpc_install.pm](../../tests/integration/graphical_smoke/lib/onpc_install.pm)
-types only the fixed authenticated package command through the existing serial
-console. It forces fresh sudo authentication, requires a distinct no-echo proof,
-rejects command echo as completion, seals capture, suppresses private errors and
-refuses retries. `onpc_serial::run_install` reaches it only after real fixture
-login and shell readiness; the accepted smoke retains its original `run` path.
+**Current result:** [explicit-newline installation qualification passed](Evidence/20-Install-Explicit-Newline-20260908.md).
+The supported custom prompt now supplies its own newline; exact argv proof
+requires it. The guest recognized the complete marker/PAM suffix, independent
+recipient/continuity/character-echo proof passed, and one password submission
+completed authenticated installation. Independent package identity/digest and
+reboot-marker checks, serial logout and GDM return passed. **One successful
+attempt this slice, eleven overall; ten historical failures remain failed.**
+The [intermittent executable refusal](Evidence/20-Install-Echo-Diagnostics-20260908.md)
+did not recur and remains open. This is helper qualification, not E2E-002 acceptance.
 
-[InstallationBoundary.observe](../../tests/e2e/installation_boundary.py) orders
-`install-ready`, `install-password`, `install-complete`; verifies transferred
-assets and absence before input, binds the result to `VerifiedInputs`, and
-rejects boot changes before/during each observation. Any refusal is terminal.
-The separate `install-password` probe in
-[installation_observations.py](../../tests/e2e/installation_observations.py)
-follows the stock getty's foreground group, checking exact sudo argv, trusted
-executable, fixture-owned Bash parent, process/session identities and disabled
-echo. Existing absence/installed probes remain intact. Only safe fields leave
-the guarded observation transport.
+**Next bounded result:** qualify one fixed deliberate installation refusal
+through the existing guarded worker. Prove no password retry, no installed
+package, sealed capture and cleanup. Run focused local failure checks, fresh
+artifacts and isolated cleanup prerequisites before the guarded selection.
+Do not rerun the successful path merely to resume a session. Red final notice,
+customer reboot, installed layout/readiness and both startup faults remain;
+the [startup audit](Evidence/20-Startup-Audit-20260908.md) preserves that scope.
 
-**Scope limit:** no live authentication/install is proven. The worker request
-protocol does not yet dispatch this boundary; no pending product selection was
-opened. The [startup audit](Evidence/20-Startup-Audit-20260908.md) still owns the
-three pending cases. Next live observation must establish that the qualified
-Ubuntu sudo implementation exposes the expected foreground/UID/parent shape;
-do not weaken the proof if it refuses. Capture only safe discriminating fields.
+**Read list:** [fixed helper](../../tests/integration/graphical_smoke/lib/onpc_install.pm),
+[ordered boundary](../../tests/e2e/installation_boundary.py),
+[worker integration](Evidence/20-Install-Worker-20260908.md), and the latest
+evidence's exact test selectors/provenance. Timeout diagnostics never authorize
+input. The installed serial parser now has real pipe/fragment qualification.
 
-**Verification:** the six-file focused selection covering install helper,
-controller phases, sudo probe, package probes, transport and serial helper
-passed **199 tests in 0.88s**, before the final serial-entry regression and
-formatting refinements. Final `make check` passed **3,176 unit tests (81.17s)**,
-**17 private-D-Bus tests (0.49s)**, stage traceability and common checks. No test
-failure or retry occurred. New executable regressions are
-`test_e2e_install_helper.py`, `test_e2e_install_password_observation.py` and
-`test_e2e_installation_boundary.py` under `tests/unit`; the serial and observation
-transport suites cover shared consumers. Scoped staged/unstaged whitespace and
-handoff link checks pass. Existing unrelated edits are preserved. Later
-handoff-only edits require fresh package artifacts, not repeated host tests.
-These local checks do not qualify the live helper.
-
-**Next bounded result:** connect the installation stages to
-`check_graphical_smoke.Smoke`, `graphical_smoke/tests/smoke.pm` and the guarded
-worker, preserving serial draining before observations and evidence persistence
-before replies. Use the maintained qualification dispatcher for the smallest
-real success and deliberate failure; add a bounded route there if required,
-never mark a partial E2E-002 ready. Run cleanup-safety prerequisites in isolation,
-then build fresh source-bound package inputs after final edits. Remaining Task
-20 acceptance also needs private installation output/visible notice, customer
-reboot/reconnect, full layout and readiness ordering, and both startup faults.
+**Verification/cleanup:** 1597 focused tests; final helper refinement 115 passed;
+526 isolated cleanup tests plus 3 subtests; fresh build passed. The initial
+51 parser-fixture failures were corrected from fractional to whole-second
+timeouts. Handle **2052** exited **0**, **1165.609s**. Infrastructure, collection
+and cleanup passed; product `not-run`. Normal shutdown, worker/callback/display
+closure, baseline restoration/verification and lease release all passed;
+host/source preserved. All commands exited/results collected. GDM-return image
+inspected and temporary export removed; no recovery remains. No policy/Polkit
+denial. Existing edits preserved; handoff edits invalidate artifact reuse.
+Actual settings: `gpt-6-astra` / `high`, Standard.
 
 The [all-task VM clearance](Implementation-Workflow.md#vm-availability-for-all-tasks)
-persists; no renewed coordination is due. No expensive VM attempt or approval
-denial this slice; implementation readiness is the live-run prerequisite.
-All session commands exited and results were collected. No VM lease, guest
-process or screenshot export was created; no cleanup/recovery remains. No VM
-power-state claim is made.
+persists. Selection rechecked: Task 20 remains earliest ready; no bypass.
+The authorized single attempt is finished; no second run was started.
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: lower; effort: keep.
+**Reason:** prompt, exact argv/recipient and the successful worker path are
+proven; the bounded refusal case builds on established contracts and local
+denial tests. Standard processing; reassess Astra for a new ownership or
+authentication ambiguity.
+**Remaining Task 20:** sessions **Unknown**, minutes **Unknown**. The successful
+helper attempt took 19.4 minutes; the remaining refusal, full reboot/readiness
+and startup-fault work lacks a measured batch for a reliable completion range.
 
-**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
-**Reason:** local checks establish the installation protocol, but live sudo
-identity, private capture and reboot continuity remain unqualified. Retain
-Astra for this boundary's integration and first live proof, then reassess to
-Sol high for implementation and variants over the proven path. This is a
-slice-specific choice under the [model policy](Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff),
-not a launcher pin.
-**Remaining Task 20:** sessions **Unknown**, minutes **Unknown**. The audit bounds
-three cases and proves the local installation boundary, but worker integration,
-reboot/reconnect and fault controls still lack measured live timing.
+### Operator follow-up after Session 34
+
+Completed by the [explicit-newline slice](Evidence/20-Install-Explicit-Newline-20260908.md):
+one guarded attempt passed and cleanup finished. The active continuation above
+owns subsequent work/settings; the instructions below retain this slice's scope.
+
+The user reviewed Session 34 and authorized one further focused slice. Its
+guest implementation audit and corrected recipient/echo proof are real progress;
+prompt recognition and authenticated installation remain unqualified. Keep
+`gpt-6-astra` / `high`, Standard processing, for the remaining authentication
+and transport work. Launch with `--max-slices 1` and perform **at most one new
+guarded VM attempt**. Finish owned collection and cleanup before stopping for
+result review, including after failure; the existing VM authorization persists.
+
+Implement the explicit newline in the supported custom prompt and update the
+independent exact argv check. Preserve the qualified recipient/continuity and
+character-echo proof, strict prompt recognition, private capture and refusal
+gates. A diagnostic marker match must never authorize password input.
+
+Before fresh artifacts and the sole VM attempt:
+
+1. Exercise fragmented input through the maintained serial buffer/parser path
+   locally, including command echo, delimiter and suffix split across reads,
+   complete valid prompts, and incomplete or private/unknown suffix refusals.
+   Tests of complete preselected strings alone do not establish serial delivery
+   behavior. Reuse the existing test routes and keep this qualification focused.
+2. Prepare consolidated fixed diagnostics that distinguish a marker absent from
+   the observed buffer, partial marker/suffix delivery, and a complete marker
+   with unsupported framing or suffix. Distinguish command echo from prompt
+   output. Keep unavailable or incomplete observations explicit; absence in an
+   observed buffer does not establish that sudo never emitted the prompt.
+   Export only fixed categories or flags, never raw authentication bytes,
+   arbitrary PAM text or secrets. Collect enough evidence during this attempt
+   to identify the remaining interface gap if the new prompt still fails.
+3. Validate these observations and input refusal behavior locally, build fresh
+   source-bound inputs, and run the isolated cleanup-safety prerequisites.
+
+Report the actual boundary reached: recognized prompt, password submission,
+authentication outcome and any subsequent installation result separately. If
+input still refuses, identify the supported cause or precise remaining evidence
+gap and a different next approach. More passing tests or another undifferentiated
+prompt timeout alone do not establish a breakthrough. Do not start a second VM
+attempt within the slice, and do not expand a generic diagnostic framework.
+
+### Operator diagnostic intervention — 2026-09-08
+
+Completed in Session 34. The [operator follow-up](#operator-follow-up-after-session-34)
+governs the next slice; the instructions below retain the completed intervention.
+
+The operator authorized this intervention after reviewing slow Task 20 progress.
+The preceding slice stopped normally after its ninth attempt, with collection,
+baseline restoration, lease release and worker/callback closure confirmed.
+The next launcher invocation is limited to **one slice** with `--max-slices 1`;
+within that slice, run **at most one new guarded VM authentication attempt**.
+Finish its collection and cleanup even if it exceeds the usual review time.
+The ordinary backlog and VM authorization persist; the limit provides a result
+review boundary before another run, not a new permission requirement.
+
+Before another expensive attempt, reconcile these assumptions together:
+
+1. Establish the guest's selected sudo executable and package/version using
+   supported read-only evidence, then audit the corresponding implementation and
+   distribution changes. Host identity and an unrelated upstream implementation
+   are insufficient. Keep unknown identity explicit.
+2. Explain how the configured custom prompt reaches the serial reader and its
+   matcher, including supported wrappers, terminal controls and command echo.
+   Prove that recognition rejects command echoes, unrelated/private PAM text and
+   malformed or incomplete prompts; avoid a permissive substring fallback.
+3. Review password-character protection separately from newline echo. The ninth
+   attempt proved ECHO off and ECHONL on; polling does not establish a pre-prompt
+   wait. Any corrected terminal predicate needs an explicit safety rationale and
+   behavioral success/refusal tests. Preserve exact recipient identity, process
+   continuity, authorized prompt, private capture and terminal refusal/retry
+   invariants; do not merely remove a failing check to obtain a pass.
+
+Use the smallest supported correction or a consolidated set of fixed, privacy-safe
+observations that distinguishes the remaining explanations in the same boot.
+If polling remains causally relevant, distinguish terminal input from a service
+dependency rather than adding guessed wait symbols. Validate collectors and
+parsers locally, including unknown/read-error and identity-loss cases, before
+building fresh artifacts and running the isolated cleanup prerequisites.
+Do not expand a generic diagnostic framework or repeat full VM preparation for
+each additional diagnostic token.
+
+End with a demonstrated cause and qualified correction, including the real
+boundary reached, or a precise unresolved evidence/interface gap and a concrete
+different next approach. Record rejected explanations, remaining hypotheses,
+attempt identity, observed outcomes and cleanup. A larger unit-test count or one
+more refusal label alone does not satisfy this intervention's result criterion.
+If the live attempt still fails, finish and hand off for review before any further
+VM run. Report actual status honestly under the existing schema; the one-slice
+limit stops the launcher without inventing an outside-input blocker.

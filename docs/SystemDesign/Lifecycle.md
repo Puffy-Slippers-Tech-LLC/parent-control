@@ -42,6 +42,13 @@ the installed file that changed, an update needs no action, a broker restart, a
 new child/kiosk session, or a reboot at the PAM/display-manager boundary. See
 [Package update](../Package-Update.md) for the classification rules.
 
+Successful configuration prints a green completion line. If this package has
+requested a reboot, the helper then prints
+`*** REBOOT REQUIRED: reboot before using the kiosk session. ***` as the last
+output: bold red on a capable terminal, and plain text when stderr is not a
+terminal or `TERM` is dumb. The packaged dpkg hook defers that output until
+configuration and triggers finish so later APT/dpkg lines cannot follow it.
+
 ## Installed layout
 
 ```text

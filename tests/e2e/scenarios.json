@@ -95,7 +95,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "installation-notice", "step_id": "step-1", "description": "The real terminal installation succeeds and displays the required reboot notice; credentials are excluded from evidence."},
+          {"id": "installation-notice", "step_id": "step-1", "description": "The real terminal installation succeeds; the last printed output is *** REBOOT REQUIRED: reboot before using the kiosk session. *** and is red; credentials are excluded from evidence."},
           {"id": "visible-result", "step_id": "step-3", "description": "After the actual customer-requested reboot, GDM becomes usable only after fapolicyd readiness; no unmanaged desktop is exposed."}
         ],
         "backend": [
@@ -1627,6 +1627,8 @@
       "interventions": [],
       "assertions": {
         "visible": [
+          {"id": "installation-notice", "step_id": "step-1", "description": "The real terminal installation succeeds; the last printed output is *** REBOOT REQUIRED: reboot before using the kiosk session. *** and is red; credentials are excluded from evidence."},
+          {"id": "removal-notice", "step_id": "step-3", "description": "The real terminal removal succeeds; the last printed output is *** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. *** and is red; credentials are excluded from evidence."},
           {"id": "visible-result", "step_id": "step-4", "description": "The continuous install/use/remove/reinstall/purge journey preserves usable login and documented settings semantics."}
         ],
         "backend": [

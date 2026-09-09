@@ -24,6 +24,7 @@ HOOK = "99zz-oh-no-parent-control-reboot-notice"
 @pytest.mark.parametrize("terminal", [None, "xterm", "dumb"])
 @pytest.mark.parametrize("failure", [False, True])
 def test_apt_removal_notice_follows_triggers(tmp_path, frontend, action, terminal, failure):
+    """Last printed output is the removal notice; red on a capable terminal."""
     for path in ("cache/archives/partial", "state/lists/partial", "log", "sources.list.d"):
         (tmp_path / path).mkdir(parents=True)
     database = tmp_path / "dpkg"
@@ -145,7 +146,7 @@ def test_apt_removal_notice_follows_triggers(tmp_path, frontend, action, termina
         assert result.returncode == 0, output
         assert "Processing triggers for libc-bin" in output
         expected = f"\033[1;31m{NOTICE}\033[0m" if terminal == "xterm" else NOTICE
-        assert output.rstrip().endswith(expected), output
+        assert output.rstrip().splitlines()[-1] == expected, output
         assert output.count(NOTICE) == 1
         if action == "purge":
             assert not hook.exists(), "APT must run the already-loaded hook after purge"

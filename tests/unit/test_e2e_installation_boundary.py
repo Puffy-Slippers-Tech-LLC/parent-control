@@ -18,6 +18,7 @@ def boundary():
         'boot': {'boot_sha256': 'b'*64},
         'serial-session': {'active_local_serial_session': True},
         'package-absent': {'product_package_absent': True},
+        'sudo-implementation': {'implementation': 'sudo-rs', 'package_version': '0.2.13-0ubuntu1.2'},
         'install-password': {'sudo_install_process_verified': True, 'terminal_echo_disabled': True},
         'package-installed': {'package_sha256': 'a'*64, 'installed_identity_verified': True,
                               'product_reboot_required': True},
@@ -57,7 +58,8 @@ def test_phase_refusal_is_terminal_before_any_observation(boundary, first, bad):
 
 
 @pytest.mark.parametrize('fault', ['transfer', 'absent', 'secret-proof', 'package',
-    'changed-inputs', 'boot-before', 'boot-during', 'provenance-before', 'provenance-after', 'interrupt'])
+    'changed-inputs', 'boot-before', 'boot-during', 'provenance-before', 'provenance-after', 'interrupt',
+    'unknown-sudo', 'sudo-read-error'])
 def test_failed_install_observation_never_authorizes_next_input(boundary, fault, capsys):
     instance, observations = boundary
     stage = 'install-ready'
@@ -71,8 +73,11 @@ def test_failed_install_observation_never_authorizes_next_input(boundary, fault,
         observations['package-installed']['package_sha256'] = 'c'*64
     elif fault == 'transfer':
         instance.transfer.observe.side_effect = private_error
-    elif fault in ('absent', 'secret-proof'):
-        fail_probe = 'package-absent' if fault == 'absent' else 'install-password'
+    elif fault == 'unknown-sudo':
+        observations['sudo-implementation']['package_version'] = '0.2.99-0ubuntu1'
+    elif fault in ('absent', 'secret-proof', 'sudo-read-error'):
+        fail_probe = {'absent': 'package-absent', 'secret-proof': 'install-password',
+                      'sudo-read-error': 'sudo-implementation'}[fault]
         def read(name):
             if name == fail_probe:
                 raise private_error

@@ -1,9 +1,10 @@
-"""Parent feedback submission with optional, reviewable diagnostic logs."""
+"""Shared feedback submission with optional, reviewable diagnostic logs."""
 
 from __future__ import annotations
 
 from dataclasses import replace
 import logging
+from pathlib import Path
 import threading
 
 import gi
@@ -46,12 +47,23 @@ def _feedback_icon(name, size, color="#343437"):
 
 
 class FeedbackDialog(Adw.Window):
-    """Keep drafts and immutable retries in memory for this parent-app session."""
+    """Keep drafts and immutable retries in memory for this app session."""
 
-    def __init__(self, parent):
+    def __init__(self, parent, *, kiosk_session=False, report=None, on_close=None):
         super().__init__(title="Send Feedback", transient_for=parent, modal=True,
                          destroy_with_parent=True, default_width=660,
                          default_height=840, css_classes=["feedback-dialog"])
+        self._kiosk_session = kiosk_session
+        self._report = report
+        self._on_close = on_close
+        self._subject = report.subject if report else ""
+        self._css_provider = Gtk.CssProvider()
+        self._css_provider.load_from_path(str(Path(__file__).with_name("feedback.css")))
+        Gtk.StyleContext.add_provider_for_display(
+            self.get_display(), self._css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+        )
+        self.connect("destroy", self._destroyed)
         self._busy = False
         self._submission = None
         self._logs = None
@@ -81,7 +93,8 @@ class FeedbackDialog(Adw.Window):
         heading.append(Gtk.Label(label="Help us make things better", xalign=0,
                                  wrap=True, css_classes=["feedback-title"]))
         heading.append(Gtk.Label(
-            label="Share a problem, suggestion, or idea.",
+            label=("Review the error details below before sending."
+                   if report else "Share a problem, suggestion, or idea."),
             xalign=0, wrap=True, css_classes=["feedback-subtitle"],
         ))
         introduction.append(heading)
@@ -89,8 +102,10 @@ class FeedbackDialog(Adw.Window):
 
         message_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
                                 vexpand=True, margin_bottom=2)
-        message = RichTextEditor(self._choose_attachments)
+        message = RichTextEditor(None if kiosk_session else self._choose_attachments)
         self._message = message
+        if report:
+            message.set_text(report.message)
         message_group.append(message)
         content.append(message_group)
 
@@ -137,6 +152,7 @@ class FeedbackDialog(Adw.Window):
                          "Attach up to 5 files to your feedback.")
         self._add_attachment_button.connect("clicked", self._choose_attachments)
         attachments.set_header_suffix(self._add_attachment_button)
+        self._add_attachment_button.set_visible(not kiosk_session)
         self._attachment = Adw.ActionRow(
             title="diagnostic-logs.zip",
             subtitle="Latest 3 log dates · ZIP archive",
@@ -158,6 +174,7 @@ class FeedbackDialog(Adw.Window):
         describe_control(self._download_button, "Download",
                          "Save a ZIP of diagnostic logs from the latest 3 log dates.")
         self._download_button.connect("clicked", self._download_logs)
+        self._download_button.set_visible(not kiosk_session)
         attachment_actions.append(self._download_button)
         attachment_actions.append(self._attachment_button)
         self._attachment.add_suffix(attachment_actions)
@@ -199,6 +216,7 @@ class FeedbackDialog(Adw.Window):
         content.append(self._without_logs)
         actions = Gtk.Box(spacing=10, halign=Gtk.Align.END, valign=Gtk.Align.CENTER)
         cancel = Gtk.Button(label="Close", css_classes=["feedback-close"])
+        self._close_button = cancel
         cancel.connect("clicked", lambda *_: self.close())
         actions.append(cancel)
         self._send_button = Gtk.Button(
@@ -236,6 +254,7 @@ class FeedbackDialog(Adw.Window):
             "Open the Oh No! Parent Control privacy notice in your browser.",
         )
         dialog.set_extra_child(portal_link)
+        portal_link.set_visible(not self._kiosk_session)
         dialog.add_response("close", "Close")
         dialog.set_default_response("close")
         dialog.set_close_response("close")
@@ -243,12 +262,25 @@ class FeedbackDialog(Adw.Window):
         return True
 
     def _hide_draft(self, *_args):
+        if self._busy and self._on_close is not None:
+            # The button explicitly says Stop sending and close in this state.
+            self._cancelled.set()
         # Closing the dialog keeps the draft and any pending retry in this app.
         self.set_visible(False)
+        if self._on_close is not None:
+            callback, self._on_close = self._on_close, None
+            callback()
         return True
+
+    def _destroyed(self, *_args):
+        self._cancelled.set()
+        Gtk.StyleContext.remove_provider_for_display(self.get_display(), self._css_provider)
 
     def _set_busy(self, busy):
         self._busy = busy
+        self._close_button.set_label(
+            "Stop sending and close" if busy and self._on_close is not None else "Close",
+        )
         for widget in (self._message, self._reply, self._attachment_button,
                        self._download_button, self._add_attachment_button,
                        self._without_logs, *self._attachment_rows):
@@ -270,11 +302,12 @@ class FeedbackDialog(Adw.Window):
         # A new key is generated only in response to this explicit Send action.
         self._submission = transport.Submission.create(
             message, reply, version, message_html, self._user_attachments,
+            subject=self._subject,
         )
         self._without_logs.set_visible(False)
         self._set_busy(True)
         self._send_button.set_label("Send Feedback")
-        self._status.set_label("Preparing feedback… You may close this dialog; retries continue while the app is open.")
+        self._status.set_label("Preparing feedback… " + self._sending_hint())
         include_logs = self._include_logs
         submission = self._submission
         cached_logs = self._logs
@@ -289,7 +322,7 @@ class FeedbackDialog(Adw.Window):
                     return
             frozen = replace(submission, logs=logs if include_logs else None)
             GLib.idle_add(self._submission_progress,
-                          "Sending feedback… You may close this dialog; retries continue while the app is open.")
+                          "Sending feedback… " + self._sending_hint())
             result = transport.submit(
                 frozen, self._cancelled,
                 lambda text: GLib.idle_add(self._submission_progress, text),
@@ -297,6 +330,11 @@ class FeedbackDialog(Adw.Window):
             GLib.idle_add(self._submission_done, result, frozen)
 
         threading.Thread(target=work, daemon=True).start()
+
+    def _sending_hint(self):
+        if self._on_close is not None:
+            return "You can stop sending and close this report."
+        return "You may close this dialog; retries continue while the app is open."
 
     def _submission_progress(self, text):
         self._status.set_label(text)
@@ -349,7 +387,7 @@ class FeedbackDialog(Adw.Window):
         else:
             self._attachment_button.set_label("Add logs")
         self._attachment_button.set_tooltip_text("Remove logs" if self._include_logs else "Add logs")
-        self._download_button.set_visible(self._include_logs)
+        self._download_button.set_visible(self._include_logs and not self._kiosk_session)
         self._update_attachment_accessibility()
 
     def _update_attachment_accessibility(self):
@@ -360,7 +398,7 @@ class FeedbackDialog(Adw.Window):
         )
 
     def _choose_attachments(self, _button=None):
-        if self._busy:
+        if self._busy or self._kiosk_session:
             return
         chooser = Gtk.FileDialog(title="Add feedback attachments")
         chooser.open_multiple(self, None, self._attachments_selected)
@@ -476,6 +514,8 @@ class FeedbackDialog(Adw.Window):
         return f"{size / (1024 * 1024):.1f} MB"
 
     def _download_logs(self, _button):
+        if self._busy or self._kiosk_session:
+            return
         self._set_busy(True)
         self._attachment.set_subtitle("Preparing compressed logs…")
         LOG.info("diagnostic download preparation started")

@@ -9,6 +9,7 @@ import system_guest as guest
 def collect_local(monkeypatch, tmp_path, payload):
     """Exercise real collection while substituting all OS reads."""
     monkeypatch.setattr(guest, 'PAYLOAD', payload)
+    monkeypatch.setattr(guest, 'EXPIRY_DIAGNOSTICS', tmp_path / 'expiry-fixture')
     monkeypatch.setattr(guest, 'Path', lambda value: (
         tmp_path / 'absent-product-logs' if value == '/var/log/oh-no-parent-control'
         else Path(value)))

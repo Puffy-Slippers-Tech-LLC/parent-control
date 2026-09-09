@@ -9,7 +9,7 @@ import sys
 
 from gi.repository import GLib
 
-from kiosk.oh_no_parent_control_kiosk.main import Application, RequestWindow, configure_logging
+from kiosk.oh_no_parent_control_kiosk.main import Application, Graphene, RequestWindow, configure_logging
 from kiosk.oh_no_parent_control_kiosk.selection_store import SelectionStore
 
 
@@ -87,7 +87,7 @@ class Broker:
         return reply
 
     def reply(self, method, values):
-        if self.scenario == "service-failure" and method.startswith("Request"):
+        if self.scenario.startswith("service-failure") and method.startswith("Request"):
             return Reply(error=RuntimeError("org.example.Secret /private/path"))
         if method == "GetOwnAccount":
             return Reply(USERS[0])
@@ -128,6 +128,31 @@ class Broker:
 
 BROKER = Broker()
 
+# Exercise the real dialog/encoder without any external feedback submission.
+from common.oh_no_parent_control_ui import feedback, feedback_transport
+from unittest.mock import Mock
+
+def feedback_logs():
+    if BROKER.scenario == "service-failure-logs-unavailable":
+        raise PermissionError("component-test diagnostic access denied")
+    return b"PK\x03\x04component-test archive"
+
+
+feedback.collect_logs = feedback_logs
+
+def feedback_post(_url, **kwargs):
+    parts = dict(kwargs["files"])
+    BROKER.record("feedback", subject=parts["title"][1], message=parts["body"][1])
+    response = Mock(status_code=202, json=Mock(return_value={"ok": True}))
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock()
+    return response
+
+feedback_session = Mock(post=Mock(side_effect=feedback_post))
+feedback_session.__enter__ = Mock(return_value=feedback_session)
+feedback_session.__exit__ = Mock()
+feedback_transport.requests.Session = lambda: feedback_session
+
 
 class ComponentWindow(RequestWindow):
     def _build(self):
@@ -146,6 +171,32 @@ class ComponentWindow(RequestWindow):
         # the production request-surface state so RemoteDesktop keyboard input
         # has an active fullscreen target in both request modes.
         self.fullscreen()
+        if BROKER.scenario in {"pointer", "service-failure-pointer"}:
+            self._last_pointer_layout = None
+            self.add_tick_callback(self._record_pointer_layout)
+
+    def _record_pointer_layout(self, *_args):
+        # AT-SPI reports untransformed widget rectangles for this GTK 3D plane.
+        # Observe actual allocated centers through GTK's public transform API;
+        # input still travels through Mutter to the real production widgets.
+        targets = {}
+        form = self._request_content
+        widgets = (("duration", form._duration_buttons[0]), ("request", form._request))
+        if self._stack.get_visible_child_name() == "result":
+            widgets = (("result", self._result_action), ("report", self._report_row))
+        for name, widget in widgets:
+            if widget.get_width() <= 0 or not widget.get_mapped():
+                return GLib.SOURCE_CONTINUE
+            valid, point = widget.compute_point(self, Graphene.Point().init(
+                widget.get_width() / 2, widget.get_height() / 2,
+            ))
+            if not valid:
+                return GLib.SOURCE_CONTINUE
+            targets[name] = [point.x, point.y]
+        if targets != self._last_pointer_layout:
+            BROKER.record("pointer_layout", targets=targets)
+            self._last_pointer_layout = targets
+        return GLib.SOURCE_CONTINUE
 
     def _logout(self, *_args):
         BROKER.record("logout", overlay=self._child_overlay)

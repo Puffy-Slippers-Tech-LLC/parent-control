@@ -42,11 +42,12 @@ PAYLOAD = '/var/tmp/onpc-system-input'
 TAG = 'onpc-system-run:'
 QUALIFICATION_CASE = 'test_method_role_matrix[ListManagedUsers-parent1]'
 QUALIFICATION_FAILURE = 'harness:qualification-failure'
-PHASE_ORDER = ('installed', 'rebooted', 'authorization', 'enforcement')
+PHASE_ORDER = ('installed', 'rebooted', 'authorization', 'enforcement', 'session')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'authorization': ROOT / 'tests/system/test_authorization.py',
     'enforcement': ROOT / 'tests/system/test_enforcement.py',
+    'session': ROOT / 'tests/system/test_session_expiry.py',
 }
 COMMON_SELECTED_INPUTS = (
     ('tests/integration/system_guest.py', 'system_guest.py'),
@@ -62,19 +63,26 @@ AREA_SELECTED_HELPERS = {
                       ('tests/integration/system_remote_accounts.py', 'system_remote_accounts.py')),
     'enforcement': (('tests/integration/system_caller.py', 'system_caller.py'),
                     ('tests/integration/system_assertions.py', 'system_assertions.py'),
+                    ('tests/integration/system_session_expiry.py', 'system_session_expiry.py'),
                     ('tests/integration/system_enforcement.py', 'system_enforcement.py')),
+    'session': (('tests/integration/system_caller.py', 'system_caller.py'),
+                ('tests/integration/system_assertions.py', 'system_assertions.py'),
+                ('tests/integration/system_session_expiry.py', 'system_session_expiry.py'),
+                ('tests/integration/system_graphical_expiry.py', 'system_graphical_expiry.py')),
 }
 PHASE_DEPENDENCIES = {
     'installed': (),
     'rebooted': ('installed',),
     'authorization': ('installed', 'rebooted'),
     'enforcement': ('installed', 'rebooted'),
+    'session': ('installed', 'rebooted'),
 }
 PHASE_PREREQUISITES = {
     'installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
     'rebooted': ('installed-phase', 'guest-reboot', 'boot-readiness'),
     'authorization': ('rebooted-phase', 'authorization-accounts'),
     'enforcement': ('rebooted-phase', 'native-enforcement-fixture'),
+    'session': ('rebooted-phase', 'one-shot-gdm-grant-fixture-and-second-reboot'),
 }
 require = baseline.require
 Error = baseline.CaptureError
@@ -200,7 +208,7 @@ def collect_area_cases(area, *, invoke=None):
 
 
 def case_phases(area, case_id):
-    if area in ('authorization', 'enforcement'):
+    if area in ('authorization', 'enforcement', 'session'):
         return (area,)
     package = {
         'test_installed_package': ('installed', 'rebooted'),
@@ -967,9 +975,18 @@ def installed_run(vm, lease, directory, selection, ledger=None):
                     ledger.fail_outcome(domain, 'pytest:failed:rebooted' if domain == 'product'
                                         else error_category(error))
                     raise
-        for phase in ('authorization', 'enforcement'):
+        for phase in ('authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
+            if phase == 'session':
+                lease.save('graphical-expiry-fixture')
+                with ledger.measure('test'):
+                    vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
+                             '/usr/bin/python3', '-B', PAYLOAD + '/system_graphical_expiry.py',
+                             'prepare'], timeout=120)
+                lease.save('graphical-expiry-reboot')
+                with ledger.measure('reboot'):
+                    vm.reboot()
             lease.save('pytest-' + phase)
             with ledger.measure('test'):
                 try:

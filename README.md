@@ -168,8 +168,8 @@ without a kiosk login, broker, D-Bus calls, Polkit, or account changes:
 make preview-kiosk
 ```
 
-The preview uses the production GTK window, CSS, artwork, animation, and looping
-soundtrack. It is
+The preview uses the production GTK window, CSS, artwork, animation, and
+flash-synchronized thunder effects. There is no background music. It is
 resizable, draggable from its content, and intentionally does not enter the
 production fullscreen session.
 While it is open, saving the kiosk stylesheet or background artwork updates the

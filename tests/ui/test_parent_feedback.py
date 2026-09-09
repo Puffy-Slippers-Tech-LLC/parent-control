@@ -1,24 +1,10 @@
 """Exercise the feedback dialog without sending real email."""
 
 import pytest
-from dogtail import rawinput
+from tests.support.feedback import feedback_editor, type_feedback
 
 
 pytestmark = pytest.mark.ui
-
-
-def feedback_editor(application, wait_for_accessible_node):
-    section = wait_for_accessible_node(application, "Your feedback", "section")
-    return section.child(role_name="entry")
-
-
-def type_feedback(editor, value, wait_for_accessible_state):
-    assert editor.grab_focus()
-    rawinput.typeText(value)
-    wait_for_accessible_state(
-        lambda: editor.text.strip() == value,
-        "rich feedback editor receives typed text",
-    )
 
 
 def test_feedback_footer_visible_without_scrolling(

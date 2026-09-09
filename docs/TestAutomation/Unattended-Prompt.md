@@ -104,13 +104,23 @@ active task handoff. The final response must conform to the supplied schema:
 - summary: a concise, self-contained report of this session, with these string
   fields: task (task ID and result being pursued), completed (actual work and
   findings), verification (checks, evidence and cleanup, including failures),
-  next (the next session's concrete action, or required outside intervention),
-  remaining_sessions and remaining_minutes (ranges for finishing the named
-  current task after this slice), and estimate_basis (measured work, assumptions
-  and uncertainty). Give both estimates explicitly; use "Unknown" when evidence
-  is insufficient and explain why. If the named task is accepted, its remaining
-  estimates are zero; identify any different next task in next. Do not guess a
-  backlog-wide finish date or read the summary log to calculate estimates.
+  next (the next session's concrete action, or required outside intervention,
+  ending with `Next settings: <model>/<effort>, Standard.` when work continues).
+  State unfinished acceptance in completed; identify any different next task in
+  next. Omit remaining-time estimates and routine launcher metadata. Follow the
+  [Progress-first presentation](Unattended-Sessions.md#cumulative-session-summaries).
+  The intended first field is progress, rendered before Task with one bold
+  rating: **Solid and healthy** for verified advancement with a feasible next
+  action (or completed acceptance), or **Nearly blocked or stalled - need intervention**
+  for stalled work, an obstructing prerequisite or required outside input.
+  Assess the overall task using current evidence and the active handoff; passing
+  tests alone do not establish healthy progress. Put supporting facts in
+  completed/verification and any needed intervention in next.
+  Until the supplied schema and launcher renderer support progress, obey the
+  supplied schema without adding an unsupported field or a second prose report;
+  preserve any material stall or intervention in the existing fields.
+  If an older running supervisor still requires estimate fields in its supplied
+  schema, satisfy that schema; the new presentation applies after launcher restart.
   Use redacted role labels, repository-relative paths and test IDs; exclude
   personal names, account identifiers, secrets and raw command transcripts.
   Give each finding once and link detailed handoff/evidence; do not generate a

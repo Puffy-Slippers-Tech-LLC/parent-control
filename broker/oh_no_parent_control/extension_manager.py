@@ -145,6 +145,12 @@ class ExtensionManager:
     def _set_list(self, account, key, values):
         self._run_as(account, "gsettings", "set", SCHEMA, key, repr(values))
 
+    def _set_boolean(self, account, key, value):
+        self._run_as(account, "gsettings", "set", SCHEMA, key,
+                     "true" if value else "false")
+        if self._boolean(account, key) != value:
+            raise RuntimeError("GNOME extension switch verification failed")
+
     def _runtime_uuids(self, account, state):
         result = self._run_command(
             account,
@@ -217,7 +223,8 @@ class ExtensionManager:
                     file_status.st_uid != self.installation_owner):
                 raise RuntimeError("installed extension payload is unsafe")
 
-    def set_enabled(self, uid: int, enabled: bool) -> None:
+    def set_enabled(self, uid: int, enabled: bool, *,
+                    recover_global_switch: bool = False) -> None:
         LOG.info("child extension update stage=started enabled=%s", enabled)
         account, home = self._account(uid)
         if home.is_symlink() or not home.is_dir() or home.stat().st_uid != uid:
@@ -227,17 +234,25 @@ class ExtensionManager:
 
         old_enabled = self._list(account, ENABLED_KEY)
         old_disabled = self._list(account, DISABLED_KEY)
-        if enabled and self._boolean(account, DISABLE_ALL_KEY):
-            LOG.error(
-                "child extension update outcome=failed enabled=true "
-                "reason=user-extensions-disabled"
-            )
+        restore_switch = enabled and self._boolean(account, DISABLE_ALL_KEY)
+        if restore_switch and not recover_global_switch:
+            LOG.error("child extension update outcome=failed enabled=true "
+                      "reason=user-extensions-disabled")
             raise RuntimeError("GNOME user extensions are disabled")
 
         shell_available = self._shell_is_available(account)
         old_runtime = self._runtime_state(account) if shell_available else None
 
         try:
+            if restore_switch:
+                # GNOME can set this switch after a failed session startup.
+                # Startup reasserts an already saved enablement, without an
+                # outer preference transaction that could subsequently fail.
+                # The parent-enabled enforcement extension requires it off;
+                # preserve individual extension choices and verify recovery.
+                LOG.info("child extension recovery stage=restore-switch "
+                         "reason=user-extensions-disabled")
+                self._set_boolean(account, DISABLE_ALL_KEY, False)
             if shell_available:
                 # Use GNOME's supported extension-management interface when a
                 # Shell owns it, and confirm that Shell actually activated or
@@ -252,8 +267,12 @@ class ExtensionManager:
                 enabled, type(error).__name__,
             )
             try:
-                self._set_list(account, ENABLED_KEY, old_enabled)
-                self._set_list(account, DISABLED_KEY, old_disabled)
+                try:
+                    if restore_switch:
+                        self._set_boolean(account, DISABLE_ALL_KEY, True)
+                finally:
+                    self._set_list(account, ENABLED_KEY, old_enabled)
+                    self._set_list(account, DISABLED_KEY, old_disabled)
                 if (self._list(account, ENABLED_KEY) != old_enabled or
                         self._list(account, DISABLED_KEY) != old_disabled):
                     raise RuntimeError("GNOME extension rollback verification failed")
@@ -272,6 +291,8 @@ class ExtensionManager:
                     "child GNOME extension rollback could not be verified"
                 ) from rollback_error
             raise
+        if restore_switch:
+            LOG.info("child extension recovery outcome=accepted")
         LOG.info("child extension update outcome=accepted enabled=%s", enabled)
 
     def remove(self, uid: int) -> None:

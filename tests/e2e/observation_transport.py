@@ -11,6 +11,7 @@ import sys
 
 import guest_observations
 import installation_observations
+import startup_observations
 from private_artifacts import EvidenceError, require
 
 
@@ -20,10 +21,49 @@ class ReadOnlyObservations:
         self._config = dict(transport.config)
         self._failed = False
         self._on_diagnostic = on_diagnostic
+        self._boot = None
 
     def _guard(self):
         require(self._transport.config == self._config, 'observation:transport-replaced')
         self._transport.guard(self._config)
+
+    def wait_boot_change(self, previous_boot_sha256, *, on_diagnostic=None):
+        """Corroborate a separately recorded customer action with fresh reads.
+
+        The caller owns ordered action/acknowledgement checkpoints. This method
+        cannot request a reboot, reset a failed observer, repin a host key or
+        accept a replacement domain. A fresh BOOT read must agree with readiness
+        so a second reboot during reconnection cannot be silently accepted.
+        """
+        require(not self._failed, 'observation:previous-failure')
+        try:
+            require(self._boot is not None and previous_boot_sha256 == self._boot,
+                    'observation:unobserved-previous-boot')
+            self._guard()
+            raw = self._transport.wait_boot_change(previous_boot_sha256,
+                                                  on_diagnostic=on_diagnostic)
+            self._guard()
+            require(isinstance(raw, bytes) and re.fullmatch(rb'[0-9a-f]{64}\n', raw),
+                'observation:invalid-boot-output')
+            after = raw.decode('ascii').strip()
+            require(after != previous_boot_sha256, 'observation:boot-unchanged')
+            require(self.read('boot')['boot_sha256'] == after,
+                    'observation:boot-changed-again')
+            print('e2e:boot-change-verified', file=sys.stderr, flush=True)
+            return {'previous_boot_sha256': previous_boot_sha256,
+                    'boot_sha256': after, 'boot_changed': True}
+        except BaseException as error:
+            self._failed = True
+            print('e2e:boot-change-rejected', file=sys.stderr, flush=True)
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise KeyboardInterrupt('observation:interrupted') from None
+            if isinstance(error, EvidenceError) and str(error) in {
+                'observation:unobserved-previous-boot', 'observation:invalid-boot-output',
+                'observation:boot-unchanged', 'observation:boot-changed-again',
+                'observation:transport-replaced',
+            }:
+                raise
+            raise EvidenceError('observation:boot-change-failed') from None
 
     def read(self, name):
         """Return validated safe fields only; any refusal ends this observer.
@@ -37,8 +77,10 @@ class ReadOnlyObservations:
             require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session',
                                                       'serial-password', 'serial-session', 'boot',
                                                       'package-absent', 'package-installed',
-                                                      'install-password', 'install-refused',
-                                                      'sudo-implementation'),
+                                                      'installed-layout',
+                                                      'install-password', 'reboot-password', 'install-refused',
+                                                      'sudo-implementation', 'startup-enforcement',
+                                                      'startup-broker'),
                     'observation:unknown-probe')
             program, timeout = {
                 'assets': (guest_observations.ASSETS, 120),
@@ -49,19 +91,28 @@ class ReadOnlyObservations:
                 'boot': (guest_observations.BOOT, 20),
                 'package-absent': (installation_observations.ABSENT, 30),
                 'package-installed': (installation_observations.INSTALLED, 90),
+                'installed-layout': (installation_observations.INSTALLED_LAYOUT, 90),
                 'install-password': (installation_observations.SUDO_PASSWORD, 20),
+                'reboot-password': (installation_observations.REBOOT_PASSWORD, 20),
                 'install-refused': (installation_observations.REFUSED, 30),
                 'sudo-implementation': (installation_observations.SUDO_IMPLEMENTATION, 30),
+                'startup-enforcement': (startup_observations.ENFORCEMENT, 40),
+                'startup-broker': (startup_observations.BROKER, 40),
             }[name]
             self._guard()
             raw = self._transport.call(['/usr/bin/python3', '-c', program], timeout=timeout)
             self._guard()
             require(isinstance(raw, bytes) and 0 < len(raw) <= 1024,
                     'observation:invalid-output')
-            if name == 'boot':
+            if name == 'startup-broker':
+                result = startup_observations.parse_broker(raw)
+            elif name == 'startup-enforcement':
+                result = startup_observations.parse_enforcement(raw)
+            elif name == 'boot':
                 require(re.fullmatch(rb'[0-9a-f]{64}\n', raw) is not None,
                         'observation:invalid-output')
                 result = {'boot_sha256': raw.decode('ascii').strip()}
+                self._boot = result['boot_sha256']
             elif name == 'package-absent':
                 require(raw == b'package-absent\n', 'observation:invalid-output')
                 result = {'product_package_absent': True,
@@ -80,6 +131,17 @@ class ReadOnlyObservations:
                     and re.fullmatch(r'[0-9a-f]{64}', result['package_sha256'])
                     and raw == (json.dumps(result, sort_keys=True) + '\n').encode(),
                     'observation:invalid-output')
+            elif name == 'installed-layout':
+                result = json.loads(raw)
+                require(isinstance(result, dict) and set(result) == {
+                    'installed_files', 'inventory_sha256', 'installed_layout_verified'}
+                    and type(result['installed_files']) is int
+                    and 0 < result['installed_files'] <= 100000
+                    and isinstance(result['inventory_sha256'], str)
+                    and re.fullmatch(r'[0-9a-f]{64}', result['inventory_sha256'])
+                    and result['installed_layout_verified'] is True
+                    and raw == (json.dumps(result, sort_keys=True) + '\n').encode(),
+                    'observation:invalid-output')
             elif name == 'sudo-implementation':
                 result = json.loads(raw)
                 require(isinstance(result, dict) and set(result) == {
@@ -92,13 +154,13 @@ class ReadOnlyObservations:
                     'observation:invalid-output')
                 print('e2e:sudo-implementation:' + raw.decode('ascii').strip(),
                       file=sys.stderr, flush=True)
-            elif name == 'install-password':
+            elif name in ('install-password', 'reboot-password'):
                 refusals = {
-                    ('install-password-rejected:' + stage + '\n').encode(): stage
+                    (name + '-rejected:' + stage + '\n').encode(): stage
                     for stage in installation_observations.SUDO_PASSWORD_STAGES
                 }
                 diagnostic = re.fullmatch(
-                    rb'install-password-rejected:('
+                    (name + '-rejected:(').encode('ascii')
                     + installation_observations.LOGIN_RESOLUTION_PATTERN.encode('ascii')
                     + rb')\n', raw)
                 condition = refusals.get(raw)
@@ -107,13 +169,14 @@ class ReadOnlyObservations:
                 if condition is not None:
                     # Persist the allowlisted condition in controller stderr
                     # before refusal stops the worker and its callback.
-                    print('e2e:install-password-rejected:' + condition,
+                    print('e2e:' + name + '-rejected:' + condition,
                           file=sys.stderr, flush=True)
                     if self._on_diagnostic is not None:
                         self._on_diagnostic(condition)
                     raise EvidenceError('observation:probe-failed')
-                require(raw == b'install-password-safe\n', 'observation:invalid-output')
-                result = {'sudo_install_process_verified': True,
+                require(raw == (name + '-safe\n').encode(), 'observation:invalid-output')
+                action = name.removesuffix('-password')
+                result = {'sudo_' + action + '_process_verified': True,
                           'terminal_echo_disabled': True}
             elif name == 'serial-password':
                 require(raw == b'serial-password-safe\n', 'observation:invalid-output')
@@ -150,6 +213,9 @@ class ReadOnlyObservations:
             if isinstance(error, EvidenceError) and str(error) in {
                 'observation:transport-replaced', 'observation:unknown-probe',
                 'observation:invalid-output',
+                'observation:startup-enforcement-order',
+                *('observation:startup-enforcement-' + stage
+                  for stage in startup_observations.REFUSALS),
             }:
                 raise
             raise EvidenceError('observation:probe-failed') from None

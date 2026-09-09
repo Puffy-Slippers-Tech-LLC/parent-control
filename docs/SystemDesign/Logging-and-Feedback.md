@@ -5,7 +5,7 @@
 Read this for component logs, privacy at logging call sites, diagnostic
 archives, the feedback editor, and HTTP submission/retry behavior.
 
-Implementation: [logs.py](../../broker/oh_no_parent_control/logs.py), [broker service unit](../../data/systemd/oh-no-parent-control-broker.service), [feedback.py](../../parent/oh_no_parent_control_parent/feedback.py), [feedback_transport.py](../../parent/oh_no_parent_control_parent/feedback_transport.py), [rich_text_editor.py](../../parent/oh_no_parent_control_parent/rich_text_editor.py), [diagnostics.py](../../parent/oh_no_parent_control_parent/diagnostics.py).
+Implementation: [logs.py](../../broker/oh_no_parent_control/logs.py), [broker service unit](../../data/systemd/oh-no-parent-control-broker.service), [feedback.py](../../common/oh_no_parent_control_ui/feedback.py), [feedback_transport.py](../../common/oh_no_parent_control_ui/feedback_transport.py), [rich_text_editor.py](../../common/oh_no_parent_control_ui/rich_text_editor.py), [diagnostics.py](../../common/oh_no_parent_control_ui/diagnostics.py).
 
 ## Logging
 
@@ -25,7 +25,8 @@ and placeholders such as `[Child user]`.
 
 ## Feedback and diagnostic export
 
-The Parent App sends feedback from an unprivileged worker directly to
+The shared feedback dialog in Parent App, Child App, and Kiosk App sends
+feedback from an unprivileged worker directly to
 `https://tech.puffyslippers.com/api/oh-no-parent-control/feedback`. It sends
 plain text, optional semantic HTML, optional reply email, app version,
 user-selected attachment basenames and bytes, and an optional diagnostic ZIP.
@@ -36,8 +37,49 @@ operations guide:
 
 > Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period.
 
-The Parent App footer provides a Privacy link that opens the full disclosure
-and diagnostic-log explanation.
+The feedback footer provides a Privacy link that opens the disclosure and
+diagnostic-log explanation. In the dedicated kiosk session the privacy dialog
+omits its external link, and feedback hides log download, Add files, and the
+editor's attachment shortcut. The in-session request overlay is Child App and
+retains those controls. File chooser entry points enforce the same restriction.
+
+### Error reports
+
+[errors.py](../../common/oh_no_parent_control_ui/errors.py) captures a public
+title and explanation followed by a separator and the internal exception
+messages (including causes). Reports use an editable, bounded plain-text draft;
+exception text is never inserted as executable HTML or written to logs. Logs
+record component and exception type only. The subject is
+`[Oh No! Parent Control] [Component] Error Report`, with Component restricted to
+`Kiosk App`, `Child App`, or `Parent App`.
+
+The shared request error screen provides a default-on **Report this error**
+switch using the request form's toggle style. Return to Login, Close, and
+Escape review the report when enabled, then leave after feedback is closed.
+Turning it off leaves directly. Successful requests never offer error reporting.
+Other operation failures and uncaught Python callbacks/workers open feedback
+through the same handler. Parent startup failures show a reporting-only window,
+without exposing management controls. Repeated failures preserve the active
+draft. Input validation and cancelled authorization remain normal form states.
+
+The child Shell extension's [errorHandler.js](../../child/errorHandler.js)
+forwards timer, session preparation, locking, and request-launch failures to
+the same Child App reporter over a private subprocess stdin pipe. Error content
+never appears in command arguments. Only its retained subprocess may be stopped
+when the extension is disabled.
+
+Opening a report sends nothing. Send Feedback is explicit. While an error report
+is sending, its Close action becomes **Stop sending and close**, which cancels
+pending retries before leaving. A request already accepted remotely cannot be
+recalled. Ordinary feedback retains its existing background retry behavior.
+All three apps request the same full product-log archive from the broker's
+`ExportDiagnosticLogs` method. The broker validates the caller as a local
+administrator, configured kiosk, or eligible child before collecting and again
+before replying. This deliberately permits those roles to review all four
+components' diagnostic logs; raw log-directory permissions remain unchanged.
+No saved preferences change. Shared assets install under `common/oh_no_parent_control_ui`;
+the request and Shell payloads retain `session-renewal` activation, and new app
+processes load the shared dialog.
 
 Server-side sanitization, email
 routing, and retention enforcement belong to the separately deployed endpoint.
@@ -51,17 +93,41 @@ the draft after a web-process restart.
 Drafts, selected file bytes, and frozen retries remain in memory until app exit;
 closing the dialog preserves them and allows an in-flight worker to continue.
 The administrator can explicitly save a diagnostic ZIP to a chosen location.
-Diagnostic export reads only regular dated product logs from the three newest
-available local log dates (not necessarily consecutive calendar days), rejects
-symlinks, and limits input and ZIP size to 16 MiB. The transport separately caps an attached log ZIP at 2 MiB,
+The broker's [collector](../../broker/oh_no_parent_control/diagnostics.py)
+reads only regular dated product logs from the three newest available local log
+dates (not necessarily consecutive calendar days), rejects symlinks and hard
+links, and limits input and ZIP size to 16 MiB. The export method accepts no
+path, UID, date, or component selector. Collection runs off the dispatch thread,
+with one outstanding export through reply delivery. Collection errors expose
+only a generic error; diagnostic records contain categories and byte counts.
+The shared [client](../../common/oh_no_parent_control_ui/diagnostics.py) uses
+this method for both feedback and downloads, including from child accounts.
+The transport separately caps an attached log ZIP at 2 MiB,
 user attachments at five files of at most 5 MiB each, and all attachments plus
 logs at 8 MiB. Collection or size failures allow sending without logs.
 
+The additive D-Bus contract and broker collector activate with `process-restart`.
+New app processes load the updated export client; kiosk/shared request payloads
+retain `session-renewal`. Ship the broker and frontend together. An older broker
+reports export unavailable and the frontend preserves the draft for sending
+without logs. There is no portal contract or saved-data migration for this change.
+
 ## Multipart and retry contract
 
-The client sends multipart fields `message`, optional `messageHtml`,
-`replyEmail`, and `appVersion`, repeated `attachments` file parts, and an
-optional `logs` ZIP part. A frozen submission retains one `Idempotency-Key`
+The generic portal contract accepts `title`, `body`, optional `bodyHtml` and
+`replyTo`, and repeated `attachments` file parts. The client composes the entire
+email, including branding, version, receipt, attachment counts, and error
+details. It chooses the title, using the three component subjects above for
+error reports and `[Oh No! Parent Control] App feedback` for ordinary feedback.
+The diagnostic ZIP is an ordinary attachment named by the client; the portal
+has no special log field, component list, or report template. It validates
+delivery limits, sanitizes HTML and attachment basenames, and forwards the
+client's content to its configured support mailbox. Future report formats
+change in the client without changing this API.
+
+The matching portal handler must be deployed before releasing this client:
+older handlers reject the generic multipart fields. A frozen submission retains
+all content and one `Idempotency-Key`
 through a bounded 15-minute retry window, with a 30-second request timeout.
 Each explicit Send action creates a new submission identity; automatic retries
 reuse the frozen report and key.

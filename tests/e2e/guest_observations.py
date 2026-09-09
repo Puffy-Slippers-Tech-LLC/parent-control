@@ -2,11 +2,7 @@
 
 # A boot identity is continuity evidence, not a supplied scenario label. Only
 # its digest reaches the controller; raw machine identifiers remain in guest.
-BOOT = '''import hashlib,pathlib,re
-value=pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
-assert re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\n',value)
-print(hashlib.sha256(value.encode()).hexdigest())
-'''
+from vm_transport import BOOT_SHA256_PROBE as BOOT
 
 # Fixed read-only probe. Only a count and digest leave the guest; no paths,
 # account data, source contents, or guest-supplied expected identities.

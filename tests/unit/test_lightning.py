@@ -11,7 +11,7 @@ import pytest
 from oh_no_parent_control_kiosk.lightning import LightningDischarge
 from oh_no_parent_control_kiosk.main import (
     CRYSTAL_LIGHTNING_TIPS, GATEWAY_INNER_CORNERS,
-    LIGHTNING_SIZZLE_VOLUME, GLib, Gst, GatewayBackground, LightningSizzle,
+    GatewayBackground,
     _gateway_artwork_geometry,
 )
 
@@ -82,7 +82,7 @@ def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_o
         _random=random.Random(8), _lightning_enabled=True,
         _next_lightning_burst_at=float("inf"),
         _floating_islands=SimpleNamespace(offset=lambda _index, elapsed: elapsed * 0.01),
-        _lightning_sizzle=Mock(), queue_draw=Mock(),
+        _lightning_audio=Mock(), queue_draw=Mock(),
     )
     bolt = GatewayBackground._new_lightning_bolt(background, 0.0)
     background._lightning_bolts = [bolt]
@@ -99,11 +99,10 @@ def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_o
         age = flash.starts_at + 0.025
         GatewayBackground._append_gateway_energy(background, snapshot, width, height, age)
         GatewayBackground._append_gateway_energy(background, snapshot, width, height, age)
-        assert background._lightning_sizzle.call_count == flash_index + 1
-        remaining, fade, light = background._lightning_sizzle.call_args.args
-        assert remaining == pytest.approx(flash.duration - 0.025)
-        assert fade == flash.fade_rate
+        assert background._lightning_audio.call_count == flash_index + 1
+        light, pan = background._lightning_audio.call_args.args
         assert light == pytest.approx(flash.light(age))
+        assert pan == pytest.approx(max(-0.8, min(0.8, 2 * (image_x + tip[0] * image_width) / width - 1)))
         _context, source, target, _scale, _age = channel.draw.call_args.args
         assert source == pytest.approx((
             image_x + tip[0] * image_width,
@@ -117,28 +116,23 @@ def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_o
     GatewayBackground.set_lightning_enabled(background, False)
     assert background._lightning_bolts == []
     # A muted renderer must not allocate a context, draw a frame, or play audio.
-    calls = background._lightning_sizzle.call_count
+    calls = background._lightning_audio.call_count
     GatewayBackground._append_gateway_energy(background, None, width, height, 1)
-    assert background._lightning_sizzle.call_count == calls
+    assert background._lightning_audio.call_count == calls
 
 
-def test_sizzle_starts_at_the_flash_brightness_and_fades_to_silence(monkeypatch):
-    monkeypatch.setattr(GLib, "get_monotonic_time", lambda: 1_000_000)
-    monkeypatch.setattr(GLib, "timeout_add", lambda *_args: 123)
-    sizzle = SimpleNamespace(
-        _pipeline=Mock(), _gain=Mock(), _active_bolts=[], _sizzle_level=0.0,
-        _dismissal_level=1.0, _muted=False, _stop_source_id=None,
+def test_renderer_does_not_replay_flashes_missed_by_a_delayed_frame():
+    background = SimpleNamespace(
+        _random=random.Random(8), _lightning_enabled=True,
+        _next_lightning_burst_at=float("inf"),
+        _floating_islands=SimpleNamespace(offset=lambda *_args: 0),
+        _lightning_audio=Mock(),
     )
-    sizzle._apply_volume = lambda: LightningSizzle._apply_volume(sizzle)
-    sizzle._stop_if_idle = lambda: LightningSizzle._stop_if_idle(sizzle)
-    LightningSizzle.play(sizzle, 0.12, 1.65, 0.7)
-    sizzle._gain.set_property.assert_called_with("volume", LIGHTNING_SIZZLE_VOLUME * 0.7)
-    sizzle._pipeline.set_state.assert_called_with(Gst.State.PLAYING)
-
-    monkeypatch.setattr(GLib, "get_monotonic_time", lambda: 1_060_000)
-    assert sizzle._stop_if_idle() == GLib.SOURCE_CONTINUE
-    assert sizzle._sizzle_level == pytest.approx(0.7 * 0.5 ** 1.65)
-    monkeypatch.setattr(GLib, "get_monotonic_time", lambda: 1_120_000)
-    assert sizzle._stop_if_idle() == GLib.SOURCE_REMOVE
-    sizzle._gain.set_property.assert_called_with("volume", 0.0)
-    sizzle._pipeline.set_state.assert_called_with(Gst.State.READY)
+    bolt = GatewayBackground._new_lightning_bolt(background, 0.0)
+    background._lightning_bolts = [bolt]
+    context = cairo.Context(cairo.ImageSurface(cairo.FORMAT_ARGB32, 800, 600))
+    snapshot = SimpleNamespace(append_cairo=lambda _bounds: context)
+    GatewayBackground._append_gateway_energy(
+        background, snapshot, 800, 600, bolt["duration"] + 1,
+    )
+    background._lightning_audio.assert_not_called()

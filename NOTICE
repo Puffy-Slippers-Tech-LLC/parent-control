@@ -41,7 +41,7 @@ and required notices are shipped beside the font in `fonts/OFL.txt`.
 The main Debian package bundles Quill 2.0.3, copyright (C) 2017-2024 Slab,
 2014 Jason Chen, and 2013 salesforce.com, under the BSD 3-Clause license.
 Its complete license and notices are installed under
-`/usr/lib/oh-no-parent-control/parent/oh_no_parent_control_parent/rich_editor/`.
+`/usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui/rich_editor/`.
 Upstream source: <https://github.com/slab/quill/tree/v2.0.3>.
 
 ## Thunderbird preview icon

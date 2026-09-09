@@ -1,7 +1,41 @@
-# Publishing to a Launchpad PPA
+# First app publication
 
-Use this guide with the assistant when ready to release. Say:
-**“Guide me through Publishing.md for initial app release.”**
+This is the only entry point needed for the first release. When ready, say:
+**“Follow docs/Publishing.md to prepare the first app release, automate the
+steps, and present the tested release for publication approval.”**
+
+The assistant handles the following flow:
+
+1. **Choose the release source.** Review current changes and confirm which
+   belong in version `1.0` only if the intended inputs are unclear.
+2. **Prepare and validate.** Verify existing account/tool setup, select an
+   unused PPA version, create an isolated release clone, build and test the
+   package, review compliance, and prepare signed source artifacts.
+3. **Present the release.** Show the exact version, test results, outstanding
+   gaps, and artifacts. Obtain any outstanding readiness/publication decision.
+4. **Publish and finish.** Push the source and signed tags, upload to Launchpad,
+   monitor the actual build and package publication, and provide installation
+   commands and the release report.
+
+Your normal work is resolving ambiguous release inputs, entering credentials
+in local secure prompts, and making the release decision. Account and key setup
+was reported complete; it is verified, not repeated routinely.
+
+Automation already exists in `tools/publish_release.py` for version planning,
+isolated preparation, source inspection, and source-publication status. The
+assistant runs the remaining build, test, signing, push, upload, and monitoring
+commands. The helper is not an unattended end-to-end release command.
+
+Before the first upload, verify a clean binary build with its declared tests,
+inspect the final installed licenses/notices and both front-end About displays,
+and confirm that the public privacy page matches the feedback disclosure in
+[Compliance.md](Compliance.md). Determine current host/UI/VM acceptance from
+[Test-Automation.md](Test-Automation.md), recording unresolved coverage rather
+than treating historical rehearsal results as acceptance.
+
+<details>
+<summary>Assistant procedure and command reference</summary>
+
 The assistant executes preparation, checks, builds, signing commands, source
 publication and upload as described below, stopping on failures. The publisher
 supplies release decisions and enters any credentials in the local secure prompt.
@@ -152,6 +186,8 @@ because this guide or its helper is being edited.
 
 ## One-time publisher setup
 
+Recovery/reference only: skip this section when prerequisite verification passes.
+
 1. Create or sign in to the Launchpad account that will own the archive:
    <https://launchpad.net/+login>.
 2. Ensure the email address on the package signing key is confirmed on that
@@ -228,6 +264,13 @@ Canonical's current setup instructions are:
 
 ## Prepare each release
 
+Manual preparation reference only. The normal assistant workflow uses `plan`
+and `prepare` above; do not repeat setup or add another PPA changelog entry
+after the helper has prepared the release clone. Continue with source review,
+the clean-state checks, commit, and signed tags below. For initial `1.0`, no
+product-version bump is needed. When using the helper, read `product` from
+`release.json` into `product_version` before creating the product tag.
+
 Automated regression acceptance follows the
 [test automation guide](Test-Automation.md). Record evidence for the exact
 release source/package and supported environment before publishing. Local
@@ -266,7 +309,7 @@ is separate from daily test execution.
    ```
 
    The command rejects a reused or decreasing version. Product versions do not
-   control saved-data compatibility: follow [Data-Migration.md](Data-Migration.md)
+   control saved-data compatibility: follow [Data migration](SystemDesign/Data-Migration.md)
    whenever a code change makes saved application data incompatible.
 
    The unreleased tree is already initialized at `1.0`; omit this step when
@@ -344,10 +387,10 @@ The package is architecture-specific because it contains a PAM shared object.
 Launchpad must build that object independently for every published
 architecture.
 
-Install the declared build dependencies, then build without root privileges:
+If prerequisite checks found missing build dependencies, install them through
+`./setup.sh --dependencies-only`. Then build without root privileges:
 
 ```sh
-./setup.sh --dependencies-only
 dpkg-buildpackage --build=binary --no-sign
 ```
 
@@ -483,4 +526,6 @@ deciding whether changed integration requires a process restart, session
 renewal, or reboot.
 
 If saved-data meaning changes, ship the migration required by
-[Data-Migration.md](Data-Migration.md).
+[Data migration](SystemDesign/Data-Migration.md).
+
+</details>

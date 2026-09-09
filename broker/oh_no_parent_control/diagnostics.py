@@ -1,4 +1,4 @@
-"""Bounded, read-only export of dated product logs."""
+"""Bounded, read-only export of dated product logs inside the broker."""
 
 from datetime import date
 from io import BytesIO
@@ -56,7 +56,8 @@ def collect_logs(root=LOG_ROOT, today=None):
                         except FileNotFoundError:
                             continue
                         with os.fdopen(fd, "rb") as source:
-                            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                            metadata = os.fstat(source.fileno())
+                            if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
                                 raise ValueError("Unsupported log file")
                             content = source.read(MAX_BYTES - total + 1)
                         total += len(content)

@@ -33,6 +33,8 @@ TEST_ENVIRONMENT_OVERRIDES = (
 ACCESSIBILITY_EVENTS = (
     "object:children-changed",
     "object:state-changed:showing",
+    # Labels such as the time estimate change in place after an async reply.
+    "object:property-change:accessible-name",
     "window:create",
 )
 ORIGINAL_ENVIRONMENT = os.environ.copy()
@@ -154,13 +156,24 @@ def wait_for_accessible_node():
                     remaining_milliseconds = max(
                         1, round((deadline - time.monotonic()) * 1000),
                     )
-                    timeout_id = GLib.timeout_add(remaining_milliseconds, loop.quit)
+                    # AT-SPI can coalesce notifications, or dispatch one during
+                    # a synchronous search before loop.run(). Periodically
+                    # recheck the tree so that lost wakeup cannot consume the
+                    # whole deadline while the expected label is already there.
+                    timer_pending = True
+
+                    def recheck_tree():
+                        nonlocal timer_pending
+                        timer_pending = False
+                        loop.quit()
+                        return GLib.SOURCE_REMOVE
+
+                    timeout_id = GLib.timeout_add(
+                        min(250, remaining_milliseconds), recheck_tree,
+                    )
                     loop.run()
-                    try:
+                    if timer_pending:
                         GLib.source_remove(timeout_id)
-                    except SystemError:
-                        # The timeout itself ended the loop and is already gone.
-                        pass
         finally:
             for event_type in registered_events:
                 listener.deregister(event_type)

@@ -41,7 +41,6 @@ def activation_for(path: str) -> str:
         "usr/libexec/oh-no-parent-control-execution-policy-ready",
         "usr/libexec/oh-no-parent-control-execution-policy-probe",
         "usr/libexec/oh-no-parent-control-session-limit-check",
-        "usr/libexec/oh-no-parent-control-clear-session-runtime-max",
         "usr/libexec/oh-no-parent-control-login-check",
         "usr/share/oh-no-parent-control/gdm-presession",
     } or path.endswith("/security/pam_oh_no_parent_control.so"):

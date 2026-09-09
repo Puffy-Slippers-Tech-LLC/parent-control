@@ -1,6 +1,7 @@
 """Immutable feedback submissions and bounded retries; no persistent queue."""
 
 from dataclasses import dataclass
+from html import escape
 import logging
 import mimetypes
 import random
@@ -29,6 +30,16 @@ MAX_TOTAL_ATTACHMENT_BYTES = 8_388_608
 MAX_HTML_UTF16 = 50_000
 RETRY_WINDOW = 15 * 60
 TIMEOUT = 30
+DEFAULT_TITLE = "[Oh No! Parent Control] App feedback"
+MAX_TITLE_UTF16 = 200
+
+
+def title_error(title):
+    if (not isinstance(title, str) or not title.strip()
+            or len(title.encode("utf-16-le", errors="surrogatepass")) // 2 > MAX_TITLE_UTF16
+            or re.search(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]", title)):
+        return "Enter a single-line feedback title of at most 200 characters."
+    return None
 
 
 def validation_error(message, reply_email, version, message_html=""):
@@ -108,20 +119,44 @@ class Submission:
     message_html: str = ""
     attachments: tuple[Attachment, ...] = ()
     logs: bytes | None = None
+    subject: str = ""
 
     @classmethod
-    def create(cls, message, reply_email, version, message_html="", attachments=()):
+    def create(cls, message, reply_email, version, message_html="", attachments=(), *, subject=""):
         attachments = tuple(attachments)
         error = validation_error(message, reply_email, version, message_html)
         error = error or attachments_error(attachments)
+        error = error or title_error(subject or DEFAULT_TITLE)
         if error:
             raise ValueError(error)
         return cls(f"{int(time.time())}.{uuid.uuid4()}", message, reply_email, version,
-                   message_html, attachments)
+                   message_html, attachments, subject=subject)
 
     @property
     def expires_at(self):
         return int(self.key.split(".", 1)[0]) + RETRY_WINDOW
+
+    @property
+    def title(self):
+        return self.subject or DEFAULT_TITLE
+
+    def email_bodies(self):
+        """Compose product-specific metadata here; the portal adds no content."""
+        metadata = (
+            f"Receipt: {self.key}",
+            f"App version: {self.version or 'not provided'}",
+            f"Reply email: {self.reply_email or 'not provided'}",
+            f"Attachments: {len(self.attachments)}",
+            f"Logs attached: {'yes' if self.logs is not None else 'no'}",
+        )
+        body = "Oh No! Parent Control feedback\n\n" + "\n".join(metadata) + "\n\n" + self.message
+        body_html = (
+            "<h1>Oh No! Parent Control feedback</h1><p>"
+            + "<br>".join(escape(line) for line in metadata)
+            + "</p>" + self.message_html
+            if self.message_html else ""
+        )
+        return body, body_html
 
 
 @dataclass(frozen=True)
@@ -139,18 +174,19 @@ def send_once(submission):
         return Result("oversized")
     if attachments_error(submission.attachments, submission.logs):
         return Result("oversized")
-    parts = [("message", (None, submission.message))]
-    if submission.message_html:
-        parts.append(("messageHtml", (None, submission.message_html)))
+    if title_error(submission.title):
+        return Result("failed")
+    body, body_html = submission.email_bodies()
+    parts = [("title", (None, submission.title)), ("body", (None, body))]
+    if body_html:
+        parts.append(("bodyHtml", (None, body_html)))
     if submission.reply_email:
-        parts.append(("replyEmail", (None, submission.reply_email)))
-    if submission.version:
-        parts.append(("appVersion", (None, submission.version)))
+        parts.append(("replyTo", (None, submission.reply_email)))
     for attachment in submission.attachments:
         parts.append(("attachments", (attachment.name, attachment.data,
                                       attachment.content_type)))
     if submission.logs is not None:
-        parts.append(("logs", ("oh-no-parent-control-logs.zip", submission.logs,
+        parts.append(("attachments", ("oh-no-parent-control-logs.zip", submission.logs,
                                "application/zip")))
     try:
         with requests.Session() as session:

@@ -86,6 +86,6 @@
     {"id": "ONPC-COMP-BROKER-007", "section": "2 / Broker", "component": "broker", "required_test_layer": "system", "test_references": ["tests/system/test_authorization.py", "tests/unit/test_broker_state_machine.py", "tests/component/test_private_dbus_service.py"], "supporting_contract_references": [], "evidence_type": "runtime", "coverage_state": "planned"},
     {"id": "ONPC-COMP-BROKER-008", "section": "2 / Broker", "component": "broker", "required_test_layer": "system", "test_references": ["tests/unit/test_broker_state_machine.py"], "supporting_contract_references": [], "evidence_type": "runtime", "coverage_state": "planned"},
     {"id": "ONPC-COMP-BROKER-009", "section": "2 / Broker", "component": "broker", "required_test_layer": "system", "test_references": ["tests/unit/test_broker_state_machine.py"], "supporting_contract_references": [], "evidence_type": "runtime", "coverage_state": "planned"},
-    {"id": "ONPC-COMP-BROKER-010", "section": "2 / Broker", "component": "broker", "required_test_layer": "system", "test_references": [], "supporting_contract_references": [], "evidence_type": "runtime", "coverage_state": "planned"}
+    {"id": "ONPC-COMP-BROKER-010", "section": "2 / Broker", "component": "broker", "required_test_layer": "system", "test_references": ["tests/component/test_broker_startup.py"], "supporting_contract_references": [], "evidence_type": "runtime", "coverage_state": "planned"}
   ]
 }

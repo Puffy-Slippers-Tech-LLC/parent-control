@@ -43,8 +43,8 @@ def validate_needles(files):
     """
     names = {name for name in files if name.startswith('needles/')}
     for name in names:
-        require(re.fullmatch(r'needles/onpc-(gdm|polkit|lock)-(parent|child|other-parent|other-child)'
-                             r'-(masked-password|account)\.(png|json)', name),
+        require(re.fullmatch(r'needles/onpc-(?:(gdm|polkit|lock)-(parent|child|other-parent|other-child)'
+                             r'-(masked-password|account)|gdm-parent-installed-account)\.(png|json)', name),
                 'e2e:needle-name')
         require(name.rsplit('.', 1)[0] + ('.png' if name.endswith('.json') else '.json') in names,
                 'e2e:needle-pair')
@@ -75,7 +75,8 @@ def validate_needles(files):
                     and 1 <= area['height'] <= height - area['ypos'], 'e2e:needle-area')
             if 'click_point' in area:
                 point = area['click_point']
-                require(name.endswith('-account.json') and len(document['area']) == 1
+                require(name.endswith('-account.json') and not name.endswith('-installed-account.json')
+                        and len(document['area']) == 1
                         and type(point) is dict and set(point) == {'xpos', 'ypos'}
                         and all(type(point[key]) is int for key in ('xpos', 'ypos'))
                         and 0 < point['xpos'] < area['width']
@@ -160,7 +161,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
     on_failure is a trusted controller hook for durable scenario checkpoints;
     a broken hook cannot prevent either resource's cleanup or replace the error.
     """
-    require(type(timeout) in (int, float) and 0 < timeout <= 600, 'e2e:timeout')
+    require(type(timeout) in (int, float) and 0 < timeout <= 960, 'e2e:timeout')
     require(type(serial) is bool and (not serial or credentials is not None), 'e2e:serial-credentials')
     require(isinstance(lease.state['run'], str)
             and re.fullmatch(r'[0-9a-f]{32}', lease.state['run']), 'e2e:run')

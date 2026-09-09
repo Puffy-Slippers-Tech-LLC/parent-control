@@ -222,7 +222,7 @@ continuous journeys; Task 28B audits the complete executed inventory.
 Maximize meaningful coverage by tracing every applicable requirement and
 customer-visible transition, not by stopping once these examples pass. Review
 the [specification](../Specification.md), [system design](../System-Design.md),
-[package activation](../Package-Update.md), [migration](../Data-Migration.md),
+[package activation](../Package-Update.md), [migration](../SystemDesign/Data-Migration.md),
 and [removal](../System-Design.md#package-removal-lifecycle) contracts. Add omitted
 product behavior to the inventory and identify its authoritative requirement; do not silently omit
 it because the original functional specification did not mention it.

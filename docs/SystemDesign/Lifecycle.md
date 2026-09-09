@@ -19,6 +19,18 @@ service from becoming ready. Clearing stale session caps is best-effort:
 unavailable sessions may be skipped, and an exception at this stage is logged
 without preventing registration.
 
+Successful object registration writes one fixed `startup-witness` diagnostic to
+the broker's existing daily log. It records real monotonic nanosecond timestamps
+for construction, completed policy/extension reconciliation, attempted cap
+cleanup, and the start/end of object registration. Systemd's invocation ID,
+the broker PID and its unique bus name correlate the record with that process;
+no account or configuration data is recorded. Missing systemd context produces
+an empty invocation ID, and diagnostic-write failure does not gate readiness.
+The [startup observer](../../tests/e2e/README.md#broker-startup-observation)
+requires a current correlated witness for test evidence. Broker code activates
+with `process-restart`; this diagnostic adds no saved-data migration or GDM
+dependency.
+
 The packaged fapolicyd drop-in keeps the daemon in systemd's `activating` state
 until a root-owned canary execution is denied by the live kernel policy. The
 display manager requires completed fapolicyd startup, so a managed graphical
@@ -32,10 +44,9 @@ For other accounts, the public AccountsService `LimitType` helper skips
 unknown or malformed state continues through the enforcing module. The kiosk
 account is additionally confined to the dedicated GNOME session.
 
-APT stops the broker and runs the packaged, version-stepped migration framework
-before newly installed readers can access
-saved preferences. A migration-in-progress marker also prevents systemd from
-starting the broker. See [Data migration](../Data-Migration.md) for the schema contract.
+Saved-data migration completes before provisioning and package-update activation.
+See [Data migration](Data-Migration.md#package-lifecycle) for broker exclusion,
+package ordering, and failure/retry behavior.
 
 Package activation is selected from a generated digest manifest. Depending on
 the installed file that changed, an update needs no action, a broker restart, a
@@ -58,7 +69,6 @@ configuration and triggers finish so later APT/dpkg lines cannot follow it.
 /usr/libexec/oh-no-parent-control-query-usage         child/approver-scoped usage read helper
 /usr/libexec/oh-no-parent-control-migrate-state       saved-data migration runner
 /usr/libexec/oh-no-parent-control-session-limit-check PAM limit-state gate
-/usr/libexec/oh-no-parent-control-clear-session-runtime-max
 /usr/libexec/oh-no-parent-control-login-check         kiosk PAM service gate
 /usr/libexec/oh-no-parent-control-execution-policy-{ready,probe}
 /usr/libexec/oh-no-parent-control-uninstall            verified removal helper
@@ -82,6 +92,5 @@ assets, the compiled PAM module, integration templates, and package helpers.
 ## Related design
 
 - For changed system integration, follow [Package update](../Package-Update.md).
-- For saved-data compatibility, follow [Data migration](../Data-Migration.md).
 - For removal/purge ownership and rollback, read [Package removal](Package-Removal.md).
 - For PAM policy, read [expiry enforcement](Screen-Time.md#countdown-and-expiry-enforcement); for extension activation, read [screen-time enablement](Screen-Time.md#screen-time-model).

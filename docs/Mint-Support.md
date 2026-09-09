@@ -74,7 +74,7 @@ The broker's application enforcement should be reusable in large part, but Cinna
 
 Installed tests must verify native and Flatpak launch routes, the broker's selection of running applications, enforcement after updates, and isolation from other users. Any advertised Snap behavior also needs qualification where Snap is installed. Launcher visibility is not proof of execution denial. See the [application policy design](SystemDesign/Applications.md).
 
-The current [package dependencies](../debian/control) assume GNOME Shell and GDM. Mint packaging would need to express the appropriate desktop integration and retain LightDM as intended. Installation, activation, upgrades, and removal must preserve unrelated desktop configuration. Future implementation would follow the existing [setup entry point](../setup.sh), [package activation contract](Package-Update.md), and [data migration contract](Data-Migration.md) where applicable.
+The current [package dependencies](../debian/control) assume GNOME Shell and GDM. Mint packaging would need to express the appropriate desktop integration and retain LightDM as intended. Installation, activation, upgrades, and removal must preserve unrelated desktop configuration. Future implementation would follow the existing [setup entry point](../setup.sh), [package activation contract](Package-Update.md), and [data migration contract](SystemDesign/Data-Migration.md) where applicable.
 
 Risk is **medium**, with most effort expected in integration and installed verification rather than replacing the broker or GTK application.
 

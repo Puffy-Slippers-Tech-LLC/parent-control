@@ -293,6 +293,12 @@ The future E2E runner must obey the
   constrained archive extraction, bounded readiness and real reboot. Every
   readiness probe revalidates identity; a guest guard failure is not retried as
   a transient SSH error. The first phase's evidence is retrieved before reboot.
+  Its separate `wait_boot_change` observation reuses that loop for customer
+  reboot input: valid old-boot replies and SSH status 255 wait under one deadline,
+  with ownership/configuration checks before and after each probe. It never
+  requests a reboot. The existing `reboot()` and ordinary readiness behavior
+  remain unchanged. This addition is locally tested, not live-qualified; see
+  the [E2E contract and regressions](../e2e/README.md#customer-reboot-observation-boundary).
 - `owned_commands.Commands`: pins directly spawned host/guest processes and
   bounds interruption cleanup. No guessed process discovery or ownership.
 - `system_guest`: validates the guest/attempt boundary and drives real APT and

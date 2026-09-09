@@ -103,7 +103,8 @@ class Preferences(Protocol):
 
 
 class Extensions(Protocol):
-    def set_enabled(self, uid: int, enabled: bool) -> None: ...
+    def set_enabled(self, uid: int, enabled: bool, *,
+                    recover_global_switch: bool = False) -> None: ...
 
 
 class TimerUsage(Protocol):
@@ -203,7 +204,7 @@ class Broker:
                 if preferences["parent_control_enabled"]:
                     # A live user bus notifies an existing Shell immediately;
                     # otherwise the setting is durable for the next session.
-                    self._extensions.set_enabled(user.uid, True)
+                    self._extensions.set_enabled(user.uid, True, recover_global_switch=True)
                     refreshed.append(user.uid)
             except Exception as error:
                 LOG.error("extension refresh outcome=failed error_type=%s", type(error).__name__)
@@ -503,6 +504,18 @@ class Broker:
             if self._eligible_approver(config, user)
         )
         return tuple(sorted(users, key=lambda user: (user.label.casefold(), user.uid)))
+
+    def authorize_diagnostic_export(self, caller_uid: int) -> None:
+        """All product front ends may review the same bounded diagnostic archive."""
+        config = self._load_config()
+        if self._can_manage_or_kiosk(config, caller_uid):
+            return
+        try:
+            user = self._accounts.get_user(caller_uid)
+        except Exception as error:
+            raise AccessDenied("caller cannot export diagnostic logs") from error
+        if not self._eligible(config, user):
+            raise AccessDenied("caller cannot export diagnostic logs")
 
     def authorize_log_component(self, caller_uid: int, component: str) -> None:
         """Ensure a front end can write only to its own component log."""

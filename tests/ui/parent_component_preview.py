@@ -101,7 +101,7 @@ class ScriptedParentBroker:
 # cannot send real email. Exercise the production encoder and retry controller.
 from unittest.mock import Mock
 import requests
-from parent.oh_no_parent_control_parent import feedback, feedback_transport
+from common.oh_no_parent_control_ui import feedback, feedback_transport
 
 feedback.collect_logs = lambda: b"PK\x03\x04component-test archive"
 feedback_status = int(os.environ.get("ONPC_FEEDBACK_STATUS", "202"))
@@ -112,13 +112,16 @@ def feedback_post(_url, **kwargs):
     global feedback_attempts
     feedback_attempts += 1
     part_names = [name for name, _part in kwargs["files"]]
-    assert "message" in part_names
-    assert "messageHtml" in part_names
+    assert "body" in part_names
+    assert "bodyHtml" in part_names
     message_html = next(part[1] for name, part in kwargs["files"]
-                        if name == "messageHtml")
-    assert "<strong>" in message_html
+                        if name == "bodyHtml")
+    title = next(part[1] for name, part in kwargs["files"] if name == "title")
+    if title == feedback_transport.DEFAULT_TITLE:
+        assert "<strong>" in message_html
     if feedback_status == 413 and feedback_attempts > 1:
-        assert "logs" not in part_names
+        assert not any(name == "attachments" and part[0] == "oh-no-parent-control-logs.zip"
+                       for name, part in kwargs["files"])
     result = requests.Response()
     result.status_code = feedback_status if feedback_attempts == 1 else 202
     result._content = json.dumps({"ok": result.status_code == 202}).encode()

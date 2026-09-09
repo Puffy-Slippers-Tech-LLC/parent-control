@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 
 import gi
 
@@ -15,8 +16,38 @@ from gi.repository import Gio, GLib
 TIMER_NAME = "org.freedesktop.MalcontentTimer1"
 TIMER_PATH = "/org/freedesktop/MalcontentTimer1"
 TIMER_PARENT_INTERFACE = "org.freedesktop.MalcontentTimer1.Parent"
-CALL_TIMEOUT_MS = 30_000
+# Leave time for interpreter startup and serialization inside the broker's
+# 30-second subprocess deadline. All attempts share this budget.
+CALL_TIMEOUT_MS = 25_000
+MAX_ATTEMPTS = 3
+RETRY_DELAY_SECONDS = 0.2
 UINT32_MAX = (1 << 32) - 1
+
+
+def query_usage(connection, target_uid, *, monotonic=time.monotonic, sleep=time.sleep):
+    """Retry a read interrupted by the timer daemon's normal idle shutdown."""
+    deadline = monotonic() + CALL_TIMEOUT_MS / 1000
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            reply = connection.call_sync(
+                TIMER_NAME, TIMER_PATH, TIMER_PARENT_INTERFACE, "QueryUsage",
+                GLib.Variant("(uss)", (target_uid, "login-session", "")),
+                GLib.VariantType.new("(a(tt))"), Gio.DBusCallFlags.NONE,
+                max(1, int((deadline - monotonic()) * 1000)), None,
+            )
+            intervals, = reply.unpack()
+            return intervals
+        except GLib.Error as error:
+            transient = any(error.matches(Gio.dbus_error_quark(), code) for code in (
+                Gio.DBusError.NO_REPLY, Gio.DBusError.NAME_HAS_NO_OWNER,
+                Gio.DBusError.SERVICE_UNKNOWN,
+            ))
+            if (not transient or attempt + 1 == MAX_ATTEMPTS or
+                    deadline - monotonic() <= RETRY_DELAY_SECONDS):
+                raise
+            # Re-address the well-known name so D-Bus can activate its next owner.
+            # Authorization errors and malformed replies are never retried.
+            sleep(RETRY_DELAY_SECONDS)
 
 
 def main() -> int:
@@ -31,18 +62,7 @@ def main() -> int:
 
     try:
         connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
-        reply = connection.call_sync(
-            TIMER_NAME,
-            TIMER_PATH,
-            TIMER_PARENT_INTERFACE,
-            "QueryUsage",
-            GLib.Variant("(uss)", (target_uid, "login-session", "")),
-            GLib.VariantType.new("(a(tt))"),
-            Gio.DBusCallFlags.NONE,
-            CALL_TIMEOUT_MS,
-            None,
-        )
-        intervals, = reply.unpack()
+        intervals = query_usage(connection, target_uid)
     except GLib.Error:
         return 69
 

@@ -10,7 +10,7 @@ from pathlib import Path
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk
+from gi.repository import Gtk, Pango
 
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
 from common.oh_no_parent_control_ui.accessibility import describe_control
@@ -69,7 +69,10 @@ class GatewayDropDown(Gtk.Box):
         self._selected_icon.add_css_class("oh-no-parent-control-account-avatar")
         apply_gtk_user_icon(self._selected_icon, "")
         trigger_content.append(self._selected_icon)
-        self._selected_label = Gtk.Label(xalign=0, hexpand=True)
+        self._selected_label = Gtk.Label(
+            xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
+            max_width_chars=22,
+        )
         trigger_content.append(self._selected_label)
         self._trigger_arrow = Gtk.Image.new_from_icon_name("pan-down-symbolic")
         trigger_content.append(self._trigger_arrow)
@@ -117,7 +120,10 @@ class GatewayDropDown(Gtk.Box):
             icon.add_css_class("oh-no-parent-control-account-avatar")
             apply_gtk_user_icon(icon, icon_file)
             content.append(icon)
-            content.append(Gtk.Label(label=label, xalign=0, hexpand=True))
+            content.append(Gtk.Label(
+                label=label, xalign=0, hexpand=True,
+                ellipsize=Pango.EllipsizeMode.END, max_width_chars=22,
+            ))
             choice.set_child(content)
             choice.connect("clicked", self._choose, index)
             self._choice_list.append(choice)
@@ -220,6 +226,8 @@ class RequestContent(MetalBoard):
         self.add_css_class("oh-no-parent-control-content")
         self.add_css_class("oh-no-parent-control-dialog")
         self._duration_buttons = []
+        self._account_details = []
+        self._narrow_layout = None
         self._account_uids = []
         self._account_labels = []
         self._account_icons = []
@@ -288,8 +296,10 @@ class RequestContent(MetalBoard):
         self._choices.add_css_class("oh-no-parent-control-choices")
         self._choices.set_margin_start(10)
         self._choices.set_margin_end(10)
-        self._duration_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=0, hexpand=True,
+        self._duration_box = Gtk.FlowBox(
+            selection_mode=Gtk.SelectionMode.NONE, homogeneous=True,
+            min_children_per_line=1, max_children_per_line=2,
+            column_spacing=6, row_spacing=4, hexpand=True,
         )
         self._duration_box.add_css_class("oh-no-parent-control-choices-inner")
         # MetalPanel chrome has no layout cost, so CSS padding on the well does
@@ -337,7 +347,7 @@ class RequestContent(MetalBoard):
         filter_inner.append(filter_icon)
         filter_label = Gtk.Label(
             label="Allow soft blocked apps", xalign=0, hexpand=True,
-            valign=Gtk.Align.CENTER,
+            valign=Gtk.Align.CENTER, wrap=True, max_width_chars=24,
         )
         filter_label.add_css_class("oh-no-parent-control-app-filter-label")
         filter_inner.append(filter_label)
@@ -370,7 +380,6 @@ class RequestContent(MetalBoard):
         self._request.set_sensitive(False)
         self._request.connect("clicked", on_request)
         actions.append(self._request)
-        self._request_form.append(actions)
 
         self._screen_limit_overlay = Gtk.Overlay()
         self._screen_limit_overlay.set_child(self._request_form)
@@ -396,7 +405,8 @@ class RequestContent(MetalBoard):
         self._cancel.set_margin_start(10)
         self._cancel.set_margin_end(10)
         self._cancel.connect("clicked", on_cancel)
-        self.append(self._cancel)
+        actions.append(self._cancel)
+        self.append(actions)
         status_row = MetalPanel(
             orientation=Gtk.Orientation.VERTICAL,
             hexpand=True,
@@ -442,11 +452,11 @@ class RequestContent(MetalBoard):
         )
         copy.add_css_class("oh-no-parent-control-header-copy")
         for line in RequestContent._title_lines(app_name()):
-            title = Gtk.Label(label=line, xalign=0)
+            title = Gtk.Label(label=line, xalign=0, wrap=True)
             title.add_css_class("oh-no-parent-control-title")
             copy.append(title)
         subtitle = Gtk.Label(
-            label="Choose how much extra time you need",
+            label="Choose your extra time",
             xalign=0,
             wrap=True,
         )
@@ -463,8 +473,7 @@ class RequestContent(MetalBoard):
             return (f"{lead}!".upper(), rest.upper())
         return (name.upper(),)
 
-    @staticmethod
-    def _account_row(caption, dropdown):
+    def _account_row(self, caption, dropdown):
         row = MetalPanel(spacing=0, panel_kind="metal", hexpand=True)
         row.add_css_class("oh-no-parent-control-account-row")
         row.set_margin_start(10)
@@ -479,36 +488,37 @@ class RequestContent(MetalBoard):
         inner.set_margin_start(10)
         icon = dropdown.account_icon
         icon.add_css_class("oh-no-parent-control-role-icon")
-        icon.set_valign(Gtk.Align.START)
-        # Match the caption offset, including its CSS top margin and padding.
-        icon.set_margin_top(7)
+        icon.set_valign(Gtk.Align.CENTER)
+        apply_gtk_user_icon(icon, "", pixel_size=32)
         inner.append(icon)
         detail = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True,
+            spacing=12, hexpand=True,
         )
-        detail.set_valign(Gtk.Align.START)
-        detail.set_margin_top(3)
+        detail.set_valign(Gtk.Align.CENTER)
         label = Gtk.Label(label=caption, xalign=0)
         label.add_css_class("oh-no-parent-control-account-caption")
-        label.set_valign(Gtk.Align.START)
+        label.set_valign(Gtk.Align.CENTER)
         label.set_vexpand(False)
         detail.append(label)
-        dropdown.set_valign(Gtk.Align.START)
+        dropdown.set_valign(Gtk.Align.CENTER)
         detail.append(dropdown)
-
-        def size_portrait(_widget):
-            # Measure only the collapsed trigger so opening the choices never
-            # enlarges the portrait. GTK measurements include caption CSS.
-            caption_height = label.measure(Gtk.Orientation.VERTICAL, -1)[1]
-            trigger_height = dropdown._trigger.measure(Gtk.Orientation.VERTICAL, -1)[1]
-            # The portrait starts 4px below detail and has 8px of CSS border
-            # and padding; its framed bottom meets the trigger's bottom.
-            icon.set_pixel_size(max(1, caption_height + trigger_height + detail.get_spacing() - 12))
-
-        row.connect("map", size_portrait)
+        self._account_details.append((detail, label))
         inner.append(detail)
         row.append(inner)
         return row
+
+    def set_layout_width(self, width):
+        """Stack account captions on narrow displays to keep names readable."""
+        narrow = width < 520
+        if narrow == self._narrow_layout:
+            return
+        self._narrow_layout = narrow
+        for detail, caption in self._account_details:
+            detail.set_orientation(
+                Gtk.Orientation.VERTICAL if narrow else Gtk.Orientation.HORIZONTAL,
+            )
+            detail.set_spacing(2 if narrow else 12)
+            caption.set_width_chars(0 if narrow else 8)
 
     def _build_duration_choices(self):
         group = None

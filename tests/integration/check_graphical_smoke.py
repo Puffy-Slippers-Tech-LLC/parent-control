@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/e2e'))
 import e2e_worker
 from private_artifacts import EvidenceError, PrivateCollector
-from provenance import VerifiedInputs, preflight_source
+from provenance import VerifiedInputs, preflight_source, refusal_code
 from recording import save_checkpoint
 from asset_transfer import AssetTransfer
 from guest_observations import GREETER as OBSERVATION
@@ -44,7 +44,8 @@ AUTH_STAGES = (*STAGES, 'authenticated')
 SERIAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated', 'serial-command', 'serial-logout',
                  'gdm-return')
 INSTALL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated',
-                  *InstallationBoundary.STAGES, 'serial-logout', 'gdm-return')
+                  *InstallationBoundary.STAGES, 'reboot-ready', 'reboot-password',
+                  'reboot-observed', 'gdm-return')
 INSTALL_REFUSAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated',
                           *InstallationBoundary.REFUSAL_STAGES, 'serial-logout', 'gdm-return')
 
@@ -111,11 +112,22 @@ class Smoke:
         require(installation is None or (serial and authenticate and transfer is not None
                 and installation.transfer is transfer), 'smoke:installation-prerequisites')
         self.installation = installation
+        self._failed = False
+        self._reboot_boot = None
+        self._reboot_password_verified = False
         self.stages = (INSTALL_REFUSAL_STAGES if installation is not None and installation.refusal else
                        INSTALL_STAGES if installation is not None else
                        SERIAL_STAGES if serial else AUTH_STAGES if authenticate else STAGES)
 
     def step(self, serial_console=None):
+        require(not self._failed, 'smoke:previous-failure')
+        try:
+            self._step(serial_console)
+        except BaseException:
+            self._failed = True
+            raise
+
+    def _step(self, serial_console):
         if len(self.steps) == len(self.stages):
             return
         stage = self.stages[len(self.steps)]
@@ -126,7 +138,7 @@ class Smoke:
         request = json.loads(path.read_text())
         require(set(request) == {'stage', 'screenshot'} and request['stage'] == stage,
                 'smoke:stage-request')
-        if stage.startswith(('serial-', 'install-')):
+        if stage.startswith(('serial-', 'install-', 'reboot-')):
             # The stage request is published after the worker's input. Drain
             # those bytes before a blocking SSH observation; otherwise the
             # observer could wait for input still buffered in our own pipe.
@@ -147,7 +159,7 @@ class Smoke:
             transport = Transport(config, self.commands, guard=lambda _: self.lease.guard())
             transport.probe_ready(timeout=180)
             self.vm = ReadOnlyObservations(transport, on_diagnostic=(
-                lambda condition: self.progress('install-password',
+                lambda condition: self.progress(self.stages[len(self.steps)],
                     {'recipient_refusal': condition})) if self.progress is not None else None)
             reply = {'observation': 'active-greeter-no-user-session'}
             reply['authenticate'] = self.stages == AUTH_STAGES
@@ -160,11 +172,61 @@ class Smoke:
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
             self.installation.observer = self.vm
             reply = self.installation.observe(stage)
+        elif stage == 'reboot-ready':
+            require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
+            installed = self.steps[-1]
+            require(installed['stage'] == 'install-complete'
+                    and installed.get('verified_package_digest') is True
+                    and installed.get('installed_identity_verified') is True
+                    and installed.get('product_reboot_required') is True,
+                    'smoke:reboot-before-installation')
+            boot = self.vm.read('boot')['boot_sha256']
+            require(boot == installed['boot_sha256'], 'smoke:premature-reboot')
+            session = self.vm.read('serial-session')
+            require(self.vm.read('boot')['boot_sha256'] == boot, 'smoke:premature-reboot')
+            self._reboot_boot = boot
+            reply = {**session, 'boot_sha256': boot, 'customer_reboot_authorized': True}
+        elif stage == 'reboot-password':
+            require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
+            require(self._reboot_boot is not None, 'smoke:reboot-not-authorized')
+            self.installation.verified.recheck()
+            require(self.vm.read('boot')['boot_sha256'] == self._reboot_boot,
+                    'smoke:premature-reboot')
+            reply = self.vm.read('reboot-password')
+            require(reply.get('sudo_reboot_process_verified') is True
+                    and reply.get('terminal_echo_disabled') is True,
+                    'smoke:reboot-password-unverified')
+            require(self.vm.read('boot')['boot_sha256'] == self._reboot_boot,
+                    'smoke:premature-reboot')
+            self.installation.verified.recheck()
+            self._reboot_password_verified = True
+            reply = {**reply, 'boot_sha256': self._reboot_boot}
+        elif stage == 'reboot-observed':
+            require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
+            require(self._reboot_boot is not None and self._reboot_password_verified,
+                    'smoke:reboot-not-authorized')
+            if self.progress is not None:
+                self.progress(stage, {'serial_input_drained': True})
+            reply = self.vm.wait_boot_change(self._reboot_boot, on_diagnostic=(
+                lambda report: self.progress(stage, {'reboot_diagnostic': report}))
+                if self.progress is not None else None)
         elif stage == 'gdm-return':
             # The match's automatic screenshot stays private. The callback
             # reconciles it from the completed module, never reopening capture.
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
             reply = self.vm.read('greeter')
+            if self._reboot_boot is not None:
+                boot = self.vm.read('boot')['boot_sha256']
+                require(boot == self.steps[-1]['boot_sha256'], 'smoke:boot-changed-again')
+                enforcement = self.vm.read('startup-enforcement')
+                broker = self.vm.read('startup-broker')
+                layout = self.installation.observe_installed_layout()
+                require(enforcement['boot_sha256'] == boot and broker['boot_sha256'] == boot
+                        and self.vm.read('boot')['boot_sha256'] == boot,
+                        'smoke:boot-changed-again')
+                reply = {**reply, 'boot_sha256': boot, 'customer_reboot_verified': True,
+                         'startup_enforcement': enforcement, 'startup_broker': broker,
+                         'installed_layout': layout}
         elif stage.startswith('serial-'):
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
             if stage == 'serial-password':
@@ -186,7 +248,7 @@ class Smoke:
                 require((reply['width'], reply['height']) == (previous['width'], previous['height'])
                         and reply['sha256'] != previous['sha256'], 'smoke:unchanged-screen')
         # Corroborate each captured stage, not just SSH availability at boot.
-        if stage not in ('authenticated', 'gdm-return') and not stage.startswith(('serial-', 'install-')):
+        if stage not in ('authenticated', 'gdm-return') and not stage.startswith(('serial-', 'install-', 'reboot-')):
             self.vm.read('greeter')
         self.steps.append({'stage': stage, **reply})
         if self.progress is not None:
@@ -211,7 +273,7 @@ def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
         worker_result = e2e_worker.run_distribution(
             directory, lease, ledger, expected_inputs=expected_inputs,
             observe=smoke.step, validate=validate, on_failure=on_failure, credentials=credentials,
-            serial=serial)
+            serial=serial, timeout=960 if installation is not None and not installation.refusal else 600)
         return {'steps': smoke.steps, 'worker_evidence': worker_result}
     finally:
         original = sys.exception()
@@ -265,11 +327,28 @@ class Qualification:
         self.active_stage = stage
         if observed is None:
             self.checkpoint('stage-started')
-        elif stage == 'install-password' and set(observed) == {'recipient_refusal'}:
+        elif stage == 'reboot-observed' and set(observed) == {'serial_input_drained'}:
+            require(observed['serial_input_drained'] is True, 'smoke:diagnostic-condition')
+            self.result['reboot_input_drained'] = True
+            self.checkpoint('reboot-input-drained')
+        elif stage == 'reboot-observed' and set(observed) == {'reboot_diagnostic'}:
+            report = observed['reboot_diagnostic']
+            require(isinstance(report, dict) and set(report) == {
+                'old_boot', 'ssh_unavailable', 'changed_boot', 'outcome'}
+                and all(type(report[key]) is int and report[key] >= 0
+                        for key in ('old_boot', 'ssh_unavailable', 'changed_boot'))
+                and report['outcome'] in ('changed-boot', 'unknown-error', 'interrupted',
+                    'readiness-timeout', 'configuration-changed', 'invalid-boot-output',
+                    'guest-probe-failed', 'domain-replaced-or-shared'),
+                'smoke:diagnostic-condition')
+            self.result['reboot_diagnostic'] = dict(report)
+            self.checkpoint('reboot-probe-finished')
+        elif stage in ('install-password', 'reboot-password') and set(observed) == {'recipient_refusal'}:
             # Refusal is diagnostic evidence, never a completed proof step.
             require(observed['recipient_refusal'] in
                     installation_observations.SUDO_PASSWORD_STAGES, 'smoke:diagnostic-condition')
-            self.result['installation_diagnostic'] = dict(observed)
+            key = 'installation_diagnostic' if stage == 'install-password' else 'reboot_authentication_diagnostic'
+            self.result[key] = dict(observed)
             self.checkpoint('stage-rejected')
         else:
             self.result['steps'].append(dict(observed))
@@ -329,6 +408,13 @@ class Qualification:
                 if original is None:
                     raise
 
+    def _recheck_final_inputs(self):
+        try:
+            self.verified.recheck()
+        except BaseException as error:
+            self.result.setdefault('final_provenance_refusal', refusal_code(error))
+            raise
+
     def finalize(self, lease):
         """Check and report after restoration, before the sole lease release."""
         self.result['lease_phase'] = lease.state['phase']
@@ -338,7 +424,7 @@ class Qualification:
             require(lease.fd is not None and lease.state['phase'] == 'complete',
                     'smoke:cleanup-lease-required')
             require(self.verified is not None, 'smoke:inputs-not-captured')
-            self.verified.recheck()
+            self._recheck_final_inputs()
             self.result['preservation']['source'] = True
         except BaseException as error:
             first = error
@@ -363,7 +449,7 @@ class Qualification:
                 # A late refusal must revoke the earlier successful boundary's
                 # preservation flag in the terminal failure checkpoint too.
                 self.result['preservation']['source'] = False
-                self.verified.recheck()
+                self._recheck_final_inputs()
                 self.result['preservation']['source'] = True
         except BaseException as error:
             first = first if first is not None else error

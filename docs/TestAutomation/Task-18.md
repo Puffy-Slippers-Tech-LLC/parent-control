@@ -58,7 +58,7 @@ Verification below is task acceptance; edits use the smallest affected selection
 - Recommended reasoning effort: `high`
 - Work:
   1. Inventory the actual saved-data versions and registered migration steps in
-     `Data-Migration.md` and code. Build realistic fixtures for every supported
+     [Data migration](../SystemDesign/Data-Migration.md) and code. Build realistic fixtures for every supported
      version, including single-step and direct multi-version upgrades where
      those steps exist. Do not invent historical releases or schema changes.
   2. Exercise package-driven migration and interrupt between records using

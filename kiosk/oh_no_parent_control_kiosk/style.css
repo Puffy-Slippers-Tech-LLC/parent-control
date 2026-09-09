@@ -146,10 +146,10 @@ button.about-link > label {
 }
 
 .oh-no-parent-control-dialog {
-  min-width: 394px;
-  padding: 22px 18px;
+  min-width: 0;
+  padding: 12px 14px;
   font-family: "Monocraft", "Ubuntu Mono", monospace;
-  font-size: 16px;
+  font-size: 22px;
   /* Physical iron board hung in the gateway. Square riveted plates and a
    * stepped bevel stay in the child snapshot so the gateway yaw applies to
    * the board, its depth, and its controls as one surface. */
@@ -209,9 +209,9 @@ button.about-link > label {
 }
 
 .oh-no-parent-control-subtitle {
-  color: rgba(210, 210, 200, 0.72);
+  color: rgba(230, 230, 222, 0.92);
   font-family: "Monocraft", "Ubuntu Mono", monospace;
-  font-size: 0.70em;
+  font-size: 0.90em;
   padding-right: 4px;
   padding-bottom: 1px;
 }
@@ -231,7 +231,7 @@ button.about-link > label {
 }
 
 .oh-no-parent-control-status-row {
-  min-width: 350px;
+  min-width: 0;
   /* Floor for one-line status. Two-line captions grow via wrap measure. */
   min-height: 62px;
   margin-top: 3px;
@@ -284,8 +284,8 @@ button.about-link > label {
 }
 
 button.oh-no-parent-control-account-selector {
-  min-height: 30px;
-  padding: 0 8px;
+  min-height: 36px;
+  padding: 2px 8px;
   border: 2px solid #0c0c0c;
   border-top-color: #171916;
   border-left-color: #111310;
@@ -316,7 +316,7 @@ button.oh-no-parent-control-account-selector:focus-visible {
 }
 
 button.oh-no-parent-control-account-choice {
-  min-height: 34px;
+  min-height: 38px;
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: 0;
@@ -360,13 +360,19 @@ button.oh-no-parent-control-account-scroll:disabled {
   margin: 4px 4px 6px;
 }
 
+.oh-no-parent-control-choices-inner > flowboxchild {
+  padding: 0;
+  margin: 0;
+  background: none;
+}
+
 button.oh-no-parent-control-choice {
-  min-height: 16px;
-  padding: 2px 13px 2px;
-  line-height: 1;
+  min-height: 32px;
+  padding: 4px 13px;
+  line-height: 1.2;
   border: 1px solid transparent;
   border-radius: 0;
-  color: rgba(220, 220, 214, 0.82);
+  color: rgba(236, 236, 230, 0.96);
   font-family: "Monocraft", "Ubuntu Mono", monospace;
   font-size: 1em;
   background: transparent;
@@ -491,7 +497,7 @@ button.oh-no-parent-control-app-filter-toggle:focus-visible {
 }
 
 entry.oh-no-parent-control-custom-entry {
-  min-height: 30px;
+  min-height: 38px;
   border: 2px solid #0c0c0c;
   border-radius: 0;
   color: white;
@@ -513,9 +519,9 @@ entry.oh-no-parent-control-custom-entry {
 }
 
 button.oh-no-parent-control-cancel-button {
-  min-height: 28px;
-  padding: 2px 10px;
-  margin-top: 7px;
+  min-height: 36px;
+  padding: 4px 10px;
+  margin-top: 4px;
   margin-left: 10px;
   margin-right: 10px;
   border: 3px solid #141416;
@@ -545,8 +551,8 @@ button.oh-no-parent-control-cancel-button:focus-visible {
 
 button.oh-no-parent-control-request-button,
 .oh-no-parent-control-secondary-page button.suggested-action {
-  min-height: 28px;
-  padding: 2px 10px;
+  min-height: 36px;
+  padding: 4px 10px;
   margin-top: 4px;
   margin-left: 10px;
   margin-right: 10px;

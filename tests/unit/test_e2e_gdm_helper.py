@@ -12,6 +12,7 @@ use strict;
 use warnings;
 use JSON::PP;
 our $mode = shift;
+our $installed = shift;
 our @events;
 our $screen = 'list';
 our $console = 'sut';
@@ -26,7 +27,8 @@ sub assert_screen {
     return 0 if $main::mode eq 'missing-prompt' && $main::screen eq 'prompt';
     return 0 if $main::mode eq 'missing-return' && $main::screen eq 'return';
     die 'wrong match' unless $tag eq ($main::screen eq 'prompt'
-        ? 'onpc-gdm-parent-masked-password' : 'onpc-gdm-parent-account');
+        ? 'onpc-gdm-parent-masked-password' : $main::screen eq 'return' && $main::installed
+        ? 'onpc-gdm-parent-installed-account' : 'onpc-gdm-parent-account');
     return {needle => $tag};
 }
 sub assert_and_click {
@@ -62,7 +64,7 @@ my $ok = eval {
     onpc_gdm::select_parent();
     onpc_gdm::dismiss_prompt();
     $console = 'onpc-serial' unless $mode eq 'wrong-return-console';
-    onpc_gdm::return_from_serial();
+    $installed ? onpc_gdm::return_after_reboot() : onpc_gdm::return_from_serial();
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
@@ -71,8 +73,9 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 
 @pytest.mark.parametrize('mode', ['ok', 'missing-list', 'missing-prompt',
     'false-positive', 'missing-return', 'wrong-console', 'wrong-return-console', 'deadline'])
-def test_screen_readiness_refuses_before_next_action(mode):
-    result = run_perl(PROBE, mode)
+@pytest.mark.parametrize('installed', [False, True])
+def test_screen_readiness_refuses_before_next_action(mode, installed):
+    result = run_perl(PROBE, mode, str(int(installed)))
     data = json.loads(result.stdout)
     assert data['ok'] == (mode == 'ok'), data
     events = data['events']

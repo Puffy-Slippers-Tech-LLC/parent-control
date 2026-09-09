@@ -109,6 +109,60 @@ print(json.dumps({'package_sha256': h.hexdigest(), 'installed_identity_verified'
                   'product_reboot_required': True}, sort_keys=True))
 '''
 
+# Reuse the package-derived inventory transferred with the release artifact.
+# The controller compares its digest with VerifiedInputs, so changed guest-side
+# expectations cannot authorize a result. This probe is read-only and returns
+# no paths, group IDs, package output, configuration, or account data.
+INSTALLED_LAYOUT = COMMON + '''import grp,os,xml.etree.ElementTree as ET
+inventory = regular('/var/lib/onpc-e2e-assets/installed-files.json')
+raw = inventory.read_bytes()
+assert 2 <= len(raw) <= 4194304
+entries = json.loads(raw)
+assert isinstance(entries, list) and 0 < len(entries) <= 100000
+seen = set()
+desktop = '/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop'
+for entry in entries:
+    assert isinstance(entry, dict) and set(entry) == {'path','kind','mode','target'}
+    name, kind, mode, target = (entry[key] for key in ('path','kind','mode','target'))
+    pure = pathlib.PurePosixPath(name) if isinstance(name, str) else None
+    assert pure is not None and pure.is_absolute() and name != '/' and '..' not in pure.parts
+    assert name not in seen and kind in ('file','symlink')
+    assert type(mode) is int and 0 <= mode <= 4095 and isinstance(target, str)
+    seen.add(name)
+    path = pathlib.Path(name)
+    info = path.lstat()
+    expected_gid = grp.getgrnam('sudo').gr_gid if name == desktop else 0
+    assert info.st_uid == 0 and info.st_gid == expected_gid
+    if kind == 'symlink':
+        assert stat.S_ISLNK(info.st_mode) and target and os.readlink(path) == target
+    else:
+        assert target == '' and stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == mode
+assert call('/usr/bin/dpkg', '--verify', package) == ''
+config = pathlib.Path('/etc/oh-no-parent-control/config.json').lstat()
+assert stat.S_ISREG(config.st_mode) and config.st_uid == config.st_gid == 0
+assert stat.S_IMODE(config.st_mode) == 384
+for name, token in (
+    ('/etc/pam.d/common-auth', 'pam_oh_no_parent_control.so'),
+    ('/etc/pam.d/common-account', 'pam_malcontent.so'),
+    ('/etc/pam.d/common-account', 'pam_oh_no_parent_control.so')):
+    text = regular(name).read_text()
+    assert len(text) <= 1048576 and token in text
+account_stack = regular('/etc/pam.d/common-account').read_text()
+assert account_stack.index('pam_malcontent.so') < account_stack.index('pam_oh_no_parent_control.so')
+for name in (
+    '/usr/share/wayland-sessions/oh-no-parent-control.desktop',
+    '/usr/share/gnome-session/sessions/oh-no-parent-control.session',
+    '/usr/share/polkit-1/rules.d/00-oh-no-parent-control-session.rules'):
+    regular(name)
+for suffix in ('child.request-own-access', 'kiosk.request-access'):
+    name = '/usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.' + suffix + '.policy'
+    path = regular(name)
+    assert path.lstat().st_size <= 1048576 and ET.parse(path).getroot().findall('action')
+print(json.dumps({'installed_files': len(entries),
+                  'inventory_sha256': hashlib.sha256(raw).hexdigest(),
+                  'installed_layout_verified': True}, sort_keys=True))
+'''
+
 # This setup observation runs before the worker types the install command.
 # Only fixed implementation/path fields and a numeric Ubuntu package version
 # leave the guest; unfamiliar implementations and read errors fail closed.
@@ -288,9 +342,6 @@ proc, fields = process(pid)
 assert [int(v) for v in fields[2:6]] == [pid,shell,device,pid]
 stage = 'parent-foreground'
 assert int(fields[1]) == shell
-expected_args = [b'/usr/bin/sudo',b'-k',b'-p',b'\\nONPC-INSTALL-PASSWORD: ',b'--',
-                 b'/usr/bin/apt-get',b'install',b'-y',
-                 b'/var/lib/onpc-e2e-assets/package.deb',b'']
 def snapshot(phase):
     global stage
     login_identity(phase)
@@ -398,13 +449,27 @@ try:
     snapshot('continuity')
 finally:
     os.close(fd)
-print('install-password-safe')
+print(result_prefix + '-safe')
 '''
 
 # Return only a fixed first-failing condition, including read/race failures.
 # A refusal exits the guest probe normally solely so the guarded transport can
 # collect it; the controller MUST reject it before authorizing any input.
 # Never serialize exceptions, argv, identities or authentication terminal data.
-SUDO_PASSWORD = ("stage = 'fixture-identity'\ntry:\n"
-                 + ''.join('    ' + line + '\n' for line in _SUDO_PASSWORD_BODY.splitlines())
-                 + "except Exception:\n    print('install-password-rejected:' + stage)\n")
+def _sudo_password_program(action, command):
+    # Called only below with reviewed constants. Scenarios cannot supply argv
+    # or reuse an installation proof to authorize a reboot password.
+    prefix = action + '-password'
+    argv = [b'/usr/bin/sudo', b'-k', b'-p',
+            ('\nONPC-' + action.upper() + '-PASSWORD: ').encode(), b'--',
+            *command, b'']
+    return (f'expected_args = {argv!r}\nresult_prefix = {prefix!r}\n'
+            + "stage = 'fixture-identity'\ntry:\n"
+            + ''.join('    ' + line + '\n' for line in _SUDO_PASSWORD_BODY.splitlines())
+            + "except Exception:\n    print(result_prefix + '-rejected:' + stage)\n")
+
+
+SUDO_PASSWORD = _sudo_password_program('install', [
+    b'/usr/bin/apt-get', b'install', b'-y', b'/var/lib/onpc-e2e-assets/package.deb'])
+REBOOT_PASSWORD = _sudo_password_program('reboot', [
+    b'/usr/bin/systemctl', b'--no-ask-password', b'reboot'])

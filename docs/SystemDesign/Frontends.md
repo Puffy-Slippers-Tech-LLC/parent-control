@@ -39,6 +39,49 @@ The child overlay and kiosk deliberately use the same GTK request form and
 validation. Only account selection, mute surface, broker request method, and
 exit behavior differ.
 
+## Responsive request layout
+
+Both request surfaces use a 22-pixel logical base font and GTK's monitor
+scaling for HiDPI. The form and corner controls retain their logical sizes as
+the window grows; screen dimensions do not add a second zoom to the rendered
+interface. The form reflows from its available window allocation, independently
+of the background's cover crop, and small displays never shrink the text below
+its CSS size. The gateway widens only as needed to frame the form, and its
+effects and chain anchors use the same artwork bounds. Layout diagnostics log
+the allocation and monitor scale without account information.
+
+Duration choices reflow between two columns and one. Account captions sit
+beside selectors on desktop widths and above them on narrow displays. Request
+and Cancel share a row. The normal form fits a 1024×768 allocation; shorter
+screens, expanded selectors and long messages use a visible vertical scrollbar.
+The transformed viewport remains within the window and leaves space for the
+corner controls on narrow displays. Results use the same sizing and overflow
+container. Existing request data and package activation classifications are
+unchanged; new request windows load the updated UI.
+
+## Lightning audio
+
+Both request surfaces use [thunder.py](../../kiosk/oh_no_parent_control_kiosk/thunder.py)
+for generated thunder, with no background music or recorded audio assets. Each
+visible flash triggers one short crack followed by a rolling, fading rumble;
+its current brightness controls gain and its screen position controls stereo
+placement. Return flashes layer over existing tails. Missed flashes are not
+replayed after a delayed frame. The stream uses GStreamer's supported
+[appsrc interface](https://gstreamer.freedesktop.org/documentation/app/appsrc.html)
+with short live PCM buffers to keep attacks near the animation.
+
+The existing per-child mute values still control sound and lightning together.
+Audio starts muted while preferences load. Muting flushes voices and playback;
+unmuting waits for a fresh visible flash. Successful dismissal fades remaining
+effects, and window destruction releases the pipeline. Missing audio output
+disables sound without preventing requests. Logs report state and error codes,
+excluding device names and backend debug strings.
+
+This retains the kiosk payload's `session-renewal` package activation class;
+new request windows load the updated code. The runtime package uses GStreamer Base and Good plug-ins
+for PCM playback and audio output; the former MP3 decoder dependency is removed.
+Saved preferences are unchanged and require no migration.
+
 ## Remaining-time explanations
 
 Parent remaining-time labels and the child/kiosk estimate use the shared

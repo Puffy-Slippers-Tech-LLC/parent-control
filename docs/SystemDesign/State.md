@@ -5,7 +5,7 @@
 Read this for data ownership, preference/configuration schemas, defaults,
 and saved-data changes.
 
-Implementation: [preferences.py](../../broker/oh_no_parent_control/preferences.py), [config.py](../../broker/oh_no_parent_control/config.py), [data_migration.py](../../broker/oh_no_parent_control/data_migration.py), [configuration example](../../config).
+Implementation: [preferences.py](../../broker/oh_no_parent_control/preferences.py), [config.py](../../broker/oh_no_parent_control/config.py), [configuration example](../../config).
 
 ## Persistent and derived state
 
@@ -61,8 +61,7 @@ A missing child record loads validated defaults; a record is created on save.
 Defaults disable screen-time control, set a zero daily limit, leave apps allowed,
 and select a 30-minute request with soft apps blocked and both surfaces muted.
 The current validator normalizes omitted optional request fields and an omitted
-daily limit. Incompatible changes must follow [Data migration](../Data-Migration.md)
-before new readers or writers ship.
+daily limit.
 
 The machine configuration also currently uses version 3, independently of the
 preference schema. Its example kiosk UID is not a fixed runtime identity;
@@ -72,4 +71,4 @@ installation generates the actual value.
 
 - For non-authoritative per-user selector state, read [Front ends](Frontends.md#request-selector-state).
 - For projecting app preferences into live enforcement, read [filters and execution rules](Applications.md#live-filter-and-execution-rules).
-- For schema changes, follow [Data migration](../Data-Migration.md).
+- Before shipping incompatible readers or writers, follow [Data migration](Data-Migration.md#adding-a-preference-migration).

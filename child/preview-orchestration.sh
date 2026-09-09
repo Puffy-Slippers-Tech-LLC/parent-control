@@ -151,7 +151,7 @@ onpc_preview_prepare_environment() {
     export PYTHONPATH="$repo_root:$repo_root/kiosk${PYTHONPATH:+:$PYTHONPATH}"
     # The child overlay targets the explicitly named nested Wayland socket.
     # Mutter Devkit reserves the host display variables for its own viewer.
-    export OH_NO_PARENT_CONTROL_REQUEST_APP="env GDK_BACKEND=wayland WAYLAND_DISPLAY=$onpc_preview_nested_wayland_display $(command -v python3) -m oh_no_parent_control_kiosk.main --preview --child-overlay --soundtrack $repo_root/data/Gearbox_Waltz.mp3"
+    export OH_NO_PARENT_CONTROL_REQUEST_APP="env GDK_BACKEND=wayland WAYLAND_DISPLAY=$onpc_preview_nested_wayland_display $(command -v python3) -m oh_no_parent_control_kiosk.main --preview --child-overlay"
     # Select the host-facing Devkit backend only after the private services are
     # running. The child overlay is pinned to the nested Wayland display
     # independently, so a host backend preference cannot send it to the

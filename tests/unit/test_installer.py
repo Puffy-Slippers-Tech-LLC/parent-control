@@ -144,14 +144,16 @@ class PackageDeploymentTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         for source in (
             "parent/oh_no_parent_control_parent/style.css",
-            "parent/oh_no_parent_control_parent/rich_editor/quill.js",
-            "parent/oh_no_parent_control_parent/rich_editor/quill.snow.css",
-            "parent/oh_no_parent_control_parent/rich_editor/quill.js.LICENSE.txt",
+            "common/oh_no_parent_control_ui/feedback.css",
+            "common/oh_no_parent_control_ui/rich_editor/quill.js",
+            "common/oh_no_parent_control_ui/rich_editor/quill.snow.css",
+            "common/oh_no_parent_control_ui/rich_editor/quill.js.LICENSE.txt",
+            "common/oh_no_parent_control_ui/rich_editor/LICENSE",
             "docs/SystemDesign/Logging-and-Feedback.md",
             "kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png",
-            "kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf", "data/Gearbox_Waltz.mp3",
+            "kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf",
             "data/fapolicyd/99-oh-no-parent-control-allow.rules", "tools/pam_oh_no_parent_control.c",
-            "tools/session_limit_check.py", "tools/clear_session_runtime_max.py",
+            "tools/session_limit_check.py",
             "broker/oh-no-parent-control-migrate-state", "broker/oh-no-parent-control-query-usage",
         ):
             self.assertIn(source, makefile)
@@ -166,7 +168,7 @@ class PackageDeploymentTests(unittest.TestCase):
     def test_package_has_all_runtime_dependencies(self):
         control = (ROOT / "debian/control").read_text(encoding="utf-8")
         dependencies = next(line.removeprefix("Depends: ") for line in control.splitlines() if line.startswith("Depends: ")).split(", ")
-        for dependency in ("fapolicyd", "gnome-shell", "gir1.2-malcontent-0", "gir1.2-gstreamer-1.0", "gir1.2-webkit-6.0", "gstreamer1.0-plugins-base", "gstreamer1.0-plugins-ugly", "libpam-malcontent", "mate-polkit-bin", "polkitd", "python3-gi-cairo", "systemd-sysusers", "update-notifier", "update-notifier-common"):
+        for dependency in ("fapolicyd", "gnome-shell", "gir1.2-malcontent-0", "gir1.2-gstreamer-1.0", "gir1.2-webkit-6.0", "gstreamer1.0-plugins-base", "gstreamer1.0-plugins-good", "libpam-malcontent", "mate-polkit-bin", "polkitd", "python3-gi-cairo", "systemd-sysusers", "update-notifier", "update-notifier-common"):
             self.assertIn(dependency, dependencies)
 
     def test_postinst_reasserts_kiosk_identity_and_enforcement_services(self):

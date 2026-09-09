@@ -146,7 +146,7 @@ class ModelExtensions:
         self.enabled = {uid: False for uid in CHILDREN}
         self.fail_once = False
 
-    def set_enabled(self, uid, enabled):
+    def set_enabled(self, uid, enabled, *, recover_global_switch=False):
         if self.fail_once:
             self.fail_once = False
             raise RuntimeError("injected extension failure")

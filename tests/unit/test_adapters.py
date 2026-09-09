@@ -122,7 +122,9 @@ class PolkitAdapterTests(unittest.TestCase):
             ("../x", 1001, "child", "seat0", "/org/freedesktop/login1/session/bad"),
         ],)
         user_session = mock.Mock()
-        user_session.unpack.return_value = ({"Class": "user", "Type": "wayland"},)
+        user_session.unpack.return_value = ({
+            "Class": "user", "Type": "wayland", "Service": "gdm-password",
+        },)
         greeter = mock.Mock()
         greeter.unpack.return_value = ({"Class": "greeter", "Type": "wayland"},)
 
@@ -148,6 +150,25 @@ class PolkitAdapterTests(unittest.TestCase):
             "session-12.scope", True,
             [("RuntimeMaxUSec", RUNTIME_MAX_USEC_INFINITY)],
         )])
+
+    def test_session_runtime_cap_preserves_non_gdm_and_unknown_sessions(self):
+        accounts = AccountsService(object())
+        for properties in (
+                {"Class": "user", "Type": "tty", "Service": "login"},
+                {"Class": "user", "Type": "tty", "Service": "sshd"},
+                {"Class": "user", "Type": "wayland", "Service": "another-display-manager"},
+                {"Class": "user", "Type": "wayland"},
+                {"Class": "user", "Service": "gdm-password"}):
+            with self.subTest(properties=properties):
+                sessions = mock.Mock()
+                sessions.unpack.return_value = ([("12", 1001, "child", "seat0",
+                    "/org/freedesktop/login1/session/_12")],)
+                details = mock.Mock()
+                details.unpack.return_value = (properties,)
+                with mock.patch("oh_no_parent_control.adapters._call",
+                                side_effect=[sessions, details]) as call:
+                    self.assertEqual(accounts.clear_session_runtime_max(1001), ())
+                self.assertEqual(call.call_count, 2)
 
     def test_app_filter_write_reconciles_native_execution_policy(self):
         policy = mock.Mock()

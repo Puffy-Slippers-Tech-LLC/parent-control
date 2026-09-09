@@ -107,3 +107,25 @@ def test_password_prompt_cannot_add_a_click_point(distribution):
     path.write_text(json.dumps(doc))
     with pytest.raises(RuntimeError, match='needle-click-point'):
         worker.distribution_inputs()
+
+
+@pytest.mark.parametrize('variant', ['onpc-gdm-parent-installed-account',
+    'onpc-gdm-child-installed-account', 'onpc-gdm-parent-installed-masked-password',
+    'onpc-polkit-parent-installed-account'])
+def test_installed_greeter_variant_is_fixed_and_readiness_only(distribution, variant):
+    dist, base = distribution
+    installed = base.with_name(variant)
+    doc = json.loads(base.with_suffix('.json').read_bytes())
+    doc['tags'] = [variant]
+    base.with_suffix('.png').rename(installed.with_suffix('.png'))
+    base.with_suffix('.json').unlink()
+    installed.with_suffix('.json').write_text(json.dumps(doc))
+    if variant != 'onpc-gdm-parent-installed-account':
+        with pytest.raises(RuntimeError, match='needle-name'):
+            worker.distribution_inputs()
+        return
+    worker.distribution_inputs()
+    doc['area'][0]['click_point'] = {'xpos': 10, 'ypos': 10}
+    installed.with_suffix('.json').write_text(json.dumps(doc))
+    with pytest.raises(RuntimeError, match='needle-click-point'):
+        worker.distribution_inputs()

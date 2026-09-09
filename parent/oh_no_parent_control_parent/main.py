@@ -22,11 +22,15 @@ from common.oh_no_parent_control_ui.about import (
 )
 from common.oh_no_parent_control_ui.accessibility import describe_control
 from common.oh_no_parent_control_ui.duration import format_duration
+from common.oh_no_parent_control_ui.feedback import FeedbackDialog
+from common.oh_no_parent_control_ui.errors import (
+    ErrorHandler, GENERIC_TITLE, GENERIC_DETAIL, install_exception_hooks,
+    show_startup_error,
+)
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 from common.oh_no_parent_control_ui.test_identities import preview_users
 
 from .client import BrokerClient, configure_logging
-from .feedback import FeedbackDialog
 
 LOG = logging.getLogger("oh-no-parent-control-parent")
 APPLICATION_ICON_NAME = "com.puffyslippers.OhNoParentControl"
@@ -1030,6 +1034,12 @@ class ParentWindow(Adw.ApplicationWindow):
             self._feedback_dialog = FeedbackDialog(self)
         self._feedback_dialog.present()
 
+    def _show_error(self, error, detail=GENERIC_DETAIL, *, on_close=None):
+        self._toast(detail)
+        if not getattr(self, "_errors", None):
+            self._errors = ErrorHandler(self, "Parent App")
+        self._errors.handle(error, GENERIC_TITLE, detail, on_close=on_close)
+
     def _clear_catalog_rows(self):
         for row in self._app_rows:
             self._apps_group.remove(row)
@@ -1145,7 +1155,7 @@ class ParentWindow(Adw.ApplicationWindow):
                     failure(caught)
                     return
                 LOG.warning("broker operation failed error_type=%s", type(caught).__name__)
-                self._toast(f"Could not complete the change: {caught}")
+                self._show_error(caught)
                 self._loading = True
                 if self._preferences is not None:
                     self._enabled.set_active(bool(
@@ -1177,8 +1187,9 @@ class ParentWindow(Adw.ApplicationWindow):
             "managed-user discovery failed; closing management window error_type=%s",
             type(error).__name__,
         )
-        self.close()
-        self.get_application().quit()
+        self.get_content().set_sensitive(False)
+        self._show_error(error, "The Parent App could not load. Please try again later.",
+                         on_close=self.get_application().quit)
 
     def _users_loaded(self, users):
         self._users = [parse_listed_user(user) for user in users]
@@ -1279,7 +1290,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._apps_loading = False
         LOG.warning("application catalog load failed target=[Child user] error_type=%s",
                     type(error).__name__)
-        self._toast(f"Could not load installed apps: {error}")
+        self._show_error(error, "Installed apps could not be loaded. Please try again later.")
         self._app_catalog = []
         self._app_catalog_uid = uid
         self._update_apps_loading_ui()
@@ -1421,6 +1432,7 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         self._time_status_value.set_label("Unavailable")
         self._time_explanation.set_label("—")
+        self._show_error(error, "Remaining time could not be loaded. Please try again later.")
 
     def _retry_time_status(self):
         self._time_status_retry_id = 0
@@ -1866,7 +1878,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._save_in_progress = False
         LOG.warning("preference auto-save failed target=[Child user] setting=%s error_type=%s",
                     setting, type(error).__name__)
-        self._toast(f"Could not save {setting}: {error}")
+        self._show_error(error, f"Could not save {setting}. Please try again later.")
         if uid == self._selected_uid():
             self._restore_preferences_uid = uid
         self._start_next_save()
@@ -1911,8 +1923,10 @@ class ParentWindow(Adw.ApplicationWindow):
 
 
 class Application(Adw.Application):
-    def __init__(self, *, preview=False, client_factory=None):
+    def __init__(self, *, preview=False, client_factory=None, startup_error=None):
         super().__init__(application_id="com.puffyslippers.OhNoParentControl.Parent")
+        self._startup_error = startup_error
+        install_exception_hooks(self, "Parent App")
         self._preview = preview
         # Component tests inject a scripted broker through the same constructor
         # seam used by the preview.  Production continues to construct only the
@@ -1975,6 +1989,9 @@ class Application(Adw.Application):
         return GLib.SOURCE_REMOVE
 
     def do_activate(self):
+        if self._startup_error is not None:
+            show_startup_error(self, "Parent App", self._startup_error)
+            return
         window = self.get_active_window() or ParentWindow(
             self, client_factory=self._client_factory,
         )
@@ -1990,14 +2007,16 @@ class Application(Adw.Application):
         window.present()
 
 
-def _can_start(client_factory=BrokerClient):
+def _can_start(client_factory=BrokerClient, on_error=None):
     # Do this before creating a GTK window so manually invoking the launcher
     # does not expose the Parent App to a standard account.  ListManagedUsers
     # is deliberately broker-authorized and therefore uses the same
     # AccountsService role source as all management operations.
     try:
         client_factory().list_users()
-    except Exception:
+    except Exception as error:
+        if on_error is not None:
+            on_error(error)
         return False
     return True
 
@@ -2013,11 +2032,12 @@ def main(argv=None):
         configure_logging()
     else:
         logging.basicConfig(level=logging.INFO)
-    if not args.preview and not _can_start():
+    startup_errors = []
+    if not args.preview and not _can_start(on_error=startup_errors.append):
         LOG.warning("parent app launch denied or broker unavailable")
-        return 1
     LOG.info("parent app starting")
-    return Application(preview=args.preview).run([sys.argv[0]])
+    return Application(preview=args.preview,
+                       startup_error=startup_errors[0] if startup_errors else None).run([sys.argv[0]])
 
 
 if __name__ == "__main__":

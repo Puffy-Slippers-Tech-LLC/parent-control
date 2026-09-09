@@ -31,47 +31,31 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("icon.set_pixel_size(48)", source)
         self.assertNotIn('Gtk.Image.new_from_icon_name("alarm-symbolic")', source)
 
-    def test_kiosk_and_preview_play_the_soundtrack_on_a_loop(self):
+    def test_request_surfaces_only_connect_flash_triggered_audio(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 
-        self.assertIn('gi.require_version("Gst", "1.0")', source)
-        self.assertIn('class BackgroundMusic:', source)
-        self.assertIn('Path(__file__).with_name("Gearbox_Waltz.mp3")', source)
-        self.assertIn('self._bus.connect("message::eos", self._restart)', source)
-        self.assertIn('Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT', source)
-        self.assertIn('str(soundtrack or Path(__file__).with_name("Gearbox_Waltz.mp3"))', source)
-        self.assertIn('self._music = BackgroundMusic(soundtrack)', source)
-        self.assertIn('class LightningSizzle:', source)
-        self.assertIn('wave=white-noise', source)
-        self.assertIn('BACKGROUND_MUSIC_VOLUME = 0.12', source)
-        self.assertIn('LIGHTNING_SIZZLE_VOLUME = 0.90', source)
-        self.assertIn('self._sizzle = LightningSizzle()', source)
-        self.assertIn('self._background.set_lightning_sizzle(self._sizzle.play)', source)
-        self.assertIn('if not muted:\n            self.start()', source)
-        self.assertIn('self._apply_mute(True)', source)
-        self.assertNotIn('self._apply_mute(True)\n        self._music.start()', source)
-        self.assertIn('if self._started:\n            return', source)
-        self.assertIn('self._music.close()', source)
-        self.assertIn('self._sizzle.close()', source)
-        self.assertIn('def fade_out(self, duration_ms):', source)
-        self.assertIn('self._music.fade_out(SUCCESS_LOGOUT_DELAY_MS)', source)
-        self.assertIn('self._music.cancel_fade()', source)
-        self.assertIn('--preview --soundtrack "$(CURDIR)/data/Gearbox_Waltz.mp3"', makefile)
+        self.assertNotIn("BackgroundMusic", source)
+        self.assertNotIn("soundtrack", source)
+        self.assertNotIn("Gearbox_Waltz", makefile)
+        self.assertFalse((ROOT / "data/Gearbox_Waltz.mp3").exists())
+        self.assertIn("self._thunder = LightningAudio()", source)
+        self.assertIn("self._background.set_lightning_audio(self._thunder.play)", source)
+        self.assertIn("self._apply_mute(True)", source)
+        self.assertIn("self._thunder.close()", source)
+        self.assertIn("self._thunder.fade_out(SUCCESS_LOGOUT_DELAY_MS)", source)
+        self.assertIn("self._thunder.cancel_fade()", source)
 
     def test_kiosk_has_a_sound_and_lightning_toggle_left_of_the_menu(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
-        self.assertIn('def set_muted(self, muted):', source)
-        self.assertIn('self._player.set_property("mute", muted)', source)
         self.assertIn("self._mute_icon = PixelIcon(SPEAKER, display_size=28, label=\"\")", source)
         self.assertIn("menu_icon = PixelIcon(MENU, display_size=31, label=\"\")", source)
         self.assertIn(
             'armor_kind="hud", tooltip_text="Mute sound and lightning"', source,
         )
         self.assertIn('self._mute_button.connect("clicked", self._toggle_mute)', source)
-        self.assertIn('self._music.set_muted(muted)', source)
-        self.assertIn('self._sizzle.set_muted(muted)', source)
+        self.assertIn('self._thunder.set_muted(muted)', source)
         self.assertIn('self._background.set_lightning_enabled(not muted)', source)
         self.assertIn('def set_lightning_enabled(self, enabled):', source)
         self.assertIn('if not self._lightning_enabled:', source)
@@ -104,37 +88,6 @@ class KioskRenderingTests(unittest.TestCase):
         # The muted path returns before it asks GTK for a drawing context.
         GatewayBackground._append_gateway_energy(background, None, 800, 600, 1.0)
 
-    def test_unmuting_starts_background_music_once(self):
-        from oh_no_parent_control_kiosk.main import BackgroundMusic, Gst
-
-        calls = []
-
-        class Player:
-            @staticmethod
-            def set_property(name, value):
-                calls.append(("property", name, value))
-
-            @staticmethod
-            def set_state(state):
-                calls.append(("state", state))
-                return Gst.StateChangeReturn.SUCCESS
-
-        music = SimpleNamespace(
-            _player=Player(), _nominal_volume=0.12, _started=False,
-        )
-        music.start = lambda: BackgroundMusic.start(music)
-
-        BackgroundMusic.set_muted(music, True)
-        self.assertFalse(music._started)
-        BackgroundMusic.set_muted(music, False)
-        BackgroundMusic.set_muted(music, False)
-
-        self.assertTrue(music._started)
-        self.assertEqual(
-            [call for call in calls if call[0] == "state"],
-            [("state", Gst.State.PLAYING)],
-        )
-
     def test_child_overlay_reuses_the_fullscreen_kiosk_gui(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
         content = KIOSK_CONTENT.read_text(encoding="utf-8")
@@ -161,8 +114,8 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("self._tick_success_countdown", source)
         self.assertIn("self._schedule_success_logout()", source)
         self.assertIn("approved request acknowledged; closing overlay", source)
-        self.assertIn('close_click.connect("released", self._close_overlay)', source)
-        self.assertIn("self._result_surface.add_controller(close_click)", source)
+        self.assertNotIn('close_click.connect("released", self._close_overlay)', source)
+        self.assertIn('self._result_action.connect("clicked", self._result_dismissed)', source)
         self.assertIn("self.close()", source)
         self.assertIn("application.quit()", source)
         self.assertIn("muted_for_surface", content)
@@ -248,10 +201,9 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("self._cancel = self._close_overlay if self._child_overlay else self._logout", source)
         self.assertIn("escape.connect(\"key-pressed\", self._escape_pressed)", source)
         self.assertIn("Gdk.KEY_Escape", source)
-        self.assertLess(
-            source.index("if self._state.in_flight"),
-            source.index("self._cancel()"),
-        )
+        escape_source = source.split("    def _escape_pressed(", 1)[1].split("    def ", 1)[0]
+        self.assertLess(escape_source.index("if self._state.in_flight"),
+                        escape_source.index("self._result_dismissed()"))
         self.assertIn("def _escape_pressed(self, _controller, keyval, _keycode, _state):", source)
         self.assertIn("if self._state.in_flight:\n            return False", source)
         self.assertIn("self._cancel()\n        return True", source)
@@ -270,7 +222,7 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn('parser.add_argument(\n        "--preview"', source)
         self.assertIn(
-            "self, preview=self._preview, soundtrack=self._soundtrack,\n"
+            "self, preview=self._preview,\n"
             "            child_overlay=self._child_overlay,",
             source,
         )
@@ -320,12 +272,10 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0", source)
         self.assertIn("GATEWAY_FORM_CENTERING_OFFSET = 0.019", source)
         self.assertIn("width * GATEWAY_FORM_CENTERING_OFFSET", source)
-        self.assertIn(".perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH * scale)", source)
+        self.assertIn(".perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH)", source)
         self.assertIn(".rotate_3d(", source)
-        self.assertIn(".scale(scale, scale)", source)
-        self.assertIn("def _gateway_form_scale(width, height, form_width, form_height):", source)
-        self.assertIn("self._child.allocate(child_width, child_height, baseline, transform)", source)
-        self.assertIn("self.snapshot_child(self._child, snapshot)", source)
+        self.assertIn("self._viewport.allocate(child_width, child_height, baseline, transform)", source)
+        self.assertIn("self.snapshot_child(self._viewport, snapshot)", source)
         self.assertIn("self._request_surface = GatewayAlignedRequest(self._request_content)", source)
         self.assertIn('self._stack.add_named(self._request_surface, "request")', source)
         self.assertIn("self._result_surface = GatewayAlignedRequest(self._result_view)", source)
@@ -333,33 +283,17 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertNotIn('self._stack.add_named(self._result_view, "result")', source)
         self.assertNotIn(".skew(", source)
 
-    def test_request_form_scales_with_the_gateway_artwork(self):
-        source = KIOSK_MAIN.read_text(encoding="utf-8")
+    def test_centered_artwork_covers_portrait_and_ultrawide_windows(self):
+        from oh_no_parent_control_kiosk.main import _gateway_artwork_geometry
 
-        self.assertIn("preview_cover = max(", source)
-        self.assertIn("PREVIEW_DEFAULT_WIDTH / GATEWAY_ARTWORK_WIDTH", source)
-        self.assertIn("PREVIEW_DEFAULT_HEIGHT / GATEWAY_ARTWORK_HEIGHT", source)
-        self.assertIn("window_cover / preview_cover", source)
-        self.assertIn("fit = min(width / form_width, height / form_height)", source)
-        self.assertIn("return min(design_scale, fit)", source)
-        self.assertIn("_gateway_form_scale(\n            width, height, child_width, child_height,", source)
-
-    def test_form_scale_is_identity_at_the_preview_resolution(self):
-        from oh_no_parent_control_kiosk.main import (
-            PREVIEW_DEFAULT_HEIGHT, PREVIEW_DEFAULT_WIDTH, _gateway_form_scale,
-        )
-
-        self.assertAlmostEqual(
-            _gateway_form_scale(
-                PREVIEW_DEFAULT_WIDTH, PREVIEW_DEFAULT_HEIGHT, 400, 700,
-            ),
-            1.0,
-            places=5,
-        )
-        wide_scale = _gateway_form_scale(3840, 2160, 400, 700)
-        self.assertGreater(wide_scale, 1.0)
-        tall_small = _gateway_form_scale(800, 600, 400, 780)
-        self.assertLessEqual(tall_small, 600 / 780)
+        for width, height in ((480, 800), (1366, 768), (1920, 1080),
+                              (3440, 1440), (3840, 1080), (3840, 2160)):
+            with self.subTest(size=(width, height)):
+                x, y, image_width, image_height = _gateway_artwork_geometry(width, height)
+                self.assertLessEqual(x, 1e-6)
+                self.assertLessEqual(y, 1e-6)
+                self.assertGreaterEqual(x + image_width, width)
+                self.assertGreaterEqual(y + image_height, height)
 
     def test_request_form_uses_the_minecraft_board_chrome(self):
         content = KIOSK_CONTENT.read_text(encoding="utf-8")
@@ -376,8 +310,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("icon.set_pixel_size(48)", content)
         self.assertIn("oh-no-parent-control-logo-plate", content)
         self.assertIn("icon = dropdown.account_icon", content)
-        self.assertIn("icon.set_margin_top(7)", content)
-        self.assertIn("detail.set_margin_top(3)", content)
+        self.assertIn('apply_gtk_user_icon(icon, "", pixel_size=32)', content)
         self.assertIn("SHIELD, display_size=20", content)
         self.assertIn("PixelIcon(LOCK, display_size=16", content)
         self.assertIn("PixelIcon(POINTER", content)
@@ -430,9 +363,8 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("set_margin_start(10)", content)
         self.assertIn("set_margin_end(10)", content)
         self.assertIn("def _paint_block_texture(", chrome)
-        self.assertIn("padding: 22px 18px;", css)
-        self.assertIn("font-size: 16px;", css)
-        self.assertIn("font-size: 0.70em;", css)
+        self.assertIn("padding: 12px 14px;", css)
+        self.assertIn("font-size: 22px;", css)
         self.assertIn("font-size: 0.90em;", css)
         self.assertIn("font-size: 0.92em;", css)
         self.assertIn("oh-no-parent-control-account-row-inner", content)
@@ -446,9 +378,9 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertNotIn("self._duration_box.set_margin_start(8)", content)
         self.assertNotIn("self._duration_box.set_margin_end(8)", content)
         self.assertIn("margin: 4px 4px 6px;", css)
-        self.assertIn("padding: 2px 13px 2px;", css)
+        self.assertIn("padding: 4px 13px;", css)
         self.assertIn("font-size: 0.92em;", css)
-        self.assertIn("min-height: 28px;", css)
+        self.assertIn("min-height: 36px;", css)
         self.assertIn("min-height: 62px;", css)
         self.assertIn("oh-no-parent-control-status-inner", content)
         self.assertIn("margin: 8px 28px 10px 22px;", css)
@@ -569,7 +501,7 @@ class KioskRenderingTests(unittest.TestCase):
         )
         self.assertLess(
             source.index("self.append(self._screen_limit_overlay)"),
-            source.index("self.append(self._cancel)"),
+            source.index("self.append(actions)"),
         )
         self.assertIn("self._screen_time_limit_enabled is True", source)
         self.assertIn(
@@ -628,7 +560,7 @@ class KioskRenderingTests(unittest.TestCase):
         )
 
         chain_snapshot = source.index("self._append_gateway_chains(snapshot)")
-        form_snapshot = source.index("self.snapshot_child(self._child, snapshot)")
+        form_snapshot = source.index("self.snapshot_child(self._viewport, snapshot)")
         self.assertLess(chain_snapshot, form_snapshot)
 
         self.assertIn("def _draw_minecraft_chain", source)

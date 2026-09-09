@@ -9,7 +9,8 @@ import {
     previewStartsWithRequestOpen,
 } from './previewMode.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
-import {logError, logInfo, logWarning} from './logger.js';
+import {ChildErrorHandler} from './errorHandler.js';
+import {logInfo, logWarning} from './logger.js';
 import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
@@ -28,6 +29,18 @@ function requestAppArgv() {
 
 export default class OhNoParentControlExtension extends Extension {
     enable() {
+        this._errors = new ChildErrorHandler(requestAppArgv);
+        try {
+            this._enable();
+        } catch (error) {
+            this._errors.report(error);
+            // Keep GNOME's extension startup failure visible to the broker;
+            // a reporting dialog cannot make a failed enforcer healthy.
+            throw new Error('Child App could not start; see the error report.');
+        }
+    }
+
+    _enable() {
         logInfo('extension enabled');
         this._preview = isPreview();
         this._appName = appName(this);
@@ -41,7 +54,8 @@ export default class OhNoParentControlExtension extends Extension {
             this._appName,
             previewGenerationMarker(),
             appLogoPath(this),
-            this._settings);
+            this._settings,
+            error => this._errors.report(error));
         if (previewStartsWithRequestOpen()) {
             GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
                 this._showRequest();
@@ -51,6 +65,7 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     disable() {
+        this._errors?.close();
         this._stopRequest();
         this._indicator?.destroy();
         this._indicator = null;
@@ -73,7 +88,7 @@ export default class OhNoParentControlExtension extends Extension {
                 try {
                     process.wait_finish(result);
                 } catch (error) {
-                    logWarning(`request overlay exited: ${error.message}`);
+                    this._errors.report(error);
                 }
                 this._requestProcess = null;
                 const completion = requestCompletionState();
@@ -82,7 +97,7 @@ export default class OhNoParentControlExtension extends Extension {
                     this._indicator?.refreshEstimate();
             });
         } catch (error) {
-            logError(`could not open request overlay: ${error.message}`);
+            this._errors.report(error);
             this._indicator?.setRequestActive(false);
         } finally {
             this._openingRequest = false;
@@ -94,8 +109,8 @@ export default class OhNoParentControlExtension extends Extension {
             return;
         try {
             this._requestProcess.force_exit();
-        } catch (error) {
-            logWarning(`could not stop request overlay: ${error.message}`);
+        } catch (_error) {
+            logWarning('could not stop owned request overlay');
         }
         this._requestProcess = null;
     }

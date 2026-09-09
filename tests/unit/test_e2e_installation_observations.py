@@ -3,12 +3,14 @@
 import hashlib
 import io
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import os
 import stat
 import subprocess
 import sys
 from types import SimpleNamespace
 from unittest.mock import patch
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -87,6 +89,112 @@ def execute_probe(program, *, files, query, metadata=None, fault=None):
                                  'subprocess': SimpleNamespace(run=command)}):
         exec(program, {})
     return calls
+
+
+def execute_layout_probe(fault=None):
+    """Execute the exact fixed layout program without touching host system paths."""
+    desktop = '/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop'
+    entries = [
+        {'path': '/usr/lib/oh-no-parent-control/main.py', 'kind': 'file',
+         'mode': 0o755, 'target': ''},
+        {'path': desktop, 'kind': 'file', 'mode': 0o640, 'target': ''},
+        {'path': '/usr/bin/oh-no-parent-control', 'kind': 'symlink',
+         'mode': 0o777, 'target': '../lib/oh-no-parent-control/main.py'},
+    ]
+    if fault == 'inventory-schema':
+        entries[0]['private'] = True
+    elif fault == 'inventory-path':
+        entries[0]['path'] = '/../etc/shadow'
+    elif fault == 'inventory-duplicate':
+        entries.append(dict(entries[0]))
+    raw = (json.dumps(entries, sort_keys=True) + '\n').encode()
+    inventory = '/var/lib/onpc-e2e-assets/installed-files.json'
+    files = {
+        inventory: dict(kind='file', mode=0o644, uid=0, gid=0, data=raw),
+        '/usr/lib/oh-no-parent-control/main.py': dict(kind='file', mode=0o755, uid=0, gid=0),
+        desktop: dict(kind='file', mode=0o640, uid=0, gid=27),
+        '/usr/bin/oh-no-parent-control': dict(kind='symlink', mode=0o777, uid=0, gid=0,
+                                             target='../lib/oh-no-parent-control/main.py'),
+        '/etc/oh-no-parent-control/config.json': dict(kind='file', mode=0o600, uid=0, gid=0),
+        '/etc/pam.d/common-auth': dict(kind='file', mode=0o644, uid=0, gid=0,
+                                      data=b'auth pam_oh_no_parent_control.so\n'),
+        '/etc/pam.d/common-account': dict(kind='file', mode=0o644, uid=0, gid=0,
+            data=b'account pam_malcontent.so\naccount pam_oh_no_parent_control.so\n'),
+        '/usr/share/wayland-sessions/oh-no-parent-control.desktop':
+            dict(kind='file', mode=0o644, uid=0, gid=0),
+        '/usr/share/gnome-session/sessions/oh-no-parent-control.session':
+            dict(kind='file', mode=0o644, uid=0, gid=0),
+        '/usr/share/polkit-1/rules.d/00-oh-no-parent-control-session.rules':
+            dict(kind='file', mode=0o644, uid=0, gid=0),
+    }
+    for suffix in ('child.request-own-access', 'kiosk.request-access'):
+        files['/usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.'
+              + suffix + '.policy'] = dict(kind='file', mode=0o644, uid=0, gid=0,
+                                           data=b'<policy><action/></policy>')
+    mutations = {
+        'missing-entry': ('/usr/lib/oh-no-parent-control/main.py', None),
+        'entry-owner': ('/usr/lib/oh-no-parent-control/main.py', ('uid', 1000)),
+        'entry-group': (desktop, ('gid', 0)),
+        'entry-mode': ('/usr/lib/oh-no-parent-control/main.py', ('mode', 0o644)),
+        'config-mode': ('/etc/oh-no-parent-control/config.json', ('mode', 0o644)),
+        'pam-token': ('/etc/pam.d/common-auth', ('data', b'private-canary\n')),
+        'pam-order': ('/etc/pam.d/common-account', ('data',
+            b'account pam_oh_no_parent_control.so\naccount pam_malcontent.so\n')),
+    }
+    if fault in mutations:
+        name, change = mutations[fault]
+        if change is None:
+            del files[name]
+        else:
+            files[name][change[0]] = change[1]
+    elif fault == 'symlink-target':
+        files['/usr/bin/oh-no-parent-control']['target'] = 'private-canary'
+
+    class GuestPath:
+        def __init__(self, value):
+            self.value = str(value)
+
+        def __str__(self):
+            return self.value
+
+        def __eq__(self, other):
+            return isinstance(other, GuestPath) and self.value == other.value
+
+        def resolve(self):
+            return self
+
+        def lstat(self):
+            value = files[self.value]
+            kind = stat.S_IFLNK if value['kind'] == 'symlink' else stat.S_IFREG
+            return SimpleNamespace(st_mode=kind | value['mode'], st_uid=value['uid'],
+                                   st_gid=value['gid'], st_nlink=1,
+                                   st_size=len(value.get('data', b'')))
+
+        def read_bytes(self):
+            return files[self.value].get('data', b'')
+
+        def read_text(self):
+            return self.read_bytes().decode()
+
+    def command(args, **kwargs):
+        assert kwargs == dict(capture_output=True, text=True, check=True, timeout=15)
+        assert args == ('/usr/bin/dpkg', '--verify', PACKAGE)
+        return SimpleNamespace(stdout='changed\n' if fault == 'package-verify' else '')
+
+    def readlink(path):
+        return files[str(path)]['target']
+
+    root = SimpleNamespace(findall=lambda name: [] if fault == 'polkit-action' else [object()])
+    modules = {
+        'pathlib': SimpleNamespace(Path=GuestPath, PurePosixPath=PurePosixPath),
+        'subprocess': SimpleNamespace(run=command),
+        'grp': SimpleNamespace(getgrnam=lambda name: SimpleNamespace(gr_gid=27)),
+        'os': SimpleNamespace(readlink=readlink),
+    }
+    with patch.dict(sys.modules, modules), patch.object(ET, 'parse', return_value=SimpleNamespace(
+            getroot=lambda: root)):
+        exec(probes.INSTALLED_LAYOUT, {})
+    return raw
 
 
 @pytest.mark.parametrize('fault', [None, 'installed', 'residual', 'database-error',
@@ -217,6 +325,23 @@ def test_install_result_requires_artifact_identity_configured_package_and_produc
         assert json.loads(capsys.readouterr().out) == {
             'package_sha256': hashlib.sha256(files[ASSET]).hexdigest(),
             'installed_identity_verified': True, 'product_reboot_required': True}
+
+
+@pytest.mark.parametrize('fault', [None, 'inventory-schema', 'inventory-path',
+    'inventory-duplicate', 'missing-entry', 'entry-owner', 'entry-group', 'entry-mode',
+    'symlink-target', 'package-verify', 'config-mode', 'pam-token', 'pam-order', 'polkit-action'])
+def test_installed_layout_reuses_bound_inventory_and_requires_integration_files(fault, capsys):
+    if fault:
+        with pytest.raises((AssertionError, KeyError)):
+            execute_layout_probe(fault)
+        assert capsys.readouterr().out == ''
+    else:
+        raw = execute_layout_probe()
+        assert json.loads(capsys.readouterr().out) == {
+            'installed_files': 3,
+            'inventory_sha256': hashlib.sha256(raw).hexdigest(),
+            'installed_layout_verified': True,
+        }
 
 
 @pytest.mark.parametrize('fault', [None, 'resolve-error', 'other-implementation', 'package-owner',

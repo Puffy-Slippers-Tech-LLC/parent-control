@@ -40,6 +40,7 @@ INVENTORIES = {
                     'test_native_future_pattern_is_uid_scoped',
                     'test_native_missing_launcher_retains_policy',
                     'test_native_catalog_is_selected_child_scoped'),
+    'session': ('test_kiosk_expiry_graphical_runtime',),
 }
 
 

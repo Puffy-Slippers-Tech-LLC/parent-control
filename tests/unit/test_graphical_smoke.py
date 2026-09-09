@@ -176,6 +176,9 @@ def test_installation_drains_input_and_persists_each_proof_before_reply(tmp_path
     boundary = smoke.InstallationBoundary(None, verified, transfer, refusal=refusal)
     def progress(stage, observed):
         assert not (tmp_path / f'{stage}.reply.json').exists()
+        if observed == {'serial_input_drained': True}:
+            events.append('drained-proof')
+            return
         events.append('checkpoint' if observed else 'started')
         if observed and fault == 'checkpoint':
             raise RuntimeError('checkpoint-failed')
@@ -227,7 +230,129 @@ def test_installation_drains_input_and_persists_each_proof_before_reply(tmp_path
         assert controller.steps[-2]['installation_refused']
     else:
         assert controller.steps[-1]['verified_package_digest']
-    assert controller.stages[len(controller.steps):] == ('serial-logout', 'gdm-return')
+    assert controller.stages[len(controller.steps):] == (
+        ('serial-logout', 'gdm-return') if refusal else
+        ('reboot-ready', 'reboot-password', 'reboot-observed', 'gdm-return'))
+
+
+@pytest.mark.parametrize('fault', [None, 'package', 'early-boot', 'session',
+    'checkpoint', 'wait', 'second-boot', 'capture', 'reboot-recipient',
+    'reboot-echo', 'reboot-provenance', 'reboot-password-boot', 'reboot-checkpoint',
+    'enforcement-failed', 'enforcement-boot', 'enforcement-second-boot',
+    'broker-failed', 'broker-boot', 'broker-second-boot'])
+def test_customer_reboot_orders_input_drain_observation_and_durable_ack(tmp_path, fault):
+    events = []
+    def progress(stage, observed):
+        assert not (tmp_path / f'{stage}.reply.json').exists()
+        if observed == {'serial_input_drained': True}:
+            events.append('drained-proof')
+            return
+        if observed:
+            events.append('checkpoint:' + stage)
+            if fault == 'checkpoint' or (fault == 'reboot-checkpoint' and stage == 'reboot-password'):
+                raise RuntimeError('checkpoint-failed')
+    transfer = Mock()
+    boundary = Mock(transfer=transfer, refusal=False)
+    boundary.observe_installed_layout.return_value = {
+        'installed_files': 12, 'inventory_sha256': 'a' * 64,
+        'installed_layout_verified': True, 'verified_inventory_digest': True}
+    controller = smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key', progress, transfer,
+                             authenticate=True, serial=True, installation=boundary)
+    controller.steps = [{'stage': stage} for stage in smoke.INSTALL_STAGES[:-4]]
+    controller.steps[-1].update(verified_package_digest=fault != 'package',
+        installed_identity_verified=True, product_reboot_required=True, boot_sha256='b' * 64)
+    current_boot = 'c' * 64 if fault == 'early-boot' else 'b' * 64
+    def read(name):
+        nonlocal current_boot
+        events.append('read:' + name)
+        if name == 'boot':
+            return {'boot_sha256': current_boot}
+        if name == 'serial-session' and fault == 'session':
+            raise RuntimeError('session-failed')
+        if name == 'reboot-password':
+            if fault == 'reboot-password-boot':
+                current_boot = 'd' * 64
+            return {'sudo_reboot_process_verified': fault != 'reboot-recipient',
+                    'terminal_echo_disabled': fault != 'reboot-echo'}
+        if name == 'startup-enforcement':
+            if fault == 'enforcement-failed':
+                raise RuntimeError('enforcement-failed')
+            if fault == 'enforcement-second-boot':
+                current_boot = 'd' * 64
+            return {'boot_sha256': ('d' if fault == 'enforcement-boot' else 'c') * 64,
+                    'canary_before_graphical_start': True}
+        if name == 'startup-broker':
+            if fault == 'broker-failed':
+                raise RuntimeError('broker-failed')
+            if fault == 'broker-second-boot':
+                current_boot = 'd' * 64
+            return {'boot_sha256': ('d' if fault == 'broker-boot' else 'c') * 64,
+                    'reconciliation_before_publication': True}
+        return {'active_local_serial_session': True} if name == 'serial-session' else {
+            'unexpected_user_session': False}
+    def wait(boot, *, on_diagnostic):
+        nonlocal current_boot
+        assert boot == 'b' * 64
+        assert (tmp_path / 'reboot-ready.reply.json').exists()
+        assert (tmp_path / 'reboot-password.reply.json').exists()
+        assert events[-2:] == ['drain', 'drained-proof']
+        events.append('wait')
+        if fault == 'wait':
+            raise RuntimeError('wait-failed')
+        current_boot = 'd' * 64 if fault == 'second-boot' else 'c' * 64
+        return {'boot_changed': True, 'previous_boot_sha256': boot, 'boot_sha256': 'c' * 64}
+    controller.vm = Mock(read=Mock(side_effect=read), wait_boot_change=Mock(side_effect=wait))
+    if fault == 'reboot-provenance':
+        boundary.verified.recheck.side_effect = RuntimeError('source-changed')
+    port = Mock(pending_in=b'', step=Mock(side_effect=lambda: events.append('drain')))
+    failure_stage = ('reboot-password' if fault and fault.startswith('reboot-') else
+                     'gdm-return' if fault == 'second-boot' or fault and fault.startswith(('enforcement-', 'broker-')) else
+                     'reboot-observed' if fault == 'wait' else 'reboot-ready')
+    for stage in ('reboot-ready', 'reboot-password', 'reboot-observed', 'gdm-return'):
+        (tmp_path / f'{stage}.request.json').write_text(json.dumps({
+            'stage': stage, 'screenshot': 'smoke-1.png' if fault == 'capture' else None}))
+        if stage.startswith('reboot-'):
+            port.pending_in = b'pending'
+            before = list(events)
+            controller.step(port)
+            assert events == before + ['drain']
+            assert not (tmp_path / f'{stage}.reply.json').exists()
+            port.pending_in = b''
+        if fault and stage == failure_stage:
+            with pytest.raises(RuntimeError):
+                controller.step(port)
+            assert not (tmp_path / f'{stage}.reply.json').exists()
+            with pytest.raises(RuntimeError, match='previous-failure'):
+                controller.step(port)
+            return
+        controller.step(port)
+        assert events[-1] == 'checkpoint:' + stage
+        assert (tmp_path / f'{stage}.reply.json').exists()
+    assert controller.steps[-1]['customer_reboot_verified'] is True
+    assert controller.steps[-1]['startup_enforcement']['canary_before_graphical_start'] is True
+    assert controller.steps[-1]['installed_layout']['verified_inventory_digest'] is True
+    boundary.observe_installed_layout.assert_called_once_with()
+    assert boundary.verified.recheck.call_count == 2
+
+
+@pytest.mark.parametrize('invalid', [False, True])
+def test_reboot_diagnostics_are_durable_but_never_complete_a_stage(tmp_path, invalid):
+    result = {'steps': []}
+    qualification = smoke.Qualification(tmp_path, Mock(), Mock(), Mock(), result, {}, install=True)
+    qualification.checkpoint = Mock()
+    qualification.progress('reboot-observed', {'serial_input_drained': True})
+    assert result['reboot_input_drained'] is True
+    report = {'old_boot': 3, 'ssh_unavailable': 2, 'changed_boot': 0,
+              'outcome': 'private-canary' if invalid else 'readiness-timeout'}
+    if invalid:
+        with pytest.raises(RuntimeError, match='diagnostic-condition'):
+            qualification.progress('reboot-observed', {'reboot_diagnostic': report})
+        assert 'reboot_diagnostic' not in result
+    else:
+        qualification.progress('reboot-observed', {'reboot_diagnostic': report})
+        assert result['reboot_diagnostic'] == report
+        qualification.checkpoint.assert_called_with('reboot-probe-finished')
+    assert result['steps'] == [] and qualification.active_stage == 'reboot-observed'
 
 
 @pytest.mark.parametrize('serial,authenticate,transfer_present', [

@@ -37,10 +37,24 @@ sub dismiss_prompt {
 
 sub return_from_serial {
     die "gdm:arguments\n" if @_;
+    return _return_from_serial('onpc-gdm-parent-account');
+}
+
+sub return_after_reboot {
+    die "gdm:arguments\n" if @_;
+    # The installed greeter's fixture-label pixels differ from the baseline.
+    # Require the separately reviewed rendering at
+    # the same 100% threshold. This tag never authorizes account/password input.
+    return _return_from_serial('onpc-gdm-parent-installed-account');
+}
+
+sub _return_from_serial {
+    my ($tag) = @_;
     die "gdm:serial-console\n" unless testapi::current_console() eq 'onpc-serial';
     testapi::select_console('sut');
-    wait_list(30);
-    testapi::record_info('gdm-return', 'Account list matched after real serial logout and graphical-console selection.');
+    die "gdm:console\n" unless testapi::current_console() eq 'sut';
+    testapi::assert_screen($tag, 30) or die "gdm:list-not-matched\n";
+    testapi::record_info('gdm-return', 'Account list matched after serial flow and graphical-console selection.');
     # Do not reopen explicit capture after authentication. The public match's
     # automatic screenshot remains private under the existing worker policy.
 }

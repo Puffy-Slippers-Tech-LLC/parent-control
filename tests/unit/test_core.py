@@ -48,10 +48,11 @@ class CoreTests(unittest.TestCase):
 
         self.assertEqual(refreshed, (1001,))
         self.assertEqual(extensions.calls, [(1001, True)])
+        self.assertEqual(extensions.recoveries, [1001])
 
     def test_startup_extension_refresh_reports_activation_failure(self):
         class FailingExtensions(Extensions):
-            def set_enabled(self, uid, enabled):
+            def set_enabled(self, uid, enabled, *, recover_global_switch=False):
                 raise RuntimeError("activation failed")
 
         preferences = Preferences()
@@ -62,6 +63,12 @@ class CoreTests(unittest.TestCase):
             make_broker(
                 preferences=preferences, extensions=FailingExtensions(),
             ).refresh_enabled_extensions()
+
+    def test_preference_transition_does_not_request_startup_switch_recovery(self):
+        extensions = Extensions()
+        make_broker(extensions=extensions).set_parent_control(1003, 1001, True, 60)
+        self.assertEqual(extensions.calls, [(1001, True)])
+        self.assertEqual(extensions.recoveries, [])
 
     def test_application_catalog_is_scoped_to_the_selected_managed_user(self):
         observed = []

@@ -33,7 +33,8 @@ const COUNTDOWN_ANIMATION_LABEL = 'One minute count down animation';
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
     _init(onRequest, approvedGrantRemaining = 0, preview = false,
-        appName = 'Parent Control', previewMarker = '', logoPath = '', settings = null) {
+        appName = 'Parent Control', previewMarker = '', logoPath = '', settings = null,
+        onError = null) {
         super._init(0.0, 'Screen Time Remaining');
         // Drop the default panel menu. A second menu with this source actor
         // steals hover and press from the request popover, including the
@@ -41,6 +42,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this.setMenu(null);
 
         this._onRequest = onRequest;
+        this._onError = onError;
         this._preview = preview;
         this._previewMarker = preview ? previewMarker : '';
         this._settings = settings;
@@ -206,6 +208,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._countdownAnimationItem.connect('toggled', (_item, enabled) => {
             if (!this._settings?.set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)) {
                 logWarning('could not save countdown animation preference');
+                this._onError?.(new Error('Could not save countdown animation preference'));
                 this._syncCountdownAnimationSetting();
                 return;
             }
@@ -256,8 +259,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 continue;
             try {
                 object.disconnect(id);
-            } catch (error) {
-                logDebug(`signal already disconnected: ${error.message}`);
+            } catch (_error) {
+                logDebug('signal already disconnected');
             }
         }
         this._signals = [];
@@ -371,8 +374,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 // A transient daemon/database failure says nothing about the
                 // last successful estimate. Preserve it until a supported
                 // D-Bus query supplies a replacement.
-                logWarning('timer query failed; keeping previous estimate: ' +
-                    error.message);
+                logWarning('timer query failed; keeping previous estimate');
+                this._onError?.(error);
             }
         } finally {
             this._refreshPending = false;
@@ -407,8 +410,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 ? 'restored expired-grant application policy for session entry'
                 : 'session entry application policy already current');
         } catch (error) {
-            if (!this._destroyed)
-                logWarning(`could not prepare application policy for session entry: ${error.message}`);
+            if (!this._destroyed) {
+                logWarning('could not prepare application policy for session entry');
+                this._onError?.(error);
+            }
         } finally {
             this._sessionPreparePending = false;
         }
@@ -482,8 +487,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                     connection.call_finish(result);
                     logInfo('locked managed desktop because no time remains');
                 } catch (error) {
-                    if (!this._destroyed)
-                        logWarning(`could not lock managed desktop: ${error.message}`);
+                    if (!this._destroyed) {
+                        logWarning('could not lock managed desktop');
+                        this._onError?.(error);
+                    }
                 } finally {
                     this._lockPending = false;
                 }

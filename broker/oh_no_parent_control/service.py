@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import signal
 import sys
 import threading
@@ -25,7 +26,8 @@ from .adapters import (
 )
 from .app_termination import RunningAppTerminator
 from .catalog import list_apps
-from .core import Broker, BrokerError, InvalidRequest
+from .core import Broker, BrokerError, Busy, InvalidRequest
+from .diagnostics import collect_logs
 from .extension_manager import ExtensionManager
 from .execution_policy import FapolicydPolicy
 from .logs import DailyLogWriter, configure_broker_logging
@@ -124,6 +126,9 @@ INTROSPECTION_XML = f"""
     <method name="RevokeOneTimeGrant">
       <arg name="target_uid" type="u" direction="in"/>
     </method>
+    <method name="ExportDiagnosticLogs">
+      <arg name="archive" type="ay" direction="out"/>
+    </method>
     <method name="LogEvent">
       <arg name="component" type="s" direction="in"/>
       <arg name="level" type="s" direction="in"/>
@@ -175,7 +180,10 @@ def production_dependencies(connection) -> ServiceDependencies:
 
 class Service:
     def __init__(self, connection, log_writer, *, dependencies=None):
+        # Real monotonic time, independent of injected policy/usage clocks.
+        self._startup_times = {"started_ns": time.monotonic_ns()}
         self.connection = connection
+        self._diagnostic_export_lock = threading.Lock()
         dependencies = dependencies or production_dependencies(connection)
         self.credentials = dependencies.credentials
         self.accounts = dependencies.accounts
@@ -196,7 +204,9 @@ class Service:
         # AccountsService before accepting calls so deleted or changed users
         # cannot inherit stale execution policy.
         self.accounts.sync_execution_policy()
+        self._startup_times["policy_ready_ns"] = time.monotonic_ns()
         refreshed_uids = self.broker.refresh_enabled_extensions()
+        self._startup_times["extensions_ready_ns"] = time.monotonic_ns()
         if refreshed_uids:
             logging.info(
                 "reasserted child extension activation child_count=%d",
@@ -204,14 +214,16 @@ class Service:
             )
         try:
             cap_uids = self.broker.clear_live_session_runtime_caps()
-        except Exception:
-            logging.exception("could not clear managed session runtime caps")
+        except Exception as error:
+            logging.error("could not clear managed session runtime caps error_type=%s",
+                          type(error).__name__)
         else:
             if cap_uids:
                 logging.info(
                     "cleared systemd session runtime caps child_count=%d",
                     len(cap_uids),
                 )
+        self._startup_times["caps_attempted_ns"] = time.monotonic_ns()
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
         self.log_writer = log_writer
         self._app_filter_signal_id = self.connection.signal_subscribe(
@@ -259,9 +271,28 @@ class Service:
     def register(self):
         if self._registration_id is not None:
             raise RuntimeError("D-Bus service is already registered")
+        self._startup_times["register_started_ns"] = time.monotonic_ns()
         self._registration_id = self.connection.register_object_with_closures2(
             OBJECT_PATH, self.node_info.interfaces[0], self._method_call, None, None
         )
+        if not self._registration_id:
+            self._registration_id = None
+            raise RuntimeError("D-Bus object registration failed")
+        self._startup_times["register_finished_ns"] = time.monotonic_ns()
+        # This is a diagnostic witness, not a new readiness gate or public API.
+        # Correlate in-guest with systemd and the bus owner; never include users,
+        # configuration, exception text or caller-supplied log fields.
+        try:
+            invocation = os.environ.get("INVOCATION_ID", "")
+            if not re.fullmatch(r"[0-9a-f]{32}", invocation):
+                invocation = ""
+            witness = {**self._startup_times, "invocation_id": invocation,
+                       "pid": os.getpid(), "bus_owner": self.connection.get_unique_name()}
+            self.log_writer.write("broker", "INFO", "startup-witness " +
+                                  json.dumps(witness, sort_keys=True))
+        except Exception as error:
+            logging.error("broker startup witness unavailable error_type=%s",
+                          type(error).__name__)
 
     def close(self):
         """Release transport resources owned by this service instance."""
@@ -391,6 +422,19 @@ class Service:
                 target_uid, = parameters.unpack()
                 self.broker.revoke_one_time_grant(caller_uid, target_uid)
                 invocation.return_value(None)
+            elif method == "ExportDiagnosticLogs":
+                self.broker.authorize_diagnostic_export(caller_uid)
+                if not self._diagnostic_export_lock.acquire(blocking=False):
+                    raise Busy("a diagnostic export is already in progress")
+                try:
+                    threading.Thread(
+                        target=self._export_logs_worker,
+                        args=(invocation, caller_uid), daemon=True,
+                    ).start()
+                except Exception:
+                    self._diagnostic_export_lock.release()
+                    raise
+                deferred_reply = True
             elif method == "LogEvent":
                 component, level, message = parameters.unpack()
                 self.broker.authorize_log_component(caller_uid, component)
@@ -416,6 +460,36 @@ class Service:
         except Exception as error:
             logging.error("dbus method=%s outcome=failed error_type=%s", method, type(error).__name__)
             invocation.return_dbus_error(f"{BUS_NAME}.Error.Failed", "service failure")
+
+    def _export_logs_worker(self, invocation, caller_uid):
+        data = None
+        try:
+            data = collect_logs(self.log_writer.root)
+        except Exception as error:
+            logging.warning("diagnostic export outcome=failed error_type=%s",
+                            type(error).__name__)
+        GLib.idle_add(self._export_logs_done, invocation, caller_uid, data)
+
+    def _export_logs_done(self, invocation, caller_uid, data):
+        try:
+            # Recheck live roles before releasing the archive. Keep the lock
+            # through delivery so queued replies cannot accumulate archives.
+            self.broker.authorize_diagnostic_export(caller_uid)
+            if data is None:
+                invocation.return_dbus_error(
+                    f"{BUS_NAME}.Error.BackendFailure", "diagnostic logs unavailable",
+                )
+            else:
+                archive = GLib.Variant.new_from_bytes(
+                    GLib.VariantType.new("ay"), GLib.Bytes.new(data), True,
+                )
+                invocation.return_value(GLib.Variant.new_tuple(archive))
+                logging.info("diagnostic export outcome=accepted bytes=%d", len(data))
+        except BrokerError as error:
+            invocation.return_dbus_error(error.dbus_name, str(error))
+        finally:
+            self._diagnostic_export_lock.release()
+        return GLib.SOURCE_REMOVE
 
     def _request_worker(self, invocation, caller_uid, sender, target_uid,
                         approver_uid, duration_seconds, allow_soft):

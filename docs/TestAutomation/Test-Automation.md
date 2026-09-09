@@ -96,7 +96,7 @@ evidence or the VM baseline as documentation cleanup.
   modify them. Redact only copied diagnostic artifacts.
 - Update `setup.sh` for required host dependency changes. Classify new packaged
   integrations under [Package-Update.md](../Package-Update.md); ship migrations
-  under [Data-Migration.md](../Data-Migration.md) before incompatible readers or
+  under [Data migration](../SystemDesign/Data-Migration.md) before incompatible readers or
   writers. Shared form changes cover kiosk and child-overlay modes.
 - Keep product/test inputs tied to one source content identity, including local
   changes. Exact package and fixture evidence must survive actual reboot,

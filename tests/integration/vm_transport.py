@@ -15,6 +15,12 @@ import time
 
 from owned_commands import Commands, require, CommandError as Error
 
+BOOT_SHA256_PROBE = '''import hashlib,pathlib,re
+value=pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
+assert re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\n',value)
+print(hashlib.sha256(value.encode()).hexdigest())
+'''
+
 
 @contextmanager
 def readiness_events():
@@ -111,37 +117,100 @@ class Transport:
         self.probe_ready()
 
     def probe_ready(self, *, boot_id=False, timeout=330):
+        return self._probe_ready(boot_id=boot_id, timeout=timeout)
+
+    def wait_boot_change(self, previous_boot_sha256, *, on_diagnostic=None):
+        """Observe a customer-requested reboot; never issue a lifecycle command.
+
+        The old boot may still answer SSH after input submission. Only this
+        transition waits through that valid old identity, using the same bounded
+        readiness loop. Guest guard errors and malformed identities are final.
+        Hash the complete boot-id file in the guest, matching E2E observations.
+        """
+        require(isinstance(previous_boot_sha256, str)
+                and re.fullmatch(r'[0-9a-f]{64}', previous_boot_sha256),
+                'transport:invalid-previous-boot')
+        diagnostic = {'old_boot': 0, 'ssh_unavailable': 0, 'changed_boot': 0,
+                      'outcome': 'unknown-error'}
+        try:
+            result = self._probe_ready(boot_id=True, timeout=330,
+                previous_boot_sha256=previous_boot_sha256, diagnostic=diagnostic)
+            diagnostic['outcome'] = 'changed-boot'
+            return result
+        except BaseException as error:
+            codes = {'transport:' + code: code for code in (
+                'readiness-timeout', 'configuration-changed', 'invalid-boot-output',
+                'guest-probe-failed', 'domain-replaced-or-shared')}
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                diagnostic['outcome'] = 'interrupted'
+            elif isinstance(error, Error) and str(error) in codes:
+                diagnostic['outcome'] = codes[str(error)]
+            raise
+        finally:
+            # Fixed categories and counts only: never SSH output or exception text.
+            if on_diagnostic is not None:
+                on_diagnostic(dict(diagnostic))
+
+    def _probe_ready(self, *, boot_id, timeout, previous_boot_sha256=None, diagnostic=None):
         # ConnectionAttempts only retries TCP establishment. A reboot can also
         # reset an already connected SSH handshake. Only these fixed read-only
         # probes may repeat after SSH's transport-error exit status (255).
         # Guest guard failures and successful-but-wrong assertions are terminal.
         argv = ['cat', '/proc/sys/kernel/random/boot_id'] if boot_id else ['true']
+        if previous_boot_sha256 is not None:
+            argv = ['/usr/bin/python3', '-c', BOOT_SHA256_PROBE]
         deadline = time.monotonic() + timeout
         waiting = False
+        config = dict(self.config)
         with readiness_events() as event:
             while True:
                 remaining = deadline - time.monotonic()
                 require(remaining > 0, 'transport:readiness-timeout')
+                if previous_boot_sha256 is not None:
+                    require(self.config == config, 'transport:configuration-changed')
                 result = self.call(argv, timeout=min(30, remaining), check=False)
-                if self.commands.last_returncode == 0:
-                    if waiting:
-                        print('check-system: [transport:ssh-ready]', file=sys.stderr, flush=True)
-                    return result
-                require(self.commands.last_returncode == 255, 'transport:guest-probe-failed')
+                # Lease guards also execute qemu-img through this Commands
+                # instance. Preserve SSH's status before the post-probe guard
+                # replaces last_returncode with its own successful result.
+                probe_returncode = self.commands.last_returncode
+                if previous_boot_sha256 is not None:
+                    require(self.config == config, 'transport:configuration-changed')
+                    self.guard(config)
+                if probe_returncode == 0:
+                    changed = True
+                    if previous_boot_sha256 is not None:
+                        require(isinstance(result, bytes) and re.fullmatch(rb'[0-9a-f]{64}\n', result),
+                            'transport:invalid-boot-output')
+                        changed = result.decode('ascii').strip() != previous_boot_sha256
+                        diagnostic['changed_boot' if changed else 'old_boot'] += 1
+                    if changed:
+                        if waiting:
+                            print('check-system: [transport:ssh-ready]', file=sys.stderr, flush=True)
+                        return result
+                else:
+                    require(probe_returncode == 255, 'transport:guest-probe-failed')
+                    if diagnostic is not None:
+                        diagnostic['ssh_unavailable'] += 1
                 if not waiting:
-                    print('check-system: [transport:waiting-for-ssh]', file=sys.stderr, flush=True)
+                    label = 'waiting-for-boot-change' if previous_boot_sha256 is not None else 'waiting-for-ssh'
+                    print('check-system: [transport:' + label + ']', file=sys.stderr, flush=True)
                     waiting = True
                 event.wait(max(0, deadline - time.monotonic()))
                 event.clear()
 
     def reboot(self):
-        before = self.call(['cat', '/proc/sys/kernel/random/boot_id']).strip()
+        before = self.call(['/usr/bin/python3', '-c', BOOT_SHA256_PROBE])
+        require(isinstance(before, bytes) and re.fullmatch(rb'[0-9a-f]{64}\n', before),
+                'transport:invalid-boot-output')
         # Wait for connection closure caused by this reboot; the host deadline
         # bounds failure. No sleeps and no discovery of signal targets.
         program = 'import signal,subprocess; subprocess.run(["systemctl","reboot"],check=True); signal.pause()'
         self.call(['python3', '-c', program], timeout=180, check=False)
-        after = self.probe_ready(boot_id=True).strip()
-        require(after != before and re.fullmatch(rb'[0-9a-f-]{36}', after), 'transport:reboot-not-observed')
+        require(self.commands.last_returncode in (0, 255), 'transport:reboot-command-failed')
+        # The SSH session can close before sshd stops accepting new connections.
+        # Reuse the bounded transition observer: a valid old boot is pending,
+        # while malformed replies, guard errors and ownership loss still fail.
+        self.wait_boot_change(before.decode('ascii').strip())
 
     def copy(self, up, source, destination):
         require(source.endswith('/') == destination.endswith('/'), 'transport:copy-type')
@@ -174,4 +243,3 @@ class Transport:
                        'os.chmod(p,int(sys.argv[2]))')
             self.call(['python3', '-c', program, guest, str(stat.S_IMODE(local.stat().st_mode))],
                       input=local.read_bytes(), timeout=300)
-

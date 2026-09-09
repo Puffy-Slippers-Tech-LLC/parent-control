@@ -16,6 +16,10 @@ sub run_install {
     return _run($_[0], 1, scalar @_);
 }
 
+sub run_install_refusal {
+    return _run($_[0], 2, scalar @_);
+}
+
 sub _run {
     my ($exchange, $install, $count) = @_;
     die "serial:already-attempted\n" if $attempted++;
@@ -58,7 +62,7 @@ sub _run {
         die 'serial:shell-prompt' unless testapi::wait_serial(qr/\$ \z/,
             timeout => 30, quiet => 1, record_output => 0);
         if ($install) {
-            onpc_install::run($exchange);
+            $install == 2 ? onpc_install::run_refusal($exchange) : onpc_install::run($exchange);
         } else {
             # Split the marker: terminal echo cannot pass the complete output
             # assertion. Readline may emit controls immediately before stdout;

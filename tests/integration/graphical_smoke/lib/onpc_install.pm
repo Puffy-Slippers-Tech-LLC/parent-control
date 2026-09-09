@@ -74,12 +74,20 @@ sub _command_diagnostic {
 # boot and VerifiedInputs checks; acknowledgements precede irreversible input.
 # No caller command, asset path, password value or capture option is accepted.
 sub run {
-    my ($exchange) = @_;
+    return _run($_[0], 0, scalar @_);
+}
+
+sub run_refusal {
+    return _run($_[0], 1, scalar @_);
+}
+
+sub _run {
+    my ($exchange, $refusal, $count) = @_;
     die "install:already-attempted\n" if $attempted++;
     onpc_password::seal_capture();
     my $stage = 'precondition';
     my $ok = eval {
-        die 'install:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+        die 'install:arguments' unless $count == 1 && ref($exchange) eq 'CODE';
         die 'install:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
         die 'install:console' unless testapi::current_console() eq 'onpc-serial';
         my $before = $exchange->('install-ready', undef);
@@ -111,7 +119,37 @@ sub run {
         $stage = 'password-proof';
         my $proof = $exchange->('install-password', undef);
         die 'install:password-boundary' unless $proof->{sudo_install_process_verified}
-            && $proof->{terminal_echo_disabled};
+            && $proof->{terminal_echo_disabled}
+            && (!$refusal || $proof->{installation_refused});
+        if ($refusal) {
+            # Fixture passwords are random lowercase hex. This fixed non-hex
+            # value is therefore guaranteed wrong and is never caller input or
+            # a secret. Submit it exactly once, observe sudo's first re-prompt,
+            # then cancel instead of granting any retry.
+            $stage = 'refusal-input';
+            testapi::type_password('onpc-deliberate-refusal');
+            testapi::type_string("\n");
+            $stage = 'refusal-reprompt';
+            die 'install:refusal-reprompt' unless testapi::wait_serial($password_prompt,
+                timeout => 30, quiet => 1, record_output => 0);
+            testapi::record_info('install-password-refused',
+                'One fixed invalid password rejected; no retry password submitted.');
+            $stage = 'refusal-cancel';
+            # This is a pipe-backed serial console, not a graphical keyboard.
+            # Write the fixed terminal interrupt byte through the same qualified
+            # transport as the command and Enter.
+            testapi::type_string("\x03");
+            die 'install:refusal-shell-prompt' unless testapi::wait_serial(qr/\$ \z/,
+                timeout => 30, quiet => 1, record_output => 0);
+            $stage = 'refusal-proof';
+            my $refused = $exchange->('install-refused', undef);
+            die 'install:refusal-result' unless $refused->{product_package_absent}
+                && $refused->{core_payload_absent} && !$refused->{product_reboot_required}
+                && $refused->{install_process_absent};
+            testapi::record_info('install-refusal-complete',
+                'No retry, package, reboot marker or live installer remained after refusal.');
+            return 1;
+        }
         my $password = testapi::get_required_var('_SECRET_ONPC_PARENT_PASSWORD');
         die 'install:password-value' unless defined($password) && !ref($password)
             && $password =~ /\A[\x20-\x7e]{1,256}\z/;

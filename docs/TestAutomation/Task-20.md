@@ -84,20 +84,20 @@ output stays plain text.
 **Earliest ready task; not accepted.** [Task 19B remains accepted](Evidence/19B-Acceptance-20260908.md).
 No earlier entry is bypassed; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
 
-**Current result:** [explicit-newline installation qualification passed](Evidence/20-Install-Explicit-Newline-20260908.md).
-The supported custom prompt now supplies its own newline; exact argv proof
-requires it. The guest recognized the complete marker/PAM suffix, independent
-recipient/continuity/character-echo proof passed, and one password submission
-completed authenticated installation. Independent package identity/digest and
-reboot-marker checks, serial logout and GDM return passed. **One successful
-attempt this slice, eleven overall; ten historical failures remain failed.**
-The [intermittent executable refusal](Evidence/20-Install-Echo-Diagnostics-20260908.md)
-did not recur and remains open. This is helper qualification, not E2E-002 acceptance.
+**Current result:** the [first deliberate-refusal attempt](Evidence/20-Install-Refusal-Attempt-20260908.md)
+proved the exact prompt/recipient, one fixed invalid password, its first rejection
+and no retry submission, then failed at the graphical-key cancellation call on
+the pipe-backed serial console. The helper now sends the fixed interrupt byte
+through the qualified serial input API; 134 affected tests pass. The live
+package/process postcondition remains unqualified. **One failed attempt this
+slice, twelve overall; one passed and eleven remain failed.** This is helper
+qualification, not E2E-002 acceptance. The historical intermittent executable
+refusal remains open.
 
-**Next bounded result:** qualify one fixed deliberate installation refusal
-through the existing guarded worker. Prove no password retry, no installed
-package, sealed capture and cleanup. Run focused local failure checks, fresh
-artifacts and isolated cleanup prerequisites before the guarded selection.
+**Next bounded result:** build fresh source-bound artifacts and run one corrected
+fixed refusal qualification after isolated cleanup prerequisites. Prove the shell
+returns after cancellation, no retry password is submitted, no installer/package
+or reboot marker remains, and serial logout/GDM return and guarded cleanup pass.
 Do not rerun the successful path merely to resume a session. Red final notice,
 customer reboot, installed layout/readiness and both startup faults remain;
 the [startup audit](Evidence/20-Startup-Audit-20260908.md) preserves that scope.
@@ -108,28 +108,30 @@ the [startup audit](Evidence/20-Startup-Audit-20260908.md) preserves that scope.
 evidence's exact test selectors/provenance. Timeout diagnostics never authorize
 input. The installed serial parser now has real pipe/fragment qualification.
 
-**Verification/cleanup:** 1597 focused tests; final helper refinement 115 passed;
-526 isolated cleanup tests plus 3 subtests; fresh build passed. The initial
-51 parser-fixture failures were corrected from fractional to whole-second
-timeouts. Handle **2052** exited **0**, **1165.609s**. Infrastructure, collection
-and cleanup passed; product `not-run`. Normal shutdown, worker/callback/display
-closure, baseline restoration/verification and lease release all passed;
-host/source preserved. All commands exited/results collected. GDM-return image
-inspected and temporary export removed; no recovery remains. No policy/Polkit
-denial. Existing edits preserved; handoff edits invalidate artifact reuse.
-Actual settings: `gpt-6-astra` / `high`, Standard.
+**Verification/cleanup:** 1,474 focused tests and 526 isolated cleanup tests plus
+3 subtests passed; the dispatcher repeated the safety closure. The initial local
+implementation had one incorrect new assertion and five incomplete fake-path
+fixture cases; all were corrected before the guarded run. Handle **14132** exited
+**1**, **980.910s**. The module canceled after the fixed refusal checkpoint and
+before `install-refused`; product `not-run`. Worker/callback/display closure,
+outer baseline restoration/verification and lease release passed; normal journey
+shutdown was not reached. Host/source preserved, all commands exited/results
+collected, and no recovery remains. No policy/Polkit denial. Post-attempt serial
+transport correction passed 134 affected tests. Handoff edits require fresh
+artifacts. Actual settings: `gpt-5.6-sol` / `high`, Standard.
 
 The [all-task VM clearance](Implementation-Workflow.md#vm-availability-for-all-tasks)
 persists. Selection rechecked: Task 20 remains earliest ready; no bypass.
 The authorized single attempt is finished; no second run was started.
-**Next-session settings:** `gpt-5.6-sol` / `high`; model: lower; effort: keep.
-**Reason:** prompt, exact argv/recipient and the successful worker path are
-proven; the bounded refusal case builds on established contracts and local
-denial tests. Standard processing; reassess Astra for a new ownership or
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
+**Reason:** prompt, recipient, first rejection and no-retry behavior are proven;
+the next bounded run tests one locally corrected serial transport call through
+established guards. Standard processing; reassess Astra for a new ownership or
 authentication ambiguity.
-**Remaining Task 20:** sessions **Unknown**, minutes **Unknown**. The successful
-helper attempt took 19.4 minutes; the remaining refusal, full reboot/readiness
-and startup-fault work lacks a measured batch for a reliable completion range.
+**Remaining refusal qualification:** sessions **1**, minutes **15–25**.
+**Remaining Task 20:** sessions **Unknown**, minutes **Unknown**. The current
+attempt took 16.4 minutes, but the later reboot/readiness and startup-fault work
+lacks a measured batch for a reliable completion range.
 
 ### Operator follow-up after Session 34
 

@@ -50,6 +50,7 @@ def selection(root, argv):
     qualification = e2e.add_mutually_exclusive_group()
     qualification.add_argument('--qualify-transfer', action='store_true')
     qualification.add_argument('--qualify-install', action='store_true')
+    qualification.add_argument('--qualify-install-refusal', action='store_true')
     vm = categories.add_parser('vm', allow_abbrev=False)
     vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key'))
@@ -77,6 +78,8 @@ def selection(root, argv):
             options.append('--qualify-transfer')
         if args.qualify_install:
             options.append('--qualify-install')
+        if args.qualify_install_refusal:
+            options.append('--qualify-install-refusal')
         if args.scenario is not None:
             options.append('--scenario=' + args.scenario)
         if args.artifacts is not None:

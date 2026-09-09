@@ -37,7 +37,8 @@ class ReadOnlyObservations:
             require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session',
                                                       'serial-password', 'serial-session', 'boot',
                                                       'package-absent', 'package-installed',
-                                                      'install-password', 'sudo-implementation'),
+                                                      'install-password', 'install-refused',
+                                                      'sudo-implementation'),
                     'observation:unknown-probe')
             program, timeout = {
                 'assets': (guest_observations.ASSETS, 120),
@@ -49,6 +50,7 @@ class ReadOnlyObservations:
                 'package-absent': (installation_observations.ABSENT, 30),
                 'package-installed': (installation_observations.INSTALLED, 90),
                 'install-password': (installation_observations.SUDO_PASSWORD, 20),
+                'install-refused': (installation_observations.REFUSED, 30),
                 'sudo-implementation': (installation_observations.SUDO_IMPLEMENTATION, 30),
             }[name]
             self._guard()
@@ -64,6 +66,10 @@ class ReadOnlyObservations:
                 require(raw == b'package-absent\n', 'observation:invalid-output')
                 result = {'product_package_absent': True,
                           'core_payload_absent': True, 'product_reboot_required': False}
+            elif name == 'install-refused':
+                require(raw == b'install-refused-safe\n', 'observation:invalid-output')
+                result = {'product_package_absent': True, 'core_payload_absent': True,
+                          'product_reboot_required': False, 'install_process_absent': True}
             elif name == 'package-installed':
                 result = json.loads(raw)
                 require(isinstance(result, dict) and set(result) == {

@@ -13,9 +13,13 @@ from private_artifacts import EvidenceError, require
 
 class InstallationBoundary:
     STAGES = ('install-ready', 'install-password', 'install-complete')
+    REFUSAL_STAGES = ('install-ready', 'install-password', 'install-refused')
 
-    def __init__(self, observer, verified, transfer):
+    def __init__(self, observer, verified, transfer, *, refusal=False):
+        require(type(refusal) is bool, 'install:mode')
         self.observer, self.verified, self.transfer = observer, verified, transfer
+        self.refusal = refusal
+        self.stages = self.REFUSAL_STAGES if refusal else self.STAGES
         self._phase = 0
         self._failed = False
         self._boot = None
@@ -27,7 +31,7 @@ class InstallationBoundary:
     def observe(self, stage):
         require(not self._failed, 'install:previous-failure')
         try:
-            require(self._phase < len(self.STAGES) and stage == self.STAGES[self._phase],
+            require(self._phase < len(self.stages) and stage == self.stages[self._phase],
                     'install:phase')
             self.verified.recheck()
             require(self.verified.inputs['package_sha256'] == self._package, 'install:inputs-changed')
@@ -50,6 +54,10 @@ class InstallationBoundary:
                           'installation_authorized': True}
             elif stage == 'install-password':
                 result = self.observer.read('install-password')
+                if self.refusal:
+                    result = {**result, 'installation_refused': True}
+            elif stage == 'install-refused':
+                result = self.observer.read('install-refused')
             else:
                 result = self.observer.read('package-installed')
                 require(result['package_sha256'] == self._package, 'install:package-mismatch')

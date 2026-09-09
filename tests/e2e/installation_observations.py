@@ -52,6 +52,46 @@ assert package not in reboot_packages()
 print('package-absent')
 '''
 
+# After the worker has observed the first rejected password and cancelled sudo,
+# follow only the systemd-owned getty/login lineage to the proved fixture shell.
+# An empty direct-child list establishes that its fixed installer command is no
+# longer live without scanning or inferring ownership from process names.
+REFUSED = COMMON + '''import os,pwd
+rows = call('/usr/bin/dpkg-query', '-W', '-f=${Package}\\t${db:Status-Status}\\n').splitlines()
+assert rows
+assert all(len(row.split('\\t')) == 2 and all(row.split('\\t')) and
+           row.split('\\t')[0] != package for row in rows)
+for name in ('/usr/lib/oh-no-parent-control', '/etc/oh-no-parent-control',
+             '/var/lib/oh-no-parent-control', '/usr/bin/oh-no-parent-control',
+             '/usr/bin/oh-no-parent-control-parent',
+             '/usr/libexec/oh-no-parent-control-broker'):
+    try:
+        pathlib.Path(name).lstat()
+    except FileNotFoundError:
+        continue
+    raise AssertionError('product-payload-present')
+assert package not in reboot_packages()
+leader = int(call('/usr/bin/systemctl', 'show', 'serial-getty@ttyS0.service',
+                  '--property=MainPID', '--value').strip())
+assert leader > 1
+login = pathlib.Path('/proc') / str(leader)
+assert (login/'exe').resolve(strict=True) == pathlib.Path('/usr/bin/login')
+children = (login/'task'/str(leader)/'children').read_text().split()
+assert len(children) == 1
+shell_pid = int(children[0])
+assert shell_pid > 1
+shell = pathlib.Path('/proc') / str(shell_pid)
+assert (shell/'exe').resolve(strict=True) == pathlib.Path('/usr/bin/bash')
+fields = (shell/'stat').read_text().rpartition(') ')[2].split()
+assert len(fields) >= 20
+assert [int(value) for value in fields[2:6]] == [shell_pid,shell_pid,os.makedev(4,64),shell_pid]
+uid = pwd.getpwnam('onpc-parent-jamie').pw_uid
+identity = dict(line.split(':',1) for line in (shell/'status').read_text().splitlines())
+assert [int(value) for value in identity['Uid'].split()] == [uid]*4
+assert not (shell/'task'/str(shell_pid)/'children').read_text().split()
+print('install-refused-safe')
+'''
+
 INSTALLED = COMMON + '''asset = regular('/var/lib/onpc-e2e-assets/package.deb')
 expected = [call('/usr/bin/dpkg-deb', '-f', str(asset), field).strip()
             for field in ('Package', 'Version', 'Architecture')]

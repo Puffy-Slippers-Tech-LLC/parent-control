@@ -119,6 +119,73 @@ def test_absence_requires_successful_database_query_and_clean_product_state(faul
     assert capsys.readouterr().out == ('' if fault else 'package-absent\n')
 
 
+@pytest.mark.parametrize('fault', [None, 'installed', 'product-marker', 'installer-child',
+                                   'wrong-shell', 'wrong-user'])
+def test_refusal_result_follows_exact_shell_and_requires_clean_package_state(fault, capsys):
+    device = __import__('os').makedev(4, 64)
+
+    class RefusalPath:
+        def __init__(self, value):
+            self.value = str(value)
+
+        def __truediv__(self, value):
+            return RefusalPath(self.value.rstrip('/') + '/' + str(value))
+
+        def __str__(self):
+            return self.value
+
+        def lstat(self):
+            if self.value == PACKAGES:
+                return SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=0, st_gid=0,
+                                       st_nlink=1)
+            raise FileNotFoundError
+
+        def resolve(self, strict=False):
+            executables = {'/proc/101/exe': '/usr/bin/login',
+                           '/proc/202/exe': '/unexpected' if fault == 'wrong-shell' else '/usr/bin/bash'}
+            return RefusalPath(executables.get(self.value, self.value))
+
+        def read_text(self):
+            values = {
+                PACKAGES: PACKAGE + '\n' if fault == 'product-marker' else 'unrelated\n',
+                '/proc/101/task/101/children': '202\n',
+                '/proc/202/stat': '202 (bash) S 101 202 202 ' + str(device) + ' 202 ' + '0 '*14,
+                '/proc/202/task/202/children': '303\n' if fault == 'installer-child' else '',
+            }
+            if self.value == '/proc/202/status':
+                uid = '999' if fault == 'wrong-user' else '1000'
+                return 'Uid:\t' + ' '.join([uid]*4) + '\n'
+            return values[self.value]
+
+        def __eq__(self, other):
+            return isinstance(other, RefusalPath) and self.value == other.value
+
+    def command(args, **kwargs):
+        assert kwargs == dict(capture_output=True, text=True, check=True, timeout=15)
+        if args[0] == '/usr/bin/dpkg-query':
+            row = 'base-files\tinstalled\n'
+            if fault == 'installed':
+                row += PACKAGE + '\tinstalled\n'
+            return SimpleNamespace(stdout=row)
+        assert args == ('/usr/bin/systemctl', 'show', 'serial-getty@ttyS0.service',
+                        '--property=MainPID', '--value')
+        return SimpleNamespace(stdout='101\n')
+
+    modules = {
+        'pathlib': SimpleNamespace(Path=RefusalPath),
+        'subprocess': SimpleNamespace(run=command),
+        'os': SimpleNamespace(makedev=lambda major, minor: device),
+        'pwd': SimpleNamespace(getpwnam=lambda _: SimpleNamespace(pw_uid=1000)),
+    }
+    if fault:
+        with patch.dict(sys.modules, modules), pytest.raises((AssertionError, KeyError)):
+            exec(probes.REFUSED, {})
+    else:
+        with patch.dict(sys.modules, modules):
+            exec(probes.REFUSED, {})
+    assert capsys.readouterr().out == ('' if fault else 'install-refused-safe\n')
+
+
 @pytest.mark.parametrize('fault', [None, 'version', 'architecture', 'package', 'unconfigured',
     'query-error', 'missing-asset', 'missing-marker', 'missing-package-marker',
     'unrelated-marker', 'metadata-package', 'metadata-newline', 'symlink', 'parent-symlink',

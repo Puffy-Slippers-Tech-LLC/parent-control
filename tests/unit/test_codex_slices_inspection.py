@@ -71,3 +71,28 @@ def test_executable_help_ignores_python_environment_and_stdin(tmp_path, help_fla
     assert not result.stderr
     assert not (tmp_path / loop.STORAGE).exists()
     assert not (tmp_path / '__pycache__').exists()
+
+
+def test_status_highlights_top_level_status_on_tty(tmp_path, monkeypatch, capsys):
+    storage = tmp_path / loop.STORAGE
+    storage.mkdir(parents=True)
+    state = {'attempt': 'slice-1', 'reason': 'slice', 'status': 'running'}
+    (storage / 'state.json').write_text(json.dumps(state))
+    monkeypatch.setattr(loop, 'status_inspect_color', lambda: True)
+
+    assert loop.main(['status'], root=tmp_path) == 0
+    output = capsys.readouterr().out.rstrip('\n')
+    color = loop.STATUS_COLORS['running']
+    assert f'{color}  "status": "running"{loop.STATUS_RESET}' in output
+    assert '  "attempt": "slice-1"' in output
+    stripped = output.replace(f'{color}', '').replace(loop.STATUS_RESET, '')
+    assert json.loads(stripped) == state
+
+
+def test_status_skips_highlight_without_tty(monkeypatch):
+    monkeypatch.setattr(loop.sys.stdout, 'isatty', lambda: False)
+    monkeypatch.setenv('TERM', 'xterm')
+    monkeypatch.delenv('NO_COLOR', raising=False)
+    report = loop.format_status_report({'status': 'blocked', 'reason': 'approval'})
+    assert report == '{\n  "reason": "approval",\n  "status": "blocked"\n}'
+    assert loop.STATUS_RESET not in report

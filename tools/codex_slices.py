@@ -45,6 +45,20 @@ MODELS = frozenset(('gpt-5.6-sol', 'gpt-6-astra', 'gpt-5.6-terra', 'gpt-5.6-luna
 EFFORTS = frozenset(('low', 'medium', 'high', 'xhigh', 'max'))
 USAGE_FIELDS = ('input_tokens', 'cached_input_tokens', 'output_tokens', 'reasoning_output_tokens')
 BLOCKERS = ('none', 'approval', 'environment', 'decision', 'no-ready-task')
+STATUS_RESET = '\033[0m'
+STATUS_COLORS = {
+    'between-slices': '\033[1;36m',
+    'blocked': '\033[1;31m',
+    'complete': '\033[1;32m',
+    'continue': '\033[1;33m',
+    'killed': '\033[1;31m',
+    'launching': '\033[1;36m',
+    'needs-review': '\033[1;33m',
+    'not-started': '\033[1;90m',
+    'retry-wait': '\033[1;36m',
+    'running': '\033[1;36m',
+    'stopped': '\033[1;33m',
+}
 SUMMARY_FIELDS = {
     'task': 'Task',
     'completed': 'Completed',
@@ -1080,6 +1094,22 @@ def wait_for_restart(root, args):
     os.execv(sys.executable, command)
 
 
+def status_inspect_color():
+    return (sys.stdout.isatty() and os.environ.get('TERM') != 'dumb'
+            and not os.environ.get('NO_COLOR'))
+
+
+def format_status_report(state):
+    payload = state or {'status': 'not-started'}
+    text = json.dumps(payload, indent=2, sort_keys=True)
+    if not status_inspect_color():
+        return text
+    color = STATUS_COLORS.get(payload.get('status'), '\033[1m')
+    return '\n'.join(
+        f'{color}{line}{STATUS_RESET}' if line.startswith('  "status":') else line
+        for line in text.splitlines())
+
+
 def main(argv=None, *, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('action', choices=('start', 'run', 'status', 'stop', 'restart', 'kill'),
@@ -1119,7 +1149,7 @@ def main(argv=None, *, root=ROOT):
             return wait_for_restart(root, args)
         if args.action == 'status':
             state = read_state(storage)
-            print(json.dumps(state or {'status': 'not-started'}, indent=2, sort_keys=True))
+            print(format_status_report(state))
             return 0
         if args.action == 'stop':
             if not storage.is_dir():

@@ -304,6 +304,16 @@ installation proof's `terminal_echo_disabled` means password-character echo is
 off. Newline-only ECHONL is allowed: the password is printable ASCII and Enter
 is sent separately. Recipient identity/continuity, prompt, private capture and
 terminal failure/retry guards remain mandatory.
+
+The sibling `tools/run-tests e2e --qualify-install-refusal --artifacts
+/tmp/onpc-<verified-build>` route deliberately submits one fixed non-secret,
+non-hex password after the same recipient proof. It requires the first re-prompt,
+cancels instead of sending a retry, and then follows only the proved getty/login
+lineage to establish that the fixture shell has no installer child. A final
+read-only probe also requires the package payload and reboot marker to remain
+absent. Authentication capture stays sealed and no arbitrary denial value or
+command is accepted.
+
 This diagnostic does not reboot or establish complete E2E-002 readiness; the
 product selection remains pending. Refresh the installed dispatcher through
 `./setup.sh --test-tools-only` when adding this option. Test-tool activation is

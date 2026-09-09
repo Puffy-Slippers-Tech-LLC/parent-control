@@ -45,6 +45,7 @@ def test_full_listing_keeps_pending_cases_and_exact_digest():
 @pytest.mark.parametrize('option,mode', [
     ('--qualify-transfer', 'asset-transfer-qualification'),
     ('--qualify-install', 'authenticated-installation-qualification'),
+    ('--qualify-install-refusal', 'deliberate-installation-refusal-qualification'),
 ])
 def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode):
     assets = tmp_path / 'onpc-assets'
@@ -83,6 +84,7 @@ def test_selected_listing_uses_exact_inventory_scope(selector, count):
     (['--list', '--artifacts=/tmp/onpc-absent'], 'listing-does-not-use-artifacts'),
     (['--lis'], 'invalid-arguments'),
     (['--qualify-transfer', '--qualify-install'], 'invalid-arguments'),
+    (['--qualify-install', '--qualify-install-refusal'], 'invalid-arguments'),
     (['--resume=private-value'], 'invalid-arguments'),
     (['--checkpoint=private-value'], 'invalid-arguments'),
     (['--command=private-value'], 'invalid-arguments'),

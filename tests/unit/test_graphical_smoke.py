@@ -178,11 +178,12 @@ def test_schedule_failure_is_not_accepted_as_the_pinned_early_exit(tmp_path, sta
 
 
 @pytest.mark.parametrize('fault', [None, 'capture', 'observation', 'checkpoint'])
-def test_installation_drains_input_and_persists_each_proof_before_reply(tmp_path, fault):
+@pytest.mark.parametrize('refusal', [False, True])
+def test_installation_drains_input_and_persists_each_proof_before_reply(tmp_path, fault, refusal):
     events = []
     verified = Mock(inputs={'package_sha256': 'a' * 64})
     transfer = Mock(verified=verified)
-    boundary = smoke.InstallationBoundary(None, verified, transfer)
+    boundary = smoke.InstallationBoundary(None, verified, transfer, refusal=refusal)
     def progress(stage, observed):
         assert not (tmp_path / f'{stage}.reply.json').exists()
         events.append('checkpoint' if observed else 'started')
@@ -196,6 +197,8 @@ def test_installation_drains_input_and_persists_each_proof_before_reply(tmp_path
         'package-absent': {'product_package_absent': True},
         'sudo-implementation': {'implementation': 'sudo-rs', 'package_version': '0.2.13-0ubuntu1.2'},
         'install-password': {'sudo_install_process_verified': True, 'terminal_echo_disabled': True},
+        'install-refused': {'product_package_absent': True, 'core_payload_absent': True,
+                            'product_reboot_required': False, 'install_process_absent': True},
         'package-installed': {'package_sha256': 'a' * 64, 'installed_identity_verified': True,
                               'product_reboot_required': True},
     }
@@ -207,7 +210,7 @@ def test_installation_drains_input_and_persists_each_proof_before_reply(tmp_path
     controller.vm = Mock(read=Mock(side_effect=read))
     controller.steps = [{'stage': stage} for stage in smoke.INSTALL_STAGES[:6]]
     port = Mock(pending_in=b'pending', step=Mock(side_effect=lambda: events.append('drain')))
-    for stage in boundary.STAGES:
+    for stage in boundary.stages:
         events.clear()
         (tmp_path / f'{stage}.request.json').write_text(json.dumps({
             'stage': stage, 'screenshot': 'smoke-1.png' if fault == 'capture' else None}))
@@ -229,7 +232,11 @@ def test_installation_drains_input_and_persists_each_proof_before_reply(tmp_path
         assert reply['boot_sha256'] == 'b' * 64
         assert boundary.observer is controller.vm
         port.pending_in = b'pending'
-    assert controller.steps[-1]['verified_package_digest']
+    if refusal:
+        assert controller.steps[-1]['install_process_absent']
+        assert controller.steps[-2]['installation_refused']
+    else:
+        assert controller.steps[-1]['verified_package_digest']
     assert controller.stages[len(controller.steps):] == ('serial-logout', 'gdm-return')
 
 

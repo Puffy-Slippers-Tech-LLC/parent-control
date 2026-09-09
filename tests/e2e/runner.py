@@ -39,14 +39,17 @@ def preflight(argv, *, root=ROOT):
     qualification = parser.add_mutually_exclusive_group()
     qualification.add_argument('--qualify-transfer', action='store_true')
     qualification.add_argument('--qualify-install', action='store_true')
+    qualification.add_argument('--qualify-install-refusal', action='store_true')
     args = parser.parse_args(argv)
-    if args.qualify_transfer or args.qualify_install:
+    if args.qualify_transfer or args.qualify_install or args.qualify_install_refusal:
         if args.list or args.scenario is not None:
             raise ValueError('e2e:qualification-cannot-select-scenarios')
         validate_artifact_path(args.artifacts)
         if not args.artifacts.is_dir():
             raise ValueError('e2e:missing-artifact-directory')
-        return {'mode': ('authenticated-installation-qualification' if args.qualify_install
+        return {'mode': ('deliberate-installation-refusal-qualification'
+                         if args.qualify_install_refusal else
+                         'authenticated-installation-qualification' if args.qualify_install
                          else 'asset-transfer-qualification'), 'artifacts': str(args.artifacts)}
     if args.list and args.artifacts is not None:
         raise ValueError('e2e:listing-does-not-use-artifacts')
@@ -106,12 +109,17 @@ def main(argv=None):
             os.execv(str(launcher), [str(launcher), 'e2e', *arguments])
             return 0
         plan = preflight(argv)
-        if plan['mode'] in ('asset-transfer-qualification', 'authenticated-installation-qualification'):
+        if plan['mode'] in ('asset-transfer-qualification', 'authenticated-installation-qualification',
+                            'deliberate-installation-refusal-qualification'):
             sys.path.insert(0, str(ROOT / 'tests/integration'))
             import check_graphical_smoke
             if plan['mode'] == 'authenticated-installation-qualification':
                 return check_graphical_smoke.main(assets=Path(plan['artifacts']),
                                                  provision_credentials=True, serial=True, install=True)
+            if plan['mode'] == 'deliberate-installation-refusal-qualification':
+                return check_graphical_smoke.main(assets=Path(plan['artifacts']),
+                                                 provision_credentials=True, serial=True,
+                                                 install_refusal=True)
             return check_graphical_smoke.main(assets=Path(plan['artifacts']))
         if plan['mode'] == 'execution-preflight':
             sys.path.insert(0, str(ROOT / 'tests/e2e'))

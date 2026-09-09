@@ -20,6 +20,8 @@ def boundary():
         'package-absent': {'product_package_absent': True},
         'sudo-implementation': {'implementation': 'sudo-rs', 'package_version': '0.2.13-0ubuntu1.2'},
         'install-password': {'sudo_install_process_verified': True, 'terminal_echo_disabled': True},
+        'install-refused': {'product_package_absent': True, 'core_payload_absent': True,
+                            'product_reboot_required': False, 'install_process_absent': True},
         'package-installed': {'package_sha256': 'a'*64, 'installed_identity_verified': True,
                               'product_reboot_required': True},
     }
@@ -40,6 +42,22 @@ def test_ordered_install_acknowledgements_bind_assets_and_package(boundary):
     assert after['boot_sha256'] == before['boot_sha256']
     with pytest.raises(EvidenceError, match='install:phase'):
         instance.observe('install-complete')
+
+
+def test_ordered_refusal_acknowledges_no_retry_or_package_result(boundary):
+    instance, _ = boundary
+    refused = InstallationBoundary(instance.observer, instance.verified, instance.transfer,
+                                   refusal=True)
+    before = refused.observe('install-ready')
+    proof = refused.observe('install-password')
+    after = refused.observe('install-refused')
+    assert before['installation_authorized']
+    assert proof['installation_refused'] and proof['sudo_install_process_verified']
+    assert after['product_package_absent'] and after['install_process_absent']
+    assert not after['product_reboot_required']
+    names = [call.args[0] for call in refused.observer.read.call_args_list]
+    assert names.count('install-refused') == 1
+    assert names[-2:] == ['install-refused', 'boot']
 
 
 @pytest.mark.parametrize('first,bad', [(0, 'install-password'), (0, 'install-complete'),

@@ -50,7 +50,7 @@ sub wait_serial {
         return $sample =~ $regex ? $sample : undef;
     }
     if ($main::waits == 4) {
-        return ' login: ' =~ $regex if $main::mode eq 'install';
+        return ' login: ' =~ $regex if $main::mode =~ /^install/;
         my $sample = $main::mode eq 'echo' ? q{printf 'ONPC-SERIAL-%s\n' 'OK'}
             : $main::mode eq 'ansi-output' ? "\e[?2004l\rONPC-SERIAL-OK\r\r\n"
             : "\r\nONPC-SERIAL-OK\r\n";
@@ -68,11 +68,16 @@ sub record_info { push @main::events, 'record'; }
 sub save_screenshot { die 'capture must remain sealed'; }
 package main;
 require onpc_serial;
-if ($mode eq 'install') {
+if ($mode =~ /^install/) {
     no warnings 'redefine';
     *onpc_install::run = sub {
         die 'install callback' unless @_ == 1 && ref($_[0]) eq 'CODE';
         push @events, 'installation';
+        return 1;
+    };
+    *onpc_install::run_refusal = sub {
+        die 'install callback' unless @_ == 1 && ref($_[0]) eq 'CODE';
+        push @events, 'installation-refusal';
         return 1;
     };
 }
@@ -85,7 +90,9 @@ my $exchange = sub {
             terminal_echo_disabled => ($mode ne 'echo-enabled')};
 };
 my $ok = eval {
-    $mode eq 'install' ? onpc_serial::run_install($exchange) : onpc_serial::run($exchange);
+    $mode eq 'install' ? onpc_serial::run_install($exchange)
+        : $mode eq 'install-refusal' ? onpc_serial::run_install_refusal($exchange)
+        : onpc_serial::run($exchange);
     1;
 };
 my $error = $@;
@@ -96,19 +103,20 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, retry => $retry ? 1 : 0,
 '''
 
 
-@pytest.mark.parametrize('mode', ['ok', 'install', 'double-cr', 'ansi-output', 'shell-not-ready', 'video', 'console', 'prompt', 'wrong-echo', 'process',
+@pytest.mark.parametrize('mode', ['ok', 'install', 'install-refusal', 'double-cr', 'ansi-output', 'shell-not-ready', 'video', 'console', 'prompt', 'wrong-echo', 'process',
                                  'echo-enabled', 'probe-error', 'control', 'typing', 'echo', 'return-missing'])
 def test_serial_secret_boundary_and_command_output(mode):
     result = subprocess.run(['/usr/bin/perl', '-I', str(LIB), '-e', PROBE, mode],
                             capture_output=True, text=True, timeout=10, check=True)
     data = json.loads(result.stdout)
     assert 'private-canary' not in result.stdout + result.stderr
-    assert data['ok'] == (mode in ('ok', 'install', 'double-cr', 'ansi-output'))
+    assert data['ok'] == (mode in ('ok', 'install', 'install-refusal', 'double-cr', 'ansi-output'))
     assert not data['retry'] and not data['capture']
     events = data['events']
-    if mode == 'install':
-        assert events.index('serial-authenticated') < events.index('shell-ready') < events.index('installation')
-        assert events.index('installation') < events.index('logout') < events.index('gdm-return')
+    if mode in ('install', 'install-refusal'):
+        action = 'installation-refusal' if mode == 'install-refusal' else 'installation'
+        assert events.index('serial-authenticated') < events.index('shell-ready') < events.index(action)
+        assert events.index(action) < events.index('logout') < events.index('gdm-return')
         assert 'command' not in events and 'serial-command' not in events
     elif mode in ('ok', 'double-cr', 'ansi-output'):
         assert events.index('serial-password') < events.index('password')

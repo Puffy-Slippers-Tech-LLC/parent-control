@@ -84,54 +84,56 @@ output stays plain text.
 **Earliest ready task; not accepted.** [Task 19B remains accepted](Evidence/19B-Acceptance-20260908.md).
 No earlier entry is bypassed; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
 
-**Current result:** the [first deliberate-refusal attempt](Evidence/20-Install-Refusal-Attempt-20260908.md)
-proved the exact prompt/recipient, one fixed invalid password, its first rejection
-and no retry submission, then failed at the graphical-key cancellation call on
-the pipe-backed serial console. The helper now sends the fixed interrupt byte
-through the qualified serial input API; 134 affected tests pass. The live
-package/process postcondition remains unqualified. **One failed attempt this
-slice, twelve overall; one passed and eleven remain failed.** This is helper
-qualification, not E2E-002 acceptance. The historical intermittent executable
-refusal remains open.
+**Current result:** the [corrected deliberate-refusal qualification](Evidence/20-Install-Refusal-Corrected-20260908.md)
+passed. One fixed invalid password reached the independently proved sudo
+recipient, the first rejection was observed, no retry was submitted, the serial
+interrupt returned to the fixture shell, and independent probes found no
+installer child, package, payload or reboot marker. Serial logout, GDM return,
+collection and guarded cleanup passed. This was attempt thirteen overall: two
+qualifications passed and eleven historical failures remain failed. Product
+remained `not-run`; Task 20 and E2E-002 are not accepted. The historical
+intermittent executable refusal remains open.
 
-**Next bounded result:** build fresh source-bound artifacts and run one corrected
-fixed refusal qualification after isolated cleanup prerequisites. Prove the shell
-returns after cancellation, no retry password is submitted, no installer/package
-or reboot marker remains, and serial logout/GDM return and guarded cleanup pass.
-Do not rerun the successful path merely to resume a session. Red final notice,
-customer reboot, installed layout/readiness and both startup faults remain;
-the [startup audit](Evidence/20-Startup-Audit-20260908.md) preserves that scope.
+**Next bounded result:** extend the accepted authenticated-install path into the
+clean E2E-002 callback through the customer reboot and healthy startup boundary.
+Retain private terminal output while proving the successful command's final
+notice is exact and red, request the reboot through the visible guest interface,
+reconnect only after a changed boot identity, and correlate usable GDM with
+fapolicyd readiness and broker publication after reconciliation. Add fixed local
+failure/refusal and cleanup coverage, then make one guarded current-input attempt.
+Keep `E2E-028/startup-enforcement` and `startup-broker` as separate later fault
+attempts; the [startup audit](Evidence/20-Startup-Audit-20260908.md) owns their
+finite evidence contract.
 
-**Read list:** [fixed helper](../../tests/integration/graphical_smoke/lib/onpc_install.pm),
-[ordered boundary](../../tests/e2e/installation_boundary.py),
-[worker integration](Evidence/20-Install-Worker-20260908.md), and the latest
-evidence's exact test selectors/provenance. Timeout diagnostics never authorize
-input. The installed serial parser now has real pipe/fragment qualification.
+**Read list:** [lifecycle startup contract](../SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle),
+[scenario declaration](../../tests/e2e/scenarios.json),
+[successful install evidence](Evidence/20-Install-Explicit-Newline-20260908.md),
+`tests/e2e/installation_boundary.py`, `installation_observations.py`,
+`controller_qualification.py`, and the installed smoke/readiness helpers named
+by the startup audit. Preserve prompt/recipient/private-capture gates and do not
+turn tolerated best-effort stale-session cleanup into a readiness failure.
 
-**Verification/cleanup:** 1,474 focused tests and 526 isolated cleanup tests plus
-3 subtests passed; the dispatcher repeated the safety closure. The initial local
-implementation had one incorrect new assertion and five incomplete fake-path
-fixture cases; all were corrected before the guarded run. Handle **14132** exited
-**1**, **980.910s**. The module canceled after the fixed refusal checkpoint and
-before `install-refused`; product `not-run`. Worker/callback/display closure,
-outer baseline restoration/verification and lease release passed; normal journey
-shutdown was not reached. Host/source preserved, all commands exited/results
-collected, and no recovery remains. No policy/Polkit denial. Post-attempt serial
-transport correction passed 134 affected tests. Handoff edits require fresh
-artifacts. Actual settings: `gpt-5.6-sol` / `high`, Standard.
+**Verification/cleanup:** fresh artifact source SHA256 `d2445afe08ce142e7fa0176968083022f59e4638d287c277d02a7bdaf0352295`
+and package SHA256 `760cb8bdbf03d9b68a273e171df502bb6e0b82e55ab4f6f2aaf39961388149b7`
+were verified. Isolated and dispatcher closures each passed 526 tests plus 3
+subtests. The guarded selection exited 0 in 1,227.72s; worker/callback/display
+closure, normal shutdown, baseline restoration/verification, host/source
+preservation and lease release passed. Final VM state is off; all commands
+exited and no recovery remains. No policy/Polkit denial. Handoff edits invalidate
+artifact reuse. Actual settings: `gpt-5.6-sol` / `high`, Standard.
 
 The [all-task VM clearance](Implementation-Workflow.md#vm-availability-for-all-tasks)
 persists. Selection rechecked: Task 20 remains earliest ready; no bypass.
-The authorized single attempt is finished; no second run was started.
-**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** prompt, recipient, first rejection and no-retry behavior are proven;
-the next bounded run tests one locally corrected serial transport call through
-established guards. Standard processing; reassess Astra for a new ownership or
-authentication ambiguity.
-**Remaining refusal qualification:** sessions **1**, minutes **15–25**.
+The authorized single attempt finished and no second run was started.
+**Next-session settings:** `gpt-6-astra` / `high`; model: raise; effort: keep.
+**Reason:** the next slice crosses the first customer-visible reboot, reconnect
+and two independent startup-ordering boundaries; Astra protects unresolved
+cross-boot ownership, evidence correlation and broad lifecycle correctness.
+Standard processing. Return to Sol high once those interfaces are settled.
+**Remaining refusal qualification:** sessions **0**, minutes **0**.
 **Remaining Task 20:** sessions **Unknown**, minutes **Unknown**. The current
-attempt took 16.4 minutes, but the later reboot/readiness and startup-fault work
-lacks a measured batch for a reliable completion range.
+attempt took 20.5 minutes, but the clean reboot/readiness and two startup-fault
+batches still lack implemented callbacks and measured iteration cost.
 
 ### Operator follow-up after Session 34
 

@@ -56,3 +56,29 @@ must exclude this file from reads, searches, diffs and edits.
 - Estimated minutes remaining for this task: 15–25 minutes for the refusal qualification; full Task 20 Unknown
 
 - Estimate basis and uncertainty: The failed guarded attempt took 980.910 seconds. The correction passes local checks but still needs one live qualification. Remaining reboot/readiness and startup-fault batches are unmeasured.
+
+
+## Session 37 — 2026-09-08 21:50 PDT
+
+- Completion: 2026-09-08 21:50 PDT
+- Duration: 28 minutes (rounded up)
+- Outcome: continue
+- Settings: `gpt-5.6-sol` / `high`
+- Processing: Standard
+- Attempt: `slice-efc5bf5fe9694b719848fbc5eec98100`
+- CLI token counts: input_tokens: 2821509; cached_input_tokens: 2731776; output_tokens: 14051; reasoning_output_tokens: 2735. These are not weekly allowance measurements.
+- Supervisor: Cleanup and handoff confirmed.
+
+- Task: Task 20 — corrected deliberate installation refusal qualification completed; full task remains in progress.
+
+- Completed: Task 20’s corrected deliberate-installation-refusal qualification passed. It proved rejection without retry, shell return, installer/package/payload/reboot-marker absence, serial logout, GDM return, and guarded cleanup. Evidence is recorded in docs/TestAutomation/Evidence/20-Install-Refusal-Corrected-20260908.md; the active handoff and Continuation.md were updated. Task 20 remains unchecked.
+
+- Verification and cleanup: Fresh artifact build passed. Isolated and dispatcher cleanup closures each passed 526 tests plus 3 subtests. The guarded selection exited 0; retained result: /tmp/onpc-graphical-smoke-cm06m6zu/result.json. Worker, callback, display, baseline restoration, host/source preservation, collection, and lease release passed. VM is off and all commands exited. Documentation links (19 checked) and git diff --check passed.
+
+- Next session: Task 20 remains earliest ready. Implement the clean E2E-002 boundary through the exact red notice, customer-visible reboot, changed boot identity, and correlated fapolicyd/broker readiness. Next settings: gpt-6-astra / high.
+
+- Estimated sessions remaining for this task: Unknown for full Task 20; three complete customer/fault paths remain.
+
+- Estimated minutes remaining for this task: Unknown for full Task 20; remaining lifecycle batches are unmeasured.
+
+- Estimate basis and uncertainty: The qualification took 1,227.72 seconds. Remaining clean reboot/readiness and two startup-fault callbacks have not yet been implemented or measured, so a reliable Task 20 estimate is unavailable.

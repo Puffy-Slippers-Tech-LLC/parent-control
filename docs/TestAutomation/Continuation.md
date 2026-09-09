@@ -3,6 +3,12 @@
 Updated: 2026-09-08. The [master checklist](Test-Automation.md#unfinished-tasks)
 owns task order and completion.
 
+- **Completed user-directed work: finished-test infrastructure refactor**;
+  [scope and verification](Evidence/Test-Support-Refactor-20260908.md).
+  All implemented regression suites passed, including 238 installed executions
+  and canonical E2E-001; guarded cleanup is complete. Checklist order resumes
+  below. Future live runs need fresh source-bound artifacts after these evidence edits.
+
 - **Next: Task 20 — implement the clean install/reboot/readiness boundary**;
   [active handoff](Task-20.md#task-20-continuation--2026-09-08),
   [latest evidence](Evidence/20-Install-Refusal-Corrected-20260908.md).

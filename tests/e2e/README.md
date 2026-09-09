@@ -1,5 +1,9 @@
 # E2E inventory and runner contract
 
+Host-only regressions reuse the [shared support library](../support/README.md)
+for evidence, provenance, recording, credentials and private metadata fixtures.
+Those synthetic fixtures are separate from the live helpers described below.
+
 `scenarios.json` is the versioned inventory for
 [E2E coverage](../../docs/TestAutomation/E2E-Coverage.md): 33 families and
 157 variants. `E2E-001/gdm-observation` is registered for public execution;
@@ -451,7 +455,9 @@ checkpoint errors, cleanup failure, late validation and release failure.
 The serial transport has separate live qualification, and E2E-034 now proves
 this adapter within the public controller. Public dispatch and preparation/
 terminal failure reporting are connected as described below.
-E2E-001 public stability qualification remains 19B work. Test-tool activation is `none` (next
+E2E-001 public stability qualification is accepted in
+[Task 19B evidence](../../docs/TestAutomation/Evidence/19B-Acceptance-20260908.md).
+Test-tool activation is `none` (next
 invocation); no product data or installation changes.
 
 ### Public execution and terminal reporting
@@ -673,7 +679,9 @@ terminal logs as reviewed evidence without inspecting and redacting them.
 Run `tools/run-tests integration check_graphical_serial` for the smallest live
 helper qualification. Its live result is already retained; do not repeat it
 to resume implementation. E2E-001 now records the complete ordered evidence;
-Task 19B acceptance requires three complete public qualifications. The [helper qualification](../../docs/TestAutomation/Evidence/19B-GDM-Matching-20260908.md)
+Task 19B's three complete public qualifications are
+[accepted](../../docs/TestAutomation/Evidence/19B-Acceptance-20260908.md).
+The [helper qualification](../../docs/TestAutomation/Evidence/19B-GDM-Matching-20260908.md)
 retains the corrected live success, deliberate negative match, original failure
 and source identities; do not repeat it merely to resume implementation.
 

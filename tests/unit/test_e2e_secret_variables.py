@@ -3,18 +3,14 @@
 import base64
 import json
 import os
-from pathlib import Path
 import stat
-import subprocess
-import sys
 
 import pytest
+from tests.support.perl import run_perl
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tests/e2e'))
+from tests.support.paths import ROOT
 import secret_variables as secret
 from private_artifacts import EvidenceError, PrivateCollector
-sys.path.pop(0)
 
 CANARY = 'fixture-only-credential-9!'
 
@@ -180,9 +176,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, first => \@first,
 
 
 def probe(mode, role='parent', surface='gdm'):
-    result = subprocess.run(['/usr/bin/perl', '-I', str(ROOT / 'tests/integration/graphical_smoke/lib'),
-                             '-', mode, role, surface], input=PERL_PROBE, text=True,
-                            capture_output=True, timeout=5, check=True)
+    result = run_perl(PERL_PROBE, mode, role, surface, timeout=5)
     assert CANARY not in result.stdout + result.stderr
     return json.loads(result.stdout)
 

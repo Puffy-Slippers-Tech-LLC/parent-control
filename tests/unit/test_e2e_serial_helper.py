@@ -2,11 +2,11 @@
 
 import json
 from pathlib import Path
-import subprocess
 import os
 import termios
 
 import pytest
+from tests.support.perl import run_perl
 
 LIB = Path(__file__).resolve().parents[1] / 'integration/graphical_smoke/lib'
 PROBE = r'''
@@ -106,8 +106,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, retry => $retry ? 1 : 0,
 @pytest.mark.parametrize('mode', ['ok', 'install', 'install-refusal', 'double-cr', 'ansi-output', 'shell-not-ready', 'video', 'console', 'prompt', 'wrong-echo', 'process',
                                  'echo-enabled', 'probe-error', 'control', 'typing', 'echo', 'return-missing'])
 def test_serial_secret_boundary_and_command_output(mode):
-    result = subprocess.run(['/usr/bin/perl', '-I', str(LIB), '-e', PROBE, mode],
-                            capture_output=True, text=True, timeout=10, check=True)
+    result = run_perl(PROBE, mode)
     data = json.loads(result.stdout)
     assert 'private-canary' not in result.stdout + result.stderr
     assert data['ok'] == (mode in ('ok', 'install', 'install-refusal', 'double-cr', 'ansi-output'))

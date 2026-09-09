@@ -6,8 +6,9 @@ from unittest.mock import Mock
 import xml.etree.ElementTree as ET
 
 import pytest
-from test_system_runner import runner, INVENTORIES, RUN, write_junit_results
-from test_authentication_evidence import collect_local
+import system_runner as runner
+from tests.support.vm_runner import INVENTORIES, RUN, write_junit_results
+from tests.support.authentication import collect_local
 
 
 def selection(enabled=True):

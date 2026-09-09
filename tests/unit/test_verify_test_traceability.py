@@ -1,17 +1,12 @@
-import importlib.util
+from tests.support.modules import load_module
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
-MODULE_SPEC = importlib.util.spec_from_file_location(
-    "verify_test_traceability", ROOT / "tools/verify_test_traceability.py"
-)
-traceability = importlib.util.module_from_spec(MODULE_SPEC)
-assert MODULE_SPEC.loader is not None
-MODULE_SPEC.loader.exec_module(traceability)
+from tests.support.paths import ROOT
+traceability = load_module('onpc_test_traceability', ROOT / 'tools/verify_test_traceability.py')
 
 
 class TraceabilityValidatorTests(unittest.TestCase):

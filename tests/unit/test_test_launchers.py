@@ -1,17 +1,13 @@
 """Boundary and execution tests for all approved test category routes."""
 import os
-from pathlib import Path
 import runpy
-import sys
 from unittest.mock import Mock
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tools'))
+from tests.support.paths import ROOT
 import test_launcher as host
 import test_commands as commands
-sys.path.pop(0)
 
 
 @pytest.fixture

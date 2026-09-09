@@ -1,15 +1,11 @@
 """Exercise install phases, provenance and terminal failure latching."""
 
-from pathlib import Path
-import sys
 from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'e2e'))
 from installation_boundary import InstallationBoundary
 from private_artifacts import EvidenceError
-sys.path.pop(0)
 
 
 @pytest.fixture

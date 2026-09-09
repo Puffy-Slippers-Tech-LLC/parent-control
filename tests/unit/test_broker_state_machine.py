@@ -12,7 +12,7 @@ from hypothesis.stateful import RuleBasedStateMachine, invariant, rule, run_stat
 from oh_no_parent_control.config import validate
 from oh_no_parent_control.core import AccessDenied, BackendFailure, Broker, BrokerError, UserAccount
 from oh_no_parent_control.preferences import default_preferences, validate_preferences
-from test_config import valid_config
+from tests.support.configuration import valid_config
 
 
 CHILDREN = (1001, 1002)

@@ -1,10 +1,9 @@
 """Host-safe E2E selection/refusal regressions. No guest or worker imports."""
 
 import copy
-import importlib.util
+from tests.support.modules import load_module
 import itertools
 import json
-from pathlib import Path
 import re
 import subprocess
 import sys
@@ -12,10 +11,8 @@ import sys
 import pytest
 
 
-ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location('e2e_inventory', ROOT / 'tests/e2e/inventory.py')
-inventory = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(inventory)
+from tests.support.paths import ROOT
+inventory = load_module('onpc_test_e2e_inventory', ROOT / 'tests/e2e/inventory.py')
 
 
 @pytest.fixture

@@ -2,16 +2,12 @@
 
 import signal
 import subprocess
-import sys
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tests/integration"))
 import prepare_host as host
-sys.path.pop(0)
 
 
 @pytest.mark.parametrize("failure", [KeyboardInterrupt, subprocess.TimeoutExpired("qemu-img", 1)])

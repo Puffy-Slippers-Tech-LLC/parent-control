@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {readFileSync} from 'node:fs';
-import vm from 'node:vm';
+import {createIndicator} from './support/indicator.mjs';
 
 import {
     busyRetryDelay,
@@ -18,15 +17,10 @@ import {
 test('layout refreshes cannot postpone the countdown tick', () => {
     // Execute the production scheduler with a deterministic GLib clock. No
     // Shell session or system-bus connection is created by this harness.
-    const source = readFileSync(new URL('../../child/remainingTimeIndicator.js', import.meta.url), 'utf8')
-        .replace(/^import[\s\S]*?;\n/gm, '')
-        .replace('export const RemainingTimeIndicator', 'globalThis.RemainingTimeIndicator');
     let now = 0;
     let nextId = 0;
     const timers = new Map();
-    const context = vm.createContext({
-        GObject: {registerClass: klass => klass},
-        PanelMenu: {Button: class {}},
+    const indicator = createIndicator({
         GLib: {
             PRIORITY_DEFAULT: 0,
             SOURCE_REMOVE: false,
@@ -38,8 +32,6 @@ test('layout refreshes cannot postpone the countdown tick', () => {
             },
         },
     });
-    vm.runInContext(source, context);
-    const indicator = new context.RemainingTimeIndicator();
     Object.assign(indicator, {_timeoutId: 0, _timeoutDeadline: 0, _preview: true});
     let remaining = 56;
     indicator._sync = () => {
@@ -78,19 +70,10 @@ test('formats minute, final-minute, zero, and multi-day remaining time', () => {
 });
 
 test('countdown animation setting gates the final-minute effects', () => {
-    const source = readFileSync(
-        new URL('../../child/remainingTimeIndicator.js', import.meta.url), 'utf8')
-        .replace(/^import[\s\S]*?;\n/gm, '')
-        .replace('export const RemainingTimeIndicator',
-            'globalThis.RemainingTimeIndicator');
-    const context = vm.createContext({
-        GObject: {registerClass: klass => klass},
-        PanelMenu: {Button: class {}},
+    const indicator = createIndicator({
         Clutter: {AnimationMode: {LINEAR: 'linear'}},
         formatRemainingTime,
     });
-    vm.runInContext(source, context);
-    const indicator = new context.RemainingTimeIndicator();
     let clears = 0;
     let flashes = 0;
     let countdownStyles = 0;

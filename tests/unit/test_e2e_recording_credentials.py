@@ -2,21 +2,17 @@
 
 import base64
 import json
-from pathlib import Path
-import sys
 from unittest.mock import Mock
 
 import pytest
 
-from test_e2e_evidence import attempt
-from test_e2e_fixture_credentials_cleanup_safety import attempt as credential_attempt
+from tests.support.e2e_evidence import attempt
+from tests.support.e2e_credentials import attempt as credential_attempt
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tests/e2e'))
+from tests.support.paths import ROOT
 import e2e_worker
 from private_artifacts import PrivateCollector, EvidenceError
 from recording import ScenarioRecorder
-sys.path.pop(0)
 
 
 @pytest.mark.parametrize('serial', [False, True])

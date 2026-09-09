@@ -1,8 +1,7 @@
 import subprocess
-from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 PREPARE_PATH = ROOT / "tests/integration/prepare_vm.py"
 LAUNCHER_PATH = ROOT / "tests/integration/prepare-vm"
 

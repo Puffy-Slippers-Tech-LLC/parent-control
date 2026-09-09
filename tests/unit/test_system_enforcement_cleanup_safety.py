@@ -4,7 +4,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from test_system_enforcement import enforcement, installed_catalog_tree  # noqa: F401
+import system_enforcement as enforcement
+from tests.support.installed_catalog import installed_catalog_tree
 
 
 @pytest.mark.parametrize('boundary', ['guard', 'identity'])

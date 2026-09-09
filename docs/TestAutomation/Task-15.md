@@ -93,6 +93,18 @@ The journal shows eight live ruleset changes without policy-save trust scans.
 [Evidence, digests and commands](Evidence/15A-Rules-Only-Reload-20260908.md).
 The first failed runtime remains failed; no mappings promoted.
 
+**Refactor regression update — 2026-09-08:** the user-directed test infrastructure
+refactor passed all five currently registered native cases in the full 238-case
+installed run, including whitespace, future-pattern, missing-launcher and
+selected-child catalog coverage. `make check` also passed 4,942 unit/contract
+cases and 17 private-D-Bus cases. See the
+[complete results and source identities](Evidence/Test-Support-Refactor-20260908.md#guarded-installed-and-graphical-evidence).
+Reuse [shared support](../../tests/support/README.md) and the extracted
+`system_assertions`/`system_accounts` guest helpers. Full selection now shares
+identical helper declarations while refusing conflicting targets. Baseline
+restoration and cleanup passed. These results do not prove the pending active-policy
+acknowledgement contract or finish 15A; Task 20 retains checklist priority.
+
 **Next 15A boundary when resumed:** successful notification still does not acknowledge daemon
 activation. Establish a supported bounded active-policy acknowledgement, including
 rollback failure semantics, before claiming synchronous transactions. Read
@@ -100,12 +112,12 @@ rollback failure semantics, before claiming synchronous transactions. Read
 `tools/execution_policy_ready.py` canary and this evidence's upstream references.
 Validate locally, then rebuild and qualify the registered native area under the
 existing VM guards. Do not substitute launch retries, sleeps or private APIs.
-Two live activation attempts spent (failure, corrected pass), plus one earlier
+The earlier slice spent two live activation attempts (failure, corrected pass), plus one earlier
 safety refusal; no unchanged retry. Fresh inputs are required after this handoff.
 
-**Remaining:** acknowledgement, other native variants/routes/update, Snap/Flatpak
+**Remaining:** acknowledgement, remaining native routes/update, Snap/Flatpak
 and full acceptance. The historical kiosk `make check` failure remains in linked
-evidence; this slice did not rerun the broad check. Preserve unrelated edits.
+evidence; the refactor's later broad check passed as recorded above. Preserve unrelated edits.
 
 **Cleanup:** all commands exited; collection and baseline/host restoration passed.
 Fresh VM status: state 5, ID -1. No owned process, lease, screenshot or recovery

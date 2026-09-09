@@ -11,6 +11,7 @@ import sys
 
 import system_guest as guest
 from system_caller import drop_identity
+from system_assertions import call as broker_call, accepted
 
 TARGET = Path('/opt/onpc-test-fixtures-command/native-fixture')
 DESKTOP_ID = 'com.puffyslippers.ONPCTest.Command.desktop'
@@ -179,17 +180,8 @@ def observe_catalog(accounts, record):
 
 
 def call(uid, method, signature='()', args=()):
-    raw = guest.commands.run(
-        ['/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_caller.py')],
-        input=json.dumps({'uid': uid, 'operations': [
-            {'kind': 'call', 'method': method, 'signature': signature, 'args': args}]}).encode(),
-        timeout=180, merge_stderr=False)
-    reply = json.loads(raw)
-    guest.require(reply.get('uid') == uid and len(reply.get('replies', [])) == 1,
-                  'enforcement:caller-reply')
-    result = reply['replies'][0]
-    guest.require('result' in result, 'enforcement:broker-call-failed')
-    return result['result']
+    reply = broker_call(uid, method, signature, args, category='enforcement:caller-reply')
+    return accepted(reply, category='enforcement:broker-call-failed')
 
 
 def native_paths(variant):

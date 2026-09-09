@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 KIOSK_MAIN = ROOT / "kiosk/oh_no_parent_control_kiosk/main.py"
 KIOSK_CONTENT = ROOT / "kiosk/oh_no_parent_control_kiosk/request_content.py"
 

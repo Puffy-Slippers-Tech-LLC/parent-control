@@ -4,14 +4,13 @@ import struct
 import subprocess
 import unittest
 import xml.etree.ElementTree as ElementTree
-from pathlib import Path
 
 import pytest
 
 from tools.render_polkit_policy import render
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 
 
 @pytest.mark.parametrize("failure, status, step", [

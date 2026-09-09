@@ -1,14 +1,11 @@
 """Host-safe validation of remote-directory provisioning refusal and NSS edits."""
 
 from pathlib import Path
-import sys
 from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests/integration'))
 import system_remote_accounts as remote
-sys.path.pop(0)
 
 
 def test_remote_provisioning_refuses_host_before_any_access(monkeypatch):

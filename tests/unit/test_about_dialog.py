@@ -1,10 +1,9 @@
 """Tests for intrinsic-size About dialog branding."""
 
-from pathlib import Path
 import unittest
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 
 
 class AboutDialogTests(unittest.TestCase):

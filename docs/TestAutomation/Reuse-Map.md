@@ -20,6 +20,12 @@ review changes no task order or completion status.
 
 ## Existing interfaces to find once
 
+- Host-side fixture/double libraries and guest assertion helpers:
+  [shared support guide](../../tests/support/README.md). Use explicit support
+  imports; do not import another collected case to obtain its fixture. The
+  architecture regression enforces this dependency direction for existing and
+  future cases. Synthetic evidence remains distinct from live acceptance.
+
 - Installed selection, lease, staging, transport and real-caller assertions:
   [runner contracts](../../tests/integration/README.md#reusable-implementation-contracts).
   F1 and Task 14 are accepted; new areas extend their existing dispatch.

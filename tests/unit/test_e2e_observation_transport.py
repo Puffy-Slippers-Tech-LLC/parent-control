@@ -7,13 +7,11 @@ from unittest.mock import Mock
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tests/e2e'))
+from tests.support.paths import ROOT
 import guest_observations
 import installation_observations
 from observation_transport import ReadOnlyObservations
 from private_artifacts import EvidenceError
-sys.path.pop(0)
 
 
 @pytest.fixture

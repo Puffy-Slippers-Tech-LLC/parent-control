@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
+from tests.support.events import read_events
 
 from common.oh_no_parent_control_ui.test_identities import preview_users
 
@@ -117,9 +116,8 @@ def test_parent_time_status_retries(launch_ui, wait_for_accessible_node,
     )
     wait_for_accessible_node(retrying, "47m")
     wait_for_accessible_state(
-        lambda: events_path.exists()
-        and sum(json.loads(line)["event"] == "get_time_status"
-                for line in events_path.read_text(encoding="utf-8").splitlines()) == 3,
+        lambda: sum(record["event"] == "get_time_status"
+                    for record in read_events(events_path)) == 3,
         "two failed status attempts followed by a successful retry",
     )
 
@@ -144,10 +142,10 @@ def test_parent_screen_time_change_autosaves_and_never_offers_a_grant(
     assert enabled.checked
     assert enabled.do_action(0)
     wait_for_accessible_state(
-        lambda: events_path.exists() and "set_parent_control" in events_path.read_text(),
+        lambda: any(record["event"] == "set_parent_control" for record in read_events(events_path)),
         "screen-time auto-save",
     )
-    records = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()]
+    records = read_events(events_path)
     assert [record for record in records if record["event"] == "set_parent_control"] == [{
         "daily_limit_minutes": 90,
         "enabled": False,
@@ -173,7 +171,7 @@ def test_parent_failed_save_restores_visible_value(
     assert enabled.checked
     assert enabled.do_action(0)
     wait_for_accessible_state(
-        lambda: events_path.exists() and "set_parent_control" in events_path.read_text(),
+        lambda: any(record["event"] == "set_parent_control" for record in read_events(events_path)),
         "failed preference save request",
     )
     wait_for_accessible_state(lambda: enabled.checked, "restored screen-time setting")
@@ -198,9 +196,7 @@ def test_parent_daily_preset_and_custom_limit_autosave(
         lambda: any(
             record["event"] == "set_parent_control" and
             record["daily_limit_minutes"] == 73
-            for record in (json.loads(line) for line in events_path.read_text(
-                encoding="utf-8",
-            ).splitlines())
+            for record in read_events(events_path)
         ),
         "custom daily-limit auto-save",
     )
@@ -211,9 +207,7 @@ def test_parent_daily_preset_and_custom_limit_autosave(
         lambda: any(
             record["event"] == "set_parent_control" and
             record["daily_limit_minutes"] == 45
-            for record in (json.loads(line) for line in events_path.read_text(
-                encoding="utf-8",
-            ).splitlines())
+            for record in read_events(events_path)
         ),
         "daily preset auto-save",
     )
@@ -241,7 +235,7 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     save = dialog.child("Save", role_name="button", retry=False)
     assert save.do_action(0)
     wait_for_accessible_state(
-        lambda: events_path.exists() and "set_preferences" in events_path.read_text(),
+        lambda: any(record["event"] == "set_preferences" for record in read_events(events_path)),
         "match-rule auto-save",
     )
 
@@ -257,7 +251,7 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     assert warning.showing
     assert confirmation.child("Revoke grant", role_name="button", retry=False).do_action(0)
     wait_for_accessible_state(
-        lambda: "revoke_one_time_grant" in events_path.read_text(),
+        lambda: any(record["event"] == "revoke_one_time_grant" for record in read_events(events_path)),
         "confirmed one-time-grant revocation",
     )
 

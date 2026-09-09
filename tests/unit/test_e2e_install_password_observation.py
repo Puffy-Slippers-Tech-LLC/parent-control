@@ -12,9 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'e2e'))
 from installation_observations import SUDO_PASSWORD
-sys.path.pop(0)
 
 
 @pytest.mark.parametrize('fault,stage', [

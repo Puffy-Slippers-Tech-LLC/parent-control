@@ -1,11 +1,10 @@
 import unittest
 import xml.etree.ElementTree as ElementTree
-from pathlib import Path
 
 from oh_no_parent_control.service import INTROSPECTION_XML
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 
 
 def signatures(xml):

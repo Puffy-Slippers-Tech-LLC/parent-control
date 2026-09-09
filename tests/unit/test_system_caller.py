@@ -1,15 +1,12 @@
 """Credential-drop regressions use mocks; no host account or bus is changed."""
 
 from pathlib import Path
-import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests/integration'))
 import system_caller as caller
-sys.path.pop(0)
 
 
 def identity_rig(monkeypatch):

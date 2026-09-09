@@ -2,15 +2,12 @@
 
 import json
 from pathlib import Path
-import sys
 from unittest.mock import Mock, patch
 
 import pytest
 
 DIRECTORY = Path(__file__).resolve().parents[1] / 'integration'
-sys.path.insert(0, str(DIRECTORY))
 import graphical_backend as backend
-sys.path.pop(0)
 
 
 def successful_commands():

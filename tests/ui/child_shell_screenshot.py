@@ -20,7 +20,7 @@ SCREENSHOT_INTERFACE = "org.gnome.Shell.Screenshot"
 MEDIA_KEYS_NAME = "org.gnome.SettingsDaemon.MediaKeys"
 
 
-def capture_screenshot(destination: Path) -> None:
+def capture_screenshot(destination: Path, *, include_cursor: bool = False) -> None:
     """Write a PNG from the nested Shell bound to this private session bus."""
     artifact_root = Path(os.environ["ONPC_CHILD_SHELL_ARTIFACT_DIR"]).resolve()
     destination = destination.resolve()
@@ -53,7 +53,7 @@ def capture_screenshot(destination: Path) -> None:
         SCREENSHOT_PATH,
         SCREENSHOT_INTERFACE,
         "Screenshot",
-        GLib.Variant("(bbs)", (False, False, str(destination))),
+        GLib.Variant("(bbs)", (include_cursor, False, str(destination))),
         GLib.VariantType.new("(bs)"),
         Gio.DBusCallFlags.NONE,
         10_000,

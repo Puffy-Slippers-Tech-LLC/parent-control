@@ -7,11 +7,10 @@ from pathlib import Path
 import runpy
 import shutil
 import subprocess
-from unittest.mock import Mock
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 HELPER = runpy.run_path(str(ROOT / 'tools/onpc-test-artifacts'))
 
 

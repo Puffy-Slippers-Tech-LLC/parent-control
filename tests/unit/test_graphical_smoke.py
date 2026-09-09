@@ -1,24 +1,14 @@
 """Focused smoke evidence/sequence regressions; no processes or VM use."""
 
 import json
-from pathlib import Path
-import struct
-import sys
 from unittest.mock import Mock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'integration'))
 import check_graphical_smoke as smoke
-sys.path.pop(0)
 
 
-def png(directory, name='smoke-1.png', width=1024, height=768, suffix=b'fixture'):
-    results = directory / 'testresults'
-    results.mkdir(exist_ok=True)
-    path = results / name
-    path.write_bytes(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR' + struct.pack('!II', width, height) + suffix)
-    return path
+from tests.support.screens import png
 
 
 @pytest.mark.parametrize('name', ['../private', '/tmp/image.png', 'vars.json', 'smoke-a.png'])

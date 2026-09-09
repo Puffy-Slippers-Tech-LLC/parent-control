@@ -2,15 +2,14 @@
 import json
 from pathlib import Path
 import runpy
-import sys
 from unittest.mock import Mock
 
 import pytest
-from test_system_runner import lease_rig, rig, runner, UUID
+import system_runner as runner
+from tests.support.vm_baseline import rig
+from tests.support.vm_runner import lease_rig, UUID
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'integration'))
 import vm_control as control
-sys.path.pop(0)
 
 
 def reopened(lease):

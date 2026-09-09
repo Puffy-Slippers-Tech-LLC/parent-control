@@ -3,16 +3,13 @@
 No host package, APT configuration, reboot marker or service is changed.
 """
 
-import errno
 import os
-from pathlib import Path
-import pty
-import subprocess
 
 import pytest
+from tests.support.terminal import capture
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 NOTICE = "*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***"
 HOOK = "99zz-oh-no-parent-control-reboot-notice"
 
@@ -108,36 +105,7 @@ def test_apt_removal_notice_follows_triggers(tmp_path, frontend, action, termina
             "make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
             "uninstalldeb", "APT=apt -y",
         ]
-    if terminal:
-        master, slave = pty.openpty()
-        try:
-            result = subprocess.run(
-                command, env=env, stdout=slave, stderr=slave, timeout=10,
-            )
-            os.close(slave)
-            slave = None
-            chunks = []
-            while True:
-                try:
-                    chunk = os.read(master, 65536)
-                except OSError as error:
-                    if error.errno != errno.EIO:
-                        raise
-                    break
-                if not chunk:
-                    break
-                chunks.append(chunk)
-            output = b"".join(chunks).decode()
-        finally:
-            if slave is not None:
-                os.close(slave)
-            os.close(master)
-    else:
-        result = subprocess.run(
-            command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, timeout=10,
-        )
-        output = result.stdout
+    result, output = capture(command, env, terminal)
     assert "Fixture dpkg removal" in output, output
     if failure:
         assert result.returncode != 0, output

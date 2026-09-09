@@ -1,19 +1,15 @@
-import importlib.util
+from tests.support.modules import load_module
 import subprocess
 import unittest
 from unittest import mock
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 INTEGRATION = ROOT / "tests/integration"
 
 
-def load(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+load = load_module
 
 
 harness = load("h50_harness", INTEGRATION / "harness.py")

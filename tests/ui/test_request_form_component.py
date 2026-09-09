@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 
 import pytest
+from tests.support.events import read_events as records
 
 
 pytestmark = pytest.mark.ui
 
 
-def records(path):
-    return [] if not path.exists() else [json.loads(line) for line in path.read_text().splitlines()]
 
 
 def launch_request(launch_ui, tmp_path, *, overlay, scenario="normal", selections_path=None):

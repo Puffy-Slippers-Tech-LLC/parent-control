@@ -9,13 +9,12 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from test_system_runner import lease_rig, rig, runner, xml, UUID, RUN
+import system_runner as runner
+from tests.support.vm_baseline import rig
+from tests.support.vm_runner import lease_rig, xml, UUID, RUN
 
-import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'integration'))
 import graphical_lease as graphical
-sys.path.pop(0)
 
 
 @pytest.fixture

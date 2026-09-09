@@ -1,27 +1,18 @@
-import importlib.util
+from tests.support.modules import load_module
 import os
 import stat
 import subprocess
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 PREPARE_PATH = ROOT / "tests/integration/prepare_vm.py"
 
 
-def load_module():
-    spec = importlib.util.spec_from_file_location("onpc_prepare_vm", PREPARE_PATH)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-prepare = load_module()
+prepare = load_module('onpc_test_prepare_vm', PREPARE_PATH)
 
 
 class GuardRunner:

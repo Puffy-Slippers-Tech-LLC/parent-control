@@ -1,14 +1,11 @@
 """The real APT path is accessible only after the explicit VM guard passes."""
 
 from pathlib import Path
-import sys
 from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests/integration'))
 import system_guest as guest
-sys.path.pop(0)
 
 
 @pytest.mark.parametrize('path,group', [

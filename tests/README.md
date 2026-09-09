@@ -4,6 +4,10 @@ Start with the [daily testing guide](../docs/Test-Automation.md) for current and
 planned commands. This document describes how to select and maintain tests;
 it does not repeat completed setup tasks or historical acceptance results.
 
+Use the [shared support guide](support/README.md) before adding fixture code.
+It maps existing broker, D-Bus, preview, package, VM and E2E helpers to their
+contracts. Reusable code belongs in support modules, not collected case files.
+
 For unfinished implementation, follow the
 [bounded workflow](../docs/TestAutomation/Implementation-Workflow.md): read the
 active problem and relevant code, prove one real helper path, then batch its
@@ -15,11 +19,12 @@ problem. A fresh chat does not require rerunning unaffected tests.
 | Location | Purpose | Real dependencies and isolation |
 | --- | --- | --- |
 | `tests/unit/` | Policy, arithmetic, property/state-machine, adapters, storage, migration, build, runner and source-contract regressions. | Host-safe; controlled doubles are allowed. Tests that launch fixtures still obey process ownership. |
+| `tests/support/` | Explicitly imported host fixtures, doubles, readers and process helpers. | No case collection or live VM operations at import time; guest execution uses `tests/integration` helpers. |
 | `tests/component/` | Real broker D-Bus dispatch and serialization on private buses. | Real Gio/GLib transport; injected backend adapters. This is not real installed authorization. |
 | `tests/ui/` | Parent, shared request form, feedback UI and nested-Shell component behavior. | Private compositor, D-Bus/AT-SPI/XDG/settings; preview/fake dependencies are declared component inputs. |
 | `tests/child/` | Platform-neutral child JavaScript and GJS adapters. | Node and GJS runners; component evidence, not installed GNOME/PAM acceptance. |
 | `tests/system/` | Installed package, real caller credentials and OS integration. | Only through the guarded VM runner; excluded from default host discovery. |
-| `tests/e2e/` | [Scenario inventory and selection contract](e2e/README.md); graphical execution remains pending. | Host-safe declaration validation is implemented. Future journeys require real product, OS, authentication and guest input, with no mocked outcomes or VM checkpoint shortcuts. |
+| `tests/e2e/` | [Scenario inventory and guarded execution contract](e2e/README.md). | E2E-001 executes real GDM/serial input. Pending customer journeys retain their explicit status and cannot pass through host doubles. |
 
 The current pytest discovery paths and markers are defined in
 [pyproject.toml](../pyproject.toml) and [conftest.py](conftest.py). Default pytest

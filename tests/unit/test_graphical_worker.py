@@ -3,16 +3,12 @@
 import array
 import socket
 import struct
-import sys
-from pathlib import Path
 from unittest.mock import Mock, MagicMock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests/integration'))
 import graphical_worker as worker
 import check_graphical_worker as qualification
-sys.path.pop(0)
 
 
 def test_descendant_wait_requires_every_recorded_exit():

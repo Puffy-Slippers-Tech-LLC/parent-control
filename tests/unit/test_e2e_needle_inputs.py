@@ -2,15 +2,11 @@
 
 import hashlib
 import json
-from pathlib import Path
 import struct
-import sys
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'e2e'))
 import e2e_worker as worker
-sys.path.pop(0)
 
 
 @pytest.fixture

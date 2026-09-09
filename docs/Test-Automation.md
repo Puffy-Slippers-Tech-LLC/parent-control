@@ -114,8 +114,8 @@ included in today's `make check`.
 | `make check-system LIST=1 [AREA=<area> [TEST=<case-id>]]` | Host-safe installed-case inventory and prerequisite resolution; no artifacts, root, or VM use. |
 | `make check-system ARTIFACT_DIR=<verified-directory>` | Existing guarded installed-system runner; detailed coverage is still being completed. |
 | `make check-system ARTIFACT_DIR=<verified-directory> AREA=<area> [TEST=<case-id>]` | Guarded partial installed run for registered `package` or `authorization` scope, including required package/reboot phases. |
-| `make check-e2e LIST=1 [SCENARIO=<family-or-variant>]` | Host-safe inventory through the validated E2E launcher; E2E-001 is runnable; the other 155 variants remain pending. |
-| `make check-e2e ARTIFACT_DIR=<verified-directory> [SCENARIO=<family-or-variant>]` | Ready Python callbacks dispatch through the accepted guarded controller. E2E-001 combines stable GDM/serial-return evidence with the accepted controller; its three public qualifications remain Task 19B. Pending selections refuse before privilege or VM access. |
+| `make check-e2e LIST=1 [SCENARIO=<family-or-variant>]` | Host-safe inventory through the validated E2E launcher; E2E-001 is runnable; the other 156 variants remain pending. |
+| `make check-e2e ARTIFACT_DIR=<verified-directory> [SCENARIO=<family-or-variant>]` | Ready Python callbacks dispatch through the accepted guarded controller. E2E-001 combines qualified GDM/serial-return evidence with the accepted controller. Pending selections refuse before privilege or VM access. |
 
 Selected runs record their exact expected and executed JUnit identities and
 reject missing, additional, duplicate, failed, or skipped cases. They are
@@ -213,6 +213,10 @@ existing accepted baseline.
 
 The [test contributor guide](../tests/README.md) covers layer selection,
 dependency isolation, cleanup prerequisites and requirement maintenance.
+The [shared support guide](../tests/support/README.md) routes reusable fixtures,
+script imports, process capture, private buses, VM doubles and guest assertions.
+Pytest import paths and layer classification are maintained centrally; tests
+must not import collected cases or repeat module-level path manipulation.
 The [remaining implementation plan](TestAutomation/Test-Automation.md) contains
 only work not yet accepted. Completed setup task descriptions, dated pass
 counts, temporary acceptance paths and model-price comparisons are not daily

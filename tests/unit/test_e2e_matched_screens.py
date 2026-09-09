@@ -5,8 +5,9 @@ import json
 
 import pytest
 
-from test_graphical_smoke import png
-from test_e2e_controller_qualification_cleanup_safety import qualification, EvidenceError
+import controller_qualification as qualification
+from private_artifacts import EvidenceError
+from tests.support.screens import png
 
 
 @pytest.fixture

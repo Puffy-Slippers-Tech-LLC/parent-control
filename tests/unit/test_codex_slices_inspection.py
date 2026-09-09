@@ -1,18 +1,15 @@
 """Preapproved inspection cannot dispatch workers, write state or load injected Python."""
-import importlib.util
+from tests.support.modules import load_module
 import json
 import os
-from pathlib import Path
 import subprocess
 
 import pytest
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 LAUNCHER = ROOT / 'tools/codex_slices.py'
-SPEC = importlib.util.spec_from_file_location('slice_inspection', LAUNCHER)
-loop = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(loop)
+loop = load_module('onpc_test_slice_inspection', LAUNCHER)
 
 
 @pytest.mark.parametrize('args, exit_code', [

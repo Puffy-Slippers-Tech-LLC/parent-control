@@ -2,19 +2,13 @@
 
 import hashlib
 import json
-from pathlib import Path
-import sys
 from unittest.mock import Mock
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tests/e2e'))
+from tests.support.paths import ROOT
 import e2e_worker as runtime
-sys.path.pop(0)
-sys.path.insert(0, str(ROOT / 'tests/integration'))
 import system_runner
-sys.path.pop(0)
 
 
 @pytest.fixture

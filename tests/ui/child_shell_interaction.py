@@ -17,6 +17,7 @@ from gi.repository import Atspi, GLib
 from dogtail.hermetic.mutter import MutterInputBackend
 
 from child_shell_screenshot import capture_screenshot
+from mutter_input import click_at, press_key as _press_key
 
 
 EVENTS = (
@@ -142,7 +143,10 @@ def _countdown_animation_setting():
 
 def _click(node, button, input_backend):
     extents = node.get_extents(Atspi.CoordType.SCREEN)
-    input_backend.generateButtonEvent(
+    print(f"interaction input=pointer button={button} "
+          f"target={extents.x},{extents.y},{extents.width},{extents.height}", flush=True)
+    click_at(
+        input_backend,
         button,
         extents.x + max(1, extents.width // 2),
         extents.y + max(1, extents.height // 2),
@@ -313,18 +317,6 @@ def _leave_overview(input_backend):
     time.sleep(0.5)
 
 
-def _press_key(input_backend, keycode):
-    input_backend.generateKeycodePress(keycode)
-    time.sleep(0.1)
-    input_backend.generateKeycodeRelease(keycode)
-    # Nested Shell's devkit compositor publishes the virtual keyboard release
-    # to Shell actors when the RemoteDesktop session closes. Use that supported
-    # lifecycle boundary for each key, then create the next virtual device.
-    input_backend.disconnect()
-    time.sleep(0.1)
-    input_backend.connectMonitor()
-
-
 def _one_overlay(expected_launches):
     records = _launch_records()
     surfaces = _overlay_surfaces()
@@ -425,6 +417,13 @@ def main():
         return 0
     except Exception as error:
         print(f"Child indicator interaction failed: {error}", file=sys.stderr)
+        try:
+            capture_screenshot(
+                Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]).with_name("interaction-failure.png"),
+                include_cursor=True,
+            )
+        except Exception:
+            print("Child interaction failure screenshot unavailable", file=sys.stderr)
         print(f"Launch records: {_launch_records()!r}", file=sys.stderr)
         print(f"Redacted accessibility snapshot:\n{_snapshot()}", file=sys.stderr)
         return 1

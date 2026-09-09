@@ -1,15 +1,11 @@
 """Real local pipes, fake libvirt: no VM, host console or process signals."""
 
 import os
-from pathlib import Path
-import sys
 from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'integration'))
 import graphical_serial as serial
-sys.path.pop(0)
 
 XML = '''<domain><devices>
 <serial type="pty"><target type="isa-serial" port="0"><model name="isa-serial"/></target><alias name="serial0"/></serial>

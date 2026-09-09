@@ -1,17 +1,15 @@
 """Host-safe verification for deterministic application-test fixtures."""
 
-import importlib.util
+from tests.support.modules import load_module
 import os
 from pathlib import Path
 import tempfile
 import unittest
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 FIXTURES = ROOT / "tests/fixtures/build_test_applications.py"
-spec = importlib.util.spec_from_file_location("onpc_test_applications", FIXTURES)
-fixtures = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(fixtures)
+fixtures = load_module('onpc_test_applications', FIXTURES)
 
 
 class TestApplicationFixtures(unittest.TestCase):

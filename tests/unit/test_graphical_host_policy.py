@@ -1,15 +1,13 @@
 """Preserve site policy and reject ambiguous edits before kernel activation."""
 
-import importlib.util
+from tests.support.modules import load_module
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('graphical_policy', ROOT / 'tools/install_graphical_test_policy.py')
-policy = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(policy)
+from tests.support.paths import ROOT
+policy = load_module('onpc_test_graphical_policy', ROOT / 'tools/install_graphical_test_policy.py')
 
 
 def test_managed_policy_preserves_site_rules_and_is_idempotent():

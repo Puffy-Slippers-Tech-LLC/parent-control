@@ -2,21 +2,17 @@
 
 import hashlib
 import json
-from pathlib import Path
-import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tests/e2e'))
+from tests.support.paths import ROOT
 import controller_qualification as qualification
 from evidence import EvidenceContract, CLEANUP_FIELDS, INPUT_FIELDS
 import inventory
 from private_artifacts import PrivateCollector, EvidenceError
 from recording import ScenarioRecorder
-sys.path.pop(0)
 
 
 @pytest.fixture

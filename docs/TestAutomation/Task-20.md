@@ -85,53 +85,68 @@ output stays plain text.
 **Earliest ready task; not accepted.** [Task 19B remains accepted](Evidence/19B-Acceptance-20260908.md).
 No earlier entry is bypassed; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
 
-**Current result — 2026-09-09:** [recipient diagnostics and final-notice qualification](Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md).
-Fixed error/link/target, process/leader continuity and probe-privilege categories
-now follow a resolution refusal; recovery cannot authorize input. Attempt fifteen
-passed authenticated installation, exact final bold-red notice, package identity,
-reboot marker, logout and GDM return. Three qualifications passed; twelve historical
-failures remain failed. The intermittent refusal did not reproduce and is not
-claimed fixed; new diagnostics were tested locally.
+**Current result — 2026-09-09:** [installed-layout evidence](Evidence/20-Installed-Layout-Observation-20260909.md)
+records a fixed read-only post-reboot observer that reuses the transferred
+package inventory and installed package/ownership/PAM/Polkit/session assertions.
+The controller binds its safe inventory digest to `VerifiedInputs`, latches
+every mismatch or observation failure, and composes it with GDM, both startup
+witnesses and unchanged boot. The exact guest program, transport grammar,
+boundary and callback pass locally. Durable behavior, regressions, downstream
+reuse and live-qualification limits are in the
+[owning installation contract](../../tests/e2e/README.md#installation-findings-to-carry-forward)
+and [affected reuse map](Reuse-Map.md#installation-helper-and-open-limits).
 
-**Next bounded result:** extend the qualified install with a real customer reboot,
-changed boot identity and guarded reconnection. Preserve ordinary smoke's
-unchanged-boot contract. Then add GDM/fapolicyd and independent broker readiness,
-layout and the separate E2E-028 faults from the
-[startup audit](Evidence/20-Startup-Audit-20260908.md). Keep E2E-002 pending.
-Use diagnostics if recipient refusal recurs in required work; do not repeat
-installation solely to reproduce it.
+**Retained live scope:** the [unblock intervention](Evidence/20-Reboot-Unblock-20260909.md)
+proved authenticated reboot, changed boot and held-stream serial return. The
+corrected GDM needle matches retained pixels locally; full acknowledgement,
+normal shutdown and final preservation remain unqualified. No new expensive
+attempt: 21 overall, three historical passes and eighteen failures. Preserve
+those failures; do not reopen solved authentication/probe semantics.
 
-**Read list:** `tests/e2e/installation_boundary.py`, `controller_qualification.py`,
-`e2e_worker.py`, `observation_transport.py`,
-`tests/integration/graphical_smoke/tests/smoke.pm`, `lib/onpc_install.pm`,
-`tests/system/test_install_smoke.py`, and the lifecycle contract linked above.
-Identify the smallest reboot transition; cover ownership loss/stale observations
-locally before a fresh guarded proof. Build fresh artifacts and run isolated
-cleanup-safety prerequisites before the protected operation.
+**Next bounded result:** implement E2E-002's customer-visible graphical reboot
+notice assertion through the existing os-autoinst screen/capture contract,
+without exposing the authentication exchange or weakening the exact red final
+notice already proved on serial. Then reconcile the complete callback and local
+readiness before fresh artifacts, isolated safety prerequisites and one complete
+guarded attempt. Reuse the installed layout, startup and
+[provenance contracts](../../tests/e2e/README.md#controller-owned-provenance);
+the historical final-provenance cause is still unknown, and safe final-code
+reporting remains locally tested only. Do not reopen solved authentication or
+reboot-probe semantics without new evidence.
 
-**Verification/cleanup:** 1784 focused tests passed; isolated and dispatcher safety
-closures each passed 546 tests plus 3 subtests. Two initial new-test assertion
-failures were corrected; details, selectors and digests are in the evidence.
-Live qualification exited 0 in 1282.288s; infrastructure/collection/cleanup passed,
-product aggregate `not-run`. Notice and GDM-image review passed. Worker/callback/
-display closed, shutdown verified, baseline restored/verified, preservation and
-lease release passed; fresh guarded VM status off. Screenshot export removed;
-all commands exited, no recovery remains. Ordinary artifact read required the
-approved privileged reader; no policy/Polkit denial. Handoff edits invalidate
-artifact reuse. Actual settings: `gpt-6-astra` / `high`, Standard.
+**Verification/cleanup:** actual settings `gpt-5.6-sol` / `high`, Standard.
+The focused exact-program, transport, boundary and controller selection passed
+1,446 tests, and the final boundary/controller change passed its 91-test rerun;
+link validation and `git diff --check` passed. Both ordinary and
+approved outside-sandbox `make check` attempts passed 5,746 of 5,747 tests but
+failed the unrelated
+`ExtensionManagerTests.test_global_extension_switch_fails_before_activation_writes`.
+Concurrent extension-manager edits appeared after initial status, changed the
+global-switch behavior without updating that test, and the exercised offline
+subprocess received `EPERM`; return to the common check after that work settles.
+All commands exited; no VM lease, guest process, screenshot export or recovery
+was created. No approval denial. **All-task VM clearance persists**; missing
+customer-visible notice and complete-journey qualification, not coordination,
+prevent a useful full attempt. Selection rechecked: Task 20 remains earliest
+ready, no bypass; 15A and unrelated edits remain preserved. Task 20 acceptance
+and both independent E2E-028 startup faults remain unfinished.
 
-The [all-task VM clearance](Implementation-Workflow.md#vm-availability-for-all-tasks)
-persists. Selection rechecked: Task 20 earliest ready, no bypass. One live attempt
-only; no launcher/control-state changes. The prior
-[Session 39 reconciliation](Evidence/20-Session-39-Reconciliation-20260909.md)
-is historical recovery evidence, not a new launch instruction.
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
+**Reason:** installed layout and startup composition are locally proven; the
+remaining graphical notice assertion uses the qualified screen/capture helper,
+but authentication-adjacent capture and full callback correctness warrant high
+effort. Reassess if live qualification exposes a hard boundary. Standard.
 
-**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
-**Reason:** authentication/notice success is qualified, but ownership and observation
-continuity across a real reboot need design and first proof. Standard processing.
-**Remaining Task 20:** sessions **Unknown**, minutes **Unknown**. This qualification
-cost 21.4 minutes; cross-boot/readiness/fault work has no measured completion bound,
-and intermittent prerequisite failure remains possible.
+### Reboot unblock intervention — 2026-09-09
+
+The [intervention evidence](Evidence/20-Reboot-Unblock-20260909.md) records the
+review of Sessions 42–45, the two corrected runs, executable regressions and
+the preserved failures. The three corrections are explicit fresh reboot
+authentication, retaining SSH status across ownership checks, and an exact
+installed-layout GDM fixture. The latest attempt established an actual reboot
+and serial return; the subsequent matcher correction passed against its retained
+image. The active handoff above owns the remaining readiness work and qualification
+limits. No worker was killed; the launcher remains stopped at a safe boundary.
 
 ### Operator follow-up after Session 34
 

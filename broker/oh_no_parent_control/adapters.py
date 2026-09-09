@@ -245,7 +245,10 @@ class AccountsService:
                 ).unpack()[0]
             except GLib.Error:
                 continue
-            if properties.get("Class") != "user":
+            service = properties.get("Service")
+            if (properties.get("Class") != "user" or
+                    properties.get("Type") not in {"wayland", "x11"} or
+                    not isinstance(service, str) or not service.startswith("gdm-")):
                 continue
             unit = f"session-{session_id}.scope"
             try:
@@ -390,6 +393,8 @@ class TimerUsage:
                         69: "backend-unavailable",
                         70: "invalid-backend-reply",
                     }.get(result.returncode, "helper-failed")
+                    LOG.warning("usage helper outcome=failed category=%s returncode=%d",
+                                category, result.returncode)
                     raise TimerUsageError(category)
                 output.flush()
                 if os.fstat(output.fileno()).st_size > MAX_USAGE_HELPER_OUTPUT_BYTES:

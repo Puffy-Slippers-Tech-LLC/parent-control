@@ -4,7 +4,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from parent.oh_no_parent_control_parent import diagnostics
+from oh_no_parent_control import diagnostics
 
 
 def test_export_contains_three_newest_available_log_dates_in_newest_first_order(tmp_path):
@@ -53,10 +53,20 @@ def test_export_reports_no_logs(tmp_path):
         diagnostics.collect_logs(tmp_path, date(2026, 9, 4))
 
 
+def test_export_rejects_hard_links(tmp_path):
+    component = tmp_path / "kiosk"
+    component.mkdir()
+    source = tmp_path / "private"
+    source.write_text("not a product log")
+    (component / "2026-09-09.log").hardlink_to(source)
+    with pytest.raises(ValueError, match="Unsupported log file"):
+        diagnostics.collect_logs(tmp_path, date(2026, 9, 9))
+
+
 def test_download_saves_exact_archive_privately(tmp_path):
     from types import SimpleNamespace
     from gi.repository import Gio, GLib
-    from parent.oh_no_parent_control_parent.feedback import FeedbackDialog
+    from common.oh_no_parent_control_ui.feedback import FeedbackDialog
 
     path = tmp_path / "download.zip"
     loop = GLib.MainLoop()

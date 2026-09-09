@@ -20,9 +20,12 @@ def boundary():
                             'product_reboot_required': False, 'install_process_absent': True},
         'package-installed': {'package_sha256': 'a'*64, 'installed_identity_verified': True,
                               'product_reboot_required': True},
+        'installed-layout': {'installed_files': 12, 'inventory_sha256': 'd'*64,
+                             'installed_layout_verified': True},
     }
     observer = Mock(read=Mock(side_effect=lambda name: dict(observations[name])))
-    verified = Mock(inputs={'package_sha256': 'a'*64})
+    verified = Mock(inputs={'package_sha256': 'a'*64},
+                    asset_files={'installed-files.json': 'd'*64})
     transfer = Mock(verified=verified)
     return InstallationBoundary(observer, verified, transfer), observations
 
@@ -38,6 +41,49 @@ def test_ordered_install_acknowledgements_bind_assets_and_package(boundary):
     assert after['boot_sha256'] == before['boot_sha256']
     with pytest.raises(EvidenceError, match='install:phase'):
         instance.observe('install-complete')
+
+
+def test_post_reboot_layout_is_bound_to_transferred_package_inventory(boundary):
+    instance, _ = boundary
+    for stage in instance.STAGES:
+        instance.observe(stage)
+    result = instance.observe_installed_layout()
+    assert result['installed_layout_verified'] and result['verified_inventory_digest']
+    assert result['inventory_sha256'] == 'd'*64
+    assert instance.observer.read.call_args_list[-1].args == ('installed-layout',)
+    with pytest.raises(EvidenceError, match='install:layout-phase'):
+        instance.observe_installed_layout()
+
+
+@pytest.mark.parametrize('fault', ['early', 'refusal', 'digest', 'missing-input',
+                                   'probe', 'provenance', 'interrupt'])
+def test_installed_layout_failure_is_terminal_and_redacted(boundary, fault, capsys):
+    instance, observations = boundary
+    if fault == 'refusal':
+        instance = InstallationBoundary(instance.observer, instance.verified,
+                                        instance.transfer, refusal=True)
+        for stage in instance.REFUSAL_STAGES:
+            instance.observe(stage)
+    elif fault != 'early':
+        for stage in instance.STAGES:
+            instance.observe(stage)
+    private = RuntimeError('private-canary')
+    if fault == 'digest':
+        observations['installed-layout']['inventory_sha256'] = 'e'*64
+    elif fault == 'missing-input':
+        instance.verified.asset_files = {}
+    elif fault == 'probe':
+        instance.observer.read.side_effect = private
+    elif fault in ('provenance', 'interrupt'):
+        instance.verified.recheck.side_effect = (KeyboardInterrupt('private-canary')
+                                                if fault == 'interrupt' else private)
+    with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else EvidenceError) as caught:
+        instance.observe_installed_layout()
+    assert 'private-canary' not in str(caught.value) + capsys.readouterr().err
+    calls = instance.observer.read.call_count
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        instance.observe_installed_layout()
+    assert instance.observer.read.call_count == calls
 
 
 def test_ordered_refusal_acknowledges_no_retry_or_package_result(boundary):

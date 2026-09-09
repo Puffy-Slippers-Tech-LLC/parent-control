@@ -23,6 +23,7 @@ class InstallationBoundary:
         self._phase = 0
         self._failed = False
         self._boot = None
+        self._layout_observed = False
         self._package = verified.inputs['package_sha256']
         require(isinstance(self._package, str) and re.fullmatch(r'[0-9a-f]{64}', self._package),
                 'install:package-required')
@@ -79,3 +80,30 @@ class InstallationBoundary:
             }:
                 raise
             raise EvidenceError('install:observation-failed') from None
+
+    def observe_installed_layout(self):
+        """Bind the post-reboot installed layout to the transferred inventory."""
+        require(not self._failed, 'install:previous-failure')
+        try:
+            require(not self.refusal and self._phase == len(self.STAGES)
+                    and not self._layout_observed, 'install:layout-phase')
+            self.verified.recheck()
+            expected = self.verified.asset_files.get('installed-files.json')
+            require(isinstance(expected, str) and re.fullmatch(r'[0-9a-f]{64}', expected),
+                    'install:layout-inputs-changed')
+            result = self.observer.read('installed-layout')
+            require(result['inventory_sha256'] == expected,
+                    'install:layout-inputs-changed')
+            self.verified.recheck()
+            self._layout_observed = True
+            print('e2e:installed-layout-verified', file=sys.stderr, flush=True)
+            return {**result, 'verified_inventory_digest': True}
+        except BaseException as error:
+            self._failed = True
+            print('e2e:installed-layout-rejected', file=sys.stderr, flush=True)
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise KeyboardInterrupt('install:interrupted') from None
+            if isinstance(error, EvidenceError) and str(error) in {
+                'install:layout-phase', 'install:layout-inputs-changed'}:
+                raise
+            raise EvidenceError('install:layout-observation-failed') from None

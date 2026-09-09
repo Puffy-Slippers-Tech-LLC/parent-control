@@ -34,6 +34,15 @@ GNOME Shell reports the extension both enabled and active; deactivation is
 accepted only when it reports neither. Offline activation is verified against
 the durable settings that Shell will consume at next login.
 
+GNOME may turn on `disable-user-extensions` after a session startup failure.
+Startup reassertion for a saved enabled child restores that global switch to
+false and verifies the write before proceeding. Ordinary preference transitions
+retain their refusal while the global switch is disabled, so a later failed
+preference transaction cannot leave a global switch change behind. Individual extension choices
+are preserved; this also resumes other individually enabled extensions. A
+failed activation restores the switch and original lists, verifies rollback,
+and remains an error. Broker startup still requires successful activation.
+
 ## Grant arithmetic and usage identities
 
 Malcontent replaces an active extension starting at approval time rather than
@@ -67,6 +76,16 @@ parent reads, but explicitly rejects UID 0. No administrator identity is selecte
 on behalf of a child or kiosk status request. Approval-time usage queries retain
 the authenticated approver identity described above.
 
+The helper tolerates the timer daemon exiting normally at its inactivity
+deadline while a query is in flight. `NoReply`, `NameHasNoOwner`, and
+`ServiceUnknown` trigger at most two further reads addressed to the same
+well-known service name, allowing D-Bus activation to select its new owner.
+All attempts share a 25-second budget inside the broker's 30-second helper
+deadline, with 200 ms between attempts. Authorization failures and malformed
+replies are not retried, and a failed read never becomes zero usage. The helper
+is loaded on its next invocation (`none` activation); adapter logging changes
+activate with the broker's `process-restart` classification.
+
 ## Countdown and expiry enforcement
 
 The child extension uses GNOME Shell's supported time-limit manager and the
@@ -94,16 +113,29 @@ without being mislabeled as confirmed exhaustion. This closes the retained-
 session path while preserving active one-time grants; the kiosk and Ubuntu
 administrator accounts bypass this authentication check in the PAM profile;
 the helper also permits UID 0. Because Malcontent's login-time `RuntimeMaxSec`
-snapshot would terminate a live session after a later grant, the PAM session
-helper attempts to clear that cap after `pam_systemd` creates
-the scope; broker startup also attempts to clear stale caps on existing managed
-sessions. Expiry therefore locks the child instead of logging out that child or
+snapshot would terminate a live session after a later grant, the native product
+PAM account module follows `pam_malcontent` and replaces its documented
+`systemd.runtime_max_sec` PAM data with `infinity` before a GDM session opens.
+It leaves the timer intact for terminal, SSH, and other PAM services where the
+GNOME screen-lock enforcement is unavailable.
+This prevents even a one-second grant from creating a kill timer while GNOME
+starts. The account check's denial remains authoritative; exempt and confirmed
+unrestricted accounts skip both modules, and other resource limits are preserved.
+The former external helper ran before `pam_systemd`, when no session scope
+existed, and could not modify the caller's PAM handle. Broker startup also
+attempts to clear caps on existing managed graphical GDM sessions, requiring
+logind's user class, Wayland/X11 type, and GDM service. Expiry therefore locks the
+child instead of logging out that child or
 ending another user's foreground session. Expiry does not itself terminate
 applications. On each new child session and each transition from locked to
 unlocked, the child component invokes the broker-owned `PrepareOwnSession`
 reconciliation in [Application policy](Applications.md#session-entry-reconciliation);
 the unprivileged component neither decides whether a grant is current nor
 signals processes itself.
+
+The PAM module/profile change activates at `reboot`; extension-manager changes
+activate at `process-restart`. No saved-data migration is needed. The PAM data
+interface is documented in [pam_systemd](https://github.com/systemd/systemd/blob/main/man/pam_systemd.xml).
 
 ## Related design
 

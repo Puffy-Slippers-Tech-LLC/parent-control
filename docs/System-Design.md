@@ -14,8 +14,8 @@ you have the context needed for the task.
 
 For example, a request-form layout change needs Front ends. Grant arithmetic
 needs the Screen time calculation section; also read Broker transactions if
-changing approval or commit behavior. A preference schema change needs State
-and the migration contract.
+changing approval or commit behavior. A preference schema change needs
+[State](SystemDesign/State.md) and [Data migration](SystemDesign/Data-Migration.md).
 
 ## Find the relevant design
 
@@ -23,6 +23,7 @@ and the migration contract.
 | --- | --- | --- |
 | Identity, D-Bus, authorization | [Broker](SystemDesign/Broker.md) | [Accounts](SystemDesign/Broker.md#accounts-and-roles), [method permissions](SystemDesign/Broker.md#broker-interface-and-roles), [approval/revocation](SystemDesign/Broker.md#authorization-and-grant-transactions) |
 | Preferences and configuration | [State](SystemDesign/State.md) | [Schemas, defaults, and authorities](SystemDesign/State.md#persistent-and-derived-state) |
+| Saved-data compatibility and upgrades | [Data migration](SystemDesign/Data-Migration.md) | [Package ordering and retries](SystemDesign/Data-Migration.md#package-lifecycle), [adding migrations](SystemDesign/Data-Migration.md#adding-a-preference-migration), [safety](SystemDesign/Data-Migration.md#safety-contract) |
 | Time limits and child sessions | [Screen time](SystemDesign/Screen-Time.md) | [Enablement](SystemDesign/Screen-Time.md#screen-time-model), [calculations and usage](SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities), [countdown/lock/PAM](SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement) |
 | Application enforcement | [Application policy](SystemDesign/Applications.md) | [Catalog](SystemDesign/Applications.md#application-policy-and-enforcement), [process matching](SystemDesign/Applications.md#running-application-identity), [execution rules](SystemDesign/Applications.md#live-filter-and-execution-rules), [session reconciliation](SystemDesign/Applications.md#session-entry-reconciliation) |
 | Parent, child overlay, kiosk UI | [Front ends](SystemDesign/Frontends.md) | [Shared form and flows](SystemDesign/Frontends.md#main-flows), [remembered selectors](SystemDesign/Frontends.md#request-selector-state) |
@@ -80,7 +81,7 @@ entry points belong in modules; the [Makefile](../Makefile) owns the complete
 build and installation map.
 
 Follow [Package update](Package-Update.md) for changed system integration and
-[Data migration](Data-Migration.md) before incompatible saved-data changes.
+[Data migration](SystemDesign/Data-Migration.md) before incompatible saved-data changes.
 Consult [Test automation](Test-Automation.md) for validation workflows and the
 [threat model](Threat-Model.md) for security targets and remaining verification;
 those targets are distinct from the current implementation described here.

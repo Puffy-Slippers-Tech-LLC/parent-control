@@ -141,11 +141,51 @@ finish current work and cleanup before restarting an ongoing launcher.
 After each session exits, the launcher appends one report to
 [Test-Automation-Slice-Summary.md](../Test-Automation-Slice-Summary.md). This is
 the durable history to read after leaving the launcher unattended. Each report
-contains its session number, completion timestamp in UTC to the minute, elapsed
-duration rounded up to whole minutes, outcome, settings, completed work,
-verification and cleanup, next action, and estimated sessions/minutes remaining
-for the named current task. Estimates include their basis and uncertainty;
-unsupported estimates are explicitly unknown. They are not execution deadlines.
+keeps its session number and local completion timestamp to the minute in the
+heading, followed by exactly six bullets in this order:
+
+```markdown
+## Session <number> — <YYYY-MM-DD HH:MM timezone>
+
+- Progress: **Solid and healthy**
+- Task: Task <ID> — the concrete objective pursued.
+- Duration: <whole minutes> minutes
+- Completed: Actual changes and findings. State what remains unfinished.
+
+- Verification and cleanup: Check results and counts, material failures and recovery, evidence path, and final command/VM/export cleanup state.
+
+- Next session: Task <ID>: the concrete next action. Next settings: <model>/<effort>, Standard.
+```
+
+Progress is a short overall assessment, placed first, immediately before Task.
+Choose one bold value: **Solid and healthy** when verified work advances the
+task and a concrete, feasible next action remains (or acceptance is complete);
+**Nearly blocked or stalled - need intervention** when repeated attempts yield
+no meaningful advance, an unresolved prerequisite prevents the next action, or
+outside input is needed. Base the rating on this session's evidence and the
+active handoff, not test counts alone or optimism. Do not read historical
+summaries to infer a trend. Keep the Progress line to the rating; explain the
+reason in Completed or Verification and cleanup, and identify the needed
+intervention in Next session. This is a progress-health assessment, not a time
+estimate or a replacement for acceptance and cleanup status.
+
+Duration is measured by the supervisor and rounded up, without a parenthetical
+rounding note. Keep Task, Duration and Completed adjacent; separate Verification
+and cleanup and Next session with blank lines. Use concise prose and preserve
+acceptance limits, evidence and material failure details. Put a blocker or
+required intervention in Next session; omit next settings when no work remains.
+
+Compared with the older format, Progress comes first, followed by Task and
+Duration. Remove the duplicate Completion bullet, routine Outcome, current
+Settings, Processing, Attempt, CLI token counts and Supervisor bullets, and all
+remaining-session/time estimates and their basis. Next settings belongs at the
+end of Next session. Lifecycle metadata remains in the existing private control
+records. Exceptional outcomes and supervisor recovery notes belong in
+Verification and cleanup so simplification does not hide uncertainty.
+Session 41 illustrates the other five fields and remains unchanged; future
+summaries add Progress above Task. This guidance-only addition still requires
+support in the launcher's structured schema and renderer before automated
+reports can emit the sixth field; restarting alone does not add that support.
 
 The launcher opens the document **write-only, in append mode**. It never reads,
 summarizes, rotates, truncates or rewrites earlier entries. Session numbering is
@@ -155,7 +195,8 @@ is carried forward. The final response contains the new summary, and the
 supervisor adds measured timing and appends it before launching another session.
 
 Blocked and failed sessions get an end entry too; missing/invalid reports are
-marked unconfirmed with unknown estimates. A transient retry gets its own entry.
+marked unconfirmed in the same layout; use the intervention rating when progress
+or cleanup cannot be confirmed. A transient retry gets its own entry.
 If writing a summary fails, the loop stops for review. Power loss or forcibly
 killing the supervisor can prevent its final append; the recorded active state
 requires reconciliation. No in-session chatter is appended to this document.
@@ -215,9 +256,9 @@ blanket Astra pin; historical evidence records the settings actually used then.
 Slice budgets remain review points, so an active VM attempt can exceed 30
 minutes while it finishes collection and cleanup.
 
-The supervisor appends already-reported CLI token counts to each operator
-summary, including cached input and reasoning output when supplied. Missing
-counts are marked unreported. These subcounts must not be added again to their
+The supervisor retains already-reported CLI token counts in private lifecycle
+records, including cached input and reasoning output when supplied; they are
+omitted from the operator summary. These subcounts must not be added again to their
 input/output totals. Raw tokens do not measure weekly allowance consumption;
 use the account's displayed allowance alongside verified progress when exposed.
 No new model call, transcript scan or replay benchmark is needed for this report.

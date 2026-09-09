@@ -4,11 +4,13 @@
 #include <fcntl.h>
 #include <security/pam_appl.h>
 #include <security/pam_modules.h>
+#include <security/pam_ext.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <syslog.h>
 #include <unistd.h>
 
 /*
@@ -25,6 +27,58 @@ enum helper_result {
     HELPER_ALLOWED = 0,
     HELPER_DENIED = 1,
 };
+
+#define RUNTIME_MAX_DATA "systemd.runtime_max_sec"
+
+PAM_EXTERN int
+pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
+{
+    const void *runtime_max = NULL;
+    const char *service = NULL;
+    int result;
+
+    (void) flags;
+    (void) argc;
+    (void) argv;
+
+    /* Only GDM sessions have the GNOME screen-lock enforcement described below.
+     * Keep Malcontent's kill timer for terminal, SSH and other PAM services. */
+    result = pam_get_item(pamh, PAM_SERVICE, (const void **) &service);
+    if (result != PAM_SUCCESS || service == NULL || service[0] == '\0')
+        return PAM_SERVICE_ERR;
+    if (strncmp(service, "gdm-", 4) != 0)
+        return PAM_SUCCESS;
+
+    /*
+     * Run immediately after pam_malcontent's account check. Its login-time
+     * snapshot must not become a session kill timer: expiry is a screen lock.
+     * pam_systemd documents this PAM data key and consumes it when opening
+     * the session. An external pam_exec helper cannot change this handle,
+     * and clearing a scope after creation races a near-expired grant.
+     *
+     * The profile skips both modules for exempt/unrestricted accounts. This
+     * never changes pam_malcontent's result or any other resource limit.
+     */
+    result = pam_get_data(pamh, RUNTIME_MAX_DATA, &runtime_max);
+    if (result == PAM_NO_MODULE_DATA ||
+        (result == PAM_SUCCESS && runtime_max == NULL))
+        return PAM_SUCCESS;
+    if (result != PAM_SUCCESS) {
+        pam_syslog(pamh, LOG_ERR,
+                   "session runtime cap outcome=failed stage=read status=%d",
+                   result);
+        return result;
+    }
+    if (strcmp(runtime_max, "infinity") == 0)
+        return PAM_SUCCESS;
+
+    /* pam_set_data invokes the previous owner's cleanup when replacing data. */
+    result = pam_set_data(pamh, RUNTIME_MAX_DATA, (void *) "infinity", NULL);
+    pam_syslog(pamh, result == PAM_SUCCESS ? LOG_INFO : LOG_ERR,
+               "session runtime cap outcome=%s stage=before-session status=%d",
+               result == PAM_SUCCESS ? "cleared" : "failed", result);
+    return result;
+}
 
 static int
 run_session_limit_check(const char *username, const char *service)

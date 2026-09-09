@@ -64,9 +64,6 @@ SUMMARY_FIELDS = {
     'completed': 'Completed',
     'verification': 'Verification and cleanup',
     'next': 'Next session',
-    'remaining_sessions': 'Estimated sessions remaining for this task',
-    'remaining_minutes': 'Estimated minutes remaining for this task',
-    'estimate_basis': 'Estimate basis and uncertainty',
 }
 SCHEMA = {
     'type': 'object',
@@ -475,32 +472,32 @@ def finish_session(root, session, outcome, note, live, update):
     minutes = session.get('duration_minutes')
     if minutes is None:
         minutes = math.ceil(max(0, time.monotonic() - session['started']) / 60)
-    text = (f"\n\n## Session {session['number']} — {completed}\n\n"
-            f"- Completion: {completed}\n"
-            f"- Duration: {minutes} minutes (rounded up)\n"
-            f"- Outcome: {outcome}\n"
-            f"- Settings: `{session['model']}` / `{session['effort']}`\n"
-            '- Processing: Standard\n'
-            f"- Attempt: `{session['attempt']}`\n")
-    usage = session.get('usage', {})
-    counts = '; '.join(f'{key}: {usage[key]}' for key in USAGE_FIELDS if key in usage)
-    text += f'- CLI token counts: {counts or "not reported"}. These are not weekly allowance measurements.\n'
-    if note:
-        text += f'- Supervisor: {note}\n'
+    text = f"\n\n## Session {session['number']} — {completed}\n\n"
     result = session.get('result')
     if result is not None:
-        if outcome == 'needs-review':
-            text += '\nThe following is the worker report; acceptance or cleanup is unconfirmed.\n'
-        for key, label in SUMMARY_FIELDS.items():
-            value = result['summary'][key].strip().replace('\n', '\n  ')
-            text += f'\n- {label}: {value}\n'
+        fields = dict(result['summary'])
         if result['blocker'] != 'none':
-            text += f"\n- Blocker: {result['blocker']}\n"
+            fields['next'] += f" Blocker: {result['blocker']}."
     else:
-        text += ('\n- Completed: No valid end-of-session report was returned; work is unconfirmed.\n'
-                 '- Next session: Retry only if the supervisor confirms a failure before tool use; '
-                 'otherwise reconcile the current task handoff and owned operations.\n'
-                 '- Estimated sessions/minutes remaining: Unknown.\n')
+        fields = {
+            'task': 'Unconfirmed; consult the current task handoff.',
+            'completed': 'No valid end-of-session report was returned; work is unconfirmed.',
+            'verification': 'Verification and cleanup are unconfirmed.',
+            'next': 'Retry only if the supervisor confirms a failure before tool use; '
+                    'otherwise reconcile the current task handoff and owned operations.',
+        }
+    if outcome not in ('continue', 'complete'):
+        fields['verification'] = (
+            f'Outcome: {outcome}. {note or ""} '
+            + ('Worker acceptance or cleanup is unconfirmed. ' if outcome == 'needs-review' else '')
+            + fields['verification'])
+    for key, label in SUMMARY_FIELDS.items():
+        value = fields[key].strip().replace('\n', '\n  ')
+        text += f'- {label}: {value}\n'
+        if key == 'task':
+            text += f'- Duration: {minutes} minutes\n'
+        elif key != 'next':
+            text += '\n'
     try:
         append_summary(root, text)
     except OSError as exc:

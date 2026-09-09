@@ -18,9 +18,10 @@ Render representative fixture data without contacting privileged services.
 Present the shared request interface for the current child account instead of
 showing the kiosk account selector.
 .TP
-.BI \-\-soundtrack " file"
-Play the specified audio file instead of the installed request-station
-soundtrack.
+.B \-\-error-report-stdin
+Read an error message from standard input and open a prefilled feedback dialog.
+Requires \-\-child-overlay. Used by the child panel to keep error details out
+of process arguments. Nothing is sent until Send Feedback is selected.
 .TP
 .BR \-h , " " \-\-help
 Show command-line help and exit.

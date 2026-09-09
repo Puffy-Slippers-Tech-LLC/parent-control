@@ -279,8 +279,27 @@ collector)` after outer cleanup but before releasing the lease. Validation
 checks inputs before and after the existing evidence gate and rejects contracts
 created elsewhere. Any observed input failure is latched: restoring bytes or a
 later successful worker result cannot clear it. The controller persists
-this fixed failure code with its other attempt outcomes. Checks detect
-changes at these boundaries; they are not a filesystem monitor.
+failure with its other attempt outcomes. Checks detect changes at these
+boundaries; they are not a filesystem monitor.
+
+`Qualification._recheck_final_inputs` now preserves the first fixed
+`final_provenance_refusal` in both early and late finalization failure reports.
+`provenance.refusal_code` admits only explicit source, asset, metadata and baseline
+categories; unknown exceptions become `provenance:recheck-failed`. The preservation
+flag stays false, the original exception survives, and outer cleanup still releases
+the lease. [Cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py)
+cover both boundaries and private-text refusal; the
+[startup observation evidence](../../docs/TestAutomation/Evidence/20-Startup-Enforcement-Observation-20260909.md)
+records local scope. This diagnosis has not run live. Worker wrappers can still
+collapse an earlier provenance error, and no differing file/snapshot comparison
+is exported. A historical false source-preservation flag alone cannot identify
+the changed input or exclude assets/baseline failure. The [refused reboot-wiring attempt](../../docs/TestAutomation/Evidence/20-Customer-Reboot-Wiring-20260909.md)
+retains actual concurrent checkout modifications between artifact creation and
+installation preflight, together with the live provenance refusal and successful
+guarded cleanup. Preserve that failed result; build fresh inputs for required
+work without weakening the latch or restoring the historical VM hold.
+[Provenance regressions](../unit/test_e2e_provenance.py) own local source, metadata,
+assets and baseline refusal coverage.
 
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
@@ -294,8 +313,8 @@ controller proof; 156 customer/fault variants remain pending.
 The separate `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-<verified-build>`
 route qualifies the fixed authenticated installation boundary. It provisions
 verified assets and fixture credentials, then uses real serial login, fresh
-sudo authentication, package-result verification, logout and graphical return.
-Each installation request drains pending serial input before read-only probes;
+sudo authentication, package-result verification, customer reboot and graphical return.
+Each installation request pumps pending serial input before read-only probes;
 safe observations are checkpointed before replies. Capture remains sealed after
 authentication. No caller command, package path or scenario override is accepted.
 The installation preflight records the guest's selected sudo-rs executable and
@@ -332,8 +351,9 @@ read-only probe also requires the package payload and reboot marker to remain
 absent. Authentication capture stays sealed and no arbitrary denial value or
 command is accepted.
 
-This diagnostic does not reboot or establish complete E2E-002 readiness; the
-product selection remains pending. Refresh the installed dispatcher through
+The successful-install diagnostic now requests a real reboot; the refusal route
+still logs out without reboot. Neither establishes complete E2E-002 readiness;
+the product selection remains pending. Refresh the installed dispatcher through
 `./setup.sh --test-tools-only` when adding this option. Test-tool activation is
 `none` (next invocation); no product data migration is involved.
 
@@ -410,10 +430,14 @@ qualified scope; historical next-step instructions are superseded by the
 | Password characters versus newline echo | Require ECHO off; ECHONL alone may remain on for the validated printable password with Enter sent separately. Keep independent recipient, argv, process continuity and sealed-capture checks. | [Password tests](../unit/test_e2e_install_password_observation.py), including `test_kernel_newline_echo_does_not_echo_password_characters`; same live prompt qualification. |
 | Cancellation on the pipe-backed serial console | The graphical Ctrl+C path failed. `run_refusal` sends the fixed interrupt byte through `type_string` after one rejected password, then proves shell return and installer/package/marker absence without retry. | [Helper tests](../unit/test_e2e_install_helper.py), [refusal observations](../unit/test_e2e_installation_observations.py); [failed attempt and correction](../../docs/TestAutomation/Evidence/20-Install-Refusal-Attempt-20260908.md), [live corrected refusal](../../docs/TestAutomation/Evidence/20-Install-Refusal-Corrected-20260908.md). |
 | Exact final reboot notice | `_verify_notice` checks the private serial tail for exact text, bold-red ANSI bytes and final position before the split success marker. This assertion passed live; it establishes emitted bytes, not graphical rendering or reboot. | [Helper tests](../unit/test_e2e_install_helper.py), including fragmented notice and ring-buffer cases; [live notice qualification](../../docs/TestAutomation/Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md). |
+| Installed package layout after reboot | `INSTALLED_LAYOUT` reuses the package-derived transferred inventory and checks installed file/symlink ownership, mode and target, package verification, private configuration, PAM hooks, Polkit actions/rule and session descriptors without returning paths or package output. `InstallationBoundary.observe_installed_layout` binds the returned inventory digest to controller-held `VerifiedInputs` and latches every failure. The GDM-return callback composes it with both startup witnesses and an unchanged boot. | [Guest/transport/boundary/controller tests](../unit/test_e2e_installation_observations.py); [local evidence](../../docs/TestAutomation/Evidence/20-Installed-Layout-Observation-20260909.md). Locally tested only; complete live E2E-002 qualification remains pending. |
 | Intermittent `getty-*-exe-resolve` refusal — open | Cause remains unknown. Fixed errno, link/target, selected-process/leader continuity and effective-root/ptrace categories distinguish future failures. They are sequential observations after refusal, not atomic causal proof. A successful reread cannot clear refusal or authorize input. Use them if the failure recurs in required work; do not repeat installation solely to reproduce it. | [Resolution diagnostics tests](../unit/test_e2e_install_password_observation.py), [transport refusal/redaction tests](../unit/test_e2e_observation_transport.py); [diagnostic scope and limits](../../docs/TestAutomation/Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md). Diagnostics passed locally; this failure did not recur in that live attempt. |
 
-The clean reboot/readiness journey and two independent startup-fault cases are
-still unimplemented; see the [startup audit](../../docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md).
+The complete readiness journey and two independent startup-fault cases remain
+unfinished; the [reboot observation boundary](#customer-reboot-observation-boundary)
+has live changed-boot and serial-return evidence. Its complete graphical-return
+acknowledgement and final preservation still require a passing complete run.
+See the [startup audit](../../docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md).
 Ordinary E2E-001 smoke requires an unchanged boot. Installation qualification
 does not prove graphical PAM/Polkit approval or complete E2E-002 acceptance.
 Tasks 18A/18C and 26C can extend the relevant package/terminal assertions;
@@ -693,6 +717,10 @@ at a match rectangle can reduce even an identical region's score. Only reviewed
 fixture pixels are retained in these assets; unrelated identities and clocks
 remain outside them. Other roles/surfaces still require reviewed needles and
 live positive/negative qualification before input. No coordinate fallback exists.
+The sole additional fixed name, `onpc-gdm-parent-installed-account`, matches the
+reviewed fixture label after installation/reboot. It has no click point and is
+used only for graphical return; arbitrary installed variants and password/click
+extensions refuse staging. Its retained-image checks are described below.
 
 ### GDM readiness and graphical return
 
@@ -705,6 +733,18 @@ focused password prompt, then deliberately checks that the account-list needle
 refuses the prompt. `dismiss_prompt()` sends Escape and requires the list again.
 The serial helper calls `return_from_serial()` only after independently observed
 logout; it selects `sut` and requires a fresh account-list match before success.
+The successful installation path instead calls `return_after_reboot()` after
+changed boot and a fresh serial login prompt. This uses the separately reviewed
+`onpc-gdm-parent-installed-account` needle at 100%. The old label failed against
+the retained post-reboot image at 87.9%; the new label matches that same image
+at 100%. Only the canonical fixture label and a 16-pixel blur border enter the
+asset; other accounts and the clock are blacked out. The
+[pixel regressions](../unit/test_e2e_gdm_pixels.py) execute installed tinycv against
+bounded position changes, the other parent, the password prompt and the original
+rendering. The correction is locally verified against real failure pixels;
+a complete live return acknowledgement remains pending. The
+[unblock evidence](../../docs/TestAutomation/Evidence/20-Reboot-Unblock-20260909.md)
+retains the original failure and inspection scope.
 There is no fixed ten-second render delay or whole-screen stillness gate in
 this graphical/serial smoke path. The separate credential qualification retains
 its settling check at the other parent's negative-prompt boundary.
@@ -774,7 +814,11 @@ and sole active local `login` session on `ttyS0`. Wait for the shell prompt
 before commands: logind activation can precede shell readiness. Split the
 expected output marker across command arguments so echo cannot pass its
 assertion; allow terminal controls preceding output and bounded CR/LF endings.
-Controller observations drain pending serial input before blocking on SSH.
+Controller observations pump pending serial input and defer while `pending_in`
+is nonempty before blocking on SSH. The
+[reboot boundary](#customer-reboot-observation-boundary) adds a durable drain
+checkpoint and fixed command outcome; stream acceptance alone cannot prove
+guest command execution.
 All explicit post-authentication captures remain sealed and raw worker output
 stays private. These helpers activate on invocation (`none`), with no product,
 host setup or saved-data migration change.
@@ -787,12 +831,245 @@ baseline with the stricter worker outcome gate. E2E-034 subsequently passed
 public scenario dispatch and evidence integration. These selected harness
 qualifications are not customer coverage.
 
+### Startup enforcement observation
+
+`ReadOnlyObservations.read('startup-enforcement')` uses the fixed
+[startup probe](startup_observations.py) through the existing guarded transport.
+It reads systemd's completed `ExecStartPost` result for the exact packaged
+readiness helper, requiring its fixed argv, non-ignored normal exit zero and a
+completed execution. Systemd provides execution and activation monotonic
+timestamps through its [public D-Bus properties](https://raw.githubusercontent.com/systemd/systemd/main/man/org.freedesktop.systemd1.xml).
+The probe requires policy start ≤ canary start ≤ canary completion ≤ policy
+active ≤ display-manager start ≤ display-manager active. Journal receipt time
+is unsuitable for this ordering because collection can lag activation.
+
+Boot-file bytes, both unit invocations and the command result must agree across
+the read. Both services must be active/running without automatic restarts.
+Only the boot digest and six timestamps leave the guest; failure exports a fixed
+stage. Canonical serialization, timestamp types/order and the observer's existing
+failure latch reject malformed or premature evidence. Boot hashing includes the
+kernel file's newline, matching `BOOT_SHA256_PROBE`.
+
+For authenticated installation only, `Smoke` now requires this proof in the
+`gdm-return` acknowledgement, correlated with the observed customer reboot and
+fresh boot reads. The reviewed pixel match remains independently required.
+The original smoke and deliberate installation refusal do not use this probe.
+[Executable guest/decoder tests](../unit/test_e2e_startup_observations.py) and
+[acknowledgement regressions](../unit/test_graphical_smoke.py) cover success,
+denial, changed boot/invocations, stale canary and premature GDM. They use OS
+fixtures and real GLib variants; live qualification is pending. The proof
+describes the current activation pair, not a monitor of every earlier unit start
+or continuous enforcement. It cannot replace the independent E2E-028 fault
+case. The independent [broker observer](#broker-startup-observation) is locally
+tested. Complete installed-layout checks and customer graphical notice rendering remain unfinished under
+[Task 20](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08).
+Tasks 24A and 26B may reuse this probe after live qualification; it does not
+establish their session/recovery acceptance.
+
+### Broker startup observation
+
+`ReadOnlyObservations.read('startup-broker')` reuses the fixed guarded observation
+transport and [startup probe module](startup_observations.py). The broker's
+[`Service`](../../broker/oh_no_parent_control/service.py) writes a fixed
+`startup-witness` record through its existing `DailyLogWriter` only after
+successful object registration. Real monotonic nanosecond timestamps bracket
+registration after completed execution-policy and extension reconciliation and
+attempted best-effort session-cap cleanup. Failed mandatory phases produce no
+witness/object; failed cap cleanup is safely logged and does not prevent
+registration. Diagnostic-write failure also leaves product readiness unchanged
+and causes the observer to reject missing evidence.
+
+The broker is a static D-Bus-activated service, so one normal read-only
+introspection request may activate it after GDM. This tests broker startup
+independently; it neither requires nor establishes broker readiness before GDM.
+The probe then pins the current unique bus owner/PID and systemd invocation,
+requires active/running state without automatic restarts, finds exactly one
+matching record, and introspects that unique owner with autoactivation disabled.
+Boot, owner and unit reads bracket collection. Phase timestamps must be ordered
+inside the current process start/service activation bounds; systemd comparisons
+use microsecond precision. Systemd defines the
+[invocation ID](https://raw.githubusercontent.com/systemd/systemd/main/man/systemd.exec.xml)
+as a distinct unit runtime cycle. Invocation/PID/bus identifiers remain in the
+guest; only six timestamps, the canonical boot digest and a success flag leave.
+Failure exports a fixed stage and latches the observer's failure.
+
+The reader inspects at most the last 512 KiB of each of ten retained daily broker
+logs, rejecting symlinks, nonregular/non-root-owned or group/world-writable
+files. Missing, truncated, rotated-away, duplicate or malformed evidence refuses
+instead of inferring ordering from later availability or wall-clock log time.
+This is current-activation evidence, not continuous history or proof against a
+privileged actor altering logs. It cannot replace E2E-028's independent faults.
+For authenticated installation, `gdm-return` now requires both startup probes
+to match the actual customer reboot and fresh boot reads; pixels remain separate.
+
+[Private-bus tests](../component/test_broker_startup.py) execute the real object
+registration boundary with successful startup, mandatory phase failure,
+tolerated cap failure, registration failure and logging failure. They replace
+the former source-order assertion. [Guest-program and decoder tests](../unit/test_e2e_broker_startup_observations.py)
+use actual log files and GLib variants; [controller tests](../unit/test_graphical_smoke.py)
+exercise stale boot and failed broker proof. These checks are local, with
+[retained slice evidence](../../docs/TestAutomation/Evidence/20-Broker-Startup-Witness-20260909.md);
+live qualification remains pending. Tasks 20, 24A and 26B share this contract
+after that qualification. The requirement remains planned until installed and
+fault evidence pass. No D-Bus interface or service dependency was added.
+
+### Customer reboot observation boundary
+
+`ReadOnlyObservations.wait_boot_change(previous_boot_sha256)` reuses
+`vm_transport.Transport`'s pinned SSH connection settings, guest guard and
+event-driven readiness loop. It requires a boot digest already obtained by this
+observer. The fixed `BOOT_SHA256_PROBE`, also used by ordinary `read('boot')`,
+hashes the complete kernel boot-id file in the guest; raw identity stays there.
+
+`Transport._probe_ready` captures the SSH exit status before the post-probe
+ownership check. The real `Lease.guard` calls `Capture.revalidate`, whose
+`qemu-img` calls use the same `Commands` object and overwrite `last_returncode`.
+Reading that mutable field afterward misclassified a disconnect as successful
+empty output, and could accept valid-looking output from a failed guest command.
+The [transport regression](../unit/test_vm_transport.py) exercises guard-induced
+status replacement with both empty and valid-looking output. Ownership checks
+still run before accepting or retrying a probe; only SSH status 255 is transient.
+The corrected wait passed live in the
+[unblock intervention](../../docs/TestAutomation/Evidence/20-Reboot-Unblock-20260909.md):
+eleven SSH-255 probes preceded the changed boot and fresh confirmation. That
+attempt later failed graphical matching and final preservation; it remains failed.
+
+The missing case was SSH answering from the old boot after customer input.
+The new wait accepts neither initial SSH readiness nor an old boot as reboot
+evidence. Old-boot responses and SSH status 255 share a 330-second deadline.
+Malformed output, guest guard failure, ownership/configuration loss and
+interruption stop the observation. Every probe checks ownership before and
+after execution; reconnection cannot repin a key or adopt a replacement VM.
+A fresh ordinary boot observation must agree with the changed readiness digest,
+rejecting another boot change between those two observations. Failure latches
+the observer against both subsequent reads and a second wait. Only fixed failure
+codes and digest fields leave this capability.
+
+`Smoke` now checkpoints `reboot-ready` only after the installed digest, identity,
+reboot marker, unchanged boot and real serial session are verified.
+`onpc_serial::run_install` then submits exactly
+`/usr/bin/sudo -k -p $'\nONPC-REBOOT-PASSWORD: ' -- /usr/bin/systemctl --no-ask-password reboot`
+in that authenticated local shell,
+followed by a split `printf` marker of its exit status.
+The fixed explicit-newline sudo-rs challenge must match in full before the new
+`reboot-password` acknowledgement. `installation_observations.REBOOT_PASSWORD`
+reuses the installer's getty-derived recipient, exact argv, foreground terminal,
+process-continuity and disabled-character-echo proof. Its separate output marker
+cannot be replaced by an installation proof. The controller checks provenance
+and the unchanged boot around that observation before acknowledging one fresh
+password submission. A repeated password prompt is a terminal refusal. Fixed
+`reboot-failed-stage` evidence distinguishes prompt, recipient, password, command,
+boot and graphical-return failures without exposing private text.
+The command retains normal inhibitor checks, with no force, cached authentication,
+policy change or host lifecycle action. The helper privately waits up to
+15 seconds for the marker and records only `returned-zero`, `returned-nonzero`
+or `unobserved`. A nonzero return fails without a second command or boot wait;
+missing output stays unknown and still requires the changed-boot proof.
+On nonzero return, `_reboot_failure_diagnostic` inspects only that private
+matched tail and emits seven fixed Boolean token observations: authentication
+required, access denied, inhibitor, other session, combined session/inhibitor
+refusal, shell permission denied and missing executable. Unknown output yields
+all zeroes, not an invented reason. Diagnostic failure cannot change the terminal
+command failure. No extra serial read, guest action or raw terminal export is
+added. [Serial regressions](../unit/test_e2e_serial_helper.py) cover known/unknown
+messages, command echo, private canaries and diagnostic failure. The
+[instrumented access diagnostic](../../docs/TestAutomation/Evidence/20-Reboot-Access-Diagnostic-20260909.md)
+live-qualified fixed access-denied reporting: the command returned nonzero and
+that token was observed; the other six flags were zero. The exact denied method,
+Polkit action and policy cause remain unknown. The classifier cannot distinguish
+a wall-message warning from the reboot method's error. Its original short-form
+authentication match also missed a possible longer systemd challenge message.
+The final helper recognizes both forms (including `requires interactive
+authentication`); that extension is locally tested only. The retained zero
+authentication flag cannot exclude a challenge. No raw private tail was inspected
+to infer the missing detail, and no second command was submitted.
+[Upstream systemd's local precheck](https://github.com/systemd/systemd/blob/v259/src/systemctl/systemctl-logind.c)
+can reject inhibitors or other sessions before logind authorization; nonzero
+status alone therefore cannot identify Polkit as the cause.
+`reboot-observed` pumps submitted input and defers while bytes remain pending;
+it records `reboot-input-drained` before waiting. Only its durable acknowledgement
+allows the fresh serial login-prompt match and GDM return. The final greeter probe
+requires the same new boot; capture stays sealed. Any controller exception latches
+failure, including checkpoint failure, so it cannot authorize a retry.
+
+The same held domain ID, serial stream and display remain subject to existing
+lease guards; no reattachment, replacement adoption or in-journey restore was
+added. The installation worker budget is 960 seconds: the existing 600 seconds
+plus the 330-second boot wait and return allowance. Other workers retain 600.
+The held serial stream returned a fresh login prompt live, and GDM appeared on
+the held display. The corrected GDM match and backend return acknowledgement,
+final preservation and product readiness still require a passing complete run.
+`SerialConsole.step()` preserves partial sends and
+backpressure; the existing controller returns to its event loop when input
+remains buffered. The prior handoff overlooked this gate: incomplete delivery
+was a hypothesis, not a demonstrated defect. The new checkpoint records that
+gate; it does not prove guest execution. Do not
+clear an ordinary observation failure or recreate its observer to reconnect.
+Ordinary E2E-001 keeps its unchanged-boot assertion; the installed-system
+`Transport.reboot()` route retains its existing behavior.
+
+Live changed-boot evidence is linked above; [transport regressions](../unit/test_vm_transport.py)
+cover transient versus terminal failures, old boot, deadline and ownership loss;
+[observation regressions](../unit/test_e2e_observation_transport.py) exercise the
+real readiness loop, kernel digest probe, stale/mismatched identity, second boot
+and failure latching. [Retained evidence](../../docs/TestAutomation/Evidence/20-Reboot-Observation-20260909.md)
+records the observation checks. Stage/input regressions are in
+[smoke controller tests](../unit/test_graphical_smoke.py) and
+[serial helper tests](../unit/test_e2e_serial_helper.py), including failed proofs,
+input-pump invocation, checkpoint refusal, missing new prompt and no retry. Wiring is
+locally tested; [the first wired live attempt](../../docs/TestAutomation/Evidence/20-Customer-Reboot-Wiring-20260909.md)
+refused provenance before installation input. No customer reboot occurred in
+that attempt. Its concurrent
+checkout changes and reporting limitation are under the
+[provenance contract](#controller-owned-provenance).
+The [next live attempt](../../docs/TestAutomation/Evidence/20-Customer-Reboot-Attempt-20260909.md)
+passed provenance and installation, submitted customer input and entered
+`reboot-observed`, but failed 330.085 seconds later without an acknowledgement.
+Source/host preservation and outer cleanup passed. This does not establish
+whether the command was denied or followed by lost SSH readiness. That attempt
+lacks fixed command results, drain checkpoints and old-boot versus SSH-255
+counts. Cause remains unknown. The existing transport now reports these probe
+counts and one allowlisted terminal outcome through `on_diagnostic`, including
+unknown error and interruption without raw exception/guest text. `Qualification`
+validates and checkpoints the report without completing a stage. Observation
+failure still latches. Local transport, observer, controller and Perl regressions
+cover these diagnostics, nonzero/unknown command results and checkpoint refusal;
+[next instrumented attempt](../../docs/TestAutomation/Evidence/20-Reboot-Command-Result-20260909.md)
+passed installation and matched a nonzero command-result marker, then failed
+without entering the boot wait. This live-qualifies the command-result refusal
+and proves execution in that attempt; its rejection reason remains unknown,
+and it does not retrospectively establish the previous timeout's cause.
+The drain/probe checkpoints were not reached in those nonzero-command attempts.
+The subsequent unblock intervention passed explicit administrator authentication,
+command return zero, complete input drain, changed-boot observation and a fresh
+serial login prompt. The installed serial parser is also exercised locally with
+every prompt split, and a missing-result timeout retains the new login prompt
+for the subsequent changed-boot acknowledgement. Both fixed sudo commands run
+through the same process/terminal refusal regressions; wrong-purpose markers,
+extra force options, cached authentication and private output refuse.
+The remaining GDM matcher correction passes locally against the retained failed
+image at 100%; its live acknowledgement, final preservation and readiness remain
+unqualified. The original attempt has `preservation.source=false`; the final
+source/asset/baseline refusal's precise cause was not retained. No checkout edits
+were made by the intervention worker during that run, so do not attribute it to
+that worker or infer a particular concurrent editor without evidence.
+No sudo-cache assumption, force or ignore-inhibitor option, policy change or
+host reboot is a supported shortcut.
+Do not infer authorization from session activity or clear the failure latch. The
+[active handoff](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08)
+owns attempt counts and the next result. Include the corrected return in the
+minimum complete readiness journey instead of rerunning installation solely to
+refine a failure label. Preserve the original failed outcomes and rebuild inputs.
+Tasks 20, 18A/18C and 26C can reuse this boundary when implementing their distinct
+customer lifecycle actions. Test-tool activation is `none` (next invocation);
+no host setup, product integration or saved-data migration changed.
+
 ### Read-only observation capability
 
-The graphical controller keeps SSH readiness in its provisioning boundary,
-then exposes `ReadOnlyObservations` to stage/asset observation code. Its only
-operation is `read()` for the fixed `assets`, `greeter`, `parent-session`,
-`serial-password`, `serial-session` and `boot` probes. The versioned programs in
+The graphical controller keeps initial SSH readiness in its provisioning boundary,
+then exposes `ReadOnlyObservations` to stage/asset observation code. `read()`
+accepts the fixed asset, session, boot, installation-layout, password-recipient
+and startup-readiness probes used by the maintained controller. The versioned programs in
 `guest_observations.py` are fixed: scenarios cannot supply shell commands,
 paths, stdin, timeout overrides, package operations, policy writes or resets.
 Adding a probe requires maintained code, explicit output validation and tests;
@@ -812,8 +1089,10 @@ Raw command diagnostics still belong to private controller storage, not reviewed
 evidence. This is a capability boundary for trusted Python scenario code, not
 a sandbox against code that deliberately imports the provisioning transport.
 
-All five probes have guarded live evidence. Host tests cover program logic,
-routing, refusal, output and interruption behavior. This SSH observation
+The existing GDM/serial and boot probes have retained guarded live evidence;
+the customer reboot wait now also has live changed-boot evidence, with the later
+graphical matching and final-preservation limits above. Host tests cover program
+logic, routing, refusal, output and interruption behavior. This SSH observation
 interface corroborates the public serial-command smoke; it does not establish full
 scenario evidence/capture acceptance. The helpers are development-only,
 activate on next invocation (`none`), and change no product data or setup policy.

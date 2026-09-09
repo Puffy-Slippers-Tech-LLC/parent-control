@@ -77,9 +77,11 @@ status alone does not prove lease availability; let the runner check it. If it
 reports an actual busy owner or unfinished operation, reconcile that operation
 under the existing ownership rules. Never delete locks or take over a VM.
 
-Source provenance is checked separately from VM availability. Finish edits,
-build fresh artifacts when required, and make no checkout edits during the
-attempt through terminal collection and cleanup. Existing uncommitted changes
+Source provenance is checked separately from VM availability. Finish edits
+before running checks that snapshot the real checkout, including `make check`;
+documentation writes can correctly fail those checks too. Build fresh artifacts
+when required, and make no checkout edits during the attempt through terminal
+collection and cleanup. Existing uncommitted changes
 are valid captured inputs. A new provenance refusal requires diagnosis of its
 recorded cause under the attempt limits; it does not restore a blanket VM hold
 across the backlog. Report any new blocker with current evidence, affected
@@ -291,7 +293,13 @@ multiply equivalent full journeys without an app-specific reason.
    and one interaction before expanding cases. A shared prerequisite failure
    proves nothing about later assertions; keep those cases registered.
 5. After two expensive attempts on one blocker, require new discriminating
-   evidence or locally validated observability before a third. Carry counts,
+   evidence or locally validated observability before a third. A narrower
+   failure label alone does not reset that count. Before another diagnostic-only
+   attempt, audit the supported operation and relevant OS implementation together,
+   and consolidate observations that distinguish the remaining explanations in
+   one run. State how each outcome changes the next action. Once an actionable
+   interface defect is identified, prioritize its correction and qualification;
+   do not spend another full journey collecting an incremental label. Carry counts,
    rejected hypotheses and next observation across chats. Record concrete
    design/external blockers and move only to authorized independent work;
    never weaken the boundary to obtain a pass.

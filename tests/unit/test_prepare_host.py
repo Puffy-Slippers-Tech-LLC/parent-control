@@ -483,6 +483,7 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
 
 
 def test_capture_accepts_installed_product_on_host(monkeypatch):
+    monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
     worker = Mock()
     monkeypatch.setattr(host.threading, "Thread", Mock(return_value=worker))
     monkeypatch.setattr(host.shutil, "which", lambda name: f"/usr/bin/{name}")
@@ -511,6 +512,7 @@ def test_absent_baseline_is_listed_without_error_lookup(rig):
 
 
 def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
+    monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
     api = Mock()
     request = host.threading.Event()
     answered = host.threading.Event()

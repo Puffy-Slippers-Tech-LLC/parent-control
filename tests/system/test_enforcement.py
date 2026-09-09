@@ -36,3 +36,10 @@ def test_native_missing_launcher_retains_policy(record_testsuite_property):
 def test_native_catalog_is_selected_child_scoped(native_accounts, record_testsuite_property):
     provision_catalog(native_accounts)
     observe_catalog(native_accounts, record_testsuite_property)
+
+
+def test_kiosk_expiry_installed_runtime(record_testsuite_property):
+    from system_session_expiry import verify_offline_recovery, verify_pam_scope
+    verify_offline_recovery(record_testsuite_property)
+    for service in ('gdm-password', 'gdm-autologin', 'login', 'sshd'):
+        verify_pam_scope(service, record_testsuite_property)

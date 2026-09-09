@@ -18,7 +18,6 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe \
 	$(LIBEXECDIR)/oh-no-parent-control-session-limit-check \
-	$(LIBEXECDIR)/oh-no-parent-control-clear-session-runtime-max \
 	$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so \
 	$(PRODUCT_LIBDIR)/broker \
 	$(PRODUCT_LIBDIR)/common \
@@ -47,7 +46,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
 	$(DATADIR)/oh-no-parent-control/gdm-presession
 CHILD_DIR := child
-EXTENSION_SOURCES := branding.js indicatorLogic.mjs logger.js previewMode.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
+EXTENSION_SOURCES := branding.js errorHandler.js indicatorLogic.mjs logger.js previewMode.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
 EXTENSION_ASSETS := request-options.json
 EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml
@@ -228,11 +227,11 @@ check:
 
 preview-kiosk:
 	# The preview watches kiosk assets and source files; no manual relaunch is needed.
-	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview --soundtrack "$(CURDIR)/data/Gearbox_Waltz.mp3"
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview
 
 preview-child-overlay:
 	# The child overlay is the kiosk GUI in overlay mode, with the current child locked.
-	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview --child-overlay --soundtrack "$(CURDIR)/data/Gearbox_Waltz.mp3"
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview --child-overlay
 
 preview-parent:
 	# The preview watches parent source and CSS files; no backend or installation is needed.
@@ -280,20 +279,20 @@ _install-product-files:
 		-o "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so" \
 		tools/pam_oh_no_parent_control.c -lpam
 	chmod 0644 "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so"
-	install -m 0755 tools/clear_session_runtime_max.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-clear-session-runtime-max"
 	install -m 0755 tools/package_activation.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-activation"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui"
 	install -m 0644 common/__init__.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/"
 	install -m 0644 common/oh_no_parent_control_ui/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
+	install -m 0644 common/oh_no_parent_control_ui/feedback.css "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
+	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor"
+	install -m 0644 common/oh_no_parent_control_ui/rich_editor/quill.js common/oh_no_parent_control_ui/rich_editor/quill.snow.css common/oh_no_parent_control_ui/rich_editor/quill.js.LICENSE.txt common/oh_no_parent_control_ui/rich_editor/LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons"
 	install -m 0644 common/oh_no_parent_control_ui/test_user_icons/*.png "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons/"
-	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png kiosk/oh_no_parent_control_kiosk/kiosk-background-clear.png data/Gearbox_Waltz.mp3 child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
+	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png kiosk/oh_no_parent_control_kiosk/kiosk-background-clear.png child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts"
 	install -m 0644 kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas"
 	install -m 0644 parent/oh_no_parent_control_parent/*.py parent/oh_no_parent_control_parent/style.css parent/oh_no_parent_control_parent/thunderbird-default128.png parent/oh_no_parent_control_parent/THUNDERBIRD-BRANDING-LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"
-	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/rich_editor"
-	install -m 0644 parent/oh_no_parent_control_parent/rich_editor/quill.js parent/oh_no_parent_control_parent/rich_editor/quill.snow.css parent/oh_no_parent_control_parent/rich_editor/quill.js.LICENSE.txt parent/oh_no_parent_control_parent/rich_editor/LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/rich_editor/"
 	# GNOME Shell discovers extensions only when the Shell process starts. Keep
 	# one immutable system payload discoverable in every session; the broker
 	# controls per-child activation through that child's GNOME settings.
@@ -334,7 +333,7 @@ _install-product-files:
 	install -m 0644 config/config.example.json $(BRANDING_ASSETS) $(PARENT_TITLEBAR_ASSET) data/app_logo_gnome_launcher.png LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf.in "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0755 tools/provision.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision"
-	install -m 0644 README.md LICENSE COPYRIGHT NOTICE docs/Compliance.md docs/System-Design.md docs/Package-Update.md docs/Publishing.md docs/Data-Migration.md docs/SystemDesign/Logging-and-Feedback.md "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"
+	install -m 0644 README.md LICENSE COPYRIGHT NOTICE docs/Compliance.md docs/System-Design.md docs/Package-Update.md docs/Publishing.md docs/SystemDesign/Data-Migration.md docs/SystemDesign/Logging-and-Feedback.md "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"
 ifneq ($(GENERATE_ACTIVATION_MANIFEST),0)
 	$(MAKE) --no-print-directory _generate-package-activation-manifest DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)" SYSCONFDIR="$(SYSCONFDIR)" LIBEXECDIR="$(LIBEXECDIR)" DATADIR="$(DATADIR)" SYSTEMD_SYSTEM_DIR="$(SYSTEMD_SYSTEM_DIR)" SYSTEMD_USER_DIR="$(SYSTEMD_USER_DIR)" PRODUCT_LIBDIR="$(PRODUCT_LIBDIR)"
 endif
@@ -343,7 +342,7 @@ _generate-package-activation-manifest:
 	$(PYTHON) tools/package_activation.py generate --root "$(if $(strip $(DESTDIR)),$(DESTDIR),/)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json" $(foreach path,$(ACTIVATION_MANIFEST_PATHS),--include "$(patsubst /%,%,$(path))")
 
 check-child-node:
-	@node --test tests/child/indicator_logic.test.mjs
+	@node --test tests/child/indicator_logic.test.mjs tests/child/error_handler.test.mjs
 
 check-child-gjs:
 	@rm -rf artifacts/coverage/gjs-child

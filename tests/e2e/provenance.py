@@ -27,6 +27,22 @@ import build_test_applications
 sys.path.pop(0)
 
 
+def refusal_code(error):
+    """Export only fixed provenance diagnoses, never paths or exception text."""
+    allowed = {
+        'provenance:' + condition for condition in (
+            'source-changed', 'assets-changed', 'baseline-changed',
+            'source-list-failed', 'source-path', 'unsafe-directory', 'unsafe-file',
+            'file-replaced', 'file-changed', 'tree-changed', 'lease-required',
+            'baseline-state-changed', 'baseline-proof-changed',
+            'baseline-identity-changed', 'environment', 'recheck-failed',
+            'previous-failure',
+        )
+    }
+    return str(error) if isinstance(error, EvidenceError) and str(error) in allowed else (
+        'provenance:recheck-failed')
+
+
 def encoded(value):
     # Same serialization used by the installed runner's baseline identity.
     return (json.dumps(value, sort_keys=True, indent=2) + '\n').encode()

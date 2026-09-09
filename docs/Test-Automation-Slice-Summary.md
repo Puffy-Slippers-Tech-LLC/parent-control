@@ -1,7 +1,11 @@
 # Test automation slice summaries
 
-The launcher appends one end-of-session report here, with completion time and
-duration in minutes. This is an operator log, not context for future sessions.
+The launcher appends one end-of-session report here, with completion time in the
+session heading and five fields: Task, Duration, Completed, Verification and
+cleanup, and Next session. Follow the
+[summary format](TestAutomation/Unattended-Sessions.md#cumulative-session-summaries).
+Session 41 illustrates it; earlier entries retain their historical format.
+This is an operator log, not context for future sessions.
 The launcher never reads or rewrites previous entries. Implementation workers
 must exclude this file from reads, searches, diffs and edits.
 
@@ -150,3 +154,106 @@ must exclude this file from reads, searches, diffs and edits.
 - Estimated minutes remaining for this task: Unknown
 
 - Estimate basis and uncertainty: Qualification took 21.4 minutes. Reboot, readiness and fault-control implementation lack measured completion bounds; intermittent prerequisite failure remains possible.
+
+
+## Session 41 — 2026-09-09 09:18 PDT
+
+- Task: Task 20 — guarded reconnection prerequisite for the installation/reboot journey.
+- Duration: 10 minutes
+- Completed: Implemented guarded changed-boot observation with stale-boot waiting, ownership checks, fresh confirmation and terminal failure handling. Updated shared contracts and handoff. Customer reboot wiring remains unfinished; E2E-002 stays pending.
+
+- Verification and cleanup: 1,329 focused and 423 affected regression tests passed. make check passed 5,228 unit/contracts and 17 components plus syntax/source checks. All 140 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-Reboot-Observation-20260909.md. All commands exited; no VM operation or export was started.
+
+- Next session: Task 20: connect customer reboot input and ordered acknowledgements, then verify serial/display continuity and GDM return in one guarded attempt. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 42 — 2026-09-09 09:48 PDT
+
+- Completion: 2026-09-09 09:48 PDT
+- Duration: 24 minutes (rounded up)
+- Outcome: continue
+- Settings: `gpt-6-astra` / `high`
+- Processing: Standard
+- Attempt: `slice-41922846da5d413189a62ed1c7c79558`
+- CLI token counts: input_tokens: 5272625; cached_input_tokens: 5141888; output_tokens: 21242; reasoning_output_tokens: 4377. These are not weekly allowance measurements.
+- Supervisor: Cleanup and handoff confirmed.
+
+- Task: Task 20 — customer reboot and startup readiness
+
+- Completed: Implemented ordered customer-reboot input, boot-change acknowledgement and refusal handling. Updated shared contracts, reuse map and handoffs. E2E-002 remains pending.
+
+- Verification and cleanup: Passed 1,677 focused checks, 546 isolated safety checks plus 3 subtests, and make check with 5,241 unit/contracts and 17 components. Corrected one nonexistent test selector. The guarded attempt passed GDM and serial login but refused provenance before installation/reboot; concurrent checkout changes were evidenced, though the exact first mismatch was not retained. Product and collection aggregates remain not-run. Worker/callback/display closed; outer baseline restoration and cleanup passed, VM confirmed off, all commands exited. Ordinary artifact access failed; the approved privileged reader succeeded. Links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/20-Customer-Reboot-Wiring-20260909.md.
+
+- Next session: Task 20: build fresh artifacts, run isolated safety prerequisites, then qualify reboot and serial/display continuity in one guarded attempt. Continuation.md selects gpt-6-astra/high; VM clearance persists.
+
+- Estimated sessions remaining for this task: Unknown
+
+- Estimated minutes remaining for this task: Unknown
+
+- Estimate basis and uncertainty: The failed live prerequisite took 11.9 minutes. Successful reboot, readiness and startup-fault coverage remain unmeasured.
+
+
+## Session 43 — 2026-09-09 10:23 PDT
+
+- Task: Task 20 — qualify customer reboot and serial/GDM return.
+- Duration: 33 minutes
+- Completed: Task 20 advanced through verified authenticated installation to customer reboot input. The reboot observation failed after 330.085 seconds without a changed-boot acknowledgement. Cause remains unknown; retained evidence lacks complete-input delivery, command outcome and probe categories. E2E-002 and startup-fault acceptance remain unfinished. Updated the owning contract, reuse map and handoff.
+
+- Verification and cleanup: Fresh artifacts and isolated safety passed: 546 tests plus 3 subtests, also passed by the dispatcher. The single live attempt failed; product/collection aggregates remain not-run. Evidence: docs/TestAutomation/Evidence/20-Customer-Reboot-Attempt-20260909.md. Worker/callback/display closed; normal worker shutdown was unverified, but baseline restoration, lease completion and source/host preservation passed. VM confirmed off; all commands exited. Privileged artifact reads resolved an ordinary permission failure; bounded-read truncation was corrected. Document links and scoped whitespace checks passed.
+
+- Next session: Task 20: add and locally verify fixed serial-delivery, command-result and boot-probe diagnostics before one fresh guarded attempt. Preserve refusal, privacy and ownership guards. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 44 — 2026-09-09 10:57 PDT
+
+- Task: Task 20 — distinguish the customer reboot failure.
+- Duration: 33 minutes
+- Completed: Added privacy-safe reboot diagnostics. The live attempt proved the guest executed the reboot command and returned nonzero; the helper stopped without retrying or entering the boot wait. The rejection reason remains unknown. Corrected the handoff’s overlooked existing serial-drain gate. E2E-002 reboot/readiness and E2E-028 acceptance remain unfinished.
+
+- Verification and cleanup: 1392 focused checks passed after fixing four test-stub failures; make check passed 5253 unit/contracts and 17 components. Build and isolated cleanup safety passed. Live infrastructure failed after the nonzero command result; new drain/probe diagnostics remain locally tested only. Backend failure artifact prevented false success despite exit zero. Worker/callback/display closed, baseline restored, lease completed, VM confirmed off, and source/host preservation passed. All commands exited; no recovery remains. Evidence: docs/TestAutomation/Evidence/20-Reboot-Command-Result-20260909.md. Documentation links and scoped whitespace checks passed.
+
+- Next session: Task 20 remains earliest ready. Determine the rejection reason and supported authenticated customer reboot path, validate it locally, then run one fresh guarded qualification. Continuation and shared contracts are updated; VM clearance persists. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 45 — 2026-09-09 11:29 PDT
+
+- Task: Task 20 — diagnose customer reboot rejection.
+- Duration: 33 minutes
+- Completed: Added secret-safe reboot diagnostics. The guarded attempt observed Access denied; the exact denied method/policy remains unknown. Corrected a diagnostic wording gap locally; retained flags cannot exclude an authentication challenge. E2E-002 and assigned E2E-028 acceptance remain unfinished.
+
+- Verification and cleanup: Final make check passed 5275 unit/contracts and 17 components; focused regressions, cleanup prerequisites, links and whitespace passed. Live installation and red notice passed, but reboot returned nonzero; normal worker shutdown remained unverified. All commands exited; worker/callback/display closed, baseline restored, lease completed, preservation passed and VM is off. Evidence: docs/TestAutomation/Evidence/20-Reboot-Access-Diagnostic-20260909.md.
+
+- Next session: Task 20: adapt the existing fresh sudo challenge and verified password-recipient checks to a fixed customer reboot command, test refusal/privacy, then run one fresh guarded qualification. Handoff: docs/TestAutomation/Task-20.md. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 46 — 2026-09-09 13:45 PDT
+
+- Task: Task 20 — startup enforcement observations, using gpt-6-astra/high, Standard.
+- Duration: 17 minutes
+- Completed: Implemented fapolicyd/GDM startup-order observations and durable final-provenance refusal reporting. Updated shared contracts and handoffs. Task 20 remains unaccepted: broker ordering, complete E2E-002 observations, live qualification and both startup-fault cases remain unfinished.
+
+- Verification and cleanup: Passed 1,478 focused checks and final make check: 5,667 unit/contracts plus 17 components. A regression reproduced a boot-id newline mismatch; the corrected observer matches the canonical reboot probe. Links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/20-Startup-Enforcement-Observation-20260909.md. No live attempt occurred; the earlier provenance failure’s cause remains unknown. All commands exited; no VM resources or cleanup obligations remain.
+
+- Next session: Continue Task 20 with correlated broker reconciliation-before-D-Bus evidence, then finish the complete journey’s observations before a guarded VM attempt. VM authorization remains effective. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 47 — 2026-09-09 13:59 PDT
+
+- Task: Task 20 — broker startup ordering evidence; actual settings gpt-6-astra/high, Standard.
+- Duration: 14 minutes
+- Completed: Added broker startup timestamps and an observer that correlates reconciliation with actual D-Bus publication. Wired it into installation return and updated shared contracts. Task 20 remains unaccepted: layout, visible-notice evidence, complete live qualification and startup fault cases remain.
+
+- Verification and cleanup: Passed 1,481 focused checks and make check: 5,719 unit/contracts plus 25 components. Eight initial fixture-permission failures were corrected. Evidence: docs/TestAutomation/Evidence/20-Broker-Startup-Witness-20260909.md. Links and scoped whitespace checks passed. All commands exited and private-bus cleanup completed; no VM resources acquired. Historical final-provenance failure remains unexplained.
+
+- Next session: Continue Task 20 with installed-layout observation using existing package assertions. Continuation.md and Task-20.md are updated; VM clearance persists. Next settings: gpt-5.6-sol/high, Standard.
+
+
+## Session 48 — 2026-09-09 14:16 PDT
+
+- Task: Task 20 — deliver the fixed installed-layout observation required by E2E-002.
+- Duration: 18 minutes
+- Completed: **Solid and healthy** — Implemented Task 20’s fixed post-reboot installed-layout observer and controller digest binding. It validates package files, ownership, modes, symlinks, configuration, PAM, Polkit, and session registrations, then composes the result with GDM and both startup witnesses. Reusable details are recorded in `docs/TestAutomation/Evidence/20-Installed-Layout-Observation-20260909.md`, the owning E2E contract, reuse map, and active handoff. Task 20 remains unaccepted; graphical notice evidence, live E2E-002 qualification, and both E2E-028 fault variants remain.
+
+- Verification and cleanup: The exact guest-program/transport/boundary/controller selection passed 1,446 tests; the final boundary/controller rerun passed 91 tests. Link validation checked 162 links with none missing, and `git diff --check` passed. Two `make check` attempts each passed 5,746/5,747 tests but failed unrelated `ExtensionManagerTests.test_global_extension_switch_fails_before_activation_writes` after concurrent extension-manager edits appeared; the approved escalated retry produced the same EPERM-backed mismatch. All commands exited; no VM lease, guest process, screenshot, or recovery state was created.
+
+- Next session: Continue Task 20 by implementing the customer-visible graphical reboot-notice assertion through the established screen/capture contract, then reconcile callback readiness. Repeat the common check after the concurrent extension-manager/test mismatch settles. Next settings: gpt-5.6-sol/high, Standard.

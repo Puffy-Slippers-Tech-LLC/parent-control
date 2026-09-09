@@ -1,5 +1,12 @@
 # Saved-data migration
 
+[System design overview](../System-Design.md)
+
+Read this for saved-data compatibility, versioned preference migrations,
+package configuration ordering, and migration safety and retries.
+
+Implementation: [data_migration.py](../../broker/oh_no_parent_control/data_migration.py), [preferences.py](../../broker/oh_no_parent_control/preferences.py), [preinst](../../debian/preinst), [postinst](../../debian/postinst), [broker launcher](../../broker/oh-no-parent-control-broker), [broker unit](../../data/systemd/oh-no-parent-control-broker.service).
+
 Oh No! Parent Control migrates application-owned persistent data automatically during package configuration. Data schema versions are independent of Debian package versions: package releases may leave a schema unchanged, and one release may migrate more than one saved-data family.
 
 The current framework migrates the per-child records in `/var/lib/oh-no-parent-control/preferences/`. Machine configuration, transient markers, logs, AccountsService, Malcontent, and files managed as Debian conffiles are not preference data and must not be added to that migration chain. If another application-owned data family later needs versioning, give it its own current-version constant, migration registry, validation, and migration pass in `migrate_all_state()`.
@@ -36,3 +43,9 @@ The runner accepts only numeric UID JSON records, regular files owned by the inv
 Each changed record is validated with the production current-schema validator, written to a mode-`0600` temporary file in the same directory, flushed, and atomically replaced. The directory is then flushed. A crash therefore leaves either the complete old record or the complete new record. A process-wide file lock serializes migration commands, while the marker excludes broker access.
 
 Migrations are forward-only. Installing an older package after a schema change is unsupported unless that release deliberately supplies and tests a reverse migration. Ordinary upgrades must preserve every user selection; backups are not a substitute for deterministic validation and atomic replacement.
+
+## Related design
+
+- For current schemas, defaults, and data ownership, read [State](State.md#persistent-and-derived-state).
+- For broker readiness and installation, read [Lifecycle](Lifecycle.md#startup-login-and-update-lifecycle).
+- For activation after successful migration, follow [Package update](../Package-Update.md).

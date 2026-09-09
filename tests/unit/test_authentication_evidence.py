@@ -12,6 +12,7 @@ import system_runner as runner
 
 
 from tests.support.authentication import collect_local
+from tests.support.vm_runner import INVENTORIES
 
 
 def test_junit_redaction_handles_escaped_values_without_breaking_xml(monkeypatch, tmp_path):
@@ -59,7 +60,7 @@ def test_deleted_identity_is_redacted_from_text_and_junit(monkeypatch, tmp_path)
     assert failure.text == failure.get('message') == '[Test user] ' * 2 + '[Test user]'
     assert {path.name for path in results.iterdir()} == {
         'authorization.xml', 'stage-sample-stderr.txt', 'service-journal.txt',
-        'authentication-journal.txt', 'result.json',
+        'authentication-journal.txt', 'session-journal.txt', 'result.json',
     }
 
 
@@ -88,14 +89,10 @@ def test_authentication_attempts_survive_failed_pytest_and_public_export(monkeyp
     collect_local(monkeypatch, tmp_path, payload)
     shutil.copytree(results, tmp_path / 'guest-results')
     selection = runner.resolve_selection('authorization', inventories={
+        **INVENTORIES,
         'package': ('test_installed_package', 'test_reboot_applies_installation'),
         'authorization': tuple(f'test_real_selected_parent_authentication[{surface}]'
                                for surface in ('child1', 'kiosk')),
-        'enforcement': ('test_native_command_policy_is_uid_scoped',
-                        'test_native_whitespace_policy_is_uid_scoped',
-                        'test_native_future_pattern_is_uid_scoped',
-                        'test_native_missing_launcher_retains_policy',
-                        'test_native_catalog_is_selected_child_scoped'),
     })
     ledger = runner.RunLedger()
     ledger.fail_outcome('product', 'pytest:failed:authorization')

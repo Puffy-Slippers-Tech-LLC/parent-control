@@ -407,6 +407,9 @@ def test_declaration_or_worker_success_alone_cannot_pass(harness, mutation):
 
 @pytest.fixture
 def public(harness, monkeypatch):
+    # The fake controller belongs to this test checkout, including executable
+    # copies used for local validation. Keep the production path guard intact.
+    monkeypatch.setattr(execution.system.baseline.guest_contract, 'CHECKOUT', execution.ROOT)
     # Substitute this entry point's privilege check, preserving real ownership
     # metadata checks inside PrivateCollector and the rest of the process.
     monkeypatch.setattr(execution, 'os', SimpleNamespace(**(vars(execution.os) | {

@@ -91,19 +91,192 @@ def test_replaced_domain_cannot_receive_any_command():
 
 def test_reboot_requires_observed_boot_id_change():
     value = client()
-    value.commands.run.side_effect = [b'00000000-0000-0000-0000-000000000001', b'',
-                                      b'00000000-0000-0000-0000-000000000002']
+    value.commands.run.side_effect = [b'a' * 64 + b'\n', b'', b'b' * 64 + b'\n']
     value.reboot()
-    assert value.guard.call_count == 3
+    assert value.guard.call_count == 4
 
 
-def test_unchanged_boot_id_fails_without_assertion_retry():
+def test_reboot_waits_for_old_boot_to_finish(no_live_readiness_timer):
     value = client()
-    value.commands.run.side_effect = [b'00000000-0000-0000-0000-000000000001', b'',
-                                      b'00000000-0000-0000-0000-000000000001']
-    with pytest.raises(transport.Error, match='reboot-not-observed'):
+    responses = iter([(0, b'a' * 64 + b'\n'), (255, b''),
+                      (0, b'a' * 64 + b'\n'), (255, b''), (0, b'b' * 64 + b'\n')])
+    def result(*args, **kwargs):
+        value.commands.last_returncode, raw = next(responses)
+        return raw
+    value.commands.run.side_effect = result
+    value.reboot()
+    assert value.commands.run.call_count == 5
+    assert no_live_readiness_timer.wait.call_count == 2
+
+
+def test_reboot_never_observed_fails_at_transition_deadline(monkeypatch):
+    value = client()
+    value.commands.run.side_effect = [b'a' * 64 + b'\n', b'', b'a' * 64 + b'\n']
+    times = iter([0, 0, 1, 330])
+    monkeypatch.setattr(transport.time, 'monotonic', lambda: next(times))
+    with pytest.raises(transport.Error, match='readiness-timeout'):
         value.reboot()
     assert value.commands.run.call_count == 3
+
+
+def test_reboot_command_failure_does_not_start_observation():
+    value = client()
+    def result(*args, **kwargs):
+        value.commands.last_returncode = 0 if value.commands.run.call_count == 1 else 1
+        return b'a' * 64 + b'\n'
+    value.commands.run.side_effect = result
+    with pytest.raises(transport.Error, match='reboot-command-failed'):
+        value.reboot()
+    assert value.commands.run.call_count == 2
+
+
+def test_customer_reboot_waits_through_old_boot_and_connection_reset(no_live_readiness_timer):
+    value = client()
+    responses = iter([(0, b'a'*64 + b'\n'), (255, b'private-canary'),
+                      (0, b'b'*64 + b'\n')])
+    def result(*args, **kwargs):
+        value.commands.last_returncode, raw = next(responses)
+        return raw
+    value.commands.run.side_effect = result
+    assert value.wait_boot_change('a'*64) == b'b'*64 + b'\n'
+    assert value.guard.call_count == 6
+    assert no_live_readiness_timer.wait.call_count == 2
+    for call in value.commands.run.call_args_list:
+        command = call.args[0][-1].split(' && exec ', 1)[1]
+        assert shlex.split(command) == ['/usr/bin/python3', '-c', transport.BOOT_SHA256_PROBE]
+
+
+@pytest.mark.parametrize('ssh_status', [255, 1, 127, -15])
+@pytest.mark.parametrize('raw', [b'', b'b' * 64 + b'\n'])
+def test_customer_reboot_guard_cannot_replace_ssh_status(ssh_status, raw, no_live_readiness_timer):
+    value = client()
+    responses = iter([(ssh_status, raw), (0, b'b' * 64 + b'\n')])
+    def result(*args, **kwargs):
+        value.commands.last_returncode, raw = next(responses)
+        return raw
+    value.commands.run.side_effect = result
+    # The real Lease guard calls Capture.revalidate -> Commands.info using
+    # this same Commands instance. Its successful qemu-img call overwrites
+    # last_returncode after SSH returned. Model that actual shared state.
+    value.guard.side_effect = lambda _: setattr(value.commands, 'last_returncode', 0)
+    reports = []
+    if ssh_status == 255:
+        assert value.wait_boot_change('a' * 64, on_diagnostic=reports.append) == b'b' * 64 + b'\n'
+        assert value.commands.run.call_count == 2
+        no_live_readiness_timer.wait.assert_called_once()
+        assert reports == [{'old_boot': 0, 'ssh_unavailable': 1, 'changed_boot': 1,
+                            'outcome': 'changed-boot'}]
+    else:
+        with pytest.raises(transport.Error, match='guest-probe-failed'):
+            value.wait_boot_change('a' * 64, on_diagnostic=reports.append)
+        assert value.commands.run.call_count == 1
+        no_live_readiness_timer.wait.assert_not_called()
+        assert reports[0]['outcome'] == 'guest-probe-failed'
+
+
+@pytest.mark.parametrize('raw', [b'', b'b'*64, b'b'*64 + b'\r\n',
+                               b'B'*64 + b'\n', b'private-canary\n'])
+def test_customer_reboot_malformed_output_is_terminal(raw, no_live_readiness_timer):
+    value = client()
+    value.commands.run.return_value = raw
+    with pytest.raises(transport.Error, match='invalid-boot-output'):
+        value.wait_boot_change('a'*64)
+    assert value.commands.run.call_count == 1
+    no_live_readiness_timer.wait.assert_not_called()
+
+
+@pytest.mark.parametrize('status', [1, 127, -15])
+def test_customer_reboot_guest_failure_is_not_transient(status, no_live_readiness_timer):
+    value = client()
+    value.commands.last_returncode = status
+    with pytest.raises(transport.Error, match='guest-probe-failed'):
+        value.wait_boot_change('a'*64)
+    assert value.commands.run.call_count == 1
+    no_live_readiness_timer.wait.assert_not_called()
+
+
+@pytest.mark.parametrize('status,raw', [(0, b'a'*64 + b'\n'), (255, b'')])
+def test_customer_reboot_old_boot_and_disconnect_share_deadline(monkeypatch, status, raw):
+    value = client()
+    value.commands.last_returncode = status
+    value.commands.run.return_value = raw
+    times = iter([0, 0, 1, 330])
+    monkeypatch.setattr(transport.time, 'monotonic', lambda: next(times))
+    with pytest.raises(transport.Error, match='readiness-timeout'):
+        value.wait_boot_change('a'*64)
+    assert value.commands.run.call_count == 1
+
+
+@pytest.mark.parametrize('when', ['before', 'after', 'next-poll'])
+def test_customer_reboot_ownership_loss_never_accepts_or_retries(when):
+    value = client()
+    value.commands.run.side_effect = [b'a'*64 + b'\n', b'b'*64 + b'\n']
+    guards = {'before': 0, 'after': 1, 'next-poll': 2}[when]
+    value.guard.side_effect = [None]*guards + [transport.Error('transport:domain-replaced')]
+    with pytest.raises(transport.Error, match='domain-replaced'):
+        value.wait_boot_change('a'*64)
+    assert value.commands.run.call_count == (0 if when == 'before' else 1)
+
+
+@pytest.mark.parametrize('when', ['command', 'wait'])
+def test_customer_reboot_configuration_cannot_change_between_probes(when, no_live_readiness_timer):
+    value = client()
+    value.commands.run.return_value = b'a'*64 + b'\n'
+    def replace(*args, **kwargs):
+        value.config['hostname'] = 'replaced.invalid'
+        return b'b'*64 + b'\n'
+    if when == 'command':
+        value.commands.run.side_effect = replace
+    else:
+        no_live_readiness_timer.wait.side_effect = replace
+    with pytest.raises(transport.Error, match='configuration-changed'):
+        value.wait_boot_change('a'*64)
+    assert value.commands.run.call_count == 1
+
+
+@pytest.mark.parametrize('before', [None, True, 'a'*63, 'A'*64, 'a'*64 + '\n'])
+def test_customer_reboot_invalid_previous_identity_cannot_open_transport(before):
+    value = client()
+    with pytest.raises(transport.Error, match='invalid-previous-boot'):
+        value.wait_boot_change(before)
+    value.commands.run.assert_not_called()
+
+
+@pytest.mark.parametrize('fault,expected', [
+    ('old', 'readiness-timeout'), ('ssh', 'readiness-timeout'),
+    ('malformed', 'invalid-boot-output'), ('guest', 'guest-probe-failed'),
+    ('ownership', 'domain-replaced-or-shared'), ('unknown', 'unknown-error'),
+    ('interrupt', 'interrupted'),
+])
+def test_reboot_diagnostics_retain_fixed_counts_and_terminal_cause(monkeypatch, fault, expected):
+    value = client()
+    reports = []
+    value.commands.run.return_value = b'a'*64 + b'\n'
+    if fault in ('old', 'ssh'):
+        times = iter([0, 0, 1, 330])
+        monkeypatch.setattr(transport.time, 'monotonic', lambda: next(times))
+        value.commands.last_returncode = 255 if fault == 'ssh' else 0
+    elif fault == 'malformed':
+        value.commands.run.return_value = b'private-canary'
+    elif fault == 'guest':
+        value.commands.last_returncode = 1
+    elif fault == 'ownership':
+        value.guard.side_effect = transport.Error('transport:domain-replaced-or-shared')
+    else:
+        value.commands.run.side_effect = (KeyboardInterrupt('private-canary') if fault == 'interrupt'
+                                          else RuntimeError('private-canary'))
+    with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else RuntimeError):
+        value.wait_boot_change('a'*64, on_diagnostic=reports.append)
+    assert reports == [{'old_boot': int(fault == 'old'), 'ssh_unavailable': int(fault == 'ssh'),
+                        'changed_boot': 0, 'outcome': expected}]
+
+
+def test_reboot_diagnostic_checkpoint_failure_cannot_return_success():
+    value = client()
+    value.commands.run.return_value = b'b'*64 + b'\n'
+    with pytest.raises(RuntimeError, match='checkpoint-failed'):
+        value.wait_boot_change('a'*64,
+            on_diagnostic=Mock(side_effect=RuntimeError('checkpoint-failed')))
 
 
 @pytest.mark.parametrize('name', ['../../escape', '/etc/escape'])

@@ -607,6 +607,7 @@ class ParentWindowTests(unittest.TestCase):
         window._time_status_refresh_pending = False
         window._time_status_retry_id = 0
         window._time_status_retry_count = MAX_TIME_STATUS_RETRIES
+        window._show_error = mock.Mock()
         window._selected_uid = lambda: 1001
         window._time_status_value = Label()
         window._time_explanation = Label()

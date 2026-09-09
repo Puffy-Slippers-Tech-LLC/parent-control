@@ -22,6 +22,7 @@ def estimate_window():
         _state=SimpleNamespace(in_flight=False),
         _stack=SimpleNamespace(get_visible_child_name=lambda: "request"),
         _preview=False, _bus_call=Mock(),
+        _errors=Mock(),
     ), RequestWindow, (
         "_refresh_time_estimate", "_time_estimate_done", "_finish_time_estimate",
     ))

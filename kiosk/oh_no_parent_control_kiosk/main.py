@@ -18,13 +18,15 @@ gi.require_version("Adw", "1")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Graphene", "1.0")
 gi.require_version("Gsk", "4.0")
-gi.require_version("Gst", "1.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gst, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
 from common.oh_no_parent_control_ui.accessibility import describe_control
 from common.oh_no_parent_control_ui.duration import format_duration
+from common.oh_no_parent_control_ui.errors import (
+    ErrorHandler, install_exception_hooks, show_startup_error,
+)
 from common.oh_no_parent_control_ui.test_identities import preview_users
 
 from .model import RequestState, public_error
@@ -34,6 +36,7 @@ from .snowflakes import SnowflakeField
 from .floating_islands import FloatingIslands
 from .lava import LavaBands
 from .lightning import LightningDischarge
+from .thunder import LightningAudio
 from .chrome import (
     ABOUT, BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, HELP,
     MENU, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
@@ -47,15 +50,9 @@ INTERFACE = BUS_NAME
 # G_MAXINT is GIO's supported no-timeout value.
 REQUEST_TIMEOUT_MS = GLib.MAXINT
 # Keep the confirmation visible briefly before returning to GDM or
-# closing the child overlay.  Fade the soundtrack over the same interval
-# so dismissal does not cut the music off.
+# closing the child overlay. Fade any remaining thunder over this interval.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
 SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
-MUSIC_FADE_TICK_MS = 50
-# Keep the soundtrack comfortably behind form interaction and let a live bolt
-# read as a deliberate electrical event rather than background texture.
-BACKGROUND_MUSIC_VOLUME = 0.12
-LIGHTNING_SIZZLE_VOLUME = 0.90
 CHILD_SUCCESS_TITLE = "Time granted"
 CHILD_SUCCESS_COPY = "Time granted, Close"
 GATEWAY_EFFECT_FRAME_MS = 33
@@ -145,13 +142,19 @@ LOG = logging.getLogger("oh-no-parent-control")
 
 
 def _gateway_artwork_geometry(width, height):
-    """Return the gateway artwork's cover-scaled bounds in widget space."""
+    """Cover the screen and widen the gateway to frame the readable board."""
     scale = max(
         width / GATEWAY_ARTWORK_WIDTH,
         height / GATEWAY_ARTWORK_HEIGHT,
     )
     rendered_width = GATEWAY_ARTWORK_WIDTH * scale
     rendered_height = GATEWAY_ARTWORK_HEIGHT * scale
+    opening_fraction = GATEWAY_INNER_CORNERS[1][0] - GATEWAY_INNER_CORNERS[0][0]
+    opening_width = min(width * 0.78, 720)
+    rendered_width = max(
+        rendered_width, opening_width / opening_fraction,
+        width / (1 - 2 * GATEWAY_CENTERING_OFFSET),
+    )
     return (
         (width - rendered_width) / 2
         + rendered_width * GATEWAY_CENTERING_OFFSET,
@@ -238,210 +241,6 @@ class BrokerLogHandler(logging.Handler):
             self._connection = None
 
 
-class BackgroundMusic:
-    """Keep the kiosk soundtrack playing for the lifetime of its window."""
-
-    def __init__(self, soundtrack=None):
-        Gst.init(None)
-        self._player = Gst.ElementFactory.make("playbin")
-        if self._player is None:
-            raise RuntimeError("GStreamer playbin is unavailable")
-        track = Gio.File.new_for_path(
-            str(soundtrack or Path(__file__).with_name("Gearbox_Waltz.mp3")),
-        )
-        self._player.set_property("uri", track.get_uri())
-        self._bus = self._player.get_bus()
-        self._bus.add_signal_watch()
-        self._bus.connect("message::eos", self._restart)
-        self._bus.connect("message::error", self._error)
-        self._fade_source_id = None
-        self._nominal_volume = BACKGROUND_MUSIC_VOLUME
-        self._started = False
-
-    def start(self):
-        """Start playback once, when request-screen media becomes enabled."""
-        if self._started:
-            return
-        self._player.set_property("volume", self._nominal_volume)
-        outcome = self._player.set_state(Gst.State.PLAYING)
-        if outcome == Gst.StateChangeReturn.FAILURE:
-            LOG.warning("kiosk background music start failed")
-            return
-        self._started = True
-        LOG.info("kiosk background music started")
-
-    def set_muted(self, muted):
-        """Mute the loop, or ensure playback has started before unmuting."""
-        self._player.set_property("mute", muted)
-        if not muted:
-            self.start()
-
-    def fade_out(self, duration_ms):
-        """Lower volume to silence over duration_ms, then leave it at zero."""
-        self.cancel_fade(restore=False)
-        if self._player.get_property("mute"):
-            self._player.set_property("volume", 0.0)
-            return
-        start_volume = self._player.get_property("volume")
-        started_us = GLib.get_monotonic_time()
-        duration_us = max(1, duration_ms) * 1_000
-
-        def tick():
-            elapsed_us = GLib.get_monotonic_time() - started_us
-            if elapsed_us >= duration_us:
-                self._player.set_property("volume", 0.0)
-                self._fade_source_id = None
-                return GLib.SOURCE_REMOVE
-            remaining = 1.0 - (elapsed_us / duration_us)
-            self._player.set_property("volume", start_volume * remaining)
-            return GLib.SOURCE_CONTINUE
-
-        self._fade_source_id = GLib.timeout_add(MUSIC_FADE_TICK_MS, tick)
-
-    def cancel_fade(self, restore=True):
-        """Stop an in-progress fade and optionally restore playback volume."""
-        if self._fade_source_id is not None:
-            GLib.source_remove(self._fade_source_id)
-            self._fade_source_id = None
-        if restore:
-            self._player.set_property("volume", self._nominal_volume)
-
-    def close(self):
-        self.cancel_fade(restore=False)
-        self._bus.remove_signal_watch()
-        self._player.set_state(Gst.State.NULL)
-        self._started = False
-
-    def _restart(self, _bus, _message):
-        """Seek to the start after each completed track."""
-        self._player.seek_simple(
-            Gst.Format.TIME,
-            Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT,
-            0,
-        )
-        self._player.set_state(Gst.State.PLAYING)
-
-    @staticmethod
-    def _error(_bus, _message):
-        LOG.warning("kiosk background music playback failed")
-
-
-class LightningSizzle:
-    """Brief, quiet electrical noise mixed independently with the soundtrack."""
-
-    def __init__(self):
-        self._pipeline = None
-        self._gain = None
-        self._stop_source_id = None
-        self._fade_source_id = None
-        self._active_bolts = []
-        self._sizzle_level = 0.0
-        self._dismissal_level = 1.0
-        self._muted = False
-        try:
-            self._pipeline = Gst.parse_launch(
-                "audiotestsrc is-live=true wave=white-noise ! "
-                "audioconvert ! audioresample ! "
-                "volume name=lightning_sizzle_gain ! autoaudiosink",
-            )
-            self._gain = self._pipeline.get_by_name("lightning_sizzle_gain")
-            self._apply_volume()
-        except GLib.Error as error:
-            LOG.warning(
-                "lightning sizzle unavailable error_type=%s", type(error).__name__,
-            )
-            self._pipeline = None
-
-    def _apply_volume(self):
-        if self._gain is not None:
-            volume = (
-                LIGHTNING_SIZZLE_VOLUME
-                * self._sizzle_level
-                * self._dismissal_level
-            )
-            self._gain.set_property("volume", 0.0 if self._muted else volume)
-
-    def play(self, duration_seconds, fade_rate, brightness=1.0):
-        """Fade this bolt's sizzle with its matching visual lightning fade."""
-        if self._pipeline is None or duration_seconds <= 0:
-            return
-        now_us = GLib.get_monotonic_time()
-        duration_us = int(max(0.0, duration_seconds) * 1_000_000)
-        self._active_bolts.append(
-            (now_us + duration_us, duration_us, fade_rate, brightness),
-        )
-        # Brief flashes need their attack now, not at the next 50 ms fade
-        # tick. Each return flash also carries its actual remaining light.
-        self._sizzle_level = max(self._sizzle_level, brightness)
-        self._apply_volume()
-        self._pipeline.set_state(Gst.State.PLAYING)
-        LOG.debug(
-            "lightning sizzle started duration_ms=%d", int(duration_seconds * 1_000),
-        )
-        if self._stop_source_id is None:
-            self._stop_source_id = GLib.timeout_add(MUSIC_FADE_TICK_MS, self._stop_if_idle)
-
-    def _stop_if_idle(self):
-        now_us = GLib.get_monotonic_time()
-        self._active_bolts = [
-            bolt for bolt in self._active_bolts if now_us < bolt[0]
-        ]
-        if self._active_bolts:
-            self._sizzle_level = max(
-                brightness * ((ends_at_us - now_us) / duration_us) ** fade_rate
-                for ends_at_us, duration_us, fade_rate, brightness in self._active_bolts
-                if duration_us > 0
-            )
-            self._apply_volume()
-            return GLib.SOURCE_CONTINUE
-        self._sizzle_level = 0.0
-        self._apply_volume()
-        self._pipeline.set_state(Gst.State.READY)
-        self._stop_source_id = None
-        return GLib.SOURCE_REMOVE
-
-    def set_muted(self, muted):
-        """Apply the request screen's persisted sound control to the sizzle."""
-        self._muted = muted
-        self._apply_volume()
-
-    def fade_out(self, duration_ms):
-        """Fade the effect with the soundtrack during successful dismissal."""
-        self.cancel_fade(restore=False)
-        started_us = GLib.get_monotonic_time()
-        duration_us = max(1, duration_ms) * 1_000
-
-        def tick():
-            elapsed_us = GLib.get_monotonic_time() - started_us
-            if elapsed_us >= duration_us:
-                self._dismissal_level = 0.0
-                self._apply_volume()
-                self._fade_source_id = None
-                return GLib.SOURCE_REMOVE
-            self._dismissal_level = 1 - elapsed_us / duration_us
-            self._apply_volume()
-            return GLib.SOURCE_CONTINUE
-
-        self._fade_source_id = GLib.timeout_add(MUSIC_FADE_TICK_MS, tick)
-
-    def cancel_fade(self, restore=True):
-        if self._fade_source_id is not None:
-            GLib.source_remove(self._fade_source_id)
-            self._fade_source_id = None
-        if restore:
-            self._dismissal_level = 1.0
-            self._apply_volume()
-
-    def close(self):
-        self.cancel_fade(restore=False)
-        if self._stop_source_id is not None:
-            GLib.source_remove(self._stop_source_id)
-            self._stop_source_id = None
-        if self._pipeline is not None:
-            self._pipeline.set_state(Gst.State.NULL)
-            self._pipeline = None
-
-
 class GatewayBackground(Gtk.Widget):
     """Gateway artwork with lava heat, floating islands, snow and lightning."""
 
@@ -458,7 +257,7 @@ class GatewayBackground(Gtk.Widget):
         self._lightning_bolts = []
         self._next_lightning_burst_at = 0.0
         self._lightning_enabled = False
-        self._lightning_sizzle = None
+        self._lightning_audio = None
         self._frame_source_id = GLib.timeout_add(
             GATEWAY_EFFECT_FRAME_MS, self._next_frame,
         )
@@ -496,9 +295,9 @@ class GatewayBackground(Gtk.Widget):
             GLib.source_remove(self._frame_source_id)
             self._frame_source_id = None
 
-    def set_lightning_sizzle(self, play_sizzle):
+    def set_lightning_audio(self, play_thunder):
         """Connect bolt starts to the window-owned, muteable audio effect."""
-        self._lightning_sizzle = play_sizzle
+        self._lightning_audio = play_thunder
 
     def set_lightning_enabled(self, enabled):
         """Show lightning only while request-screen media is enabled."""
@@ -600,17 +399,17 @@ class GatewayBackground(Gtk.Widget):
             age = elapsed - bolt["starts_at"]
             if age < 0:
                 continue
+            source_x = image_x + bolt["source_x"] * image_width
             channel = bolt["channel"]
             active = channel.active_flash(age)
-            if active is not None and bolt.get("sizzle_flash") != active[0]:
+            if active is not None and bolt.get("audible_flash") != active[0]:
                 flash_index, flash = active
-                bolt["sizzle_flash"] = flash_index
-                if self._lightning_sizzle is not None:
-                    self._lightning_sizzle(
-                        flash.starts_at + flash.duration - age,
-                        flash.fade_rate, flash.light(age),
+                bolt["audible_flash"] = flash_index
+                if self._lightning_audio is not None:
+                    self._lightning_audio(
+                        flash.light(age),
+                        max(-0.8, min(0.8, 2 * source_x / width - 1)),
                     )
-            source_x = image_x + bolt["source_x"] * image_width
             source_y = image_y + bolt["source_y"] * image_height
             source_y += self._floating_islands.offset(
                 bolt["source_index"], elapsed,
@@ -624,44 +423,47 @@ class GatewayBackground(Gtk.Widget):
             )
 
 
-def _gateway_form_scale(width, height, form_width, form_height):
-    """Keep the form's design size relative to the gateway at every resolution.
-
-    The board is authored against the preview window. Cover-scaling the
-    artwork already tracks monitor size, so the form uses that same ratio.
-    A further fit clamp keeps the yawed board inside a smaller allocation
-    instead of clipping its natural height.
-    """
-    _image_x, _image_y, rendered_width, _rendered_height = (
-        _gateway_artwork_geometry(width, height)
-    )
-    preview_cover = max(
-        PREVIEW_DEFAULT_WIDTH / GATEWAY_ARTWORK_WIDTH,
-        PREVIEW_DEFAULT_HEIGHT / GATEWAY_ARTWORK_HEIGHT,
-    )
-    window_cover = (
-        rendered_width / GATEWAY_ARTWORK_WIDTH if GATEWAY_ARTWORK_WIDTH else 1.0
-    )
-    design_scale = window_cover / preview_cover if preview_cover else 1.0
-    if form_width <= 0 or form_height <= 0:
-        return design_scale
-    fit = min(width / form_width, height / form_height)
-    return min(design_scale, fit)
-
-
-def _gateway_form_projection(width, height, scale=1.0):
-    """Return the gateway's perspective transform around the form's centre."""
+def _gateway_form_projection(width, height):
+    """Apply the gateway perspective in GTK logical coordinates, without zoom."""
     return (
         Gsk.Transform.new()
         .translate(Graphene.Point().init(width / 2, height / 2))
-        .perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH * scale)
+        .perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH)
         .rotate_3d(
             GATEWAY_FORM_YAW_DEGREES,
             Graphene.Vec3().init(0, 1, 0),
         )
-        .scale(scale, scale)
         .translate(Graphene.Point().init(-width / 2, -height / 2))
     )
+
+
+class ResponsiveHud(Gtk.Widget):
+    """Place corner controls at their native GTK size as the window changes."""
+
+    def __init__(self, child):
+        super().__init__(hexpand=True, vexpand=True)
+        self._child = child
+        child.set_parent(self)
+
+    def do_measure(self, orientation, for_size):
+        return (0, 0, -1, -1)
+
+    def do_size_allocate(self, width, height, baseline):
+        child_width = self._child.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+        child_height = self._child.measure(Gtk.Orientation.VERTICAL, child_width)[1]
+        margin = 24
+        transform = Gsk.Transform.new().translate(Graphene.Point().init(
+            width - child_width - margin, margin,
+        ))
+        self._child.allocate(child_width, child_height, baseline, transform)
+
+    def do_snapshot(self, snapshot):
+        self.snapshot_child(self._child, snapshot)
+
+    def do_contains(self, x, y):
+        # Leave the rest of this full-window overlay available to the form.
+        valid, bounds = self._child.compute_bounds(self)
+        return valid and bounds.contains_point(Graphene.Point().init(x, y))
 
 
 class GatewayAlignedRequest(Gtk.Widget):
@@ -671,27 +473,45 @@ class GatewayAlignedRequest(Gtk.Widget):
         super().__init__(hexpand=True, vexpand=True)
         self._child = child
         self._form_corners = ()
-        child.set_parent(self)
+        self._last_layout = None
+        self._viewport = Gtk.ScrolledWindow(
+            hscrollbar_policy=Gtk.PolicyType.NEVER,
+            vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+            overlay_scrolling=False,
+        )
+        self._viewport.set_child(child)
+        self._viewport.set_parent(self)
 
     def do_measure(self, orientation, for_size):
-        return self._child.measure(orientation, for_size)
+        # Natural form dimensions must not force a fullscreen window beyond
+        # the monitor's bounds. The viewport owns overflow in either surface.
+        return (0, 0, -1, -1)
 
     def do_size_allocate(self, width, height, baseline):
-        _minimum_width, natural_width, _minimum_baseline, _natural_baseline = (
-            self._child.measure(Gtk.Orientation.HORIZONTAL, -1)
-        )
-        child_width = max(1, natural_width)
+        # Allocations are already in GTK logical pixels. Enlarging the whole
+        # render tree with the window makes a high-resolution desktop look
+        # like a stretched low-resolution one and compounds monitor scaling.
+        # Keep native control sizes; reflow and scroll when space is limited.
+        edge = max(12, min(32, min(width, height) * 0.025))
+        # On narrow displays the board shares the HUD's horizontal space.
+        top = max(edge, 96) if width < 1000 else edge
+        available_width = max(1, width - 2 * edge
+                              - 2 * width * GATEWAY_FORM_CENTERING_OFFSET)
+        available_height = max(1, height - top - edge)
+        # Leave room for the perspective's wider near edge and board shadow.
+        child_width = max(1, min(624, int(available_width / 1.10)))
+        if isinstance(self._child, RequestContent):
+            self._child.set_layout_width(child_width)
         _minimum_height, natural_height, _minimum_baseline, _natural_baseline = (
             self._child.measure(Gtk.Orientation.VERTICAL, child_width)
         )
-        child_height = max(1, natural_height)
-        form_scale = _gateway_form_scale(
-            width, height, child_width, child_height,
+        near_edge = 1 - math.sin(math.radians(GATEWAY_FORM_YAW_DEGREES)) * (
+            child_width / 2 / GATEWAY_FORM_PERSPECTIVE_DEPTH
         )
+        child_height = max(1, min(natural_height,
+                                 int(available_height * near_edge)))
 
-        projection = _gateway_form_projection(
-            child_width, child_height, form_scale,
-        )
+        projection = _gateway_form_projection(child_width, child_height)
         projected_bounds = projection.transform_bounds(
             Graphene.Rect().init(0, 0, child_width, child_height),
         )
@@ -699,7 +519,8 @@ class GatewayAlignedRequest(Gtk.Widget):
             (width - projected_bounds.get_width()) / 2
             - projected_bounds.get_x()
             + width * GATEWAY_FORM_CENTERING_OFFSET,
-            (height - projected_bounds.get_height()) / 2 - projected_bounds.get_y(),
+            top + (available_height - projected_bounds.get_height()) / 2
+            - projected_bounds.get_y(),
         )
         transform = Gsk.Transform.new().translate(placement).transform(projection)
         # Use the complete allocation transform for the attachment points and
@@ -721,11 +542,20 @@ class GatewayAlignedRequest(Gtk.Widget):
                 )
             )
         )
-        self._child.allocate(child_width, child_height, baseline, transform)
+        self._viewport.allocate(child_width, child_height, baseline, transform)
+        monitor_scale = self.get_scale_factor()
+        layout = (width, height, child_width, child_height, natural_height, monitor_scale)
+        if layout != self._last_layout:
+            LOG.debug(
+                "request layout viewport=%dx%d board=%dx%d monitor-scale=%d scroll=%s",
+                width, height, child_width, child_height, monitor_scale,
+                natural_height > child_height,
+            )
+            self._last_layout = layout
 
     def do_snapshot(self, snapshot):
         self._append_gateway_chains(snapshot)
-        self.snapshot_child(self._child, snapshot)
+        self.snapshot_child(self._viewport, snapshot)
 
     def _append_gateway_chains(self, snapshot):
         """Draw four block-built chains behind the gateway-mounted form."""
@@ -977,7 +807,7 @@ def _time_estimate_label(seconds):
 
 
 class RequestWindow(Adw.ApplicationWindow):
-    def __init__(self, application, *, preview=False, soundtrack=None,
+    def __init__(self, application, *, preview=False,
                  child_overlay=False, broker_connection=None):
         super().__init__(application=application, title=app_name())
         self.add_css_class("oh-no-parent-control-window")
@@ -995,6 +825,8 @@ class RequestWindow(Adw.ApplicationWindow):
         # changing which production request paths the window executes.
         self._interactive_preview = broker_connection is not None
         self._child_overlay = child_overlay
+        self._errors = ErrorHandler(self, "Child App" if child_overlay else "Kiosk App")
+        self._error_report = None
         self._applying_preferences = False
         self._state = RequestState()
         self._estimate_revision = 0
@@ -1010,9 +842,8 @@ class RequestWindow(Adw.ApplicationWindow):
             (None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None))
         )
         self._build()
-        self._music = BackgroundMusic(soundtrack)
-        self._sizzle = LightningSizzle()
-        self._background.set_lightning_sizzle(self._sizzle.play)
+        self._thunder = LightningAudio()
+        self._background.set_lightning_audio(self._thunder.play)
         # Start muted before playback so neither production nor either preview
         # surface can emit audio while preferences are loading.
         self._apply_mute(True)
@@ -1035,12 +866,9 @@ class RequestWindow(Adw.ApplicationWindow):
                 GLib.source_remove(source_id)
         self._estimate_debounce_id = self._estimate_refresh_id = 0
         self._cancel_success_dismiss()
-        if self._music is not None:
-            self._music.close()
-            self._music = None
-        if self._sizzle is not None:
-            self._sizzle.close()
-            self._sizzle = None
+        if self._thunder is not None:
+            self._thunder.close()
+            self._thunder = None
 
     def _build(self):
         self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
@@ -1089,7 +917,7 @@ class RequestWindow(Adw.ApplicationWindow):
         )
         describe_control(
             self._mute_button, "Mute request-screen sound",
-            "Turn the request-screen soundtrack and lightning on or off.",
+            "Turn lightning and its thunder sound on or off.",
         )
         self._mute_button.set_child(self._mute_icon)
         self._mute_button.add_css_class("oh-no-parent-control-hud-button")
@@ -1116,13 +944,10 @@ class RequestWindow(Adw.ApplicationWindow):
         popover_content.append(HudMenuStem())
         popover_content.append(menu_board)
         help_popover.set_child(popover_content)
-        top_controls = Gtk.Box(
-            spacing=18, halign=Gtk.Align.END, valign=Gtk.Align.START,
-            margin_top=24, margin_end=24,
-        )
+        top_controls = Gtk.Box(spacing=18)
         top_controls.append(self._mute_button)
         top_controls.append(menu_button)
-        layout.add_overlay(top_controls)
+        layout.add_overlay(ResponsiveHud(top_controls))
         if self._preview:
             # The production kiosk is fullscreen, but its frameless preview
             # still needs a compositor-supported surface for moving it.
@@ -1160,8 +985,30 @@ class RequestWindow(Adw.ApplicationWindow):
         self._result_action.add_css_class("oh-no-parent-control-request-button")
         self._result_action.set_margin_start(10)
         self._result_action.set_margin_end(10)
-        self._result_action.connect("clicked", self._cancel)
+        self._result_action.connect("clicked", self._result_dismissed)
         self._result_view.append(self._result_action)
+        self._report_row = Gtk.Button(
+            hexpand=True, visible=False, margin_start=10, margin_end=10,
+            css_classes=["oh-no-parent-control-app-filter-toggle"],
+        )
+        report_content = Gtk.Box(spacing=12)
+        report_label = Gtk.Label(
+            label="Report this error", xalign=0, hexpand=True, wrap=True,
+            css_classes=["oh-no-parent-control-app-filter-label"],
+        )
+        self._report_error = Gtk.Switch(active=True, valign=Gtk.Align.CENTER)
+        self._report_error.set_can_target(False)
+        report_label.set_mnemonic_widget(self._report_error)
+        description = "Review an error report before closing or returning to login."
+        describe_control(self._report_row, "Report this error", description)
+        describe_control(self._report_error, "Report this error", description)
+        report_content.append(report_label)
+        report_content.append(self._report_error)
+        self._report_row.set_child(report_content)
+        self._report_row.connect("clicked", lambda *_: self._report_error.set_active(
+            not self._report_error.get_active(),
+        ))
+        self._result_view.append(self._report_row)
         escape = Gtk.EventControllerKey()
         escape.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         escape.connect("key-pressed", self._escape_pressed)
@@ -1171,12 +1018,12 @@ class RequestWindow(Adw.ApplicationWindow):
         # would bypass the yaw and perspective used by the request form.
         self._result_surface = GatewayAlignedRequest(self._result_view)
         self._stack.add_named(self._result_surface, "result")
-        if self._child_overlay:
-            # The gateway yaw can miss Gtk.Button hit-testing on the result
-            # board. Close from the untransformed surface as well as the button.
-            close_click = Gtk.GestureClick()
-            close_click.connect("released", self._close_overlay)
-            self._result_surface.add_controller(close_click)
+
+    def _result_dismissed(self, *_args):
+        if self._error_report is not None and self._report_error.get_active():
+            self._errors.present(self._error_report, on_close=self._cancel)
+        else:
+            self._cancel()
 
     def _show_about(self, *_args):
         AboutDialog(self, links_enabled=self._child_overlay).present()
@@ -1208,8 +1055,7 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _apply_mute(self, muted):
         self._muted = muted
-        self._music.set_muted(muted)
-        self._sizzle.set_muted(muted)
+        self._thunder.set_muted(muted)
         self._background.set_lightning_enabled(not muted)
         self._mute_icon.set_pixels(SPEAKER_MUTED if muted else SPEAKER)
         self._mute_button.set_tooltip_text(
@@ -1241,10 +1087,8 @@ class RequestWindow(Adw.ApplicationWindow):
     def _logout(self, *_args):
         self._cancel_success_dismiss()
         if self._preview:
-            if self._music is not None:
-                self._music.cancel_fade()
-            if self._sizzle is not None:
-                self._sizzle.cancel_fade()
+            if self._thunder is not None:
+                self._thunder.cancel_fade()
             self._stack.set_visible_child_name("request")
             return
         # OnSuccess=gnome-session-shutdown.target on the application unit turns
@@ -1267,7 +1111,10 @@ class RequestWindow(Adw.ApplicationWindow):
         # for the authentication agent instead of closing or logging out.
         if self._state.in_flight:
             return False
-        self._cancel()
+        if self._stack.get_visible_child_name() == "result":
+            self._result_dismissed()
+        else:
+            self._cancel()
         return True
 
     def _dismiss_after_success(self):
@@ -1294,10 +1141,8 @@ class RequestWindow(Adw.ApplicationWindow):
         return GLib.SOURCE_CONTINUE
 
     def _cancel_success_dismiss(self):
-        if self._music is not None:
-            self._music.cancel_fade(restore=False)
-        if self._sizzle is not None:
-            self._sizzle.cancel_fade(restore=False)
+        if self._thunder is not None:
+            self._thunder.cancel_fade(restore=False)
         if self._success_action_label is not None:
             self._result_action.set_label(self._success_action_label)
             self._success_action_label = None
@@ -1314,10 +1159,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._result_action.set_label(
             self._success_countdown_label(SUCCESS_COUNTDOWN_SECONDS),
         )
-        if self._music is not None:
-            self._music.fade_out(SUCCESS_LOGOUT_DELAY_MS)
-        if self._sizzle is not None:
-            self._sizzle.fade_out(SUCCESS_LOGOUT_DELAY_MS)
+        if self._thunder is not None:
+            self._thunder.fade_out(SUCCESS_LOGOUT_DELAY_MS)
         self._success_logout_source_id = GLib.timeout_add(
             1_000, self._tick_success_countdown,
         )
@@ -1414,6 +1257,7 @@ class RequestWindow(Adw.ApplicationWindow):
             LOG.info("preferences load completed target=[Child user]")
         except Exception as error:
             LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
+            self._show_error(error)
 
     def _form_values_changed(self):
         self._queue_time_estimate()
@@ -1485,6 +1329,8 @@ class RequestWindow(Adw.ApplicationWindow):
             LOG.warning("time estimate unavailable target=[Child user] error_type=%s",
                         type(error).__name__)
             self._request_content.set_time_estimate("Time estimate unavailable")
+            self._errors.handle(error, "Time estimate unavailable",
+                                "The estimated remaining time could not be loaded.")
         else:
             LOG.debug("time estimate loaded target=[Child user] seconds=%d", seconds)
             self._request_content.set_time_estimate(_time_estimate_label(seconds))
@@ -1513,6 +1359,8 @@ class RequestWindow(Adw.ApplicationWindow):
                 "request preferences save failed error_type=%s",
                 type(error).__name__,
             )
+            self._errors.handle(error, "Settings could not be saved",
+                                "Your request choices could not be saved. Please try again later.")
 
     def _persist_muted(self, muted):
         if (self._preview and not self._interactive_preview) or self._applying_preferences:
@@ -1529,6 +1377,8 @@ class RequestWindow(Adw.ApplicationWindow):
             )
         except Exception as error:
             LOG.warning("mute save failed error_type=%s", type(error).__name__)
+            self._errors.handle(error, "Settings could not be saved",
+                                "Your sound preference could not be saved. Please try again later.")
 
     def _preferences_save_done(self, connection, result):
         try:
@@ -1538,6 +1388,8 @@ class RequestWindow(Adw.ApplicationWindow):
                 "request preferences outcome=unavailable error_type=%s",
                 type(error).__name__,
             )
+            self._errors.handle(error, "Settings could not be saved",
+                                "Your request preferences could not be saved. Please try again later.")
 
     def _request_access(self, *_args):
         if self._preview and not self._interactive_preview:
@@ -1656,6 +1508,9 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._child_overlay:
             self._result_action.set_label("Close")
         self._show_result(title, detail)
+        self._error_report = self._errors.capture(error, title, detail)
+        self._report_error.set_active(True)
+        self._report_row.set_visible(True)
 
     def _show_child_success(self):
         self._result_action.set_label(CHILD_SUCCESS_COPY)
@@ -1663,6 +1518,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._schedule_success_logout()
 
     def _show_result(self, title, detail):
+        self._error_report = None
+        self._report_row.set_visible(False)
         self._result_title.set_text(title)
         self._result_detail.set_text(detail)
         self._result_detail.set_visible(bool(detail))
@@ -1678,19 +1535,22 @@ class RequestWindow(Adw.ApplicationWindow):
 
 
 class Application(Adw.Application):
-    def __init__(self, *, preview=False, soundtrack=None, child_overlay=False,
-                 window_factory=None):
+    def __init__(self, *, preview=False, child_overlay=False,
+                 window_factory=None, report_error=None):
         super().__init__(
             application_id=(
                 "com.puffyslippers.OhNoParentControl.ChildRequest"
                 if child_overlay else
                 "com.puffyslippers.OhNoParentControl"
             ),
+            flags=(Gio.ApplicationFlags.NON_UNIQUE if report_error is not None
+                   else Gio.ApplicationFlags.DEFAULT_FLAGS),
         )
+        self._report_error = report_error
         self._preview = preview
-        self._soundtrack = soundtrack
         self._child_overlay = child_overlay
         self._window_factory = window_factory or RequestWindow
+        install_exception_hooks(self, "Child App" if child_overlay else "Kiosk App")
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
         self._css_provider = None
         self._preview_monitor = None
@@ -1757,8 +1617,11 @@ class Application(Adw.Application):
         return GLib.SOURCE_REMOVE
 
     def do_activate(self):
+        if self._report_error is not None:
+            show_startup_error(self, "Child App", self._report_error)
+            return
         window = self.get_active_window() or self._window_factory(
-            self, preview=self._preview, soundtrack=self._soundtrack,
+            self, preview=self._preview,
             child_overlay=self._child_overlay,
         )
         if self._css_provider is None:
@@ -1784,18 +1647,22 @@ def main(argv=None):
         help="present the shared request GUI as a child-session overlay",
     )
     parser.add_argument(
-        "--soundtrack", type=Path,
-        help="soundtrack file to play instead of the installed kiosk soundtrack",
+        "--error-report-stdin", action="store_true",
+        help="review a Child App error received on standard input (requires --child-overlay)",
     )
     args = parser.parse_args(argv)
+    if args.error_report_stdin and not args.child_overlay:
+        parser.error("--error-report-stdin requires --child-overlay")
+    report_error = RuntimeError(sys.stdin.read(3500)) if args.error_report_stdin else None
     configure_logging(
         preview=args.preview,
         component="child" if args.child_overlay else "kiosk",
     )
     LOG.info("kiosk app starting overlay=%s", args.child_overlay)
     return Application(
-        preview=args.preview, soundtrack=args.soundtrack,
+        preview=args.preview,
         child_overlay=args.child_overlay,
+        report_error=report_error,
     ).run([sys.argv[0]])
 
 

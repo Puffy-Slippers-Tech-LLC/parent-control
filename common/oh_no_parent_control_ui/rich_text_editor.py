@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from html import escape
 import logging
 from pathlib import Path
 
@@ -83,6 +84,17 @@ class RichTextEditor(Gtk.Box):
                 "window.feedbackEditor.clear();", -1, None, None, None, None, None,
             )
 
+    def set_text(self, text):
+        """Seed a literal draft, including before the web process is ready."""
+        self._plain_text = text
+        self._html = "<p>" + escape(text).replace("\n", "<br>") + "</p>"
+        self._delta = json.dumps({"ops": [{"insert": text + "\n"}]})
+        if self._ready:
+            self._view.evaluate_javascript(
+                f"window.feedbackEditor.restore(JSON.parse({json.dumps(self._delta)}));",
+                -1, None, None, None, None, None,
+            )
+
     def grab_editor_focus(self):
         if self._ready:
             self._view.evaluate_javascript(
@@ -111,7 +123,8 @@ class RichTextEditor(Gtk.Box):
             LOG.info("rich editor ready engine=quill version=2.0.3")
             return
         if kind == "attachment":
-            self._attachment_requested()
+            if self._attachment_requested is not None:
+                self._attachment_requested()
             return
         if kind != "change":
             LOG.warning("rich editor bridge rejected unknown message type")
@@ -152,10 +165,14 @@ class RichTextEditor(Gtk.Box):
         LOG.warning("rich editor process terminated reason=%s", reason.value_nick)
         self._view.reload()
 
-    @staticmethod
-    def _document():
+    def _document(self):
         quill_js = (ASSET_DIR / "quill.js").read_text(encoding="utf-8")
         quill_css = (ASSET_DIR / "quill.snow.css").read_text(encoding="utf-8")
+        attachment_button = (
+            '<button class="ql-attachment" type="button" title="Add attachment" '
+            'aria-label="Add attachment">📎</button>'
+            if self._attachment_requested is not None else ""
+        )
         # The page is an immutable in-memory document. CSP forbids every network
         # source; only the bundled editor and inline app bootstrap can execute.
         return f"""<!doctype html>
@@ -219,7 +236,7 @@ body {{ display: flex; flex-direction: column; }}
   </span>
   <span class="ql-formats">
     <button class="ql-link" title="Insert link" aria-label="Insert link"></button>
-    <button class="ql-attachment" type="button" title="Add attachment" aria-label="Add attachment">📎</button>
+    {attachment_button}
     <button class="ql-clean" title="Remove formatting" aria-label="Remove formatting"></button>
   </span>
 </div>

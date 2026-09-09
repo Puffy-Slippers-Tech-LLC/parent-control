@@ -42,6 +42,7 @@ def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
         destination.mkdir()
     with patch.object(smoke.os, 'geteuid', return_value=0), \
             patch.object(smoke.os, 'getegid', return_value=0), \
+            patch.object(smoke.runner.baseline.guest_contract, 'CHECKOUT', smoke.ROOT), \
             patch.object(smoke.os, 'umask'), patch.object(smoke.signal, 'signal'), \
             patch.object(smoke.tempfile, 'mkdtemp', return_value=str(tmp_path)), \
             patch.object(smoke, 'inputs', return_value={}), \
@@ -271,6 +272,31 @@ def test_live_controller_ordering_and_retained_diagnostics(qualification, fault)
         assert before['outcomes']['infrastructure']['outcome'] == 'failed'
     if fault == 'bootstrap':
         run.assert_not_called()
+
+
+@pytest.mark.parametrize('late', [False, True])
+@pytest.mark.parametrize('code', ['source-changed', 'assets-changed', 'baseline-state-changed',
+    'baseline-proof-changed', 'baseline-identity-changed', 'file-replaced',
+    'tree-changed', 'unknown-private-canary'])
+def test_final_provenance_keeps_safe_specific_cause_through_cleanup(qualification, late, code):
+    controller, lease = qualification
+    controller.result['worker_evidence'] = {'outcome': 'passed'}
+    error = smoke.EvidenceError('provenance:' + code)
+    controller.verified.recheck.side_effect = [None, error] if late else [error]
+    with pytest.raises(smoke.EvidenceError) as caught:
+        with lease:
+            pass
+    assert caught.value is error
+    expected = 'provenance:' + (code if code != 'unknown-private-canary' else 'recheck-failed')
+    final = reports(controller)[-1]
+    assert final['event'] == 'finalization-rejected'
+    assert final['result']['final_provenance_refusal'] == expected
+    assert final['result']['preservation'] == {'source': False, 'host': True}
+    assert final['result']['outcome'] == 'failed'
+    assert 'private-canary' not in json.dumps(reports(controller))
+    lease.finish.assert_called_once()
+    lease.release.assert_called_once()
+    assert lease.fd is None
 
 
 def test_stage_checkpoint_failure_prevents_guest_acknowledgement(tmp_path):

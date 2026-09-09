@@ -136,9 +136,12 @@ class Preferences:
 class Extensions:
     def __init__(self):
         self.calls = []
+        self.recoveries = []
 
-    def set_enabled(self, uid, enabled):
+    def set_enabled(self, uid, enabled, *, recover_global_switch=False):
         self.calls.append((uid, enabled))
+        if recover_global_switch:
+            self.recoveries.append(uid)
 
 
 class TimerUsage:

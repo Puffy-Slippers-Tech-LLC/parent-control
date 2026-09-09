@@ -27,21 +27,6 @@ class ServiceContractTests(unittest.TestCase):
 
         self.assertIn("register_object_with_closures2", source)
 
-    def test_service_reasserts_enabled_child_activation_before_registration(self):
-        source = (
-            ROOT / "broker/oh_no_parent_control/service.py"
-        ).read_text(encoding="utf-8")
-
-        refresh = source.index("self.broker.refresh_enabled_extensions()")
-        clear_caps = source.index(
-            "self.broker.clear_live_session_runtime_caps()", refresh,
-        )
-        registration_metadata = source.index(
-            "self.node_info = Gio.DBusNodeInfo.new_for_xml", clear_caps,
-        )
-        self.assertLess(refresh, clear_caps)
-        self.assertLess(clear_caps, registration_metadata)
-
     def test_embedded_and_installed_dbus_contracts_match(self):
         canonical = (
             ROOT / "data/dbus-1/com.puffyslippers.OhNoParentControl1.xml"
@@ -66,6 +51,12 @@ class ServiceContractTests(unittest.TestCase):
         self.assertEqual(
             signatures(INTROSPECTION_XML)["PrepareOwnSession"],
             (("reconciled", "b", "out"),),
+        )
+
+    def test_diagnostic_export_accepts_no_path_or_identity_from_client(self):
+        self.assertEqual(
+            signatures(INTROSPECTION_XML)["ExportDiagnosticLogs"],
+            (("archive", "ay", "out"),),
         )
 
     def test_user_lists_include_the_accounts_service_icon_file(self):

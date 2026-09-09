@@ -122,13 +122,7 @@ class PackageActivationTests(unittest.TestCase):
 
             self.assertEqual(changed_impacts(old, new), ["session-renewal"])
 
-    def test_session_runtime_cap_helper_requires_reboot(self):
-        self.assertEqual(
-            activation_for(
-                "usr/libexec/oh-no-parent-control-clear-session-runtime-max"
-            ),
-            "reboot",
-        )
+    def test_pam_policy_and_runtime_cap_modules_require_reboot(self):
         self.assertEqual(
             activation_for(
                 "usr/libexec/oh-no-parent-control-session-limit-check"

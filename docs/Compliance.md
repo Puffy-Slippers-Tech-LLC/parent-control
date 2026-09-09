@@ -17,9 +17,7 @@ Keep these topics separate so that each statement is accurate and reviewable:
 This guide may link to the threat model when describing a technical limitation, but it must not present a security property as a license term. Likewise, a privacy notice must describe actual data handling rather than copyright or third-party license information.
 
 The public privacy page must describe optional feedback submissions before the
-feedback-enabled product is released. The [prepared privacy update](Privacy-Notice-Release-Draft.md)
-identifies the current page's conflicting no-transmission wording and supplies
-client-accurate replacement text. Confirm deployed service retention and
+feedback-enabled product is released. Confirm deployed service retention and
 recipients before publishing server-side promises.
 
 ## Product license and corresponding source

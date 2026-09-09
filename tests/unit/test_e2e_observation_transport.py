@@ -20,6 +20,88 @@ def observer():
     return ReadOnlyObservations(transport), transport
 
 
+def test_customer_reboot_requires_fresh_agreeing_boot_observation(observer):
+    reader, transport = observer
+    transport.call.side_effect = [b'a'*64 + b'\n', b'b'*64 + b'\n']
+    before = reader.read('boot')['boot_sha256']
+    transport.wait_boot_change.return_value = b'b'*64 + b'\n'
+    assert reader.wait_boot_change(before) == {
+        'previous_boot_sha256': 'a'*64, 'boot_sha256': 'b'*64, 'boot_changed': True}
+    transport.wait_boot_change.assert_called_once_with(before, on_diagnostic=None)
+    assert transport.call.call_count == 2
+    transport.reboot.assert_not_called()
+    transport.copy.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['unobserved', 'wrong-before', 'unchanged', 'second-reboot',
+    'malformed', 'before-ownership', 'after-ownership', 'configuration', 'transport',
+    'interrupt', 'final-read'])
+def test_failed_reboot_observation_latches_all_reads_and_retries(observer, fault, capsys):
+    reader, transport = observer
+    transport.call.return_value = b'a'*64 + b'\n'
+    if fault != 'unobserved':
+        reader.read('boot')
+    transport.reset_mock()
+    transport.call.return_value = b'b'*64 + b'\n'
+    transport.wait_boot_change.return_value = b'b'*64 + b'\n'
+    before = 'c'*64 if fault == 'wrong-before' else 'a'*64
+    private = RuntimeError('private-canary')
+    if fault == 'unchanged':
+        transport.wait_boot_change.return_value = b'a'*64 + b'\n'
+    elif fault == 'second-reboot':
+        transport.call.return_value = b'c'*64 + b'\n'
+    elif fault == 'malformed':
+        transport.wait_boot_change.return_value = b'private-canary'
+    elif fault in ('before-ownership', 'after-ownership'):
+        transport.guard.side_effect = ([private] if fault == 'before-ownership'
+                                       else [None, private])
+    elif fault == 'configuration':
+        transport.config['domain_id'] = 8
+    elif fault in ('transport', 'interrupt'):
+        transport.wait_boot_change.side_effect = (KeyboardInterrupt('private-canary')
+                                                  if fault == 'interrupt' else private)
+    elif fault == 'final-read':
+        transport.call.side_effect = private
+    with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else EvidenceError) as caught:
+        reader.wait_boot_change(before)
+    assert 'private-canary' not in str(caught.value) + capsys.readouterr().err
+    calls = list(transport.mock_calls)
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.wait_boot_change(before)
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.read('greeter')
+    assert transport.mock_calls == calls
+    if fault in ('unobserved', 'wrong-before', 'before-ownership', 'configuration'):
+        transport.wait_boot_change.assert_not_called()
+
+
+def test_customer_reboot_uses_real_readiness_loop_and_revalidates_final_boot(monkeypatch):
+    from contextlib import nullcontext
+    from vm_transport import Transport
+    import vm_transport
+    events = Mock()
+    monkeypatch.setattr(vm_transport, 'readiness_events', lambda: nullcontext(events))
+    commands = Mock(last_returncode=0)
+    responses = iter([(0, b'a'*64 + b'\n'), (0, b'a'*64 + b'\n'),
+                      (255, b'private-canary'), (0, b'b'*64 + b'\n'),
+                      (0, b'b'*64 + b'\n')])
+    def output(*args, **kwargs):
+        commands.last_returncode, raw = next(responses)
+        return raw
+    commands.run.side_effect = output
+    config = {'directory': '/tmp/onpc-reboot-test', 'hostname': 'example.invalid',
+              'run': 'a'*32, 'domain_uuid': '00000000-0000-0000-0000-000000000001'}
+    transport = Transport(config, commands, guard=Mock())
+    reader = ReadOnlyObservations(transport)
+    before = reader.read('boot')['boot_sha256']
+    reports = []
+    assert reader.wait_boot_change(before, on_diagnostic=reports.append)['boot_sha256'] == 'b'*64
+    assert reports == [{'old_boot': 1, 'ssh_unavailable': 1, 'changed_boot': 1,
+                        'outcome': 'changed-boot'}]
+    assert commands.run.call_count == 5
+    assert events.wait.call_count == 2
+
+
 @pytest.mark.parametrize('name,program,timeout,result,raw', [
     ('boot', guest_observations.BOOT, 20, {'boot_sha256': 'a' * 64}, b'a' * 64 + b'\n'),
     ('package-absent', installation_observations.ABSENT, 30,
@@ -34,6 +116,11 @@ def observer():
       'product_reboot_required': True},
      (json.dumps({'package_sha256': 'a' * 64, 'installed_identity_verified': True,
                   'product_reboot_required': True}, sort_keys=True) + '\n').encode()),
+    ('installed-layout', installation_observations.INSTALLED_LAYOUT, 90,
+     {'installed_files': 12, 'inventory_sha256': 'a' * 64,
+      'installed_layout_verified': True},
+     (json.dumps({'installed_files': 12, 'inventory_sha256': 'a' * 64,
+                  'installed_layout_verified': True}, sort_keys=True) + '\n').encode()),
     ('assets', guest_observations.ASSETS, 120, {'files': 3, 'sha256': 'a' * 64},
      (json.dumps({'files': 3, 'sha256': 'a' * 64}, sort_keys=True) + '\n').encode()),
     ('greeter', guest_observations.GREETER, 110,
@@ -47,6 +134,9 @@ def observer():
     ('install-password', installation_observations.SUDO_PASSWORD, 20,
      {'sudo_install_process_verified': True,
       'terminal_echo_disabled': True}, b'install-password-safe\n'),
+    ('reboot-password', installation_observations.REBOOT_PASSWORD, 20,
+     {'sudo_reboot_process_verified': True,
+      'terminal_echo_disabled': True}, b'reboot-password-safe\n'),
     ('sudo-implementation', installation_observations.SUDO_IMPLEMENTATION, 30,
      {'implementation': 'sudo-rs', 'package_version': '0.2.13-0ubuntu1.2',
       'executable': '/usr/lib/cargo/bin/sudo'},
@@ -122,17 +212,19 @@ def test_sudo_diagnostic_accepts_only_exact_fixed_conditions(observer, raw, caps
     assert capsys.readouterr().err == 'e2e:observation-rejected\n'
 
 
-def test_sudo_diagnostic_is_not_published_after_ownership_loss(observer, capsys):
+@pytest.mark.parametrize('action', ['install', 'reboot'])
+def test_sudo_diagnostic_is_not_published_after_ownership_loss(observer, action, capsys):
     reader, transport = observer
-    transport.call.return_value = b'install-password-rejected:sudo-command\n'
+    transport.call.return_value = (action + '-password-rejected:sudo-command\n').encode()
     transport.guard.side_effect = [None, RuntimeError('private-secret-canary')]
     with pytest.raises(EvidenceError, match='probe-failed'):
-        reader.read('install-password')
+        reader.read(action + '-password')
     assert capsys.readouterr().err == 'e2e:observation-rejected\n'
 
 
 @pytest.mark.parametrize('write_fails', [False, True])
-def test_sudo_refusal_checkpoint_precedes_failure_and_cannot_enable_retry(observer, write_fails):
+@pytest.mark.parametrize('action', ['install', 'reboot'])
+def test_sudo_refusal_checkpoint_precedes_failure_and_cannot_enable_retry(observer, write_fails, action):
     _, transport = observer
     events = []
     def save(condition):
@@ -140,13 +232,26 @@ def test_sudo_refusal_checkpoint_precedes_failure_and_cannot_enable_retry(observ
         if write_fails:
             raise OSError('private-secret-canary')
     reader = ReadOnlyObservations(transport, on_diagnostic=save)
-    transport.call.return_value = b'install-password-rejected:terminal-echo\n'
+    transport.call.return_value = (action + '-password-rejected:terminal-echo\n').encode()
     with pytest.raises(EvidenceError, match='probe-failed'):
-        reader.read('install-password')
+        reader.read(action + '-password')
     assert events == ['terminal-echo']
     with pytest.raises(EvidenceError, match='previous-failure'):
-        reader.read('install-password')
+        reader.read(action + '-password')
     assert transport.call.call_count == 1
+
+
+@pytest.mark.parametrize('raw', [b'install-password-safe\n',
+    b'reboot-password-safe\nprivate-secret-canary', b'reboot-password-rejected:private-secret-canary\n',
+    b'reboot-password-rejected:sudo-command\nreboot-password-safe\n'])
+def test_reboot_proof_rejects_other_purpose_and_private_or_mixed_output(observer, raw, capsys):
+    reader, transport = observer
+    transport.call.return_value = raw
+    with pytest.raises(EvidenceError, match='invalid-output'):
+        reader.read('reboot-password')
+    assert capsys.readouterr().err == 'e2e:observation-rejected\n'
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.read('reboot-password')
 
 
 @pytest.mark.parametrize('phase', ['initial', 'recipient', 'continuity'])
@@ -223,6 +328,19 @@ def test_boot_probe_hashes_actual_kernel_identity(capsys):
     ('package-installed', b'{}'),
     ('package-installed', b'null'),
     ('package-installed', b'\xff'),
+    ('installed-layout', b'{}'),
+    ('installed-layout', b'null'),
+    *[('installed-layout', (json.dumps(value, sort_keys=True) + '\n').encode())
+      for value in [
+          {'installed_files': 0, 'inventory_sha256': 'a' * 64,
+           'installed_layout_verified': True},
+          {'installed_files': 1, 'inventory_sha256': 'A' * 64,
+           'installed_layout_verified': True},
+          {'installed_files': 1, 'inventory_sha256': 'a' * 64,
+           'installed_layout_verified': 1},
+          {'installed_files': 1, 'inventory_sha256': 'a' * 64,
+           'installed_layout_verified': True, 'private-secret-canary': True},
+      ]],
     *[('package-installed', (json.dumps(value, sort_keys=True) + '\n').encode())
       for value in [
           {'package_sha256': 'A' * 64, 'installed_identity_verified': True,

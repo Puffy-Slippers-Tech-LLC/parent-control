@@ -21,6 +21,7 @@ MARKER = Path('/etc/onpc-system-test.json')
 BASELINE = Path('/etc/oh-no-parent-control-test-baseline.json')
 BUS = 'com.puffyslippers.OhNoParentControl1'
 BROKER = 'oh-no-parent-control-broker.service'
+EXPIRY_DIAGNOSTICS = Path('/var/lib/onpc-test-graphical-expiry')
 commands = Commands()
 
 
@@ -173,8 +174,14 @@ def installed():
         require(run(['systemctl', 'is-active', unit]) == 'active', 'service-ready')
     require('pam_oh_no_parent_control.so' in Path('/etc/pam.d/common-auth').read_text(), 'pam-auth')
     require('pam_malcontent.so' in Path('/etc/pam.d/common-account').read_text(), 'pam-account')
-    require('oh-no-parent-control-clear-session-runtime-max' in
-            Path('/etc/pam.d/common-session').read_text(), 'pam-session')
+    account_stack = Path('/etc/pam.d/common-account').read_text()
+    require('pam_oh_no_parent_control.so' in account_stack and
+            account_stack.index('pam_malcontent.so') <
+            account_stack.index('pam_oh_no_parent_control.so'), 'pam-runtime-cap')
+    require('oh-no-parent-control-clear-session-runtime-max' not in
+            Path('/etc/pam.d/common-session').read_text() and not
+            Path('/usr/libexec/oh-no-parent-control-clear-session-runtime-max').exists(),
+            'obsolete-session-runtime-hook')
     for name in ('child.request-own-access', 'kiosk.request-access'):
         path = Path('/usr/share/polkit-1/actions') / f'tech.puffyslippers.com.ohnoparentcontrol.{name}.policy'
         root = ET.parse(path).getroot()
@@ -229,6 +236,20 @@ def collect(marker, outcome):
                              '-u', 'fapolicyd.service', '-u', 'accounts-daemon.service'],
                             timeout=60, check=False, merge_stderr=False)
     (output / 'service-journal.txt').write_text(redacted(result.decode(errors='replace')))
+    # Session-expiry diagnostics need the login-manager/desktop failure that
+    # can precede a broker outage. Only redacted copies leave the guest.
+    result = Commands().run(['journalctl', '--no-pager', '--utc', '-b',
+                             '_SYSTEMD_UNIT=gdm.service', '+',
+                             '_SYSTEMD_UNIT=systemd-logind.service', '+',
+                             '_COMM=gnome-shell'], timeout=60, check=False, merge_stderr=False)
+    (output / 'session-journal.txt').write_text(redacted(result.decode(errors='replace')))
+    for name in ('prepared', 'prerequisites', 'seeded'):
+        source = EXPIRY_DIAGNOSTICS / (name + '.json')
+        if source.exists():
+            require(source.is_file() and not source.is_symlink()
+                    and source.stat().st_size <= 65536, 'expiry-diagnostic-file')
+            (output / ('graphical-expiry-' + name + '.json')).write_text(
+                redacted(source.read_text()))
     result = Commands().run(['journalctl', '--no-pager', '--utc', '-b',
                              '_SYSTEMD_UNIT=polkit.service', '+',
                              'SYSLOG_IDENTIFIER=polkit-agent-helper-1'],

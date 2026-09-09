@@ -406,6 +406,7 @@ def test_list_mode_returns_before_artifact_root_tool_or_vm_checks(monkeypatch, c
 
 
 def test_selected_execution_reaches_normal_guarded_prerequisite_checks(monkeypatch, capsys):
+    monkeypatch.setattr(runner.baseline.guest_contract, 'CHECKOUT', runner.ROOT)
     monkeypatch.setattr(runner, 'collect_area_cases', lambda name: INVENTORIES[name])
     monkeypatch.setattr(runner.shutil, 'which', Mock(return_value=None))
     monkeypatch.setattr(runner.os, 'geteuid', lambda: 0)
@@ -419,6 +420,7 @@ def test_selected_execution_reaches_normal_guarded_prerequisite_checks(monkeypat
 
 @pytest.mark.parametrize('missing', ['dpkg-deb', 'dpkg-query'])
 def test_check_tools_rejects_missing_package_inspection_tool(monkeypatch, capsys, missing):
+    monkeypatch.setattr(runner.baseline.guest_contract, 'CHECKOUT', runner.ROOT)
     monkeypatch.setattr(runner, 'collect_area_cases', lambda name: INVENTORIES[name])
     monkeypatch.setattr(runner.shutil, 'which',
                         lambda name: None if name == missing else '/usr/bin/' + name)
@@ -437,6 +439,7 @@ def test_check_tools_rejects_missing_package_inspection_tool(monkeypatch, capsys
 ])
 def test_unavailable_artifacts_fail_before_storage_or_vm_access(
         monkeypatch, capsys, failure, category):
+    monkeypatch.setattr(runner.baseline.guest_contract, 'CHECKOUT', runner.ROOT)
     monkeypatch.setattr(runner, 'collect_area_cases', lambda name: INVENTORIES[name])
     monkeypatch.setattr(runner.shutil, 'which', lambda name: '/usr/bin/' + name)
     monkeypatch.setattr(runner.importlib, 'import_module', Mock())
@@ -554,8 +557,8 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path):
         ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]'),
         ('authorization', 'test_real_selected_parent_authentication[child1]'),
     )
-    vm.reboot.assert_called_once()
-    assert vm.call.call_count == 7
+    assert vm.reboot.call_count == 2
+    assert vm.call.call_count == 9
     assert vm.call.call_args_list[2].args[0] == runner.guest_command(RUN, 'collect', 'installed')
     assert ledger.outcomes['product'] == {'outcome': 'passed', 'category': None}
     assert ledger.outcomes['collection'] == {'outcome': 'passed', 'category': None}

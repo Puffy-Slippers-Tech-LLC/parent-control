@@ -252,9 +252,6 @@ response.setdefault('summary', {
     'task': '19B — current qualification', 'completed': f'Completed slice result {number}.',
     'verification': 'Selected checks passed; owned operations exited and cleanup confirmed.',
     'next': 'Run the next required qualification.' if response['status'] != 'complete' else 'No tasks remain.',
-    'remaining_sessions': '1–2' if response['status'] != 'complete' else '0',
-    'remaining_minutes': '90–120' if response['status'] != 'complete' else '0',
-    'estimate_basis': 'Measured qualification duration; correction contingency remains.',
 })
 if step.get('omit_summary'):
     response.pop('summary')
@@ -436,13 +433,20 @@ def test_resume_retry_retains_saved_thread_and_settings(rig, monkeypatch):
     ({'input_tokens': True, 'cached_input_tokens': -1, 'output_tokens': '30'}, 'not reported'),
     (None, 'not reported'),
 ])
-def test_summary_reports_only_actual_allowlisted_token_counts(rig, usage, expected):
+def test_summary_omits_metadata_but_lifecycle_retains_allowlisted_usage(rig, usage, expected):
     root = rig([{'usage': usage, 'check_all': True, 'result': complete()}])
     assert run(root) == 0
     summary = (root / loop.SUMMARY).read_text()
-    assert f'- CLI token counts: {expected}. These are not weekly allowance measurements.' in summary
-    assert '- Processing: Standard' in summary
+    assert 'CLI token counts:' not in summary
+    assert '- Processing:' not in summary
     assert 'sensitive-placeholder' not in summary
+    events = [json.loads(line)
+              for path in (root / loop.STORAGE).glob('slice-*/events.jsonl')
+              for line in path.read_text().splitlines()]
+    reported = next(event.get('usage', {}) for event in events
+                    if event.get('type') == 'turn.completed')
+    counts = '; '.join(f'{key}: {value}' for key, value in reported.items())
+    assert (counts or 'not reported') == expected
 
 
 @pytest.mark.parametrize('step, message', [
@@ -943,10 +947,15 @@ def test_summaries_append_without_reading_history_across_restarts(rig, monkeypat
     assert new.count('## Session ') == 2
     assert new.index('## Session 1') < new.index('## Session 2')
     assert 'Completed slice result 0.' in new and 'Completed slice result 1.' in new
-    assert 'Estimated sessions remaining for this task: 1–2' in new
-    assert 'Estimated minutes remaining for this task: 90–120' in new
+    assert 'Estimated sessions' not in new
+    assert 'Estimated minutes' not in new
     assert 'Next session: Run the next required qualification.' in new
-    assert 'Measured qualification duration' in new
+    for entry in new.split('## Session ')[1:]:
+        assert re.findall(r'^- ([^:]+):', entry, re.MULTILINE) == [
+            'Task', 'Duration', 'Completed', 'Verification and cleanup', 'Next session']
+        assert re.search(r'- Task: .+\n- Duration: \d+ minutes\n- Completed:', entry)
+        assert '\n\n- Verification and cleanup:' in entry
+        assert '\n\n- Next session:' in entry
     assert 'sensitive-placeholder' not in new
     for call in calls(root):
         assert 'previous-context-must-not-be-loaded' not in call['prompt']
@@ -975,8 +984,9 @@ def test_completion_timestamp_and_elapsed_duration_are_measured_in_minutes(rig, 
     assert run(root) == 0
     saved = (root / loop.SUMMARY).read_text()
     local_completion = datetime(2026, 9, 8, 18, 42, 59, tzinfo=timezone.utc).astimezone()
-    assert f"Completion: {local_completion.strftime('%Y-%m-%d %H:%M %Z')}" in saved
-    assert 'Duration: 3 minutes (rounded up)' in saved
+    assert f"## Session 1 — {local_completion.strftime('%Y-%m-%d %H:%M %Z')}" in saved
+    assert '- Duration: 3 minutes\n' in saved
+    assert '(rounded up)' not in saved
     assert '18:42:59' not in saved
     assert loop.read_state(root / loop.STORAGE)['last_session']['duration_minutes'] == 3
 
@@ -1000,7 +1010,9 @@ def test_failed_and_blocked_sessions_have_exactly_one_honest_end_entry(rig, step
     assert f'Outcome: {outcome}' in saved
     if outcome == 'needs-review':
         assert 'unconfirmed' in saved
-    assert re.search(r'Completion: \d{4}-\d\d-\d\d \d\d:\d\d \S+\n', saved)
+    assert re.search(r'## Session 1 — \d{4}-\d\d-\d\d \d\d:\d\d \S+\n', saved)
+    assert re.findall(r'^- ([^:]+):', saved, re.MULTILINE) == [
+        'Task', 'Duration', 'Completed', 'Verification and cleanup', 'Next session']
 
 
 def test_summary_append_failure_stops_before_next_session(rig, monkeypatch):

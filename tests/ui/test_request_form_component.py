@@ -6,31 +6,12 @@ import json
 
 import pytest
 from tests.support.events import read_events as records
+from tests.support.request_form import launch_request, calls, events
 
 
 pytestmark = pytest.mark.ui
 
 
-
-
-def launch_request(launch_ui, tmp_path, *, overlay, scenario="normal", selections_path=None):
-    path = tmp_path / f"request-{overlay}-{scenario}.jsonl"
-    application, _log = launch_ui("request_component_preview", environment_overrides={
-        "ONPC_REQUEST_COMPONENT_EVENTS_PATH": str(path),
-        "ONPC_REQUEST_COMPONENT_OVERLAY": "1" if overlay else "0",
-        "ONPC_REQUEST_COMPONENT_SCENARIO": scenario,
-        "ONPC_REQUEST_COMPONENT_SELECTIONS_PATH": str(selections_path or ""),
-    })
-    return application, path
-
-
-def calls(path, method):
-    return [item for item in records(path)
-            if item["event"] == "call" and item["method"] == method]
-
-
-def events(path, event):
-    return [item for item in records(path) if item["event"] == event]
 
 
 def send_escape(application):
@@ -106,6 +87,40 @@ def test_shared_rest_of_day_choice_submits_zero_seconds(
     assert calls(path, method)[0]["values"] == (
         [1000, 0, False] if overlay else [1001, 1000, 0, False]
     )
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_responsive_form_accepts_pointer_selection_and_submission(
+        hermetic_ui_session, launch_ui, wait_for_accessible_node,
+        wait_for_accessible_state, tmp_path, overlay):
+    from dogtail.hermetic.mutter import MutterInputBackend
+    from tests.ui.mutter_input import click_at
+
+    # Keep the session fixture's keyboard backend alive for subsequent tests.
+    backend = MutterInputBackend(bus_address=hermetic_ui_session.bus_address)
+    backend.connectMonitor()
+    try:
+        application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="pointer")
+        request = wait_for_accessible_node(application, "REQUEST", "button")
+        wait_for_accessible_state(lambda: request.sensitive, "loaded request controls")
+        wait_for_accessible_node(application, "Request 5 minutes", "toggle button")
+        wait_for_accessible_state(lambda: events(path, "pointer_layout"), "allocated controls")
+        for name in ("duration", "request"):
+            x, y = events(path, "pointer_layout")[-1]["targets"][name]
+            click_at(backend, 1, x, y)
+            if name == "duration":
+                wait_for_accessible_state(
+                    lambda: any(call["values"][1] == "300"
+                                for call in calls(path, "UpdateRequestPreferences")),
+                    "pointer-selected duration saved",
+                )
+        method = "RequestOwnAccess" if overlay else "RequestAccess"
+        wait_for_accessible_state(lambda: bool(calls(path, method)), "pointer-submitted request")
+        assert calls(path, method)[0]["values"] == (
+            [1000, 300, False] if overlay else [1001, 1000, 300, False]
+        )
+    finally:
+        backend.disconnect()
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
@@ -308,6 +323,7 @@ def test_result_action_uses_each_modes_exit_behavior(
     )
     assert wait_for_accessible_node(application, "REQUEST", "button").do_action(0)
     wait_for_accessible_state(lambda: bool(events(path, "result")), "failure result")
+    assert wait_for_accessible_node(application, "Report this error", "button").do_action(0)
     action = "Close" if overlay else "Return to Login"
     assert wait_for_accessible_node(application, action, "button").do_action(0)
     expected = "close_overlay" if overlay else "logout"

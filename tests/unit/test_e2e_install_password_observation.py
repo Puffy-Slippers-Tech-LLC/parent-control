@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from installation_observations import LOGIN_RESOLUTION_DIAGNOSTICS, SUDO_PASSWORD
+from installation_observations import LOGIN_RESOLUTION_DIAGNOSTICS, REBOOT_PASSWORD, SUDO_PASSWORD
 
 
 @pytest.mark.parametrize('fault,stage', [
@@ -32,6 +32,7 @@ from installation_observations import LOGIN_RESOLUTION_DIAGNOSTICS, SUDO_PASSWOR
     ('exe', 'sudo-executable'), ('shell', 'parent-executable'),
     ('sudo-uid', 'sudo-credentials'), ('parent-uid', 'parent-credentials'),
     ('command', 'sudo-command'), ('cached-auth', 'sudo-command'),
+    ('other-purpose', 'sudo-command'), ('force', 'sudo-command'),
     ('old-prompt', 'sudo-command'), ('literal-prompt-escape', 'sudo-command'),
     ('stdin', 'sudo-stdin'), ('echo', 'terminal-echo-enabled-other'),
     ('echonl', None),
@@ -85,7 +86,8 @@ from installation_observations import LOGIN_RESOLUTION_DIAGNOSTICS, SUDO_PASSWOR
          ('file-writable', 'file-writable'), ('resolve-error', 'exe-resolve'),
          ('exe-mismatch', 'exe-mismatch'), ('credentials', 'credentials'))])
 @pytest.mark.parametrize('newline_echo', [False, True])
-def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, newline_echo, capsys):
+@pytest.mark.parametrize('action', ['install', 'reboot'])
+def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, newline_echo, action, capsys):
     if stage and stage.endswith('-exe-resolve'):
         stage += ('-error-permission-link-expected-target-expected-identity-same'
                   '-leader-same-euid-root-ptrace-set')
@@ -143,13 +145,20 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
             if fault == 'command-read-error':
                 raise FileNotFoundError('private-canary')
             counts['cmdline'] = counts.get('cmdline', 0) + 1
-            args = [b'/usr/bin/sudo', b'-k', b'-p', b'\nONPC-INSTALL-PASSWORD: ', b'--',
-                    b'/usr/bin/apt-get', b'install', b'-y',
-                    b'/var/lib/onpc-e2e-assets/package.deb', b'']
+            command = ([b'/usr/bin/apt-get', b'install', b'-y',
+                        b'/var/lib/onpc-e2e-assets/package.deb'] if action == 'install' else
+                       [b'/usr/bin/systemctl', b'--no-ask-password', b'reboot'])
+            args = [b'/usr/bin/sudo', b'-k', b'-p',
+                    ('\nONPC-' + action.upper() + '-PASSWORD: ').encode(), b'--', *command, b'']
             if fault == 'command' or fault in ('changed-command', 'echo-changed-command') and counts['cmdline'] > 1:
                 args[-2] = b'/tmp/other.deb'
             if fault == 'cached-auth':
                 args.remove(b'-k')
+            if fault == 'other-purpose':
+                args[3] = (b'\nONPC-REBOOT-PASSWORD: ' if action == 'install' else
+                           b'\nONPC-INSTALL-PASSWORD: ')
+            if fault == 'force':
+                args.insert(-1, b'--force')
             if fault == 'old-prompt':
                 args[3] = b'ONPC-INSTALL-PASSWORD: '
             if fault == 'literal-prompt-escape':
@@ -314,10 +323,10 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
             TIOCOUTQ=termios.TIOCOUTQ, TCSETSW=termios.TCSETSW, TCSETSF=termios.TCSETSF,
             tcgetattr=attributes)}
     with patch.dict(sys.modules, modules):
-        exec(SUDO_PASSWORD, {})
+        exec(SUDO_PASSWORD if action == 'install' else REBOOT_PASSWORD, {})
     captured = capsys.readouterr()
-    assert captured.out == ('install-password-rejected:' + stage + '\n'
-                            if stage else 'install-password-safe\n')
+    assert captured.out == (action + '-password-rejected:' + stage + '\n'
+                            if stage else action + '-password-safe\n')
     assert not captured.err
     if stage is None:
         assert 'syscall' not in events and 'queue' not in events

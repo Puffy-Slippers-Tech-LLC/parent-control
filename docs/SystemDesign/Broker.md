@@ -99,9 +99,17 @@ the broker resolves and revalidates it.
 | `RequestOwnAccess` | own | - | - |
 | `RequestAccess` | - | selected child | - |
 | `LogEvent` | child component | kiosk component | parent component |
+| `ExportDiagnosticLogs` | all product logs | all product logs | all product logs |
 
 `LogEvent` is intentionally role-scoped: a front end cannot choose another
 component's log, and no D-Bus caller may write the broker component log.
+
+`ExportDiagnosticLogs` is a separate, read-only permission for all three product
+roles. It takes no arguments and returns the bounded ZIP of all four components
+from the latest three available log dates. It never accepts arbitrary filesystem
+paths or grants direct log-directory access. The broker rechecks the caller's
+role before delivery and permits only one outstanding export. See
+[diagnostic export](Logging-and-Feedback.md#feedback-and-diagnostic-export).
 
 `SetRequestMuted` authorizes the target account as shown above and validates
 `surface` as `child` or `kiosk`; it does not bind that value to the caller role.

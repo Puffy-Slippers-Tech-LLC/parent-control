@@ -25,10 +25,10 @@ Comment:
  Its accompanying license notice reserves Mozilla trademark rights. The icon
  identifies Thunderbird in the parent-preview fixture only.
 
-Files: parent/oh_no_parent_control_parent/rich_editor/quill.js
-       parent/oh_no_parent_control_parent/rich_editor/quill.snow.css
-       parent/oh_no_parent_control_parent/rich_editor/quill.js.LICENSE.txt
-       parent/oh_no_parent_control_parent/rich_editor/LICENSE
+Files: common/oh_no_parent_control_ui/rich_editor/quill.js
+       common/oh_no_parent_control_ui/rich_editor/quill.snow.css
+       common/oh_no_parent_control_ui/rich_editor/quill.js.LICENSE.txt
+       common/oh_no_parent_control_ui/rich_editor/LICENSE
 Copyright: 2017-2024 Slab
            2014 Jason Chen
            2013 salesforce.com

@@ -5,16 +5,14 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
-import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from test_e2e_provenance import source, assets, lease, provenance  # noqa: F401
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'e2e'))
+import provenance
+from tests.support.e2e_provenance import source, assets, lease
 import asset_transfer as transfer
-sys.path.pop(0)
 
 
 class GuestFiles:

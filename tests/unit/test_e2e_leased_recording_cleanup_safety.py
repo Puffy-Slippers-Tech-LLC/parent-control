@@ -2,24 +2,18 @@
 
 import copy
 import json
-from pathlib import Path
-import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from test_e2e_evidence import attempt
-from test_e2e_recording_cleanup_safety import session, execute_steps, reports
+from tests.support.e2e_evidence import attempt
+from tests.support.e2e_recording import session, execute_steps, reports
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tests/e2e'))
+from tests.support.paths import ROOT
 from leased_recording import LeasedScenario
 from private_artifacts import EvidenceError
-sys.path.pop(0)
-sys.path.insert(0, str(ROOT / 'tests/integration'))
 import system_runner
-sys.path.pop(0)
 
 
 @pytest.fixture

@@ -2,23 +2,19 @@
 
 import hashlib
 import json
-from pathlib import Path
 import runpy
 import subprocess
-import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 runner = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))
 dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
-sys.path.insert(0, str(ROOT / 'tools'))
 import test_commands as commands
 import dev_privileges
-sys.path.pop(0)
 
 
 @pytest.fixture

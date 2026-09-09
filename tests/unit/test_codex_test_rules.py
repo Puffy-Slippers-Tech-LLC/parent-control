@@ -8,7 +8,7 @@ import subprocess
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 BASELINE_PATTERN = '^(def|class) |environment|provenance|accepted'
 BASELINE_SEARCH = [
     'rg', '-n', BASELINE_PATTERN,

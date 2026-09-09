@@ -10,6 +10,8 @@ import pytest
 
 import system_guest as guest
 from system_caller import FixturePassword, PersistentCaller, TextAgent
+from system_assertions import batch, call, accepted, account_property, account_state
+from system_accounts import create_disposable_identity, delete_disposable_identity
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 DENIED = guest.BUS + '.Error.AccessDenied'
@@ -23,25 +25,6 @@ METHODS = (
 )
 
 
-def batch(uid, operations, *, allow_root=False):
-    raw = guest.commands.run(
-        ['/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_caller.py')],
-        input=json.dumps({'uid': uid, 'operations': operations, 'allow_root': allow_root}).encode(),
-        timeout=180, merge_stderr=False)
-    reply = json.loads(raw)
-    guest.require(reply['uid'] == uid and len(reply['replies']) == len(operations), 'caller:reply')
-    return reply['replies']
-
-
-def call(uid, method, signature='()', args=(), *, allow_root=False):
-    return batch(uid, [{'kind': 'call', 'method': method, 'signature': signature, 'args': args}],
-                 allow_root=allow_root)[0]
-
-
-def accepted(reply):
-    # Avoid pytest printing account data from a reply on failure.
-    guest.require('result' in reply, 'authorization:expected-success:' + reply.get('error', 'malformed'))
-    return reply['result']
 
 
 @pytest.fixture(scope='module')
@@ -185,58 +168,8 @@ def test_account_discovery_after_installation(accounts):
                               for row in rows), 'authorization:icon-path')
 
 
-def account_property(uid, interface, prop):
-    return json.loads(guest.run([
-        'busctl', '--system', '--json=short', 'get-property',
-        'org.freedesktop.Accounts', f'/org/freedesktop/Accounts/User{uid}',
-        interface, prop]))['data']
 
 
-def account_state(uid):
-    # Snapshot authoritative enforcement and private preferences without exposing
-    # their contents to pytest assertions or diagnostics.
-    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
-               '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
-               'FindUserById', 'x', str(uid)])
-    record = Path('/var/lib/oh-no-parent-control/preferences') / f'{uid}.json'
-    return (
-        record.read_bytes() if record.exists() else None,
-        *(account_property(uid, 'com.endlessm.ParentalControls.SessionLimits', prop)
-          for prop in ('LimitType', 'DailyLimit', 'ActiveExtension')),
-        account_property(uid, 'com.endlessm.ParentalControls.AppFilter', 'AppFilter'),
-    )
-
-
-def disposable_identity_name(role, surface=None):
-    guest.require(role in ('target', 'approver') and surface in (None, 'child', 'kiosk'),
-                  'authorization:deletion-fixture-scope')
-    return 'onpc-auth-delete-' + (surface + '-' if surface else '') + role
-
-
-def create_disposable_identity(role, record_testsuite_property, *, surface=None):
-    """Only the guarded guest creates these; baseline restoration owns cleanup."""
-    guest.guard()
-    name = disposable_identity_name(role, surface)
-    try:
-        pwd.getpwnam(name)
-    except KeyError:
-        pass
-    else:
-        raise guest.GuestError('authorization:deletion-fixture-collision')
-    # Establish eligibility through the authority the broker consults, without
-    # racing the asynchronous local-user reload following a direct useradd.
-    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
-               '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
-               'CreateUser', 'ssi', name, '', '1' if role == 'approver' else '0'])
-    uid = pwd.getpwnam(name).pw_uid
-    observed = {prop: account_property(uid, 'org.freedesktop.Accounts.User', prop)
-                for prop in ('AccountType', 'LocalAccount', 'SystemAccount')}
-    record_testsuite_property('onpc.deletion-fixture', json.dumps(
-        {'role': role, 'surface': surface, **observed}, sort_keys=True))
-    guest.require(observed == {'AccountType': int(role == 'approver'),
-                               'LocalAccount': True, 'SystemAccount': False},
-                  'authorization:deletion-fixture-eligibility:' + role)
-    return uid
 
 
 @pytest.fixture
@@ -256,38 +189,6 @@ def disposable_identities(accounts, record_testsuite_property):
     return values
 
 
-def delete_disposable_identity(uid, role, *, surface=None):
-    """Observe deletion in both identity authorities before testing the broker."""
-    guest.guard()
-    name = disposable_identity_name(role, surface)
-    guest.require(pwd.getpwnam(name).pw_uid == uid,
-                  'authorization:deletion-identity-mismatch')
-    guest.retain_identity_for_redaction(uid)
-    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
-               '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
-               'DeleteUser', 'xb', str(uid), 'false'])
-    deadline = time.monotonic() + 10
-    while True:
-        try:
-            pwd.getpwuid(uid)
-        except KeyError:
-            absent = True
-        else:
-            absent = False
-        # A missing UID must not resolve even if AccountsService cached it earlier.
-        guest.commands.run([
-            'busctl', '--system', 'call', 'org.freedesktop.Accounts',
-            '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
-            'FindUserById', 'x', str(uid)], check=False, merge_stderr=False)
-        if absent and guest.commands.last_returncode != 0:
-            break
-        guest.require(time.monotonic() < deadline, 'authorization:deletion-not-visible')
-        time.sleep(0.1)
-    # Distinguish disappearance from an unavailable AccountsService daemon.
-    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
-               '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
-               'FindUserById', 'x', '0'])
-    print(f'onpc-system: stage=account-deletion role={role} outcome=visible', flush=True)
 
 
 def test_deleted_target_and_approver_fail_closed(accounts, disposable_identities,

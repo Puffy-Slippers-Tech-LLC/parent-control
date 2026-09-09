@@ -57,8 +57,11 @@ COMMON_SELECTED_INPUTS = (
 AREA_SELECTED_HELPERS = {
     'package': (),
     'authorization': (('tests/integration/system_caller.py', 'system_caller.py'),
+                      ('tests/integration/system_assertions.py', 'system_assertions.py'),
+                      ('tests/integration/system_accounts.py', 'system_accounts.py'),
                       ('tests/integration/system_remote_accounts.py', 'system_remote_accounts.py')),
     'enforcement': (('tests/integration/system_caller.py', 'system_caller.py'),
+                    ('tests/integration/system_assertions.py', 'system_assertions.py'),
                     ('tests/integration/system_enforcement.py', 'system_enforcement.py')),
 }
 PHASE_DEPENDENCIES = {
@@ -680,6 +683,9 @@ def stage_selected_inputs(selection, destination):
             continue
         inputs.append((str(AREA_SOURCES[area].relative_to(ROOT)), AREA_SOURCES[area].name))
         inputs.extend(AREA_SELECTED_HELPERS[area])
+    # Areas share transport/assertion helpers. Coalesce identical declarations
+    # in stable order, but still refuse two different sources for one target.
+    inputs = list(dict.fromkeys(inputs))
     require(len({target for _, target in inputs}) == len(inputs),
             'selection:duplicate-input-target')
 

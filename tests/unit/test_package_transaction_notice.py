@@ -5,17 +5,17 @@ package's preinst bootstrap during unpack, and executes the packaged notice
 helper after configuration/triggers. No host package or service is changed.
 """
 
-import errno
 import os
 from pathlib import Path
-import pty
 import subprocess
 import sys
 
 import pytest
+from tests.support.terminal import capture
+from tests.support.shell import relocate_system_paths
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 PACKAGE = "oh-no-parent-control"
 SUCCESS = "PASS: Oh No! Parent Control package configuration completed successfully."
 REBOOT = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
@@ -53,45 +53,12 @@ def notice_machine(tmp_path):
     bootstrap = (ROOT / "debian/preinst").read_text().split(
         '\nif [ "$1" = install ]', 1
     )[0] + "\nprepare_package_notice\n"
-    for prefix in ("/etc/", "/run/", "/usr/"):
-        bootstrap = bootstrap.replace(prefix, str(tmp_path) + prefix)
+    bootstrap = relocate_system_paths(bootstrap, tmp_path, ("/etc/", "/run/", "/usr/"))
     bootstrap = bootstrap.replace("-o root -g root ", "")
     (tmp_path / "bootstrap").write_text(bootstrap)
     return tmp_path, status, helper
 
 
-def capture(command, env, terminal):
-    env = {**env, "TERM": terminal or "xterm"}
-    if not terminal:
-        result = subprocess.run(
-            command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, timeout=10,
-        )
-        return result, result.stdout
-    master, slave = pty.openpty()
-    try:
-        result = subprocess.run(
-            command, env=env, stdout=slave, stderr=slave, timeout=10,
-        )
-        os.close(slave)
-        slave = None
-        chunks = []
-        while True:
-            try:
-                chunk = os.read(master, 65536)
-            except OSError as error:
-                if error.errno != errno.EIO:
-                    raise
-                break
-            if not chunk:
-                break
-            chunks.append(chunk)
-        output = b"".join(chunks).decode()
-    finally:
-        if slave is not None:
-            os.close(slave)
-        os.close(master)
-    return result, output
 
 
 @pytest.mark.parametrize("terminal", [None, "xterm", "dumb"])

@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 
 import pytest
+from tests.support.perl import run_perl
 
 LIB = Path(__file__).resolve().parents[1] / 'integration/graphical_smoke/lib'
 PROBE = r'''
@@ -149,8 +150,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, retry => $retry ? 1 : 0,
     'unauthorized', 'present', 'assets', 'session', 'prompt', 'process', 'echo-enabled',
     'control', 'typing', 'echo', 'denial', 'package', 'digest', 'marker', 'shell', 'refusal'])
 def test_fixed_install_input_requires_phase_and_independent_password_proof(mode):
-    result = subprocess.run(['/usr/bin/perl', '-I', str(LIB), '-e', PROBE, mode],
-                            capture_output=True, text=True, timeout=10, check=True)
+    result = run_perl(PROBE, mode)
     data = json.loads(result.stdout)
     assert 'private-canary' not in result.stdout + result.stderr
     assert data['ok'] == (mode in ('ok', 'refusal'))
@@ -200,8 +200,7 @@ def test_fixed_install_input_requires_phase_and_independent_password_proof(mode)
     ('diagnostic-echo-enabled', ('buffer=unavailable',)),
 ])
 def test_prompt_diagnostics_report_only_fixed_flags_and_never_authorize_input(mode, expected):
-    result = subprocess.run(['/usr/bin/perl', '-I', str(LIB), '-e', PROBE, mode],
-                            capture_output=True, text=True, timeout=10, check=True)
+    result = run_perl(PROBE, mode)
     assert 'private-canary' not in result.stdout + result.stderr
     data = json.loads(result.stdout)
     assert not data['ok'] and not data['retry'] and not data['capture']
@@ -227,8 +226,7 @@ def test_prompt_diagnostics_report_only_fixed_flags_and_never_authorize_input(mo
 @pytest.mark.parametrize('prefix', ['', 'command\r\n', 'command\r\r\n\x1b[?2004l\r'])
 def test_supported_prompt_and_readline_controls_keep_independent_input_gates(prompt, prefix):
     for mode in ('ok', 'process', 'echo-enabled'):
-        result = subprocess.run(['/usr/bin/perl', '-I', str(LIB), '-e', PROBE, mode, prefix + prompt],
-                                capture_output=True, text=True, timeout=10, check=True)
+        result = run_perl(PROBE, mode, prefix + prompt)
         data = json.loads(result.stdout)
         assert data['ok'] == (mode == 'ok')
         assert ('password' in data['events']) == (mode == 'ok')
@@ -256,8 +254,7 @@ def test_supported_prompt_and_readline_controls_keep_independent_input_gates(pro
     '\nONPC-INSTALL-PASSWORD: ] Password: \n',
 ])
 def test_unrelated_private_incomplete_or_control_modified_prompts_refuse_input(prompt):
-    result = subprocess.run(['/usr/bin/perl', '-I', str(LIB), '-e', PROBE, 'ok', prompt],
-                            capture_output=True, text=True, timeout=10, check=True)
+    result = run_perl(PROBE, 'ok', prompt)
     data = json.loads(result.stdout)
     assert not data['ok'] and not data['retry'] and not data['capture']
     assert 'password' not in data['events']

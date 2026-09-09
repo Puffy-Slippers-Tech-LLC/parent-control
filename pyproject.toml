@@ -1,5 +1,6 @@
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/component"]
+pythonpath = [".", "broker", "kiosk", "tests/integration", "tests/e2e", "tools"]
 python_files = ["test_*.py"]
 addopts = ["--strict-markers", "--strict-config"]
 markers = [

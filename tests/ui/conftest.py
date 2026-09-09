@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
 import time
 from pathlib import Path
 
 import pytest
+from tests.support.preview import preview_applications
 
-ROOT = Path(__file__).resolve().parents[2]
 UI_TIMEOUT_SECONDS = 20
 HOST_DESKTOP_ENVIRONMENT_OVERRIDES = (
     "GDK_BACKEND",
@@ -111,43 +109,9 @@ def hermetic_ui_session():
 
 @pytest.fixture
 def launch_ui(hermetic_ui_session, tmp_path):
-    """Launch a preview app, expose its AT-SPI tree, and stop it after a test."""
-
-    processes = []
-
-    def launch(name: str, *, environment_overrides=None, wait_for_application=True):
-        log_path = tmp_path / f"{name}.log"
-        environment = {
-            **hermetic_ui_session.environment,
-            "PYTHONPATH": str(ROOT),
-            "PYTHONDONTWRITEBYTECODE": "1",
-            **(environment_overrides or {}),
-        }
-        log_file = log_path.open("wb")
-        process = subprocess.Popen(
-            [sys.executable, str(ROOT / "tests" / "ui" / f"{name}.py")],
-            env=environment,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-        )
-        processes.append((process, log_file))
-        if not wait_for_application:
-            return process, log_path
-        application = hermetic_ui_session.wait_for_app(name)
-        return application, log_path
-
-    try:
+    """Expose the shared owned-process launcher on this private compositor."""
+    with preview_applications(hermetic_ui_session, tmp_path) as launch:
         yield launch
-    finally:
-        for process, log_file in reversed(processes):
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=5)
-            log_file.close()
 
 
 @pytest.fixture

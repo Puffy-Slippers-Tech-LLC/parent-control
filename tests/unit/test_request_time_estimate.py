@@ -1,6 +1,6 @@
 """Delayed broker replies and footer priority without a graphical session."""
 
-from types import MethodType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -8,12 +8,7 @@ import pytest
 from common.oh_no_parent_control_ui.duration import format_duration
 from oh_no_parent_control_kiosk.main import RequestWindow, _time_estimate_label
 from oh_no_parent_control_kiosk.request_content import RequestContent
-
-
-def bind_methods(target, cls, names):
-    for name in names:
-        setattr(target, name, MethodType(getattr(cls, name), target))
-    return target
+from tests.support.objects import bind_methods
 
 
 def estimate_window():

@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 installer = runpy.run_path(str(ROOT / 'tools/install_test_runner.py'))
 rules = runpy.run_path(str(ROOT / 'tools/install_codex_rules.py'))
 UUID = 'f95890e1-88e7-4779-8ae3-53fdcc34330a'

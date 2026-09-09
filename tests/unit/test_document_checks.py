@@ -1,16 +1,13 @@
 """Read-only handoff checks have bounded inputs and never evaluate source text."""
-import importlib.util
+from tests.support.modules import load_module
 import os
-from pathlib import Path
 import subprocess
 
 import pytest
 
 
-ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location('document_checks', ROOT / 'tools/document_checks.py')
-checks = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(checks)
+from tests.support.paths import ROOT
+checks = load_module('onpc_test_document_checks', ROOT / 'tools/document_checks.py')
 
 
 def test_local_inline_links_handle_destinations_and_ignore_code_and_urls(tmp_path, capsys):

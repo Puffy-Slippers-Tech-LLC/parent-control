@@ -7,22 +7,19 @@ import json
 import os
 from pathlib import Path
 import runpy
-import sys
 import tempfile
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from test_e2e_evidence import attempt as evidence_attempt
+from tests.support.e2e_evidence import attempt as evidence_attempt
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tests/e2e'))
+from tests.support.paths import ROOT
 import evidence
 import execution
 import e2e_worker
 from private_artifacts import EvidenceError, PrivateCollector
-sys.path.pop(0)
 REAL_BOOTSTRAP = execution.system.bootstrap
 
 CALLBACK = '''

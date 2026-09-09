@@ -6,6 +6,12 @@ This document retains the implemented runner and artifact contracts. Initial
 setup tasks, historical test counts, and dated acceptance directories are not
 instructions for a new run.
 
+For host-only runner regressions, use the [shared fixture library](../support/README.md).
+Installed areas share real broker calls and snapshots through
+`system_assertions.py`, and guarded identity creation/deletion through
+`system_accounts.py`. Keep their staging registrations in
+`system_runner.AREA_SELECTED_HELPERS`; guest execution must never import host mocks.
+
 ## Environment and ownership
 
 Installed-system tests use the real package and operating-system services on
@@ -90,8 +96,8 @@ cases and their explicit prerequisite closure without artifacts, root access,
 or VM operations:
 
 ```sh
-make check-system LIST=1 AREA=authorization
-make check-system LIST=1 AREA=authorization TEST='test_real_selected_parent_authentication[child1]'
+tools/run-tests system --list --area authorization
+tools/run-tests system --list --area authorization --test 'test_real_selected_parent_authentication[child1]'
 ```
 
 Task 15A's first registered enforcement case is
@@ -111,8 +117,10 @@ dedicated API and restores original preferences, even after a failed enable repl
 restoration failures fail the case without replacing an earlier scenario failure.
 The probe drops and verifies credentials, then replaces its
 own pinned process with the one-shot fixture. Fixture files remain inside the
-guest until outer baseline cleanup. Host contracts are verified; installed
-runtime qualification remains pending in [Task 15A](../../docs/TestAutomation/Task-15.md#task-15a).
+guest until outer baseline cleanup. Host contracts and all five implemented
+native cases passed the full installed run recorded in the
+[refactor evidence](../../docs/TestAutomation/Evidence/Test-Support-Refactor-20260908.md#guarded-installed-and-graphical-evidence).
+Remaining [Task 15A](../../docs/TestAutomation/Task-15.md#task-15a) coverage stays pending.
 This registration does not establish Snap, Flatpak, graphical-route, or full
 application requirement coverage.
 
@@ -126,8 +134,8 @@ direct `execv` after credential verification. Private rule filenames and public
 property names include the variant to retain both cases in a combined run.
 Inspect its four package/reboot prerequisites with
 `tools/run-tests system --list --area enforcement --test test_native_whitespace_policy_is_uid_scoped`.
-Host regressions cover the scenario and failure witnesses; real installed
-enforcement remains unqualified.
+Host regressions cover the scenario and failure witnesses; the full installed
+run linked above also passed this case.
 
 `test_native_future_pattern_is_uid_scoped` extends these transitions with a
 saved same-directory `Versioned-*.AppImage` pattern. A second matching version
@@ -143,7 +151,7 @@ refuses existing paths; files remain in the guest for outer baseline cleanup.
 Inspect the case and its four package/reboot prerequisites with
 `tools/run-tests system --list --area enforcement --test test_native_future_pattern_is_uid_scoped`.
 Host regressions establish scenario behavior, catalog parsing and rule witnesses;
-installed kernel enforcement remains pending.
+the full installed run linked above also passed its kernel enforcement checks.
 
 `test_native_missing_launcher_retains_policy` removes its dedicated native
 launcher after witnessing the initial hard policy in source and compiled rules.
@@ -159,7 +167,8 @@ outer baseline cleanup owns remaining fixture files. Inspect its prerequisite
 closure with
 `tools/run-tests system --list --area enforcement --test test_native_missing_launcher_retains_policy`.
 Host regressions use real catalog parsing, broker preference reconciliation and
-rule rendering with substituted OS boundaries. Installed execution is pending.
+rule rendering with substituted OS boundaries. Installed execution passed in
+the full run linked above.
 
 `test_native_catalog_is_selected_child_scoped` uses the same prerequisite
 closure and reads the installed broker catalog as the parent while selecting
@@ -178,7 +187,7 @@ Its provisioner refuses existing fixture
 files and symlinked directories, preserves existing account/system directory modes
 and ownership, and leaves fixture cleanup to the outer guest baseline.
 Host tests exercise real filesystem discovery and deliberate assertion faults;
-this case still requires installed VM qualification.
+the full installed run linked above also passed this case.
 
 The listing uses pytest's public collection-only mode with project and third-party
 plugins disabled; it imports the test definitions but never executes guest

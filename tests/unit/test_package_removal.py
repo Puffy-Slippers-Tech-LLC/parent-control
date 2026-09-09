@@ -3,135 +3,14 @@
 No real account, service, process, or system path is changed by these tests.
 """
 
-import os
-from pathlib import Path
-import subprocess
 
 import pytest
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 
 
-class Machine:
-    def __init__(self, root):
-        self.root = root
-        for path in ("etc/fapolicyd/rules.d", "run/systemd/system",
-                     "var/lib/oh-no-parent-control", "usr/sbin", "var/mail"):
-            (root / path).mkdir(parents=True, exist_ok=True)
-        self.write("etc/pam.d/common-auth", "auth required pam_unix.so\n")
-        for name in ("account", "password", "session", "session-noninteractive"):
-            self.write("etc/pam.d/common-" + name, "# fixture PAM stack\n")
-        self.write("usr/sbin/fagenrules", """#!/bin/sh
-set -e
-printf '%s\\n' fagenrules >> "$AUDIT_ROOT/commands"
-cat "$AUDIT_ROOT"/etc/fapolicyd/rules.d/*.rules > "$AUDIT_ROOT/etc/fapolicyd/compiled.rules"
-""")
-        (root / "usr/sbin/fagenrules").chmod(0o755)
-        self.write("usr/sbin/fapolicyd-cli", """#!/bin/sh
-printf '%s\\n' 'fapolicyd-cli --reload-rules' >> "$AUDIT_ROOT/commands"
-""").chmod(0o755)
-        self.write("usr/libexec/oh-no-parent-control-uninstall", """#!/bin/sh
-printf '%s\\n' "uninstall $*" >> "$AUDIT_ROOT/commands"
-exit "${UNINSTALL_FAILURE:-0}"
-""").chmod(0o755)
-        self.write("test-bin/mountpoint", """#!/bin/sh
-test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
-""").chmod(0o755)
-
-    def write(self, path, text=""):
-        target = self.root / path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text)
-        return target
-
-    def baseline(self, *, active=False, enabled=False, rules=None):
-        self.write("var/lib/oh-no-parent-control/fapolicyd-before-install/complete")
-        if active:
-            self.write("var/lib/oh-no-parent-control/fapolicyd-before-install/active")
-        if enabled:
-            self.write("var/lib/oh-no-parent-control/fapolicyd-before-install/enabled")
-        if rules is not None:
-            self.write("var/lib/oh-no-parent-control/fapolicyd-before-install/compiled.rules", rules)
-        self.write("etc/fapolicyd/compiled.rules", "product rules\n")
-        self.write("etc/fapolicyd/compiled.rules.prev", "old product rules\n")
-
-    def integration(self, name, target, contents="product integration\n"):
-        self.write("var/lib/oh-no-parent-control/installed-" + name, contents)
-        return self.write(target, contents)
-
-    def kiosk(self):
-        self.write("var/lib/oh-no-parent-control/package-created-kiosk-uid", "1006\n").chmod(0o600)
-        self.write("account")
-        self.write("home/oh-no-parent-control/.cache/residue", "left behind")
-
-    def run(self, script, action, **env):
-        source = (ROOT / "debian" / script).read_text()
-        # Redirect every absolute system prefix, including executable paths.
-        for prefix in ("/etc/", "/var/", "/run/", "/home/", "/usr/"):
-            source = source.replace(prefix, str(self.root) + prefix)
-        for command in ("deb-systemd-invoke", "invoke-rc.d", "pam-auth-update"):
-            source = source.replace(command, command.replace("-", "_").replace(".", "_"))
-        mocks = r'''
-record() { printf '%s\n' "$*" >> "$AUDIT_ROOT/commands"; }
-systemctl() {
-    record systemctl "$@"
-    case "$1" in
-        is-active)
-            case "$3" in
-                user@*) test "${KIOSK_ACTIVE:-0}" = 1 ;;
-                *) test "${SERVICE_ACTIVE:-0}" = 1 ;;
-            esac ;;
-        is-enabled) test "${SERVICE_ENABLED:-0}" = 1 ;;
-        is-failed) test "${BROKER_FAILED:-0}" = 1 ;;
-        mask) ln -s /dev/null "$AUDIT_ROOT/run/systemd/system/oh-no-parent-control-broker.service" ;;
-        unmask) rm "$AUDIT_ROOT/run/systemd/system/oh-no-parent-control-broker.service" ;;
-        *) return 0 ;;
-    esac
-}
-deb_systemd_invoke() { record deb-systemd-invoke "$@"; SERVICE_ACTIVE=0; }
-invoke_rc_d() { record invoke-rc.d "$@"; }
-pam_auth_update() { record pam-auth-update "$@"; }
-busctl() { record busctl "$@"; }
-getent() {
-    if [ -f "$AUDIT_ROOT/account" ]; then
-        printf 'oh-no-parent-control:x:1006:1006::%s/home/oh-no-parent-control:/bin/bash\n' "$AUDIT_ROOT"
-    elif [ "${UID_REASSIGNED:-0}" = 1 ] && [ "$2" = 1006 ]; then
-        printf 'replacement:x:1006:1006::/somewhere:/bin/bash\n'
-    else
-        return 2
-    fi
-}
-deluser() { record deluser "$@"; rm "$AUDIT_ROOT/account"; }
-stat() {
-    if [ "$2" = '%u:%a' ]; then printf '0:600\n';
-    elif [ "$2" = %u ]; then printf '%s\n' "${HOME_UID:-1006}";
-    else command stat "$@"; fi
-}
-install() {
-    # preinst's root-owned directory creation, confined to this fixture.
-    record install "$@"
-    for last do :; done
-    command install -d -m 0700 "$last"
-}
-'''
-        target = self.write("script", "#!/bin/sh\n" + mocks + source)
-        return subprocess.run(
-            ["/bin/sh", str(target), action], capture_output=True, text=True,
-            env={**os.environ, "AUDIT_ROOT": str(self.root),
-                 "PATH": str(self.root / "test-bin") + os.pathsep + os.environ["PATH"],
-                 **env}, timeout=10,
-        )
-
-    @property
-    def commands(self):
-        path = self.root / "commands"
-        return path.read_text() if path.exists() else ""
-
-
-@pytest.fixture
-def machine(tmp_path):
-    return Machine(tmp_path)
+from tests.support.package_scripts import Machine, machine
 
 
 def test_preinst_registers_dpkg_notice_before_unpack_and_retries_safely(machine):

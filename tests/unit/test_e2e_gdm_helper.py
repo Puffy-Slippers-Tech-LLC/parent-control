@@ -2,9 +2,9 @@
 
 import json
 from pathlib import Path
-import subprocess
 
 import pytest
+from tests.support.perl import run_perl
 
 LIB = Path(__file__).resolve().parents[1] / 'integration/graphical_smoke/lib'
 PROBE = r'''
@@ -72,8 +72,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 @pytest.mark.parametrize('mode', ['ok', 'missing-list', 'missing-prompt',
     'false-positive', 'missing-return', 'wrong-console', 'wrong-return-console', 'deadline'])
 def test_screen_readiness_refuses_before_next_action(mode):
-    result = subprocess.run(['/usr/bin/perl', '-I', str(LIB), '-e', PROBE, mode],
-                            capture_output=True, text=True, timeout=10, check=True)
+    result = run_perl(PROBE, mode)
     data = json.loads(result.stdout)
     assert data['ok'] == (mode == 'ok'), data
     events = data['events']

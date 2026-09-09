@@ -1,7 +1,7 @@
 """Exercise serial fresh sessions against a local fake CLI, with no VM or API."""
 import argparse
 from datetime import datetime, timezone
-import importlib.util
+from tests.support.modules import load_module
 import io
 import json
 import os
@@ -16,10 +16,8 @@ import time
 import pytest
 
 
-ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location('codex_slices', ROOT / 'tools/codex_slices.py')
-loop = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(loop)
+from tests.support.paths import ROOT
+loop = load_module('onpc_test_codex_slices', ROOT / 'tools/codex_slices.py')
 
 
 @pytest.mark.parametrize('detach', [False, True])

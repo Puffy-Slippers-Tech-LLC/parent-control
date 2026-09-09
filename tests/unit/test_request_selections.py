@@ -1,28 +1,18 @@
 import json
-import ast
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from oh_no_parent_control_kiosk.selection_store import SelectionStore
+from oh_no_parent_control_kiosk.request_content import RequestContent
+from tests.support.objects import bind_methods
 
 
 def form_methods():
     """Exercise selector orchestration without constructing GTK or a desktop."""
-    source = Path(__file__).resolve().parents[2] / "kiosk/oh_no_parent_control_kiosk/request_content.py"
-    tree = ast.parse(source.read_text())
-    cls = next(node for node in tree.body if isinstance(node, ast.ClassDef)
-               and node.name == "RequestContent")
     names = {"set_accounts", "_account_changed", "_approver_changed",
              "selected_approver_uid", "_restore_approver"}
-    cls.bases = []
-    cls.body = [node for node in cls.body if isinstance(node, ast.FunctionDef)
-                and node.name in names]
-    namespace = {"Gtk": SimpleNamespace(INVALID_LIST_POSITION=2**32 - 1),
-                 "parse_listed_user": lambda user: user}
-    exec(compile(ast.Module(body=[cls], type_ignores=[]), str(source), "exec"), namespace)
-    return namespace["RequestContent"]()
+    return bind_methods(SimpleNamespace(), RequestContent, names)
 
 
 class Selector:

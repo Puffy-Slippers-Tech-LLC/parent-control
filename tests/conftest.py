@@ -32,6 +32,7 @@ CONTRACT_MODULES = frozenset(
         "test_prepare_vm_contract.py",
         "test_service_contract.py",
         "test_systemd_unit.py",
+        "test_support_architecture.py",
     }
 )
 
@@ -40,8 +41,9 @@ def pytest_collection_modifyitems(items):
     """Give every collected test one explicit, understandable test layer."""
 
     for item in items:
-        filename = Path(str(item.fspath)).name
-        if "component" in Path(str(item.fspath)).parts:
-            item.add_marker("component")
-        else:
-            item.add_marker("contract" if filename in CONTRACT_MODULES else "unit")
+        path = Path(str(item.path))
+        layer = path.relative_to(Path(__file__).parent).parts[0]
+        if layer == "unit":
+            item.add_marker("contract" if path.name in CONTRACT_MODULES else "unit")
+        elif layer in {"component", "ui", "system", "e2e"}:
+            item.add_marker(layer)

@@ -1,15 +1,12 @@
 """Terminal and secret handling regressions without a live auth service."""
 
 from pathlib import Path
-import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests/integration'))
 import system_caller as caller
-sys.path.pop(0)
 
 
 def agent():

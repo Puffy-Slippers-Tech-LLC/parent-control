@@ -1,8 +1,7 @@
 import unittest
-from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 BROKER_UNIT = ROOT / "data/systemd/oh-no-parent-control-broker.service"
 FAPOLICYD_DROP_IN = (
     ROOT / "data/systemd/fapolicyd.service.d/oh-no-parent-control-readiness.conf"

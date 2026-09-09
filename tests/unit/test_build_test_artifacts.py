@@ -1,6 +1,6 @@
 """Contract tests for the Task 13 package and fixture artifact boundary."""
 
-import importlib.util
+from tests.support.modules import load_module
 import json
 from pathlib import Path
 import subprocess
@@ -9,11 +9,9 @@ import unittest
 from unittest import mock
 
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 MODULE_PATH = ROOT / "tools/build_test_artifacts.py"
-spec = importlib.util.spec_from_file_location("build_test_artifacts", MODULE_PATH)
-artifacts = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(artifacts)
+artifacts = load_module('onpc_test_build_artifacts', MODULE_PATH)
 
 
 def write_artifact(directory: Path, *, package_bytes: bytes = b"package", fixture_digest: str = "fixture") -> None:

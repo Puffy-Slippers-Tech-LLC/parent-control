@@ -1,13 +1,12 @@
 """Fixed setup operations, sanitized execution and no generic root dispatch."""
 import os
-from pathlib import Path
 import runpy
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.support.paths import ROOT
 helper = runpy.run_path(str(ROOT / 'tools/onpc-setup'))
 
 

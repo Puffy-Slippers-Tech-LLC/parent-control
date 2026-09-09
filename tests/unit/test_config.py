@@ -9,12 +9,7 @@ from types import SimpleNamespace
 from oh_no_parent_control.config import ConfigurationError, load, validate, validate_target
 
 
-def valid_config():
-    return {
-        "version": 3,
-        "kiosk_uid": 991,
-        "minimum_request_interval_seconds": 5,
-    }
+from tests.support.configuration import valid_config
 
 
 class ConfigTests(unittest.TestCase):

@@ -1,16 +1,13 @@
 """No live commands: controller refusal and cleanup ordering before VM use."""
 
-from pathlib import Path
 import json
 import sys
 from unittest.mock import Mock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'integration'))
 import check_graphical_smoke as smoke
 import check_graphical_recovery as recovery
-sys.path.pop(0)
 
 
 @pytest.mark.parametrize('arguments,uid', [(['check', 'extra'], 0), (['check'], 1000)])

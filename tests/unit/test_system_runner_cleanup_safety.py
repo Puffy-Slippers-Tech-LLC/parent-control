@@ -2,15 +2,11 @@
 
 import signal
 import subprocess
-import sys
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests/integration'))
 import system_runner as runner
-sys.path.pop(0)
 
 
 def test_unprivileged_controller_refuses_before_any_host_or_guest_action():

@@ -2,17 +2,13 @@
 
 import io
 from contextlib import nullcontext
-from pathlib import Path
 import shlex
-import sys
 import tarfile
 from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests/integration'))
 import vm_transport as transport
-sys.path.pop(0)
 
 
 def config():

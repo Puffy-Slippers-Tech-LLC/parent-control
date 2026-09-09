@@ -1,17 +1,13 @@
 """Mocked prerequisite for the real guest authentication agent."""
 
-from pathlib import Path
 import signal
 import subprocess
-import sys
 from unittest.mock import Mock, call
 from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests/integration'))
 import system_caller as caller
-sys.path.pop(0)
 
 
 def subject():

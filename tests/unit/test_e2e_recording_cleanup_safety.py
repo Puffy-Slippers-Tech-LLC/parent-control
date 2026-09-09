@@ -1,64 +1,22 @@
 """Host-only real recording/collector checks; no guest or host process cleanup."""
 
-import copy
 import json
 from pathlib import Path
-import sys
-from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from test_e2e_evidence import attempt
-from test_e2e_provenance import source, lease
+from tests.support.e2e_evidence import attempt
+from tests.support.e2e_provenance import source, lease
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tests/e2e'))
+from tests.support.paths import ROOT
 import recording
 import provenance
 import e2e_worker
 from private_artifacts import PrivateCollector, EvidenceError
-sys.path.pop(0)
 
 
-@pytest.fixture
-def session(attempt, tmp_path):
-    contract, _, payload, _, _ = attempt
-    with PrivateCollector(run_id=contract.run_id, secrets=['private-canary'], parent=tmp_path) as collector:
-        recorder = recording.ScenarioRecorder(contract, collector)
-        verified = SimpleNamespace(lease=SimpleNamespace(fd=42, state={'phase': 'complete'}),
-            validate=lambda contract, records, collector: contract.validate(records, collector))
-        yield SimpleNamespace(recorder=recorder, contract=contract, collector=collector,
-                              payload=payload, verified=verified)
-
-
-def reports(session):
-    return [json.loads(p.read_text()) for p in sorted(session.collector.path.glob('event-*.json'))]
-
-
-def execute_steps(session, *, omit=None):
-    r = session.recorder
-    for item in session.payload['steps']:
-        if item['phase'] == 'cleanup' or item['step_id'] == omit:
-            continue
-        with r.step(item['step_id']):
-            r.continuity(boot='private-canary-boot', sessions=['private-canary-session'])
-            if item['step_id'] == 'step-3':
-                for kind in r.contract.plan['cases'][0]['expected_evidence']:
-                    r.artifact(kind, kind, ('reviewed ' + kind).encode(), reviewed=True)
-                for assertion in session.payload['assertions']:
-                    r.assertion(assertion['assertion_id'], artifact_ids=assertion['artifact_ids'])
-
-
-def cleanup(session):
-    with session.recorder.step('cleanup'):
-        pass
-    return copy.deepcopy(session.payload['cleanup'])
-
-
-def complete(session):
-    return session.recorder.run_case('E2E-001/gdm-observation',
-        execute=lambda _: execute_steps(session), cleanup=lambda _: cleanup(session))
+from tests.support.e2e_recording import session, reports, execute_steps, cleanup, complete
 
 
 def test_actual_callbacks_build_gate_accepted_records_and_private_checkpoints(session):

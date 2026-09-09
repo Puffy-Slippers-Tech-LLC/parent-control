@@ -82,3 +82,71 @@ must exclude this file from reads, searches, diffs and edits.
 - Estimated minutes remaining for this task: Unknown for full Task 20; remaining lifecycle batches are unmeasured.
 
 - Estimate basis and uncertainty: The qualification took 1,227.72 seconds. Remaining clean reboot/readiness and two startup-fault callbacks have not yet been implemented or measured, so a reliable Task 20 estimate is unavailable.
+
+
+## Session 38 — 2026-09-08 23:42 PDT
+
+- Completion: 2026-09-08 23:42 PDT
+- Duration: 29 minutes (rounded up)
+- Outcome: continue
+- Settings: `gpt-6-astra` / `high`
+- Processing: Standard
+- Attempt: `slice-6d31c816ae5246a0ac2a332a702b1df3`
+- CLI token counts: input_tokens: 3503812; cached_input_tokens: 3397376; output_tokens: 17636; reasoning_output_tokens: 2503. These are not weekly allowance measurements.
+- Supervisor: Cleanup and handoff confirmed.
+
+- Task: Task 20 — validate the successful installation's exact final red reboot notice.
+
+- Completed: Implemented strict final red-notice validation with private output handling. Live qualification recognized the sudo prompt, then refused at getty-initial-exe-resolve before password submission; the notice assertion was not reached. Task 20 remains unchecked. Details: docs/TestAutomation/Evidence/20-Install-Notice-Recipient-Refusal-20260908.md.
+
+- Verification and cleanup: 293 focused tests passed; isolated and dispatcher safety closures each passed 546 tests plus 3 subtests. Fresh artifacts, links and whitespace checks passed. Attempt 14 exited 1; twelve failures remain retained. Product/aggregate collection were not-run and the module result was absent; fixed checkpoint/worker evidence was collected using the approved artifact reader after an ordinary read refused. Normal journey shutdown was not reached, but worker/callback/display closure, outer baseline restoration, preservation and lease release passed. VM confirmed off; all commands exited, no recovery remains.
+
+- Next session: Task 20 remains earliest ready. Add fixed executable-resolution error and process-continuity diagnostics, verify refusal/redaction paths locally, then make one fresh guarded attempt. Handoffs saved; next settings are gpt-6-astra / high, Standard.
+
+- Estimated sessions remaining for this task: Unknown
+
+- Estimated minutes remaining for this task: Unknown
+
+- Estimate basis and uncertainty: The guarded attempt took 20.2 minutes. The recurring recipient failure and remaining reboot/readiness/startup-fault interfaces lack a reliable completion bound.
+
+
+## Session 39 — 2026-09-09 08:07 PDT
+
+- Completion: 2026-09-09 08:07 PDT
+- Duration: 3 minutes (rounded up)
+- Outcome: needs-review
+- Settings: `gpt-6-astra` / `high`
+- Processing: Standard
+- Attempt: `slice-89cf20dd42424aa2a549e6582b182dc4`
+- CLI token counts: not reported. These are not weekly allowance measurements.
+- Supervisor: Codex exited without a clean completed turn; inspect the current task handoff and owned operations.
+
+- Completed: No valid end-of-session report was returned; work is unconfirmed.
+- Next session: Retry only if the supervisor confirms a failure before tool use; otherwise reconcile the current task handoff and owned operations.
+- Estimated sessions/minutes remaining: Unknown.
+
+
+## Session 40 — 2026-09-09 08:55 PDT
+
+- Completion: 2026-09-09 08:55 PDT
+- Duration: 34 minutes (rounded up)
+- Outcome: continue
+- Settings: `gpt-6-astra` / `high`
+- Processing: Standard
+- Attempt: `slice-a52f52e68df9483e93ce6d64be844505`
+- CLI token counts: input_tokens: 6547416; cached_input_tokens: 6429440; output_tokens: 23207; reasoning_output_tokens: 2730. These are not weekly allowance measurements.
+- Supervisor: Cleanup and handoff confirmed.
+
+- Task: Task 20 — recipient diagnostics and final reboot-notice qualification; task remains unaccepted.
+
+- Completed: Added privacy-safe executable-resolution diagnostics without weakening password gates. One guarded qualification passed authenticated installation, exact final red notice, package identity, reboot marker and GDM return. The intermittent recipient refusal did not recur and remains unresolved. Evidence: docs/TestAutomation/Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md.
+
+- Verification and cleanup: 1784 focused tests passed after correcting two new-test assertions. Isolated and dispatcher safety runs each passed 546 tests plus 3 subtests. Live qualification exited 0; full E2E-002 acceptance remains pending. Artifact permission failure was resolved through the approved reader; no policy denial occurred. Notice/image review, links and whitespace checks passed. All commands exited; worker closed, baseline restored, lease released, VM confirmed off and screenshot export removed.
+
+- Next session: Task 20 remains earliest ready. Implement real customer reboot, changed boot identity and guarded reconnection using fresh artifacts. Continuation.md records gpt-6-astra/high for unresolved cross-boot ownership and observation continuity.
+
+- Estimated sessions remaining for this task: Unknown
+
+- Estimated minutes remaining for this task: Unknown
+
+- Estimate basis and uncertainty: Qualification took 21.4 minutes. Reboot, readiness and fault-control implementation lack measured completion bounds; intermittent prerequisite failure remains possible.

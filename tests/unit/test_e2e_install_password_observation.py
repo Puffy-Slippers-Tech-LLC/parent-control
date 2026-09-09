@@ -1,5 +1,6 @@
 """Run the actual sudo proof with bounded guest process and terminal fixtures."""
 
+import errno
 import io
 import os
 import select
@@ -12,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from installation_observations import SUDO_PASSWORD
+from installation_observations import LOGIN_RESOLUTION_DIAGNOSTICS, SUDO_PASSWORD
 
 
 @pytest.mark.parametrize('fault,stage', [
@@ -85,6 +86,9 @@ from installation_observations import SUDO_PASSWORD
          ('exe-mismatch', 'exe-mismatch'), ('credentials', 'credentials'))])
 @pytest.mark.parametrize('newline_echo', [False, True])
 def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, newline_echo, capsys):
+    if stage and stage.endswith('-exe-resolve'):
+        stage += ('-error-permission-link-expected-target-expected-identity-same'
+                  '-leader-same-euid-root-ptrace-set')
     if stage and stage.startswith('terminal-echo-enabled-') and '-syscall-' not in stage and fault != 'echo-state-error':
         stage += '-syscall-other-queue-empty'
     if stage and '-syscall-' in stage:
@@ -116,6 +120,8 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
 
         def resolve(self, strict=False):
             assert strict
+            if self.value == '/usr/bin/login':
+                return self
             resolved = {'/usr/bin/sudo': '/usr/bin/sudo.ws',
                         '/proc/42/exe': '/usr/bin/login',
                         '/proc/44/exe': '/usr/bin/sudo.ws',
@@ -123,7 +129,7 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
             if self.value == '/proc/42/exe':
                 counts['login-exe'] = counts.get('login-exe', 0) + 1
                 if login_fault('resolve-error'):
-                    raise PermissionError('private-canary')
+                    raise PermissionError(errno.EACCES, 'private-canary')
                 if (fault == 'getty-exe' or login_fault('exe-mismatch') or
                         fault == 'getty-changed-exe' and counts['login-exe'] > 2):
                     resolved = '/usr/bin/other'
@@ -151,6 +157,8 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
             return b'\0'.join(args)
 
         def read_text(self):
+            if self.value == '/proc/self/status':
+                return 'CapEff:\t0000000000080000\n'
             pid = int(self.value.split('/')[2])
             assert pid in (42, 43, 44)
             if self.value.endswith('/syscall'):
@@ -255,7 +263,8 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
 
     def command(args, **kwargs):
         assert args == ['systemctl', 'show', 'serial-getty@ttyS0.service', '--property=MainPID', '--value']
-        assert kwargs == dict(capture_output=True, text=True, check=True, timeout=10)
+        assert kwargs == dict(capture_output=True, text=True, check=True,
+                              timeout=2 if kwargs['timeout'] == 2 else 10)
         if fault == 'getty-error':
             raise RuntimeError('private-canary')
         return SimpleNamespace(stdout='0' if fault == 'leader' else '42')
@@ -286,7 +295,12 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
         count[0] = -1 if fault == 'echo-queue-negative' else 7 if fault == 'echo-syscall-drain' else 0
         return 0
 
+    def readlink(path):
+        assert path.value == '/proc/42/exe'
+        return '/usr/bin/login'
+
     fake_os = SimpleNamespace(makedev=os.makedev, O_RDONLY=os.O_RDONLY, O_NONBLOCK=os.O_NONBLOCK,
+        readlink=readlink, geteuid=lambda: 0,
         O_NOCTTY=os.O_NOCTTY, O_NOFOLLOW=os.O_NOFOLLOW, open=opened,
         uname=lambda: SimpleNamespace(machine='aarch64' if fault == 'echo-syscall-arch' else 'x86_64'),
         close=lambda fd: events.append(('close', fd)), fstat=lambda fd: SimpleNamespace(
@@ -311,6 +325,99 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
         assert 'syscall' in events and 'queue' in events
     if 'open' in events:
         assert events[-1] == ('close', 77)
+    if stage and '-exe-resolve-' in stage and not stage.startswith('getty-continuity-'):
+        assert 'open' not in events
+
+
+@pytest.mark.parametrize('operation,value,field,expected', [
+    *[('original', value, 'error', expected) for value, expected in (
+        (errno.ENOENT, 'missing'), (errno.ESRCH, 'missing'), (errno.EPERM, 'permission'),
+        (errno.EACCES, 'permission'), (errno.ELOOP, 'loop'), (errno.ENOTDIR, 'not-directory'),
+        (errno.EIO, 'other'), (None, 'other'))],
+    *[(operation, value, operation, expected) for operation in ('link', 'target')
+      for value, expected in ((errno.ENOENT, 'missing'), (errno.EACCES, 'permission'),
+                             (errno.ELOOP, 'loop'), (errno.ENOTDIR, 'not-directory'),
+                             (errno.EIO, 'other'), (None, 'other'))],
+    ('link', '/usr/bin/login (deleted)', 'link', 'deleted'),
+    ('link', '/private-canary', 'link', 'other'),
+    ('target', '/private-canary', 'target', 'other'),
+    ('identity', 'start', 'identity', 'replaced'),
+    ('identity', 'ancestry', 'identity', 'replaced'),
+    ('identity', 'zombie', 'identity', 'zombie'),
+    ('identity', errno.ENOENT, 'identity', 'missing'),
+    ('identity', errno.EACCES, 'identity', 'unavailable'),
+    ('identity', None, 'identity', 'unavailable'),
+    ('leader', '0', 'leader', 'missing'), ('leader', '99', 'leader', 'changed'),
+    ('leader', 'private-canary', 'leader', 'unavailable'),
+    ('leader', errno.EIO, 'leader', 'unavailable'),
+    ('euid', 1001, 'euid', 'nonroot'), ('euid', None, 'euid', 'unavailable'),
+    ('ptrace', '0', 'ptrace', 'unset'),
+    ('ptrace', 'private-canary', 'ptrace', 'unavailable'),
+    ('ptrace', errno.EACCES, 'ptrace', 'unavailable'),
+])
+def test_resolution_failure_diagnostics_are_fixed_and_follow_only_selected_identity(
+        operation, value, field, expected):
+    from unittest.mock import Mock
+    from installation_observations import LOGIN_RESOLUTION_PATTERN
+    import re
+
+    def observed(name, default):
+        if operation != name:
+            return default
+        if value is None or isinstance(value, int) and name != 'euid':
+            raise OSError(value, 'private-canary', '/private-canary')
+        return value
+
+    class DiagnosticPath:
+        def __init__(self, path):
+            self.path = path
+
+        def __truediv__(self, name):
+            return DiagnosticPath(self.path + '/' + name)
+
+        def __eq__(self, other):
+            return isinstance(other, DiagnosticPath) and self.path == other.path
+
+        def resolve(self, *, strict):
+            assert strict and self.path == '/usr/bin/login'
+            return DiagnosticPath(observed('target', self.path))
+
+        def read_text(self):
+            assert self.path == '/proc/self/status'
+            return 'Name:\tprivate-canary\nCapEff:\t' + observed('ptrace', '80000')
+
+    before = ['S'] + ['0'] * 19
+
+    def process(pid):
+        assert pid == 42
+        mode = observed('identity', 'same')
+        after = before.copy()
+        if mode == 'start':
+            after[19] = '999'
+        elif mode == 'ancestry':
+            after[1] = '999'
+        elif mode == 'zombie':
+            after[0] = 'Z'
+        return None, after
+
+    def readlink(path):
+        assert path.path == '/proc/42/exe'
+        return observed('link', '/usr/bin/login')
+
+    command = Mock(side_effect=lambda *args, **kwargs: SimpleNamespace(stdout=observed('leader', '42')))
+    namespace = dict(errno=errno, pathlib=SimpleNamespace(Path=DiagnosticPath),
+                     process=process, subprocess=SimpleNamespace(run=command),
+                     os=SimpleNamespace(readlink=readlink, geteuid=lambda: observed('euid', 0)))
+    exec(LOGIN_RESOLUTION_DIAGNOSTICS, namespace)
+    original = OSError(value if operation == 'original' else errno.EACCES, 'private-canary')
+    detail = namespace['resolution_diagnostic'](original, DiagnosticPath('/proc/42'), before, 42)
+    assert '-' + field + '-' + expected in detail
+    assert 'private-canary' not in detail
+    assert re.fullmatch(LOGIN_RESOLUTION_PATTERN, 'getty-initial-exe-resolve' + detail)
+    command.assert_called_once_with(['systemctl', 'show', 'serial-getty@ttyS0.service',
+        '--property=MainPID', '--value'], capture_output=True, text=True, check=True, timeout=2)
+    if operation == 'link' and expected != 'expected':
+        assert '-target-not-read' in detail
 
 
 @pytest.mark.parametrize('canonical', [False, True])

@@ -300,14 +300,28 @@ safe observations are checkpointed before replies. Capture remains sealed after
 authentication. No caller command, package path or scenario override is accepted.
 The installation preflight records the guest's selected sudo-rs executable and
 installed Ubuntu package version, and refuses revisions outside the audited
-0.2.13-0ubuntu1, 0.2.13-0ubuntu1.1 and 0.2.13-0ubuntu1.2 contract. The serial
-matcher accepts the exact custom prompt or sudo-rs wrapper with `Password: `,
-optionally preceded by Readline's exact bracketed-paste shutdown sequence;
-arbitrary controls and private PAM suffixes cannot authorize input. The
+0.2.13-0ubuntu1, 0.2.13-0ubuntu1.1 and 0.2.13-0ubuntu1.2 contract. The helper
+supplies its own leading newline in sudo's supported custom prompt. The serial
+matcher requires that newline, `ONPC-INSTALL-PASSWORD: ` and the complete fixed
+`] Password: ` suffix at the buffer end. Command echo, a bare marker, incomplete
+or private suffixes cannot authorize input. The independent argv proof requires
+the actual newline too; do not depend on the wrapper's earlier framing. The
 installation proof's `terminal_echo_disabled` means password-character echo is
 off. Newline-only ECHONL is allowed: the password is printable ASCII and Enter
 is sent separately. Recipient identity/continuity, prompt, private capture and
 terminal failure/retry guards remain mandatory.
+
+A failed login executable resolution also records fixed error, link/target,
+selected-process start-time/ancestry, service-leader and probe-privilege categories.
+These follow only the already-selected process and fixed login path. They are
+observations after the failure: a successful reread cannot authorize password
+input, clear the refusal or permit a retry. Raw paths and exception text stay private.
+
+Successful installation additionally requires the exact bold-red reboot notice
+immediately before the shell's split success marker. The private serial tail
+retains ANSI bytes; no control stripping or arbitrary intervening output is
+accepted. Only fixed text/color/final-position flags enter public evidence.
+This proves emitted terminal output, not a graphical rendering or reboot.
 
 The sibling `tools/run-tests e2e --qualify-install-refusal --artifacts
 /tmp/onpc-<verified-build>` route deliberately submits one fixed non-secret,
@@ -377,6 +391,38 @@ three-sided evidence declarations, malformed input, executable containment,
 phase/intervention categories and host-only CLI behavior. Runtime tests also
 cover exact result reconciliation, split outcomes, retained failures, provenance,
 private copies, tampering, secret exclusion and file/directory replacement.
+
+### Installation findings to carry forward
+
+Use this record through the selected task's
+[reuse-map entry](../../docs/TestAutomation/Reuse-Map.md#installation-helper-and-open-limits).
+The canonical implementations are [onpc_install.pm](../integration/graphical_smoke/lib/onpc_install.pm),
+[InstallationBoundary](installation_boundary.py), and
+[installation observations](installation_observations.py) through
+[ReadOnlyObservations](observation_transport.py). Extend these implementations;
+keep the linked regressions when adding consumers. Evidence describes the exact
+qualified scope; historical next-step instructions are superseded by the
+[current handoff](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08).
+
+| Problem or boundary | Established behavior to preserve | Regression and evidence |
+| --- | --- | --- |
+| Prompt framing and fragmented serial delivery | Supply the newline in the supported sudo prompt and require the complete fixed suffix. Match through the maintained serial reader; command echo and partial/private suffixes never authorize input. A marker absent from the observed buffer does not prove sudo emitted nothing. | [Helper tests](../unit/test_e2e_install_helper.py), especially `test_installed_serial_parser_reassembles_every_prompt_boundary`; [live prompt qualification](../../docs/TestAutomation/Evidence/20-Install-Explicit-Newline-20260908.md). |
+| Password characters versus newline echo | Require ECHO off; ECHONL alone may remain on for the validated printable password with Enter sent separately. Keep independent recipient, argv, process continuity and sealed-capture checks. | [Password tests](../unit/test_e2e_install_password_observation.py), including `test_kernel_newline_echo_does_not_echo_password_characters`; same live prompt qualification. |
+| Cancellation on the pipe-backed serial console | The graphical Ctrl+C path failed. `run_refusal` sends the fixed interrupt byte through `type_string` after one rejected password, then proves shell return and installer/package/marker absence without retry. | [Helper tests](../unit/test_e2e_install_helper.py), [refusal observations](../unit/test_e2e_installation_observations.py); [failed attempt and correction](../../docs/TestAutomation/Evidence/20-Install-Refusal-Attempt-20260908.md), [live corrected refusal](../../docs/TestAutomation/Evidence/20-Install-Refusal-Corrected-20260908.md). |
+| Exact final reboot notice | `_verify_notice` checks the private serial tail for exact text, bold-red ANSI bytes and final position before the split success marker. This assertion passed live; it establishes emitted bytes, not graphical rendering or reboot. | [Helper tests](../unit/test_e2e_install_helper.py), including fragmented notice and ring-buffer cases; [live notice qualification](../../docs/TestAutomation/Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md). |
+| Intermittent `getty-*-exe-resolve` refusal — open | Cause remains unknown. Fixed errno, link/target, selected-process/leader continuity and effective-root/ptrace categories distinguish future failures. They are sequential observations after refusal, not atomic causal proof. A successful reread cannot clear refusal or authorize input. Use them if the failure recurs in required work; do not repeat installation solely to reproduce it. | [Resolution diagnostics tests](../unit/test_e2e_install_password_observation.py), [transport refusal/redaction tests](../unit/test_e2e_observation_transport.py); [diagnostic scope and limits](../../docs/TestAutomation/Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md). Diagnostics passed locally; this failure did not recur in that live attempt. |
+
+The clean reboot/readiness journey and two independent startup-fault cases are
+still unimplemented; see the [startup audit](../../docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md).
+Ordinary E2E-001 smoke requires an unchanged boot. Installation qualification
+does not prove graphical PAM/Polkit approval or complete E2E-002 acceptance.
+Tasks 18A/18C and 26C can extend the relevant package/terminal assertions;
+other installed graphical tasks may use verified installation as prerequisite
+setup under [Task 20's scope](../../docs/TestAutomation/Task-20.md).
+Reopen a solved boundary only for an applicable change, contradictory evidence
+or uncovered case under the [verification reuse rules](../../docs/TestAutomation/Implementation-Workflow.md#decide-what-invalidates-earlier-verification).
+Fresh artifacts may still be required after documentation edits; retained
+qualification evidence never permits bypassing current provenance checks.
 
 ## Ordered controller records
 

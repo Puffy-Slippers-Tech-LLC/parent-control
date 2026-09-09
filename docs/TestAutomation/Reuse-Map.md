@@ -1,10 +1,13 @@
 # Reuse across the remaining work
 
-Reviewed 2026-09-07 against task documents, the current handoff, executable
-inventory and implemented runner interfaces; updated after 19A acceptance.
+Reviewed 2026-09-09 against task documents, the current handoff, executable
+inventory and implemented runner interfaces, including 19B acceptance and
+Task 20's partial installation qualification.
 The [master checklist](Test-Automation.md#unfinished-tasks) owns completion
 and [Continuation.md](Continuation.md) owns the next slice. Read only the row
-for that slice; this map is not another mandatory whole-document startup read.
+for that slice and follow its relevant contract/limitation links; a whole-map
+startup read is unnecessary. Shared fixes are published under the
+[reuse workflow](Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work).
 
 The largest plausible token savings come from avoiding repeated investigation,
 inventory construction, helper implementation and irrelevant output. No measured
@@ -30,9 +33,11 @@ review changes no task order or completion status.
   [runner contracts](../../tests/integration/README.md#reusable-implementation-contracts).
   F1 and Task 14 are accepted; new areas extend their existing dispatch.
 - Graphical declarations, input provenance, evidence gate and private collection:
-  [E2E contracts](../../tests/e2e/README.md). `ScenarioRecorder` and the shared
-  worker and public authenticated dispatch have live E2E-034 acceptance. Reuse
-  the [19B handoff](Task-19.md#task-19b-continuation--2026-09-08) for current limits.
+  [E2E contracts](../../tests/e2e/README.md). The shared public controller and
+  canonical E2E-001 smoke have [19B acceptance](Evidence/19B-Acceptance-20260908.md).
+  Follow the [GDM/serial reuse record](#qualified-gdm-and-serial-helpers) and
+  [installation reuse record](#installation-helper-and-open-limits) for their
+  distinct qualification limits.
 - Native/Flatpak process and package assets:
   [artifact contract](../../tests/integration/README.md#package-and-fixture-inputs).
   Snap and real-game delivery remain work; sleeping fixtures cannot prove gameplay.
@@ -40,31 +45,70 @@ review changes no task order or completion status.
   [category commands](Approval-Tools.md#category-coverage-and-future-additions).
   Use implemented selectors; do not rediscover permissions or invent a launcher.
 
+### Qualified GDM and serial helpers
+
+Tasks 20–26 extend the [GDM readiness/return contract](../../tests/e2e/README.md#gdm-readiness-and-graphical-return)
+and [serial credential/capture contract](../../tests/e2e/README.md#credential-staging-and-password-capture-boundary).
+Canonical helpers are [onpc_gdm.pm](../../tests/integration/graphical_smoke/lib/onpc_gdm.pm)
+and [onpc_serial.pm](../../tests/integration/graphical_smoke/lib/onpc_serial.pm).
+Their regressions cover [readiness refusals](../../tests/unit/test_e2e_gdm_helper.py),
+[serial input and terminal framing](../../tests/unit/test_e2e_serial_helper.py),
+and [ordered screen evidence](../../tests/unit/test_e2e_matched_screens.py).
+[19B acceptance](Evidence/19B-Acceptance-20260908.md) retains the three complete,
+reviewed qualifications and earlier fix evidence. Reuse them until an applicable
+[invalidation condition](Implementation-Workflow.md#decide-what-invalidates-earlier-verification)
+changes. This proves the runner smoke; product UI journeys still need their own
+assertions and execution.
+
+### Installation helper and open limits
+
+Task 20 owns the [authenticated installation contract](../../tests/e2e/README.md#asset-transfer-qualification).
+Read its [installation findings and reuse record](../../tests/e2e/README.md#installation-findings-to-carry-forward)
+for canonical helpers, the prompt/echo and serial-cancellation solutions,
+regressions, live qualification links and open executable-resolution diagnostics.
+Authenticated installation, deliberate refusal and the exact final red notice
+have live qualification. The notice proves emitted serial bytes; it does not
+prove graphical rendering or reboot. These qualifications do not resolve the
+intermittent recipient failure; diagnostics passed locally and were not triggered
+in the latest live attempt. The [active Task 20 handoff](Task-20.md#task-20-continuation--2026-09-08)
+owns changing attempt details and the next result. Reboot/readiness and separate
+startup faults remain under the
+[startup audit](Evidence/20-Startup-Audit-20260908.md).
+Tasks 18A/18C and 26C should extend the applicable package/terminal observations;
+other installed graphical tasks may use verified installation as prerequisite
+setup under [Task 20's scope](Task-20.md). This helper does not establish
+graphical PAM/Polkit approval for 21B–24 or complete E2E-002 acceptance. Changes
+must verify affected consumers; keep unresolved limitations linked until closed
+with evidence.
+
 ## Installed and runner work
 
 | Task | Reuse and opportunity | Quality boundary to retain |
 | --- | --- | --- |
-| [19B](Task-19.md#task-19b) | Add needles/readiness to the accepted public controller; reuse `controller_qualification.py`, the recorded stages and same-lease helpers. E2E-001 now supersedes E2E-034; retain one canonical ordinary smoke. | Three complete qualification smokes for the changed harness; actual input, screen and console evidence. Ordinary runs must not multiply implementation-only qualification. |
-| [20](Task-20.md) | Reuse package assertions and asset transport for E2E-002 and startup faults. | Actual authenticated installation/reboot, independent broker and fapolicyd readiness; resolve installation requirement links. |
+| [19B](Task-19.md#task-19b) | Accepted: reuse the [qualified GDM/serial helpers and regressions](#qualified-gdm-and-serial-helpers). E2E-001 supersedes E2E-034; retain one canonical ordinary smoke. | Three reviewed qualifications are retained in acceptance evidence; repeat qualification only for applicable changes. Ordinary runs must not multiply implementation-only qualification. |
+| [20](Task-20.md) | Extend the [installation helper and open limits](#installation-helper-and-open-limits), [qualified GDM/serial helpers](#qualified-gdm-and-serial-helpers), package assertions and asset transport. | Actual authenticated installation/reboot, independent broker and fapolicyd readiness; preserve the startup audit's existing requirement mapping. |
 | [15A](Task-15.md#task-15a) | Extend F1 with one installed enforcement area and native/Snap/Flatpak case data; publish launch witnesses for 25A. | Every required platform, route, identity/matching boundary and other-user outcome. |
 | [15B](Task-15.md#task-15b) | One owned-process controller and rollback witness set serves later 17B/21B/25B/26A. | Kernel identity, all relevant sessions, irreversible partial termination and unrelated-process survival. |
 | [16A](Task-16.md#task-16a) | Share time/grant witnesses across arithmetic and separate clock scenarios. | Real Malcontent/AccountsService, both DST directions and midnight; controlled clocks never replace natural expiry. |
 | [16B](Task-16.md#task-16b) | Reuse real-caller/ownership helpers for PAM/session cases; publish observations for 22A. | Authentication/account phases, exemptions, unavailable/corrupt stores, idle/suspend and other-user isolation. |
 | [17A](Task-17.md#task-17a) | Audit existing `prepare_own_session` and transaction tests before adding missing races. | Deterministic contention/rollback; an existing method or source contract is not runtime coverage. |
 | [17B](Task-17.md#task-17b) | Apply 17A's assertions to real short-grant sequences and reuse them in 22A/26C. | Both soft-app choices, replacement precedence, no termination at expiry, installed failure evidence. |
-| [18A](Task-18.md#task-18a) | Build each required activation fixture once per verified build-input set; parameterize assertions. | All four activation classes, changed/added/removed files, real process/session/reboot transitions. |
+| [18A](Task-18.md#task-18a) | Build each required activation fixture once per verified build-input set; parameterize assertions and extend applicable [installation observations](#installation-helper-and-open-limits). | All four activation classes, changed/added/removed files, real process/session/reboot transitions. |
 | [18B](Task-18.md#task-18b) | Inventory real supported schema steps once, then use data tables for their invalid/retry cases. | Every actual migration path, interruption and fail-closed data boundary; no invented historical releases. |
-| [18C](Task-18.md#task-18c) | One continuous package lifecycle supplies reusable observations for 26C. | Real removal/reinstall/purge and independent refusal/retry attempts; mocked scripts remain supporting evidence. |
+| [18C](Task-18.md#task-18c) | Extend applicable [package/terminal helpers and regressions](#installation-helper-and-open-limits) for removal/reinstall/purge; publish lifecycle observations for 26C. | Removal has its own final red notice and acceptance; installation qualification does not prove it. Real lifecycle and independent refusal/retry attempts remain required. |
 
 ## Graphical work
 
-Use `tests/e2e/scenarios.json` as the starting inventory, inspect only assigned
-families, and extend gaps instead of creating a second list. The review found
-33 families / 156 variants, with 155 pending and E2E-001 ready for
-qualification. E2E-001 supersedes the accepted E2E-034 harness declaration;
-historical evidence retains its identity without duplicate ordinary execution. This is not customer
-coverage or a final coverage limit. Family `owners` can name several tasks; each variant's `owner` is its
-single execution owner. Related tasks link that execution without copying it.
+Use [scenarios.json](../../tests/e2e/scenarios.json) as the current declaration
+inventory, inspect only assigned families, and extend gaps instead of creating a
+second list or copying changing counts here. E2E-001 has
+[19B acceptance](Evidence/19B-Acceptance-20260908.md) and supersedes the historical
+E2E-034 harness declaration without duplicate ordinary execution. Declaration
+readiness is not runtime acceptance or a final coverage limit. Family `owners`
+can name several tasks; each variant's `owner` is its single execution owner.
+Related tasks link that execution without copying it. For each graphical row,
+reuse the [qualified GDM/serial helpers](#qualified-gdm-and-serial-helpers);
+installation prerequisites follow the [installation contract and limits](#installation-helper-and-open-limits).
 
 | Task | Reuse and opportunity | Quality boundary to retain |
 | --- | --- | --- |
@@ -80,7 +124,7 @@ single execution owner. Related tasks link that execution without copying it.
 | [25B](Task-25.md#task-25b) | Extend 15B/21B process and transaction witnesses to multiple real graphical sessions. | Every targeted session, unrelated-user survival and separately observed partial failure. |
 | [26A](Task-26.md#task-26a) | Reconcile canonical existing faults before implementing only missing races/transitions. | Actual fault synchronization and reversible/irreversible outcomes; retain strong reasoning for adversarial races. |
 | [26B](Task-26.md#task-26b) | Use one persistence assertion set across declared restart boundaries. | Each required app/session/service/reboot/suspend boundary executes; prior state must arise from real UI use. |
-| [26C](Task-26.md#task-26c) | Compose proven helpers and witnesses; preflight real-game and authorized-delivery assets before their attempt. | Continuous real gameplay, natural expiry, lifecycle and both game modes; independently passing fragments never establish a journey. |
+| [26C](Task-26.md#task-26c) | Compose proven helpers and witnesses, including applicable [installation observations](#installation-helper-and-open-limits) and 18C's lifecycle results; preflight real-game and authorized-delivery assets. | Continuous real gameplay, natural expiry, lifecycle and both game modes; independently passing fragments never establish a journey. |
 
 ## Evidence and final acceptance
 
@@ -95,7 +139,7 @@ single execution owner. Related tasks link that execution without copying it.
 
 ## Resolve before the affected batch
 
-- **Scope/layer reconciliation:** the 155 customer/fault declarations remain pending, not
+- **Scope/layer reconciliation:** pending customer/fault declarations are not
   executed coverage. Task 21A must replace E2E-003's OS-UI account creation with
   a recorded supported fixture event and live Parent discovery. Before changing
   case groupings/layers, follow the [matrix rules](E2E-Coverage.md#bound-the-matrix-before-expanding-it)
@@ -109,9 +153,12 @@ single execution owner. Related tasks link that execution without copying it.
   actions and assertions, validate the inventory change, and link the shared
   result; do not create an acceptance cycle or count partial 21A screens as a
   complete E2E-005 pass. This documentation review has not changed the inventory.
-- **Requirement gaps:** E2E-002 belongs to 20; E2E-030/031 to 21A; E2E-032/033
-  to 26C. Their `requirement_gap` fields need actual normative mapping before
-  readiness. Check shared E2E-007/028/029 variant ownership at each consuming
+- **Requirement gaps:** E2E-030/031 belong to 21A; E2E-032/033 to 26C. Their
+  `requirement_gap` fields need actual normative mapping before readiness.
+  E2E-002 and the independent E2E-028 startup faults already have the
+  [Task 20 startup mapping](Evidence/20-Startup-Audit-20260908.md); implement its
+  missing runtime evidence instead of reopening the mapping investigation.
+  Check shared E2E-007/028/029 variant ownership at each consuming
   task as well; a family-level owner list is not a request for duplicate tests.
 - **External prerequisites:** reuse 19P's [recorded inventory](Evidence/19P-Backend-Preflight-2026-09-06.md#capture-cleanup-and-downstream-prerequisites).
   Verify Snap tooling in 15A, actual schema versions in 18B, and game assets and
@@ -127,4 +174,6 @@ single execution owner. Related tasks link that execution without copying it.
 
 Maintain decisions in their task/contract when implemented, then remove the
 resolved warning here. Keep evidence in its original record. Update this map
-only when ownership or reusable interfaces change, not after every experiment.
+when ownership, reusable interfaces or their qualification/limitation links
+change, not after every experiment. Keep current task status in the master
+checklist and changing attempt details in the active handoff.

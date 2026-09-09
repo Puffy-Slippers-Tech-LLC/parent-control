@@ -149,6 +149,54 @@ def test_sudo_refusal_checkpoint_precedes_failure_and_cannot_enable_retry(observ
     assert transport.call.call_count == 1
 
 
+@pytest.mark.parametrize('phase', ['initial', 'recipient', 'continuity'])
+@pytest.mark.parametrize('field,value', [
+    (field, value) for field, values in installation_observations.LOGIN_RESOLUTION_FIELDS.items()
+    for value in values
+])
+def test_resolution_diagnostic_fields_are_checkpointed_but_never_authorize_input(
+        observer, phase, field, value, capsys):
+    _, transport = observer
+    fields = {key: values[0] for key, values in installation_observations.LOGIN_RESOLUTION_FIELDS.items()}
+    fields[field] = value
+    condition = 'getty-' + phase + '-exe-resolve' + ''.join(
+        '-' + key + '-' + item for key, item in fields.items())
+    events = []
+    reader = ReadOnlyObservations(transport, on_diagnostic=events.append)
+    transport.call.return_value = ('install-password-rejected:' + condition + '\n').encode()
+    with pytest.raises(EvidenceError, match='probe-failed'):
+        reader.read('install-password')
+    assert events == [condition]
+    assert capsys.readouterr().err.splitlines() == [
+        'e2e:install-password-rejected:' + condition, 'e2e:observation-rejected']
+    transport.call.return_value = b'install-password-safe\n'
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.read('install-password')
+    assert transport.call.call_count == 1
+
+
+@pytest.mark.parametrize('fault', ['private', 'extra', 'missing', 'reordered', 'newline', 'phase'])
+def test_resolution_diagnostic_rejects_noncanonical_and_private_fields(observer, fault, capsys):
+    reader, transport = observer
+    fields = [key + '-' + values[0]
+              for key, values in installation_observations.LOGIN_RESOLUTION_FIELDS.items()]
+    if fault == 'private':
+        fields[0] = 'error-private-secret-canary'
+    elif fault == 'extra':
+        fields.append('private-secret-canary')
+    elif fault == 'missing':
+        fields.pop()
+    elif fault == 'reordered':
+        fields.reverse()
+    condition = ('getty-' + ('private-secret-canary' if fault == 'phase' else 'initial')
+                 + '-exe-resolve-' + '-'.join(fields))
+    transport.call.return_value = ('install-password-rejected:' + condition
+                                  + ('\nprivate-secret-canary' if fault == 'newline' else '') + '\n').encode()
+    with pytest.raises(EvidenceError, match='invalid-output'):
+        reader.read('install-password')
+    assert capsys.readouterr().err == 'e2e:observation-rejected\n'
+
+
 @pytest.mark.parametrize('raw', [b'', b'A' * 64 + b'\n', b'a' * 63 + b'\n',
                                 b'a' * 64, b'a' * 64 + b'\nprivate-canary'])
 def test_boot_identity_rejects_malformed_or_private_output(observer, raw):

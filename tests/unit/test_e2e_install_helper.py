@@ -36,7 +36,9 @@ sub type_string {
 sub wait_serial {
     my ($regex, %options) = @_;
     die 'output policy' unless $options{quiet} && !$options{record_output};
-    if ($main::screen && ($main::waits == 0 || $options{expect_not_found})) {
+    my $stream_wait = $main::mode eq 'notice-stream' ? 1 : 0;
+    if ($main::screen && ($main::waits == $stream_wait || $options{expect_not_found}
+            || ($main::mode eq 'notice-stream' && $main::waits > $stream_wait))) {
         $main::waits++ unless $options{expect_not_found};
         my $ret = $main::screen->read_until($regex, 1,
             buffer_size => 4096, record_output => 0);
@@ -70,8 +72,10 @@ sub wait_serial {
     my $sample = $main::waits == 1 ? "\nONPC-INSTALL-PASSWORD: ] Password: "
         : $main::waits == 2 && $main::mode eq 'refusal'
             ? "\nONPC-INSTALL-PASSWORD: ] Password: "
-        : $main::waits == 2 ? "ONPC-INSTALL-OK\r\n" : 'fixture$ ';
-    $sample = $main::prompt_sample if $main::waits == 1 && defined($main::prompt_sample);
+        : $main::waits == 2 ? "\e[1;31m*** REBOOT REQUIRED: reboot before using the kiosk session. ***\e[0m\nONPC-INSTALL-OK\n" : 'fixture$ ';
+    $sample = $main::prompt_sample if defined($main::prompt_sample)
+        && ($main::mode eq 'notice' ? $main::waits == 2
+            : $main::mode ne 'notice-stream' && $main::waits == 1);
     return undef if ($main::mode eq 'prompt' || $main::mode =~ /^diagnostic-/) && $main::waits == 1;
     return undef if $main::mode eq 'shell' && $main::waits == 3;
     if ($main::waits == 2) {
@@ -83,7 +87,8 @@ sub wait_serial {
 sub type_password {
     die 'secret options' unless @_ == 1 && $_[0] eq
         ($main::mode eq 'refusal' ? 'onpc-deliberate-refusal' : 'private-canary');
-    die 'premature fragmented input' if $main::screen && @{$main::screen->{fragments}};
+    die 'premature fragmented input' if $main::screen && $main::mode ne 'notice-stream'
+        && @{$main::screen->{fragments}};
     push @main::events, $main::mode eq 'refusal' ? 'refusal-password' : 'password';
     die 'private-canary' if $main::mode eq 'typing';
 }
@@ -269,6 +274,8 @@ PROMPT = '[sudo: \r\nONPC-INSTALL-PASSWORD: ] Password: '
 
 
 def serial_probe(chunks, mode='ok'):
+    if mode == 'notice-stream':
+        chunks = [*chunks, 'fixture$ ']
     result = subprocess.run(['/usr/bin/perl', '-I', str(LIB), '-e', PROBE,
                              mode, '', json.dumps(chunks)],
                             capture_output=True, text=True, timeout=10, check=True)
@@ -313,3 +320,54 @@ def test_installed_serial_parser_timeout_preserves_safe_discriminating_diagnosti
 def test_fragmented_valid_prompt_still_requires_independent_recipient_proof(mode):
     data = serial_probe([ECHO] + list(PROMPT), mode)
     assert not data['ok'] and 'password' not in data['events']
+
+
+NOTICE = '*** REBOOT REQUIRED: reboot before using the kiosk session. ***'
+RED_NOTICE = '\x1b[1;31m' + NOTICE + '\x1b[0m'
+COMPLETION = 'ONPC-INSTALL-OK\n'
+
+
+@pytest.mark.parametrize('tail,accepted', [
+    (RED_NOTICE + '\n', True),
+    (RED_NOTICE + '\r\n', True),
+    (NOTICE + '\n', False),
+    ('\x1b[1;32m' + NOTICE + '\x1b[0m\n', False),
+    (RED_NOTICE.replace('kiosk session', 'child session') + '\n', False),
+    (RED_NOTICE + '\nProcessing triggers ...\n', False),
+    (RED_NOTICE + '\n\n', False),
+    (RED_NOTICE + '\rhidden\n', False),
+    (RED_NOTICE + '\x1b[2K\n', False),
+    ('echo ' + RED_NOTICE + '\n', False),
+    ('', False),
+])
+def test_install_requires_exact_red_notice_as_final_package_output(tail, accepted):
+    result = run_perl(PROBE, 'notice', 'private-canary\n' + tail + COMPLETION)
+    assert 'private-canary' not in result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert bool(data['ok']) == accepted
+    assert not data['retry'] and not data['capture']
+    assert data['events'].count('password') == 1
+    assert ('install-complete' in data['events']) == accepted
+    if not accepted:
+        assert data['diagnostics'][-1] == ['install-failed-stage', 'final-red-notice']
+
+
+@pytest.mark.parametrize('split', range(1, len(RED_NOTICE + '\r\r\n' + COMPLETION)))
+def test_installed_serial_parser_preserves_notice_color_and_final_output_across_reads(split):
+    output = RED_NOTICE + '\r\r\n' + COMPLETION
+    data = serial_probe(['private-canary\r\n', output[:split], output[split:]], 'notice-stream')
+    assert data['ok'] and data['events'].count('password') == 1
+    assert ['install-notice', 'exact-text=1 bold-red=1 final-output=1'] in data['diagnostics']
+
+
+def test_serial_ring_overflow_preserves_final_notice_and_carries_shell_prompt():
+    data = serial_probe(['private-canary\n' * 64] * 8
+                        + [RED_NOTICE + '\r\n' + COMPLETION + 'fixture$ '], 'notice-stream')
+    assert data['ok']
+
+
+@pytest.mark.parametrize('tail', [NOTICE + '\n', RED_NOTICE + '\nprivate-canary\n'])
+def test_fragmented_serial_notice_refusal_keeps_capture_sealed(tail):
+    data = serial_probe(list(tail + COMPLETION), 'notice-stream')
+    assert not data['ok'] and 'install-complete' not in data['events']
+    assert data['diagnostics'][-1] == ['install-failed-stage', 'final-red-notice']

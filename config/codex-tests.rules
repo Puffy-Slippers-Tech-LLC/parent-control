@@ -71,6 +71,19 @@ prefix_rule(
     ],
 )
 
+# Release preparation has a dedicated isolated entry point so the general
+# Python restriction does not force a prompt on every inspection/retry.
+prefix_rule(
+    pattern = [["tools/publish-release", "./tools/publish-release", "@CHECKOUT@/tools/publish-release"]],
+    decision = "allow",
+    justification = "Prepare and inspect caller-owned /tmp/onpc-release-* sources or validate their DSC with fixed clean sbuild settings; no signing, push or upload operations.",
+    match = ["tools/publish-release plan", "tools/publish-release status",
+             "tools/publish-release prepare /tmp/onpc-release-example",
+             "tools/publish-release inspect /tmp/onpc-release-example/source",
+             "tools/publish-release check-build /tmp/onpc-release-example/source"],
+    not_match = ["python3 tools/publish_release.py plan", "pkexec tools/publish-release plan"],
+)
+
 # Each entry point validates its own arguments; no generic tools/* prefix.
 prefix_rule(
     pattern = [["tools/run-tests", "./tools/run-tests", "@CHECKOUT@/tools/run-tests",

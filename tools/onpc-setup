@@ -8,6 +8,7 @@ import sys
 CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
 OPERATIONS = {
     'dependencies': ('tools/setup_dependencies.sh',),
+    'ppa-build-tools': ('tools/setup_dependencies.sh', '--ppa-build-tools'),
     'codex-rules': ('tools/install_codex_rules.py', '--system'),
     'test-tools': ('tools/install_test_runner.py',),
     'graphical-policy': ('tools/install_graphical_test_policy.py',),
@@ -24,8 +25,8 @@ def command(root, argv):
         raise ValueError('setup-helper: unsafe checkout path')
     if not target.is_file():
         raise ValueError('setup-helper: missing setup module')
-    if argv[0] == 'dependencies':
-        return ['/bin/bash', str(target)]
+    if argv[0] in ('dependencies', 'ppa-build-tools'):
+        return ['/bin/bash', str(target), *args]
     # prepare_host imports its sibling guest contract; the other installers use
     # only the standard library and can run with Python's isolated mode.
     return ['/usr/bin/python3', '-B' if argv[0] == 'prepare-host' else '-IB', str(target), *args]

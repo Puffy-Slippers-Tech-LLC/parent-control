@@ -1,0 +1,68 @@
+#!/usr/bin/python3 -IB
+"""Validated release preparation/inspection entry point; never sign or publish."""
+
+import argparse
+import os
+from pathlib import Path
+import re
+import runpy
+import stat
+
+
+def release_path(value):
+    """Confine writable release outputs to caller-owned, non-symlink /tmp trees."""
+    path = Path(value)
+    parts = path.parts
+    if (len(parts) not in (3, 4) or parts[:2] != ('/', 'tmp')
+            or not re.fullmatch(r'onpc-release-[A-Za-z0-9][A-Za-z0-9._-]*', parts[2])
+            or (len(parts) == 4 and parts[3] != 'source')
+            or str(path) != value):
+        raise argparse.ArgumentTypeError('expected /tmp/onpc-release-NAME[/source]')
+    for item in (path.parent, path):
+        if item == Path('/tmp'):
+            continue
+        try:
+            info = item.lstat()
+        except FileNotFoundError:
+            continue
+        # The existing release preparer honors the normal development umask
+        # (often 002). Trust the caller's primary group, as for the checkout.
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_mode & 0o002
+                or (info.st_mode & 0o020 and info.st_gid != os.getgid())):
+            raise argparse.ArgumentTypeError('release path must be caller-owned, without symlinks, public writes or writes by another group')
+    return path
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('plan', help='read public PPA history and propose the next version')
+    commands.add_parser('status', help='read public PPA source publication history')
+    commands.add_parser('prepare', help='prepare a new isolated release clone').add_argument('path', type=release_path)
+    commands.add_parser('inspect', help='verify an existing signed source release').add_argument('path', type=release_path)
+    commands.add_parser('check-build', help='build the exact DSC in clean resolute/amd64 sbuild').add_argument('path', type=release_path)
+    args = parser.parse_args(argv)
+    if args.command == 'prepare' and args.path.name == 'source':
+        parser.error('prepare expects /tmp/onpc-release-NAME')
+    if args.command in ('inspect', 'check-build') and args.path.name != 'source':
+        parser.error('inspect/check-build expect /tmp/onpc-release-NAME/source')
+    # Load only this trusted checkout's implementation, with Python isolated.
+    implementation = runpy.run_path(str(Path(__file__).with_name('publish_release.py')))
+    try:
+        if args.command in ('plan', 'status'):
+            value = (implementation['plan'](implementation['ROOT']) if args.command == 'plan'
+                     else implementation['publications']())
+            print(implementation['json'].dumps(value, indent=2))
+        elif args.command == 'check-build':
+            builder = runpy.run_path(str(Path(__file__).with_name('ppa_build.py')))
+            builder['check_build'](args.path)
+        else:
+            implementation[args.command](args.path)
+    except (OSError, ValueError, KeyError, implementation['subprocess'].CalledProcessError) as error:
+        message = str(error) if isinstance(error, ValueError) else type(error).__name__
+        parser.exit(1, f'publish-release: stopped: {message}\n')
+
+
+if __name__ == '__main__':
+    main()

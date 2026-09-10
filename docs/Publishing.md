@@ -1,13 +1,14 @@
-# First app publication
+# Publish app releases and upgrades
 
-This is the only entry point needed for the first release. When ready, say:
-**“Follow docs/Publishing.md to prepare the first app release, automate the
+This is the publishing entry point for the first release and later updates.
+When ready, say:
+**“Follow docs/Publishing.md to prepare the next app release, automate the
 steps, and present the tested release for publication approval.”**
 
 The assistant handles the following flow:
 
 1. **Choose the release source.** Review current changes and confirm which
-   belong in version `1.0` only if the intended inputs are unclear.
+   belong in the selected product version only if the intended inputs are unclear.
 2. **Prepare and validate.** Verify existing account/tool setup, select an
    unused PPA version, create an isolated release clone, build and test the
    package, review compliance, and prepare signed source artifacts.
@@ -22,17 +23,59 @@ the signing passphrase in the gitignored `.envrc`, and making the release
 decision. Account and key setup was reported complete; it is verified, not
 repeated routinely.
 
-Automation already exists in `tools/publish_release.py` for version planning,
-isolated preparation, source inspection, and source-publication status. The
+Use `tools/publish-release` for version planning, isolated preparation, source
+inspection, clean local package builds, and source-publication status. The
 assistant runs the remaining build, test, signing, push, upload, and monitoring
 commands. The helper is not an unattended end-to-end release command.
 
-Before the first upload, verify a clean binary build with its declared tests,
+Before every upload, verify a clean binary build with its declared tests,
 inspect the final installed licenses/notices and both front-end About displays,
 and confirm that the public privacy page matches the feedback disclosure in
 [Compliance.md](Compliance.md). Determine current host/UI/VM acceptance from
 [Test-Automation.md](Test-Automation.md), recording unresolved coverage rather
 than treating historical rehearsal results as acceptance.
+
+## Subsequent releases and upgrade acceptance
+
+Reuse the existing PPA, signing identity, setup and command approvals. Product
+versions come from `data/app.json`; the initial `1.0` is not a tool limit.
+Choose the release type before committing the source and running `prepare`:
+
+| Change | Version handling | Illustrative package version |
+| --- | --- | --- |
+| Packaging correction for the same product version | Retain the product version and published product tag; `plan` selects the next unused PPA revision | `1.0+ppa6~ubuntu26.04.1` → `1.0+ppa7~ubuntu26.04.1` |
+| Compatible product update | Use the [product-version command](#prepare-each-release) to advance `1.0` to `1.1`, then commit and prepare | `1.1+ppa1~ubuntu26.04.1` if no `1.1` revision has been used |
+| New major product release | Advance the product version, retain earlier tags, and ship any required data migrations | `2.0+ppa1~ubuntu26.04.1` if unused |
+
+These are examples, not proposed live release numbers. `plan` checks PPA history,
+local tags and the changelog and rejects a candidate that is not newer than
+known releases. Each upload receives a new package version and signed package
+tag. Product tags are created only for new product versions; published tags
+and accepted upload versions are never reused or replaced.
+
+Run the same `inspect` and `check-build` commands on every release's newly built
+source artifacts. Each local check builds a complete package in a clean
+environment; it does not reuse previously compiled application output. A new
+version or release directory needs no new Codex rule or routine setup run.
+The current builder remains scoped to Ubuntu 26.04/resolute on amd64; other
+Ubuntu releases or architectures need an explicit tooling extension.
+
+For installed-user upgrades, additionally verify the previous supported
+release upgrading to the candidate, including retained parental settings,
+saved-data migration and retries, broker readiness, and the expected activation
+level. Test direct upgrades across skipped releases when supported. Follow
+[Data migration](SystemDesign/Data-Migration.md) before incompatible reader or
+writer changes and [Package update activation](Package-Update.md) for restart,
+session renewal and reboot requirements. A normal update does not automatically
+require the first installation's reboot.
+
+The [guarded VM runner](../tests/integration/README.md#running-the-current-installed-suite)
+has a `--previous-artifacts` route for changed-payload reinstall/reboot checks.
+Its current assertions require a reboot and do not establish general
+older-version upgrade, no-reboot update or saved-settings migration acceptance.
+Use it only for its documented scope; implement missing guarded upgrade cases
+when needed and report any remaining release coverage gap. A successful clean
+package build alone does not certify those installed-state transitions.
 
 <details>
 <summary>Assistant procedure and command reference</summary>
@@ -130,9 +173,10 @@ This is the primary workflow. The sections below it are command references
 and recovery instructions, not a second checklist to run again.
 
 1. **Select source once.** Inspect Git status, branch, remote history and tags.
-   Default the initial release to product `1.0` unless the current metadata or
-   publisher says otherwise. If there are uncommitted changes, ask which belong
-   in the release; review and commit those specific paths after the answer.
+   Read the selected product version from `data/app.json`; for later product
+   updates, apply the version bump described above before preparation. Review
+   uncommitted changes and clarify which belong only when the intended release
+   inputs are unclear; commit those specific paths.
    Never silently include ongoing work or use `git add .`. If the checkout is
    clean and its intended release source is clear, do not ask again. Fetch the
    public remote and tags before planning. Resolve divergence before proceeding;
@@ -150,8 +194,8 @@ and recovery instructions, not a second checklist to run again.
 3. **Prepare automatically.** Run:
 
    ```sh
-   python3 tools/publish_release.py plan
-   python3 tools/publish_release.py prepare /tmp/onpc-release-UNIQUE
+   tools/publish-release plan
+   tools/publish-release prepare /tmp/onpc-release-UNIQUE
    ```
 
    The assistant chooses a new directory name; the publisher need not type it.
@@ -189,7 +233,7 @@ and recovery instructions, not a second checklist to run again.
 6. **Sign and inspect source.** Run the source build below, then:
 
    ```sh
-   python3 tools/publish_release.py inspect /tmp/onpc-release-UNIQUE/source
+   tools/publish-release inspect /tmp/onpc-release-UNIQUE/source
    ```
 
    The helper checks source signatures against the recorded publisher key,
@@ -200,12 +244,18 @@ and recovery instructions, not a second checklist to run again.
    and symlinks, Lintian warnings, binary contents and licensing. This helper
    does not replace these reviews or regression acceptance. Keep reports and
    logs outside the clone. Fix unexplained failures before proceeding.
-   Before the first upload, also extract this exact signed DSC with
-   `dpkg-source -x` into a new directory outside the clone and run
-   `dpkg-buildpackage --build=binary --no-sign` there. Keep its parent separate
-   from the reviewed artifacts so it cannot overwrite them. This verifies
-   declared tests without Git metadata, as Launchpad receives the source;
-   a passing build inside a Git clone does not establish that portability.
+   Before upload, validate this exact DSC in a clean local Ubuntu builder:
+
+   ```sh
+   tools/publish-release check-build /tmp/onpc-release-UNIQUE/source
+   ```
+
+   See [Local PPA validation](Local-PPA-Validation.md) for setup, evidence and
+   limitations. It extracts the source through `sbuild` without Git metadata,
+   installs declared dependencies in a fresh environment, runs tests, and
+   completes package staging and debhelper processing. A source extraction
+   built directly on the development host can conceal missing dependencies;
+   a passing build inside a Git clone does not establish source portability.
    Tests that need Git must create their own temporary checkout fixtures, and
    their external commands must be declared in `Build-Depends`.
    Also run `make check-test-fixtures` on the prepared development host. This
@@ -244,7 +294,7 @@ and recovery instructions, not a second checklist to run again.
    the source, every enabled architecture's build, and binary publication:
 
    ```sh
-   python3 tools/publish_release.py status
+   tools/publish-release status
    ```
 
    `status` reports source history, not binary acceptance. Follow source API

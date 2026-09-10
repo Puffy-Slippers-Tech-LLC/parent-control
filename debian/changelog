@@ -1,3 +1,10 @@
+oh-no-parent-control (1.0+ppa6~ubuntu26.04.1) resolute; urgency=medium
+
+  * Build Oh No! Parent Control 1.0 for the PPA.
+  * Declare the GLib schema compiler needed during package staging.
+
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Thu, 10 Sep 2026 14:42:27 -0700
+
 oh-no-parent-control (1.0+ppa5~ubuntu26.04.1) resolute; urgency=medium
 
   * Build Oh No! Parent Control 1.0 for the PPA.

@@ -43,9 +43,9 @@ export function formatRemainingTime(remaining, compact) {
         const minutes = totalMinutes % 60;
         if (compact)
             return hours > 0 ? `${hours}h` : `${minutes}m`;
-        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} left`;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
     }
-    return compact ? `${remaining}` : `${remaining} left`;
+    return `${remaining}`;
 }
 
 export function busyRetryDelay(remoteErrorName, attempt) {

@@ -63,10 +63,48 @@ test('layout refreshes cannot postpone the countdown tick', () => {
 });
 
 test('formats minute, final-minute, zero, and multi-day remaining time', () => {
-    assert.equal(formatRemainingTime(3661, false), '01:01 left');
-    assert.equal(formatRemainingTime(59, false), '59 left');
+    assert.equal(formatRemainingTime(3661, false), '01:01');
+    assert.equal(formatRemainingTime(59, false), '59');
     assert.equal(formatRemainingTime(0, true), '0');
-    assert.equal(formatRemainingTime(49 * 60 * 60, false), '49:00 left');
+    assert.equal(formatRemainingTime(49 * 60 * 60, false), '49:00');
+});
+
+test('tooltip follows hover, stays on the monitor, and hides during interaction', () => {
+    const indicator = createIndicator({
+        Main: {layoutManager: {
+            findMonitorForActor: () => ({x: 0, y: 0, width: 800, height: 600}),
+        }},
+    });
+    let position;
+    Object.assign(indicator, {
+        _requestButton: {
+            hover: true, mapped: true, checked: false,
+            get_transformed_position: () => [750, 570],
+            get_transformed_size: () => [50, 30],
+        },
+        _tooltip: {
+            visible: false,
+            show() { this.visible = true; },
+            hide() { this.visible = false; },
+            get_preferred_width: () => [300, 300],
+            get_preferred_height: () => [80, 80],
+            set_position: (x, y) => { position = [x, y]; },
+        },
+    });
+    indicator._syncTooltip();
+    assert.equal(indicator._tooltip.visible, true);
+    assert.deepEqual(position, [500, 482]);
+    for (const state of [
+        {hover: false}, {mapped: false}, {checked: true},
+    ]) {
+        Object.assign(indicator._requestButton, {hover: true, mapped: true, checked: false}, state);
+        indicator._syncTooltip();
+        assert.equal(indicator._tooltip.visible, false);
+    }
+    Object.assign(indicator._requestButton, {hover: true, mapped: true, checked: false});
+    indicator._contextMenu = {isOpen: true};
+    indicator._syncTooltip();
+    assert.equal(indicator._tooltip.visible, false);
 });
 
 test('countdown animation setting gates the final-minute effects', () => {
@@ -89,6 +127,7 @@ test('countdown animation setting gates the final-minute effects', () => {
             add_style_pseudo_class: () => countdownStyles++,
         },
         _requestButton: {},
+        _tooltip: {text: '', visible: false},
         _requestIcon: {ease: () => spins++},
         _clearCountdownWarning: () => clears++,
         _stopRequestIconSpin: () => stops++,

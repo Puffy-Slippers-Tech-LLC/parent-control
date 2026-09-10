@@ -67,13 +67,32 @@ def test_parent_component_scripted_broker_behavior(launch_ui, wait_for_accessibl
 
 
 @pytest.mark.parametrize("scenario", ("denied", "unavailable"))
-def test_parent_denied_or_unavailable_never_exposes_management_window(launch_ui, scenario):
-    """A failed authorization/discovery check closes before controls are usable."""
+def test_parent_failed_discovery_disables_management_until_report_closes(
+        launch_ui, hermetic_ui_session, wait_for_accessible_node, scenario):
+    """Discovery failure permits error reporting but no management actions."""
     process, _log_path = launch_ui(
         "parent_component_preview",
         environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": scenario},
         wait_for_application=False,
     )
+    application = hermetic_ui_session.wait_for_app("parent_component_preview")
+    dialog = wait_for_accessible_node(application, "Send Feedback", "frame")
+    for label, role in (("Child account", "combo box"),
+                        ("Screen time limit", "switch"),
+                        ("Revoke one-time access", "button")):
+        control = wait_for_accessible_node(
+            application, label, role, labelled=(label == "Child account"),
+        )
+        # GTK may expose a child's own sensitive flag even when its containing
+        # management panel is disabled. Check the accessible ancestor chain.
+        states = []
+        while control is not None and len(states) < 32:
+            if control == application:
+                break
+            states.append((control.roleName, control.sensitive))
+            control = control.parent
+        assert any(not sensitive for _role, sensitive in states), (label, states)
+    assert wait_for_accessible_node(dialog, "Close", "button").do_action(0)
     assert process.wait(timeout=5) == 0
 
 
@@ -287,11 +306,11 @@ def test_shared_request_preview_smoke(launch_ui, wait_for_accessible_node,
             ("Allow soft blocked apps", "switch"),
             ("REQUEST", "button"),
             ("CANCEL", "button"),
-            ("Mute request-screen sound", "button"),
             ("Request-screen menu", "toggle button"),
         ),
         f"{surface}-preview",
     )
+    assert not application.is_child("Mute request-screen sound", role_name="button", retry=False)
     menu = wait_for_accessible_node(
         application, "Request-screen menu", "toggle button",
     )

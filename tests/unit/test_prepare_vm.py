@@ -56,12 +56,25 @@ def test_exact_fixed_identity_map():
 
 def test_environment_guard_accepts_only_the_fixed_guest_context(tmp_path):
     root = guest_root(tmp_path)
+    checkout = tmp_path / "checkout"
+    for relative in prepare.REQUIRED_CHECKOUT_ENTRIES:
+        path = checkout / relative
+        if relative == ".git":
+            path.mkdir(parents=True)
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes((ROOT / relative).read_bytes())
+    # Load the fixture's actual preparer so its __file__ ownership check stays
+    # intact. Do not require Git metadata in the package build's source tree.
+    fixture_prepare = load_module(
+        'onpc_fixture_prepare_vm', checkout / 'tests/integration/prepare_vm.py',
+    )
     defaults = dict(
-        root=root, checkout=ROOT, cwd=ROOT, runner=GuardRunner(), euid=0,
+        root=root, checkout=checkout, cwd=checkout, runner=GuardRunner(), euid=0,
         hostname="original-test-guest", lookup_user=missing_user,
     )
-    value = prepare.validate_environment(**defaults)
-    assert value == prepare.GuestIdentity("original-test-guest", "a" * 32, "26.04", "kvm")
+    value = fixture_prepare.validate_environment(**defaults)
+    assert value == fixture_prepare.GuestIdentity("original-test-guest", "a" * 32, "26.04", "kvm")
 
     cases = (
         ("guard:root", {"euid": os.getuid() or 1000}),
@@ -69,12 +82,12 @@ def test_environment_guard_accepts_only_the_fixed_guest_context(tmp_path):
         ("guard:checkout", {"cwd": tmp_path}),
     )
     for category, changed in cases:
-        with pytest.raises(prepare.PreparationError, match=category):
-            prepare.validate_environment(**{**defaults, **changed})
+        with pytest.raises(fixture_prepare.PreparationError, match=category):
+            fixture_prepare.validate_environment(**{**defaults, **changed})
 
     wrong_release = guest_root(tmp_path / "wrong", version="24.04")
-    with pytest.raises(prepare.PreparationError, match="guard:os"):
-        prepare.validate_environment(**{**defaults, "root": wrong_release})
+    with pytest.raises(fixture_prepare.PreparationError, match="guard:os"):
+        fixture_prepare.validate_environment(**{**defaults, "root": wrong_release})
 
 
 @pytest.mark.parametrize("hostname_fails", [False, True])

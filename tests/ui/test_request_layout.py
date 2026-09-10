@@ -11,12 +11,6 @@ import pytest
 pytestmark = pytest.mark.ui
 
 
-@pytest.fixture(scope="session")
-def ui_monitor_size():
-    """Match the reported laptop's physical output, including 125% support."""
-    return "1920x1200"
-
-
 @pytest.fixture
 def request_display_scale(hermetic_ui_session, dpi_scale):
     """Set actual Wayland scaling on the fixture's private compositor only.
@@ -48,9 +42,12 @@ def request_display_scale(hermetic_ui_session, dpi_scale):
         mode = next(mode for mode in modes if mode[-1].get("is-current"))
         # Use the compositor's exact supported value (fractional scales may
         # be represented as floats with slightly different precision).
-        supported_scale = next(
-            scale for scale in mode[5] if scale == pytest.approx(dpi_scale)
+        matching_scales = [scale for scale in mode[5] if scale == pytest.approx(dpi_scale)]
+        assert matching_scales, (
+            f"Private test output {mode[1]}x{mode[2]} does not support "
+            f"required scale {dpi_scale}; supported scales: {mode[5]}"
         )
+        supported_scale = matching_scales[0]
         x, y, original_scale, transform, primary, _monitors, _properties = logical_monitors[0]
 
         def apply(scale):

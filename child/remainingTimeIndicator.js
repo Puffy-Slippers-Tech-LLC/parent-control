@@ -91,12 +91,21 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._requestButton.connect('clicked', () => {
+            this._tooltip.hide();
             this._contextMenu?.close();
             this.setRequestActive(true);
             this._onRequest?.(this);
         });
         content.add_child(this._requestButton);
         this.add_child(content);
+        this._tooltip = new St.Label({
+            style_class: 'dash-label screen-time-tooltip',
+            reactive: false,
+            visible: false,
+        });
+        Main.layoutManager.addChrome(this._tooltip);
+        this._connect(this._requestButton, 'notify::hover', () => this._syncTooltip());
+        this._connect(this._requestButton, 'notify::mapped', () => this._syncTooltip());
         this._installContextMenuHandler();
         this.reactive = false;
         this.can_focus = false;
@@ -161,8 +170,45 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     setRequestActive(active) {
-        if (!this._destroyed)
+        if (!this._destroyed) {
             this._requestButton?.set_checked(active);
+            if (active)
+                this._tooltip.hide();
+        }
+    }
+
+    _syncTooltip() {
+        if (!this._tooltip || this._destroyed)
+            return;
+        if (!this._requestButton.hover || !this._requestButton.mapped ||
+            this._requestButton.checked || this._contextMenu?.isOpen) {
+            this._tooltip.hide();
+            return;
+        }
+
+        const monitor = Main.layoutManager.findMonitorForActor(this._requestButton);
+        if (!monitor) {
+            this._tooltip.hide();
+            return;
+        }
+        this._tooltip.show();
+        const [x, y] = this._requestButton.get_transformed_position();
+        const [width, height] = this._requestButton.get_transformed_size();
+        const [, tooltipWidth] = this._tooltip.get_preferred_width(-1);
+        const [, tooltipHeight] = this._tooltip.get_preferred_height(tooltipWidth);
+        const gap = 8;
+        let tooltipX = x + (width - tooltipWidth) / 2;
+        let tooltipY = y + height + gap;
+        if (height > width) {
+            tooltipX = x < monitor.x + monitor.width / 2
+                ? x + width + gap : x - tooltipWidth - gap;
+            tooltipY = y + (height - tooltipHeight) / 2;
+        } else if (tooltipY + tooltipHeight > monitor.y + monitor.height) {
+            tooltipY = y - tooltipHeight - gap;
+        }
+        this._tooltip.set_position(
+            Math.max(monitor.x, Math.min(tooltipX, monitor.x + monitor.width - tooltipWidth)),
+            Math.max(monitor.y, Math.min(tooltipY, monitor.y + monitor.height - tooltipHeight)));
     }
 
     _installContextMenuHandler() {
@@ -172,6 +218,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         // secondary-click menu.
         this._connect(this._requestButton,
             'button-press-event', (_button, event) => {
+                this._tooltip.hide();
                 if (event.get_button() !== Clutter.BUTTON_SECONDARY)
                     return Clutter.EVENT_PROPAGATE;
                 this._requestButton.fake_release();
@@ -181,6 +228,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _openContextMenu() {
+        this._tooltip.hide();
         if (this._contextMenu) {
             this._contextMenu.open();
             return;
@@ -266,6 +314,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         }
         this._signals = [];
 
+        this._tooltip?.destroy();
+        this._tooltip = null;
         this._clearTimeout();
         if (this._layoutSyncId) {
             GLib.source_remove(this._layoutSyncId);
@@ -518,8 +568,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     _setShown(shown) {
         if (shown && !this.container.visible)
             logInfo('showing remaining time indicator');
-        if (!shown)
+        if (!shown) {
+            this._tooltip.hide();
             this._contextMenu?.close();
+        }
         this.container.visible = shown;
     }
 
@@ -557,6 +609,14 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         const compact = this._syncOrientation();
         this._label.text = formatRemainingTime(remainingSecs, compact);
+        const time = remainingSecs > 60
+            ? formatRemainingTime(remainingSecs, false)
+            : `${remainingSecs} ${remainingSecs === 1 ? 'second' : 'seconds'}`;
+        this._tooltip.text = `• Time remaining: ${time}\n` +
+            '• Click to request more time for this session.\n' +
+            '• Right-click for more options.';
+        if (this._tooltip.visible)
+            this._syncTooltip();
 
         if (remainingSecs < 60 && this._countdownAnimationsEnabled) {
             this._label.add_style_pseudo_class('countdown');

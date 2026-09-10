@@ -33,7 +33,7 @@ Verification below is task acceptance; edits use the smallest affected selection
      manifests and real maintainer scripts; never hand-edit the manifest.
   2. Install and upgrade fixtures, testing changed, added, and removed relevant
      files. Verify broker PID behavior, next-session payload behavior, reboot
-     markers, and activation after reboot according to `Package-Update.md`.
+     markers, and activation after reboot according to `Publishing.md#package-update-activation`.
   3. Verify configuration retry does not invent a reboot requirement or clear
      markers owned by other packages.
   4. Restart the package/broker with every enabled child and verify current

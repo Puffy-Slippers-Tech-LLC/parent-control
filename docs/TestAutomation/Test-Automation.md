@@ -95,7 +95,7 @@ evidence or the VM baseline as documentation cleanup.
   logs at `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log`; do not
   modify them. Redact only copied diagnostic artifacts.
 - Update `setup.sh` for required host dependency changes. Classify new packaged
-  integrations under [Package-Update.md](../Package-Update.md); ship migrations
+  integrations under [Package update activation](../Publishing.md#package-update-activation); ship migrations
   under [Data migration](../SystemDesign/Data-Migration.md) before incompatible readers or
   writers. Shared form changes cover kiosk and child-overlay modes.
 - Keep product/test inputs tied to one source content identity, including local

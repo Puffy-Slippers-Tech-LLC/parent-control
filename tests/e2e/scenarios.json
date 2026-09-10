@@ -1543,7 +1543,7 @@
       "owners": ["26C"],
       "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003"],
       "requirement_gap": null,
-      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/Package-Update.md"],
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/Publishing.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "digest-verified-activation-packages"],

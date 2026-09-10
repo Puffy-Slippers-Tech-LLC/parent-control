@@ -24,7 +24,8 @@ Baseline SHA-256:
 The artifact is historical and must not be reused for a new attempt.
 
 The working tree was clean twice, including immediately after building, but
-other work then changed `debian/postinst`, `docs/Package-Update.md`,
+other work then changed `debian/postinst`, the package activation documentation
+(now merged into [Publishing](../../Publishing.md#package-update-activation)),
 `tests/unit/test_installer.py`, and `tests/unit/test_package_configuration.py`.
 Those edits were preserved. A clean status check does not establish that another
 editing session has ended. The request to pause other edits received no answer

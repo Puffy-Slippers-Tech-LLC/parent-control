@@ -60,7 +60,7 @@ package ordering, and failure/retry behavior.
 Package activation is selected from a generated digest manifest. Depending on
 the installed file that changed, an update needs no action, a broker restart, a
 new child/kiosk session, or a reboot at the PAM/display-manager boundary. See
-[Package update](../Package-Update.md) for the classification rules.
+[Package update](../Publishing.md#package-update-activation) for the classification rules.
 
 Successful configuration prints a green completion line. If this package has
 requested a reboot, the helper then prints
@@ -100,6 +100,6 @@ assets, the compiled PAM module, integration templates, and package helpers.
 
 ## Related design
 
-- For changed system integration, follow [Package update](../Package-Update.md).
+- For changed system integration, follow [Package update](../Publishing.md#package-update-activation).
 - For removal/purge ownership and rollback, read [Package removal](Package-Removal.md).
 - For PAM policy, read [expiry enforcement](Screen-Time.md#countdown-and-expiry-enforcement); for extension activation, read [screen-time enablement](Screen-Time.md#screen-time-model).

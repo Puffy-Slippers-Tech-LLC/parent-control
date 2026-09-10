@@ -1,8 +1,8 @@
-# Publish app releases and upgrades
+# Publish an app upgrade
 
-This is the publishing entry point for the first release and later updates.
+This is the single entry point for publishing app upgrades.
 When ready, say:
-**“Follow docs/Publishing.md to prepare the next app release, automate the
+**“Follow docs/Publishing.md to prepare the next app upgrade, automate the
 steps, and present the tested release for publication approval.”**
 
 The assistant handles the following flow:
@@ -20,8 +20,7 @@ The assistant handles the following flow:
 
 Your normal work is resolving ambiguous release inputs, manually configuring
 the signing passphrase in the gitignored `.envrc`, and making the release
-decision. Account and key setup was reported complete; it is verified, not
-repeated routinely.
+decision. Verify the existing account and signing key; do not repeat setup routinely.
 
 Use `tools/publish-release` for version planning, isolated preparation, source
 inspection, clean local package builds, and source-publication status. The
@@ -35,15 +34,15 @@ and confirm that the public privacy page matches the feedback disclosure in
 [Test-Automation.md](Test-Automation.md), recording unresolved coverage rather
 than treating historical rehearsal results as acceptance.
 
-## Subsequent releases and upgrade acceptance
+## Upgrade acceptance
 
 Reuse the existing PPA, signing identity, setup and command approvals. Product
-versions come from `data/app.json`; the initial `1.0` is not a tool limit.
+versions come from `data/app.json`.
 Choose the release type before committing the source and running `prepare`:
 
 | Change | Version handling | Illustrative package version |
 | --- | --- | --- |
-| Packaging correction for the same product version | Retain the product version and published product tag; `plan` selects the next unused PPA revision | `1.0+ppa6~ubuntu26.04.1` → `1.0+ppa7~ubuntu26.04.1` |
+| Packaging correction for the same product version | Retain the product version and published product tag; `plan` selects the next unused PPA revision | `1.1+ppa1~ubuntu26.04.1` → `1.1+ppa2~ubuntu26.04.1` |
 | Compatible product update | Use the [product-version command](#prepare-each-release) to advance `1.0` to `1.1`, then commit and prepare | `1.1+ppa1~ubuntu26.04.1` if no `1.1` revision has been used |
 | New major product release | Advance the product version, retain earlier tags, and ship any required data migrations | `2.0+ppa1~ubuntu26.04.1` if unused |
 
@@ -65,7 +64,7 @@ release upgrading to the candidate, including retained parental settings,
 saved-data migration and retries, broker readiness, and the expected activation
 level. Test direct upgrades across skipped releases when supported. Follow
 [Data migration](SystemDesign/Data-Migration.md) before incompatible reader or
-writer changes and [Package update activation](Package-Update.md) for restart,
+writer changes and [Package update activation](#package-update-activation) for restart,
 session renewal and reboot requirements. A normal update does not automatically
 require the first installation's reboot.
 
@@ -102,40 +101,35 @@ checkout and include them in release evidence; do not maintain a duplicate
 hash table or ask the publisher to collect hashes, repeat the creation
 confirmation below, or maintain a separate asset checklist.
 
-Retained source review from 2026-09-06:
+Preserve the bundled Quill BSD-3-Clause license, Monocraft SIL OFL-1.1
+license and author notice, and Thunderbird branding/MPL-2.0 attribution and
+trademark reservation. Review changed assets against their upstream sources
+and the canonical records in `debian/copyright`.
 
-- **Quill 2.0.3:** the four bundled editor files matched the official npm
-  distribution byte for byte. The archive matched the registry's SHA-512
-  integrity value. Source references are the
-  [registry metadata](https://registry.npmjs.org/quill/2.0.3) and
-  [tagged source](https://github.com/slab/quill/tree/v2.0.3).
-  Preserve the bundled BSD-3-Clause license and copyright notices.
-- **Monocraft:** the font and OFL text matched upstream commit
+Retained source identifiers for future asset reviews:
+
+- **Quill 2.0.3:** [official npm metadata](https://registry.npmjs.org/quill/2.0.3)
+  and [tagged source](https://github.com/slab/quill/tree/v2.0.3). The retained
+  review matched the four bundled editor files to the npm distribution and
+  verified the archive against the registry's SHA-512 integrity value.
+- **Monocraft:** upstream commit
   `e498bf70aeb25b4bdcff1e44d878fb2cb4f7c2a9`, files
-  `dist/Monocraft-ttf/Monocraft.ttf` and `LICENSE`.
-  [Pinned source](https://github.com/IdreesInc/Monocraft/tree/e498bf70aeb25b4bdcff1e44d878fb2cb4f7c2a9).
-  Preserve Idrees Hassan's notice and the SIL OFL-1.1 text beside the font.
-- **Thunderbird preview icon:** the image and branding notice matched Mozilla's
-  upstream files on the review date. Those upstream URLs are moving references;
-  the reviewed image SHA-256 is
+  `dist/Monocraft-ttf/Monocraft.ttf` and `LICENSE`, is the
+  [reviewed source](https://github.com/IdreesInc/Monocraft/tree/e498bf70aeb25b4bdcff1e44d878fb2cb4f7c2a9).
+- **Thunderbird preview icon:** the [upstream image](https://hg.mozilla.org/comm-central/raw-file/tip/mail/branding/thunderbird/default128.png)
+  is a moving reference. The image reviewed on 2026-09-06 has SHA-256
   `64214367f8f8633e3a5be46b18d2bb608d7a76a45cdc5373a5da875013c6d600`.
-  Preserve the accompanying `THUNDERBIRD-BRANDING-LICENSE`, MPL-2.0 attribution,
-  Mozilla trademark reservation, and unmodified icon in corresponding source.
-  The icon identifies an application in preview data. Ubuntu supplies the full
-  license at `/usr/share/common-licenses/MPL-2.0`.
-- **Product artwork and former music:** on 2026-09-06, the publisher confirmed
-  ChatGPT creation of the then-reviewed product/company logos, kiosk
-  backgrounds, preview avatars, timer image, and music. Retain that confirmation
-  as the source record; no generation-history collection is a release task.
-  It records creation method, without determining copyright protection or
-  asserting an unprovided subscription plan or third-party input history.
-  The former music was removed on 2026-09-09; request-screen thunder is
-  synthesized by project code. The timer image is tracked source but is not
-  selected by the extension's installation asset list.
+  Preserve the unmodified icon and its accompanying branding notice in
+  corresponding source.
 
-This historical review does not certify subsequently changed or added assets.
-The assistant reviews those against the release source and available upstream
-evidence as part of the same release preparation.
+Recheck changed assets and update these identifiers when their sources change;
+the retained review does not certify replacements.
+
+The publisher confirmed ChatGPT creation of the product/company logos, kiosk
+backgrounds, preview avatars and timer artwork on 2026-09-06. Retain this
+provenance record; it does not certify subsequently changed or added assets
+or determine copyright protection. No generation-history collection is a
+routine release task.
 
 ## Recorded publisher details
 
@@ -155,17 +149,13 @@ token, private administrative email, or decrypted confirmation link here.
 | Publisher OpenPGP fingerprint | `4449F02C3E57F8215261A57958109B593907EFDE` |
 | Public source | <https://github.com/Puffy-Slippers-Tech-LLC/parent-control> |
 | Git remote | `git@github.com:Puffy-Slippers-Tech-LLC/parent-control.git` |
-| Ubuntu series / initial architecture | `resolute` / `amd64` |
-| Initial product version | `1.0`, read from `data/app.json` at release time |
+| Ubuntu series / supported architecture | `resolute` / `amd64` |
+| Product version | Read from `data/app.json` at release time |
 
 The display name is not the Launchpad URL owner. The PPA archive signing key
-is also distinct from the publisher's source-upload key. A new PPA may not
-have an archive signing fingerprint until its first publication.
-
-The publisher reported one-time setup complete on 2026-09-05. Do not ask them
-to repeat it. Verify prerequisites and only repair concrete failures. At that
-time the public PPA existed and contained no source publications; always query
-it again before choosing a version.
+is also distinct from the publisher's source-upload key. Verify prerequisites
+and repair only concrete failures. Always query current PPA history before
+choosing a version.
 
 ## Assistant-led release workflow
 
@@ -265,19 +255,10 @@ and recovery instructions, not a second checklist to run again.
    the generated native/Flatpak bundles and native launch; the Flatpak runtime
    check lives in `tests/fixtures/test_runtime.py`. Record both results. Do not
    bypass Flatpak's sandbox or describe the runtime check as passed on Launchpad.
-   Use a versioned extraction directory such as
-   `build/oh-no-parent-control-1.0+ppa3~ubuntu26.04.1` so checks also exercise
-   Debian version punctuation in source paths. Host-safe VM fixtures must
-   hash their own archived preparation sources; live VM guards remain pinned
-   to the development checkout. Audit test-only Python modules and external
-   tools against `Build-Depends`, since a configured development machine can
-   hide missing clean-builder dependencies.
-   Audit package staging as well as test commands: `_install-product-files`
-   invokes `glib-compile-schemas`, so `libglib2.0-bin` must be a build dependency
-   even though it is also a runtime dependency. Ppa5 passed all Launchpad tests
-   but failed staging when this build dependency was absent. Runtime `Depends`
-   does not provision the clean builder. Keep the full binary build, including
-   staging and debhelper processing, as the regression acceptance boundary.
+   Keep source-portability checks sensitive to Debian version punctuation.
+   Audit test commands and package staging against `Build-Depends`; runtime
+   `Depends` does not provision a clean builder. The acceptance boundary is
+   the full binary build, including staging and debhelper processing.
 7. **Present the concrete release.** Summarize version, source commit/tags,
    architecture, artifact hashes, validation and reviewed warnings/gaps. If
    publication authorization has not already been given for this concrete
@@ -314,8 +295,7 @@ because this guide or its helper is being edited.
 ## Noninteractive signing
 
 **Never prompt for the signing passphrase, open a passphrase dialog, or ask for
-clipboard readiness or another “go ahead,” including on retries.** This replaces
-the previous clipboard-readiness requirement. Read
+clipboard readiness or another “go ahead,” including on retries.** Read
 `APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` from the development checkout's gitignored
 `./.envrc` inside the signing process. Manual configuration is described in the
 [README](../README.md#set-up-a-development-machine); `setup.sh` does not populate
@@ -339,90 +319,12 @@ a redacted configuration error; never fall back to a passphrase prompt.
 This supplies credentials for already-authorized signing; it does not replace
 any outstanding publication decision. Sandbox approval boundaries still apply.
 
-## One-time publisher setup
-
-Recovery/reference only: skip this section when prerequisite verification passes.
-
-1. Create or sign in to the Launchpad account that will own the archive:
-   <https://launchpad.net/+login>.
-2. Ensure the email address on the package signing key is confirmed on that
-   Launchpad account.
-3. Use an existing protected OpenPGP signing key, or create one interactively:
-
-   ```sh
-   gpg --full-generate-key
-   gpg --list-secret-keys --keyid-format LONG
-   gpg --fingerprint
-   ```
-
-   Keep the private key in GnuPG's key store and the configured passphrase only
-   in the gitignored `.envrc`, never in tracked source. Back up credentials
-   using the organization's key-management procedure. Key creation is manual
-   account setup; automated release signing follows the noninteractive rule above.
-4. Publish the public key to Ubuntu's keyserver, substituting its full
-   fingerprint:
-
-   ```sh
-   gpg --keyserver hkps://keyserver.ubuntu.com \
-       --send-keys 4449F02C3E57F8215261A57958109B593907EFDE
-   ```
-
-5. Open the Launchpad account's **OpenPGP keys** page, import that fingerprint,
-   decrypt Launchpad's confirmation email, and follow its confirmation link.
-
-   If Thunderbird cannot decrypt the email, use GnuPG directly on the computer
-   and under the OS user account where you created or imported the private key
-   in step 3. Thunderbird normally uses its own key storage; creating a key
-   with `gpg` does not automatically make it available to Thunderbird.
-
-   Copy the encrypted block from `-----BEGIN PGP MESSAGE-----` through
-   `-----END PGP MESSAGE-----`, including both marker lines, into a plain-text
-   file named `launchpad-confirmation.asc` in your Downloads directory. If the
-   email presents the encrypted payload as an attachment instead, save that
-   attachment and use its actual path. Decrypt the saved payload with GnuPG's
-   `--decrypt` operation through the same noninteractive signer configuration
-   above, using the `.envrc` passphrase. Open the resulting confirmation link
-   locally and complete confirmation in Launchpad; keep that link out of logs
-   and chat. If GnuPG
-   reports `decryption failed: No secret key`, check
-   `gpg --list-secret-keys --keyid-format LONG` and verify that the private key
-   corresponding to the fingerprint submitted in step 5 is available to this
-   OS user. Use the computer holding that key or restore it from your secure
-   backup; downloading the public key from the keyserver cannot supply the
-   private key needed for decryption.
-
-   See [Launchpad's key-import instructions](https://ubuntu.com/docs/launchpad/user/how-to/import-openpgp-key/)
-   and [Thunderbird's OpenPGP documentation](https://support.mozilla.org/en-US/kb/openpgp-thunderbird-howto-and-faq).
-6. Create a public PPA named `oh-no-parent-control` from the Launchpad web UI.
-   Record the exact owner name shown in its URL. For a team-owned PPA, use the
-   team's owner name and ensure the signing account has upload permission.
-   Enable only architectures on which this application will be supported;
-   `amd64` is the initial supported package architecture.
-7. Run development setup in the release checkout to configure its public Git
-   identity and OpenPGP signing key and install the publishing tools:
-
-   ```sh
-   ./setup.sh
-   ```
-
-   Setup configures `Puffy Slippers Tech LLC`, `dev@tech.puffyslippers.com`,
-   OpenPGP signing, and fingerprint
-   `4449F02C3E57F8215261A57958109B593907EFDE` only for this checkout.
-   Confirm the public development email on Launchpad and register that key;
-   keep the private administrative email out of Git and package metadata.
-   Setup does not import the private key. It must be available to the OS user
-   creating the signed tags and source upload.
-
-Canonical's current setup instructions are:
-<https://documentation.ubuntu.com/project/contributors/new-package/upload-packages-to-a-ppa/>.
-
 ## Prepare each release
 
 Manual preparation reference only. The normal assistant workflow uses `plan`
 and `prepare` above; do not repeat setup or add another PPA changelog entry
 after the helper has prepared the release clone. Continue with source review,
-the clean-state checks, commit, and signed tags below. For initial `1.0`, no
-product-version bump is needed. When using the helper, read `product` from
+the clean-state checks, commit, and signed tags below. Read `product` from
 `release.json` into `product_version` before creating the product tag.
 
 Automated regression acceptance follows the
@@ -434,13 +336,9 @@ implementation and full acceptance are complete; do not claim it has run when
 only the current focused commands are available. Publisher account/key setup
 is separate from daily test execution.
 
-1. Use a dedicated clean release checkout and install the repository-recorded
-   development and publishing tools. `setup.sh` installs development
-   dependencies, not the product itself:
-
-   ```sh
-   ./setup.sh
-   ```
+1. Use a dedicated clean release checkout. Verify prerequisites as described
+   in the assistant workflow; run the appropriate `setup.sh` mode only when
+   tools are missing.
 
 2. Export the Debian publisher identity for this terminal. The email must be a
    confirmed address on the Launchpad account. The release command uses this
@@ -466,15 +364,14 @@ is separate from daily test execution.
    control saved-data compatibility: follow [Data migration](SystemDesign/Data-Migration.md)
    whenever a code change makes saved application data incompatible.
 
-   The unreleased tree is already initialized at `1.0`; omit this step when
-   publishing that initial release without changing its version.
-   Also omit it for a packaging-only rebuild of an already published product
+   Omit the product bump for a packaging-only rebuild of an already published product
    version; increment the PPA revision in the next step instead.
 
 4. Add the PPA build revision to the changelog. This is a `3.0 (native)`
    package, so the package version must not contain a Debian revision separated
    by a hyphen. Derive the product version from its authoritative record rather
-   than typing it again. For the first PPA build, use:
+   than typing it again. Use the unused revision selected by `plan`; the
+   example below assumes revision 1 is available:
 
    ```sh
    product_version=$(/usr/bin/python3 -c \
@@ -608,12 +505,9 @@ Do not continue if the source build, signature, or Lintian review reports an
 unexplained error. Warnings must either be fixed or reviewed and documented;
 do not add blanket Lintian overrides.
 
-Ubuntu 26.04's packaged Lintian may report `newer-standards-version 4.7.4`
-because its local policy table still identifies 4.7.3 as current. The package
-intentionally declares 4.7.4 after review against Debian Policy 4.7.4.1. This
-specific warning is reviewed; do not lower the field merely to silence an
-older Lintian data file. Recheck the current policy before each release:
-<https://www.debian.org/doc/debian-policy/>.
+Review policy-version warnings against the current Debian Policy and the
+packaged Lintian version; do not lower a reviewed policy declaration solely
+to silence an older checker. Record the review for the candidate release.
 
 ## Publish the source and upload
 
@@ -648,38 +542,169 @@ packages already installed by consumers or make its version reusable.
 Launchpad's upload instructions are:
 <https://documentation.ubuntu.com/launchpad/user/how-to/packaging/ppa-package-upload/>.
 
-## Confirm publication
+## Confirm publication and deliver the upgrade
 
-1. Watch the PPA package page and the publisher's email for upload rejection or
-   build failures. Confirm that the `resolute` source and every enabled
-   architecture show **Successfully built** and then **Published**.
-2. Open the published source entry and verify that its version equals the local
-   `debian/changelog` version.
-3. Record both source and product tags alongside the published PPA version.
-4. Publish these consumer commands:
+1. Confirm the exact source version and every enabled architecture's build
+   succeeded and the corresponding binary publication is **Published**.
+   Access publisher email only with authorization if upload rejection details
+   are needed.
+2. Verify the archive's Packages index contains the exact package version and
+   architecture. Reconcile its filename, size and SHA-256 with the published
+   binary and retained release evidence. A successful build or source
+   publication alone is not completed binary publication.
+3. Record the source commit, signed package/product tags, PPA URL, indexed
+   package identity and validation results in the release report.
+4. Provide existing PPA subscribers these commands:
 
    ```sh
    sudo apt update
-   sudo apt install software-properties-common
-   sudo add-apt-repository universe
-   sudo add-apt-repository ppa:puffyslipperstechllc/oh-no-parent-control
-   sudo apt update
-   sudo apt install oh-no-parent-control
+   sudo apt install --only-upgrade oh-no-parent-control
    ```
 
-Canonical's consumer instructions are:
-<https://documentation.ubuntu.com/launchpad/user/how-to/packaging/ppa-install/>.
+   State the expected activation from the candidate's manifest comparison:
+   no action, process restart, session renewal, or reboot. Include any
+   user-facing migration requirements and verified coverage limits.
 
-## Publish an update
+For new Ubuntu 26.04/amd64 computers, provide:
 
-For every update, create a new changelog entry and a strictly newer unique
-package version, create a new signed package-version tag, rebuild and inspect
-both binary and signed source artifacts, upload the new `_source.changes`, wait
-for publication. Follow [Package-Update.md](Package-Update.md) when
-deciding whether changed integration requires a process restart, session
-renewal, or reboot.
+```sh
+sudo apt update
+sudo apt install software-properties-common
+sudo add-apt-repository universe
+sudo add-apt-repository ppa:puffyslipperstechllc/oh-no-parent-control
+sudo apt update
+sudo apt install oh-no-parent-control
+```
 
-If saved-data meaning changes, ship the migration required by
-[Data migration](SystemDesign/Data-Migration.md).
+First installation requires a reboot before using child or kiosk sessions.
+Existing-user upgrades follow the activation contract below.
 
 </details>
+
+## Package update activation
+
+Each Debian package contains `/usr/share/oh-no-parent-control/package-activation.json`. The file lists each activation-relevant installed file, its SHA-256 digest, and the action needed when that file changes. It is generated from the staged package by `tools/package_activation.py`; it must never be edited by hand.
+
+During an APT install or upgrade, `debian/preinst` records that an activation comparison is pending and, for upgrades, saves the manifest from the currently installed package. After unpacking, `debian/postinst` compares that saved manifest with the new one. Added, changed, and removed files all count. The pending marker prevents a later `dpkg --configure` retry from inventing a reboot requirement. A package without a prior manifest is treated as a first installation and requires a reboot, which is conservative for migrations from releases that predate this mechanism.
+
+### Activation levels
+
+| Level | Package action | Reboot marker |
+| --- | --- | --- |
+| `none` | Nothing | No |
+| `process-restart` | Reload systemd and D-Bus, then restart the broker | No |
+| `session-renewal` | Reassert child activation through broker startup; the next child or kiosk GNOME session uses updated payloads | No |
+| `reboot` | Normal Ubuntu reboot-required marker is created | Yes |
+
+`reboot` is reserved for changes to PAM or login-manager/pre-session integration. These must activate at a clean login-manager boundary. This includes the kiosk login-check helper as well as the PAM profiles which invoke it. The system GNOME extension payload, kiosk session units, and GNOME session descriptors are `session-renewal`, because an existing graphical session cannot load their replacement safely but the machine does not need to reboot. For this activation level, the package starts the broker, which reasserts extension activation for enabled managed children; a new Shell session loads the updated immutable system payload. Broker code, its systemd unit, and its D-Bus contract are `process-restart`. The packaged fapolicyd fallback rule is also `process-restart`: broker startup regenerates the UID-scoped deny rules and asks fapolicyd to load the resulting aggregate before the broker begins serving requests. Polkit action definitions and administrator-selection rules are `none` because polkitd monitors both directories and loads their changes for subsequent authorization requests. A request-flow update can still require a broker restart or session renewal through its changed broker and child payload files. The display-manager/fapolicyd readiness gate and its executable canary are also `reboot`: their fail-closed ordering can only be guaranteed when the login manager starts in the same boot transaction after fapolicyd becomes ready.
+
+The uninstall helper is `none`: it is invoked only while removing the package
+and cannot affect an installed update. It is therefore intentionally excluded
+from the activation digest manifest even though it is shipped in the package.
+The maintainer-script removal guard and execution-policy baseline likewise
+activate in the install/remove lifecycle (`none`); they add no running service,
+session integration, or saved-preference schema change.
+
+The package never clears `/run/reboot-required` or removes package names from `/run/reboot-required.pkgs`: either may have been created by Ubuntu or another package. It adds its own package name when this package's comparison finds the `reboot` level or after package removal.
+
+For that level, `postinst` invokes Ubuntu's
+`/usr/share/update-notifier/notify-reboot-required` package hook with this
+package's name. The runtime dependencies include `update-notifier` (the desktop
+indicator) and `update-notifier-common` (the hook). Ubuntu owns the restart icon,
+tooltip, notification timing, and user notification preferences. The package
+does not launch a desktop process from the root maintainer script. If the hook
+defers marker creation for Livepatch, `postinst` still records the reboot needed
+by our PAM/display-manager integration. Configuration retries avoid duplicate
+entries and retain the activation comparison if the hook fails.
+`make installdeb` locates the built `.deb` and hands off to ordinary
+`apt install <deb>`; `make uninstalldeb` runs `apt remove oh-no-parent-control`.
+Both use only the package payload, installed maintainer scripts, and package
+manager integration. They must never add checkout-side setup, cleanup, notices,
+or success messages. Installation does not force repair or reinstallation; APT
+decides whether the supplied version needs installation just as in production.
+APT installation output is deferred until dpkg finishes configuration and
+triggers. `preinst` generates the package-owned
+`/etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice`, using dpkg's documented
+[`post-invoke` hook](https://manpages.debian.org/unstable/dpkg/dpkg.1.en.html#OPTIONS).
+APT starts a new dpkg process for configuration after unpacking, so that
+process reads the hook even on the first installation. An APT hook shipped
+as a conffile would be too late for the already-running APT process; a dpkg
+conffile would likewise become available too late during configuration.
+
+After successful configuration, `postinst` calls the packaged
+`/usr/libexec/oh-no-parent-control-package-notice --configured`, which queues a
+private completion marker in `/run` when a frontend holds the dpkg lock.
+The post-invoke hook reads dpkg's public status fields and waits until this
+package is installed and no package remains unconfigured, broken, or awaiting
+triggers. It consumes the marker and prints the green PASS line, immediately
+followed by the kiosk reboot reminder when this package has an outstanding
+reboot request. This places both lines after dependency configuration and
+triggers for ordinary APT installs, including `make installdeb`. Failed
+configuration retries clear stale completion markers; unrelated later
+transactions do not repeat a consumed PASS message. Other independently
+configured APT hooks can still emit their own output after dpkg returns.
+
+Direct `dpkg --install` may unpack and configure in a single process, which
+cannot load its newly generated hook. Without a frontend lock, `postinst`
+therefore retains immediate PASS/reboot output. Removal, purge, and aborted
+installation remove the generated hook only if its contents still match;
+administrator replacements are preserved. The inline hook checks for the
+helper before calling it, so removal of the executable payload is harmless.
+The notice helper and generated dpkg configuration activate on invocation
+(`none`), are excluded from activation digests, and introduce no saved-data
+migration. All of this behavior ships in the `.deb`.
+
+This follows [Ubuntu's package reboot-notification guidance](https://discourse.ubuntu.com/t/ubuntu-deb-package-maintainer-scripts-hooks-triggers-tips-tricks/36174).
+The notification wiring activates during package configuration (`none`); it
+does not itself change the reboot classifications or saved application data.
+
+The broker remains a static, D-Bus-activated unit. Migration stops it even for an
+unchanged reinstall, so every successful configuration requests a broker start;
+`process-restart` and `session-renewal` instead request a restart to reassert
+policy if a client already activated it. The maintainer script consults
+`policy-rc.d` before invoking systemd directly, because `deb-systemd-invoke`
+skips inactive static units. A policy denial defers activation; a policy error
+or service startup failure fails configuration. Activation comparison markers
+are retained on failure for a configuration retry. Debhelper's automatic starts
+and upgrade restarts are disabled to avoid a second activation attempt.
+These maintainer-script changes activate during package configuration (`none`);
+they introduce no boot integration or saved-data migration.
+
+### Maintaining classifications
+
+The padded kiosk account icon (`kiosk_account_icon.png`) activates during
+package configuration (`none`): provisioning reapplies it through AccountsService.
+Its transparent margins keep the artwork inside the login avatar's circular crop.
+It introduces no saved-data migration or session payload change.
+
+Removal changes PAM and login-manager integration too. `postrm remove` records
+the Ubuntu reboot requirement. The packaged
+`/etc/apt/apt.conf.d/99zz-oh-no-parent-control-reboot-notice` uses APT's
+[documented `DPkg::Post-Invoke` hook](https://manpages.debian.org/unstable/apt/apt.conf.5.en.html)
+to print a removal-specific terminal notice after dpkg and its triggers.
+It activates on the next APT invocation (`none`), is excluded from activation
+digests, requires no data migration,
+and is shared by ordinary APT removal and `make uninstalldeb`.
+The command is inline so removal of the executable payload cannot break it.
+The conffile remains after ordinary remove, reminding on later transactions
+until reboot clears the request or purge removes the hook. Direct dpkg
+removal uses Ubuntu's reboot markers without this APT terminal notice.
+`postrm` uses the update-notifier hook if present, with a direct marker fallback when
+the dependency is missing, fails, or defers notification. Retry does not duplicate
+the package entry. A later `postrm purge` does not invent another reboot request;
+APT purge of an installed package already runs the removal phase first.
+
+The GDM hook template at `usr/share/oh-no-parent-control/gdm-presession` remains
+`reboot`. The generated fallback rule's template at
+`usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules` remains
+`process-restart`. The Polkit rule moved to `usr/share/polkit-1/rules.d` remains
+`none`. Ownership records, PAM baseline capture, cleanup guards, and the removal
+notice activate in the package lifecycle (`none`). They do not change any saved
+preference schema and need no data migration. These packaging changes target
+clean installations; they do not adopt untracked installations or accounts.
+
+`activation_for()` in `tools/package_activation.py` is the complete, reviewed mapping from installed path to activation level. `ACTIVATION_MANIFEST_PATHS` in the `Makefile` selects the corresponding installed files for hashing. When adding, moving, or removing a packaged integration file, update both and add a focused unit test in `tests/unit/test_package_activation.py`. Classify by the installed path, not its source directory.
+
+For a normal UI or broker update, do not assign `reboot` merely for caution: the manifest comparison must be able to avoid a reboot prompt. Conversely, any new PAM, GDM, or pre-session file must be classified as `reboot` before it ships.
+
+Saved-data migration happens before this activation comparison and has its own retry and failure contract. The migration runner is therefore classified `none`: `postinst` invokes it unconditionally rather than as a later activation action. See [Data migration](SystemDesign/Data-Migration.md#package-lifecycle).

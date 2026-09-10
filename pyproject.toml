@@ -7,6 +7,7 @@ markers = [
     "unit: host-safe unit tests",
     "contract: source and interface contract checks",
     "component: host-safe component tests",
+    "fixture: real fixture runtime checks requiring unprivileged kernel namespaces",
     "ui: semantic graphical component tests",
     "system: installed-system tests in a disposable guest",
     "e2e: graphical end-to-end tests in a disposable guest",

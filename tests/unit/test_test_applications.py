@@ -5,9 +5,6 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest import mock
-
-from dbusmock.testcase import BusType, PrivateDBus
 
 
 from tests.support.paths import ROOT
@@ -16,7 +13,7 @@ fixtures = load_module('onpc_test_applications', FIXTURES)
 
 
 class TestApplicationFixtures(unittest.TestCase):
-    def test_build_verify_launch_and_terminate_in_an_isolated_temporary_directory(self):
+    def test_build_verify_and_launch_native_in_an_isolated_temporary_directory(self):
         real_home = Path.home()
         protected_paths = (
             real_home / ".local/share/flatpak",
@@ -53,18 +50,6 @@ class TestApplicationFixtures(unittest.TestCase):
                 {"pid": native_process.pid, "uid": os.geteuid()},
             )
             fixtures.terminate(native_process)
-            # No host services are activated on this bus. Restore the bus
-            # address that dbusmock exports when the context finishes.
-            with mock.patch.dict(os.environ), PrivateDBus(BusType.SYSTEM) as bus:
-                flatpak_process = fixtures.launch_flatpak(
-                    output, os.geteuid(), system_bus_address=bus.address)
-                try:
-                    self.assertEqual(
-                        fixtures.report_process_identity(flatpak_process),
-                        {"pid": flatpak_process.pid, "uid": os.geteuid()},
-                    )
-                finally:
-                    fixtures.terminate(flatpak_process)
         self.assertEqual(before, {path: path.exists() for path in protected_paths})
 
     def test_builder_refuses_nonempty_or_broad_output_locations(self):

@@ -205,6 +205,13 @@ and recovery instructions, not a second checklist to run again.
    a passing build inside a Git clone does not establish that portability.
    Tests that need Git must create their own temporary checkout fixtures, and
    their external commands must be declared in `Build-Depends`.
+   Also run `make check-test-fixtures` on the prepared development host. This
+   separate acceptance gate runs real Flatpak installation and launch with
+   private services and owned processes. Launchpad prohibits the unprivileged
+   kernel namespaces required by Flatpak, so its package-build tests verify
+   the generated native/Flatpak bundles and native launch; the Flatpak runtime
+   check lives in `tests/fixtures/test_runtime.py`. Record both results. Do not
+   bypass Flatpak's sandbox or describe the runtime check as passed on Launchpad.
    Use a versioned extraction directory such as
    `build/oh-no-parent-control-1.0+ppa3~ubuntu26.04.1` so checks also exercise
    Debian version punctuation in source paths. Host-safe VM fixtures must

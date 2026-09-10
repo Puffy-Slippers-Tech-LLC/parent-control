@@ -8,6 +8,7 @@ import pytest
 
 import check_graphical_smoke as smoke
 import check_graphical_recovery as recovery
+from tests.support.vm_baseline import local_preparation_source
 
 
 @pytest.mark.parametrize('arguments,uid', [(['check', 'extra'], 0), (['check'], 1000)])
@@ -91,7 +92,8 @@ def test_failed_observation_never_releases_graphical_input(tmp_path):
     ({'extra': True}, 'journal-identity'),
     ({}, None),
 ])
-def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, category):
+def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, category,
+                                                          local_preparation_source):
     import hashlib
     import json
     runner = smoke.runner
@@ -129,7 +131,7 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
     source.domain.create.assert_not_called()
 
 
-def test_recovery_requires_exclusive_lock_before_journal_or_controls(tmp_path):
+def test_recovery_requires_exclusive_lock_before_journal_or_controls(tmp_path, local_preparation_source):
     runner = smoke.runner
     lease = runner.Lease(Mock(), Mock(), Mock(), directory=tmp_path, graphics_type='vnc')
     lease.capture = Mock()
@@ -152,7 +154,7 @@ def test_recovery_entrypoint_refuses_unprivileged_use_before_files_or_vm():
 
 
 @pytest.fixture
-def qualification(tmp_path):
+def qualification(tmp_path, local_preparation_source):
     with smoke.PrivateCollector(run_id='qualification-test', secrets=['private-canary'],
                                 parent=tmp_path) as collector:
         ledger = smoke.runner.RunLedger()

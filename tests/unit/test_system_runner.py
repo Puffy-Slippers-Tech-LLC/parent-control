@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 
 import pytest
-from tests.support.vm_baseline import rig
+from tests.support.vm_baseline import rig, local_preparation_source
 from tests.support.vm_runner import UUID, RUN, INVENTORIES, xml, write_junit_results, lease_rig
 
 import system_runner as runner
@@ -799,7 +799,7 @@ def test_unsafe_guest_evidence_fails_collection_without_replacing_product_catego
     assert not (tmp_path / 'evidence/guest').exists()
 
 
-def test_restore_never_requests_boot_or_deletes_snapshot():
+def test_restore_never_requests_boot_or_deletes_snapshot(local_preparation_source):
     lease = runner.Lease(Mock(), Mock(), Mock())
     lease.capture.revalidate = Mock()
     lease.snapshot_xml = 'snapshot'
@@ -811,7 +811,7 @@ def test_restore_never_requests_boot_or_deletes_snapshot():
     lease.source.domain.create.assert_not_called()
 
 
-def test_restore_refuses_changed_snapshot():
+def test_restore_refuses_changed_snapshot(local_preparation_source):
     lease = runner.Lease(Mock(), Mock(), Mock())
     lease.capture.revalidate = Mock()
     lease.snapshot_xml = 'snapshot'

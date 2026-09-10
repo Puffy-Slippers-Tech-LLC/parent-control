@@ -16,6 +16,7 @@ import pytest
 from tests.support.e2e_evidence import attempt as evidence_attempt
 
 from tests.support.paths import ROOT
+from tests.support.vm_baseline import local_preparation_source
 import evidence
 import execution
 import e2e_worker
@@ -45,7 +46,7 @@ E2E_CASES = {'synthetic-smoke': execute}
 
 
 @pytest.fixture
-def harness(evidence_attempt, tmp_path, monkeypatch):
+def harness(evidence_attempt, tmp_path, monkeypatch, local_preparation_source):
     _, _, _, inventory_path, inputs = evidence_attempt
     path = tmp_path / 'tests/e2e/scenarios.json'
     path.write_bytes(inventory_path.read_bytes())

@@ -245,6 +245,13 @@ key passphrase if prompted, and making any outstanding release decision.
 All publisher identifiers are already supplied. Do not publish anything merely
 because this guide or its helper is being edited.
 
+Before running a command that may open a passphrase dialog, ask the publisher
+to prepare their clipboard and wait for an explicit **"go ahead"**. This also
+applies to retries. Identify the signing operations in that request so a ready
+publisher can authorize a consecutive batch. Publication authorization alone
+does not mean the publisher is ready for a dialog. Keep passphrases in the
+local secure prompt, never in chat, files or command arguments.
+
 ## One-time publisher setup
 
 Recovery/reference only: skip this section when prerequisite verification passes.

@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 import system_runner as runner
+from tests.support.vm_baseline import local_preparation_source
 
 
 def test_unprivileged_controller_refuses_before_any_host_or_guest_action():
@@ -59,7 +60,7 @@ def test_dead_pidfd_never_falls_back_to_a_reused_pid():
 
 
 @pytest.mark.parametrize('category', ['guard:domain-replaced', 'guard:run-identity', 'guard:source-changed'])
-def test_cleanup_refuses_replaced_domain_before_shutdown_or_destroy(category):
+def test_cleanup_refuses_replaced_domain_before_shutdown_or_destroy(category, local_preparation_source):
     lease = runner.Lease(Mock(), Mock(), Mock())
     lease.mutated = True
     lease.save = Mock()
@@ -71,7 +72,7 @@ def test_cleanup_refuses_replaced_domain_before_shutdown_or_destroy(category):
     lease.source.domain.revertToSnapshot.assert_not_called()
 
 
-def test_cleanup_cannot_destroy_a_domain_without_a_recorded_start_identity():
+def test_cleanup_cannot_destroy_a_domain_without_a_recorded_start_identity(local_preparation_source):
     lease = runner.Lease(Mock(), Mock(), Mock())
     lease.mutated = True
     lease.save = Mock()
@@ -83,7 +84,7 @@ def test_cleanup_cannot_destroy_a_domain_without_a_recorded_start_identity():
     lease.source.domain.destroyFlags.assert_not_called()
 
 
-def test_domain_replacement_during_shutdown_timeout_prevents_force_stop():
+def test_domain_replacement_during_shutdown_timeout_prevents_force_stop(local_preparation_source):
     lease = runner.Lease(Mock(), Mock(), Mock())
     lease.mutated = True
     lease.save = Mock()
@@ -96,7 +97,7 @@ def test_domain_replacement_during_shutdown_timeout_prevents_force_stop():
     lease.source.domain.destroyFlags.assert_not_called()
 
 
-def test_cleanup_failure_is_recorded_without_replacing_original_body_failure():
+def test_cleanup_failure_is_recorded_without_replacing_original_body_failure(local_preparation_source):
     clock = iter((4.0, 6.5))
     ledger = runner.RunLedger(monotonic=lambda: next(clock))
     lease = runner.Lease(Mock(), Mock(), Mock(), ledger=ledger)
@@ -122,7 +123,7 @@ def test_cleanup_failure_is_recorded_without_replacing_original_body_failure():
 @pytest.mark.parametrize('final_error', [False, True])
 @pytest.mark.parametrize('release_error', [False, True])
 def test_finalization_runs_once_while_held_and_preserves_first_error(
-        body_error, cleanup_error, final_error, release_error):
+        body_error, cleanup_error, final_error, release_error, local_preparation_source):
     events = []
     errors = [RuntimeError('private body'), RuntimeError('private cleanup'),
               KeyboardInterrupt('private final'), RuntimeError('private release')]
@@ -169,7 +170,7 @@ def test_finalization_runs_once_while_held_and_preserves_first_error(
     assert 'private' not in str(ledger.data())
 
 
-def test_cleanup_failure_also_retains_an_unclassified_body_infrastructure_failure():
+def test_cleanup_failure_also_retains_an_unclassified_body_infrastructure_failure(local_preparation_source):
     ledger = runner.RunLedger()
     lease = runner.Lease(Mock(), Mock(), Mock(), ledger=ledger)
     lease.finish = Mock(side_effect=runner.Error('cleanup:guest-changed'))
@@ -188,7 +189,7 @@ def test_cleanup_failure_also_retains_an_unclassified_body_infrastructure_failur
         'outcome': 'failed', 'category': 'cleanup:guest-changed'}
 
 
-def test_cleanup_failure_without_an_original_error_remains_terminal():
+def test_cleanup_failure_without_an_original_error_remains_terminal(local_preparation_source):
     ledger = runner.RunLedger()
     lease = runner.Lease(Mock(), Mock(), Mock(), ledger=ledger)
     lease.finish = Mock(side_effect=runner.Error('cleanup:guest-changed'))

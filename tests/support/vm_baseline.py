@@ -24,6 +24,12 @@ def use_local_preparation_source(monkeypatch):
     monkeypatch.setattr(guest, "preparation_digest", preparation_digest)
 
 
+@pytest.fixture
+def local_preparation_source(monkeypatch):
+    """Explicit source dependency for tests constructing a simulated Lease."""
+    use_local_preparation_source(monkeypatch)
+
+
 def xml(disk):
     return f"""<domain type='kvm'><name>ubuntu26.04</name><uuid>{UUID}</uuid><devices>
       <disk type='file' device='disk'><driver type='qcow2'/><source file='{disk}'/>

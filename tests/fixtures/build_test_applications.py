@@ -316,12 +316,15 @@ def _read_readiness(process: subprocess.Popen[str]) -> str:
     return process.stdout.readline()
 
 
-def launch_flatpak(output: Path, uid: int) -> subprocess.Popen[str]:
-    """Launch the bundled Flatpak only through an isolated temporary user root."""
+def launch_flatpak(output: Path, uid: int, *, system_bus_address: str) -> subprocess.Popen[str]:
+    """Launch through an isolated user root and the caller's private test bus."""
 
     if uid != os.geteuid():
         raise FixtureError("Flatpak smoke launch requires the fixture owner UID")
     environment = _flatpak_environment(output)
+    # Flatpak queries parental-control services even for a --user install.
+    # Fixture smoke tests must not depend on the host's system bus or policy.
+    environment["DBUS_SYSTEM_BUS_ADDRESS"] = system_bus_address
     repository = output / "flatpak-repository"
     if not repository.is_dir():
         raise FixtureError("Flatpak fixture repository is unavailable")

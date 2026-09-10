@@ -58,10 +58,10 @@ its accompanying `THUNDERBIRD-BRANDING-LICENSE`, its source availability, and
 Mozilla's reservation of trademark rights. Ubuntu supplies the complete MPL-2.0
 text in `/usr/share/common-licenses/MPL-2.0`.
 
-[Asset provenance](Asset-Provenance.md) records exact upstream matches and the
-publisher records still required for product artwork and music. Update that
-record and `debian/copyright` when an asset changes. A pending provenance entry
-must be resolved before distributing that asset.
+The [publishing procedure](Publishing.md#bundled-asset-release-checks) retains
+the reviewed asset sources. The assistant checks changed assets and updates
+`debian/copyright` and required notices during release preparation; there is
+no separate publisher-maintained asset document or checklist.
 
 ## Debian package requirements
 

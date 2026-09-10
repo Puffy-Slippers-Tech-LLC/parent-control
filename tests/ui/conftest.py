@@ -62,10 +62,15 @@ from dogtail.hermetic.session import HermeticSession, dump_tree
 
 
 @pytest.fixture(scope="session")
-def hermetic_ui_session():
+def ui_monitor_size():
+    return "1280x1024"
+
+
+@pytest.fixture(scope="session")
+def hermetic_ui_session(ui_monitor_size):
     """Boot one deterministic private Wayland session for this pytest process."""
 
-    session = HermeticSession(virtual_monitor="1280x1024")
+    session = HermeticSession(virtual_monitor=ui_monitor_size)
     session.boot()
     # Install Dogtail's bare-Mutter input backend before dogtail.tree imports
     # rawinput.  Importing the backend otherwise eagerly probes the optional

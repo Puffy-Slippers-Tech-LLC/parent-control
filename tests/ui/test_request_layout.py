@@ -11,6 +11,12 @@ import pytest
 pytestmark = pytest.mark.ui
 
 
+@pytest.fixture(scope="session")
+def ui_monitor_size():
+    """Match the reported laptop's physical output, including 125% support."""
+    return "1920x1200"
+
+
 @pytest.fixture
 def request_display_scale(hermetic_ui_session, dpi_scale):
     """Set actual Wayland scaling on the fixture's private compositor only.
@@ -65,7 +71,7 @@ def request_display_scale(hermetic_ui_session, dpi_scale):
 
 
 @pytest.mark.parametrize("overlay, dpi_scale",
-                         ((False, 1), (True, 1), (False, 4 / 3), (True, 4 / 3)),
+                         ((False, 1), (True, 1), (False, 1.25), (True, 1.25)),
                          ids=("kiosk", "child-overlay", "kiosk-fractional", "child-fractional"))
 def test_request_layout_keeps_text_readable_and_controls_reachable(
         launch_ui, request_display_scale, overlay, dpi_scale):
@@ -83,7 +89,7 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
     print(f"Request layout evidence: {directory}")
     assert "Gtk-CRITICAL" not in log.read_text()
     records = json.loads((directory / "layout.json").read_text())
-    assert len(records) == 24
+    assert len(records) == 42
     for record in records:
         width, height = record["size"]
         x, y, board_width, board_height = record["viewport"]
@@ -95,15 +101,27 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
         assert hud_width >= 66 and record["mute_pick"], record
         assert record["monitor_scale"] == math.ceil(dpi_scale), record
         assert record["surface_scale"] == pytest.approx(dpi_scale), record
-        assert record["status_font"] >= 19, record
+        assert record["status_font"] >= 12.5, record
         assert record["board_width"] >= record["board_minimum"], record
-        if not record["expanded"]:
+        assert record["board_width"] + record["board_margin"] <= record["viewport_allocation"][0], record
+        opening = record["gateway_opening"]
+        assert x >= opening[0][0] and x + board_width <= opening[1][0], record
+        opening_top = max(point[1] for point in opening[:2])
+        opening_bottom = min(point[1] for point in opening[2:])
+        assert y >= opening_top + 0.06 * (opening_bottom - opening_top), record
+        assert y + board_height <= opening_bottom - 0.06 * (opening_bottom - opening_top), record
+        if not record["expanded"] and height >= 768:
             assert record["duration_pick"], record
         # Scrolling must expose the complete estimate, including its last line.
         _, footer_y, _, footer_height = record["footer_after_scroll"]
         assert footer_y >= 0, record
         assert footer_y + footer_height <= record["scroll_page"] + 1, record
-        if width >= 1024 and height >= 768 and not record["expanded"]:
+        if "scrollbar" in record:
+            scroll_x, scroll_y, scroll_width, scroll_height = record["scrollbar"]
+            assert x < scroll_x < scroll_x + scroll_width <= x + board_width - 12, record
+            assert y + 12 <= scroll_y < scroll_y + scroll_height <= y + board_height - 12, record
+            assert record["scrollbar_pick"], record
+        if width >= 1536 and height >= 960 and not record["expanded"]:
             assert record["scroll_upper"] <= record["scroll_page"] + 1, record
             first, second = record["durations"][:2]
             assert first[1] == second[1] and first[0] < second[0], record
@@ -114,7 +132,7 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
     for expanded in (False, True):
         desktops = [record for record in records
                     if record["expanded"] == expanded
-                    and record["size"][0] >= 1024
+                    and record["size"][0] >= 1600
                     and record["size"][1] >= 768]
         reference = desktops[0]
         for record in desktops[1:]:

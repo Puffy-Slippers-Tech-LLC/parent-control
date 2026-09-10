@@ -21,6 +21,8 @@ onpc_preview_configure() {
     onpc_preview_registry_start_time=''
     onpc_preview_pipewire_pid=''
     onpc_preview_pipewire_start_time=''
+    onpc_preview_wireplumber_pid=''
+    onpc_preview_wireplumber_start_time=''
     onpc_preview_bus_address=''
     onpc_preview_host_runtime_dir=${XDG_RUNTIME_DIR:-}
     onpc_preview_host_gdk_backend=${GDK_BACKEND:-}
@@ -34,7 +36,7 @@ onpc_preview_configure() {
 onpc_preview_require_dependencies() {
     local dependency
     for dependency in dbus-daemon gdbus gnome-shell gsettings glib-compile-schemas \
-            inotifywait pipewire setsid; do
+            inotifywait pipewire wireplumber setsid; do
         command -v "$dependency" >/dev/null || {
             printf '%s is required for the child preview.\n' "$dependency" >&2
             return 1
@@ -68,7 +70,7 @@ onpc_preview_require_accessibility_registry() {
 onpc_preview_require_lifecycle_dependencies() {
     local dependency
     for dependency in dbus-daemon gdbus gnome-extensions gnome-shell gsettings \
-            glib-compile-schemas inotifywait pipewire setsid; do
+            glib-compile-schemas inotifywait pipewire wireplumber setsid; do
         command -v "$dependency" >/dev/null || {
             printf '%s is required for the child Shell lifecycle smoke.\n' "$dependency" >&2
             return 1
@@ -157,7 +159,10 @@ onpc_preview_prepare_environment() {
     # independently, so a host backend preference cannot send it to the
     # developer's desktop.
     unset GDK_BACKEND GI_TYPELIB_PATH GTK_EXE_PREFIX GTK_IM_MODULE \
-        GTK_IM_MODULE_FILE GTK_MODULES GTK_PATH
+        GTK_IM_MODULE_FILE GTK_MODULES GTK_PATH LD_LIBRARY_PATH LD_PRELOAD \
+        GIO_EXTRA_MODULES GIO_MODULE_DIR PIPEWIRE_REMOTE PIPEWIRE_CONFIG_DIR \
+        PIPEWIRE_CONFIG_NAME PIPEWIRE_CONFIG_PREFIX WIREPLUMBER_CONFIG_DIR \
+        WIREPLUMBER_DATA_DIR WIREPLUMBER_MODULE_DIR WIREPLUMBER_PROFILE
     gsettings set org.gnome.desktop.interface toolkit-accessibility true
     # The public Shell Screenshot D-Bus service honors this policy. Keep the
     # private component session explicitly permitted to save its evidence PNGs.
@@ -167,6 +172,9 @@ onpc_preview_prepare_environment() {
 }
 
 onpc_preview_build_shell_command() {
+    # Devkit creates the visible monitor through its video stream. Adding a
+    # --virtual-monitor here creates another, invisible screen that can receive
+    # the request overlay instead of the viewer's screen.
     local -a nested_x11_policy=()
     if [[ $onpc_preview_host_gdk_backend == x11 ]]; then
         # Preserve the host DISPLAY/XAUTHORITY pair for an X11 Devkit viewer.
@@ -178,12 +186,12 @@ onpc_preview_build_shell_command() {
         onpc_preview_shell_command=(gnome-shell --devkit --wayland \
             "${nested_x11_policy[@]}" \
             --wayland-display "$onpc_preview_nested_wayland_display" \
-            --virtual-monitor 1280x720 --force-animations)
+            --force-animations)
     else
         onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland \
             "${nested_x11_policy[@]}" \
             --wayland-display "$onpc_preview_nested_wayland_display" \
-            --virtual-monitor 1280x720 --force-animations)
+            --force-animations)
     fi
 }
 
@@ -260,7 +268,10 @@ onpc_preview_start_pipewire() {
         onpc_preview_pipewire_start_time 'private PipeWire' || return
     deadline=$((SECONDS + onpc_preview_ready_timeout))
     while onpc_preview_process_is_running "$onpc_preview_pipewire_pid"; do
-        [[ -S "$XDG_RUNTIME_DIR/pipewire-0" ]] && return 0
+        if [[ -S "$XDG_RUNTIME_DIR/pipewire-0" ]]; then
+            onpc_preview_start_wireplumber
+            return $?
+        fi
         if (( SECONDS >= deadline )); then
             printf 'Private PipeWire did not become ready within %ss; log: %s\n' \
                 "$onpc_preview_ready_timeout" "$onpc_preview_pipewire_log_path" >&2
@@ -271,6 +282,17 @@ onpc_preview_start_pipewire() {
     printf 'Private PipeWire exited before readiness; log: %s\n' \
         "$onpc_preview_pipewire_log_path" >&2
     return 1
+}
+
+onpc_preview_start_wireplumber() {
+    # PipeWire exposes streams; WirePlumber connects the compositor's output
+    # to the Devkit viewer. The policy profile loads no hardware monitors.
+    onpc_preview_wireplumber_log_path="$onpc_preview_log_dir/wireplumber.log"
+    setsid wireplumber --profile=policy >"$onpc_preview_wireplumber_log_path" 2>&1 &
+    onpc_preview_wireplumber_pid=$!
+    onpc_preview_record_owned_process "$onpc_preview_wireplumber_pid" \
+        onpc_preview_wireplumber_start_time 'private WirePlumber' || return
+    printf '%s\n' 'Private PipeWire linking policy started (no hardware monitors).' >&2
 }
 
 onpc_preview_wait_for_bus_name() {
@@ -708,6 +730,13 @@ onpc_preview_process_group_is_running() {
 
 onpc_preview_stop_private_services() {
     local status=0
+    if [[ -n ${onpc_preview_wireplumber_pid:-} ]]; then
+        onpc_preview_stop_owned_process "$onpc_preview_wireplumber_pid" \
+            "${onpc_preview_wireplumber_start_time:-}" \
+            'private WirePlumber' || status=1
+        onpc_preview_wireplumber_pid=''
+        onpc_preview_wireplumber_start_time=''
+    fi
     if [[ -n ${onpc_preview_registry_pid:-} ]]; then
         onpc_preview_stop_owned_process "$onpc_preview_registry_pid" \
             "${onpc_preview_registry_start_time:-}" \

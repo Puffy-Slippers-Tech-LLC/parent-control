@@ -26,9 +26,7 @@ review changes no task order or completion status.
 - Parent remaining-time reads use the existing broker `GetTimeStatus` method:
   [screen-time contract](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
   Parent UI/time-status work must reuse this path; direct AccountsService grant
-  reads require separate Polkit authorization. The
-  [2026-09-09 investigation](../Parent-Time-Status-Investigation-2026-09-09.md)
-  records the client and role-revalidation regressions and installed-test limits.
+  reads require separate Polkit authorization.
 
 - Host-side fixture/double libraries and guest assertion helpers:
   [shared support guide](../../tests/support/README.md). Use explicit support

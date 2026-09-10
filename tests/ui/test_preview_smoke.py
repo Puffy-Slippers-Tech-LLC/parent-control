@@ -299,6 +299,13 @@ def test_shared_request_preview_smoke(launch_ui, wait_for_accessible_node,
     if overlay:
         wait_for_accessible_node(application, "Help", "button")
     wait_for_accessible_node(application, "About", "button")
+    screen = wait_for_accessible_node(application, "Change Screens", "button")
+    assert screen.do_action(0)
+    dialog = wait_for_accessible_node(application, "Change Screens", "dialog")
+    capture_ui_snapshot(dialog, f"{surface}-screen-dialog")
+    wait_for_accessible_node(dialog, "Display Scale", "combo box", labelled=True)
+    cancel = wait_for_accessible_node(dialog, "Cancel", "button")
+    assert cancel.do_action(0)
 
 
 @pytest.mark.parametrize("scenario, expected", (

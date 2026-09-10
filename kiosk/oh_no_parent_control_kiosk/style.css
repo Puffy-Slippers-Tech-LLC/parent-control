@@ -1,5 +1,9 @@
 /* Shared request GUI used by the kiosk session and the child-session overlay. */
 
+.oh-no-parent-control-request-viewport {
+  background-color: #3f413e;
+}
+
 window.oh-no-parent-control-window {
   color: rgba(255, 255, 255, 0.90);
   background-color: #202630;
@@ -147,9 +151,9 @@ button.about-link > label {
 
 .oh-no-parent-control-dialog {
   min-width: 0;
-  padding: 12px 14px;
+  padding: 4px 8px;
   font-family: "Monocraft", "Ubuntu Mono", monospace;
-  font-size: 22px;
+  font-size: 14px;
   /* Physical iron board hung in the gateway. Square riveted plates and a
    * stepped bevel stay in the child snapshot so the gateway yaw applies to
    * the board, its depth, and its controls as one surface. */
@@ -171,9 +175,9 @@ button.about-link > label {
 }
 
 .oh-no-parent-control-header {
-  margin: 5px 0 0;
-  padding: 8px 14px 4px;
-  border: 3px solid transparent;
+  margin: 2px 0 0;
+  padding: 2px 6px 0;
+  border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -189,12 +193,12 @@ button.about-link > label {
 }
 
 .oh-no-parent-control-header-icon {
-  min-width: 48px;
-  min-height: 48px;
+  min-width: 32px;
+  min-height: 32px;
 }
 
 .oh-no-parent-control-header-copy {
-  padding: 4px 6px 2px 0;
+  padding: 1px 6px 0 0;
 }
 
 .oh-no-parent-control-title {
@@ -204,7 +208,7 @@ button.about-link > label {
   font-weight: 700;
   letter-spacing: 0;
   /* Pixel fonts ink above the Pango line box; pad so "OH NO!" stays inside. */
-  padding-top: 4px;
+  padding-top: 2px;
   line-height: 1.05;
 }
 
@@ -233,7 +237,7 @@ button.about-link > label {
 .oh-no-parent-control-status-row {
   min-width: 0;
   /* Floor for one-line status. Two-line captions grow via wrap measure. */
-  min-height: 62px;
+  min-height: 48px;
   margin-top: 3px;
   padding: 0;
   border: 2px solid transparent;
@@ -241,20 +245,20 @@ button.about-link > label {
 
 .oh-no-parent-control-status-inner {
   /* 2px extra on the bottom so the last glyph row clears the painted bevel. */
-  margin: 8px 28px 10px 22px;
+  margin: 4px 28px 8px 22px;
 }
 
 .oh-no-parent-control-account-row {
   min-width: 0;
-  margin-left: 10px;
-  margin-right: 10px;
+  margin-left: 0;
+  margin-right: 0;
   padding: 0;
   border: none;
 }
 
 .oh-no-parent-control-account-row-inner {
-  /* Keep matching top and bottom insets inside the painted metal bevel. */
-  margin: 6px 12px 6px 10px;
+  /* The child widget owns these insets; adding CSS margins doubles them. */
+  margin: 0;
 }
 
 .oh-no-parent-control-account-caption {
@@ -284,7 +288,7 @@ button.about-link > label {
 }
 
 button.oh-no-parent-control-account-selector {
-  min-height: 36px;
+  min-height: 24px;
   padding: 2px 8px;
   border: 2px solid #0c0c0c;
   border-top-color: #171916;
@@ -345,8 +349,8 @@ button.oh-no-parent-control-account-scroll:disabled {
 
 .oh-no-parent-control-choices {
   min-width: 0;
-  margin-left: 10px;
-  margin-right: 10px;
+  margin-left: 0;
+  margin-right: 0;
   padding: 0;
   border: none;
   border-radius: 0;
@@ -355,9 +359,8 @@ button.oh-no-parent-control-account-scroll:disabled {
 }
 
 .oh-no-parent-control-choices-inner {
-  /* Measured inset: 4px sides sit on the inner well floor (bevel + notches),
-   * 6px bottom keeps the last row off the painted rim. */
-  margin: 4px 4px 6px;
+  /* Insets are set on the FlowBox by RequestContent. */
+  margin: 0;
 }
 
 .oh-no-parent-control-choices-inner > flowboxchild {
@@ -367,8 +370,8 @@ button.oh-no-parent-control-account-scroll:disabled {
 }
 
 button.oh-no-parent-control-choice {
-  min-height: 32px;
-  padding: 4px 13px;
+  min-height: 24px;
+  padding: 2px 8px;
   line-height: 1.2;
   border: 1px solid transparent;
   border-radius: 0;
@@ -418,10 +421,10 @@ button.oh-no-parent-control-choice:checked .oh-no-parent-control-choice-pointer 
 
 button.oh-no-parent-control-app-filter-toggle {
   min-width: 0;
-  min-height: 36px;
-  padding: 7px 11px;
-  margin-left: 10px;
-  margin-right: 10px;
+  min-height: 28px;
+  padding: 3px 6px;
+  margin-left: 0;
+  margin-right: 0;
   border: 4px solid #141613;
   border-top-color: #777a71;
   border-left-color: #5a5d56;
@@ -497,7 +500,7 @@ button.oh-no-parent-control-app-filter-toggle:focus-visible {
 }
 
 entry.oh-no-parent-control-custom-entry {
-  min-height: 38px;
+  min-height: 28px;
   border: 2px solid #0c0c0c;
   border-radius: 0;
   color: white;
@@ -519,11 +522,11 @@ entry.oh-no-parent-control-custom-entry {
 }
 
 button.oh-no-parent-control-cancel-button {
-  min-height: 36px;
-  padding: 4px 10px;
+  min-height: 26px;
+  padding: 3px 6px;
   margin-top: 4px;
-  margin-left: 10px;
-  margin-right: 10px;
+  margin-left: 0;
+  margin-right: 0;
   border: 3px solid #141416;
   border-top-color: #92948c;
   border-left-color: #73766e;
@@ -551,11 +554,11 @@ button.oh-no-parent-control-cancel-button:focus-visible {
 
 button.oh-no-parent-control-request-button,
 .oh-no-parent-control-secondary-page button.suggested-action {
-  min-height: 36px;
-  padding: 4px 10px;
+  min-height: 26px;
+  padding: 3px 6px;
   margin-top: 4px;
-  margin-left: 10px;
-  margin-right: 10px;
+  margin-left: 0;
+  margin-right: 0;
   border: 3px solid #163c14;
   border-top-color: #a5d795;
   border-left-color: #78b966;

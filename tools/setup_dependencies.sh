@@ -58,6 +58,9 @@ add-apt-repository -y universe
     openssh-client=1:10.2p1-2ubuntu3.6 \
     openssl=3.5.5-1ubuntu3.5 \
     pipewire=1.6.2-1ubuntu1.1 \
+    wireplumber \
+    gstreamer1.0-pipewire \
+    gstreamer1.0-gtk4 \
     python3 \
     python3-dbusmock=0.38.1-1 \
     python3-gi \

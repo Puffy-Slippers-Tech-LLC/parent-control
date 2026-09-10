@@ -99,9 +99,7 @@ needs no broker, Polkit, or saved-data change. Regression coverage in
 [test_parent_client.py](../../tests/unit/test_parent_client.py) checks reads
 without retained AccountsService authorization, fresh grant status, and error
 propagation without sensitive logging. The broker role-revalidation regression
-is in [test_core.py](../../tests/unit/test_core.py). See the
-[2026-09-09 investigation](../Parent-Time-Status-Investigation-2026-09-09.md)
-for observed failures, verification results, and installed-test limitations.
+is in [test_core.py](../../tests/unit/test_core.py).
 
 ## Countdown and expiry enforcement
 

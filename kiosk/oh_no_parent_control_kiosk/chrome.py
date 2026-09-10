@@ -858,8 +858,10 @@ class MetalBoard(Gtk.Box):
     """GTK box that paints Minecraft-style stone and iron around its content."""
 
     __gtype_name__ = "OhNoMetalBoard"
+    frame_visible = True
 
     def do_snapshot(self, snapshot):
         paint_board_surface(snapshot, self.get_width(), self.get_height())
         Gtk.Box.do_snapshot(self, snapshot)
-        paint_board_frame(snapshot, self.get_width(), self.get_height())
+        if self.frame_visible:
+            paint_board_frame(snapshot, self.get_width(), self.get_height())

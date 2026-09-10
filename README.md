@@ -162,18 +162,44 @@ Local previews/component doubles are not customer E2E evidence. The graphical
 E2E suite and `make test-*` aliases are still planned, not implemented.
 
 Preview the kiosk UI from the checkout, with representative fixture data and
-without a kiosk login, broker, D-Bus calls, Polkit, or account changes:
+without a kiosk login, broker, system D-Bus calls, Polkit, or account changes:
 
 ```sh
 make preview-kiosk
 ```
 
 The preview uses the production GTK window, CSS, artwork, animation, and
-flash-synchronized thunder effects. There is no background music. It is
-resizable, draggable from its content, and intentionally does not enter the
-production fullscreen session.
+flash-synchronized thunder effects. It runs fullscreen on a private Mutter
+virtual monitor, shown in a dedicated screen viewer. The default is 1920 × 1080
+at 100%. Open the top-right menu and choose **Change Screens** to select a
+common resolution, enter custom width and height, and select a display scale.
+Save opens and verifies the new screen before closing the previous preview;
+fixture selections reset when the preview reopens. Unsupported resolution/scale
+combinations leave the old preview open and show the scales Mutter accepts.
+The same menu is available in the child overlay preview, and is absent outside
+preview mode. Screen settings last for the current preview invocation.
+
+Resolution is measured in physical pixels. At 1920 × 1200 and 125%, GTK receives
+a 1536 × 960 logical fullscreen surface and real Wayland fractional scaling.
+The viewer's default **Fit to window** mode shows the entire rendered screen.
+Choose **100% pixels** to inspect one captured pixel per host display pixel;
+use the scrollbars when the screen exceeds the viewer. Viewer zoom does
+not change the app's virtual resolution or scale. Pixel appearance on your host
+still depends on viewer zoom, your physical monitor, and its color settings.
+The launcher uses a private session bus, PipeWire, WirePlumber's policy-only
+profile (without hardware monitors), and temporary GNOME settings;
+it never applies display settings to your desktop. Dependencies are installed
+through `./setup.sh --dependencies-only`.
 While it is open, saving the kiosk stylesheet or background artwork updates the
-window in place; saving kiosk Python source automatically relaunches the preview.
+window in place; saving kiosk Python source automatically relaunches the app
+on the same virtual monitor. Close the viewer or press Ctrl+C to stop the preview.
+
+The viewer captures the existing monitor's RGB frames without video encoding.
+Startup and screen changes require both real video delivery and the expected
+fullscreen GTK allocation. The development-only viewer uses Mutter 50's
+ScreenCast and RemoteDesktop interfaces under an explicit preview-only exception;
+other Mutter major versions require revalidation. These interfaces are never
+used by the production kiosk or child application.
 
 Preview the same GUI as a child-session overlay, with the child selector locked
 to the current account:
@@ -221,6 +247,11 @@ Inspect the built package payload without installing it:
 make build
 dpkg-deb --contents output/oh-no-parent-control_*.deb
 ```
+
+`make build` builds the package without running tests. Run `make check-unit`
+for unit tests or `make check` for the broader checks separately. Direct Debian
+package builds retain their default test hook; `make build` passes Debian's
+standard `nocheck` option while preserving other `DEB_BUILD_OPTIONS`.
 
 Unit tests may isolate Polkit and AccountsService adapters without modifying
 real users. Installed-system and customer E2E tests use the guarded existing

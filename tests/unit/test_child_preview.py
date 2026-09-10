@@ -64,7 +64,7 @@ class ChildPreviewTests(unittest.TestCase):
             result.stdout.splitlines(),
             [
                 f"{root}/logs",
-                "dbus-run-session -- gnome-shell --devkit --wayland --no-x11 --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
+                "dbus-run-session -- gnome-shell --devkit --wayland --no-x11 --wayland-display onpc-preview-test --force-animations",
             ],
         )
 
@@ -135,7 +135,7 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.strip(),
-            "gnome-shell --devkit --wayland --no-x11 --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
+            "gnome-shell --devkit --wayland --no-x11 --wayland-display onpc-preview-test --force-animations",
         )
 
     def test_wayland_host_keeps_nested_xwayland_for_virtual_input(self):
@@ -151,7 +151,7 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.strip(),
-            "dbus-run-session -- gnome-shell --devkit --wayland --wayland-display onpc-preview-test --virtual-monitor 1280x720 --force-animations",
+            "dbus-run-session -- gnome-shell --devkit --wayland --wayland-display onpc-preview-test --force-animations",
         )
 
     def test_private_bus_uses_the_preview_runtime_socket(self):

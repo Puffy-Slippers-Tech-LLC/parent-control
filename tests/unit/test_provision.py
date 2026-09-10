@@ -73,7 +73,7 @@ class ProvisionTests(unittest.TestCase):
             provision.accounts_service_user_path(user)
 
     @mock.patch("tools.provision.subprocess.run")
-    def test_sets_kiosk_account_icon_to_the_shared_logo(self, run):
+    def test_sets_kiosk_account_icon_to_the_padded_logo(self, run):
         user = SimpleNamespace(pw_uid=1002, pw_name="oh-no-parent-control")
 
         provision.accounts_service_set_icon_file(
@@ -84,7 +84,7 @@ class ProvisionTests(unittest.TestCase):
             "busctl", "--system", "call", "org.freedesktop.Accounts",
             "/org/freedesktop/Accounts/User1002",
             "org.freedesktop.Accounts.User", "SetIconFile", "s",
-            "/usr/share/oh-no-parent-control/app_logo.png",
+            "/usr/share/oh-no-parent-control/kiosk_account_icon.png",
         ], check=True)
 
 

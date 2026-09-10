@@ -13,8 +13,8 @@ import tempfile
 from pathlib import Path
 
 ADMIN_GROUPS = {"sudo", "adm"}
-# The shared logo is also within AccountsService's 128-pixel icon limit.
-KIOSK_ICON_FILE = "/usr/share/oh-no-parent-control/app_logo.png"
+# Dedicated 128-pixel artwork leaves room for the login screen's circular crop.
+KIOSK_ICON_FILE = "/usr/share/oh-no-parent-control/kiosk_account_icon.png"
 
 
 def fail(message):

@@ -379,8 +379,7 @@ class FeedbackDialog(Adw.Window):
         dialog = Adw.AlertDialog.new(
             "Thank you for your feedback!",
             "Your feedback was sent successfully. We appreciate your help making "
-            "the app better.\n\nClick Close now, or wait 3 seconds for both dialogs "
-            "to close automatically.",
+            "the app better.",
         )
         self._success_dialog = dialog
         self._success_seconds = 3

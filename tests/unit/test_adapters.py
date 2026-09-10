@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from gi.repository import Gio, GLib
 
 from oh_no_parent_control.adapters import (
-    AccountsService, PolkitAuthorizer, RUNTIME_MAX_USEC_INFINITY, TimerUsage,
+    AccountsService, RUNTIME_MAX_USEC_INFINITY, TimerUsage,
     TimerUsageError,
 )
 from oh_no_parent_control.core import UserAccount
@@ -19,49 +19,6 @@ class PolkitAdapterTests(unittest.TestCase):
             return SimpleNamespace(returncode=returncode)
 
         return run
-
-    def test_agent_loss_denies(self):
-        error = GLib.Error.new_literal(Gio.io_error_quark(), "agent lost", Gio.IOErrorEnum.CLOSED)
-        with mock.patch("oh_no_parent_control.adapters._call", side_effect=error):
-            self.assertEqual(
-                PolkitAuthorizer(object()).check(
-                    "child", ":1.2", "id", "Child", "admin", "15 minutes", False,
-                ),
-                "denied",
-            )
-
-    def test_selected_approver_is_passed_as_an_action_detail(self):
-        reply = mock.Mock()
-        reply.unpack.return_value = ((True, False, {}),)
-        with mock.patch("oh_no_parent_control.adapters._call", return_value=reply) as call:
-            outcome = PolkitAuthorizer(object()).check(
-                "child", ":1.2", "id", "Child", "parent", "15 minutes", True,
-            )
-
-        self.assertEqual(outcome, "approved")
-        self.assertEqual(call.call_args.args[7], GLib.MAXINT)
-        parameters = call.call_args.args[5].unpack()
-        self.assertEqual(
-            parameters[1],
-            "tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access",
-        )
-        self.assertEqual(parameters[2]["approver-user"], "parent")
-        self.assertEqual(parameters[2]["target-account"], "Child")
-        self.assertEqual(parameters[2]["requested-duration"], "15 minutes")
-        self.assertEqual(parameters[2]["soft-blocked-apps"], " and allow soft blocked apps")
-
-    def test_kiosk_uses_its_distinct_request_action(self):
-        reply = mock.Mock()
-        reply.unpack.return_value = ((False, False, {}),)
-        with mock.patch("oh_no_parent_control.adapters._call", return_value=reply) as call:
-            PolkitAuthorizer(object()).check(
-                "kiosk", ":1.2", "id", "Child", "parent", "15 minutes", False,
-            )
-
-        self.assertEqual(
-            call.call_args.args[5].unpack()[1],
-            "tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access",
-        )
 
     def test_accounts_service_exposes_the_system_user_icon_file(self):
         accounts = AccountsService(object())

@@ -22,8 +22,9 @@ from gi.repository import Gio, GLib
 from . import config
 from .adapters import (
     ACCOUNTS_NAME, APP_FILTER_INTERFACE, PROPERTIES_INTERFACE,
-    AccountsService, CallerCredentials, PolkitAuthorizer, TimerUsage,
+    AccountsService, CallerCredentials, TimerUsage,
 )
+from .authorization import PolkitAuthorizer
 from .app_termination import RunningAppTerminator
 from .catalog import list_apps
 from .core import Broker, BrokerError, Busy, InvalidRequest

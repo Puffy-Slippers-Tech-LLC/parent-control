@@ -124,6 +124,35 @@ def test_responsive_form_accepts_pointer_selection_and_submission(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_expanded_form_scrollbar_accepts_real_pointer_input(
+        hermetic_ui_session, launch_ui, wait_for_accessible_node,
+        wait_for_accessible_state, tmp_path, overlay):
+    from dogtail.hermetic.mutter import MutterInputBackend
+    from tests.ui.mutter_input import click_at
+
+    backend = MutterInputBackend(bus_address=hermetic_ui_session.bus_address)
+    backend.connectMonitor()
+    try:
+        application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="pointer")
+        approver = wait_for_accessible_node(application, "Approving parent", "button")
+        wait_for_accessible_state(lambda: approver.sensitive, "loaded approver")
+        assert approver.do_action(0)
+        wait_for_accessible_state(
+            lambda: events(path, "pointer_layout")
+            and "scrollbar" in events(path, "pointer_layout")[-1]["targets"],
+            "visible expanded-form scrollbar",
+        )
+        targets = events(path, "pointer_layout")[-1]["targets"]
+        click_at(backend, 1, *targets["scrollbar"])
+        wait_for_accessible_state(
+            lambda: events(path, "pointer_layout")[-1]["targets"].get("scroll_position", [0])[0] > 0,
+            "pointer-scrolled form",
+        )
+    finally:
+        backend.disconnect()
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_shared_custom_duration_preserves_fractional_minute_precision(
         launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
     application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="remembered")

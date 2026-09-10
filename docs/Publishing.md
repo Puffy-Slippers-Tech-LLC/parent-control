@@ -47,6 +47,52 @@ Run checkout commands from the repository root on Ubuntu 26.04. The helper
 uses only Python's standard library and the tools already installed by
 `setup.sh`. No additional host setup is needed solely for this helper.
 
+## Bundled asset release checks
+
+These checks belong to the assistant's existing compliance review during
+release preparation. The assistant inspects changed assets, checks the final
+package for the required license texts and notices, and updates
+`debian/copyright` and notices as needed. That file remains the canonical
+package license record. Compute any needed file hashes from the release
+checkout and include them in release evidence; do not maintain a duplicate
+hash table or ask the publisher to collect hashes, repeat the creation
+confirmation below, or maintain a separate asset checklist.
+
+Retained source review from 2026-09-06:
+
+- **Quill 2.0.3:** the four bundled editor files matched the official npm
+  distribution byte for byte. The archive matched the registry's SHA-512
+  integrity value. Source references are the
+  [registry metadata](https://registry.npmjs.org/quill/2.0.3) and
+  [tagged source](https://github.com/slab/quill/tree/v2.0.3).
+  Preserve the bundled BSD-3-Clause license and copyright notices.
+- **Monocraft:** the font and OFL text matched upstream commit
+  `e498bf70aeb25b4bdcff1e44d878fb2cb4f7c2a9`, files
+  `dist/Monocraft-ttf/Monocraft.ttf` and `LICENSE`.
+  [Pinned source](https://github.com/IdreesInc/Monocraft/tree/e498bf70aeb25b4bdcff1e44d878fb2cb4f7c2a9).
+  Preserve Idrees Hassan's notice and the SIL OFL-1.1 text beside the font.
+- **Thunderbird preview icon:** the image and branding notice matched Mozilla's
+  upstream files on the review date. Those upstream URLs are moving references;
+  the reviewed image SHA-256 is
+  `64214367f8f8633e3a5be46b18d2bb608d7a76a45cdc5373a5da875013c6d600`.
+  Preserve the accompanying `THUNDERBIRD-BRANDING-LICENSE`, MPL-2.0 attribution,
+  Mozilla trademark reservation, and unmodified icon in corresponding source.
+  The icon identifies an application in preview data. Ubuntu supplies the full
+  license at `/usr/share/common-licenses/MPL-2.0`.
+- **Product artwork and former music:** on 2026-09-06, the publisher confirmed
+  ChatGPT creation of the then-reviewed product/company logos, kiosk
+  backgrounds, preview avatars, timer image, and music. Retain that confirmation
+  as the source record; no generation-history collection is a release task.
+  It records creation method, without determining copyright protection or
+  asserting an unprovided subscription plan or third-party input history.
+  The former music was removed on 2026-09-09; request-screen thunder is
+  synthesized by project code. The timer image is tracked source but is not
+  selected by the extension's installation asset list.
+
+This historical review does not certify subsequently changed or added assets.
+The assistant reviews those against the release source and available upstream
+evidence as part of the same release preparation.
+
 ## Recorded publisher details
 
 These are public release metadata, also recorded in

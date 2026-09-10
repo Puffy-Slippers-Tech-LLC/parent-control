@@ -91,10 +91,10 @@ class PackageActivationTests(unittest.TestCase):
             "session-renewal",
         )
 
-    def test_shared_logo_is_reapplied_by_provisioning(self):
+    def test_account_logo_is_reapplied_by_provisioning(self):
         self.assertEqual(
             activation_for(
-                "usr/share/oh-no-parent-control/app_logo.png"
+                "usr/share/oh-no-parent-control/kiosk_account_icon.png"
             ),
             "none",
         )

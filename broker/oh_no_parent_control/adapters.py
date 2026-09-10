@@ -21,13 +21,6 @@ from .core import UserAccount
 DBUS_NAME = "org.freedesktop.DBus"
 DBUS_PATH = "/org/freedesktop/DBus"
 DBUS_INTERFACE = "org.freedesktop.DBus"
-POLKIT_NAME = "org.freedesktop.PolicyKit1"
-POLKIT_PATH = "/org/freedesktop/PolicyKit1/Authority"
-POLKIT_INTERFACE = "org.freedesktop.PolicyKit1.Authority"
-REQUEST_ACTION_IDS = {
-    "child": "tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access",
-    "kiosk": "tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access",
-}
 ACCOUNTS_NAME = "org.freedesktop.Accounts"
 ACCOUNTS_PATH = "/org/freedesktop/Accounts"
 ACCOUNTS_INTERFACE = "org.freedesktop.Accounts"
@@ -49,10 +42,6 @@ SYSTEMD_MANAGER_INTERFACE = "org.freedesktop.systemd1.Manager"
 SESSION_SCOPE_ID = re.compile(r"^[A-Za-z0-9]+$")
 RUNTIME_MAX_USEC_INFINITY = (1 << 64) - 1
 CALL_TIMEOUT_MS = 30_000
-# Authorization is user-driven.  Keep the Polkit prompt pending until the
-# administrator accepts or cancels it rather than treating inactivity as a
-# denial.  G_MAXINT is GIO's supported no-timeout value.
-AUTH_TIMEOUT_MS = GLib.MAXINT
 USAGE_HELPER = "/usr/libexec/oh-no-parent-control-query-usage"
 MAX_USAGE_HELPER_OUTPUT_BYTES = 8 * 1024 * 1024
 LOG = logging.getLogger("oh-no-parent-control.adapters")
@@ -101,52 +90,6 @@ class CallerCredentials:
         except GLib.Error as error:
             LOG.warning("caller liveness check outcome=failed error_type=%s", type(error).__name__)
             return False
-
-
-class PolkitAuthorizer:
-    def __init__(self, connection):
-        self.connection = connection
-
-    def check(self, request_kind: str, sender: str, correlation_id: str,
-              target_label: str,
-              approver_username: str, requested_duration: str,
-              allow_soft_blocked_apps: bool) -> str:
-        try:
-            action_id = REQUEST_ACTION_IDS[request_kind]
-        except KeyError as error:
-            raise ValueError("invalid authorization request kind") from error
-        subject = (
-            "system-bus-name",
-            {"name": GLib.Variant("s", sender)},
-        )
-        details = {
-            "target-account": target_label,
-            "approver-user": approver_username,
-            "requested-duration": requested_duration,
-            "soft-blocked-apps": (
-                " and allow soft blocked apps" if allow_soft_blocked_apps else ""
-            ),
-        }
-        try:
-            reply = _call(
-                self.connection, POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE,
-                "CheckAuthorization",
-                GLib.Variant("((sa{sv})sa{ss}us)", (
-                    subject, action_id, details,
-                    1,  # AllowUserInteraction
-                    f"oh-no-parent-control-{correlation_id}",
-                )),
-                "((bba{ss}))", AUTH_TIMEOUT_MS,
-            )
-        except GLib.Error as error:
-            # Agent loss and authority errors fail closed.  This call itself
-            # has no timeout; a user cancellation is returned by Polkit below.
-            LOG.warning("authorization check outcome=backend-failed error_type=%s", type(error).__name__)
-            return "denied"
-        authorized, challenge, _details = reply.unpack()[0]
-        if authorized:
-            return "approved"
-        return "cancelled" if challenge else "denied"
 
 
 class AccountsService:

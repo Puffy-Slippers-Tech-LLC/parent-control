@@ -271,6 +271,7 @@ class ChildPreviewCleanupSafetyTests(unittest.TestCase):
             ("bus", "private session bus"),
             ("registry", "AT-SPI registry"),
             ("pipewire", "private PipeWire"),
+            ("wireplumber", "private WirePlumber"),
         )
         with tempfile.TemporaryDirectory(
             dir="/tmp", prefix="onpc-owned-services-"

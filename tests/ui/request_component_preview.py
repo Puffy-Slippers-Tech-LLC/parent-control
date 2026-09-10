@@ -193,6 +193,14 @@ class ComponentWindow(RequestWindow):
             if not valid:
                 return GLib.SOURCE_CONTINUE
             targets[name] = [point.x, point.y]
+        scrollbar = self._request_surface._scrollbar
+        if self._stack.get_visible_child_name() == "request" and scrollbar.get_mapped():
+            valid, point = scrollbar.compute_point(self, Graphene.Point().init(
+                scrollbar.get_width() / 2, scrollbar.get_height() - 4,
+            ))
+            if valid:
+                targets["scrollbar"] = [point.x, point.y]
+                targets["scroll_position"] = [scrollbar.get_adjustment().get_value()]
         if targets != self._last_pointer_layout:
             BROKER.record("pointer_layout", targets=targets)
             self._last_pointer_layout = targets

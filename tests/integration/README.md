@@ -112,8 +112,7 @@ recorded before its assertion. The observer records public ScreenSaver and
 logind lock state and screen-lock settings. After successful or failed session
 diagnostics, the owning controller wakes the display with a fixed non-text
 Shift modifier and retains a private screen capture, checking ownership around
-both operations. Capture failure preserves the original test failure. See the
-[expiry evidence](../../docs/Kiosk-Session-Expiry-Runtime-2026-09-09.md).
+both operations. Capture failure preserves the original test failure.
 
 For an explicit update check, add `--previous-artifacts /tmp/onpc-...` alongside
 `--artifacts /tmp/onpc-...`. Both inputs pass the same artifact and source

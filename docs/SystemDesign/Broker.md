@@ -27,8 +27,10 @@ The broker is divided into these layers:
   asynchronous approval workers, and public error translation
 - `core.py`: caller roles, target eligibility, validation, time arithmetic,
   serialization of approval/revocation, and rollback transactions
-- `adapters.py`: caller credentials, AccountsService, Polkit, logind/systemd,
+- `adapters.py`: caller credentials, AccountsService, logind/systemd,
   and Malcontent timer access
+- `authorization.py`: interactive Polkit checks and silent cancellation when
+  the requesting connection or session becomes unavailable
 - `preferences.py`: current schema, strict normalization, and atomic per-child
   storage
 - `catalog.py`: launcher discovery in the selected child's XDG and system
@@ -135,6 +137,29 @@ permission, and retains no reusable authorization in either front end. The
 kiosk session runs the maintained MATE Polkit agent as a restartable user
 service; agent failure denies the in-flight attempt without permanently ending
 the request station.
+
+Pending authorization belongs to the requesting bus connection and its logind
+session. The broker resolves the process's session, falling back to the owning
+user manager's primary graphical `Display` for apps launched as user services,
+as Polkit does. An already locked/inactive/closing session cannot start a prompt.
+While a prompt is pending, the broker watches that session's lock, activity,
+closing/removal events, loss of logind, and disappearance of the original bus
+name. These cancel only that request through Polkit's public
+`CancelCheckAuthorization`, using the original broker connection and cancellation
+ID. The local GIO wait is cancelled as well; a late approval cannot revive the
+request. Authentication otherwise remains user-driven without an idle timeout.
+Sessionless callers with a bus-registered agent retain disconnect cancellation.
+
+Cancellation returns the existing `cancelled` result, which both shared request
+interfaces handle silently. Logs include the random request correlation ID,
+fixed cancellation reason, and remote cleanup result, without account names,
+session IDs, bus names, or authentication details. The broker releases its
+transaction lock after the local wait finishes and remote cancellation completes
+or reaches its five-second cleanup deadline, allowing a new kiosk request.
+Account writes and the successful-request cooldown are not reached by a cancelled
+authorization. This broker-only change activates at `process-restart`; there is
+no D-Bus contract, Polkit policy, or saved-data migration change. See the
+[lockout regression](../../tests/component/test_authorization_lifecycle.py).
 
 An approved request initializes `DailyLimit` from saved preferences and enables
 Malcontent limits if necessary before applying the filter and grant. Unlike the

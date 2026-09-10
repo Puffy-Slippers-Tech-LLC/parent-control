@@ -32,7 +32,7 @@ from common.oh_no_parent_control_ui.test_identities import preview_users
 from .model import RequestState, public_error
 from .request_content import RequestContent
 from .selection_store import SelectionStore
-from .snowflakes import SnowflakeField
+from .snowflakes import GATEWAY_OUTER_BOUNDS, SnowflakeField
 from .floating_islands import FloatingIslands
 from .lava import LavaBands
 from .lightning import LightningDischarge
@@ -41,6 +41,7 @@ from .chrome import (
     ABOUT, BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, HELP,
     MENU, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
     HudMenuBoard, HudMenuStem, MetalBoard, PixelIcon,
+    paint_board_frame,
 )
 
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
@@ -56,20 +57,19 @@ SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
 CHILD_SUCCESS_TITLE = "Time granted"
 CHILD_SUCCESS_COPY = "Time granted, Close"
 GATEWAY_EFFECT_FRAME_MS = 33
-# The form is centered in the window while the gateway in the artwork is
-# slightly left of the image centre.  Shift the composed artwork just enough
-# to centre the form within the gateway at every resolution.
-GATEWAY_CENTERING_OFFSET = 0.03125
+# Keep the gateway separate from the side scenery when fitting the artwork.
+# These cuts pass through empty sky beside the rails, outside every island.
+GATEWAY_SCENE_CUTS = (0.27, 0.67)
+GATEWAY_WIDTH_FRACTION = 0.40
 # Native dimensions and measured corners of the gateway opening.  These points
 # sit on the innermost purple edge, rather than on the outer cyan frame. Keeping
-# them in source-image space lets the anchors follow the same responsive cover
-# scaling and crop as the painted texture.
+# them in source-image space lets the anchors follow the central artwork band.
 GATEWAY_ARTWORK_WIDTH = 3_840
 GATEWAY_ARTWORK_HEIGHT = 2_160
 # The six intended formations in the supplied artwork: four on the left and
 # two on the right. Each point is the visible tip of a crystal, in source-image
 # fractions, so an ejection visibly starts at its crystal rather than in the
-# surrounding cluster. These source-image coordinates also survive cover crop.
+# surrounding cluster. Each point follows the fitting of its own scenery band.
 CRYSTAL_LIGHTNING_TIPS = (
     (272 / 1672, 90 / 941),  # floating upper-left formation
     (164 / 1672, 314 / 941),  # left pedestal formation
@@ -89,9 +89,6 @@ GATEWAY_INNER_CORNERS = (
 # descend to the right while its lower edges rise to the right.
 GATEWAY_FORM_YAW_DEGREES = 10.0
 GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0
-# The visible gateway opening is slightly right of the overlay's allocation
-# centre. Keep the mounted form centred in that opening at every resolution.
-GATEWAY_FORM_CENTERING_OFFSET = 0.019
 PREVIEW_DEFAULT_WIDTH = 1918
 PREVIEW_DEFAULT_HEIGHT = 1443
 PREVIEW_USERS = preview_users("child")
@@ -142,26 +139,54 @@ LOG = logging.getLogger("oh-no-parent-control")
 
 
 def _gateway_artwork_geometry(width, height):
-    """Cover the screen and widen the gateway to frame the readable board."""
-    scale = max(
-        width / GATEWAY_ARTWORK_WIDTH,
-        height / GATEWAY_ARTWORK_HEIGHT,
+    """Map the central artwork without magnifying/cropping the side islands.
+
+    A readable minimum matters on small windows; desktop widths leave most
+    of the scene to the crystals. The side bands fill their own allocations.
+    """
+    left, _top, right, _bottom = GATEWAY_OUTER_BOUNDS
+    gateway_width = min(
+        width * 0.88, max(460, min(640, width * GATEWAY_WIDTH_FRACTION)),
     )
-    rendered_width = GATEWAY_ARTWORK_WIDTH * scale
-    rendered_height = GATEWAY_ARTWORK_HEIGHT * scale
-    opening_fraction = GATEWAY_INNER_CORNERS[1][0] - GATEWAY_INNER_CORNERS[0][0]
-    opening_width = min(width * 0.78, 720)
-    rendered_width = max(
-        rendered_width, opening_width / opening_fraction,
-        width / (1 - 2 * GATEWAY_CENTERING_OFFSET),
-    )
+    rendered_width = gateway_width / (right - left)
     return (
-        (width - rendered_width) / 2
-        + rendered_width * GATEWAY_CENTERING_OFFSET,
-        (height - rendered_height) / 2,
-        rendered_width,
-        rendered_height,
+        width / 2 - (left + right) / 2 * rendered_width,
+        0, rendered_width, height,
     )
+
+
+def _gateway_scene_regions(width, height):
+    """Three seamless source bands; retain both complete sides of the artwork.
+
+    Each result contains its screen clip and the full texture's affine bounds.
+    The same bounds position the original pixels and animated island masks.
+    """
+    image_x, image_y, image_width, image_height = _gateway_artwork_geometry(width, height)
+    first, second = GATEWAY_SCENE_CUTS
+    source_edges = (0, first, second, 1)
+    screen_edges = (0, image_x + first * image_width,
+                    image_x + second * image_width, width)
+    regions = []
+    for source_left, source_right, left, right in zip(
+            source_edges, source_edges[1:], screen_edges, screen_edges[1:]):
+        texture_width = (right - left) / (source_right - source_left)
+        regions.append(((left, 0, right - left, height), (
+            left - source_left * texture_width, image_y, texture_width, image_height,
+        )))
+    return tuple(regions)
+
+
+def _gateway_scene_point(width, height, x, y):
+    """Place an effect endpoint using its source band, including side crystals."""
+    if x < GATEWAY_SCENE_CUTS[0]:
+        band = 0
+    elif x > GATEWAY_SCENE_CUTS[1]:
+        band = 2
+    else:
+        band = 1
+    _clip, artwork = _gateway_scene_regions(width, height)[band]
+    image_x, image_y, image_width, image_height = artwork
+    return image_x + x * image_width, image_y + y * image_height
 
 
 def _gateway_inner_corners(width, height):
@@ -322,9 +347,12 @@ class GatewayBackground(Gtk.Widget):
 
         now = GLib.get_monotonic_time() / 1_000_000 - self._started_at
         artwork = _gateway_artwork_geometry(width, height)
-        image_bounds = Graphene.Rect().init(*artwork)
-        snapshot.append_texture(self._texture, image_bounds)
-        self._floating_islands.draw(snapshot, artwork, now)
+        for clip, region in _gateway_scene_regions(width, height):
+            snapshot.push_clip(Graphene.Rect().init(*clip))
+            image_bounds = Graphene.Rect().init(*region)
+            snapshot.append_texture(self._texture, image_bounds)
+            self._floating_islands.draw(snapshot, region, now)
+            snapshot.pop()
         self._lava.draw(snapshot, artwork, now)
 
         # A low-opacity vignette preserves legibility while allowing the
@@ -399,7 +427,9 @@ class GatewayBackground(Gtk.Widget):
             age = elapsed - bolt["starts_at"]
             if age < 0:
                 continue
-            source_x = image_x + bolt["source_x"] * image_width
+            source_x, source_y = _gateway_scene_point(
+                width, height, bolt["source_x"], bolt["source_y"],
+            )
             channel = bolt["channel"]
             active = channel.active_flash(age)
             if active is not None and bolt.get("audible_flash") != active[0]:
@@ -410,7 +440,6 @@ class GatewayBackground(Gtk.Widget):
                         flash.light(age),
                         max(-0.8, min(0.8, 2 * source_x / width - 1)),
                     )
-            source_y = image_y + bolt["source_y"] * image_height
             source_y += self._floating_islands.offset(
                 bolt["source_index"], elapsed,
             ) * image_height
@@ -466,6 +495,14 @@ class ResponsiveHud(Gtk.Widget):
         return valid and bounds.contains_point(Graphene.Point().init(x, y))
 
 
+class RequestViewport(Gtk.ScrolledWindow):
+    """Keep the iron rails and chain lugs visible while content scrolls."""
+
+    def do_snapshot(self, snapshot):
+        Gtk.ScrolledWindow.do_snapshot(self, snapshot)
+        paint_board_frame(snapshot, self.get_width(), self.get_height())
+
+
 class GatewayAlignedRequest(Gtk.Widget):
     """Container that mounts the complete request form in the gateway plane."""
 
@@ -474,13 +511,25 @@ class GatewayAlignedRequest(Gtk.Widget):
         self._child = child
         self._form_corners = ()
         self._last_layout = None
-        self._viewport = Gtk.ScrolledWindow(
+        self._viewport = RequestViewport(
             hscrollbar_policy=Gtk.PolicyType.NEVER,
-            vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+            vscrollbar_policy=Gtk.PolicyType.EXTERNAL,
             overlay_scrolling=False,
         )
+        self._viewport.add_css_class("oh-no-parent-control-request-viewport")
+        if isinstance(child, MetalBoard):
+            child.frame_visible = False
         self._viewport.set_child(child)
         self._viewport.set_parent(self)
+        # A vertical scrollbar can use the projected screen rectangle directly.
+        # Keeping this narrow input target outside the 3D allocation avoids
+        # 3D coordinate conversion shifting its hit region into the form.
+        self._scrollbar = Gtk.Scrollbar(
+            orientation=Gtk.Orientation.VERTICAL,
+            adjustment=self._viewport.get_vadjustment(),
+        )
+        self._scrollbar.set_parent(self)
+        self._scrollbar.set_visible(False)
 
     def do_measure(self, orientation, for_size):
         # Natural form dimensions must not force a fullscreen window beyond
@@ -492,14 +541,19 @@ class GatewayAlignedRequest(Gtk.Widget):
         # render tree with the window makes a high-resolution desktop look
         # like a stretched low-resolution one and compounds monitor scaling.
         # Keep native control sizes; reflow and scroll when space is limited.
-        edge = max(12, min(32, min(width, height) * 0.025))
-        # On narrow displays the board shares the HUD's horizontal space.
-        top = max(edge, 96) if width < 1000 else edge
-        available_width = max(1, width - 2 * edge
-                              - 2 * width * GATEWAY_FORM_CENTERING_OFFSET)
-        available_height = max(1, height - top - edge)
+        corners = _gateway_inner_corners(width, height)
+        left, right = corners[0][0], corners[1][0]
+        opening_top = max(corners[0][1], corners[1][1])
+        opening_bottom = min(corners[2][1], corners[3][1])
+        # Reserve a visible run of chain above and below the board. Constrain
+        # its projected bounds to the opening, not just to the fullscreen window.
+        gap = (opening_bottom - opening_top) * 0.07
+        top = max(opening_top + gap, 108 if width < 1000 else 0)
+        available_width = max(1, right - left - 8)
+        available_height = max(1, opening_bottom - gap - top)
         # Leave room for the perspective's wider near edge and board shadow.
-        child_width = max(1, min(624, int(available_width / 1.10)))
+        child_width = max(1, min(384, int(available_width / 1.04)))
+        self._child.set_margin_end(0)
         if isinstance(self._child, RequestContent):
             self._child.set_layout_width(child_width)
         _minimum_height, natural_height, _minimum_baseline, _natural_baseline = (
@@ -508,17 +562,24 @@ class GatewayAlignedRequest(Gtk.Widget):
         near_edge = 1 - math.sin(math.radians(GATEWAY_FORM_YAW_DEGREES)) * (
             child_width / 2 / GATEWAY_FORM_PERSPECTIVE_DEPTH
         )
-        child_height = max(1, min(natural_height,
-                                 int(available_height * near_edge)))
+        maximum_height = max(1, int(available_height * near_edge))
+        scrolling = natural_height > maximum_height
+        self._scrollbar.set_visible(scrolling)
+        if scrolling:
+            scrollbar_width = max(15, self._scrollbar.measure(Gtk.Orientation.HORIZONTAL, -1)[0])
+            self._child.set_margin_end(scrollbar_width + 16)
+            if isinstance(self._child, RequestContent):
+                self._child.set_layout_width(child_width - scrollbar_width - 16)
+            natural_height = self._child.measure(Gtk.Orientation.VERTICAL, child_width)[1]
+        child_height = min(natural_height, maximum_height)
 
         projection = _gateway_form_projection(child_width, child_height)
         projected_bounds = projection.transform_bounds(
             Graphene.Rect().init(0, 0, child_width, child_height),
         )
         placement = Graphene.Point().init(
-            (width - projected_bounds.get_width()) / 2
-            - projected_bounds.get_x()
-            + width * GATEWAY_FORM_CENTERING_OFFSET,
+            (left + right - projected_bounds.get_width()) / 2
+            - projected_bounds.get_x(),
             top + (available_height - projected_bounds.get_height()) / 2
             - projected_bounds.get_y(),
         )
@@ -543,19 +604,40 @@ class GatewayAlignedRequest(Gtk.Widget):
             )
         )
         self._viewport.allocate(child_width, child_height, baseline, transform)
+        if scrolling:
+            bar_height = max(1, child_height - 36)
+            bar_bounds = transform.transform_bounds(Graphene.Rect().init(
+                child_width - scrollbar_width - 16, 18, scrollbar_width, bar_height,
+            ))
+            bar_transform = Gsk.Transform.new().translate(Graphene.Point().init(
+                bar_bounds.get_x(), bar_bounds.get_y(),
+            )).scale(bar_bounds.get_width() / scrollbar_width,
+                     bar_bounds.get_height() / bar_height)
+            self._scrollbar.allocate(scrollbar_width, bar_height, baseline, bar_transform)
         monitor_scale = self.get_scale_factor()
-        layout = (width, height, child_width, child_height, natural_height, monitor_scale)
+        native = self.get_native()
+        surface = native.get_surface() if native else None
+        surface_scale = surface.get_scale() if surface else float(monitor_scale)
+        layout = (width, height, child_width, child_height, natural_height,
+                  monitor_scale, surface_scale)
         if layout != self._last_layout:
             LOG.debug(
-                "request layout viewport=%dx%d board=%dx%d monitor-scale=%d scroll=%s",
+                "request layout viewport=%dx%d board=%dx%d monitor-scale=%d "
+                "surface-scale=%.3f scroll=%s "
+                "gateway-width=%.0f opening-height=%.0f chain-gap=%.0f",
                 width, height, child_width, child_height, monitor_scale,
-                natural_height > child_height,
+                surface_scale, natural_height > child_height,
+                _gateway_artwork_geometry(width, height)[2]
+                * (GATEWAY_OUTER_BOUNDS[2] - GATEWAY_OUTER_BOUNDS[0]),
+                opening_bottom - opening_top, gap,
             )
             self._last_layout = layout
 
     def do_snapshot(self, snapshot):
         self._append_gateway_chains(snapshot)
         self.snapshot_child(self._viewport, snapshot)
+        if self._scrollbar.get_visible():
+            self.snapshot_child(self._scrollbar, snapshot)
 
     def _append_gateway_chains(self, snapshot):
         """Draw four block-built chains behind the gateway-mounted form."""
@@ -852,8 +934,12 @@ class RequestWindow(Adw.ApplicationWindow):
             "request station window initialized overlay=%s",
             child_overlay,
         )
-        if not preview:
+        if not preview or child_overlay or os.environ.get("ONPC_PREVIEW_SCREEN_FD"):
+            self.fullscreen()
             self.connect("map", lambda *_args: self.fullscreen())
+        if preview and os.environ.get("ONPC_PREVIEW_SCREEN_FD"):
+            from .preview_screen import notify_screen_ready
+            self.connect("map", lambda *_: GLib.timeout_add(100, notify_screen_ready, self))
         self._load_users()
         self._estimate_refresh_id = GLib.timeout_add_seconds(
             30, self._refresh_time_estimate,
@@ -907,6 +993,14 @@ class RequestWindow(Adw.ApplicationWindow):
             lambda *_args: self._activate_help_menu(help_popover, self._show_about),
         )
         menu_actions.append(about_item)
+        if self._preview:
+            from .preview_screen import show_screen_dialog
+            screen_item = self._hud_menu_item("Change Screens", MENU)
+            describe_control(screen_item, "Change Screens", "Choose the preview screen resolution and display scale.")
+            screen_item.connect("clicked", lambda *_: self._activate_help_menu(
+                help_popover, lambda: show_screen_dialog(self),
+            ))
+            menu_actions.append(screen_item)
         menu_board.append(menu_actions)
         self._muted = False
         self._mute_icon = PixelIcon(SPEAKER, display_size=28, label="")
@@ -948,7 +1042,7 @@ class RequestWindow(Adw.ApplicationWindow):
         top_controls.append(self._mute_button)
         top_controls.append(menu_button)
         layout.add_overlay(ResponsiveHud(top_controls))
-        if self._preview:
+        if self._preview and not self._child_overlay and not os.environ.get("ONPC_PREVIEW_SCREEN_FD"):
             # The production kiosk is fullscreen, but its frameless preview
             # still needs a compositor-supported surface for moving it.
             drag_handle = Gtk.WindowHandle()

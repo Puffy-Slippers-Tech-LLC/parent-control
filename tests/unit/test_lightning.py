@@ -3,7 +3,7 @@
 import random
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import cairo
 import pytest
@@ -13,6 +13,7 @@ from oh_no_parent_control_kiosk.main import (
     CRYSTAL_LIGHTNING_TIPS, GATEWAY_INNER_CORNERS,
     GatewayBackground,
     _gateway_artwork_geometry,
+    _gateway_scene_regions,
 )
 
 
@@ -76,7 +77,9 @@ def test_cairo_flashes_reach_both_contacts_immediately_and_do_not_depend_on_fram
 
 
 @pytest.mark.parametrize("size", ((1920, 1080), (1280, 1024), (900, 1200)))
-def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_once(size):
+@pytest.mark.parametrize("source_index", range(len(CRYSTAL_LIGHTNING_TIPS)))
+def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_once(
+        size, source_index):
     width, height = size
     background = SimpleNamespace(
         _random=random.Random(8), _lightning_enabled=True,
@@ -84,7 +87,8 @@ def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_o
         _floating_islands=SimpleNamespace(offset=lambda _index, elapsed: elapsed * 0.01),
         _lightning_audio=Mock(), queue_draw=Mock(),
     )
-    bolt = GatewayBackground._new_lightning_bolt(background, 0.0)
+    with patch.object(background._random, "randrange", return_value=source_index):
+        bolt = GatewayBackground._new_lightning_bolt(background, 0.0)
     background._lightning_bolts = [bolt]
     channel = bolt["channel"]
     channel.draw = Mock(wraps=channel.draw)
@@ -92,6 +96,14 @@ def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_o
     snapshot = SimpleNamespace(append_cairo=lambda _bounds: context)
     image_x, image_y, image_width, image_height = _gateway_artwork_geometry(width, height)
     tip = CRYSTAL_LIGHTNING_TIPS[bolt["source_index"]]
+    # Match the texture bounds used to paint the crystal's scenery band.
+    # The central gateway transform no longer positions the side islands.
+    regions = _gateway_scene_regions(width, height)
+    _clip, (crystal_x, crystal_y, crystal_width, crystal_height) = regions[
+        0 if tip[0] < 0.35 else 2
+    ]
+    source_x = crystal_x + tip[0] * crystal_width
+    assert 0 < source_x < width
     rail = GATEWAY_INNER_CORNERS[0 if tip[0] < 0.35 else 1]
     assert bolt["target_x"] == rail[0]
 
@@ -102,11 +114,11 @@ def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_o
         assert background._lightning_audio.call_count == flash_index + 1
         light, pan = background._lightning_audio.call_args.args
         assert light == pytest.approx(flash.light(age))
-        assert pan == pytest.approx(max(-0.8, min(0.8, 2 * (image_x + tip[0] * image_width) / width - 1)))
+        assert pan == pytest.approx(max(-0.8, min(0.8, 2 * source_x / width - 1)))
         _context, source, target, _scale, _age = channel.draw.call_args.args
         assert source == pytest.approx((
-            image_x + tip[0] * image_width,
-            image_y + (tip[1] + age * 0.01) * image_height,
+            source_x,
+            crystal_y + (tip[1] + age * 0.01) * crystal_height,
         ))
         assert target == pytest.approx((
             image_x + rail[0] * image_width,

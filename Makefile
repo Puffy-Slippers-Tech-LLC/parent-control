@@ -39,6 +39,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop \
 	$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png \
 	$(DATADIR)/oh-no-parent-control/app_logo.png \
+	$(DATADIR)/oh-no-parent-control/kiosk_account_icon.png \
 	$(DATADIR)/oh-no-parent-control/app_logo_titlebar.png \
 	$(DATADIR)/oh-no-parent-control/app_logo_gnome_launcher.png \
 	$(DATADIR)/pam-configs/oh-no-parent-control-session-limits \
@@ -84,7 +85,7 @@ build: check-release-version
 	trap 'status=$$?; if [ "$$status" -ne 0 ]; then printf "FAIL: build: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
 	dpkg-checkbuilddeps || (echo 'Run ./setup.sh --dependencies-only to install build prerequisites' >&2; exit 1); \
 	step='building package'; \
-	dpkg-buildpackage --build=binary --no-sign -a$(DEB_HOST_ARCH); \
+	DEB_BUILD_OPTIONS="$(strip $(DEB_BUILD_OPTIONS) nocheck)" dpkg-buildpackage --build=binary --no-sign -a$(DEB_HOST_ARCH); \
 	step='reading package version'; \
 	version=$$(dpkg-parsechangelog -S Version); \
 	step='reading package architecture'; \
@@ -227,11 +228,11 @@ check:
 
 preview-kiosk:
 	# The preview watches kiosk assets and source files; no manual relaunch is needed.
-	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.preview
 
 preview-child-overlay:
 	# The child overlay is the kiosk GUI in overlay mode, with the current child locked.
-	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.main --preview --child-overlay
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.preview --child-overlay
 
 preview-parent:
 	# The preview watches parent source and CSS files; no backend or installation is needed.
@@ -330,7 +331,7 @@ _install-product-files:
 	# maintainer script assigns this file to Ubuntu's administrator group.
 	install -m 0640 data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	install -d "$(DESTDIR)$(DATADIR)/oh-no-parent-control" "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control"
-	install -m 0644 config/config.example.json $(BRANDING_ASSETS) $(PARENT_TITLEBAR_ASSET) data/app_logo_gnome_launcher.png LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
+	install -m 0644 config/config.example.json $(BRANDING_ASSETS) $(PARENT_TITLEBAR_ASSET) data/app_logo_gnome_launcher.png data/kiosk_account_icon.png LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf.in "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0755 tools/provision.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision"
 	install -m 0644 README.md LICENSE COPYRIGHT NOTICE docs/Compliance.md docs/System-Design.md docs/Package-Update.md docs/Publishing.md docs/SystemDesign/Data-Migration.md docs/SystemDesign/Logging-and-Feedback.md "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"

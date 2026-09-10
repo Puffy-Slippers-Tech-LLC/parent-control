@@ -28,7 +28,7 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn('branding_asset_path("app_logo.png")', source)
         self.assertIn("Gtk.Image.new_from_file", source)
-        self.assertIn("icon.set_pixel_size(48)", source)
+        self.assertIn("icon.set_pixel_size(32)", source)
         self.assertNotIn('Gtk.Image.new_from_icon_name("alarm-symbolic")', source)
 
     def test_request_surfaces_only_connect_flash_triggered_audio(self):
@@ -121,7 +121,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("muted_for_surface", content)
         self.assertIn("window.oh-no-parent-control-overlay", css)
         self.assertIn("preview-child-overlay:", makefile)
-        self.assertIn("--preview --child-overlay", makefile)
+        self.assertIn("oh_no_parent_control_kiosk.preview --child-overlay", makefile)
         self.assertIn(
             "if self._child_overlay:\n            help_item = self._hud_menu_item(\"HELP\", HELP)",
             source,
@@ -148,10 +148,10 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("hexpand=True, armor_kind=\"request\"", source)
         self.assertIn("self._result_action.set_margin_start(10)", source)
         self.assertIn("self._result_action.set_margin_end(10)", source)
-        self.assertIn("self._request.set_margin_start(10)", content)
-        self.assertIn("self._request.set_margin_end(10)", content)
-        self.assertIn("self._cancel.set_margin_start(10)", content)
-        self.assertIn("self._cancel.set_margin_end(10)", content)
+        self.assertIn("self._request.set_margin_start(3)", content)
+        self.assertIn("self._request.set_margin_end(3)", content)
+        self.assertIn("self._cancel.set_margin_start(3)", content)
+        self.assertIn("self._cancel.set_margin_end(3)", content)
 
     def test_result_title_reserves_space_for_pixel_font_ink(self):
         css = (ROOT / "kiosk/oh_no_parent_control_kiosk/style.css").read_text(
@@ -247,7 +247,7 @@ class KioskRenderingTests(unittest.TestCase):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertIn(
-            "if self._preview:\n"
+            'if self._preview and not self._child_overlay and not os.environ.get("ONPC_PREVIEW_SCREEN_FD"):\n'
             "            # The production kiosk",
             source,
         )
@@ -259,8 +259,7 @@ class KioskRenderingTests(unittest.TestCase):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertIn("class GatewayBackground(Gtk.Widget):", source)
-        self.assertIn("GATEWAY_CENTERING_OFFSET = 0.03125", source)
-        self.assertIn("rendered_width * GATEWAY_CENTERING_OFFSET", source)
+        self.assertIn("_gateway_scene_regions(width, height)", source)
         self.assertIn("snapshot.append_texture(self._texture, image_bounds)", source)
         self.assertNotIn("Gdk.cairo_set_source_texture", source)
 
@@ -270,8 +269,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("class GatewayAlignedRequest(Gtk.Widget):", source)
         self.assertIn("GATEWAY_FORM_YAW_DEGREES = 10.0", source)
         self.assertIn("GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0", source)
-        self.assertIn("GATEWAY_FORM_CENTERING_OFFSET = 0.019", source)
-        self.assertIn("width * GATEWAY_FORM_CENTERING_OFFSET", source)
+        self.assertIn("corners = _gateway_inner_corners(width, height)", source)
         self.assertIn(".perspective(GATEWAY_FORM_PERSPECTIVE_DEPTH)", source)
         self.assertIn(".rotate_3d(", source)
         self.assertIn("self._viewport.allocate(child_width, child_height, baseline, transform)", source)
@@ -283,17 +281,36 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertNotIn('self._stack.add_named(self._result_view, "result")', source)
         self.assertNotIn(".skew(", source)
 
-    def test_centered_artwork_covers_portrait_and_ultrawide_windows(self):
-        from oh_no_parent_control_kiosk.main import _gateway_artwork_geometry
+    def test_scene_preserves_both_sides_and_reserves_desktop_space(self):
+        from oh_no_parent_control_kiosk.main import (
+            _gateway_artwork_geometry, _gateway_scene_regions, _gateway_scene_point,
+        )
+        from oh_no_parent_control_kiosk.floating_islands import ISLANDS, SOURCE_WIDTH, SOURCE_HEIGHT
+        from oh_no_parent_control_kiosk.snowflakes import GATEWAY_OUTER_BOUNDS
 
-        for width, height in ((480, 800), (1366, 768), (1920, 1080),
+        for width, height in ((480, 800), (1366, 768), (1536, 960), (1920, 1080),
                               (3440, 1440), (3840, 1080), (3840, 2160)):
             with self.subTest(size=(width, height)):
-                x, y, image_width, image_height = _gateway_artwork_geometry(width, height)
-                self.assertLessEqual(x, 1e-6)
-                self.assertLessEqual(y, 1e-6)
-                self.assertGreaterEqual(x + image_width, width)
-                self.assertGreaterEqual(y + image_height, height)
+                regions = _gateway_scene_regions(width, height)
+                edge = 0
+                for (x, y, clip_width, clip_height), artwork in regions:
+                    self.assertAlmostEqual(x, edge)
+                    self.assertEqual((y, clip_height), (0, height))
+                    self.assertGreater(clip_width, 0)
+                    edge = x + clip_width
+                self.assertAlmostEqual(edge, width)
+                self.assertAlmostEqual(_gateway_scene_point(width, height, 0, 0)[0], 0)
+                self.assertAlmostEqual(_gateway_scene_point(width, height, 1, 1)[0], width)
+                for island in ISLANDS:
+                    for source_x, source_y in island.outline:
+                        x, y = _gateway_scene_point(
+                            width, height, source_x / SOURCE_WIDTH, source_y / SOURCE_HEIGHT,
+                        )
+                        self.assertTrue(0 < x < width and 0 < y < height)
+                if width >= 1536:
+                    artwork_width = _gateway_artwork_geometry(width, height)[2]
+                    outer_width = artwork_width * (GATEWAY_OUTER_BOUNDS[2] - GATEWAY_OUTER_BOUNDS[0])
+                    self.assertLessEqual(outer_width, width * 0.40 + 1e-6)
 
     def test_request_form_uses_the_minecraft_board_chrome(self):
         content = KIOSK_CONTENT.read_text(encoding="utf-8")
@@ -307,10 +324,10 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn("class RequestContent(MetalBoard):", content)
         self.assertIn('branding_asset_path("app_logo.png")', content)
-        self.assertIn("icon.set_pixel_size(48)", content)
+        self.assertIn("icon.set_pixel_size(32)", content)
         self.assertIn("oh-no-parent-control-logo-plate", content)
         self.assertIn("icon = dropdown.account_icon", content)
-        self.assertIn('apply_gtk_user_icon(icon, "", pixel_size=32)', content)
+        self.assertIn('apply_gtk_user_icon(icon, "", pixel_size=24)', content)
         self.assertIn("SHIELD, display_size=20", content)
         self.assertIn("PixelIcon(LOCK, display_size=16", content)
         self.assertIn("PixelIcon(POINTER", content)
@@ -363,13 +380,13 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("set_margin_start(10)", content)
         self.assertIn("set_margin_end(10)", content)
         self.assertIn("def _paint_block_texture(", chrome)
-        self.assertIn("padding: 12px 14px;", css)
-        self.assertIn("font-size: 22px;", css)
+        self.assertIn("padding: 4px 8px;", css)
+        self.assertIn("font-size: 14px;", css)
         self.assertIn("font-size: 0.90em;", css)
         self.assertIn("font-size: 0.92em;", css)
         self.assertIn("oh-no-parent-control-account-row-inner", content)
-        self.assertIn("inner.set_margin_bottom(6)", content)
-        self.assertIn("margin: 6px 12px 6px 10px;", css)
+        self.assertIn("inner.set_margin_bottom(4)", content)
+        self.assertIn("margin: 0;", css)
         self.assertIn("padding: 2px 0 0;", css)
         self.assertIn("oh-no-parent-control-choices-inner", content)
         self.assertIn("self._duration_box.set_margin_bottom(6)", content)
@@ -377,13 +394,13 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("self._duration_box.set_margin_end(4)", content)
         self.assertNotIn("self._duration_box.set_margin_start(8)", content)
         self.assertNotIn("self._duration_box.set_margin_end(8)", content)
-        self.assertIn("margin: 4px 4px 6px;", css)
-        self.assertIn("padding: 4px 13px;", css)
+        self.assertIn("Insets are set on the FlowBox by RequestContent.", css)
+        self.assertIn("padding: 2px 8px;", css)
         self.assertIn("font-size: 0.92em;", css)
-        self.assertIn("min-height: 36px;", css)
-        self.assertIn("min-height: 62px;", css)
+        self.assertIn("min-height: 26px;", css)
+        self.assertIn("min-height: 48px;", css)
         self.assertIn("oh-no-parent-control-status-inner", content)
-        self.assertIn("margin: 8px 28px 10px 22px;", css)
+        self.assertIn("margin: 4px 28px 8px 22px;", css)
         self.assertIn("padding-bottom: 2px;", css)
         self.assertIn("set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)", content)
         self.assertIn("set_max_width_chars(26)", content)
@@ -459,26 +476,26 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn(".oh-no-parent-control-account-row {\n  min-width: 0;", css)
         self.assertIn(
             ".oh-no-parent-control-account-row {\n  min-width: 0;\n"
-            "  margin-left: 10px;\n  margin-right: 10px;\n"
+            "  margin-left: 0;\n  margin-right: 0;\n"
             "  padding: 0;\n  border: none;",
             css,
         )
         self.assertIn(
             ".oh-no-parent-control-account-row-inner {\n"
-            "  /* Keep matching top and bottom insets inside the painted metal bevel. */\n"
-            "  margin: 6px 12px 6px 10px;",
+            "  /* The child widget owns these insets; adding CSS margins doubles them. */\n"
+            "  margin: 0;",
             css,
         )
         self.assertIn(".oh-no-parent-control-choices {\n  min-width: 0;", css)
         self.assertIn(
             ".oh-no-parent-control-choices {\n  min-width: 0;\n"
-            "  margin-left: 10px;\n  margin-right: 10px;",
+            "  margin-left: 0;\n  margin-right: 0;",
             css,
         )
         self.assertIn(
             "button.oh-no-parent-control-app-filter-toggle {\n  min-width: 0;\n"
-            "  min-height: 36px;\n  padding: 7px 11px;\n  margin-left: 10px;\n"
-            "  margin-right: 10px;",
+            "  min-height: 28px;\n  padding: 3px 6px;\n  margin-left: 0;\n"
+            "  margin-right: 0;",
             css,
         )
         self.assertNotIn("min-width: 348px;", css)

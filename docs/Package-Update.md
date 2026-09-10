@@ -89,6 +89,11 @@ they introduce no boot integration or saved-data migration.
 
 ## Maintaining classifications
 
+The padded kiosk account icon (`kiosk_account_icon.png`) activates during
+package configuration (`none`): provisioning reapplies it through AccountsService.
+Its transparent margins keep the artwork inside the login avatar's circular crop.
+It introduces no saved-data migration or session payload change.
+
 Removal changes PAM and login-manager integration too. `postrm remove` records
 the Ubuntu reboot requirement. The packaged
 `/etc/apt/apt.conf.d/99zz-oh-no-parent-control-reboot-notice` uses APT's

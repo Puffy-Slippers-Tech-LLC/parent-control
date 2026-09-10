@@ -101,7 +101,12 @@ def _find_request_button():
             # from changing which real Shell actor receives virtual input.
             name = _node_name(node)
             if name.startswith("Request time, ") and " left" in name:
-                return node
+                # Devkit's monitor arrives asynchronously after the Shell
+                # accessibility tree. Wait for a real on-screen allocation;
+                # AT-SPI uses INT_MIN rectangles while no monitor is mapped.
+                extents = node.get_extents(Atspi.CoordType.SCREEN)
+                if extents.x >= 0 and extents.y >= 0 and extents.width > 0 and extents.height > 0:
+                    return node
     return None
 
 
@@ -264,7 +269,22 @@ def _wait(predicate, description):
             return GLib.SOURCE_REMOVE
         return GLib.SOURCE_CONTINUE
 
-    listener = Atspi.EventListener.new(lambda *_args: GLib.idle_add(inspect))
+    # Event-triggered inspections must run once. Returning SOURCE_CONTINUE
+    # here leaves an idle callback for every accessibility event, including
+    # callbacks that query windows destroyed during the reopen scenario.
+    # Coalesce events and remove the pending callback when this wait ends.
+    pending_inspection = {"source": None}
+
+    def inspect_event():
+        pending_inspection["source"] = None
+        inspect()
+        return GLib.SOURCE_REMOVE
+
+    def schedule_inspection(*_args):
+        if pending_inspection["source"] is None:
+            pending_inspection["source"] = GLib.idle_add(inspect_event)
+
+    listener = Atspi.EventListener.new(schedule_inspection)
     registered = [event for event in EVENTS if listener.register(event)]
     inspection_source = GLib.timeout_add(50, inspect)
     deadline_source = GLib.timeout_add(100, deadline_check)
@@ -273,7 +293,9 @@ def _wait(predicate, description):
         if result["value"] is None:
             loop.run()
     finally:
-        for source_id in (inspection_source, deadline_source):
+        for source_id in (inspection_source, deadline_source, pending_inspection["source"]):
+            if source_id is None:
+                continue
             source = GLib.MainContext.default().find_source_by_id(source_id)
             if source is not None:
                 source.destroy()

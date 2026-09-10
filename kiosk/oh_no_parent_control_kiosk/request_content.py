@@ -297,7 +297,7 @@ class RequestContent(MetalBoard):
         self._choices.set_margin_start(10)
         self._choices.set_margin_end(10)
         self._duration_box = Gtk.FlowBox(
-            selection_mode=Gtk.SelectionMode.NONE, homogeneous=True,
+            selection_mode=Gtk.SelectionMode.NONE, homogeneous=False,
             min_children_per_line=1, max_children_per_line=2,
             column_spacing=6, row_spacing=4, hexpand=True,
         )
@@ -319,7 +319,7 @@ class RequestContent(MetalBoard):
         self._custom_entry = Gtk.Entry(
             text=str(MIN_CUSTOM_MINUTES),
             input_purpose=Gtk.InputPurpose.NUMBER,
-            width_chars=8,
+            width_chars=5,
         )
         describe_control(
             self._custom_entry, "Custom duration in minutes",
@@ -339,7 +339,7 @@ class RequestContent(MetalBoard):
         filter_row.add_css_class("oh-no-parent-control-app-filter-toggle")
         filter_row.set_margin_start(10)
         filter_row.set_margin_end(10)
-        filter_inner = Gtk.Box(spacing=12)
+        filter_inner = Gtk.Box(spacing=6)
         filter_icon = PixelIcon(
             SHIELD, display_size=20, label="",
         )
@@ -375,8 +375,8 @@ class RequestContent(MetalBoard):
             "Submit the selected duration and app access choice for approval.",
         )
         self._request.add_css_class("oh-no-parent-control-request-button")
-        self._request.set_margin_start(10)
-        self._request.set_margin_end(10)
+        self._request.set_margin_start(3)
+        self._request.set_margin_end(3)
         self._request.set_sensitive(False)
         self._request.connect("clicked", on_request)
         actions.append(self._request)
@@ -402,8 +402,8 @@ class RequestContent(MetalBoard):
             "Close this request screen without requesting additional time.",
         )
         self._cancel.add_css_class("oh-no-parent-control-cancel-button")
-        self._cancel.set_margin_start(10)
-        self._cancel.set_margin_end(10)
+        self._cancel.set_margin_start(3)
+        self._cancel.set_margin_end(3)
         self._cancel.connect("clicked", on_cancel)
         actions.append(self._cancel)
         self.append(actions)
@@ -437,7 +437,7 @@ class RequestContent(MetalBoard):
             str(branding_asset_path("app_logo.png")),
         )
         # Keep the plate close to the two-line heading without dominating it.
-        icon.set_pixel_size(48)
+        icon.set_pixel_size(32)
         icon.set_valign(Gtk.Align.CENTER)
         icon.add_css_class("oh-no-parent-control-header-icon")
         plate = Gtk.Box()
@@ -482,14 +482,14 @@ class RequestContent(MetalBoard):
         # shrinks the painted face. Child margins keep labels off the bevel.
         inner = Gtk.Box(spacing=8, hexpand=True)
         inner.add_css_class("oh-no-parent-control-account-row-inner")
-        inner.set_margin_top(6)
+        inner.set_margin_top(4)
         inner.set_margin_end(12)
-        inner.set_margin_bottom(6)
+        inner.set_margin_bottom(4)
         inner.set_margin_start(10)
         icon = dropdown.account_icon
         icon.add_css_class("oh-no-parent-control-role-icon")
         icon.set_valign(Gtk.Align.CENTER)
-        apply_gtk_user_icon(icon, "", pixel_size=32)
+        apply_gtk_user_icon(icon, "", pixel_size=24)
         inner.append(icon)
         detail = Gtk.Box(
             spacing=12, hexpand=True,
@@ -509,7 +509,14 @@ class RequestContent(MetalBoard):
 
     def set_layout_width(self, width):
         """Stack account captions on narrow displays to keep names readable."""
-        narrow = width < 520
+        columns = 2 if width >= 300 else 1
+        self._duration_box.set_min_children_per_line(columns)
+        self._duration_box.set_max_children_per_line(columns)
+        narrow = width < 300
+        for dropdown in (self._accounts, self._approvers):
+            dropdown.account_icon.set_visible(not narrow)
+            # Keep one avatar when the row is compact, preserving name space.
+            dropdown._selected_icon.set_visible(narrow or width >= 400)
         if narrow == self._narrow_layout:
             return
         self._narrow_layout = narrow
@@ -517,8 +524,8 @@ class RequestContent(MetalBoard):
             detail.set_orientation(
                 Gtk.Orientation.VERTICAL if narrow else Gtk.Orientation.HORIZONTAL,
             )
-            detail.set_spacing(2 if narrow else 12)
-            caption.set_width_chars(0 if narrow else 8)
+            detail.set_spacing(2 if narrow else 6)
+            caption.set_width_chars(0 if narrow else 7)
 
     def _build_duration_choices(self):
         group = None
@@ -531,7 +538,10 @@ class RequestContent(MetalBoard):
             )
             button.add_css_class("oh-no-parent-control-choice")
             overlay = Gtk.Overlay()
-            overlay.set_child(Gtk.Label(label=label, hexpand=True))
+            overlay.set_child(Gtk.Label(
+                label=label, hexpand=True, wrap=True, max_width_chars=12,
+                justify=Gtk.Justification.CENTER,
+            ))
             pointer = PixelIcon(POINTER, display_size=14, label="")
             pointer.add_css_class("oh-no-parent-control-choice-pointer")
             pointer.set_halign(Gtk.Align.START)

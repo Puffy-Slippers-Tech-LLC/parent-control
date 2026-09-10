@@ -655,7 +655,7 @@ def authentication_diagnostics(request, record_testsuite_property):
 def test_requester_disconnect_during_approval(accounts, passwords,
                                             authentication_diagnostics,
                                             record_testsuite_property):
-    """Requester exit denies approval; a fresh connection can still authenticate."""
+    """Requester exit cancels approval while its real authentication agent lives."""
     target = accounts['child1']
     selected, other = accounts['parent1'], accounts['parent2']
 
@@ -713,18 +713,8 @@ def test_requester_disconnect_during_approval(accounts, passwords,
                     time.sleep(0.05)
                 record_testsuite_property('onpc.requester-disconnect',
                                           surface + ':bus-name-gone-before-authentication')
-                # The supported Polkit rejects authentication for the vanished
-                # subject. Require its real terminal denial, then independently
-                # establish broker completion and unchanged account state.
-                agent.authenticate(passwords['parent1'], succeeds=False)
-                # A failed terminal message alone does not finish the authority's
-                # outstanding call for a vanished subject. End this owned test
-                # agent's registration, then observe actual broker completion.
-                # Never infer completion from a fixed sleep or the caller's exit.
-                agent.close()
-                record_testsuite_property('onpc.requester-disconnect-agent',
-                                          surface + ':closed-after-terminal-denial')
-
+                # Keep the registered agent alive and never enter a password.
+                # The broker must cancel Polkit itself and release its lock.
                 deadline = time.monotonic() + 10
                 while True:
                     result = transaction_probe()
@@ -735,9 +725,17 @@ def test_requester_disconnect_during_approval(accounts, passwords,
                                   'authorization:disconnect-transaction-not-finished')
                     time.sleep(0.05)
                 finished = request_log_lines() - previous_lines
-                guest.require(any(line.endswith('request=' + correlation + ' outcome=denied')
+                guest.require(any(line.endswith('request=' + correlation + ' outcome=cancelled')
                                   for line in finished),
                               'authorization:disconnect-terminal-outcome-missing')
+                guest.require(any('request=' + correlation +
+                                  ' authorization cancel-check outcome=accepted' in line
+                                  for line in finished),
+                              'authorization:disconnect-remote-cancellation-missing')
+                guest.require(agent.child.poll() is None,
+                              'authorization:disconnect-agent-did-not-survive')
+                record_testsuite_property('onpc.requester-disconnect-agent',
+                                          surface + ':alive-after-broker-cancellation')
                 guest.require(not any('request=' + correlation + ' stage=' + stage in line
                                       for line in finished for stage in (
                                           'usage-query', 'limit-initialize', 'filter-write',
@@ -748,15 +746,15 @@ def test_requester_disconnect_during_approval(accounts, passwords,
                               'authorization:disconnect-account-state-write')
                 record_testsuite_property('onpc.requester-disconnect-result', json.dumps({
                     'surface': surface, 'request': correlation,
-                    'outcome': 'disconnected-denied-state-preserved',
+                    'outcome': 'disconnected-cancelled-state-preserved',
                     'transaction': 'busy-then-released',
                 }, sort_keys=True))
                 print(f'onpc-system: stage=requester-disconnect surface={surface} '
-                      'outcome=disconnected-denied-state-preserved', flush=True)
+                      'outcome=disconnected-cancelled-state-preserved', flush=True)
 
             # Use the same UID, selected parent, password, and displayed request
-            # on a new bus connection. A real grant proves the denial above did
-            # not arise from invalid credentials or consume the repeat interval.
+            # on a new bus connection. A real grant proves cancellation did not
+            # consume the repeat interval or leave the broker blocked.
             with PersistentCaller(caller_uid) as fresh, TextAgent(
                     fresh, record_diagnostic=authentication_diagnostics) as agent:
                 fresh.send(operation)

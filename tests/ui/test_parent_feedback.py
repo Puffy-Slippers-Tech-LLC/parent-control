@@ -1,5 +1,7 @@
 """Exercise the feedback dialog without sending real email."""
 
+import time
+
 import pytest
 from tests.support.feedback import feedback_editor, type_feedback
 
@@ -94,6 +96,8 @@ def test_feedback_submission_outcomes(
     message = feedback_editor(application, wait_for_accessible_node)
     assert wait_for_accessible_node(application, "Bold", "toggle button").do_action(0)
     type_feedback(message, "A private feedback draft", wait_for_accessible_state)
+    if status == 202:
+        wait_for_accessible_node(dialog, "Reply email (optional)", "text").text = "feedback@example.com"
     assert wait_for_accessible_node(dialog, "Send Feedback", "button").do_action(0)
     if status == 409:
         retry = wait_for_accessible_node(application, "Submit again (may duplicate)", "button")
@@ -103,7 +107,6 @@ def test_feedback_submission_outcomes(
         without = wait_for_accessible_node(application, "Send without logs", "button")
         assert message.text.strip() == "A private feedback draft"
         assert without.do_action(0)
-        wait_for_accessible_node(application, "No logs attached")
     elif status == 422:
         wait_for_accessible_node(application, "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again.")
         assert message.text.strip() == "A private feedback draft"
@@ -112,20 +115,24 @@ def test_feedback_submission_outcomes(
     confirmation = wait_for_accessible_node(
         application, "Thank you for your feedback!", "alert",
     )
-    # The label may already have ticked while AT-SPI delivered the dialog.
-    close = confirmation.child(role_name="button", retry=False)
-    assert close.name in ("Close now (3s)", "Close now (2s)", "Close now (1s)")
-    if status != 202:
-        assert close.do_action(0)
-    else:
-        wait_for_accessible_node(confirmation, "Close now (2s)", "button")
-        wait_for_accessible_node(confirmation, "Close now (1s)", "button")
     wait_for_accessible_state(
         lambda: not application.is_child("Send Feedback", role_name="frame", retry=False),
-        "confirmation dismissal also closes feedback",
+        "feedback closes before confirmation dismissal",
+    )
+    body = "Your feedback was sent successfully. We appreciate your help making the app better."
+    if status == 202:
+        body += "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+        time.sleep(4)  # Remain open beyond the former automatic dismissal.
+    wait_for_accessible_node(confirmation, body)
+    assert wait_for_accessible_node(confirmation, "Close", "button").do_action(0)
+    wait_for_accessible_state(
+        lambda: not application.is_child("Thank you for your feedback!", role_name="alert", retry=False),
+        "confirmation manually dismissed",
     )
     assert wait_for_accessible_node(application, "Feedback", "button").do_action(0)
     assert not feedback_editor(application, wait_for_accessible_node).text.strip()
+    if status == 413:
+        wait_for_accessible_node(application, "No logs attached")
     log = collect_application_logs(log_path)
     assert "A private feedback draft" not in log
     assert "Traceback" not in log

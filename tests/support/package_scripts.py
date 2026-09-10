@@ -18,6 +18,7 @@ REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***
 class Machine:
     def __init__(self, root):
         self.root = root
+        self.write("etc/os-release", 'ID=ubuntu\nVERSION_ID="26.04"\n')
         for path in ("etc/fapolicyd/rules.d", "run/systemd/system",
                      "var/lib/oh-no-parent-control", "usr/sbin", "var/mail"):
             (root / path).mkdir(parents=True, exist_ok=True)

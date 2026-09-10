@@ -33,6 +33,7 @@ def bounds(widget, ancestor):
 def inspect_layout(window):
     try:
         content = window.get_content()
+        menu_button = window._mute_button.get_next_sibling()
         form = window._request_content
         viewport = window._request_surface._viewport
         records = []
@@ -51,7 +52,9 @@ def inspect_layout(window):
                     "viewport": bounds(viewport, content),
                     "viewport_allocation": [viewport.get_width(), viewport.get_height()],
                     "gateway_opening": _gateway_inner_corners(width, height),
-                    "mute_button": bounds(window._mute_button, content),
+                    "menu_button": bounds(menu_button, content),
+                    "mute_visible": window._mute_button.get_visible(),
+                    "muted": window._muted,
                     "board_width": form.get_allocated_width(),
                     "board_minimum": form.measure(Gtk.Orientation.HORIZONTAL, -1)[0]
                     - form.get_margin_start() - form.get_margin_end(),
@@ -88,14 +91,14 @@ def inspect_layout(window):
                 while picked is not None and picked is not button:
                     picked = picked.get_parent()
                 record["duration_pick"] = picked is button
-                valid, point = window._mute_button.compute_point(
+                valid, point = menu_button.compute_point(
                     content, Graphene.Point().init(33, 33),
                 )
                 assert valid
                 picked = content.pick(point.x, point.y, Gtk.PickFlags.DEFAULT)
-                while picked is not None and picked is not window._mute_button:
+                while picked is not None and picked is not menu_button:
                     picked = picked.get_parent()
-                record["mute_pick"] = picked is window._mute_button
+                record["menu_pick"] = picked is menu_button
                 snapshot = Gtk.Snapshot.new()
                 content.get_parent().snapshot_child(content, snapshot)
                 node = snapshot.to_node()

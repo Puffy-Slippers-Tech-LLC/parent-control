@@ -50,7 +50,7 @@ diffs, and inspect only relevant source changes.
 
 State the next bounded result, verification and actual settings, then implement
 and verify one coherent slice. Apply the workflow's quality, context and attempt
-limits. Keep progress and the final report concise: do not repeat scripts,
+malimits. Keep progress and the final report concise: do not repeat scripts,
 patches, commands or tool output in prose. Use approved helpers and focused tool
 reads; expand reads when failures, truncation or uncertainty need more context.
 Preserve necessary implementation, reasoning, tests, diagnostics, evidence and

@@ -95,10 +95,11 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
         x, y, board_width, board_height = record["viewport"]
         assert x >= 0 and y >= 0, record
         assert x + board_width <= width and y + board_height <= height, record
-        hud_x, hud_y, hud_width, hud_height = record["mute_button"]
+        assert not record["mute_visible"] and record["muted"], record
+        hud_x, hud_y, hud_width, hud_height = record["menu_button"]
         assert 0 <= hud_x < hud_x + hud_width <= width, record
         assert 0 <= hud_y < hud_y + hud_height <= height, record
-        assert hud_width >= 66 and record["mute_pick"], record
+        assert hud_width >= 66 and record["menu_pick"], record
         assert record["monitor_scale"] == math.ceil(dpi_scale), record
         assert record["surface_scale"] == pytest.approx(dpi_scale), record
         assert record["status_font"] >= 12.5, record
@@ -150,8 +151,8 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
                 # Allow the intended perspective but no extra rendering zoom.
                 assert record["viewport"][2] <= record["viewport_allocation"][0] * 1.04, record
             assert record["status_font"] == reference["status_font"], record
-            assert record["mute_button"][2:] == pytest.approx(
-                reference["mute_button"][2:], abs=1,
+            assert record["menu_button"][2:] == pytest.approx(
+                reference["menu_button"][2:], abs=1,
             ), record
 
     for custom in (False, True):

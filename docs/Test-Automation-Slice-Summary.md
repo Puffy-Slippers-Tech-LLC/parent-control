@@ -290,3 +290,36 @@ must exclude this file from reads, searches, diffs and edits.
 - Verification and cleanup: Outcome: needs-review. Codex exited without a clean completed turn; inspect the current task handoff and owned operations. Worker acceptance or cleanup is unconfirmed. Verification and cleanup are unconfirmed.
 
 - Next session: Retry only if the supervisor confirms a failure before tool use; otherwise reconcile the current task handoff and owned operations.
+
+
+## Session 52 — 2026-09-09 23:50 PDT
+
+- Task: Task 20 — qualify VT6 prompt collection before authenticated installation.
+- Duration: 19 minutes
+- Completed: Identified and corrected the VT6 getty readiness predicate after a guarded attempt refused before fixture input. Password checks remain unchanged. Updated the owning contract, reuse map and handoffs; preserved unrelated frontend edits. Task 20 acceptance remains unfinished.
+
+- Verification and cleanup: Corrected focused checks: 1,415 passed. Isolated safety: 585 passed plus 3 subtests. Live attempt failed at vt6-ready; exact traceback and recovery are retained in docs/TestAutomation/Evidence/20-VT6-Prompt-Readiness-20260909.md. Normal graphical shutdown was not reached, but worker/callback cleanup, baseline restoration and source/host preservation passed. All commands exited. Documentation: 183 links valid; scoped whitespace checks passed.
+
+- Next session: Run the corrected credential-free collector once, review the actual fixture/challenge screenshots, then establish the authentication needle contract. Task 20 remains earliest ready. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 53 — 2026-09-10 00:08 PDT
+
+- Task: Task 20 — qualify corrected VT6 prompt collection.
+- Duration: 19 minutes
+- Completed: Qualified corrected VT6 prompt collection live and reviewed both terminal images. Updated the shared contract, reuse map and handoffs. Authenticated input, sudo/notice pixels and complete installation/startup acceptance remain unfinished.
+
+- Verification and cleanup: check_graphical_vt6_prompt passed; both safety runs passed 585 tests and 3 subtests. Evidence: docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md. Original failure retained. Product acceptance not run. All commands exited; shutdown, baseline restoration and source/host preservation passed. Temporary exports removed. Documentation checks passed.
+
+- Next session: Task 20 remains earliest ready: implement and verify authenticated VT6 input/session gates using the reviewed image contract. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 54 — 2026-09-10 00:16 PDT
+
+- Task: Task 20 — authenticated VT6 session observation.
+- Duration: 9 minutes
+- Completed: Implemented the fixed VT6 session observer with selected-user, terminal, active-VT and transport refusal checks. Updated the owning contract, reuse map and handoff. Password-input wiring, live qualification and Task 20 acceptance remain unfinished.
+
+- Verification and cleanup: 1,470 focused tests passed. make check passed 6,631 unit/contract and 58 component tests; 198 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Session-Gate-20260910.md. All commands exited; no VM operation or cleanup obligation was created.
+
+- Next session: Task 20 remains earliest ready. Implement the reviewed prompt needle and one-shot worker/controller input gates, then qualify guarded authentication after safety checks. Next settings: gpt-6-astra/high, Standard.

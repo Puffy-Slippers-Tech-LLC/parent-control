@@ -1,6 +1,6 @@
 # Reuse across the remaining work
 
-Reviewed 2026-09-09 against task documents, the current handoff, executable
+Reviewed 2026-09-10 against task documents, the current handoff, executable
 inventory and implemented runner interfaces, including 19B acceptance and
 Task 20's partial installation qualification.
 The [master checklist](Test-Automation.md#unfinished-tasks) owns completion
@@ -81,10 +81,22 @@ and [boundary evidence](Evidence/20-Graphical-Notice-Boundary-20260909.md) defin
 the missing genuine graphical-terminal, reviewed prompt/recipient and notice
 contract; replay, controller rendering and a post-hoc notice command are not
 acceptable substitutes. The [visible VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal)
-now records live baseline surface availability and locally tested fixed VT6
-login/sudo recipient probes, their shared diagnostics and regressions. VNC worker
-input, reviewed prompt/notice needles and live recipient qualification remain
-pending; the [VT6 evidence](Evidence/20-Visible-VT6-20260909.md) does not qualify
+now records live baseline surface availability, qualified getty/login prompt
+collection and locally tested sudo recipient probes, diagnostics and regressions. The
+existing credential-free `onpc_vt6::inspect_prompt` worker/controller route is
+now linked there, with its [first readiness refusal and local correction](Evidence/20-VT6-Prompt-Readiness-20260909.md).
+The getty gate accepts supported raw/userspace-echo and canonical/kernel-echo
+prompt modes; password checks are unchanged. The
+[corrected prompt qualification](Evidence/20-VT6-Prompt-Qualification-20260910.md)
+passed both recipient-bound captures and final preservation, with directly
+reviewed native 1024×768 login/challenge pixels and a documented needle contract.
+The fixed `VT6_SESSION` observer now shares the graphical/serial session predicate
+and has [local gate/refusal verification](Evidence/20-VT6-Session-Gate-20260910.md),
+linked with its regression IDs and limits from that same owning contract.
+Needle implementation, password input, worker/controller session continuity,
+live session qualification and sudo/notice pixels remain pending.
+Neither this collection pass nor the earlier
+[VT6 surface evidence](Evidence/20-Visible-VT6-20260909.md) qualifies
 authentication or E2E-002. These qualifications do not resolve the
 intermittent recipient failure; diagnostics passed locally and were not triggered
 in the latest live attempt. The [active Task 20 handoff](Task-20.md#task-20-continuation--2026-09-08)

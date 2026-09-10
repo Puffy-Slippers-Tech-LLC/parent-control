@@ -9,6 +9,15 @@ Implementation: [service.py](../../broker/oh_no_parent_control/service.py), [Mak
 
 ## Startup, login, and update lifecycle
 
+The `.deb` pre-installation script requires Ubuntu (`ID=ubuntu`) version 26.04
+or newer for installs, reinstalls, and upgrades. It reads `/etc/os-release`,
+falling back to `/usr/lib/os-release` only when the former is absent. Other
+distributions (including Ubuntu derivatives), older Ubuntu releases, and
+missing or unverifiable release information are rejected with an explanatory
+message before package files, state, or services are changed. Aborted-upgrade
+recovery and removal remain available. This gate activates during package
+installation (`none`); it adds no runtime integration or saved-data migration.
+
 Broker construction first reconciles the discovered accounts' current
 AccountsService filters into fapolicyd. It then reasserts the packaged extension's
 activation for every

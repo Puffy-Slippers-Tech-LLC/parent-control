@@ -156,6 +156,9 @@ def test_customer_reboot_uses_real_readiness_loop_and_revalidates_final_boot(mon
     ('serial-session', guest_observations.SERIAL_SESSION, 110,
      {'fixture_role': 'parent', 'active_local_serial_session': True,
       'unexpected_user_session': False}, b'serial-session-ready\n'),
+    ('vt6-session', guest_observations.VT6_SESSION, 110,
+     {'fixture_role': 'parent', 'active_local_vt6_session': True,
+      'unexpected_user_session': False, 'active_vt6_verified': True}, b'vt6-session-ready\n'),
 ])
 def test_fixed_probe_checks_ownership_before_and_after_output(observer, name, program, timeout, result, raw):
     reader, transport = observer
@@ -172,14 +175,15 @@ def test_fixed_probe_checks_ownership_before_and_after_output(observer, name, pr
     transport.copy.assert_not_called()
 
 
-@pytest.mark.parametrize('name', ['vt6-password', 'vt6-install-password', 'vt6-reboot-password'])
+@pytest.mark.parametrize('name', ['vt6-password', 'vt6-install-password', 'vt6-reboot-password',
+                                  'vt6-session'])
 @pytest.mark.parametrize('fault', ['serial', 'other-purpose', 'trailing', 'inactive',
                                   'transport', 'ownership'])
 def test_vt6_proofs_refuse_other_surfaces_private_output_and_latch(observer, name, fault, capsys):
     reader, transport = observer
-    raw = (name + '-safe\n').encode()
+    raw = (name + ('-ready\n' if name == 'vt6-session' else '-safe\n')).encode()
     if fault == 'serial':
-        raw = raw.replace(b'vt6-', b'serial-' if name == 'vt6-password' else b'')
+        raw = raw.replace(b'vt6-', b'serial-' if name in ('vt6-password', 'vt6-session') else b'')
     elif fault == 'other-purpose':
         raw = b'vt6-reboot-password-safe\n' if name != 'vt6-reboot-password' else b'vt6-install-password-safe\n'
     elif fault == 'trailing':
@@ -489,32 +493,53 @@ def test_authentication_requires_exact_safe_success(observer, raw):
         reader.read('parent-session')
 
 
-@pytest.mark.parametrize('serial', [False, True])
+@pytest.mark.parametrize('surface', ['parent', 'serial', 'vt6'])
 @pytest.mark.parametrize('fault', [None, 'wrong-user', 'inactive', 'remote', 'tty',
-                                  'wrong-service', 'greeter', 'duplicate', 'other-session'])
-def test_actual_guest_authentication_probe_rejects_wrong_sessions(fault, capsys, serial):
+                                  'wrong-service', 'greeter', 'duplicate', 'other-session',
+                                  'root-local', 'root-graphical', 'missing-user', 'missing-tty',
+                                  'wrong-type', 'empty', 'too-many', 'deadline', 'transport',
+                                  'foreground-before', 'foreground-during', 'foreground-after',
+                                  'foreground-unreadable'])
+def test_actual_guest_authentication_probe_rejects_wrong_sessions(fault, capsys, surface):
     from types import SimpleNamespace
     from unittest.mock import patch
     parent = dict(Class='user', Active='yes', Remote='no', Type='wayland',
                   Service='gdm-password', User='1234')
-    if serial:
-        parent.update(Type='tty', TTY='ttyS0', Service='login')
+    terminal = surface != 'parent'
+    if terminal:
+        parent.update(Type='tty', TTY='tty6' if surface == 'vt6' else 'ttyS0', Service='login')
     fields = {'wrong-user': ('User', '9876'), 'inactive': ('Active', 'no'),
               'remote': ('Remote', 'yes'), 'tty': ('Type', 'tty'),
               'wrong-service': ('Service', 'sshd'), 'greeter': ('Class', 'greeter')}
-    if serial:
+    if terminal:
         fields['tty'] = ('TTY', 'ttyS1')
+    fields['wrong-type'] = ('Type', 'wayland' if terminal else 'tty')
     if fault in fields:
         key, value = fields[fault]
         parent[key] = value
+    if fault in ('missing-user', 'missing-tty'):
+        parent.pop('User' if fault == 'missing-user' else 'TTY', None)
     sessions = {'parent': parent, 'observer': dict(Class='user', Active='yes', Remote='yes',
                                                  Type='tty', Service='sshd', User='0')}
     if fault in ('duplicate', 'other-session'):
         sessions['extra'] = dict(parent, User='1234' if fault == 'duplicate' else '9876')
+    if fault in ('root-local', 'root-graphical'):
+        sessions['observer']['Remote' if fault == 'root-local' else 'Type'] = (
+            'no' if fault == 'root-local' else 'wayland')
+    if fault == 'empty':
+        sessions = {}
+    if fault == 'too-many':
+        sessions = {str(index): parent for index in range(33)}
     clock = [0]
+    commands = []
     def call(args, **kwargs):
         assert kwargs['check'] and 0 < kwargs['timeout'] <= 10
         assert args[:2] in (('loginctl', 'list-sessions'), ('loginctl', 'show-session'))
+        commands.append(args)
+        if fault == 'transport':
+            raise OSError('private-canary')
+        if fault == 'deadline':
+            clock[0] = 100
         output = ('\n'.join(sessions) if args[1] == 'list-sessions' else
                   '\n'.join(key + '=' + value for key, value in sessions[args[2]].items()))
         return SimpleNamespace(stdout=output)
@@ -524,12 +549,33 @@ def test_actual_guest_authentication_probe_rejects_wrong_sessions(fault, capsys,
     modules = {'subprocess': SimpleNamespace(run=call), 'pwd': SimpleNamespace(getpwnam=account),
                'time': SimpleNamespace(monotonic=lambda: clock[0],
                                        sleep=lambda _: clock.__setitem__(0, 100))}
+    class ActiveVT:
+        def __init__(self, path):
+            assert path == '/sys/class/tty/tty0/active'
+
+        def read_text(self):
+            if fault == 'foreground-unreadable':
+                raise OSError('private-canary')
+            changed = (fault == 'foreground-before'
+                       or fault == 'foreground-during' and len(commands) >= 1
+                       or fault == 'foreground-after' and len(commands) >= 3)
+            return 'tty1\n' if changed else 'tty6\n'
+    if surface == 'vt6':
+        modules['pathlib'] = SimpleNamespace(Path=ActiveVT)
+    foreground_fault = bool(fault and fault.startswith('foreground-'))
+    rejected = bool(fault) and not (foreground_fault and surface != 'vt6'
+                                   or fault == 'missing-tty' and not terminal)
+    immediate = fault in ('too-many', 'deadline', 'transport') or foreground_fault and rejected
+    error = OSError if fault in ('transport', 'foreground-unreadable') else AssertionError
+    program = {'parent': guest_observations.PARENT_SESSION,
+               'serial': guest_observations.SERIAL_SESSION, 'vt6': guest_observations.VT6_SESSION}[surface]
     with patch.dict(sys.modules, modules):
-        if fault:
-            with pytest.raises(SystemExit) as caught:
-                exec(guest_observations.SERIAL_SESSION if serial else guest_observations.PARENT_SESSION, {})
-            assert caught.value.code == 1
+        if rejected:
+            with pytest.raises(error if immediate else SystemExit) as caught:
+                exec(program, {})
+            if not immediate:
+                assert caught.value.code == 1
         else:
-            exec(guest_observations.SERIAL_SESSION if serial else guest_observations.PARENT_SESSION, {})
-    prefix = 'serial' if serial else 'parent'
-    assert capsys.readouterr().out == prefix + ('-session-not-ready\n' if fault else '-session-ready\n')
+            exec(program, {})
+    assert capsys.readouterr().out == ('' if immediate else surface + (
+        '-session-not-ready\n' if rejected else '-session-ready\n'))

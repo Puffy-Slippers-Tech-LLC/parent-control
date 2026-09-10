@@ -24,7 +24,7 @@ Implementation: [parent main.py](../../parent/oh_no_parent_control_parent/main.p
 3. **Child request:** Selecting the panel indicator launches the kiosk GTK form
    as a fullscreen overlay. `GetOwnAccount` fixes and collapses the child
    selector. The overlay loads shared per-child request choices, uses the
-   child-only mute value, and calls `RequestOwnAccess`. Cancel or Escape closes
+   child-only mute preference for future use, and calls `RequestOwnAccess`. Cancel or Escape closes
    the overlay; approval briefly confirms success and then closes it.
 4. **Kiosk request:** The dedicated GNOME session lists eligible children and
    approvers, loads the selected child's request choices, and calls
@@ -119,7 +119,10 @@ exclusions follow the central gateway. See [scenery assets and generation
 prompt](../Artwork/Request-Scenery.md) for the source-pixel boundary and package
 activation. No scenery silhouette is stretched to fill unused screen width.
 The form measures against the gateway opening and reserves space above and
-below for the curved chains. Layout diagnostics log allocations, monitor scale,
+below for the curved chains. Both request views render the chains on a shared
+coarse pixel grid with nearest-neighbour enlargement. Stepped iron links use
+flat cyan and purple highlights, retaining the curved hang and rail attachments
+at each display size. Layout diagnostics log allocations, monitor scale,
 gateway dimensions, scenery scale and chain gaps without account information.
 
 Duration choices reflow between two columns and one, with wrapped captions when
@@ -147,8 +150,10 @@ replayed after a delayed frame. The stream uses GStreamer's supported
 [appsrc interface](https://gstreamer.freedesktop.org/documentation/app/appsrc.html)
 with short live PCM buffers to keep attacks near the animation.
 
-The existing per-child mute values still control sound and lightning together.
-Audio starts muted while preferences load. Muting flushes voices and playback;
+Sound and lightning are temporarily disabled on both request surfaces, and the
+mute/unmute button is hidden and insensitive. `REQUEST_MEDIA_ENABLED` retains a
+single restoration switch; saved per-child mute values and handlers remain in
+place, but cannot unmute the current UI. Muting flushes voices and playback;
 unmuting waits for a fresh visible flash. Successful dismissal fades remaining
 effects, and window destruction releases the pipeline. Missing audio output
 disables sound without preventing requests. Logs report state and error codes,

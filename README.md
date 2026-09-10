@@ -4,7 +4,7 @@
 
 # Developer handbook
 
-This README is for developers and maintainers. Run commands from the repository root on Ubuntu 26.04 Desktop.
+Run commands from the repository root on Ubuntu 26.04 Desktop.
 
 ## Set up a development machine
 
@@ -12,29 +12,26 @@ This README is for developers and maintainers. Run commands from the repository 
 ./setup.sh
 ```
 
-Setup installs development/build dependencies, the UI test environment, VM host tooling, and test helpers. First setup may request administrator authentication. Rerun it to refresh the environment.
+First setup may require administrator authentication. Rerun to refresh dependencies and tooling.
 
-For release signing, manually create the local environment file once:
+For release signing, create `.envrc` only if absent:
 
 ```sh
 cp .envrc.example ./.envrc
 chmod 600 ./.envrc
 ```
 
-Edit `./.envrc` and replace the placeholder for
-`APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` with the value from Keeper's
-“Oh No Parent Control” entry. Preserve an existing configured `.envrc`.
-`setup.sh` does not create this file or fill in the value. `.envrc` is
-gitignored; keep the real value out of `.envrc.example` and version control.
-The [publishing procedure](docs/Publishing.md#noninteractive-signing) uses this
-file for signing without passphrase or clipboard-readiness prompts.
+Set `APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` in `.envrc` from Keeper's “Oh No Parent Control” entry. Keep the value out of `.envrc.example` and version control. See [signing setup](docs/Publishing.md#noninteractive-signing).
 
 | Task | Command |
 | --- | --- |
 | Refresh dependencies | `./setup.sh --dependencies-only` |
+| Install clean PPA build tools | `./setup.sh --ppa-build-tools` |
 | Refresh test helpers and policies | `./setup.sh --test-tools-only` |
 | Refresh Codex rules | `./setup.sh --codex-rules-only` |
 | Show all setup modes | `./setup.sh --help` |
+
+Restart Codex after refreshing rules; trust this checkout.
 
 ## Preview while editing
 
@@ -45,7 +42,7 @@ file for signing without passphrase or clipboard-readiness prompts.
 | Shared child request overlay | `make preview-child-overlay` |
 | Child extension in nested GNOME Shell | `make preview-child` |
 
-Previews use fixture data and reload supported source/style changes. Close the preview or press Ctrl+C to stop. In kiosk/overlay previews, use **Change Screens** to adjust resolution and scale.
+Close the preview or press Ctrl+C to stop. Use **Change Screens** in kiosk/overlay previews to set resolution and scale.
 
 ## Build and install locally
 
@@ -54,7 +51,7 @@ make check-release-version
 make build
 ```
 
-Build output is in `output/`. `make build` skips tests; run the checks below separately.
+Output: `output/`. Run tests separately; `make build` skips them.
 
 | Task | Command |
 | --- | --- |
@@ -81,24 +78,24 @@ Follow package reboot notices. Log out of the kiosk session before removal; remo
 | Requirement mappings | `tools/run-tests traceability stage` |
 | Available categories | `tools/run-tests --list` |
 
-Pass specific test files to narrow a run. Quote filename patterns and parametrized test IDs:
+Select test files as needed. Quote patterns and parametrized test IDs:
 
 ```sh
 tools/run-unit-tests tests/unit/test_publish_release.py -q
 tools/run-ui-tests --timeout 180s tests/ui/test_request_form_component.py -q
 ```
 
-Validated launchers run required cleanup-safety checks automatically. Before direct Make checks that terminate processes, run these prerequisites and proceed only if they pass:
+Before direct Make checks that terminate processes, run the cleanup prerequisites below. Proceed only on success. Validated launchers run them automatically.
 
 ```sh
 tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' tests/unit/test_graphical_lease.py -q
 ```
 
-See the [test contributor guide](tests/README.md) for selection and artifact details.
+Reference: [test commands and artifacts](tests/README.md).
 
 ## Run VM and graphical E2E tests
 
-Prepare the existing test VM using the [VM environment procedure](tests/integration/Environment.md): `./setup.sh --prepare-vm` inside the source guest, then `./setup.sh --prepare-host` on the host. Reuse the accepted baseline for daily runs.
+Follow [VM setup](tests/integration/Environment.md). Run `./setup.sh --prepare-vm` inside the source guest, then `./setup.sh --prepare-host` on the host. Reuse the accepted baseline.
 
 List available cases and build fresh package/fixture inputs:
 
@@ -120,36 +117,38 @@ tools/run-tests e2e --artifacts "$ARTIFACT_DIR" --scenario E2E-001
 
 Keep the checkout unchanged during artifact builds and test attempts. Stop VM maintenance before starting tests. Use `tools/test-vm status` to inspect the pinned VM.
 
-E2E runs only ready scenarios; pending selections refuse execution. The `make test-fast`, `make test-system`, `make test-e2e`, and `make test-all` aliases are not implemented. See the [installed-system runner](tests/integration/README.md) and [E2E runner](tests/e2e/README.md) for current scope and recovery commands.
+Use registered E2E scenarios. The `make test-fast`, `make test-system`, `make test-e2e`, and `make test-all` aliases are unavailable. References: [system tests](tests/integration/README.md), [E2E tests](tests/e2e/README.md).
 
 ## Publish a release
 
-Use the [publishing procedure](docs/Publishing.md) for signing-key setup, versioning, tagging, upload, and publication checks.
-
-1. Commit the intended release changes; preparation requires a clean checkout.
+1. Bump the product version for product updates; retain it for packaging-only corrections. Commit the intended changes. Require a clean checkout.
 2. Plan an unused PPA version and prepare a new isolated release directory:
 
    ```sh
-   python3 tools/publish_release.py plan
-   python3 tools/publish_release.py prepare /tmp/onpc-release-UNIQUE
+   tools/publish-release plan
+   tools/publish-release prepare /tmp/onpc-release-UNIQUE
    ```
 
-3. In the prepared `source/` checkout, follow the publishing procedure to commit/tag the release, build with `dpkg-buildpackage --build=binary --no-sign`, run applicable checks, and create the signed source package. Complete the [release compliance checks](docs/Compliance.md).
-4. Inspect the signed artifacts:
+3. In the prepared `source/` checkout, follow [publishing](docs/Publishing.md) to sign the commit/tags, build the source package, and complete [compliance checks](docs/Compliance.md).
+4. From the development checkout, inspect and build the signed source:
 
    ```sh
-   python3 tools/publish_release.py inspect /tmp/onpc-release-UNIQUE/source
+   tools/publish-release inspect /tmp/onpc-release-UNIQUE/source
+   tools/publish-release check-build /tmp/onpc-release-UNIQUE/source
    ```
 
-5. After release approval, push the reviewed commit and signed tags, then upload the signed source `.changes` using the documented `dput` command. Confirm Launchpad build and publication success.
+5. Run applicable runtime tests and [upgrade checks](docs/Publishing.md#subsequent-releases-and-upgrade-acceptance). Rebuild source artifacts after fixes; repeat affected checks.
+6. With publication authorization, push the reviewed commit/tags and upload the signed source `.changes` using the documented `dput` command. Verify Launchpad build and binary publication success.
 
-Use a new directory name in place of `UNIQUE`. Keep signing keys outside the repository. Upload the signed source package to Launchpad; local `.deb` files are for local testing.
+Replace `UNIQUE` with a new release directory name. Keep signing keys outside the repository.
+
+Local builder: Ubuntu 26.04/amd64. Logs, artifacts and results: `/tmp/onpc-ppa-check-*`. Reference: [local PPA validation](docs/Local-PPA-Validation.md).
 
 ## Diagnose failures
 
 Logs: `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log`.
 
-Use `tools/diagnose` for system diagnostics and the [approved diagnostic commands](docs/TestAutomation/Approval-Tools.md) for privileged reads. Preserve failed test artifacts and logs; keep personal information out of shared reports.
+Use `tools/diagnose`; see [diagnostic commands](docs/TestAutomation/Approval-Tools.md). Preserve logs and failed artifacts. Redact personal information before sharing reports.
 
 Check documentation edits with:
 

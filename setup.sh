@@ -10,6 +10,7 @@ usage() {
 Usage: ./setup.sh [MODE]
   (no mode)             Set up/refresh the development machine and VM host
   --dependencies-only   Install development, build, UI and VM host dependencies
+  --ppa-build-tools     Install clean local PPA build prerequisites
   --test-tools-only     Refresh test helpers, graphical policies and Codex rules
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
@@ -29,7 +30,7 @@ if (( $# > 1 )); then
 fi
 readonly mode="${1-}"
 case "$mode" in
-    ''|--dependencies-only|--test-tools-only|--codex-rules-only|--bootstrap-tools|--prepare-host|--prepare-vm|--install-extension) ;;
+    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--codex-rules-only|--bootstrap-tools|--prepare-host|--prepare-vm|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -79,6 +80,10 @@ install_test_tools() {
 }
 
 case "$mode" in
+    --ppa-build-tools)
+        echo 'setup: [stage:ppa-build-tools]'
+        run_root ppa-build-tools /bin/bash "$script_dir/tools/setup_dependencies.sh" --ppa-build-tools
+        ;;
     --codex-rules-only) install_codex_rules ;;
     --test-tools-only) install_test_tools ;;
     --bootstrap-tools)

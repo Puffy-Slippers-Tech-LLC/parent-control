@@ -25,11 +25,13 @@ def test_only_fixed_modules_and_arguments_are_selected(operation, relative, opti
 def test_host_dependencies_use_only_the_fixed_package_module():
     assert helper['command'](ROOT, ['dependencies']) == [
         '/bin/bash', str(ROOT / 'tools/setup_dependencies.sh')]
+    assert helper['command'](ROOT, ['ppa-build-tools']) == [
+        '/bin/bash', str(ROOT / 'tools/setup_dependencies.sh'), '--ppa-build-tools']
 
 
 @pytest.mark.parametrize('args', [[], ['shell'], ['python3'], ['codex-rules', '/tmp/rules'],
                                   ['test-tools', '--command', 'arbitrary'], ['prepare-host', '--reset'],
-                                  ['dependencies', '/tmp/install.sh'], ['checkout']])
+                                  ['dependencies', '/tmp/install.sh'], ['ppa-build-tools', '--command', 'id'], ['checkout']])
 def test_arbitrary_operations_and_trailing_arguments_are_refused(args):
     with pytest.raises(ValueError):
         helper['command'](ROOT, args)

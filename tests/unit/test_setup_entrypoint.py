@@ -48,7 +48,7 @@ os.execv(command[0], command)
         module = Path(name).name + '.py'
         (root / name).write_text(
             '#!/bin/bash\n'
-            f'/usr/bin/python3 -B "$(dirname -- "${{BASH_SOURCE[0]}}")/{module}"\n')
+            f'/usr/bin/python3 -B "$(dirname -- "${{BASH_SOURCE[0]}}")/{module}" "$@"\n')
         (root / name).with_name(module).write_text(stub)
     # Privilege dispatch is exercised, but this fixture never elevates privileges.
     pkexec = root / 'bin/pkexec'
@@ -85,6 +85,7 @@ DEPS = [('setup_dependencies.sh.py', []), ('setup_checkout.sh.py', [])]
 @pytest.mark.parametrize('mode,expected', [
     ([], [*DEPS, *TOOLS]),
     (['--dependencies-only'], DEPS),
+    (['--ppa-build-tools'], [('setup_dependencies.sh.py', ['--ppa-build-tools'])]),
     (['--test-tools-only'], TOOLS),
     (['--codex-rules-only'], RULES),
     (['--prepare-host'], [('prepare_host.py', []), *TOOLS]),
@@ -105,6 +106,7 @@ def test_modes_repeat_complete_scope_from_any_working_directory(checkout, mode, 
     ([], 'setup_dependencies.sh.py', DEPS[:1]),
     ([], 'setup_checkout.sh.py', DEPS),
     (['--dependencies-only'], 'setup_dependencies.sh.py', DEPS[:1]),
+    (['--ppa-build-tools'], 'setup_dependencies.sh.py', [('setup_dependencies.sh.py', ['--ppa-build-tools'])]),
     (['--test-tools-only'], 'install_test_runner.py', [('install_test_runner.py', [])]),
     (['--test-tools-only'], 'install_graphical_test_policy.py', TOOLS[:2]),
     (['--codex-rules-only'], 'install_codex_rules.py', RULES[:1]),
@@ -129,7 +131,7 @@ def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, c
 
 @pytest.mark.skipif(os.geteuid() == 0, reason='authorization gate applies to unprivileged callers')
 @pytest.mark.parametrize('mode', ['', '--test-tools-only', '--codex-rules-only', '--prepare-host',
-                                  '--dependencies-only', '--bootstrap-tools'])
+                                  '--dependencies-only', '--ppa-build-tools', '--bootstrap-tools'])
 def test_denied_routine_setup_never_falls_back_to_authentication(checkout, mode):
     result, events = run_setup(checkout, mode, denied=True)
     assert result.returncode == 23

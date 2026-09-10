@@ -56,6 +56,39 @@ Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 changing unrelated system/user rules. These reads cover any working directory
 or repository; select a repository with the command tool's working directory.
 
+## Release preparation and inspection
+
+Use the maintained executable release entry point:
+
+```sh
+tools/publish-release plan
+tools/publish-release status
+tools/publish-release prepare /tmp/onpc-release-UNIQUE
+tools/publish-release inspect /tmp/onpc-release-UNIQUE/source
+tools/publish-release check-build /tmp/onpc-release-UNIQUE/source
+```
+
+The helper validates operations and confines release directories to caller-owned
+`/tmp/onpc-release-*` trees without symlinks, public writes or writes by a group
+other than the caller's primary group (the normal development umask is supported). It
+reuses the existing version planning, clone preparation and signed-artifact
+inspection implementation. `check-build` copies the checksum-verified source
+DSC/archive into a new `/tmp/onpc-ppa-check-*` attempt, then invokes sbuild with
+fixed resolute/amd64 settings, enabled tests and no build network. No arbitrary
+sbuild options, command hooks, bind mounts or environment overrides are exposed.
+It never signs, pushes, uploads, installs the app on the host or
+controls the VM. Public status is source history, not binary build acceptance.
+Trust includes the maintained helper, its implementation and reviewed release
+sources. General Python, shells and arbitrary Docker commands are not granted.
+
+Refresh with `./setup.sh --codex-rules-only`, then restart Codex in this trusted
+checkout. The rule covers relative, `./` and development-checkout absolute paths;
+use the absolute launcher when working in a release clone. Rules are loaded at
+startup, so an already-running publication session retains its loaded rules.
+Other applicable prompt/forbidden rules still take precedence over an allow.
+See [Codex rules](https://learn.chatgpt.com/docs/agent-configuration/rules).
+Activation is development-only (`none`); no product migration or restart.
+
 ## Launcher inspection and workspace edits
 
 Use the executable checkout entry point for slice-launcher inspection:
@@ -121,7 +154,7 @@ and `match`/`not_match` examples test a rule rather than validate runtime argume
 
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
-`codex-rules`, `test-tools`, `graphical-policy` or `prepare-host`, with no extra
+`codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools` or `prepare-host`, with no extra
 paths or arguments. Its
 dedicated Polkit action defaults to denial and grants only active local members
 of `sudo`. `setup.sh` checks this authorization without requesting interaction

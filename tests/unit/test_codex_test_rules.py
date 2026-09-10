@@ -102,7 +102,7 @@ def test_renderer_requires_inspection_launcher_and_preserves_quoted_checkout_pat
     (root / 'config').mkdir()
     (root / 'config/codex-tests.rules').write_bytes((ROOT / 'config/codex-tests.rules').read_bytes())
     for name in ('run-unit-tests', 'run-ui-tests', 'run-tests', 'diagnose', 'test-vm',
-                 'cleanup-screenshots', 'read-only'):
+                 'cleanup-screenshots', 'read-only', 'publish-release'):
         (root / 'tools' / name).touch(mode=0o755)
     launcher = root / 'tools/codex_slices.py'
     if unsafe == 'not-executable':
@@ -141,6 +141,20 @@ def test_renderer_requires_inspection_launcher_and_preserves_quoted_checkout_pat
 def test_validated_routes_only_match_allow_rules(command):
     decisions = [rule['decision'] for rule in entries() if matches(rule['pattern'], shlex.split(command))]
     assert decisions and set(decisions) == {'allow'}
+
+
+@pytest.mark.parametrize('entrypoint', [
+    'tools/publish-release', './tools/publish-release', '@CHECKOUT@/tools/publish-release',
+])
+@pytest.mark.parametrize('args', [
+    ['--help'], ['plan'], ['status'], ['prepare', '/tmp/onpc-release-test'],
+    ['inspect', '/tmp/onpc-release-test/source'],
+    ['check-build', '/tmp/onpc-release-test/source'],
+])
+def test_release_routes_are_allowed(entrypoint, args):
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    assert {rule['decision'] for rule in rules
+            if matches(rule['pattern'], [entrypoint, *args])} == {'allow'}
 
 
 @pytest.mark.parametrize('command', [

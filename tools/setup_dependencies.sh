@@ -4,8 +4,8 @@ set -euo pipefail
 # Host package module; setup.sh supplies the scoped privilege authorization.
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly apt_lock_timeout_seconds=300
-if (( $# != 0 || EUID != 0 )); then
-    echo 'setup-dependencies: use ./setup.sh --dependencies-only with installed setup authorization' >&2
+if (( EUID != 0 || $# > 1 )) || { (( $# == 1 )) && [[ "$1" != '--ppa-build-tools' ]]; }; then
+    echo 'setup-dependencies: use ./setup.sh with installed setup authorization' >&2
     exit 2
 fi
 if ! command -v apt-get >/dev/null; then
@@ -16,7 +16,15 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 apt_get=(apt-get -o "DPkg::Lock::Timeout=$apt_lock_timeout_seconds")
 
+install_ppa_build_tools() {
+    "${apt_get[@]}" install -y --no-install-recommends sbuild mmdebstrap uidmap ubuntu-keyring
+}
+
 "${apt_get[@]}" update
+if [[ "${1-}" == '--ppa-build-tools' ]]; then
+    install_ppa_build_tools
+    exit 0
+fi
 "${apt_get[@]}" install -y software-properties-common
 add-apt-repository -y universe
 "${apt_get[@]}" update
@@ -88,3 +96,4 @@ add-apt-repository -y universe
     iproute2=6.19.0-1ubuntu1.1
 
 "${apt_get[@]}" build-dep -y "$script_dir"
+install_ppa_build_tools

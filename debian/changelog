@@ -1,3 +1,9 @@
+oh-no-parent-control (1.0+ppa1~ubuntu26.04.1) resolute; urgency=medium
+
+  * Build Oh No! Parent Control 1.0 for the PPA.
+
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Thu, 10 Sep 2026 11:07:34 -0700
+
 oh-no-parent-control (1.0) resolute; urgency=medium
 
   * Initial Ubuntu 26.04 package.

@@ -22,6 +22,24 @@ def state(rig):
     return json.loads((rig.directory / "phase.json").read_text())
 
 
+def test_simulated_baseline_hashes_source_archive_without_pinned_checkout(rig, monkeypatch):
+    read_bytes = Path.read_bytes
+
+    def archive_only(path):
+        assert path.is_relative_to(ROOT), "fixture accessed a different checkout"
+        return read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", archive_only)
+    capture = host.Capture(rig.source, rig.commands, rig.inspect,
+                           anchor=rig.anchor, directory=rig.directory)
+    assert capture.script_digest == SCRIPT_DIGEST
+
+
+def test_simulated_baseline_still_rejects_explicit_incomplete_source(rig, tmp_path):
+    with pytest.raises(guest.PreparationError, match="guard:checkout"):
+        guest.preparation_digest(tmp_path)
+
+
 def test_capture_creates_named_internal_snapshot_without_copy(rig):
     before = host.digest(rig.anchor)
     rig.capture().run()

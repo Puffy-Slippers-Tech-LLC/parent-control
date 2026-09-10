@@ -401,17 +401,23 @@ def test_public_callback_exit_status_matches_generalhw(action, result, code):
         peer.settimeout.assert_called_once_with(240)
 
 
-@pytest.mark.parametrize('path', ['/tmp/with space/socket', '/tmp/a;echo', 'relative'])
+@pytest.mark.parametrize('path', [
+    '/tmp/with space/socket', '/tmp/a;echo', 'relative', '/tmp/a\nsocket',
+    '/tmp/$(command)/socket', '/tmp/`command`/socket', '/tmp/a*socket',
+])
 def test_backend_command_arguments_refuse_ambiguous_paths(path):
     with pytest.raises(RuntimeError, match='invalid-command-arguments'):
         graphical.lifecycle_variables(path, RUN)
 
 
-def test_public_command_variables_use_only_lifecycle_callback_cli():
-    variables = graphical.lifecycle_variables('/tmp/private/generalhw.sock', RUN)
+@pytest.mark.parametrize('root', ['/tmp/private', '/build/app-1.0+ppa3~ubuntu26.04.1'])
+def test_public_command_variables_use_only_lifecycle_callback_cli(root, monkeypatch):
+    monkeypatch.setattr(graphical, '__file__', root + '/graphical_lease.py')
+    socket_path = root + '/generalhw.sock'
+    variables = graphical.lifecycle_variables(socket_path, RUN)
     assert variables['GENERAL_HW_CMD_DIR'] == '/usr/bin'
     for command, action in (('POWERON', 'on'), ('POWEROFF', 'off'), ('IS_SHUTDOWN', 'status')):
         assert variables[f'GENERAL_HW_{command}_CMD'] == 'python3'
         arguments = variables[f'GENERAL_HW_{command}_ARGS'].split(' ')
         assert arguments[:2] == ['-B', str(Path(graphical.__file__).resolve())]
-        assert arguments[2:] == ['--socket', '/tmp/private/generalhw.sock', '--run', RUN, action]
+        assert arguments[2:] == ['--socket', socket_path, '--run', RUN, action]

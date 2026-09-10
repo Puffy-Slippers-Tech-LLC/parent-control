@@ -11,6 +11,7 @@ from tests.support.e2e_evidence import attempt
 from tests.support.e2e_recording import session, execute_steps, reports
 
 from tests.support.paths import ROOT
+from tests.support.vm_baseline import use_local_preparation_source
 from leased_recording import LeasedScenario
 from private_artifacts import EvidenceError
 import system_runner
@@ -18,6 +19,7 @@ import system_runner
 
 @pytest.fixture
 def held(session, monkeypatch):
+    use_local_preparation_source(monkeypatch)
     events = []
     ledger = system_runner.RunLedger()
     lease = system_runner.Lease(Mock(), Mock(), Mock(), ledger=ledger, graphics_type='vnc')

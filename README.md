@@ -14,6 +14,21 @@ This README is for developers and maintainers. Run commands from the repository 
 
 Setup installs development/build dependencies, the UI test environment, VM host tooling, and test helpers. First setup may request administrator authentication. Rerun it to refresh the environment.
 
+For release signing, manually create the local environment file once:
+
+```sh
+cp .envrc.example ./.envrc
+chmod 600 ./.envrc
+```
+
+Edit `./.envrc` and replace the placeholder for
+`APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` with the value from Keeper's
+“Oh No Parent Control” entry. Preserve an existing configured `.envrc`.
+`setup.sh` does not create this file or fill in the value. `.envrc` is
+gitignored; keep the real value out of `.envrc.example` and version control.
+The [publishing procedure](docs/Publishing.md#noninteractive-signing) uses this
+file for signing without passphrase or clipboard-readiness prompts.
+
 | Task | Command |
 | --- | --- |
 | Refresh dependencies | `./setup.sh --dependencies-only` |

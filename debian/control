@@ -13,6 +13,7 @@ Build-Depends:
  git,
  gstreamer1.0-plugins-base,
  libfeature-compat-try-perl,
+ libglib2.0-bin,
  libpam0g-dev,
  nodejs,
  os-autoinst,

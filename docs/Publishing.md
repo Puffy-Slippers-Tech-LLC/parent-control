@@ -17,9 +17,10 @@ The assistant handles the following flow:
    monitor the actual build and package publication, and provide installation
    commands and the release report.
 
-Your normal work is resolving ambiguous release inputs, entering credentials
-in local secure prompts, and making the release decision. Account and key setup
-was reported complete; it is verified, not repeated routinely.
+Your normal work is resolving ambiguous release inputs, manually configuring
+the signing passphrase in the gitignored `.envrc`, and making the release
+decision. Account and key setup was reported complete; it is verified, not
+repeated routinely.
 
 Automation already exists in `tools/publish_release.py` for version planning,
 isolated preparation, source inspection, and source-publication status. The
@@ -38,7 +39,7 @@ than treating historical rehearsal results as acceptance.
 
 The assistant executes preparation, checks, builds, signing commands, source
 publication and upload as described below, stopping on failures. The publisher
-supplies release decisions and enters any credentials in the local secure prompt.
+supplies release decisions and maintains the local `.envrc` signing value.
 The supported target is Ubuntu 26.04 LTS (`resolute`). Launchpad accepts a
 signed source upload and builds the architecture-specific `.deb`; do not upload
 the locally built binary package.
@@ -143,7 +144,9 @@ and recovery instructions, not a second checklist to run again.
    ensure only supported architectures are enabled. Use public Launchpad API
    reads wherever possible. A missing tool is a reason to use `setup.sh` or the
    focused `./setup.sh --dependencies-only` mode; do not rerun setup routinely.
-   Never request secrets in chat; let GnuPG/SSH use their local secure prompts.
+   Never request secrets in chat. Use the
+   [noninteractive signing procedure](#noninteractive-signing) for GnuPG;
+   SSH authentication remains separate.
 3. **Prepare automatically.** Run:
 
    ```sh
@@ -219,6 +222,12 @@ and recovery instructions, not a second checklist to run again.
    to the development checkout. Audit test-only Python modules and external
    tools against `Build-Depends`, since a configured development machine can
    hide missing clean-builder dependencies.
+   Audit package staging as well as test commands: `_install-product-files`
+   invokes `glib-compile-schemas`, so `libglib2.0-bin` must be a build dependency
+   even though it is also a runtime dependency. Ppa5 passed all Launchpad tests
+   but failed staging when this build dependency was absent. Runtime `Depends`
+   does not provision the clean builder. Keep the full binary build, including
+   staging and debhelper processing, as the regression acceptance boundary.
 7. **Present the concrete release.** Summarize version, source commit/tags,
    architecture, artifact hashes, validation and reviewed warnings/gaps. If
    publication authorization has not already been given for this concrete
@@ -247,17 +256,38 @@ and recovery instructions, not a second checklist to run again.
    artifacts and evidence through completion; a `dput` exit code alone does
    not establish publication.
 
-The normal manual work is choosing release inputs when ambiguous, entering a
-key passphrase if prompted, and making any outstanding release decision.
+The normal manual work is choosing release inputs when ambiguous, configuring
+the local signing value once, and making any outstanding release decision.
 All publisher identifiers are already supplied. Do not publish anything merely
 because this guide or its helper is being edited.
 
-Before running a command that may open a passphrase dialog, ask the publisher
-to prepare their clipboard and wait for an explicit **"go ahead"**. This also
-applies to retries. Identify the signing operations in that request so a ready
-publisher can authorize a consecutive batch. Publication authorization alone
-does not mean the publisher is ready for a dialog. Keep passphrases in the
-local secure prompt, never in chat, files or command arguments.
+## Noninteractive signing
+
+**Never prompt for the signing passphrase, open a passphrase dialog, or ask for
+clipboard readiness or another “go ahead,” including on retries.** This replaces
+the previous clipboard-readiness requirement. Read
+`APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` from the development checkout's gitignored
+`./.envrc` inside the signing process. Manual configuration is described in the
+[README](../README.md#set-up-a-development-machine); `setup.sh` does not populate
+this value.
+
+For isolated release clones, use the original development checkout's `.envrc`
+by its absolute path; do not copy it into the clone, package source, or release
+evidence. Gitignore alone does not exclude a file from `dpkg-source` archives.
+Keep the private key in GnuPG's key store and only the passphrase in `.envrc`.
+
+Before invoking the Git or Debian signing commands below, configure their GnuPG
+signer explicitly for batch/loopback operation and supply the passphrase through
+a private file descriptor (`--batch --pinentry-mode loopback --passphrase-fd`).
+GnuPG does not automatically consume this environment-variable name. Load the
+value only in the signer, without shell tracing, and keep it out of build/test
+environments, command arguments, tool output, logs, reports and tracked files.
+Do not read `.envrc` through a tool that returns its contents to the conversation.
+If the file/value is missing, empty, still a placeholder, or rejected, stop with
+a redacted configuration error; never fall back to a passphrase prompt.
+
+This supplies credentials for already-authorized signing; it does not replace
+any outstanding publication decision. Sandbox approval boundaries still apply.
 
 ## One-time publisher setup
 
@@ -275,8 +305,10 @@ Recovery/reference only: skip this section when prerequisite verification passes
    gpg --fingerprint
    ```
 
-   Keep the private key and its passphrase out of this repository. Back them up
-   using the organization's key-management procedure.
+   Keep the private key in GnuPG's key store and the configured passphrase only
+   in the gitignored `.envrc`, never in tracked source. Back up credentials
+   using the organization's key-management procedure. Key creation is manual
+   account setup; automated release signing follows the noninteractive rule above.
 4. Publish the public key to Ubuntu's keyserver, substituting its full
    fingerprint:
 
@@ -297,14 +329,11 @@ Recovery/reference only: skip this section when prerequisite verification passes
    `-----END PGP MESSAGE-----`, including both marker lines, into a plain-text
    file named `launchpad-confirmation.asc` in your Downloads directory. If the
    email presents the encrypted payload as an attachment instead, save that
-   attachment and use its actual path below. Decrypt the saved payload:
-
-   ```sh
-   gpg --decrypt "$HOME/Downloads/launchpad-confirmation.asc"
-   ```
-
-   Enter the key's passphrase if prompted, then open the confirmation link
-   printed in the terminal and complete confirmation in Launchpad. If GnuPG
+   attachment and use its actual path. Decrypt the saved payload with GnuPG's
+   `--decrypt` operation through the same noninteractive signer configuration
+   above, using the `.envrc` passphrase. Open the resulting confirmation link
+   locally and complete confirmation in Launchpad; keep that link out of logs
+   and chat. If GnuPG
    reports `decryption failed: No secret key`, check
    `gpg --list-secret-keys --keyid-format LONG` and verify that the private key
    corresponding to the fingerprint submitted in step 5 is available to this

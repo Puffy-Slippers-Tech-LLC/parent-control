@@ -1,3 +1,11 @@
+oh-no-parent-control (1.0+ppa4~ubuntu26.04.1) resolute; urgency=medium
+
+  * Build Oh No! Parent Control 1.0 for the PPA.
+  * Use archived preparation sources in every simulated VM lease test.
+  * Run the Flatpak fixture against an owned private system bus.
+
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Thu, 10 Sep 2026 12:56:40 -0700
+
 oh-no-parent-control (1.0+ppa3~ubuntu26.04.1) resolute; urgency=medium
 
   * Build Oh No! Parent Control 1.0 for the PPA.

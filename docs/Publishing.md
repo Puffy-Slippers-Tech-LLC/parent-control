@@ -205,6 +205,13 @@ and recovery instructions, not a second checklist to run again.
    a passing build inside a Git clone does not establish that portability.
    Tests that need Git must create their own temporary checkout fixtures, and
    their external commands must be declared in `Build-Depends`.
+   Use a versioned extraction directory such as
+   `build/oh-no-parent-control-1.0+ppa3~ubuntu26.04.1` so checks also exercise
+   Debian version punctuation in source paths. Host-safe VM fixtures must
+   hash their own archived preparation sources; live VM guards remain pinned
+   to the development checkout. Audit test-only Python modules and external
+   tools against `Build-Depends`, since a configured development machine can
+   hide missing clean-builder dependencies.
 7. **Present the concrete release.** Summarize version, source commit/tags,
    architecture, artifact hashes, validation and reviewed warnings/gaps. If
    publication authorization has not already been given for this concrete

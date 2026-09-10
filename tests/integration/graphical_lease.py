@@ -280,7 +280,9 @@ def lifecycle_variables(path, run):
     """Public generalhw command variables; that backend splits args on spaces."""
     script = Path(__file__).resolve()
     require(Path(path).is_absolute() and
-            all(re.fullmatch(r'/[A-Za-z0-9_./-]+', str(item)) for item in (script, path)) and
+            # Debian source directories include '+' and '~' in their versions.
+            # Both remain literal arguments in generalhw's space-split protocol.
+            all(re.fullmatch(r'/[A-Za-z0-9_./+~-]+', str(item)) for item in (script, path)) and
             re.fullmatch(r'[0-9a-f]{32}', run) is not None,
             'graphics:invalid-command-arguments')
     variables = {'GENERAL_HW_CMD_DIR': '/usr/bin'}

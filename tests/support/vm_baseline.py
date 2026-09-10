@@ -14,6 +14,16 @@ UUID = "f95890e1-88e7-4779-8ae3-53fdcc34330a"
 SCRIPT_DIGEST = guest.preparation_digest(ROOT)
 
 
+def use_local_preparation_source(monkeypatch):
+    """Hash real fixture sources without reading the pinned development checkout."""
+    original = guest.preparation_digest
+
+    def preparation_digest(checkout=ROOT):
+        return original(checkout)
+
+    monkeypatch.setattr(guest, "preparation_digest", preparation_digest)
+
+
 def xml(disk):
     return f"""<domain type='kvm'><name>ubuntu26.04</name><uuid>{UUID}</uuid><devices>
       <disk type='file' device='disk'><driver type='qcow2'/><source file='{disk}'/>
@@ -94,7 +104,8 @@ class Images:
 
 
 @pytest.fixture
-def rig(tmp_path):
+def rig(tmp_path, monkeypatch):
+    use_local_preparation_source(monkeypatch)
     anchor, top = tmp_path / "ubuntu26.04.qcow2", tmp_path / "ubuntu26.04.overlay"
     anchor.write_bytes(b"base data")
     top.write_bytes(b"overlay data")

@@ -1,3 +1,11 @@
+oh-no-parent-control (1.0+ppa5~ubuntu26.04.1) resolute; urgency=medium
+
+  * Build Oh No! Parent Control 1.0 for the PPA.
+  * Keep portable bundle validation in package-build tests.
+  * Run namespace-dependent Flatpak launch in the release fixture gate.
+
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Thu, 10 Sep 2026 14:10:51 -0700
+
 oh-no-parent-control (1.0+ppa4~ubuntu26.04.1) resolute; urgency=medium
 
   * Build Oh No! Parent Control 1.0 for the PPA.

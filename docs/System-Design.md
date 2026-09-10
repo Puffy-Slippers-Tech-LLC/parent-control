@@ -80,7 +80,7 @@ this overview and link to specific sections for additional context. Implementati
 entry points belong in modules; the [Makefile](../Makefile) owns the complete
 build and installation map.
 
-Follow [Package update](Package-Update.md) for changed system integration and
+Follow [Package update](Publishing.md#package-update-activation) for changed system integration and
 [Data migration](SystemDesign/Data-Migration.md) before incompatible saved-data changes.
 Consult [Test automation](Test-Automation.md) for validation workflows and the
 [threat model](Threat-Model.md) for security targets and remaining verification;

@@ -132,5 +132,5 @@ dpkg; polkitd monitors these directories. Administrator rules under `/etc` survi
 
 ## Related design
 
-- For install/update activation and reboot classification, read [Lifecycle](Lifecycle.md) and [Package update](../Package-Update.md).
+- For install/update activation and reboot classification, read [Lifecycle](Lifecycle.md) and [Package update](../Publishing.md#package-update-activation).
 - For canonical preferences retained by ordinary removal, read [State](State.md).

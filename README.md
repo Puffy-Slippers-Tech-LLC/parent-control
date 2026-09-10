@@ -119,30 +119,11 @@ Keep the checkout unchanged during artifact builds and test attempts. Stop VM ma
 
 Use registered E2E scenarios. The `make test-fast`, `make test-system`, `make test-e2e`, and `make test-all` aliases are unavailable. References: [system tests](tests/integration/README.md), [E2E tests](tests/e2e/README.md).
 
-## Publish a release
+## Publish an app upgrade
 
-1. Bump the product version for product updates; retain it for packaging-only corrections. Commit the intended changes. Require a clean checkout.
-2. Plan an unused PPA version and prepare a new isolated release directory:
-
-   ```sh
-   tools/publish-release plan
-   tools/publish-release prepare /tmp/onpc-release-UNIQUE
-   ```
-
-3. In the prepared `source/` checkout, follow [publishing](docs/Publishing.md) to sign the commit/tags, build the source package, and complete [compliance checks](docs/Compliance.md).
-4. From the development checkout, inspect and build the signed source:
-
-   ```sh
-   tools/publish-release inspect /tmp/onpc-release-UNIQUE/source
-   tools/publish-release check-build /tmp/onpc-release-UNIQUE/source
-   ```
-
-5. Run applicable runtime tests and [upgrade checks](docs/Publishing.md#subsequent-releases-and-upgrade-acceptance). Rebuild source artifacts after fixes; repeat affected checks.
-6. With publication authorization, push the reviewed commit/tags and upload the signed source `.changes` using the documented `dput` command. Verify Launchpad build and binary publication success.
-
-Replace `UNIQUE` with a new release directory name. Keep signing keys outside the repository.
-
-Local builder: Ubuntu 26.04/amd64. Logs, artifacts and results: `/tmp/onpc-ppa-check-*`. Reference: [local PPA validation](docs/Local-PPA-Validation.md).
+Follow [Publishing](docs/Publishing.md) for the complete upgrade workflow:
+version planning, isolated preparation, validation, signing, publication and
+installed-user activation. It is the single publishing entry point.
 
 ## Diagnose failures
 

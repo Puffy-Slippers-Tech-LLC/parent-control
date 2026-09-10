@@ -48,4 +48,4 @@ Migrations are forward-only. Installing an older package after a schema change i
 
 - For current schemas, defaults, and data ownership, read [State](State.md#persistent-and-derived-state).
 - For broker readiness and installation, read [Lifecycle](Lifecycle.md#startup-login-and-update-lifecycle).
-- For activation after successful migration, follow [Package update](../Package-Update.md).
+- For activation after successful migration, follow [Package update](../Publishing.md#package-update-activation).

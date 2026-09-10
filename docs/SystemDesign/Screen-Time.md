@@ -160,4 +160,4 @@ interface is documented in [pam_systemd](https://github.com/systemd/systemd/blob
 
 - For authorization and grant commit/rollback order, read [Broker](Broker.md#authorization-and-grant-transactions).
 - For app-policy restoration after unlock, read [Application policy](Applications.md#session-entry-reconciliation).
-- For startup ordering or changed PAM/extension activation, read [Lifecycle](Lifecycle.md) and [Package update](../Package-Update.md).
+- For startup ordering or changed PAM/extension activation, read [Lifecycle](Lifecycle.md) and [Package update](../Publishing.md#package-update-activation).

@@ -289,7 +289,7 @@ _install-product-files:
 	install -m 0644 common/oh_no_parent_control_ui/rich_editor/quill.js common/oh_no_parent_control_ui/rich_editor/quill.snow.css common/oh_no_parent_control_ui/rich_editor/quill.js.LICENSE.txt common/oh_no_parent_control_ui/rich_editor/LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons"
 	install -m 0644 common/oh_no_parent_control_ui/test_user_icons/*.png "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons/"
-	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png kiosk/oh_no_parent_control_kiosk/kiosk-background-clear.png child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
+	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png kiosk/oh_no_parent_control_kiosk/kiosk-background-scenery-clear.png child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts"
 	install -m 0644 kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas"

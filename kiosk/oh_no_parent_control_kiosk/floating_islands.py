@@ -24,7 +24,7 @@ EXCURSION = (6 / 1080, 13 / 1080)
 
 @dataclass(frozen=True)
 class Island:
-    lightning_tip_index: int
+    lightning_tip_index: int | None
     outline: tuple
 
 
@@ -70,6 +70,53 @@ ISLANDS = (
 )
 
 
+# Stationary silhouettes also need uniform scaling. Their bases remain on the
+# floor; only the four ISLANDS above receive random floating paths.
+STATIONARY_SCENERY = (
+    Island(3, (
+        (0, 742), (34, 747), (35, 790), (58, 818), (63, 852),
+        (80, 851), (90, 863), (117, 829), (141, 803), (160, 827),
+        (174, 837), (218, 800), (250, 834), (227, 858), (224, 892),
+        (272, 892), (272, 941), (0, 941),
+    )),
+    Island(5, (
+        (1133, 711), (1165, 712), (1165, 696), (1193, 695),
+        (1193, 677), (1253, 677), (1253, 666), (1328, 666),
+        (1330, 637), (1349, 625), (1361, 639), (1365, 623),
+        (1380, 605), (1395, 619), (1407, 630), (1397, 645),
+        (1410, 655), (1414, 670), (1410, 682), (1472, 692),
+        (1472, 741), (1424, 771), (1258, 772), (1258, 759),
+        (1167, 761), (1167, 747), (1133, 748),
+    )),
+    Island(None, (
+        (1540, 684), (1605, 685), (1672, 703), (1672, 941),
+        (1374, 941), (1374, 875), (1396, 848), (1439, 846),
+        (1441, 798), (1459, 805), (1478, 800), (1512, 817),
+        (1515, 784), (1539, 789),
+    )),
+    Island(None, ((1315, 92), (1447, 82), (1448, 208), (1315, 221))),
+)
+SCENERY = ISLANDS + STATIONARY_SCENERY
+
+
+def scenery_artwork_geometry(artwork, item):
+    """Fit original silhouette pixels uniformly around their bottom anchor.
+
+    The backdrop distributes anchors across the available screen. Scenery
+    shrinks to fit the narrower axis, preserving its ratio and floor contact.
+    Foreground silhouettes touching a screen edge keep that edge as the anchor.
+    """
+    x, y, width, height = artwork
+    left = min(point[0] for point in item.outline)
+    right = max(point[0] for point in item.outline)
+    anchor_x = 0 if left == 0 else SOURCE_WIDTH if right == SOURCE_WIDTH else (left + right) / 2
+    anchor_y = max(point[1] for point in item.outline)
+    scale = min(width / SOURCE_WIDTH, height / SOURCE_HEIGHT)
+    return (x + anchor_x * (width / SOURCE_WIDTH - scale),
+            y + anchor_y * (height / SOURCE_HEIGHT - scale),
+            SOURCE_WIDTH * scale, SOURCE_HEIGHT * scale)
+
+
 class RandomFloat:
     """Random turning heights/times with continuous velocity and acceleration.
 
@@ -103,7 +150,7 @@ class RandomFloat:
 
 
 class FloatingIslands:
-    """Cached GTK layers, sharing the gateway's cover transform and frame time."""
+    """Original scenery pixels with independent size, anchors and float paths."""
 
     def __init__(self, original, clear):
         self._paths = {island.lightning_tip_index: RandomFloat() for island in ISLANDS}
@@ -112,32 +159,32 @@ class FloatingIslands:
         if original is None or clear is None:
             return
 
-        background = Gtk.Snapshot()
-        for island in ISLANDS:
-            # The generated fill is used only under the original silhouettes.
-            # A small soft margin removes the original edge/glow without
-            # changing the gateway, floor, or any other stationary artwork.
-            self._append_masked(background, clear, island.outline, padding=14)
+        for island in SCENERY:
             sprite = Gtk.Snapshot()
             self._append_masked(sprite, original, island.outline)
-            self._sprites.append((island.lightning_tip_index, sprite.to_node()))
-        self._background = background.to_node()
+            self._sprites.append((island, sprite.to_node()))
+        # Use a complete clean side backdrop so relocating a silhouette cannot
+        # expose remnants or a patch with a different sky/floor texture. The
+        # gateway's central band is always drawn from the original artwork.
+        self._background = clear
         LOG.debug(
-            "gateway floating islands configured count=%d turn_seconds=%s "
+            "gateway scenery configured count=%d aspect=source turn_seconds=%s "
             "max_speed_percent_of_previous=85 excursion_at_1080px=(6, 13)",
             len(self._sprites), TURN_SECONDS,
         )
 
+    @property
+    def ready(self):
+        return self._background is not None
+
     @staticmethod
-    def _append_masked(snapshot, texture, outline, padding=0):
-        left = min(x for x, _y in outline) - padding * 3 - 2
-        top = min(y for _x, y in outline) - padding * 3 - 2
-        right = max(x for x, _y in outline) + padding * 3 + 2
-        bottom = max(y for _x, y in outline) + padding * 3 + 2
+    def _append_masked(snapshot, texture, outline):
+        left = min(x for x, _y in outline) - 2
+        top = min(y for _x, y in outline) - 2
+        right = max(x for x, _y in outline) + 2
+        bottom = max(y for _x, y in outline) + 2
         bounds = Graphene.Rect().init(left, top, right - left, bottom - top)
         snapshot.push_mask(Gsk.MaskMode.ALPHA)
-        if padding:
-            snapshot.push_blur(5)
         context = snapshot.append_cairo(bounds)
         context.move_to(*outline[0])
         for point in outline[1:]:
@@ -145,10 +192,8 @@ class FloatingIslands:
         context.close_path()
         context.set_source_rgba(1, 1, 1, 1)
         context.fill_preserve()
-        context.set_line_width(2 * padding if padding else 0.8)
+        context.set_line_width(0.8)
         context.stroke()
-        if padding:
-            snapshot.pop()
         snapshot.pop()
         snapshot.append_texture(texture, Graphene.Rect().init(
             0, 0, SOURCE_WIDTH, SOURCE_HEIGHT,
@@ -167,12 +212,16 @@ class FloatingIslands:
         snapshot.save()
         snapshot.translate(Graphene.Point().init(x, y))
         snapshot.scale(width / SOURCE_WIDTH, height / SOURCE_HEIGHT)
-        snapshot.append_node(self._background)
-        for tip_index, sprite in self._sprites:
+        snapshot.append_texture(self._background, Graphene.Rect().init(
+            0, 0, SOURCE_WIDTH, SOURCE_HEIGHT,
+        ))
+        snapshot.restore()
+        for item, sprite in self._sprites:
+            sprite_x, sprite_y, sprite_width, sprite_height = scenery_artwork_geometry(artwork, item)
             snapshot.save()
             snapshot.translate(Graphene.Point().init(
-                0, self.offset(tip_index, elapsed) * SOURCE_HEIGHT,
+                sprite_x, sprite_y + self.offset(item.lightning_tip_index, elapsed) * sprite_height,
             ))
+            snapshot.scale(sprite_width / SOURCE_WIDTH, sprite_height / SOURCE_HEIGHT)
             snapshot.append_node(sprite)
             snapshot.restore()
-        snapshot.restore()

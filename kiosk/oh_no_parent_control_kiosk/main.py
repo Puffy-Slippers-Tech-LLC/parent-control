@@ -33,7 +33,9 @@ from .model import RequestState, public_error
 from .request_content import RequestContent
 from .selection_store import SelectionStore
 from .snowflakes import GATEWAY_OUTER_BOUNDS, SnowflakeField
-from .floating_islands import FloatingIslands
+from .floating_islands import (
+    FloatingIslands, SCENERY, SOURCE_WIDTH, SOURCE_HEIGHT, scenery_artwork_geometry,
+)
 from .lava import LavaBands
 from .lightning import LightningDischarge
 from .thunder import LightningAudio
@@ -61,6 +63,9 @@ GATEWAY_EFFECT_FRAME_MS = 33
 # These cuts pass through empty sky beside the rails, outside every island.
 GATEWAY_SCENE_CUTS = (0.27, 0.67)
 GATEWAY_WIDTH_FRACTION = 0.40
+# Preserve the 1920x1200 desktop composition on taller logical displays.
+# Only preferred widths grow; GTK continues to own text and control scaling.
+REQUEST_LAYOUT_REFERENCE_HEIGHT = 1_200
 # Native dimensions and measured corners of the gateway opening.  These points
 # sit on the innermost purple edge, rather than on the outer cyan frame. Keeping
 # them in source-image space lets the anchors follow the central artwork band.
@@ -141,12 +146,14 @@ LOG = logging.getLogger("oh-no-parent-control")
 def _gateway_artwork_geometry(width, height):
     """Map the central artwork without magnifying/cropping the side islands.
 
-    A readable minimum matters on small windows; desktop widths leave most
-    of the scene to the crystals. The side bands fill their own allocations.
+    A readable minimum matters on small windows. Above the reference desktop
+    height, widen the frame along with its height so it cannot become a narrow
+    tower. The side bands fill their own allocations and retain the crystals.
     """
     left, _top, right, _bottom = GATEWAY_OUTER_BOUNDS
+    desktop_width = 640 * max(1.0, height / REQUEST_LAYOUT_REFERENCE_HEIGHT)
     gateway_width = min(
-        width * 0.88, max(460, min(640, width * GATEWAY_WIDTH_FRACTION)),
+        width * 0.88, max(460, min(desktop_width, width * GATEWAY_WIDTH_FRACTION)),
     )
     rendered_width = gateway_width / (right - left)
     return (
@@ -156,10 +163,11 @@ def _gateway_artwork_geometry(width, height):
 
 
 def _gateway_scene_regions(width, height):
-    """Three seamless source bands; retain both complete sides of the artwork.
+    """Three seamless background bands; retain both complete scenery areas.
 
     Each result contains its screen clip and the full texture's affine bounds.
-    The same bounds position the original pixels and animated island masks.
+    These bounds position the backdrop and scenery anchors. Individual crystal
+    silhouettes use a uniform scale around their anchors, independent of it.
     """
     image_x, image_y, image_width, image_height = _gateway_artwork_geometry(width, height)
     first, second = GATEWAY_SCENE_CUTS
@@ -176,7 +184,7 @@ def _gateway_scene_regions(width, height):
     return tuple(regions)
 
 
-def _gateway_scene_point(width, height, x, y):
+def _gateway_scene_point(width, height, x, y, *, scenery_index=None, vertical_offset=0.0):
     """Place an effect endpoint using its source band, including side crystals."""
     if x < GATEWAY_SCENE_CUTS[0]:
         band = 0
@@ -185,8 +193,11 @@ def _gateway_scene_point(width, height, x, y):
     else:
         band = 1
     _clip, artwork = _gateway_scene_regions(width, height)[band]
+    if scenery_index is not None:
+        item = next(item for item in SCENERY if item.lightning_tip_index == scenery_index)
+        artwork = scenery_artwork_geometry(artwork, item)
     image_x, image_y, image_width, image_height = artwork
-    return image_x + x * image_width, image_y + y * image_height
+    return image_x + x * image_width, image_y + (y + vertical_offset) * image_height
 
 
 def _gateway_inner_corners(width, height):
@@ -275,7 +286,7 @@ class GatewayBackground(Gtk.Widget):
         self._texture = self._load_texture()
         self._lava = LavaBands(self._texture)
         self._floating_islands = FloatingIslands(
-            self._texture, self._load_texture("kiosk-background-clear.png"),
+            self._texture, self._load_texture("kiosk-background-scenery-clear.png"),
         )
         self._snowflakes = SnowflakeField()
         self._random = random.SystemRandom()
@@ -283,6 +294,7 @@ class GatewayBackground(Gtk.Widget):
         self._next_lightning_burst_at = 0.0
         self._lightning_enabled = False
         self._lightning_audio = None
+        self._last_scene_layout = None
         self._frame_source_id = GLib.timeout_add(
             GATEWAY_EFFECT_FRAME_MS, self._next_frame,
         )
@@ -307,7 +319,7 @@ class GatewayBackground(Gtk.Widget):
         self._texture = self._load_texture()
         self._lava = LavaBands(self._texture)
         self._floating_islands = FloatingIslands(
-            self._texture, self._load_texture("kiosk-background-clear.png"),
+            self._texture, self._load_texture("kiosk-background-scenery-clear.png"),
         )
         self.queue_draw()
 
@@ -347,12 +359,23 @@ class GatewayBackground(Gtk.Widget):
 
         now = GLib.get_monotonic_time() / 1_000_000 - self._started_at
         artwork = _gateway_artwork_geometry(width, height)
-        for clip, region in _gateway_scene_regions(width, height):
+        regions = _gateway_scene_regions(width, height)
+        for index, (clip, region) in enumerate(regions):
             snapshot.push_clip(Graphene.Rect().init(*clip))
             image_bounds = Graphene.Rect().init(*region)
-            snapshot.append_texture(self._texture, image_bounds)
-            self._floating_islands.draw(snapshot, region, now)
+            if index == 1 or not self._floating_islands.ready:
+                snapshot.append_texture(self._texture, image_bounds)
+            if index != 1:
+                self._floating_islands.draw(snapshot, region, now)
             snapshot.pop()
+        if self._last_scene_layout != (width, height):
+            LOG.debug(
+                "gateway scene viewport=%dx%d scenery-fit=uniform "
+                "left-scale=%.3f right-scale=%.3f",
+                width, height, min(regions[0][1][2] / SOURCE_WIDTH, height / SOURCE_HEIGHT),
+                min(regions[2][1][2] / SOURCE_WIDTH, height / SOURCE_HEIGHT),
+            )
+            self._last_scene_layout = (width, height)
         self._lava.draw(snapshot, artwork, now)
 
         # A low-opacity vignette preserves legibility while allowing the
@@ -429,6 +452,8 @@ class GatewayBackground(Gtk.Widget):
                 continue
             source_x, source_y = _gateway_scene_point(
                 width, height, bolt["source_x"], bolt["source_y"],
+                scenery_index=bolt["source_index"] if self._floating_islands.ready else None,
+                vertical_offset=self._floating_islands.offset(bolt["source_index"], elapsed),
             )
             channel = bolt["channel"]
             active = channel.active_flash(age)
@@ -440,9 +465,6 @@ class GatewayBackground(Gtk.Widget):
                         flash.light(age),
                         max(-0.8, min(0.8, 2 * source_x / width - 1)),
                     )
-            source_y += self._floating_islands.offset(
-                bolt["source_index"], elapsed,
-            ) * image_height
             target = (
                 image_x + bolt["target_x"] * image_width,
                 image_y + bolt["target_y"] * image_height,
@@ -519,6 +541,9 @@ class GatewayAlignedRequest(Gtk.Widget):
         self._viewport.add_css_class("oh-no-parent-control-request-viewport")
         if isinstance(child, MetalBoard):
             child.frame_visible = False
+        # The viewport supplies the frame and width. Center alignment would
+        # leave the rows at their natural width inside a wider, empty board.
+        child.set_halign(Gtk.Align.FILL)
         self._viewport.set_child(child)
         self._viewport.set_parent(self)
         # A vertical scrollbar can use the projected screen rectangle directly.
@@ -551,8 +576,11 @@ class GatewayAlignedRequest(Gtk.Widget):
         top = max(opening_top + gap, 108 if width < 1000 else 0)
         available_width = max(1, right - left - 8)
         available_height = max(1, opening_bottom - gap - top)
+        # Follow the wider frame on tall desktops by allocating more room to
+        # the rows, without stretching their fonts or magnifying the form.
+        preferred_width = 384 * max(1.0, height / REQUEST_LAYOUT_REFERENCE_HEIGHT)
         # Leave room for the perspective's wider near edge and board shadow.
-        child_width = max(1, min(384, int(available_width / 1.04)))
+        child_width = max(1, int(min(preferred_width, available_width / 1.04)))
         self._child.set_margin_end(0)
         if isinstance(self._child, RequestContent):
             self._child.set_layout_width(child_width)
@@ -618,15 +646,16 @@ class GatewayAlignedRequest(Gtk.Widget):
         native = self.get_native()
         surface = native.get_surface() if native else None
         surface_scale = surface.get_scale() if surface else float(monitor_scale)
+        content_width = self._child.get_allocated_width()
         layout = (width, height, child_width, child_height, natural_height,
-                  monitor_scale, surface_scale)
+                  content_width, monitor_scale, surface_scale)
         if layout != self._last_layout:
             LOG.debug(
                 "request layout viewport=%dx%d board=%dx%d monitor-scale=%d "
-                "surface-scale=%.3f scroll=%s "
+                "surface-scale=%.3f content-width=%d scroll=%s "
                 "gateway-width=%.0f opening-height=%.0f chain-gap=%.0f",
                 width, height, child_width, child_height, monitor_scale,
-                surface_scale, natural_height > child_height,
+                surface_scale, content_width, natural_height > child_height,
                 _gateway_artwork_geometry(width, height)[2]
                 * (GATEWAY_OUTER_BOUNDS[2] - GATEWAY_OUTER_BOUNDS[0]),
                 opening_bottom - opening_top, gap,
@@ -1681,7 +1710,7 @@ class Application(Adw.Application):
         relevant = {
             path for path in changed
             if path.name in {
-                "style.css", "kiosk-background-still.png", "kiosk-background-clear.png",
+                "style.css", "kiosk-background-still.png", "kiosk-background-scenery-clear.png",
             } or path.suffix == ".py"
         }
         if not relevant:
@@ -1700,7 +1729,7 @@ class Application(Adw.Application):
             LOG.info("preview stylesheet reloaded")
         window = self.get_active_window()
         if (
-            names & {"kiosk-background-still.png", "kiosk-background-clear.png"}
+            names & {"kiosk-background-still.png", "kiosk-background-scenery-clear.png"}
             and window is not None
         ):
             window._background.reload_texture()

@@ -94,20 +94,33 @@ This reproduces layout and compositor scaling, but does not certify identical
 color output, GPU rasterization or physical panel appearance on another machine.
 
 Both request surfaces use a compact 14-pixel logical base font and GTK's monitor
-scaling for HiDPI. The form and corner controls have bounded logical sizes;
-screen dimensions do not add a second zoom to the rendered interface. At the
+scaling for HiDPI. Screen dimensions do not add a second zoom to the rendered
+interface, and corner controls retain their native logical sizes. At the
 reported 1920×1200 output and 125% scale, GTK allocates 1536×960 logical pixels.
-The gateway uses 40% of that width. Its desktop width caps at 640 logical pixels;
-smaller windows allow a larger fraction to retain readable controls.
+The gateway uses 40% of that width. Through 1200 logical pixels of height, the
+gateway and form prefer at most 640 and 384 logical pixels of width. Taller
+desktops increase both preferred widths in proportion to height, preserving the
+1920×1200 gateway proportions while allocating wider form rows with native text
+and controls. At 3840×1600 and 100%, these widths are about 853 and 512 pixels.
+The gateway still uses at most 40% of desktop width; smaller windows allow a
+larger fraction to retain readable controls, and the form fits the opening.
+Form content fills the allocated board width so wider frames give their rows
+more space instead of adding empty side gutters.
 
-The scene fits three horizontal artwork bands independently. The central band
-positions the gateway, while the complete left and right bands keep their
-crystal islands onscreen. Background pixels and floating masks share the band
-transforms; lightning sources use their crystal's band and targets use the
-central gateway. Lava and snow exclusions also follow that central geometry.
+The scene fits three horizontal backdrop bands independently. The central band
+uses the original gateway artwork. The side bands use a clean sky/floor plate
+and distribute the original crystal, island and moon silhouettes across the
+available space. Each silhouette uses one uniform scale for both axes, bounded
+by its band's horizontal and vertical scale. Bottom anchors keep stone bases
+on the floor, and foreground formations retain their outer screen edge.
+Only the original four floating formations move. Lightning sources use the
+same silhouette transform and floating offset; targets, lava and snow
+exclusions follow the central gateway. See [scenery assets and generation
+prompt](../Artwork/Request-Scenery.md) for the source-pixel boundary and package
+activation. No scenery silhouette is stretched to fill unused screen width.
 The form measures against the gateway opening and reserves space above and
 below for the curved chains. Layout diagnostics log allocations, monitor scale,
-gateway dimensions and chain gaps without account information.
+gateway dimensions, scenery scale and chain gaps without account information.
 
 Duration choices reflow between two columns and one, with wrapped captions when
 needed. Account captions sit beside selectors on desktop widths and above them

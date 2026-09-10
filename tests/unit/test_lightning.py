@@ -9,6 +9,7 @@ import cairo
 import pytest
 
 from oh_no_parent_control_kiosk.lightning import LightningDischarge
+from oh_no_parent_control_kiosk.floating_islands import SCENERY, scenery_artwork_geometry
 from oh_no_parent_control_kiosk.main import (
     CRYSTAL_LIGHTNING_TIPS, GATEWAY_INNER_CORNERS,
     GatewayBackground,
@@ -76,7 +77,8 @@ def test_cairo_flashes_reach_both_contacts_immediately_and_do_not_depend_on_fram
     print(f"Lightning render: {artifact}")
 
 
-@pytest.mark.parametrize("size", ((1920, 1080), (1280, 1024), (900, 1200)))
+@pytest.mark.parametrize("size", ((1920, 1080), (1280, 1024), (900, 1200),
+                                  (3840, 1600)))
 @pytest.mark.parametrize("source_index", range(len(CRYSTAL_LIGHTNING_TIPS)))
 def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_once(
         size, source_index):
@@ -84,7 +86,7 @@ def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_o
     background = SimpleNamespace(
         _random=random.Random(8), _lightning_enabled=True,
         _next_lightning_burst_at=float("inf"),
-        _floating_islands=SimpleNamespace(offset=lambda _index, elapsed: elapsed * 0.01),
+        _floating_islands=SimpleNamespace(ready=True, offset=lambda _index, elapsed: elapsed * 0.01),
         _lightning_audio=Mock(), queue_draw=Mock(),
     )
     with patch.object(background._random, "randrange", return_value=source_index):
@@ -99,9 +101,9 @@ def test_shared_renderer_keeps_contacts_in_artwork_space_and_sounds_each_flash_o
     # Match the texture bounds used to paint the crystal's scenery band.
     # The central gateway transform no longer positions the side islands.
     regions = _gateway_scene_regions(width, height)
-    _clip, (crystal_x, crystal_y, crystal_width, crystal_height) = regions[
-        0 if tip[0] < 0.35 else 2
-    ]
+    _clip, backdrop = regions[0 if tip[0] < 0.35 else 2]
+    item = next(item for item in SCENERY if item.lightning_tip_index == source_index)
+    crystal_x, crystal_y, crystal_width, crystal_height = scenery_artwork_geometry(backdrop, item)
     source_x = crystal_x + tip[0] * crystal_width
     assert 0 < source_x < width
     rail = GATEWAY_INNER_CORNERS[0 if tip[0] < 0.35 else 1]

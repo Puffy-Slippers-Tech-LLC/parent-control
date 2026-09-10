@@ -47,3 +47,5 @@ def pytest_collection_modifyitems(items):
             item.add_marker("contract" if path.name in CONTRACT_MODULES else "unit")
         elif layer in {"component", "ui", "system", "e2e"}:
             item.add_marker(layer)
+        elif layer == "fixtures":
+            item.add_marker("fixture")

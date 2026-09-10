@@ -68,7 +68,13 @@ tool versions, and package/stable-fixture digests.
 executables, path/space/version-pattern variants, desktop entries and a minimal
 Flatpak runtime/application bundle. `make check-test-fixtures` tests the builder
 and identity-recorded processes with private temporary Flatpak state, never the
-developer's actual installation. `make build-test-fixtures OUTPUT_DIR=...`
+developer's actual installation. It runs isolated cleanup prerequisites first,
+then the portable builder tests and `tests/fixtures/test_runtime.py` against an
+owned private system bus. The runtime check requires unprivileged kernel
+namespaces; it remains mandatory release acceptance on the prepared host, while
+Launchpad's restricted build chroot runs bundle validation and native-launch
+tests through `make check`. No runtime failure is skipped or treated as a pass.
+`make build-test-fixtures OUTPUT_DIR=...`
 retains a payload for focused fixture work. These are enforcement targets, not
 proof of real-game behavior. Later Snap and game assets must use the same
 verified input discipline.

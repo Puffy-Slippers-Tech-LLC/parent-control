@@ -175,7 +175,8 @@ check-component:
 		--ignore=tests/ui/test_child_shell_lifecycle.py
 
 check-test-fixtures:
-	@$(PYTEST) tests/unit/test_test_applications.py -q
+	@tools/run-unit-tests tests/unit/test_fixture_cleanup_safety.py tests/unit/test_dbus_harness_cleanup_safety.py -q
+	@$(PYTEST) tests/unit/test_test_applications.py tests/fixtures/test_runtime.py -q
 
 build-test-fixtures:
 	@test -n "$(OUTPUT_DIR)" || (echo 'Usage: make build-test-fixtures OUTPUT_DIR=/tmp/onpc-test-fixtures-.../payload' >&2; exit 2)

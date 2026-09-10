@@ -123,6 +123,30 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(status.additional_one_time_grant_seconds, 5 * 60)
         self.assertEqual(status.calculated_active_extension_seconds, 36 * 60)
 
+    def test_time_status_rechecks_parent_role_before_reading_child_usage_or_grant(self):
+        accounts = Accounts()
+        timer_usage = mock.Mock()
+        timer_usage.query_usage.return_value = ()
+        broker = make_broker(accounts=accounts, preferences=Preferences(),
+                             timer_usage=timer_usage)
+        broker.get_time_status(1003, 1001)
+        timer_usage.query_usage.assert_called_once_with(1001)
+        self.assertEqual(accounts.events, [("get_extension", 1001)])
+
+        for is_admin, is_local in ((False, True), (True, False)):
+            with self.subTest(is_admin=is_admin, is_local=is_local):
+                accounts.users[1003] = UserAccount(
+                    1003, "admin", "Admin", is_admin, False, is_local,
+                )
+                accounts.events.clear()
+                timer_usage.reset_mock()
+
+                with self.assertRaises(AccessDenied):
+                    broker.get_time_status(1003, 1001)
+
+                timer_usage.query_usage.assert_not_called()
+                self.assertEqual(accounts.events, [])
+
     def test_child_remaining_time_uses_backend_grant_not_a_cached_claim(self):
         now = datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles"))
         accounts = Accounts()

@@ -10,13 +10,21 @@ from unittest.mock import patch
 
 import pytest
 
-from guest_observations import SERIAL_PASSWORD
+from guest_observations import SERIAL_PASSWORD, VT6_PASSWORD, VT6_GETTY
 
 
 @pytest.mark.parametrize('fault', [None, 'pid', 'exe', 'autologin', 'device', 'stdin',
                                   'pgrp', 'session', 'tty', 'foreground', 'echo',
-                                  'echonl', 'canonical', 'starttime'])
-def test_guest_password_probe_refuses_wrong_process_or_echo(fault, capsys):
+                                  'echonl', 'canonical', 'starttime',
+                                  'inactive', 'active-changed', 'active-read-error'])
+@pytest.mark.parametrize('terminal', ['serial', 'vt6', 'vt6-getty'])
+def test_guest_password_probe_refuses_wrong_process_or_echo(fault, capsys, terminal):
+    vt = terminal != 'serial'
+    getty = terminal == 'vt6-getty'
+    rejected = bool(fault) and (vt or not fault.startswith('active') and fault != 'inactive')
+    if getty and fault in ('autologin', 'echonl'):
+        rejected = False
+    device = os.makedev(4, 6 if vt else 64)
     events = []
     counts = {'stat': 0}
     class GuestPath:
@@ -31,16 +39,24 @@ def test_guest_password_probe_refuses_wrong_process_or_echo(fault, capsys):
 
         def resolve(self):
             assert self.value == '/proc/42/exe'
-            return GuestPath('/usr/bin/sh' if fault == 'exe' else '/usr/bin/login')
+            return GuestPath('/usr/bin/sh' if fault == 'exe' else
+                             '/usr/sbin/agetty' if getty else '/usr/bin/login')
 
         def read_bytes(self):
             assert self.value == '/proc/42/cmdline'
             return b'/bin/login\0' + (b'-f\0--\0' if fault == 'autologin' else b'--\0') + b'\0' * 18
 
         def read_text(self):
+            if self.value == '/sys/class/tty/tty0/active':
+                assert vt
+                counts['active'] = counts.get('active', 0) + 1
+                if fault == 'active-read-error':
+                    raise OSError('private-canary')
+                return 'tty1\n' if fault == 'inactive' or (
+                    fault == 'active-changed' and counts['active'] > 2) else 'tty6\n'
             assert self.value == '/proc/42/stat'
             counts['stat'] += 1
-            fields = ['S', '1', '42', '42', str(os.makedev(4,64)), '42', *(['0'] * 46)]
+            fields = ['S', '1', '42', '42', str(device), '42', *(['0'] * 46)]
             for name, index in [('pgrp', 2), ('session', 3), ('tty', 4), ('foreground', 5)]:
                 if fault == name:
                     fields[index] = '999'
@@ -49,24 +65,25 @@ def test_guest_password_probe_refuses_wrong_process_or_echo(fault, capsys):
 
         def stat(self):
             assert self.value == '/proc/42/fd/0'
-            return SimpleNamespace(st_rdev=0 if fault == 'stdin' else os.makedev(4,64))
+            return SimpleNamespace(st_rdev=0 if fault == 'stdin' else device)
 
     def command(args, **kwargs):
-        assert args == ['systemctl', 'show', 'serial-getty@ttyS0.service', '--property=MainPID', '--value']
+        assert args == ['systemctl', 'show', 'getty@tty6.service' if vt else
+                        'serial-getty@ttyS0.service', '--property=MainPID', '--value']
         assert kwargs == dict(capture_output=True, text=True, check=True, timeout=10)
         return SimpleNamespace(stdout='0' if fault == 'pid' else '42')
 
     def opened(path, flags):
-        assert path == '/dev/ttyS0'
+        assert path == ('/dev/tty6' if vt else '/dev/ttyS0')
         assert flags == os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY | os.O_NOFOLLOW
         events.append('open')
         return 77
 
     def attributes(fd):
         assert fd == 77
-        flags = termios.ICANON
+        flags = termios.ICANON | (termios.ECHO if getty else 0)
         if fault == 'echo':
-            flags |= termios.ECHO
+            flags ^= termios.ECHO
         elif fault == 'echonl':
             flags |= termios.ECHONL
         elif fault == 'canonical':
@@ -77,17 +94,20 @@ def test_guest_password_probe_refuses_wrong_process_or_echo(fault, capsys):
                               O_NOCTTY=os.O_NOCTTY, O_NOFOLLOW=os.O_NOFOLLOW, open=opened,
                               close=lambda fd: events.append(('close', fd)),
                               fstat=lambda fd: SimpleNamespace(st_mode=stat.S_IFCHR,
-                                  st_rdev=0 if fault == 'device' else os.makedev(4,64)))
+                                  st_rdev=0 if fault == 'device' else device))
     modules = {'os': fake_os, 'pathlib': SimpleNamespace(Path=GuestPath),
                'subprocess': SimpleNamespace(run=command),
+               'time': SimpleNamespace(monotonic=iter([0, 31]).__next__, sleep=lambda _: None),
                'termios': SimpleNamespace(ICANON=termios.ICANON, ECHO=termios.ECHO,
                                          ECHONL=termios.ECHONL, tcgetattr=attributes)}
     with patch.dict(sys.modules, modules):
-        if fault:
-            with pytest.raises(AssertionError):
-                exec(SERIAL_PASSWORD, {})
+        program = VT6_GETTY if getty else VT6_PASSWORD if vt else SERIAL_PASSWORD
+        if rejected:
+            with pytest.raises(OSError if fault == 'active-read-error' else AssertionError):
+                exec(program, {})
         else:
-            exec(SERIAL_PASSWORD, {})
-    assert capsys.readouterr().out == ('' if fault else 'serial-password-safe\n')
+            exec(program, {})
+    assert capsys.readouterr().out == ('' if rejected else
+        'vt6-getty-ready\n' if getty else terminal + '-password-safe\n')
     if 'open' in events:
         assert events[-1] == ('close', 77)

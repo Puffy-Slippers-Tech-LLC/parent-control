@@ -14,6 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from installation_observations import LOGIN_RESOLUTION_DIAGNOSTICS, REBOOT_PASSWORD, SUDO_PASSWORD
+from installation_observations import VT6_REBOOT_PASSWORD, VT6_SUDO_PASSWORD
 
 
 @pytest.mark.parametrize('fault,stage', [
@@ -75,6 +76,8 @@ from installation_observations import LOGIN_RESOLUTION_DIAGNOSTICS, REBOOT_PASSW
     ('changed-child', 'process-continuity'), ('getty-starttime', 'process-continuity'),
     ('parent-starttime', 'process-continuity'), ('changed-ancestry', 'process-continuity'),
     ('getty-stat-error', 'getty-session'),
+    ('inactive', 'terminal-active'), ('active-changed', 'terminal-active'),
+    ('active-read-error', 'terminal-active'),
 ] + [('echo-syscall-' + call, 'terminal-echo-enabled-other-syscall-' + detail + '-queue-empty')
      for call, detail in (('read', 'read'), ('write', 'write'), ('poll', 'poll'),
                          ('ppoll', 'poll'), ('futex', 'futex'), ('ioctl', 'ioctl'))]
@@ -87,7 +90,11 @@ from installation_observations import LOGIN_RESOLUTION_DIAGNOSTICS, REBOOT_PASSW
          ('exe-mismatch', 'exe-mismatch'), ('credentials', 'credentials'))])
 @pytest.mark.parametrize('newline_echo', [False, True])
 @pytest.mark.parametrize('action', ['install', 'reboot'])
-def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, newline_echo, action, capsys):
+@pytest.mark.parametrize('terminal', ['serial', 'vt6'])
+def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, newline_echo, action, terminal, capsys):
+    vt = terminal == 'vt6'
+    if stage == 'terminal-active' and not vt:
+        stage = None
     if stage and stage.endswith('-exe-resolve'):
         stage += ('-error-permission-link-expected-target-expected-identity-same'
                   '-leader-same-euid-root-ptrace-set')
@@ -97,7 +104,7 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
         stage += '-echo-' + ('both' if fault == 'echo-both' or newline_echo else 'characters')
     counts = {}
     events = []
-    device = os.makedev(4, 64)
+    device = os.makedev(4, 6 if vt else 64)
 
     def login_fault(name):
         phase = {1: 'initial', 2: 'recipient', 3: 'continuity'}.get(counts.get('login-stat'))
@@ -166,6 +173,13 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
             return b'\0'.join(args)
 
         def read_text(self):
+            if self.value == '/sys/class/tty/tty0/active':
+                assert vt
+                counts['active'] = counts.get('active', 0) + 1
+                if fault == 'active-read-error':
+                    raise OSError('private-canary')
+                return 'tty1\n' if fault == 'inactive' or (
+                    fault == 'active-changed' and counts['active'] > 2) else 'tty6\n'
             if self.value == '/proc/self/status':
                 return 'CapEff:\t0000000000080000\n'
             pid = int(self.value.split('/')[2])
@@ -271,7 +285,8 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
                 st_rdev=0 if fault == ('parent-stdin' if parent else 'stdin') else device)
 
     def command(args, **kwargs):
-        assert args == ['systemctl', 'show', 'serial-getty@ttyS0.service', '--property=MainPID', '--value']
+        assert args == ['systemctl', 'show', 'getty@tty6.service' if vt else
+                        'serial-getty@ttyS0.service', '--property=MainPID', '--value']
         assert kwargs == dict(capture_output=True, text=True, check=True,
                               timeout=2 if kwargs['timeout'] == 2 else 10)
         if fault == 'getty-error':
@@ -279,7 +294,7 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
         return SimpleNamespace(stdout='0' if fault == 'leader' else '42')
 
     def opened(path, flags):
-        assert path == '/dev/ttyS0'
+        assert path == ('/dev/tty6' if vt else '/dev/ttyS0')
         assert flags == os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY | os.O_NOFOLLOW
         if fault == 'open-error':
             raise OSError('private-canary')
@@ -323,10 +338,13 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
             TIOCOUTQ=termios.TIOCOUTQ, TCSETSW=termios.TCSETSW, TCSETSF=termios.TCSETSF,
             tcgetattr=attributes)}
     with patch.dict(sys.modules, modules):
-        exec(SUDO_PASSWORD if action == 'install' else REBOOT_PASSWORD, {})
+        program = ((VT6_SUDO_PASSWORD if action == 'install' else VT6_REBOOT_PASSWORD) if vt
+                   else (SUDO_PASSWORD if action == 'install' else REBOOT_PASSWORD))
+        exec(program, {})
     captured = capsys.readouterr()
-    assert captured.out == (action + '-password-rejected:' + stage + '\n'
-                            if stage else action + '-password-safe\n')
+    prefix = ('vt6-' if vt else '') + action + '-password'
+    assert captured.out == (prefix + '-rejected:' + stage + '\n'
+                            if stage else prefix + '-safe\n')
     assert not captured.err
     if stage is None:
         assert 'syscall' not in events and 'queue' not in events
@@ -364,8 +382,9 @@ def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, 
     ('ptrace', 'private-canary', 'ptrace', 'unavailable'),
     ('ptrace', errno.EACCES, 'ptrace', 'unavailable'),
 ])
+@pytest.mark.parametrize('unit', ['serial-getty@ttyS0.service', 'getty@tty6.service'])
 def test_resolution_failure_diagnostics_are_fixed_and_follow_only_selected_identity(
-        operation, value, field, expected):
+        operation, value, field, expected, unit):
     from unittest.mock import Mock
     from installation_observations import LOGIN_RESOLUTION_PATTERN
     import re
@@ -414,7 +433,7 @@ def test_resolution_failure_diagnostics_are_fixed_and_follow_only_selected_ident
         return observed('link', '/usr/bin/login')
 
     command = Mock(side_effect=lambda *args, **kwargs: SimpleNamespace(stdout=observed('leader', '42')))
-    namespace = dict(errno=errno, pathlib=SimpleNamespace(Path=DiagnosticPath),
+    namespace = dict(errno=errno, terminal_unit=unit, pathlib=SimpleNamespace(Path=DiagnosticPath),
                      process=process, subprocess=SimpleNamespace(run=command),
                      os=SimpleNamespace(readlink=readlink, geteuid=lambda: observed('euid', 0)))
     exec(LOGIN_RESOLUTION_DIAGNOSTICS, namespace)
@@ -423,7 +442,7 @@ def test_resolution_failure_diagnostics_are_fixed_and_follow_only_selected_ident
     assert '-' + field + '-' + expected in detail
     assert 'private-canary' not in detail
     assert re.fullmatch(LOGIN_RESOLUTION_PATTERN, 'getty-initial-exe-resolve' + detail)
-    command.assert_called_once_with(['systemctl', 'show', 'serial-getty@ttyS0.service',
+    command.assert_called_once_with(['systemctl', 'show', unit,
         '--property=MainPID', '--value'], capture_output=True, text=True, check=True, timeout=2)
     if operation == 'link' and expected != 'expected':
         assert '-target-not-read' in detail

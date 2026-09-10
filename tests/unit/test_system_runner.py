@@ -546,10 +546,16 @@ def test_collection_failure_does_not_hide_original_pytest_failure_or_its_domain(
 
 
 
-def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path):
+@pytest.mark.parametrize('update', [False, True])
+def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update, monkeypatch):
     vm, lease = Mock(), Mock()
     lease.state = {'run': RUN}
+    capture = Mock()
+    monkeypatch.setattr(runner, 'capture_session_screen', capture)
     selection = runner.resolve_selection(inventories=INVENTORIES)
+    if update:
+        (tmp_path / 'input').mkdir()
+        (tmp_path / 'input/previous-package.deb').write_bytes(b'old payload')
     write_junit_results(tmp_path, selection)
     ledger = runner.RunLedger()
     result = runner.installed_run(vm, lease, tmp_path, selection, ledger)
@@ -557,11 +563,65 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path):
         ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]'),
         ('authorization', 'test_real_selected_parent_authentication[child1]'),
     )
-    assert vm.reboot.call_count == 2
-    assert vm.call.call_count == 9
-    assert vm.call.call_args_list[2].args[0] == runner.guest_command(RUN, 'collect', 'installed')
+    assert vm.reboot.call_count == 2 + update
+    assert vm.call.call_count == 9 + update
+    assert vm.call.call_args_list[2 + update].args[0] == runner.guest_command(RUN, 'collect', 'installed')
+    if update:
+        calls = vm.method_calls
+        old = next(i for i, c in enumerate(calls)
+                   if c[0] == 'call' and c.args[0] == runner.guest_command(RUN, 'install-previous'))
+        new = next(i for i, c in enumerate(calls)
+                   if c[0] == 'call' and c.args[0] == runner.guest_command(RUN, 'upgrade'))
+        assert old < new and any(c[0] == 'reboot' for c in calls[old + 1:new])
     assert ledger.outcomes['product'] == {'outcome': 'passed', 'category': None}
     assert ledger.outcomes['collection'] == {'outcome': 'passed', 'category': None}
+    capture.assert_called_once_with(lease, tmp_path / 'guest-results')
+
+
+@pytest.mark.parametrize('lost', [False, True])
+def test_session_capture_checks_ownership_before_and_after_stream(tmp_path, monkeypatch, lost):
+    monkeypatch.setattr(runner.time, 'sleep', lambda _seconds: None)
+    lease = Mock()
+    lease.source.domain.screenshot.return_value = 'image/png'
+    stream = lease.source.connection.newStream.return_value
+    stream.recvAll.side_effect = lambda callback, opaque: callback(stream, b'fixed-image', opaque)
+    if lost:
+        lease.guard.side_effect = [None, None, None, runner.Error('guard:replaced')]
+        with pytest.raises(runner.Error, match='guard:replaced'):
+            runner.capture_session_screen(lease, tmp_path)
+        stream.abort.assert_called_once()
+    else:
+        runner.capture_session_screen(lease, tmp_path)
+        assert (tmp_path / 'session-screen.png').read_bytes() == b'fixed-image'
+        stream.abort.assert_not_called()
+    assert lease.guard.call_count == 4
+    lease.source.domain.sendKey.assert_called_once_with(
+        lease.source.api.VIR_KEYCODE_SET_LINUX, 100, [42], 1, 0)
+    stream.finish.assert_called_once()
+
+
+def test_session_capture_refuses_before_vm_access(tmp_path):
+    lease = Mock()
+    lease.guard.side_effect = runner.Error('guard:refused')
+    with pytest.raises(runner.Error, match='guard:refused'):
+        runner.capture_session_screen(lease, tmp_path)
+    lease.source.connection.newStream.assert_not_called()
+    lease.source.domain.screenshot.assert_not_called()
+    lease.source.domain.sendKey.assert_not_called()
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('after_wait', [False, True])
+def test_session_capture_refuses_lost_ownership_after_waking(tmp_path, monkeypatch, after_wait):
+    monkeypatch.setattr(runner.time, 'sleep', lambda _seconds: None)
+    lease = Mock()
+    lease.guard.side_effect = [None, *([None] if after_wait else []), runner.Error('guard:replaced')]
+    with pytest.raises(runner.Error, match='guard:replaced'):
+        runner.capture_session_screen(lease, tmp_path)
+    lease.source.domain.sendKey.assert_called_once()
+    lease.source.connection.newStream.assert_not_called()
+    lease.source.domain.screenshot.assert_not_called()
+    assert not list(tmp_path.iterdir())
 
 
 @pytest.mark.parametrize(('fault', 'category'), [
@@ -606,12 +666,18 @@ def test_enforcement_results_must_match_executed_case(tmp_path, fault):
         runner.reconcile_junit(tmp_path, 'enforcement', selection)
 
 
-def test_enforcement_failure_keeps_product_attribution_and_collects(tmp_path):
+@pytest.mark.parametrize(('area', 'capture_failure'), [
+    ('enforcement', False), ('session', False), ('session', True),
+])
+def test_runtime_failure_keeps_product_attribution_and_collects(
+        tmp_path, monkeypatch, area, capture_failure):
     vm, lease = Mock(), Mock()
     lease.state = {'run': RUN}
     vm.commands.last_returncode = 1
-    selection = runner.resolve_selection('enforcement', inventories=INVENTORIES)
-    failed_command = runner.pytest_command(RUN, 'enforcement', selection)
+    capture = Mock(side_effect=runner.Error('capture:failed') if capture_failure else None)
+    monkeypatch.setattr(runner, 'capture_session_screen', capture)
+    selection = runner.resolve_selection(area, inventories=INVENTORIES)
+    failed_command = runner.pytest_command(RUN, area, selection)
 
     def invoke(command, **kwargs):
         if command == failed_command:
@@ -623,9 +689,12 @@ def test_enforcement_failure_keeps_product_attribution_and_collects(tmp_path):
     with pytest.raises(runner.CommandError, match='command:failed:ssh'):
         runner.installed_run(vm, lease, tmp_path, selection, ledger)
     assert ledger.outcomes['product'] == {
-        'outcome': 'failed', 'category': 'pytest:failed:enforcement'}
+        'outcome': 'failed', 'category': 'pytest:failed:' + area}
     assert vm.call.call_args.args[0] == runner.guest_command(RUN, 'collect', 'failed')
     assert sum(call.args[0] == failed_command for call in vm.call.call_args_list) == 1
+    assert capture.call_count == int(area == 'session')
+    if capture_failure:
+        assert ledger.outcomes['collection'] == {'outcome': 'failed', 'category': 'capture:failed'}
 
 
 def test_selected_pre_reboot_execution_omits_reboot_and_later_phases(tmp_path):

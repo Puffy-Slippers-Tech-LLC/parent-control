@@ -54,6 +54,22 @@ def test_system_selector_stays_a_single_argument(checkout):
     assert command[-2:] == [f'--test={value}', '--list']
 
 
+def test_system_update_pins_both_artifact_directories(checkout):
+    command = select(checkout, ['system', '--artifacts', '/tmp/onpc-current',
+                               '--previous-artifacts', '/var/tmp/onpc-previous',
+                               '--area', 'session'])
+    assert command[3:] == ['--artifacts', '/tmp/onpc-current',
+                           '--previous-artifacts', '/var/tmp/onpc-previous', '--area=session']
+
+
+@pytest.mark.parametrize('path', ['relative', '/etc', '/tmp/unrelated',
+                                  '/tmp/onpc-previous/../other'])
+def test_system_update_rejects_unconfined_prior_payload(checkout, path):
+    with pytest.raises((ValueError, SystemExit)):
+        select(checkout, ['system', '--artifacts', '/tmp/onpc-current',
+                         '--previous-artifacts', path])
+
+
 @pytest.mark.parametrize('arguments', [[], ['--artifacts', 'relative'], ['--command', 'id']])
 def test_system_rejects_invalid_options(checkout, arguments):
     with pytest.raises(ValueError):

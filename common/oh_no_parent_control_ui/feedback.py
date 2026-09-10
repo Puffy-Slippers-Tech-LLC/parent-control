@@ -69,6 +69,8 @@ class FeedbackDialog(Adw.Window):
         self._logs = None
         self._cancelled = threading.Event()
         self._receipt_id = None
+        self._success_dialog = None
+        self._success_timeout = 0
         self._user_attachments = []
         self._attachment_rows = []
         self.connect("close-request", self._hide_draft)
@@ -262,6 +264,7 @@ class FeedbackDialog(Adw.Window):
         return True
 
     def _hide_draft(self, *_args):
+        self._clear_success_dialog()
         if self._busy and self._on_close is not None:
             # The button explicitly says Stop sending and close in this state.
             self._cancelled.set()
@@ -273,6 +276,7 @@ class FeedbackDialog(Adw.Window):
         return True
 
     def _destroyed(self, *_args):
+        self._clear_success_dialog()
         self._cancelled.set()
         Gtk.StyleContext.remove_provider_for_display(self.get_display(), self._css_provider)
 
@@ -366,7 +370,56 @@ class FeedbackDialog(Adw.Window):
             self._clear_user_attachments()
             self._submission = None
             self._logs = None
+            if self.get_visible():
+                self._show_success_dialog()
         return GLib.SOURCE_REMOVE
+
+    def _show_success_dialog(self):
+        self._clear_success_dialog()
+        dialog = Adw.AlertDialog.new(
+            "Thank you for your feedback!",
+            "Your feedback was sent successfully. We appreciate your help making "
+            "the app better.\n\nClick Close now, or wait 3 seconds for both dialogs "
+            "to close automatically.",
+        )
+        self._success_dialog = dialog
+        self._success_seconds = 3
+        dialog.add_response("close", "Close now (3s)")
+        dialog.set_response_appearance("close", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("close")
+        dialog.set_close_response("close")
+        dialog.connect("response", lambda *_: self._stop_success_countdown())
+        dialog.connect("closed", self._success_closed)
+        dialog.present(self)
+        self._success_timeout = GLib.timeout_add(1000, self._success_tick)
+
+    def _success_tick(self):
+        self._success_seconds -= 1
+        if self._success_seconds == 0:
+            self._success_timeout = 0
+            self._success_dialog.close()
+            return GLib.SOURCE_REMOVE
+        self._success_dialog.set_response_label(
+            "close", f"Close now ({self._success_seconds}s)",
+        )
+        return GLib.SOURCE_CONTINUE
+
+    def _stop_success_countdown(self):
+        if self._success_timeout:
+            GLib.source_remove(self._success_timeout)
+            self._success_timeout = 0
+
+    def _success_closed(self, dialog):
+        if self._success_dialog is dialog:
+            self._stop_success_countdown()
+            self._success_dialog = None
+            self.close()
+
+    def _clear_success_dialog(self):
+        self._stop_success_countdown()
+        if self._success_dialog is not None:
+            dialog, self._success_dialog = self._success_dialog, None
+            dialog.force_close()
 
     def _send_without_logs(self, _button):
         if self._include_logs:

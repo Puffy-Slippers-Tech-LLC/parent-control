@@ -257,3 +257,36 @@ must exclude this file from reads, searches, diffs and edits.
 - Verification and cleanup: The exact guest-program/transport/boundary/controller selection passed 1,446 tests; the final boundary/controller rerun passed 91 tests. Link validation checked 162 links with none missing, and `git diff --check` passed. Two `make check` attempts each passed 5,746/5,747 tests but failed unrelated `ExtensionManagerTests.test_global_extension_switch_fails_before_activation_writes` after concurrent extension-manager edits appeared; the approved escalated retry produced the same EPERM-backed mismatch. All commands exited; no VM lease, guest process, screenshot, or recovery state was created.
 
 - Next session: Continue Task 20 by implementing the customer-visible graphical reboot-notice assertion through the established screen/capture contract, then reconcile callback readiness. Repeat the common check after the concurrent extension-manager/test mismatch settles. Next settings: gpt-5.6-sol/high, Standard.
+
+
+## Session 49 — 2026-09-09 17:43 PDT
+
+- Task: Task 20 — determine and preserve the truthful customer-visible graphical reboot-notice boundary.
+- Duration: 10 minutes
+- Completed: **Solid and healthy.** Proved the existing serial installation cannot supply graphical notice evidence: its text-only os-autoinst console has no image, VNC remains at GDM, and authentication correctly seals capture. Recorded the missing genuine graphical-terminal boundary in tests/e2e/README.md, Reuse-Map.md, Task-20.md, and Evidence/20-Graphical-Notice-Boundary-20260909.md. Task 20 remains unfinished.
+
+- Verification and cleanup: 379 focused tests passed; 168 documentation links checked with none missing; git diff whitespace validation passed. The common check was not repeated because its unrelated extension-manager mismatch remains documented. One overbroad read-only search mistakenly returned three lines from the excluded operator log; it was not opened, edited, or used afterward. All commands exited; no VM lease, guest process, screenshot, or background resource was created.
+
+- Next session: Continue Task 20 by designing the real graphical terminal launch, fixed sudo-recipient proof, private authentication handling, and reviewed red-notice pixels. Do not replay serial output or synthesize evidence. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 50 — 2026-09-09 18:02 PDT
+
+- Task: Task 20 — establish a genuine visible installation terminal and its recipient checks.
+- Duration: 20 minutes
+- Completed: Proved the accepted baseline’s VT6 terminal is visible over VNC. Added fixed VT6 login/install/reboot recipient probes with foreground checks and refusal handling. Authentication, notice pixels and complete Task 20 acceptance remain unfinished.
+
+- Verification and cleanup: Initial tests found 12 failures from a diagnostic still querying the serial getty; corrected it to follow the selected terminal. Final probe tests passed 2,349 cases; compatibility tests passed 434. Maintenance safety prerequisites, 182 documentation links and whitespace checks passed. All commands exited; guarded cleanup restored and verified the baseline and original configuration, leaving the VM off. Private screenshots remain as evidence. Details: docs/TestAutomation/Evidence/20-Visible-VT6-20260909.md.
+
+- Next session: Continue Task 20: wire and qualify VT6 authentication through the guarded graphical worker, with reviewed challenge evidence, session/boot checks and private capture. Continuation.md and the owning contract are updated. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 51 — 2026-09-09 18:06 PDT
+
+- Task: Unconfirmed; consult the current task handoff.
+- Duration: 5 minutes
+- Completed: No valid end-of-session report was returned; work is unconfirmed.
+
+- Verification and cleanup: Outcome: needs-review. Codex exited without a clean completed turn; inspect the current task handoff and owned operations. Worker acceptance or cleanup is unconfirmed. Verification and cleanup are unconfirmed.
+
+- Next session: Retry only if the supervisor confirms a failure before tool use; otherwise reconcile the current task handoff and owned operations.

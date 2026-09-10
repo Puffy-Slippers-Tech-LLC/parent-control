@@ -103,6 +103,8 @@ def test_customer_reboot_uses_real_readiness_loop_and_revalidates_final_boot(mon
 
 
 @pytest.mark.parametrize('name,program,timeout,result,raw', [
+    ('vt6-getty', guest_observations.VT6_GETTY, 50,
+     {'active_vt6_verified': True, 'vt6_getty_verified': True}, b'vt6-getty-ready\n'),
     ('boot', guest_observations.BOOT, 20, {'boot_sha256': 'a' * 64}, b'a' * 64 + b'\n'),
     ('package-absent', installation_observations.ABSENT, 30,
      {'product_package_absent': True, 'core_payload_absent': True,
@@ -131,6 +133,15 @@ def test_customer_reboot_uses_real_readiness_loop_and_revalidates_final_boot(mon
     ('serial-password', guest_observations.SERIAL_PASSWORD, 20,
      {'serial_login_process_verified': True,
       'terminal_echo_disabled': True}, b'serial-password-safe\n'),
+    ('vt6-password', guest_observations.VT6_PASSWORD, 20,
+     {'vt6_login_process_verified': True, 'terminal_echo_disabled': True,
+      'active_vt6_verified': True}, b'vt6-password-safe\n'),
+    ('vt6-install-password', installation_observations.VT6_SUDO_PASSWORD, 20,
+     {'sudo_install_process_verified': True, 'terminal_echo_disabled': True,
+      'active_vt6_verified': True}, b'vt6-install-password-safe\n'),
+    ('vt6-reboot-password', installation_observations.VT6_REBOOT_PASSWORD, 20,
+     {'sudo_reboot_process_verified': True, 'terminal_echo_disabled': True,
+      'active_vt6_verified': True}, b'vt6-reboot-password-safe\n'),
     ('install-password', installation_observations.SUDO_PASSWORD, 20,
      {'sudo_install_process_verified': True,
       'terminal_echo_disabled': True}, b'install-password-safe\n'),
@@ -159,6 +170,34 @@ def test_fixed_probe_checks_ownership_before_and_after_output(observer, name, pr
     transport.call.assert_called_once_with(['/usr/bin/python3', '-c', program], timeout=timeout)
     transport.reboot.assert_not_called()
     transport.copy.assert_not_called()
+
+
+@pytest.mark.parametrize('name', ['vt6-password', 'vt6-install-password', 'vt6-reboot-password'])
+@pytest.mark.parametrize('fault', ['serial', 'other-purpose', 'trailing', 'inactive',
+                                  'transport', 'ownership'])
+def test_vt6_proofs_refuse_other_surfaces_private_output_and_latch(observer, name, fault, capsys):
+    reader, transport = observer
+    raw = (name + '-safe\n').encode()
+    if fault == 'serial':
+        raw = raw.replace(b'vt6-', b'serial-' if name == 'vt6-password' else b'')
+    elif fault == 'other-purpose':
+        raw = b'vt6-reboot-password-safe\n' if name != 'vt6-reboot-password' else b'vt6-install-password-safe\n'
+    elif fault == 'trailing':
+        raw += b'private-canary'
+    elif fault == 'inactive':
+        raw = (name + '-rejected:terminal-active\n').encode()
+    elif fault == 'transport':
+        transport.call.side_effect = RuntimeError('private-canary')
+    elif fault == 'ownership':
+        transport.guard.side_effect = [None, RuntimeError('private-canary')]
+    transport.call.return_value = raw
+    with pytest.raises(EvidenceError) as caught:
+        reader.read(name)
+    assert 'private-canary' not in str(caught.value) + capsys.readouterr().err
+    calls = list(transport.mock_calls)
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        reader.read(name)
+    assert transport.mock_calls == calls
 
 
 @pytest.mark.parametrize('fault', ['version', 'executable', 'implementation', 'extra', 'duplicate', 'trailing'])

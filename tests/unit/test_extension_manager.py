@@ -115,7 +115,7 @@ class ExtensionManagerTests(unittest.TestCase):
 
         _, arguments = run.call_args.args
         self.assertIn("org.freedesktop.DBus.NameHasOwner", arguments)
-        self.assertEqual(arguments[-1], "org.gnome.Shell.Extensions")
+        self.assertEqual(arguments[-1], "org.gnome.Shell")
         self.assertTrue(run.call_args.kwargs["require_live"])
 
     def test_shell_is_not_available_without_a_live_user_bus(self):

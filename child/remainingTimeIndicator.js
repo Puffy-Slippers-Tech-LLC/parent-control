@@ -114,6 +114,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._calculatedEnd = this._activeExtensionEnd;
         this._statusLoaded = false;
         this._lockPending = false;
+        this._expiryDiagnostic = null;
         this._refreshPending = false;
         this._refreshAgain = false;
         this._sessionPreparePending = false;
@@ -459,6 +460,22 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         // assuming the distribution-specific primary mode name.
         const visible = state.visible;
 
+        // Login-time expiry can overlap Shell's own lock transition. Keep a
+        // small, deduplicated state witness; no account or session identifiers
+        // are needed to distinguish an unloaded limit from an existing lock.
+        if (!this._preview && remainingSecs <= 0) {
+            const diagnostic = `loaded=${this._statusLoaded} ` +
+                `limitEnabled=${manager.dailyLimitEnabled} ` +
+                `locked=${Main.sessionMode.isLocked} ` +
+                `greeter=${Main.sessionMode.isGreeter} pending=${this._lockPending}`;
+            if (diagnostic !== this._expiryDiagnostic) {
+                this._expiryDiagnostic = diagnostic;
+                logInfo(`expiry enforcement state: ${diagnostic}`);
+            }
+        } else {
+            this._expiryDiagnostic = null;
+        }
+
         if (!visible || remainingSecs <= 0) {
             this._clearTimeout();
             this._stopRequestIconSpin();
@@ -479,6 +496,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             return;
 
         this._lockPending = true;
+        logInfo('requesting managed desktop lock because no time remains');
         Gio.DBus.session.call(
             SCREEN_SAVER_NAME, SCREEN_SAVER_PATH, SCREEN_SAVER_INTERFACE, 'Lock',
             null, null, Gio.DBusCallFlags.NONE, -1, null,

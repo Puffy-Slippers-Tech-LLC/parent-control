@@ -26,7 +26,7 @@ CATEGORIES = {
     'fixtures': 'build, verify PATH; generated build output',
     'artifacts': 'build, verify PATH, compare FIRST SECOND; generated build output',
     'integration': 'installed dispatcher for check_* basenames; no script arguments',
-    'system': 'guarded installed runner; --artifacts, --area, --test, --list',
+    'system': 'guarded installed runner; --artifacts, --previous-artifacts, --area, --test, --list',
     'e2e': 'host-safe graphical inventory --list; invalid/pending execution refused before privilege',
     'fast': 'reserved for the Task 28 make test-fast target',
     'all': 'reserved for the Task 28 make test-all target; no narrowing selectors',

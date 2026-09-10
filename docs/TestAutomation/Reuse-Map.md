@@ -23,6 +23,13 @@ review changes no task order or completion status.
 
 ## Existing interfaces to find once
 
+- Parent remaining-time reads use the existing broker `GetTimeStatus` method:
+  [screen-time contract](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
+  Parent UI/time-status work must reuse this path; direct AccountsService grant
+  reads require separate Polkit authorization. The
+  [2026-09-09 investigation](../Parent-Time-Status-Investigation-2026-09-09.md)
+  records the client and role-revalidation regressions and installed-test limits.
+
 - Host-side fixture/double libraries and guest assertion helpers:
   [shared support guide](../../tests/support/README.md). Use explicit support
   imports; do not import another collected case to obtain its fixture. The
@@ -68,7 +75,19 @@ for canonical helpers, the prompt/echo and serial-cancellation solutions,
 regressions, live qualification links and open executable-resolution diagnostics.
 Authenticated installation, deliberate refusal and the exact final red notice
 have live qualification. The notice proves emitted serial bytes; it does not
-prove graphical rendering or reboot. These qualifications do not resolve the
+prove graphical rendering or reboot. The current installation console cannot
+provide that missing pixel proof: its pinned os-autoinst `virtio-terminal` is
+text-only, while VNC remains at GDM and explicit capture is sealed before
+authentication. The [owning installation contract](../../tests/e2e/README.md#installation-findings-to-carry-forward)
+and [boundary evidence](Evidence/20-Graphical-Notice-Boundary-20260909.md) define
+the missing genuine graphical-terminal, reviewed prompt/recipient and notice
+contract; replay, controller rendering and a post-hoc notice command are not
+acceptable substitutes. The [visible VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal)
+now records live baseline surface availability and locally tested fixed VT6
+login/sudo recipient probes, their shared diagnostics and regressions. VNC worker
+input, reviewed prompt/notice needles and live recipient qualification remain
+pending; the [VT6 evidence](Evidence/20-Visible-VT6-20260909.md) does not qualify
+authentication or E2E-002. These qualifications do not resolve the
 intermittent recipient failure; diagnostics passed locally and were not triggered
 in the latest live attempt. The [active Task 20 handoff](Task-20.md#task-20-continuation--2026-09-08)
 owns changing attempt details and the next result. The

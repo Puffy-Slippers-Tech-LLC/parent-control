@@ -1,5 +1,6 @@
 """The real APT path is accessible only after the explicit VM guard passes."""
 
+import json
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -113,3 +114,44 @@ def test_apt_installs_only_the_exact_transferred_debian_artifact(monkeypatch):
         'apt-get', '-o', 'DPkg::Lock::Timeout=120', 'install', '--no-install-recommends',
         '-y', str(guest.PAYLOAD / 'package.deb')]
     assert guest.os.environ['DEBIAN_FRONTEND'] == 'noninteractive'
+
+
+@pytest.mark.parametrize('operation', ['install_previous', 'upgrade'])
+def test_update_guard_refusal_prevents_commands_and_writes(monkeypatch, operation):
+    for name in ('before_install', 'guard'):
+        monkeypatch.setattr(guest, name, Mock(side_effect=guest.GuestError('guard-refused')))
+    run, diagnostics = Mock(), Mock()
+    monkeypatch.setattr(guest, 'run', run)
+    monkeypatch.setattr(guest, 'enable_diagnostics', diagnostics)
+    with pytest.raises(guest.GuestError, match='guard-refused'):
+        getattr(guest, operation)()
+    run.assert_not_called()
+    diagnostics.assert_not_called()
+
+
+def test_previous_payload_digest_mismatch_prevents_apt(monkeypatch, tmp_path):
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    (tmp_path / 'previous-package.deb').write_bytes(b'changed')
+    (tmp_path / 'previous-inputs.json').write_text(json.dumps({'sha256': 'a' * 64}))
+    for name in ('before_install', 'enable_diagnostics'):
+        monkeypatch.setattr(guest, name, Mock())
+    run = Mock()
+    monkeypatch.setattr(guest, 'run', run)
+    with pytest.raises(guest.GuestError, match='previous-package-digest'):
+        guest.install_previous()
+    run.assert_not_called()
+
+
+def test_update_requires_old_package_reboot_before_apt(monkeypatch, tmp_path):
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    (tmp_path / 'results').mkdir()
+    boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+    (tmp_path / 'results/previous-install.json').write_text(json.dumps({'boot': boot}))
+    for name in ('guard', 'enable_diagnostics', 'wait_for_boot'):
+        monkeypatch.setattr(guest, name, Mock())
+    run = Mock()
+    monkeypatch.setattr(guest, 'run', run)
+    with pytest.raises(guest.GuestError, match='previous-package-reboot-not-observed'):
+        guest.upgrade()
+    run.assert_not_called()
+    assert not (tmp_path / 'before.json').exists()

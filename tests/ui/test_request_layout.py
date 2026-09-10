@@ -1,6 +1,7 @@
 """Resolution and overflow regression coverage for both shared request views."""
 
 import json
+import math
 from pathlib import Path
 import tempfile
 
@@ -10,11 +11,64 @@ import pytest
 pytestmark = pytest.mark.ui
 
 
+@pytest.fixture
+def request_display_scale(hermetic_ui_session, dpi_scale):
+    """Set actual Wayland scaling on the fixture's private compositor only.
+
+    GDK_SCALE is an X11 override and cannot exercise Wayland HiDPI. Use
+    Mutter's documented DisplayConfig interface with a temporary configuration:
+    https://gitlab.gnome.org/GNOME/mutter/-/blob/main/data/dbus-interfaces/org.gnome.Mutter.DisplayConfig.xml
+    """
+    from gi.repository import Gio, GLib
+
+    connection = Gio.DBusConnection.new_for_address_sync(
+        hermetic_ui_session.bus_address,
+        Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT
+        | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
+        None, None,
+    )
+
+    def call(method, parameters=None):
+        return connection.call_sync(
+            "org.gnome.Mutter.DisplayConfig", "/org/gnome/Mutter/DisplayConfig",
+            "org.gnome.Mutter.DisplayConfig", method, parameters, None,
+            Gio.DBusCallFlags.NONE, 3000, None,
+        ).unpack()
+
+    try:
+        _serial, monitors, logical_monitors, _properties = call("GetCurrentState")
+        assert len(monitors) == len(logical_monitors) == 1
+        specification, modes, _properties = monitors[0]
+        mode = next(mode for mode in modes if mode[-1].get("is-current"))
+        # Use the compositor's exact supported value (fractional scales may
+        # be represented as floats with slightly different precision).
+        supported_scale = next(
+            scale for scale in mode[5] if scale == pytest.approx(dpi_scale)
+        )
+        x, y, original_scale, transform, primary, _monitors, _properties = logical_monitors[0]
+
+        def apply(scale):
+            serial, *_state = call("GetCurrentState")
+            call("ApplyMonitorsConfig", GLib.Variant(
+                "(uua(iiduba(ssa{sv}))a{sv})",
+                (serial, 1, [(x, y, scale, transform, primary,
+                              [(specification[0], mode[0], {})])], {}),
+            ))
+
+        try:
+            apply(supported_scale)
+            yield
+        finally:
+            apply(original_scale)
+    finally:
+        connection.close_sync(None)
+
+
 @pytest.mark.parametrize("overlay, dpi_scale",
-                         ((False, 1), (True, 1), (False, 2), (True, 2)),
-                         ids=("kiosk", "child-overlay", "kiosk-hidpi", "child-hidpi"))
+                         ((False, 1), (True, 1), (False, 4 / 3), (True, 4 / 3)),
+                         ids=("kiosk", "child-overlay", "kiosk-fractional", "child-fractional"))
 def test_request_layout_keeps_text_readable_and_controls_reachable(
-        launch_ui, overlay, dpi_scale):
+        launch_ui, request_display_scale, overlay, dpi_scale):
     # Retain rendered evidence independently of pytest's rotating temp roots.
     directory = Path(tempfile.mkdtemp(prefix="onpc-request-layout-"))
     process, log = launch_ui(
@@ -23,7 +77,6 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
             "ONPC_REQUEST_LAYOUT_DIRECTORY": str(directory),
             "ONPC_REQUEST_LAYOUT_OVERLAY": "1" if overlay else "0",
             "GSK_RENDERER": "gl",
-            "GDK_SCALE": str(dpi_scale),
         },
     )
     assert process.wait(timeout=60) == 0, log.read_text()
@@ -40,7 +93,8 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
         assert 0 <= hud_x < hud_x + hud_width <= width, record
         assert 0 <= hud_y < hud_y + hud_height <= height, record
         assert hud_width >= 66 and record["mute_pick"], record
-        assert record["monitor_scale"] == dpi_scale, record
+        assert record["monitor_scale"] == math.ceil(dpi_scale), record
+        assert record["surface_scale"] == pytest.approx(dpi_scale), record
         assert record["status_font"] >= 19, record
         assert record["board_width"] >= record["board_minimum"], record
         if not record["expanded"]:

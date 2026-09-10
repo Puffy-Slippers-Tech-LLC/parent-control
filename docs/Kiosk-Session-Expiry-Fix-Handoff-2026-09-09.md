@@ -1,9 +1,12 @@
 # Kiosk unavailable after grant expiry during login
 
-The automation VM was released on the main development computer for the
-[runtime continuation](Kiosk-Session-Expiry-Runtime-2026-09-09.md). That document
-records new artifacts, actual VM attempts and outstanding checks. The original
-machine-specific restrictions and `/tmp` paths below describe the earlier session.
+The [runtime continuation](Kiosk-Session-Expiry-Runtime-2026-09-09.md) on the main
+development computer is complete for the installed-runtime scope: fresh install,
+same-version update/reboot, expiry/PAM, recovery, authenticated request APIs and
+failure checks passed. That document records current artifacts, screenshots,
+retained failed attempts and coverage limits. The VM was restored and powered
+off. The original machine-specific restrictions and `/tmp` paths below describe
+the earlier session; that computer's installed application has not been updated.
 
 ## Scope and operator instructions
 

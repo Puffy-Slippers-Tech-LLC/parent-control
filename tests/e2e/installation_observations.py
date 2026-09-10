@@ -5,6 +5,8 @@ payload integrity or readiness. The journey must compare the returned package
 digest to VerifiedInputs and separately retain those remaining assertions.
 """
 
+from terminal_observations import SERIAL, VT6
+
 COMMON = '''import hashlib,json,pathlib,stat,subprocess
 package = 'oh-no-parent-control'
 def call(*args):
@@ -188,6 +190,7 @@ print(json.dumps({'implementation': 'sudo-rs', 'package_version': fields[1],
 # prove who will consume a password. No command or process identity is supplied
 # by the worker. sudo may be the distribution's alternatives-managed binary.
 SUDO_PASSWORD_STAGES = (
+    'terminal-active',
     'fixture-identity', 'getty-leader', 'getty-session', 'getty-terminal',
     'getty-executable', 'getty-credentials', 'getty-child', 'parent-ancestry',
     'foreground-distinct', 'foreground-session', 'parent-session',
@@ -259,7 +262,7 @@ def resolution_diagnostic(error, root, before, leader):
     except Exception as identity_error:
         detail['identity'] = 'missing' if category(identity_error) == 'missing' else 'unavailable'
     try:
-        current = int(subprocess.run(['systemctl','show','serial-getty@ttyS0.service',
+        current = int(subprocess.run(['systemctl','show',terminal_unit,
             '--property=MainPID','--value'], capture_output=True, text=True,
             check=True, timeout=2).stdout.strip())
         detail['leader'] = 'same' if current == leader else 'missing' if current == 0 else 'changed'
@@ -279,12 +282,14 @@ _SUDO_PASSWORD_BODY = '''import array,errno,fcntl,os,pathlib,pwd,stat,subprocess
 stage = 'fixture-identity'
 uid = pwd.getpwnam('onpc-parent-jamie').pw_uid
 assert uid > 0
+stage = 'terminal-active'
+check_active_terminal()
 stage = 'getty-leader'
-leader = int(subprocess.run(['systemctl','show','serial-getty@ttyS0.service',
+leader = int(subprocess.run(['systemctl','show',terminal_unit,
                             '--property=MainPID','--value'], capture_output=True,
                            text=True, check=True, timeout=10).stdout.strip())
 assert leader > 1
-device = os.makedev(4,64)
+device = terminal_device
 def process(pid):
     p = pathlib.Path('/proc') / str(pid)
     fields = (p/'stat').read_text().rpartition(') ')[2].split()
@@ -344,6 +349,8 @@ stage = 'parent-foreground'
 assert int(fields[1]) == shell
 def snapshot(phase):
     global stage
+    stage = 'terminal-active'
+    check_active_terminal()
     login_identity(phase)
     stage = 'sudo-command'
     assert (proc/'cmdline').read_bytes().split(b'\\0') == expected_args
@@ -374,7 +381,7 @@ def snapshot(phase):
         assert before[1:6] == after[1:6] and before[19] == after[19]
 snapshot('recipient')
 stage = 'terminal-open'
-fd = os.open('/dev/ttyS0', os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY | os.O_NOFOLLOW)
+fd = os.open(terminal_path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY | os.O_NOFOLLOW)
 try:
     stage = 'terminal-device'
     info = os.fstat(fd)
@@ -456,14 +463,14 @@ print(result_prefix + '-safe')
 # A refusal exits the guest probe normally solely so the guarded transport can
 # collect it; the controller MUST reject it before authorizing any input.
 # Never serialize exceptions, argv, identities or authentication terminal data.
-def _sudo_password_program(action, command):
+def _sudo_password_program(action, command, *, terminal=SERIAL, label=''):
     # Called only below with reviewed constants. Scenarios cannot supply argv
     # or reuse an installation proof to authorize a reboot password.
-    prefix = action + '-password'
+    prefix = label + action + '-password'
     argv = [b'/usr/bin/sudo', b'-k', b'-p',
             ('\nONPC-' + action.upper() + '-PASSWORD: ').encode(), b'--',
             *command, b'']
-    return (f'expected_args = {argv!r}\nresult_prefix = {prefix!r}\n'
+    return (terminal + f'expected_args = {argv!r}\nresult_prefix = {prefix!r}\n'
             + "stage = 'fixture-identity'\ntry:\n"
             + ''.join('    ' + line + '\n' for line in _SUDO_PASSWORD_BODY.splitlines())
             + "except Exception:\n    print(result_prefix + '-rejected:' + stage)\n")
@@ -473,3 +480,8 @@ SUDO_PASSWORD = _sudo_password_program('install', [
     b'/usr/bin/apt-get', b'install', b'-y', b'/var/lib/onpc-e2e-assets/package.deb'])
 REBOOT_PASSWORD = _sudo_password_program('reboot', [
     b'/usr/bin/systemctl', b'--no-ask-password', b'reboot'])
+VT6_SUDO_PASSWORD = _sudo_password_program('install', [
+    b'/usr/bin/apt-get', b'install', b'-y', b'/var/lib/onpc-e2e-assets/package.deb'],
+    terminal=VT6, label='vt6-')
+VT6_REBOOT_PASSWORD = _sudo_password_program('reboot', [
+    b'/usr/bin/systemctl', b'--no-ask-password', b'reboot'], terminal=VT6, label='vt6-')

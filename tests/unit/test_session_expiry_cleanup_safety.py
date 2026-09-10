@@ -13,7 +13,9 @@ import system_graphical_expiry as graphical
     ('verify_pam_scope', ('gdm-password', Mock())),
     ('verify_offline_recovery', (Mock(),)), ('installed_manager', ()),
     ('verify_zero_time_pam', (Mock(),)), ('pam_password_status', (1000, Mock())),
+    ('pam_password_in_process', (1000, b'fixture')),
     ('verify_request_extension', (Mock(),)), ('verify_runtime_rollback', (Mock(),)),
+    ('verify_unavailable_enforcement', (Mock(),)),
 ])
 def test_fixture_refuses_outside_guarded_guest(monkeypatch, entry, args):
     guard = Mock(side_effect=expiry.guest.GuestError('test:guest-refused'))
@@ -39,7 +41,9 @@ def test_pam_probe_refuses_unregistered_service_before_opening_pam(monkeypatch):
     load.assert_not_called()
 
 
-@pytest.mark.parametrize('entry,args', [('prepare', ()), ('seed', ()), ('verify', (Mock(),))])
+@pytest.mark.parametrize('entry,args', [('prepare', ()), ('seed', ()), ('verify', (Mock(),)),
+                                      ('screen_lock_observation', (1004, '4', Mock(), Mock())),
+                                      ('verify_other_foreground', (1004, '4', Mock()))])
 def test_graphical_fixture_requires_guest_guard_before_actions(monkeypatch, entry, args):
     monkeypatch.setattr(graphical.guest, 'guard',
                         Mock(side_effect=expiry.guest.GuestError('test:guest-refused')))

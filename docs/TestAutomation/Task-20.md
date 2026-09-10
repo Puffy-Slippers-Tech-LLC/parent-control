@@ -85,16 +85,27 @@ output stays plain text.
 **Earliest ready task; not accepted.** [Task 19B remains accepted](Evidence/19B-Acceptance-20260908.md).
 No earlier entry is bypassed; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
 
-**Current result — 2026-09-09:** [installed-layout evidence](Evidence/20-Installed-Layout-Observation-20260909.md)
-records a fixed read-only post-reboot observer that reuses the transferred
+**Current result — 2026-09-09:** the
+[VT6 inspection and probe evidence](Evidence/20-Visible-VT6-20260909.md) establishes
+a real VNC-visible kernel terminal on the accepted baseline. A guarded
+credential-free Ctrl+Alt+F6 inspection retained and directly reviewed its
+1280×800 login screen, then restored the baseline. Fixed VT6 login, installation
+sudo and reboot sudo read-only probes now reuse the existing recipient checks,
+with repeated active-VT checks and distinct surface/purpose result tokens.
+The shared refusal diagnostic follows the selected getty unit. These probes
+are locally tested only; no VNC password input, prompt/notice needle or complete
+journey is yet qualified. The [owning VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal)
+and [reuse map](Reuse-Map.md#installation-helper-and-open-limits) carry the durable
+solution, regressions and open limits. The earlier
+[serial-screen finding](Evidence/20-Graphical-Notice-Boundary-20260909.md) remains
+valid: serial replay, controller rendering and post-hoc notice invocation do
+not establish customer-visible package output.
+
+The earlier [installed-layout evidence](Evidence/20-Installed-Layout-Observation-20260909.md)
+still records a fixed read-only post-reboot observer that reuses the transferred
 package inventory and installed package/ownership/PAM/Polkit/session assertions.
-The controller binds its safe inventory digest to `VerifiedInputs`, latches
-every mismatch or observation failure, and composes it with GDM, both startup
-witnesses and unchanged boot. The exact guest program, transport grammar,
-boundary and callback pass locally. Durable behavior, regressions, downstream
-reuse and live-qualification limits are in the
-[owning installation contract](../../tests/e2e/README.md#installation-findings-to-carry-forward)
-and [affected reuse map](Reuse-Map.md#installation-helper-and-open-limits).
+Its exact guest program, transport grammar, boundary and callback pass locally;
+live qualification remains pending.
 
 **Retained live scope:** the [unblock intervention](Evidence/20-Reboot-Unblock-20260909.md)
 proved authenticated reboot, changed boot and held-stream serial return. The
@@ -103,39 +114,51 @@ normal shutdown and final preservation remain unqualified. No new expensive
 attempt: 21 overall, three historical passes and eighteen failures. Preserve
 those failures; do not reopen solved authentication/probe semantics.
 
-**Next bounded result:** implement E2E-002's customer-visible graphical reboot
-notice assertion through the existing os-autoinst screen/capture contract,
-without exposing the authentication exchange or weakening the exact red final
-notice already proved on serial. Then reconcile the complete callback and local
-readiness before fresh artifacts, isolated safety prerequisites and one complete
-guarded attempt. Reuse the installed layout, startup and
+**Next bounded result:** implement and qualify the fixed VT6 login/input
+boundary through the existing guarded os-autoinst worker. Use its public `sut`
+console, Ctrl+Alt+F6 and secret-safe keyboard API; review terminal-specific
+selected-fixture echo/empty login and sudo challenge evidence before permitting
+input. Wire the locally tested VT6 observations with an unchanged boot and an
+independently verified local fixture session. Preserve capture sealing,
+root-private automatic screenshots and terminal refusal/no-retry behavior.
+The retained maintenance image proves surface availability only; do not use it
+as password-recipient evidence or repeat maintenance merely to rediscover VT6.
+Then add reviewed exact final-red-notice pixels and reconcile the complete
+installation/reboot callback before fresh artifacts, isolated safety checks and
+one complete guarded attempt. Reuse the installed layout, startup and
 [provenance contracts](../../tests/e2e/README.md#controller-owned-provenance);
 the historical final-provenance cause is still unknown, and safe final-code
 reporting remains locally tested only. Do not reopen solved authentication or
 reboot-probe semantics without new evidence.
 
-**Verification/cleanup:** actual settings `gpt-5.6-sol` / `high`, Standard.
-The focused exact-program, transport, boundary and controller selection passed
-1,446 tests, and the final boundary/controller change passed its 91-test rerun;
-link validation and `git diff --check` passed. Both ordinary and
-approved outside-sandbox `make check` attempts passed 5,746 of 5,747 tests but
-failed the unrelated
-`ExtensionManagerTests.test_global_extension_switch_fails_before_activation_writes`.
-Concurrent extension-manager edits appeared after initial status, changed the
-global-switch behavior without updating that test, and the exercised offline
-subprocess received `EPERM`; return to the common check after that work settles.
-All commands exited; no VM lease, guest process, screenshot export or recovery
-was created. No approval denial. **All-task VM clearance persists**; missing
-customer-visible notice and complete-journey qualification, not coordination,
-prevent a useful full attempt. Selection rechecked: Task 20 remains earliest
-ready, no bypass; 15A and unrelated edits remain preserved. Task 20 acceptance
-and both independent E2E-028 startup faults remain unfinished.
+**Verification/cleanup:** actual settings `gpt-6-astra` / `high`, Standard.
+The isolated maintenance safety selection passed 16 tests; mandatory helper
+prerequisites passed 580 tests and 3 subtests before each mutation. All four
+maintenance operations exited zero. Initial probe tests failed 12 VT6 diagnostic
+cases because the reused diagnostic still queried the serial getty; corrected
+to the selected unit, with direct regression coverage for both. The corrected
+probe selection passed 2,349 tests and compatibility checks passed 434.
+Exact selections and retained screenshot identities are in the
+[evidence](Evidence/20-Visible-VT6-20260909.md). The common check was not repeated;
+its historical unrelated failure remains recorded in the installed-layout
+evidence, without a claim about current status.
 
-**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
-**Reason:** installed layout and startup composition are locally proven; the
-remaining graphical notice assertion uses the qualified screen/capture helper,
-but authentication-adjacent capture and full callback correctness warrant high
-effort. Reassess if live qualification exposes a hard boundary. Standard.
+All commands exited; guarded stop reached restored-baseline verification and
+complete, leaving the VM off with its original configuration. Source edits
+started afterward. The original and reviewed credential-free screenshot copy
+are retained privately as evidence. No lease, process or recovery obligation
+remains. No approval denial. **All-task VM clearance persists**. Guarded
+maintenance cleanup and the diagnostic correction finished before handoff;
+no unrelated task was started. Documentation validation checked 182 links with
+none missing, and scoped whitespace checks passed. Selection
+rechecked: Task 20 remains earliest ready, no bypass; 15A and unrelated edits
+remain preserved. Task 20 acceptance and both independent E2E-028 startup
+faults remain unfinished.
+
+**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
+**Reason:** VT6 surface availability is now proven and recipient probes pass
+locally, but their first live authentication, reviewed challenge pixels and
+private-capture integration remain unresolved across UI and controller. Standard.
 
 ### Reboot unblock intervention — 2026-09-09
 

@@ -433,6 +433,78 @@ qualified scope; historical next-step instructions are superseded by the
 | Installed package layout after reboot | `INSTALLED_LAYOUT` reuses the package-derived transferred inventory and checks installed file/symlink ownership, mode and target, package verification, private configuration, PAM hooks, Polkit actions/rule and session descriptors without returning paths or package output. `InstallationBoundary.observe_installed_layout` binds the returned inventory digest to controller-held `VerifiedInputs` and latches every failure. The GDM-return callback composes it with both startup witnesses and an unchanged boot. | [Guest/transport/boundary/controller tests](../unit/test_e2e_installation_observations.py); [local evidence](../../docs/TestAutomation/Evidence/20-Installed-Layout-Observation-20260909.md). Locally tested only; complete live E2E-002 qualification remains pending. |
 | Intermittent `getty-*-exe-resolve` refusal — open | Cause remains unknown. Fixed errno, link/target, selected-process/leader continuity and effective-root/ptrace categories distinguish future failures. They are sequential observations after refusal, not atomic causal proof. A successful reread cannot clear refusal or authorize input. Use them if the failure recurs in required work; do not repeat installation solely to reproduce it. | [Resolution diagnostics tests](../unit/test_e2e_install_password_observation.py), [transport refusal/redaction tests](../unit/test_e2e_observation_transport.py); [diagnostic scope and limits](../../docs/TestAutomation/Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md). Diagnostics passed locally; this failure did not recur in that live attempt. |
 
+The missing customer-visible notice cannot be added as another match or capture
+on the current installation console. `onpc_serial::run_install` selects the
+pinned os-autoinst `virtio-terminal`; that console constructs a text-only
+`serial_screen`, whose `current_screen` returns no image and whose screen-update
+method is a no-op. The VNC `sut` surface remains at GDM during this serial flow,
+so selecting it would capture the greeter rather than the package notice.
+`onpc_install::run` also seals explicit capture before authentication, and the
+controller rejects every screenshot field on install/reboot stages. These are
+necessary privacy boundaries, not missing calls to `assert_screen`.
+
+Task 20 therefore needs a genuine graphical terminal path with a fixed command,
+a separately reviewed prompt/recipient and notice-pixel contract, and the same
+private artifact handling before graphical visibility can be claimed. Replaying
+serial output, invoking the notice helper after installation, rendering ANSI
+bytes on the controller, or matching the unchanged GDM display does not prove
+that the parent saw the documented package command's final output. The
+[boundary evidence](../../docs/TestAutomation/Evidence/20-Graphical-Notice-Boundary-20260909.md)
+records the pinned implementation and focused verification. This is an
+partially implemented authentication-adjacent boundary; it is not qualified
+reuse of the existing GDM capture helper. The fixed VT6 route below now resolves
+the launch-surface question; its complete input/pixel path is still pending.
+
+### Visible VT6 installation terminal
+
+The accepted baseline has a real kernel-rendered VT6 login surface on VNC.
+One guarded, credential-free maintenance inspection switched with Ctrl+Alt+F6
+and retained a reviewed 1280×800 login screen. See the
+[VT6 evidence](../../docs/TestAutomation/Evidence/20-Visible-VT6-20260909.md).
+This establishes surface availability only: it is not an os-autoinst scenario,
+authentication, red-notice or E2E-002 pass. No desktop terminal package, baseline
+change, serial replay or controller renderer is needed for the selected route.
+[systemd's reserved-VT contract](https://github.com/systemd/systemd/blob/main/man/logind.conf.xml)
+describes activation; the live image establishes this baseline's actual behavior.
+
+Reuse the public os-autoinst VNC `sut` console and `send_key('ctrl-alt-f6')`,
+then reviewed terminal-specific screen assertions and `type_password`. Keep
+`NOVIDEO=1`, capture sealing and private automatic screenshots. `wait_serial`
+does not observe this screen. The existing installation/reboot callbacks still
+use serial input; they have **not** been switched to VT6 and no new password
+surface or generic needle name is authorized by these probes.
+
+[terminal_observations.py](terminal_observations.py) owns the two fixed terminal
+contexts. `VT6_PASSWORD` in [guest_observations.py](guest_observations.py) and
+`VT6_SUDO_PASSWORD` / `VT6_REBOOT_PASSWORD` in
+[installation_observations.py](installation_observations.py) reuse the serial
+login and sudo process/command proofs with `getty@tty6.service`, device 4:6 and
+`/dev/tty6`. They additionally require the
+[kernel's active-VT observation](https://github.com/torvalds/linux/blob/master/Documentation/ABI/testing/sysfs-tty)
+to remain `tty6` at repeated checkpoints. Only the selected getty/login lineage
+is followed; no process scan, guest write or signal is added. The shared
+executable-resolution diagnostic now rechecks that same selected getty unit.
+It never clears a refusal. Serial constants keep their existing output tokens.
+
+`ReadOnlyObservations.read` exposes only fixed `vt6-password`,
+`vt6-install-password` and `vt6-reboot-password` probes. Their exact safe tokens
+are distinct from serial and from one another. Wrong tokens, private output,
+foreground loss, ownership failure or transport errors latch refusal. Reuse
+the [login](../unit/test_e2e_serial_observation.py),
+[sudo](../unit/test_e2e_install_password_observation.py) and
+[transport](../unit/test_e2e_observation_transport.py) regressions. These probes
+are **locally tested only**; the visible prompt does not prove their live
+process-layout assumptions. Repeated foreground checks are not an atomic
+observation-to-keyboard guarantee.
+
+Remaining before input qualification: review the exact selected fixture echo
+and empty login challenge, sudo challenge and final red-notice needle contracts;
+wire a bounded VNC worker/controller flow with unchanged boot, session and input
+provenance gates; live-test recipient and no-retry refusals. A prompt image alone
+cannot identify the password consumer. Only after that boundary is qualified
+should E2E-002 type the documented package/reboot commands on this surface and
+combine their real notice pixels with the installed-layout/startup observers.
+
 The complete readiness journey and two independent startup-fault cases remain
 unfinished; the [reboot observation boundary](#customer-reboot-observation-boundary)
 has live changed-boot and serial-return evidence. Its complete graphical-return

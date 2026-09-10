@@ -10,9 +10,11 @@ Implementation: [service.py](../../broker/oh_no_parent_control/service.py), [cor
 ## Runtime hierarchy and trust boundaries
 
 Front ends do not read or write the private preference files. The parent reads
-Malcontent usage and the AccountsService grant directly on its own system-bus
-connection; Malcontent authorizes the usage query against the real administrator
-caller. Runtime product policy changes and cross-account writes pass through
+remaining time through the broker's `GetTimeStatus` method. The broker checks
+the current caller and selected child before reading the AccountsService grant
+and querying Malcontent usage under the child's own identity. This avoids a
+separate AccountsService authentication requirement during periodic refresh.
+Runtime product policy changes and cross-account writes pass through
 the broker. The system-bus policy permits callers to reach the service; the broker,
 not possession of the bus name or a client executable, is the authorization
 boundary.

@@ -76,6 +76,8 @@ class ReadOnlyObservations:
         try:
             require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session',
                                                       'serial-password', 'serial-session', 'boot',
+                                                      'vt6-getty', 'vt6-password', 'vt6-install-password',
+                                                      'vt6-reboot-password',
                                                       'package-absent', 'package-installed',
                                                       'installed-layout',
                                                       'install-password', 'reboot-password', 'install-refused',
@@ -87,6 +89,10 @@ class ReadOnlyObservations:
                 'greeter': (guest_observations.GREETER, 110),
                 'parent-session': (guest_observations.PARENT_SESSION, 110),
                 'serial-password': (guest_observations.SERIAL_PASSWORD, 20),
+                'vt6-password': (guest_observations.VT6_PASSWORD, 20),
+                'vt6-getty': (guest_observations.VT6_GETTY, 50),
+                'vt6-install-password': (installation_observations.VT6_SUDO_PASSWORD, 20),
+                'vt6-reboot-password': (installation_observations.VT6_REBOOT_PASSWORD, 20),
                 'serial-session': (guest_observations.SERIAL_SESSION, 110),
                 'boot': (guest_observations.BOOT, 20),
                 'package-absent': (installation_observations.ABSENT, 30),
@@ -154,7 +160,8 @@ class ReadOnlyObservations:
                     'observation:invalid-output')
                 print('e2e:sudo-implementation:' + raw.decode('ascii').strip(),
                       file=sys.stderr, flush=True)
-            elif name in ('install-password', 'reboot-password'):
+            elif name in ('install-password', 'reboot-password',
+                          'vt6-install-password', 'vt6-reboot-password'):
                 refusals = {
                     (name + '-rejected:' + stage + '\n').encode(): stage
                     for stage in installation_observations.SUDO_PASSWORD_STAGES
@@ -175,13 +182,20 @@ class ReadOnlyObservations:
                         self._on_diagnostic(condition)
                     raise EvidenceError('observation:probe-failed')
                 require(raw == (name + '-safe\n').encode(), 'observation:invalid-output')
-                action = name.removesuffix('-password')
+                action = name.removeprefix('vt6-').removesuffix('-password')
                 result = {'sudo_' + action + '_process_verified': True,
                           'terminal_echo_disabled': True}
-            elif name == 'serial-password':
-                require(raw == b'serial-password-safe\n', 'observation:invalid-output')
-                result = {'serial_login_process_verified': True,
+                if name.startswith('vt6-'):
+                    result['active_vt6_verified'] = True
+            elif name == 'vt6-getty':
+                require(raw == b'vt6-getty-ready\n', 'observation:invalid-output')
+                result = {'active_vt6_verified': True, 'vt6_getty_verified': True}
+            elif name in ('serial-password', 'vt6-password'):
+                require(raw == (name + '-safe\n').encode(), 'observation:invalid-output')
+                result = {name.removesuffix('-password') + '_login_process_verified': True,
                           'terminal_echo_disabled': True}
+                if name == 'vt6-password':
+                    result['active_vt6_verified'] = True
             elif name == 'serial-session':
                 require(raw == b'serial-session-ready\n', 'observation:invalid-output')
                 result = {'fixture_role': 'parent', 'active_local_serial_session': True,

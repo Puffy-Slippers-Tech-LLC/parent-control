@@ -7,6 +7,7 @@ use Time::HiRes qw(time sleep);
 use onpc_password ();
 use onpc_serial ();
 use onpc_gdm ();
+use onpc_vt6 ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -46,6 +47,9 @@ sub run {
     capture('selected');
     onpc_gdm::dismiss_prompt();
     capture('dismissed');
+    if ($ready->{vt6_prompt}) {
+        onpc_vt6::inspect_prompt(\&exchange);
+    }
     if ($ready->{install_refusal}) {
         onpc_serial::run_install_refusal(\&exchange);
     } elsif ($ready->{install}) {

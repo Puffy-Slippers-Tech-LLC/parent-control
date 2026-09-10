@@ -116,13 +116,18 @@ class ExtensionManager:
                 "--dest", "org.freedesktop.DBus",
                 "--object-path", "/org/freedesktop/DBus",
                 "--method", "org.freedesktop.DBus.NameHasOwner",
-                "org.gnome.Shell.Extensions",
+                # The Extensions service is activated on demand by the CLI
+                # and proxies to Shell. Its absence does not mean the desktop
+                # is offline; probe the owner of the actual Shell instead.
+                "org.gnome.Shell",
             ),
             require_live=True,
         )
         value = result.stdout.strip()
         if value not in {"(true,)", "(false,)"}:
             raise RuntimeError("D-Bus returned an invalid GNOME Shell state")
+        LOG.info("child GNOME Shell availability outcome=accepted available=%s",
+                 value == "(true,)")
         return value == "(true,)"
 
     def _list(self, account, key):

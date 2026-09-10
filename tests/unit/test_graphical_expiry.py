@@ -65,3 +65,61 @@ def test_wait_requires_observation_and_keeps_one_deadline(monkeypatch):
         expiry.wait_for(observe, 'test:missing')
     assert observe.call_count == 2
     pause.assert_called_once()
+
+
+@pytest.mark.parametrize('properties', [
+    'User=2000\nClass=user\nTTY=tty7',
+    'User=1005\nClass=user\nTTY=tty3',
+])
+def test_foreground_fixture_refuses_an_occupied_vt_or_existing_other_session(monkeypatch, properties):
+    monkeypatch.setattr(expiry.guest, 'guard', lambda: {'run': 'fixed-run'})
+    monkeypatch.setattr(expiry, 'identities', lambda: {'other': 1005})
+    run = Mock(side_effect=['9 2000 user seat0 tty7', properties])
+    monkeypatch.setattr(expiry.guest, 'run', run)
+    issue = Mock()
+    monkeypatch.setattr(expiry, 'grant', issue)
+    with pytest.raises(expiry.guest.GuestError, match='foreground-fixture-collision'):
+        expiry.verify_other_foreground(1004, '4', Mock())
+    assert all(c.args[0][0] == 'loginctl' for c in run.call_args_list)
+    issue.assert_not_called()
+
+
+@pytest.mark.parametrize(('hint', 'active'), [('no', True), ('yes', False)])
+def test_lock_observer_preserves_hint_but_uses_native_activity(monkeypatch, hint, active):
+    monkeypatch.setattr(expiry.guest, 'guard', Mock())
+    monkeypatch.setattr(expiry, 'child_session', lambda uid: ('4', {'LockedHint': hint}))
+    monkeypatch.setattr(expiry, 'account_property', lambda *args: 0)
+    manager = Mock()
+    manager._run_command.side_effect = [SimpleNamespace(stdout=value) for value in
+        ('(true,)' if active else '(false,)', 'true', 'false')]
+    state = expiry.screen_lock_observation(1004, '4', manager, Mock())
+    assert state['screensaver_active'] is active
+    assert state['logind_locked'] is (hint == 'yes')
+    assert all(call.kwargs == {'require_live': True} for call in manager._run_command.call_args_list)
+
+
+@pytest.mark.parametrize(('password_mode', 'enabled', 'disabled', 'category'), [
+    (2, 'true', 'false', 'lock-policy-not-enforcing'),
+    (0, 'false', 'false', 'lock-policy-not-enforcing'),
+    (0, 'true', 'true', 'lock-policy-not-enforcing'),
+    (0, 'unknown', 'false', 'lock-observation-response'),
+])
+def test_active_screensaver_alone_cannot_satisfy_lock_observer(
+        monkeypatch, password_mode, enabled, disabled, category):
+    monkeypatch.setattr(expiry.guest, 'guard', Mock())
+    monkeypatch.setattr(expiry, 'child_session', lambda uid: ('4', {'LockedHint': 'yes'}))
+    monkeypatch.setattr(expiry, 'account_property', lambda *args: password_mode)
+    manager = Mock()
+    manager._run_command.side_effect = [SimpleNamespace(stdout=value) for value in
+                                       ('(true,)', enabled, disabled)]
+    with pytest.raises(expiry.guest.GuestError, match=category):
+        expiry.screen_lock_observation(1004, '4', manager, Mock())
+
+
+def test_lock_observer_refuses_replacement_session_before_shell_query(monkeypatch):
+    monkeypatch.setattr(expiry.guest, 'guard', Mock())
+    monkeypatch.setattr(expiry, 'child_session', lambda uid: ('5', {'LockedHint': 'yes'}))
+    manager = Mock()
+    with pytest.raises(expiry.guest.GuestError, match='desktop-ended'):
+        expiry.screen_lock_observation(1004, '4', manager, Mock())
+    manager._run_command.assert_not_called()

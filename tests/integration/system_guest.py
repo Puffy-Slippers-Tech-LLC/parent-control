@@ -115,6 +115,57 @@ def install():
     print('onpc-system: stage=package-install outcome=passed', flush=True)
 
 
+def install_previous():
+    before_install()
+    enable_diagnostics()
+    previous = PAYLOAD / 'previous-package.deb'
+    expected = json.loads((PAYLOAD / 'previous-inputs.json').read_text())
+    require(sha(previous) == expected['sha256'], 'previous-package-digest')
+    os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
+    run(['apt-get', 'update'], timeout=600)
+    guard()
+    run(['apt-get', '-o', 'DPkg::Lock::Timeout=120', 'install', '--no-install-recommends',
+         '-y', str(previous)], timeout=1800)
+    require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'previous-package-file-digests')
+    (PAYLOAD / 'results').mkdir(mode=0o700, exist_ok=True)
+    (PAYLOAD / 'results/previous-install.json').write_text(json.dumps({
+        'previous_package_sha256': expected['sha256'], 'payload_verified': True,
+        'boot': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+    }))
+
+
+def upgrade():
+    marker = guard()
+    enable_diagnostics()
+    wait_for_boot()
+    before = json.loads((PAYLOAD / 'results/previous-install.json').read_text())
+    boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+    require(boot != before['boot'], 'previous-package-reboot-not-observed')
+    required = Path('/run/reboot-required.pkgs')
+    require(not required.exists() or 'oh-no-parent-control' not in required.read_text().splitlines(),
+            'previous-package-reboot-marker-retained')
+    require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'previous-payload-changed')
+    old_version = run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control'])
+    require(old_version == run(['dpkg-deb', '-f', str(PAYLOAD / 'previous-package.deb'), 'Version']),
+            'previous-package-version')
+    before.update(boot_id=boot, package_sha256=marker['package_sha256'],
+                  baseline_sha256=marker['baseline_sha256'])
+    (PAYLOAD / 'before.json').write_text(json.dumps(before))
+    os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
+    guard()
+    run(['apt-get', '-o', 'DPkg::Lock::Timeout=120', '--reinstall', 'install',
+         '--no-install-recommends', '-y', str(PAYLOAD / 'package.deb')], timeout=1800)
+    require(required.is_file() and 'oh-no-parent-control' in required.read_text().splitlines(),
+            'updated-package-did-not-request-reboot')
+    (PAYLOAD / 'results/update-activation.json').write_text(json.dumps({
+        'previous_package_sha256': before['previous_package_sha256'],
+        'package_sha256': marker['package_sha256'], 'old_package_reboot_observed': True,
+        'product_reboot_marker_absent_before_update': True, 'update_requested_reboot': True,
+        'same_version_reinstall': old_version == run([
+            'dpkg-deb', '-f', str(PAYLOAD / 'package.deb'), 'Version']),
+    }, sort_keys=True))
+
+
 def installed_group(path):
     groups = {
         '/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop': 'sudo',
@@ -243,7 +294,7 @@ def collect(marker, outcome):
                              '_SYSTEMD_UNIT=systemd-logind.service', '+',
                              '_COMM=gnome-shell'], timeout=60, check=False, merge_stderr=False)
     (output / 'session-journal.txt').write_text(redacted(result.decode(errors='replace')))
-    for name in ('prepared', 'prerequisites', 'seeded'):
+    for name in ('prepared', 'prerequisites', 'seed-attempt', 'seeded'):
         source = EXPIRY_DIAGNOSTICS / (name + '.json')
         if source.exists():
             require(source.is_file() and not source.is_symlink()
@@ -288,8 +339,10 @@ def main(argv=None):
         if len(argv) == 2 and argv[0] == 'collect' and argv[1] in {'passed', 'failed', 'installed'}:
             collect(guard(), argv[1])
         else:
-            require(argv in (['guard'], ['before-install'], ['install']), 'invalid-command')
-            {'guard': guard, 'before-install': before_install, 'install': install}[argv[0]]()
+            require(argv in (['guard'], ['before-install'], ['install'],
+                             ['install-previous'], ['upgrade']), 'invalid-command')
+            {'guard': guard, 'before-install': before_install, 'install': install,
+             'install-previous': install_previous, 'upgrade': upgrade}[argv[0]]()
         return 0
     except Exception as error:
         category = str(error) if isinstance(error, (GuestError, CommandError)) else 'unexpected-failure'

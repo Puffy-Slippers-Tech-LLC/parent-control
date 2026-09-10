@@ -46,6 +46,7 @@ def inspect_layout(window):
                 record = {
                     "size": [width, height], "expanded": expanded,
                     "monitor_scale": window.get_scale_factor(),
+                    "surface_scale": window.get_surface().get_scale(),
                     "viewport": bounds(viewport, content),
                     "mute_button": bounds(window._mute_button, content),
                     "board_width": form.get_allocated_width(),

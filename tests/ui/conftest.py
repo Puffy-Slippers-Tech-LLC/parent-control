@@ -63,9 +63,10 @@ from dogtail.hermetic.session import HermeticSession, dump_tree
 
 @pytest.fixture(scope="session")
 def ui_monitor_size():
-    # The session is shared across modules. Use an output that supports the
-    # layout suite's real 125% Wayland scale even when another module boots it.
-    return "1920x1200"
+    # The session is shared across modules. Both dimensions divide by 1.25,
+    # enabling real fractional scaling, while the height keeps the expanded
+    # request form overflowing for its real-pointer scrollbar coverage.
+    return "1280x800"
 
 
 @pytest.fixture(scope="session")

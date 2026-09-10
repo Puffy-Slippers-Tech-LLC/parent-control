@@ -197,6 +197,14 @@ and recovery instructions, not a second checklist to run again.
    and symlinks, Lintian warnings, binary contents and licensing. This helper
    does not replace these reviews or regression acceptance. Keep reports and
    logs outside the clone. Fix unexplained failures before proceeding.
+   Before the first upload, also extract this exact signed DSC with
+   `dpkg-source -x` into a new directory outside the clone and run
+   `dpkg-buildpackage --build=binary --no-sign` there. Keep its parent separate
+   from the reviewed artifacts so it cannot overwrite them. This verifies
+   declared tests without Git metadata, as Launchpad receives the source;
+   a passing build inside a Git clone does not establish that portability.
+   Tests that need Git must create their own temporary checkout fixtures, and
+   their external commands must be declared in `Build-Depends`.
 7. **Present the concrete release.** Summarize version, source commit/tags,
    architecture, artifact hashes, validation and reviewed warnings/gaps. If
    publication authorization has not already been given for this concrete

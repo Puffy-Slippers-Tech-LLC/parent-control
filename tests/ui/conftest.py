@@ -63,7 +63,9 @@ from dogtail.hermetic.session import HermeticSession, dump_tree
 
 @pytest.fixture(scope="session")
 def ui_monitor_size():
-    return "1280x1024"
+    # The session is shared across modules. Use an output that supports the
+    # layout suite's real 125% Wayland scale even when another module boots it.
+    return "1920x1200"
 
 
 @pytest.fixture(scope="session")

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import time
@@ -100,7 +101,7 @@ def _find_request_button():
             # this predicate independent prevents a prior probe environment
             # from changing which real Shell actor receives virtual input.
             name = _node_name(node)
-            if name.startswith("Request time, ") and " left" in name:
+            if re.fullmatch(r"Request time, 00:4[45](?:, generation-(?:one|two))?", name):
                 # Devkit's monitor arrives asynchronously after the Shell
                 # accessibility tree. Wait for a real on-screen allocation;
                 # AT-SPI uses INT_MIN rectangles while no monitor is mapped.

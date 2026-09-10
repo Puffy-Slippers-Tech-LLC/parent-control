@@ -28,10 +28,14 @@ def test_source_git_trust_is_scoped_to_the_selected_checkout(tmp_path):
     assert '*' not in args and run.call_args.kwargs['cwd'] == tmp_path
 
 
-def test_real_checkout_provenance_matches_artifact_builder():
+def test_git_fixture_provenance_matches_artifact_builder(source, monkeypatch):
     builder = provenance.build_test_artifacts
+    # Debian source archives have no Git metadata. Exercise both real Git
+    # readers against the shared tracked/untracked fixture instead of the
+    # directory from which this test suite happens to be invoked.
+    monkeypatch.setattr(builder, 'REPOSITORY', source)
     paths = builder._source_paths()
-    captured = provenance.snapshot(ROOT, source=True)
+    captured = provenance.snapshot(source, source=True)
     assert list(captured['files']) == [p.as_posix() for p in paths]
     assert captured['sha256'] == builder._source_digest(paths)
 

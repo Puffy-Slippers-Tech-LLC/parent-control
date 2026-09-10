@@ -20,8 +20,8 @@ EXTENSIONS_PATH = "/org/gnome/Shell"
 EXTENSIONS_INTERFACE = "org.gnome.Shell.Extensions"
 ACTIVE_STATE = 1
 EXPECTED_ACCESSIBLE_NAMES = {
-    "Request time, 00:45 left",
-    "Request time, 00:44 left",
+    "Request time, 00:45",
+    "Request time, 00:44",
 }
 EXPECTED_MARKER = os.environ.get("ONPC_CHILD_SHELL_EXPECTED_MARKER", "")
 EVENTS = (

@@ -59,6 +59,9 @@ SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
 CHILD_SUCCESS_TITLE = "Time granted"
 CHILD_SUCCESS_COPY = "Time granted, Close"
 GATEWAY_EFFECT_FRAME_MS = 33
+# Temporarily disable the shared sound/lightning feature; retain its controls
+# and saved preferences so it can be restored in a future release.
+REQUEST_MEDIA_ENABLED = False
 # Keep the gateway separate from the side scenery when fitting the artwork.
 # These cuts pass through empty sky beside the rails, outside every island.
 GATEWAY_SCENE_CUTS = (0.27, 0.67)
@@ -675,9 +678,18 @@ class GatewayAlignedRequest(Gtk.Widget):
         if width <= 0 or height <= 0 or len(self._form_corners) != 4:
             return
 
-        bounds = Graphene.Rect().init(0, 0, width, height)
-        context = snapshot.append_cairo(bounds)
         link_length = max(18.0, min(42.0, min(width, height) * 0.03))
+        # Rasterize all four chains on the same coarse, screen-aligned grid.
+        # Rotating a full-resolution link smooths away its pixel-art shape;
+        # nearest-neighbour enlargement keeps square pixels along every curve.
+        pixel_size = max(2, round(link_length / 12))
+        pixels = cairo.ImageSurface(
+            cairo.FORMAT_ARGB32,
+            math.ceil(width / pixel_size), math.ceil(height / pixel_size),
+        )
+        context = cairo.Context(pixels)
+        context.scale(1 / pixel_size, 1 / pixel_size)
+        context.set_antialias(cairo.ANTIALIAS_NONE)
         gateway_corners = _gateway_inner_corners(width, height)
 
         # The gateway artwork is a single background texture, so it cannot
@@ -706,6 +718,13 @@ class GatewayAlignedRequest(Gtk.Widget):
                 end_extend=_unit_vector(form_corner, form_center),
             )
         context.restore()
+
+        bounds = Graphene.Rect().init(0, 0, width, height)
+        output = snapshot.append_cairo(bounds)
+        output.scale(pixel_size, pixel_size)
+        output.set_source_surface(pixels, 0, 0)
+        output.get_source().set_filter(cairo.Filter.NEAREST)
+        output.paint()
 
     @classmethod
     def _draw_minecraft_chain(
@@ -836,10 +855,10 @@ class GatewayAlignedRequest(Gtk.Widget):
     def _draw_angular_chain_link(
         cls, context, center_x, center_y, angle, link_length, edge_on,
     ):
-        """Paint one hollow, faceted metal link with a restrained portal glow."""
+        """Paint a chunky iron link with stepped corners and flat light bands."""
         half_length = link_length / 2
-        half_width = link_length * (0.17 if edge_on else 0.34)
-        metal_width = max(3.0, link_length * 0.13)
+        half_width = link_length * (0.18 if edge_on else 0.36)
+        metal_width = max(4.0, link_length * 0.22)
         inner_half_length = max(half_length * 0.58, half_length - metal_width * 1.7)
         inner_half_width = max(1.0, half_width - metal_width)
 
@@ -850,50 +869,52 @@ class GatewayAlignedRequest(Gtk.Widget):
         context.set_line_cap(cairo.LineCap.BUTT)
 
         cls._append_angular_link_path(context, half_length, half_width)
-        context.set_source_rgba(0.48, 0.16, 0.96, 0.30)
-        context.set_line_width(max(5.0, metal_width * 2.35))
-        context.stroke()
-
-        cls._append_angular_link_path(context, half_length, half_width)
         cls._append_angular_link_path(
             context, inner_half_length, inner_half_width,
         )
         context.set_fill_rule(cairo.FillRule.EVEN_ODD)
-        context.set_source_rgba(0.44, 0.22, 0.68, 1.0)
+        context.set_source_rgb(0.40, 0.43, 0.52)
         context.fill()
 
         cls._append_angular_link_path(context, half_length, half_width)
         cls._append_angular_link_path(
             context, inner_half_length, inner_half_width,
         )
-        context.set_source_rgba(0.06, 0.025, 0.13, 0.96)
-        context.set_line_width(max(1.4, metal_width * 0.38))
+        context.set_source_rgb(0.07, 0.06, 0.12)
+        context.set_line_width(max(1.3, metal_width * 0.22))
         context.stroke()
 
-        # A single cool edge catches the gateway light without turning the
-        # chain into another lightning effect.
-        bevel = min(half_width * 0.62, half_length * 0.16)
-        context.move_to(-half_length + bevel, -half_width)
-        context.line_to(half_length - bevel, -half_width)
-        context.set_source_rgba(
-            0.40, 0.98, 0.96, 0.62 if edge_on else 0.86,
-        )
-        context.set_line_width(max(1.2, metal_width * 0.40))
+        # Solid, pixel-wide bands suggest iron catching cyan light above and
+        # purple light below; no translucent halo softens the silhouette.
+        step = min(half_width * 0.55, half_length * 0.24)
+        context.move_to(-half_length + step, -half_width + metal_width * 0.25)
+        context.line_to(half_length - step, -half_width + metal_width * 0.25)
+        highlight = (0.40, 0.55, 0.62) if edge_on else (0.57, 0.82, 0.85)
+        context.set_source_rgb(*highlight)
+        context.set_line_width(max(2.0, metal_width * 0.65))
+        context.stroke()
+        context.move_to(-half_length + step, half_width - metal_width * 0.25)
+        context.line_to(half_length - step, half_width - metal_width * 0.25)
+        context.set_source_rgb(0.36, 0.23, 0.48)
         context.stroke()
         context.restore()
 
     @staticmethod
     def _append_angular_link_path(context, half_length, half_width):
-        """Append a closed octagonal path for a pixel-art chain ring."""
-        bevel = min(half_width * 0.62, half_length * 0.16)
-        context.move_to(-half_length + bevel, -half_width)
-        context.line_to(half_length - bevel, -half_width)
-        context.line_to(half_length, -half_width + bevel)
-        context.line_to(half_length, half_width - bevel)
-        context.line_to(half_length - bevel, half_width)
-        context.line_to(-half_length + bevel, half_width)
-        context.line_to(-half_length, half_width - bevel)
-        context.line_to(-half_length, -half_width + bevel)
+        """Append a hollow-ring contour with square, stair-stepped corners."""
+        step = min(half_width * 0.55, half_length * 0.24)
+        context.move_to(-half_length + step, -half_width)
+        context.line_to(half_length - step, -half_width)
+        context.line_to(half_length - step, -half_width + step)
+        context.line_to(half_length, -half_width + step)
+        context.line_to(half_length, half_width - step)
+        context.line_to(half_length - step, half_width - step)
+        context.line_to(half_length - step, half_width)
+        context.line_to(-half_length + step, half_width)
+        context.line_to(-half_length + step, half_width - step)
+        context.line_to(-half_length, half_width - step)
+        context.line_to(-half_length, -half_width + step)
+        context.line_to(-half_length + step, -half_width + step)
         context.close_path()
 
     def do_dispose(self):
@@ -1045,6 +1066,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._mute_button.set_child(self._mute_icon)
         self._mute_button.add_css_class("oh-no-parent-control-hud-button")
         self._mute_button.connect("clicked", self._toggle_mute)
+        self._mute_button.set_visible(REQUEST_MEDIA_ENABLED)
+        self._mute_button.set_sensitive(REQUEST_MEDIA_ENABLED)
         menu_icon = PixelIcon(MENU, display_size=31, label="")
         menu_icon.set_halign(Gtk.Align.CENTER)
         menu_icon.set_valign(Gtk.Align.CENTER)
@@ -1177,6 +1200,7 @@ class RequestWindow(Adw.ApplicationWindow):
         return "child" if self._child_overlay else "kiosk"
 
     def _apply_mute(self, muted):
+        muted = muted or not REQUEST_MEDIA_ENABLED
         self._muted = muted
         self._thunder.set_muted(muted)
         self._background.set_lightning_enabled(not muted)
@@ -1194,6 +1218,8 @@ class RequestWindow(Adw.ApplicationWindow):
         )
 
     def _toggle_mute(self, *_args):
+        if not REQUEST_MEDIA_ENABLED:
+            return
         self._apply_mute(not self._muted)
         self._persist_muted(self._muted)
 

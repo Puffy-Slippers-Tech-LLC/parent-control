@@ -17,10 +17,10 @@ from guest_observations import SERIAL_PASSWORD, VT6_PASSWORD, VT6_GETTY
                                   'pgrp', 'session', 'tty', 'foreground', 'echo',
                                   'echonl', 'canonical', 'starttime',
                                   'inactive', 'active-changed', 'active-read-error'])
-@pytest.mark.parametrize('terminal', ['serial', 'vt6', 'vt6-getty'])
+@pytest.mark.parametrize('terminal', ['serial', 'vt6', 'vt6-getty', 'vt6-getty-raw'])
 def test_guest_password_probe_refuses_wrong_process_or_echo(fault, capsys, terminal):
     vt = terminal != 'serial'
-    getty = terminal == 'vt6-getty'
+    getty = terminal.startswith('vt6-getty')
     rejected = bool(fault) and (vt or not fault.startswith('active') and fault != 'inactive')
     if getty and fault in ('autologin', 'echonl'):
         rejected = False
@@ -82,12 +82,16 @@ def test_guest_password_probe_refuses_wrong_process_or_echo(fault, capsys, termi
     def attributes(fd):
         assert fd == 77
         flags = termios.ICANON | (termios.ECHO if getty else 0)
+        if terminal == 'vt6-getty-raw':
+            # agetty reset_vc(canon=0), AGETTY_RELOAD build: get_logname
+            # consumes characters and echoes them without the kernel ECHO bit.
+            flags = 0
         if fault == 'echo':
             flags ^= termios.ECHO
         elif fault == 'echonl':
             flags |= termios.ECHONL
         elif fault == 'canonical':
-            flags = 0
+            flags ^= termios.ICANON
         return [0,0,0,flags]
 
     fake_os = SimpleNamespace(makedev=os.makedev, O_RDONLY=os.O_RDONLY, O_NONBLOCK=os.O_NONBLOCK,

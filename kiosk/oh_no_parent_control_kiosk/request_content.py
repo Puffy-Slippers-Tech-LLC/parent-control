@@ -299,7 +299,7 @@ class RequestContent(MetalBoard):
         self._duration_box = Gtk.FlowBox(
             selection_mode=Gtk.SelectionMode.NONE, homogeneous=False,
             min_children_per_line=1, max_children_per_line=2,
-            column_spacing=6, row_spacing=4, hexpand=True,
+            column_spacing=4, row_spacing=2, hexpand=True,
         )
         self._duration_box.add_css_class("oh-no-parent-control-choices-inner")
         # MetalPanel chrome has no layout cost, so CSS padding on the well does
@@ -436,13 +436,16 @@ class RequestContent(MetalBoard):
         icon = Gtk.Image.new_from_file(
             str(branding_asset_path("app_logo.png")),
         )
-        # Keep the plate close to the two-line heading without dominating it.
-        icon.set_pixel_size(32)
+        # Match the logo artwork to the visual height of the two-line title.
+        icon.set_pixel_size(36)
         icon.set_valign(Gtk.Align.CENTER)
         icon.add_css_class("oh-no-parent-control-header-icon")
         plate = Gtk.Box()
         plate.add_css_class("oh-no-parent-control-logo-plate")
-        plate.set_valign(Gtk.Align.CENTER)
+        plate.set_valign(Gtk.Align.END)
+        # Optical correction for the pixel font's ink extending below its
+        # line box: lower the logo relative to the centered title block.
+        plate.set_margin_top(8)
         plate.append(icon)
         header.append(plate)
         copy = Gtk.Box(
@@ -452,16 +455,14 @@ class RequestContent(MetalBoard):
         )
         copy.add_css_class("oh-no-parent-control-header-copy")
         for line in RequestContent._title_lines(app_name()):
-            title = Gtk.Label(label=line, xalign=0, wrap=True)
+            title = Gtk.Label(
+                label=line,
+                xalign=0.5,
+                wrap=True,
+                justify=Gtk.Justification.CENTER,
+            )
             title.add_css_class("oh-no-parent-control-title")
             copy.append(title)
-        subtitle = Gtk.Label(
-            label="Choose your extra time",
-            xalign=0,
-            wrap=True,
-        )
-        subtitle.add_css_class("oh-no-parent-control-subtitle")
-        copy.append(subtitle)
         header.append(copy)
         return header
 
@@ -538,8 +539,12 @@ class RequestContent(MetalBoard):
             )
             button.add_css_class("oh-no-parent-control-choice")
             overlay = Gtk.Overlay()
+            # The selected pointer reaches the longest caption. A display-only
+            # space gives Custom value a small gap without moving other rows or
+            # changing the label used by accessibility and request state.
+            display_label = f" {label}" if seconds is None else label
             overlay.set_child(Gtk.Label(
-                label=label, hexpand=True, wrap=True, max_width_chars=12,
+                label=display_label, hexpand=True, wrap=True, max_width_chars=12,
                 justify=Gtk.Justification.CENTER,
             ))
             pointer = PixelIcon(POINTER, display_size=14, label="")

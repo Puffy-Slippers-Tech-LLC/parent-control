@@ -493,17 +493,72 @@ foreground loss, ownership failure or transport errors latch refusal. Reuse
 the [login](../unit/test_e2e_serial_observation.py),
 [sudo](../unit/test_e2e_install_password_observation.py) and
 [transport](../unit/test_e2e_observation_transport.py) regressions. These probes
-are **locally tested only**; the visible prompt does not prove their live
-process-layout assumptions. Repeated foreground checks are not an atomic
-observation-to-keyboard guarantee.
+have local refusal coverage. The fixed getty and login password probes also
+passed live in the [credential-free prompt qualification](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md);
+the sudo probes remain **locally tested only**. Repeated foreground checks are
+not an atomic observation-to-keyboard guarantee, and this collection pass does
+not qualify password input or authenticated session continuity.
 
-Remaining before input qualification: review the exact selected fixture echo
-and empty login challenge, sudo challenge and final red-notice needle contracts;
+`VT6_SESSION` now reuses the shared graphical/serial session predicate through
+fixed surface adapters, exposed as `ReadOnlyObservations.read('vt6-session')`.
+It requires the selected parent fixture's sole active local `login` session on
+`tty6`, rechecking active VT before each logind command and immediately before
+success. The exact `vt6-session-ready` token maps to fixed role/boolean evidence;
+foreign tokens, private output and ownership/transport failures latch refusal.
+The canonical regressions are `test_actual_guest_authentication_probe_rejects_wrong_sessions`,
+`test_fixed_probe_checks_ownership_before_and_after_output` and
+`test_vt6_proofs_refuse_other_surfaces_private_output_and_latch` in the
+[transport tests](../unit/test_e2e_observation_transport.py). The
+[session-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Session-Gate-20260910.md)
+records local verification, including the unchanged graphical/serial contracts.
+This probe is **locally tested only** and not yet wired to an authenticated
+worker. It proves neither shell readiness nor continuity from an earlier login
+recipient. Worker/controller boot and one-shot input gates remain necessary;
+repeated active-VT checks cannot make observation and keyboard input atomic.
+
+The selected fixture echo and empty login challenge now have a
+[reviewed image contract](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md#direct-image-review-and-needle-contract).
+The worker's native resolution is 1024×768; do not substitute the 1280×800
+maintenance image. A needle must jointly match the complete selected fixture
+echo and adjacent `Password:` line, preserve the blank challenge area except
+the blinking cursor, and pass exact matcher/refusal checks. Empty no-echo pixels
+cannot prove absence of invisible input; one-shot input provenance is mandatory.
+Remaining before input qualification: implement and validate that needle and
 wire a bounded VNC worker/controller flow with unchanged boot, session and input
-provenance gates; live-test recipient and no-retry refusals. A prompt image alone
+provenance gates; live-test input and no-retry refusals. Sudo challenge and final
+red-notice pixels remain uncollected. A prompt image alone
 cannot identify the password consumer. Only after that boundary is qualified
 should E2E-002 type the documented package/reboot commands on this surface and
 combine their real notice pixels with the installed-layout/startup observers.
+
+The existing credential-free collection route is
+`tools/run-tests integration check_graphical_vt6_prompt`. It reuses
+`onpc_vt6::inspect_prompt`, `Smoke.VT6_PROMPT_STAGES` and `VT6_GETTY`; it cannot
+provision/read passwords or combine with authentication/installation. Boot and
+independent recipient checks bracket the two private captures; capture seals
+on completion/failure. It produced the retained reviewed pixels; no new
+maintenance or collector is needed. Regressions are
+[test_e2e_vt6_prompt.py](../unit/test_e2e_vt6_prompt.py) and the login/probe tests
+above. These checks establish local ordering/refusal behavior. The retained
+prompt pass qualifies live collection, not secret input.
+
+The [first worker prompt attempt and correction](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Readiness-20260909.md)
+records refusal at `vt6-ready`, specifically the getty canonical/echo predicate,
+before fixture text or terminal capture acknowledgement. The preceding active-VT,
+agetty identity and device checks passed. Individual live flag values remain
+unknown. `VT6_GETTY` now permits both supported agetty prompt modes: canonical
+input/kernel echo or raw input/userspace echo; mixed pairs refuse. This applies
+only before the fixed nonsecret fixture name. The later canonical/no-echo
+login password proof is unchanged. The correction passes local raw/canonical
+fixtures and refusal regressions. The
+[corrected guarded attempt](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md)
+passed both recipient-bound captures, with directly reviewed login/challenge
+pixels, normal worker shutdown, baseline restoration and source/host preservation.
+The original failed attempt remains failed. Individual getty flag values remain
+unknown; this pass establishes acceptance by the corrected predicate, not which
+allowed mode was observed. No credentials were provisioned/read/submitted and no
+needle asset was added. Reuse the retained pixels and collector for authenticated
+VT6 implementation; do not repeat credential-free discovery without new evidence.
 
 The complete readiness journey and two independent startup-fault cases remain
 unfinished; the [reboot observation boundary](#customer-reboot-observation-boundary)

@@ -311,16 +311,15 @@ def test_single_flight_ignores_escape_while_authentication_is_active(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_remembered_choices_are_shared_but_mute_is_surface_specific(
+def test_mute_control_stays_hidden_with_remembered_preferences(
         launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
     application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="remembered")
     request = wait_for_accessible_node(application, "REQUEST", "button")
     wait_for_accessible_state(lambda: request.sensitive, "loaded remembered choices")
-    assert wait_for_accessible_node(application, "Mute request-screen sound", "button").do_action(0)
-    wait_for_accessible_state(lambda: bool(calls(path, "SetRequestMuted")), "saved mute")
-    assert calls(path, "SetRequestMuted")[0]["values"] == [
-        1001, "child" if overlay else "kiosk", False if overlay else True,
-    ]
+    assert not application.findChildren(
+        lambda node: node.name == "Mute request-screen sound" and node.showing,
+    )
+    assert not calls(path, "SetRequestMuted")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))

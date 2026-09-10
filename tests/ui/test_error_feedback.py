@@ -54,8 +54,11 @@ def test_request_error_review_restrictions_and_submission(
     component = "Child App" if overlay else "Kiosk App"
     assert events(path, "feedback")[0]["subject"] == f"[Oh No! Parent Control] [{component}] Error Report"
     assert not events(path, "close_overlay" if overlay else "logout")
-    if overlay:
-        assert confirmation.child(role_name="button", retry=False).do_action(0)
+    wait_for_accessible_state(
+        lambda: not application.is_child("Send Feedback", role_name="frame", retry=False),
+        "feedback closes before confirmation dismissal",
+    )
+    assert find(confirmation, "Close", "button").do_action(0)
     wait_for_accessible_state(lambda: bool(events(path, "close_overlay" if overlay else "logout")),
                               "exit after success confirmation closes")
 

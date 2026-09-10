@@ -76,7 +76,7 @@ class ReadOnlyObservations:
         try:
             require(isinstance(name, str) and name in ('assets', 'greeter', 'parent-session',
                                                       'serial-password', 'serial-session', 'boot',
-                                                      'vt6-getty', 'vt6-password', 'vt6-install-password',
+                                                      'vt6-getty', 'vt6-password', 'vt6-session', 'vt6-install-password',
                                                       'vt6-reboot-password',
                                                       'package-absent', 'package-installed',
                                                       'installed-layout',
@@ -91,6 +91,7 @@ class ReadOnlyObservations:
                 'serial-password': (guest_observations.SERIAL_PASSWORD, 20),
                 'vt6-password': (guest_observations.VT6_PASSWORD, 20),
                 'vt6-getty': (guest_observations.VT6_GETTY, 50),
+                'vt6-session': (guest_observations.VT6_SESSION, 110),
                 'vt6-install-password': (installation_observations.VT6_SUDO_PASSWORD, 20),
                 'vt6-reboot-password': (installation_observations.VT6_REBOOT_PASSWORD, 20),
                 'serial-session': (guest_observations.SERIAL_SESSION, 110),
@@ -196,10 +197,13 @@ class ReadOnlyObservations:
                           'terminal_echo_disabled': True}
                 if name == 'vt6-password':
                     result['active_vt6_verified'] = True
-            elif name == 'serial-session':
-                require(raw == b'serial-session-ready\n', 'observation:invalid-output')
-                result = {'fixture_role': 'parent', 'active_local_serial_session': True,
+            elif name in ('serial-session', 'vt6-session'):
+                require(raw == (name + '-ready\n').encode(), 'observation:invalid-output')
+                surface = name.removesuffix('-session')
+                result = {'fixture_role': 'parent', 'active_local_' + surface + '_session': True,
                           'unexpected_user_session': False}
+                if name == 'vt6-session':
+                    result['active_vt6_verified'] = True
             elif name == 'parent-session':
                 require(raw == b'parent-session-ready\n', 'observation:invalid-output')
                 result = {'fixture_role': 'parent', 'active_local_graphical_session': True,

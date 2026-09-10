@@ -28,8 +28,21 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn('branding_asset_path("app_logo.png")', source)
         self.assertIn("Gtk.Image.new_from_file", source)
-        self.assertIn("icon.set_pixel_size(32)", source)
+        self.assertIn("icon.set_pixel_size(36)", source)
+        self.assertIn("xalign=0.5", source)
+        self.assertIn("justify=Gtk.Justification.CENTER", source)
         self.assertNotIn('Gtk.Image.new_from_icon_name("alarm-symbolic")', source)
+        self.assertNotIn("Choose your extra time", source)
+
+    def test_custom_duration_caption_has_display_only_pointer_spacing(self):
+        source = KIOSK_CONTENT.read_text(encoding="utf-8")
+
+        self.assertIn(
+            'display_label = f" {label}" if seconds is None else label',
+            source,
+        )
+        self.assertIn('label=display_label, hexpand=True', source)
+        self.assertIn('button, f"Request {label}"', source)
 
     def test_request_surfaces_only_connect_flash_triggered_audio(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
@@ -384,7 +397,7 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn("class RequestContent(MetalBoard):", content)
         self.assertIn('branding_asset_path("app_logo.png")', content)
-        self.assertIn("icon.set_pixel_size(32)", content)
+        self.assertIn("icon.set_pixel_size(36)", content)
         self.assertIn("oh-no-parent-control-logo-plate", content)
         self.assertIn("icon = dropdown.account_icon", content)
         self.assertIn('apply_gtk_user_icon(icon, "", pixel_size=24)', content)

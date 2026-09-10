@@ -85,16 +85,43 @@ output stays plain text.
 **Earliest ready task; not accepted.** [Task 19B remains accepted](Evidence/19B-Acceptance-20260908.md).
 No earlier entry is bypassed; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
 
-**Current result — 2026-09-09:** the
+**Current result — 2026-09-10, session observer verified locally:** implemented
+`VT6_SESSION` and the fixed `vt6-session` transport route, reusing the shared
+graphical/serial session predicate. The sole selected local tty6 session and
+active-VT checks now have executable success/refusal coverage; existing graphical
+and serial consumers passed. See the
+[session-gate evidence](Evidence/20-VT6-Session-Gate-20260910.md) and
+[owning VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal).
+The broader input slice was narrowed to this missing session prerequisite.
+No authenticated worker or needle was added and no new VM attempt was made.
+The session token alone does not prove shell readiness or continuity from the
+earlier login recipient; those worker/controller gates remain required.
+
+**Prior result — corrected prompt qualification passed:** the
+[sole corrected worker attempt](Evidence/20-VT6-Prompt-Qualification-20260910.md)
+passed both VT6 captures, getty/login recipient checks, disabled password echo,
+active-VT and unchanged-boot observations. The native 1024×768 login and
+selected-fixture/empty-challenge screenshots were directly reviewed. The
+[owning VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal)
+carries their needle requirements and qualification limits; the
+[reuse map](Reuse-Map.md#installation-helper-and-open-limits) links them.
+The [original predicate failure](Evidence/20-VT6-Prompt-Readiness-20260909.md)
+remains retained. No credentials were provisioned, read or submitted; no needle
+asset or password-enabled flow was added. Runtime inputs were unchanged from
+the preceding 1,415-test correction result. Reuse `onpc_vt6::inspect_prompt`
+and `Smoke.VT6_PROMPT_STAGES`; do not repeat prompt-only discovery or maintenance.
+
+**Prior surface/probe result:** the
 [VT6 inspection and probe evidence](Evidence/20-Visible-VT6-20260909.md) establishes
 a real VNC-visible kernel terminal on the accepted baseline. A guarded
 credential-free Ctrl+Alt+F6 inspection retained and directly reviewed its
 1280×800 login screen, then restored the baseline. Fixed VT6 login, installation
 sudo and reboot sudo read-only probes now reuse the existing recipient checks,
 with repeated active-VT checks and distinct surface/purpose result tokens.
-The shared refusal diagnostic follows the selected getty unit. These probes
-are locally tested only; no VNC password input, prompt/notice needle or complete
-journey is yet qualified. The [owning VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal)
+The shared refusal diagnostic follows the selected getty unit. Sudo probes
+remain locally tested only; getty/login prompt collection now has the live
+qualification above. No VNC password input, executable prompt/notice needle or
+complete journey is yet qualified. The [owning VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal)
 and [reuse map](Reuse-Map.md#installation-helper-and-open-limits) carry the durable
 solution, regressions and open limits. The earlier
 [serial-screen finding](Evidence/20-Graphical-Notice-Boundary-20260909.md) remains
@@ -110,55 +137,50 @@ live qualification remains pending.
 **Retained live scope:** the [unblock intervention](Evidence/20-Reboot-Unblock-20260909.md)
 proved authenticated reboot, changed boot and held-stream serial return. The
 corrected GDM needle matches retained pixels locally; full acknowledgement,
-normal shutdown and final preservation remain unqualified. No new expensive
-attempt: 21 overall, three historical passes and eighteen failures. Preserve
-those failures; do not reopen solved authentication/probe semantics.
+normal shutdown and final preservation of the complete installation journey
+remain unqualified. Installation history is unchanged: 21 attempts, three
+historical passes and eighteen failures. Preserve those failures; do not reopen
+solved serial authentication/probe semantics.
 
-**Next bounded result:** implement and qualify the fixed VT6 login/input
-boundary through the existing guarded os-autoinst worker. Use its public `sut`
-console, Ctrl+Alt+F6 and secret-safe keyboard API; review terminal-specific
-selected-fixture echo/empty login and sudo challenge evidence before permitting
-input. Wire the locally tested VT6 observations with an unchanged boot and an
-independently verified local fixture session. Preserve capture sealing,
-root-private automatic screenshots and terminal refusal/no-retry behavior.
-The retained maintenance image proves surface availability only; do not use it
-as password-recipient evidence or repeat maintenance merely to rediscover VT6.
-Then add reviewed exact final-red-notice pixels and reconcile the complete
-installation/reboot callback before fresh artifacts, isolated safety checks and
-one complete guarded attempt. Reuse the installed layout, startup and
-[provenance contracts](../../tests/e2e/README.md#controller-owned-provenance);
-the historical final-provenance cause is still unknown, and safe final-code
-reporting remains locally tested only. Do not reopen solved authentication or
-reboot-probe semantics without new evidence.
+**Next bounded result:** implement the reviewed native-resolution VT6 prompt
+needle and one-shot worker/controller input route, reusing the now locally
+verified `vt6-session` observer and existing credential/private capture helpers.
+Validate exact image matching and wrong-account/stale-screen/
+missing-prompt refusals, unchanged boot, selected recipient, capture sealing and
+no-retry behavior locally; then qualify the smallest guarded authenticated flow
+after isolated safety checks. Empty no-echo pixels require independent one-shot
+input provenance; they cannot establish absence of invisible typed characters.
+Keep inputs unchanged through live finalization. Sudo/notice needles and complete
+installation/reboot/startup follow under existing layout/startup/provenance
+contracts. Do not reopen solved serial authentication or reboot semantics.
+The prompt pass does not establish the cause of historical provenance or
+intermittent recipient failures. Exact getty flag values remain unexported.
 
 **Verification/cleanup:** actual settings `gpt-6-astra` / `high`, Standard.
-The isolated maintenance safety selection passed 16 tests; mandatory helper
-prerequisites passed 580 tests and 3 subtests before each mutation. All four
-maintenance operations exited zero. Initial probe tests failed 12 VT6 diagnostic
-cases because the reused diagnostic still queried the serial getty; corrected
-to the selected unit, with direct regression coverage for both. The corrected
-probe selection passed 2,349 tests and compatibility checks passed 434.
-Exact selections and retained screenshot identities are in the
-[evidence](Evidence/20-Visible-VT6-20260909.md). The common check was not repeated;
-its historical unrelated failure remains recorded in the installed-layout
-evidence, without a claim about current status.
+Focused observation/login/prompt tests: **1,470 passed**. `make check` exited 0:
+**6,631 unit/contract and 58 private-D-Bus component tests passed**, plus common
+source and stage traceability checks. Exact selectors and regression scope are
+in the [current evidence](Evidence/20-VT6-Session-Gate-20260910.md).
+No live session qualification or package acceptance run. Prompt-route history
+remains two attempts (one original failure, one corrected pass); installation
+history remains 21 (3 historical passes, 18 failures).
 
-All commands exited; guarded stop reached restored-baseline verification and
-complete, leaving the VM off with its original configuration. Source edits
-started afterward. The original and reviewed credential-free screenshot copy
-are retained privately as evidence. No lease, process or recovery obligation
-remains. No approval denial. **All-task VM clearance persists**. Guarded
-maintenance cleanup and the diagnostic correction finished before handoff;
-no unrelated task was started. Documentation validation checked 182 links with
-none missing, and scoped whitespace checks passed. Selection
-rechecked: Task 20 remains earliest ready, no bypass; 15A and unrelated edits
-remain preserved. Task 20 acceptance and both independent E2E-028 startup
-faults remain unfinished.
+All commands this session started exited and results were collected. No VM
+operation, lease, worker, callback or screenshot export was created; no recovery
+or cleanup obligation remains. Documentation edits began after checks exited.
+Prior VM restoration is recorded in the prompt evidence, not reasserted from a
+new VM observation. No approval or Polkit denial. **All-task VM clearance persists**.
+Selection rechecked:
+Task 20 remains earliest ready, no bypass; 15A and unrelated frontend edits
+remain preserved. Task 20 acceptance and both E2E-028 startup faults remain
+unfinished. Historical maintenance/probe failures remain in their linked
+evidence; current success is not asserted for those old failed attempts.
 
 **Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
-**Reason:** VT6 surface availability is now proven and recipient probes pass
-locally, but their first live authentication, reviewed challenge pixels and
-private-capture integration remain unresolved across UI and controller. Standard.
+**Reason:** the session observer now passes local success/refusal and shared
+consumer checks, but reviewed-screen secret authorization, recipient/input
+continuity and capture sealing across the new VNC route remain unresolved
+security/correctness boundaries. Standard.
 
 ### Reboot unblock intervention — 2026-09-09
 

@@ -1,3 +1,12 @@
+oh-no-parent-control (1.0+ppa3~ubuntu26.04.1) resolute; urgency=medium
+
+  * Build Oh No! Parent Control 1.0 for the PPA.
+  * Declare terminal, Flatpak and os-autoinst test dependencies.
+  * Make test fixtures independent of the development checkout path.
+  * Accept Debian version punctuation in test callback source paths.
+
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Thu, 10 Sep 2026 12:10:14 -0700
+
 oh-no-parent-control (1.0+ppa2~ubuntu26.04.1) resolute; urgency=medium
 
   * Build Oh No! Parent Control 1.0 for the PPA.

@@ -3,6 +3,7 @@
 # A boot identity is continuity evidence, not a supplied scenario label. Only
 # its digest reaches the controller; raw machine identifiers remain in guest.
 from vm_transport import BOOT_SHA256_PROBE as BOOT
+from terminal_observations import SERIAL, VT6
 
 # Fixed read-only probe. Only a count and digest leave the guest; no paths,
 # account data, source contents, or guest-supplied expected identities.
@@ -103,10 +104,12 @@ else:
 
 
 # Read terminal attributes and the exact systemd-owned login process, without
-# consuming input or changing termios. The graphical fixture needle contract
-# does not apply to a terminal; this independently proves its no-echo boundary.
-SERIAL_PASSWORD = '''import os,pathlib,stat,subprocess,termios
-pid = int(subprocess.run(['systemctl','show','serial-getty@ttyS0.service',
+# consuming input or changing termios. A terminal needs its own selected-role
+# and prompt evidence; the GDM masked-field needle cannot establish that.
+# These probes independently establish the terminal's no-echo recipient.
+_LOGIN_PASSWORD = '''import os,pathlib,stat,subprocess,termios
+check_active_terminal()
+pid = int(subprocess.run(['systemctl','show',terminal_unit,
                          '--property=MainPID','--value'], capture_output=True,
                         text=True, check=True, timeout=10).stdout.strip())
 assert pid > 1
@@ -120,16 +123,17 @@ visible = [value for value in args if value]
 assert visible and visible[0] in (b'/bin/login', b'/usr/bin/login', b'login')
 assert visible[1:] in ([b'--'], [b'-p',b'--'])
 def identity():
+    check_active_terminal()
     fields = (proc/'stat').read_text().rpartition(') ')[2].split()
     assert len(fields) >= 20
     # Documented proc_pid_stat fields: pgrp, session, tty_nr, tpgid, starttime.
-    assert [int(value) for value in fields[2:6]] == [pid,pid,os.makedev(4,64),pid]
+    assert [int(value) for value in fields[2:6]] == [pid,pid,terminal_device,pid]
     return fields[19]
 starttime = identity()
-fd = os.open('/dev/ttyS0', os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY | os.O_NOFOLLOW)
+fd = os.open(terminal_path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY | os.O_NOFOLLOW)
 try:
     device = os.fstat(fd)
-    assert stat.S_ISCHR(device.st_mode) and device.st_rdev == os.makedev(4,64)
+    assert stat.S_ISCHR(device.st_mode) and device.st_rdev == terminal_device
     assert (proc/'fd/0').stat().st_rdev == device.st_rdev
     flags = termios.tcgetattr(fd)[3]
     assert flags & termios.ICANON and not flags & (termios.ECHO | termios.ECHONL)
@@ -138,7 +142,44 @@ try:
     assert identity() == starttime
 finally:
     os.close(fd)
-print('serial-password-safe')
+'''
+
+SERIAL_PASSWORD = SERIAL + _LOGIN_PASSWORD + "print('serial-password-safe')\n"
+VT6_PASSWORD = VT6 + _LOGIN_PASSWORD + "print('vt6-password-safe')\n"
+
+# Qualification-only readiness before typing the fixed, nonsecret fixture name.
+# No password is exposed by this probe; the later login proof remains mandatory.
+VT6_GETTY = VT6 + '''import stat,subprocess,termios,time
+deadline = time.monotonic() + 30
+while True:
+    check_active_terminal()
+    pid = int(subprocess.run(['systemctl','show',terminal_unit,
+        '--property=MainPID','--value'],capture_output=True,text=True,
+        check=True,timeout=10).stdout.strip())
+    if pid > 1:
+        break
+    assert time.monotonic() < deadline
+    time.sleep(0.2)
+proc = pathlib.Path('/proc') / str(pid)
+def identity():
+    check_active_terminal()
+    assert (proc/'exe').resolve() == pathlib.Path('/usr/sbin/agetty')
+    fields = (proc/'stat').read_text().rpartition(') ')[2].split()
+    assert len(fields) >= 20
+    assert [int(value) for value in fields[2:6]] == [pid,pid,terminal_device,pid]
+    return fields[19]
+start = identity()
+fd = os.open(terminal_path,os.O_RDONLY|os.O_NONBLOCK|os.O_NOCTTY|os.O_NOFOLLOW)
+try:
+    device = os.fstat(fd)
+    assert stat.S_ISCHR(device.st_mode) and device.st_rdev == terminal_device
+    assert (proc/'fd/0').stat().st_rdev == terminal_device
+    flags = termios.tcgetattr(fd)[3]
+    assert flags & termios.ICANON and flags & termios.ECHO
+    assert identity() == start
+finally:
+    os.close(fd)
+print('vt6-getty-ready')
 '''
 
 # Same strict other-user gate as graphical login, with an explicitly different

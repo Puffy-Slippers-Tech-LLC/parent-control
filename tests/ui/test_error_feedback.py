@@ -50,12 +50,14 @@ def test_request_error_review_restrictions_and_submission(
     assert find(dialog, "Add logs", "button").do_action(0)
     assert bool(dialog.is_child("Download", role_name="button", retry=False)) is overlay
     assert find(dialog, "Send Feedback", "button").do_action(0)
-    find(dialog, "Feedback submitted.")
+    confirmation = find(application, "Thank you for your feedback!", "alert")
     component = "Child App" if overlay else "Kiosk App"
     assert events(path, "feedback")[0]["subject"] == f"[Oh No! Parent Control] [{component}] Error Report"
-    assert find(dialog, "Close", "button").do_action(0)
+    assert not events(path, "close_overlay" if overlay else "logout")
+    if overlay:
+        assert confirmation.child(role_name="button", retry=False).do_action(0)
     wait_for_accessible_state(lambda: bool(events(path, "close_overlay" if overlay else "logout")),
-                              "exit after review")
+                              "exit after success confirmation closes")
 
 
 def test_parent_discovery_error_opens_prefilled_feedback(
@@ -70,7 +72,7 @@ def test_parent_discovery_error_opens_prefilled_feedback(
     assert "The Parent App could not load. Please try again later." in editor.text
     assert wait_for_accessible_node(dialog, "Add files", "button").sensitive
     assert wait_for_accessible_node(dialog, "Send Feedback", "button").do_action(0)
-    wait_for_accessible_node(dialog, "Feedback submitted.")
+    wait_for_accessible_node(application, "Thank you for your feedback!", "alert")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
@@ -104,7 +106,7 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
     assert not events(path, "feedback")
     # The editable draft and its bridge must agree when explicitly sent next.
     assert find(dialog, "Send Feedback", "button").do_action(0)
-    find(dialog, "Feedback submitted.")
+    find(application, "Thank you for your feedback!", "alert")
     assert draft.strip() in events(path, "feedback")[0]["message"]
 
 

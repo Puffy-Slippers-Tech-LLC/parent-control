@@ -40,6 +40,7 @@ from installation_boundary import InstallationBoundary
 import installation_observations
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
+VT6_PROMPT_STAGES = (*STAGES, 'vt6-ready', 'vt6-login-screen', 'vt6-prompt-ready', 'vt6-prompt-screen')
 AUTH_STAGES = (*STAGES, 'authenticated')
 SERIAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated', 'serial-command', 'serial-logout',
                  'gdm-return')
@@ -102,20 +103,25 @@ def screenshot(directory, name):
 
 class Smoke:
     def __init__(self, directory, lease, commands, host_key, progress=None, transfer=None,
-                 authenticate=False, serial=False, installation=None):
+                 authenticate=False, serial=False, installation=None, vt6_prompt=False):
         self.directory, self.lease, self.commands = directory, lease, commands
         self.host_key = host_key
         self.steps = []
         self.vm = None
         self.progress = progress
         self.transfer = transfer
+        require(type(vt6_prompt) is bool and (not vt6_prompt or
+                (not authenticate and not serial and installation is None and transfer is None)),
+                'smoke:vt6-prompt-prerequisites')
+        self._vt6_boot = None
         require(installation is None or (serial and authenticate and transfer is not None
                 and installation.transfer is transfer), 'smoke:installation-prerequisites')
         self.installation = installation
         self._failed = False
         self._reboot_boot = None
         self._reboot_password_verified = False
-        self.stages = (INSTALL_REFUSAL_STAGES if installation is not None and installation.refusal else
+        self.stages = (VT6_PROMPT_STAGES if vt6_prompt else
+                       INSTALL_REFUSAL_STAGES if installation is not None and installation.refusal else
                        INSTALL_STAGES if installation is not None else
                        SERIAL_STAGES if serial else AUTH_STAGES if authenticate else STAGES)
 
@@ -166,8 +172,23 @@ class Smoke:
             reply['serial'] = self.stages == SERIAL_STAGES
             reply['install'] = self.installation is not None
             reply['install_refusal'] = self.installation is not None and self.installation.refusal
+            reply['vt6_prompt'] = self.stages == VT6_PROMPT_STAGES
+            if reply['vt6_prompt']:
+                self._vt6_boot = self.vm.read('boot')['boot_sha256']
             if self.transfer is not None:
                 reply['assets'] = self.transfer.observe(self.vm)
+        elif stage.startswith('vt6-'):
+            require(self._vt6_boot is not None and
+                    self.vm.read('boot')['boot_sha256'] == self._vt6_boot, 'smoke:vt6-boot-changed')
+            probe = 'vt6-getty' if stage in ('vt6-ready', 'vt6-login-screen') else 'vt6-password'
+            if stage.endswith('-screen'):
+                reply = screenshot(self.directory, request['screenshot'])
+                reply.update(self.vm.read(probe))
+            else:
+                require(request['screenshot'] is None, 'smoke:early-screenshot')
+                reply = self.vm.read(probe)
+            require(self.vm.read('boot')['boot_sha256'] == self._vt6_boot, 'smoke:vt6-boot-changed')
+            reply['boot_sha256'] = self._vt6_boot
         elif stage.startswith('install-'):
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
             self.installation.observer = self.vm
@@ -248,7 +269,7 @@ class Smoke:
                 require((reply['width'], reply['height']) == (previous['width'], previous['height'])
                         and reply['sha256'] != previous['sha256'], 'smoke:unchanged-screen')
         # Corroborate each captured stage, not just SSH availability at boot.
-        if stage not in ('authenticated', 'gdm-return') and not stage.startswith(('serial-', 'install-', 'reboot-')):
+        if stage not in ('authenticated', 'gdm-return') and not stage.startswith(('serial-', 'install-', 'reboot-', 'vt6-')):
             self.vm.read('greeter')
         self.steps.append({'stage': stage, **reply})
         if self.progress is not None:
@@ -263,9 +284,10 @@ class Smoke:
 
 def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
                 *, progress=None, on_failure=None, transfer=None, credentials=None, serial=False,
-                installation=None):
+                installation=None, vt6_prompt=False):
     smoke = Smoke(directory, lease, commands, host_key, progress, transfer,
-                  authenticate=credentials is not None, serial=serial, installation=installation)
+                  authenticate=credentials is not None, serial=serial, installation=installation,
+                  vt6_prompt=vt6_prompt)
     def validate():
         require(len(smoke.steps) == len(smoke.stages), 'smoke:missing-stages')
         module_result(directory)
@@ -289,7 +311,7 @@ class Qualification:
     """Live diagnostic checkpoints, without an inventory or scenario override."""
 
     def __init__(self, directory, commands, ledger, collector, result, host_before, assets=None,
-                 credentials=None, serial=False, install=False, install_refusal=False):
+                 credentials=None, serial=False, install=False, install_refusal=False, vt6_prompt=False):
         self.directory, self.commands, self.ledger = directory, commands, ledger
         self.collector, self.result, self.host_before = collector, result, host_before
         self.verified = None
@@ -302,12 +324,14 @@ class Qualification:
         self.serial = serial
         self.install = install
         self.install_refusal = install_refusal
+        self.vt6_prompt = vt6_prompt
 
     def checkpoint(self, event):
         self.sequence += 1
         try:
             save_checkpoint(self.collector, self.sequence, event, {
-                'scope': ('deliberate-installation-refusal-qualification' if self.install_refusal else
+                'scope': ('credential-free-vt6-prompt-qualification' if self.vt6_prompt else
+                          'deliberate-installation-refusal-qualification' if self.install_refusal else
                           'authenticated-installation-qualification' if self.install else
                           'fixture-credential-qualification' if self.credentials is not None
                           else 'credential-free-worker-qualification'),
@@ -320,7 +344,8 @@ class Qualification:
             raise
 
     def progress(self, stage, observed):
-        require(stage in (INSTALL_REFUSAL_STAGES if self.install_refusal else
+        require(stage in (VT6_PROMPT_STAGES if self.vt6_prompt else
+                          INSTALL_REFUSAL_STAGES if self.install_refusal else
                           INSTALL_STAGES if self.install else SERIAL_STAGES if self.serial else
                           AUTH_STAGES if self.credentials is not None else STAGES),
                 'smoke:stage-request')
@@ -394,7 +419,7 @@ class Qualification:
                     self.directory, lease, self.commands, host_key, self.ledger,
                     self.verified.source_files, progress=self.progress, on_failure=self.failure,
                     transfer=self.transfer, credentials=self.credentials, serial=self.serial,
-                    installation=installation))
+                    installation=installation, vt6_prompt=self.vt6_prompt))
         except BaseException as error:
             code = str(error) if isinstance(error, EvidenceError) else runner.error_category(error)
             if not any(v['outcome'] == 'failed' for v in self.ledger.outcomes.values()):
@@ -467,7 +492,10 @@ class Qualification:
 
 
 def main(*, assets=None, provision_credentials=False, serial=False, install=False,
-         install_refusal=False):
+         install_refusal=False, vt6_prompt=False):
+    require(type(vt6_prompt) is bool and (not vt6_prompt or
+            (assets is None and not provision_credentials and not serial and not install
+             and not install_refusal)), 'smoke:vt6-prompt-prerequisites')
     require(type(install) is bool and type(install_refusal) is bool
             and not (install and install_refusal)
             and (not (install or install_refusal) or (assets is not None and serial
@@ -497,6 +525,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         result['scope'] = 'authenticated-installation-qualification'
     if install_refusal:
         result['scope'] = 'deliberate-installation-refusal-qualification'
+    if vt6_prompt:
+        result['scope'] = 'credential-free-vt6-prompt-qualification'
     started = time.monotonic()
     def interrupted(*_):
         raise KeyboardInterrupt
@@ -532,7 +562,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                               if credentials is not None else []) as collector:
             result['qualification_evidence'] = str(collector.path)
             qualification = Qualification(directory, commands, ledger, collector, result, host_before,
-                                          staged, credentials, serial, install, install_refusal)
+                                          staged, credentials, serial, install, install_refusal, vt6_prompt)
             lease.finalize = qualification.finalize
             with lease:
                 result['baseline_sha256'] = lease.state['baseline_sha256']

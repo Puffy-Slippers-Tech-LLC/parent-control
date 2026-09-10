@@ -109,8 +109,23 @@ def test_feedback_submission_outcomes(
         assert message.text.strip() == "A private feedback draft"
         assert message.sensitive
         assert wait_for_accessible_node(dialog, "Send Feedback", "button").do_action(0)
-    wait_for_accessible_node(application, "Feedback submitted.")
-    wait_for_accessible_state(lambda: not message.text.strip(), "accepted feedback clears draft")
+    confirmation = wait_for_accessible_node(
+        application, "Thank you for your feedback!", "alert",
+    )
+    # The label may already have ticked while AT-SPI delivered the dialog.
+    close = confirmation.child(role_name="button", retry=False)
+    assert close.name in ("Close now (3s)", "Close now (2s)", "Close now (1s)")
+    if status != 202:
+        assert close.do_action(0)
+    else:
+        wait_for_accessible_node(confirmation, "Close now (2s)", "button")
+        wait_for_accessible_node(confirmation, "Close now (1s)", "button")
+    wait_for_accessible_state(
+        lambda: not application.is_child("Send Feedback", role_name="frame", retry=False),
+        "confirmation dismissal also closes feedback",
+    )
+    assert wait_for_accessible_node(application, "Feedback", "button").do_action(0)
+    assert not feedback_editor(application, wait_for_accessible_node).text.strip()
     log = collect_application_logs(log_path)
     assert "A private feedback draft" not in log
     assert "Traceback" not in log

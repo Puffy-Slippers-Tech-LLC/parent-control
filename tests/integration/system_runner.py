@@ -933,6 +933,40 @@ def is_qualification_failure(directory, selection):
         return False
 
 
+def capture_session_screen(lease, output):
+    """Capture the already-owned VM after fixed session diagnostics complete.
+
+    A fixed non-text modifier wakes the display after the foreground VT check.
+    It cannot submit credentials or dismiss the lock. No caller-selected input
+    is accepted; images remain in private test storage.
+    """
+    lease.guard()
+    lease.source.domain.sendKey(lease.source.api.VIR_KEYCODE_SET_LINUX, 100, [42], 1, 0)
+    lease.guard()
+    time.sleep(1)
+    lease.guard()
+    stream = lease.source.connection.newStream(0)
+    try:
+        mime = lease.source.domain.screenshot(stream, 0, 0)
+        require(mime in ('image/png', 'image/x-portable-pixmap'), 'session-capture:image-format')
+        path = output / ('session-screen.png' if mime == 'image/png' else 'session-screen.ppm')
+        size = 0
+        with path.open('xb') as target:
+            def receive(_stream, data, _opaque):
+                nonlocal size
+                size += len(data)
+                require(size <= 32 * 1024 * 1024, 'session-capture:image-size')
+                target.write(data)
+                return 0
+            stream.recvAll(receive, None)
+        stream.finish()
+        require(size > 0, 'session-capture:empty-image')
+        lease.guard()
+    except BaseException:
+        stream.abort()
+        raise
+
+
 def installed_run(vm, lease, directory, selection, ledger=None):
     ledger = ledger or RunLedger()
     run = lease.state['run']
@@ -943,8 +977,15 @@ def installed_run(vm, lease, directory, selection, ledger=None):
             vm.ready()
             vm.copy(False, str(directory / 'input') + '/', PAYLOAD + '/')
         lease.save('package-install')
+        previous = directory / 'input/previous-package.deb'
+        if previous.exists():
+            with ledger.measure('install'):
+                vm.call(guest_command(run, 'install-previous'), timeout=2400)
+            lease.save('previous-package-reboot')
+            with ledger.measure('reboot'):
+                vm.reboot()
         with ledger.measure('install'):
-            vm.call(guest_command(run, 'install'), timeout=2400)
+            vm.call(guest_command(run, 'upgrade' if previous.exists() else 'install'), timeout=2400)
         if 'installed' in selection.phases:
             lease.save('pytest-installed')
             with ledger.measure('test'):
@@ -983,7 +1024,7 @@ def installed_run(vm, lease, directory, selection, ledger=None):
                 with ledger.measure('test'):
                     vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
                              '/usr/bin/python3', '-B', PAYLOAD + '/system_graphical_expiry.py',
-                             'prepare'], timeout=120)
+                             'prepare'], timeout=300)
                 lease.save('graphical-expiry-reboot')
                 with ledger.measure('reboot'):
                     vm.reboot()
@@ -999,7 +1040,16 @@ def installed_run(vm, lease, directory, selection, ledger=None):
                     if not qualification_pending:
                         ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
                                             else error_category(error))
+                    if phase == 'session':
+                        try:
+                            with ledger.measure('collection'):
+                                capture_session_screen(lease, directory / 'guest-results')
+                        except Exception as capture_error:
+                            ledger.fail_outcome('collection', error_category(capture_error))
                     raise
+            if phase == 'session':
+                with ledger.measure('collection'):
+                    capture_session_screen(lease, directory / 'guest-results')
         outcome = 'passed'
     except BaseException as error:
         if not qualification_pending and all(ledger.outcomes[name]['outcome'] != 'failed'
@@ -1101,6 +1151,7 @@ def evidence(directory, manifest, lease, passed, category, selection,
             'selected_inputs_sha256': selected_inputs_sha256,
             'baseline_provenance_sha256': lease.state['baseline_sha256'],
             'source': manifest['source'], 'cleanup_phase': lease.state['phase'],
+            'previous_package': manifest.get('previous_package'),
             'transport': 'guarded-ssh-pytest', 'virtualization': 'libvirt-qemu-snapshot',
             'selection': selection_evidence(directory, selection), **ledger.data()}
     (output / 'result.json').write_bytes(baseline.encode(data))
@@ -1121,6 +1172,8 @@ def evidence(directory, manifest, lease, passed, category, selection,
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--artifacts', type=Path, help='Task 13A artifact directory')
+    parser.add_argument('--previous-artifacts', type=Path,
+                        help='verified prior package to install and reboot before upgrading')
     parser.add_argument('--area')
     parser.add_argument('--test')
     parser.add_argument('--list', action='store_true')
@@ -1161,6 +1214,7 @@ def main(argv=None):
             return 0
         with ledger.measure('preparation'):
             assets = artifact_source(args.artifacts)
+            previous_assets = artifact_source(args.previous_artifacts) if args.previous_artifacts else None
         os.umask(0o077)
         directory = Path(tempfile.mkdtemp(prefix='onpc-system-'))
         private = directory / 'private'
@@ -1169,6 +1223,15 @@ def main(argv=None):
         commands.directory = private
         with ledger.measure('preparation'):
             manifest = stage_assets(assets, directory / 'input', commands)
+            if previous_assets is not None:
+                previous = stage_assets(previous_assets, directory / 'previous', commands)
+                require(previous['artifacts']['package']['sha256'] !=
+                        manifest['artifacts']['package']['sha256'], 'assets:identical-update-payload')
+                shutil.copyfile(directory / 'previous/package.deb', directory / 'input/previous-package.deb')
+                manifest['previous_package'] = {
+                    'sha256': previous['artifacts']['package']['sha256'], 'source': previous['source']}
+                (directory / 'input/previous-inputs.json').write_bytes(
+                    baseline.encode(manifest['previous_package']))
             host_before = host_fingerprint(commands)
             selected_inputs_sha256 = stage_selected_inputs(selection, directory / 'input')
             # Include the exact test/helper bytes as well as package and fixtures.

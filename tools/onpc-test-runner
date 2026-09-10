@@ -39,6 +39,7 @@ def selection(root, argv):
     integration.add_argument('test', help='check_* basename, with optional .py suffix')
     system = categories.add_parser('system', allow_abbrev=False)
     system.add_argument('--artifacts', type=Path)
+    system.add_argument('--previous-artifacts', type=Path)
     system.add_argument('--area')
     system.add_argument('--test')
     system.add_argument('--list', action='store_true')
@@ -93,16 +94,19 @@ def selection(root, argv):
     command = ['/usr/bin/python3', '-B', str(target)]
     if not args.list and args.artifacts is None:
         parser.error('system requires --artifacts unless --list is supplied')
-    if args.artifacts is not None:
-        if not args.artifacts.is_absolute():
-            parser.error('--artifacts must be absolute')
-        parts = args.artifacts.parts
-        if ('..' in parts or not any(args.artifacts.is_relative_to(base) and
+    for option in ('artifacts', 'previous_artifacts'):
+        artifact = getattr(args, option, None)
+        if artifact is None:
+            continue
+        if not artifact.is_absolute():
+            parser.error('artifact directories must be absolute')
+        parts = artifact.parts
+        if ('..' in parts or not any(artifact.is_relative_to(base) and
                 len(parts) > len(base.parts) and re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', parts[len(base.parts)])
                 for base in (Path('/tmp'), Path('/var/tmp'))) or
-                any(p.is_symlink() for p in (args.artifacts, *args.artifacts.parents))):
+                any(p.is_symlink() for p in (artifact, *artifact.parents))):
             raise ValueError('test-runner:invalid-artifact-directory')
-        command += ['--artifacts', str(args.artifacts)]
+        command += ['--' + option.replace('_', '-'), str(artifact)]
     for option in ('area', 'test'):
         value = getattr(args, option)
         if value is not None:

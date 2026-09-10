@@ -34,6 +34,11 @@ GNOME Shell reports the extension both enabled and active; deactivation is
 accepted only when it reports neither. Offline activation is verified against
 the durable settings that Shell will consume at next login.
 
+Shell availability checks ownership of `org.gnome.Shell`. The separate
+`org.gnome.Shell.Extensions` proxy service starts on demand; its absence must
+not select offline activation for a running desktop. The supported CLI still
+performs activation and configured/active verification.
+
 GNOME may turn on `disable-user-extensions` after a session startup failure.
 Startup reassertion for a saved enabled child restores that global switch to
 false and verifies the write before proceeding. Ordinary preference transitions
@@ -59,9 +64,11 @@ duration_seconds = max(Daily allowance remaining, One-time grant remaining)
                   + Additional one-time grant
 ```
 
-For the Parent App, the administrator queries usage directly through the public
-Malcontent parent interface, reads the current grant, computes the two remaining
-operands, and asks `CalculateRemainingTime` to validate and apply the formula.
+The Parent App uses `GetTimeStatus` for the remaining operands and calculated
+total. It does not read the AccountsService grant directly: cross-account
+`SessionLimits.ReadAny` requires Polkit authentication, so a periodic direct
+read can fail when no retained authorization is available. The broker owns the
+read and calculation under the authorization boundary described below.
 For a fixed-duration request, the broker launches the fixed-purpose
 `oh-no-parent-control-query-usage` helper under the authenticated approver's UID
 and primary GID. The helper opens a new system-bus connection and returns only
@@ -86,6 +93,16 @@ replies are not retried, and a failed read never becomes zero usage. The helper
 is loaded on its next invocation (`none` activation); adapter logging changes
 activate with the broker's `process-restart` classification.
 
+The parent status client loads on the next Parent App launch (`none` package
+activation). It reuses the existing `GetTimeStatus(uu) -> (uuuu)` contract and
+needs no broker, Polkit, or saved-data change. Regression coverage in
+[test_parent_client.py](../../tests/unit/test_parent_client.py) checks reads
+without retained AccountsService authorization, fresh grant status, and error
+propagation without sensitive logging. The broker role-revalidation regression
+is in [test_core.py](../../tests/unit/test_core.py). See the
+[2026-09-09 investigation](../Parent-Time-Status-Investigation-2026-09-09.md)
+for observed failures, verification results, and installed-test limitations.
+
 ## Countdown and expiry enforcement
 
 The child extension uses GNOME Shell's supported time-limit manager and the
@@ -93,7 +110,10 @@ public Malcontent estimate signal/query for the daily estimate. It passes that
 estimate to `CalculateOwnRemainingTime`; the broker derives the child from the
 caller and reads the live `ActiveExtension` itself. The panel counts down in
 minutes and then seconds, preserving its last verified estimate across a
-temporary read failure.
+temporary read failure. At expiry, deduplicated diagnostics record whether the
+estimate and daily limit are loaded, whether Shell is already in lock/greeter
+mode, and whether a lock request is pending. These contain no account/session
+identifiers; a separate fixed message records each actual Lock request.
 
 The public estimate API is `EstimatedTimesChanged` and `GetEstimatedTimes`.
 Estimate reads use bounded backoff for `Error.Busy`, which can occur while
@@ -134,7 +154,8 @@ the unprivileged component neither decides whether a grant is current nor
 signals processes itself.
 
 The PAM module/profile change activates at `reboot`; extension-manager changes
-activate at `process-restart`. No saved-data migration is needed. The PAM data
+activate at `process-restart`, and child-extension diagnostics at
+`session-renewal`. No saved-data migration is needed. The PAM data
 interface is documented in [pam_systemd](https://github.com/systemd/systemd/blob/main/man/pam_systemd.xml).
 
 ## Related design

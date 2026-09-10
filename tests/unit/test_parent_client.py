@@ -1,79 +1,96 @@
-import json
 import unittest
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
-from gi.repository import GLib
+from gi.repository import Gio, GLib
 
 from parent.oh_no_parent_control_parent.client import (
-    ACCOUNTS_NAME,
     BUS_NAME,
-    TIMER_NAME,
+    INTERFACE,
+    OBJECT_PATH,
     BrokerClient,
 )
 
 
 class FakeConnection:
-    def __init__(self, now):
-        self.now = now
+    """An administrator without retained AccountsService authorization."""
+
+    def __init__(self, status=(1800, 600, 300, 2100), error=None):
+        self.status = status
+        self.error = error
         self.calls = []
 
     def call_sync(self, name, path, interface, method, parameters,
-                  _reply_type, _flags, _timeout, _cancellable):
+                  reply_type, flags, _timeout, _cancellable):
         unpacked = None if parameters is None else parameters.unpack()
-        self.calls.append((name, path, interface, method, unpacked))
-        start_of_day = datetime.combine(
-            self.now.date(), datetime.min.time(), tzinfo=self.now.tzinfo,
-        )
-        day = int(start_of_day.timestamp())
-        if name == TIMER_NAME and method == "QueryUsage":
-            return GLib.Variant("(a(tt))", ([
-                (day - 60, day + 30),
-                (day + 60, day + 120),
-                (day + 90, day + 150),
-            ],))
+        self.calls.append((name, path, interface, method, unpacked,
+                           reply_type.dup_string(), flags))
+        if name == "org.freedesktop.Accounts":
+            raise Gio.DBusError.new_for_dbus_error(
+                "org.freedesktop.Accounts.Error.PermissionDenied",
+                "Authentication is required",
+            )
+        if name == "org.freedesktop.MalcontentTimer1" and method == "QueryUsage":
+            return GLib.Variant("(a(tt))", ([],))
         if name == BUS_NAME and method == "GetPreferences":
-            encoded = json.dumps({
-                "parent_control_enabled": True,
-                "daily_time_limit_minutes": 32,
-            })
-            return GLib.Variant("(s)", (encoded,))
-        if name == ACCOUNTS_NAME and method == "Get":
-            extension = GLib.Variant("(tu)", (
-                int(self.now.timestamp()), 10 * 60,
+            return GLib.Variant("(s)", (
+                '{"parent_control_enabled": true, "daily_time_limit_minutes": 30}',
             ))
-            return GLib.Variant("(v)", (extension,))
-        if name == BUS_NAME and method == "CalculateRemainingTime":
-            _uid, daily, grant, additional = unpacked
-            return GLib.Variant("(u)", (max(daily, grant) + additional,))
+        if name == BUS_NAME and method == "GetTimeStatus":
+            if self.error is not None:
+                raise self.error
+            return GLib.Variant("(uuuu)", self.status)
         raise AssertionError(f"unexpected call: {name} {method}")
 
 
 class ParentClientTests(unittest.TestCase):
-    def test_time_status_reads_usage_as_parent_and_uses_broker_formula(self):
-        now = datetime(2026, 8, 31, 10, tzinfo=ZoneInfo("America/Los_Angeles"))
-        connection = FakeConnection(now)
+    def test_time_status_works_without_accountsservice_authorization(self):
+        connection = FakeConnection()
 
-        status = BrokerClient(connection, now=lambda: now).get_time_status(1001, 5 * 60)
+        status = BrokerClient(connection).get_time_status(1001, 300)
 
-        # 30 seconds before midnight plus the overlapping 60..150 interval is
-        # two minutes used today, leaving 30 minutes of a 32-minute allowance.
         self.assertEqual(status, {
-            "daily_allowance_remaining_seconds": 30 * 60,
-            "one_time_grant_remaining_seconds": 10 * 60,
-            "additional_one_time_grant_seconds": 5 * 60,
-            "calculated_active_extension_seconds": 35 * 60,
+            "daily_allowance_remaining_seconds": 1800,
+            "one_time_grant_remaining_seconds": 600,
+            "additional_one_time_grant_seconds": 300,
+            "calculated_active_extension_seconds": 2100,
         })
-        timer_call = connection.calls[0]
-        self.assertEqual(timer_call[0], TIMER_NAME)
-        self.assertEqual(timer_call[3:], (
-            "QueryUsage", (1001, "login-session", ""),
-        ))
-        formula_call = connection.calls[-1]
-        self.assertEqual(formula_call[0], BUS_NAME)
-        self.assertEqual(formula_call[3:], (
-            "CalculateRemainingTime", (1001, 30 * 60, 10 * 60, 5 * 60),
-        ))
+        self.assertEqual(connection.calls, [(
+            BUS_NAME, OBJECT_PATH, INTERFACE, "GetTimeStatus", (1001, 300),
+            "(uuuu)", Gio.DBusCallFlags.NONE,
+        )])
+
+    def test_periodic_refresh_uses_current_broker_status_without_adding_time(self):
+        connection = FakeConnection(status=(0, 60, 0, 60))
+        client = BrokerClient(connection)
+
+        self.assertEqual(client.get_time_status(1001)["calculated_active_extension_seconds"], 60)
+        connection.status = (0, 0, 0, 0)
+        self.assertEqual(client.get_time_status(1001)["calculated_active_extension_seconds"], 0)
+        connection.status = (0, 300, 0, 300)
+        self.assertEqual(client.get_time_status(1002)["calculated_active_extension_seconds"], 300)
+
+        self.assertEqual([call[3:5] for call in connection.calls], [
+            ("GetTimeStatus", (1001, 0)),
+            ("GetTimeStatus", (1001, 0)),
+            ("GetTimeStatus", (1002, 0)),
+        ])
+
+    def test_broker_failures_reach_ui_without_fabricating_time_or_logging_pii(self):
+        for name in ("AccessDenied", "BackendFailure"):
+            with self.subTest(error=name):
+                error = Gio.DBusError.new_for_dbus_error(
+                    f"{BUS_NAME}.Error.{name}", "private-account-detail",
+                )
+                connection = FakeConnection(error=error)
+                with self.assertLogs(
+                        "parent.oh_no_parent_control_parent.client", level="WARNING") as logs:
+                    with self.assertRaises(GLib.Error) as caught:
+                        BrokerClient(connection).get_time_status(1001)
+
+                self.assertIs(caught.exception, error)
+                self.assertEqual(len(connection.calls), 1)
+                self.assertIn("time-status stage=broker outcome=failed", logs.output[0])
+                self.assertNotIn("private-account-detail", "\n".join(logs.output))
+                self.assertNotIn("1001", "\n".join(logs.output))
 
 
 if __name__ == "__main__":

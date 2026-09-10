@@ -15,7 +15,7 @@ import sys
 import time
 
 import system_guest as guest
-from system_assertions import accepted, account_property, call
+from system_assertions import accepted, account_property, account_state, call
 from system_session_expiry import (
     identities, installed_manager, grant, verify_offline_recovery, verify_pam_scope,
     verify_zero_time_pam,
@@ -126,8 +126,113 @@ def wait_for(predicate, category, timeout=90):
         time.sleep(0.25)
 
 
+def screen_lock_observation(child, session, manager, account):
+    """Read native Shell activity and lock policy, retaining logind's hint.
+
+    GNOME can lock before its asynchronous logind proxy exists, in which case
+    it never sends the initial LockedHint. A stale hint must not override the
+    native ScreenSaver interface, normal password mode, and enabled lock policy.
+    The installed PAM authentication/account denials are checked separately.
+    """
+    guest.guard()
+    current = child_session(child)
+    guest.require(current is not None and current[0] == session, 'expiry:desktop-ended')
+    state = {'logind_locked': current[1]['LockedHint'] == 'yes',
+             'password_mode': account_property(child, 'org.freedesktop.Accounts.User', 'PasswordMode')}
+    for key, arguments in (
+        ('screensaver_active', ['gdbus', 'call', '--session', '--dest',
+            'org.gnome.ScreenSaver', '--object-path', '/org/gnome/ScreenSaver',
+            '--method', 'org.gnome.ScreenSaver.GetActive']),
+        ('lock_enabled', ['gsettings', 'get', 'org.gnome.desktop.screensaver', 'lock-enabled']),
+        ('lock_disabled', ['gsettings', 'get', 'org.gnome.desktop.lockdown', 'disable-lock-screen']),
+    ):
+        value = manager._run_command(account, arguments, require_live=True).stdout.strip()
+        guest.require(value in ('true', 'false', '(true,)', '(false,)'),
+                      'expiry:lock-observation-response')
+        state[key] = value in ('true', '(true,)')
+    guest.require(state['password_mode'] == 0 and state['lock_enabled']
+                  and not state['lock_disabled'], 'expiry:lock-policy-not-enforcing')
+    return state
+
+
+def verify_other_foreground(child, session, record):
+    """Expiry must preserve another account's real foreground local VT.
+
+    A transient service opens the installed login PAM stack on an unused fixed
+    VT. This is supported fixture setup, not a GDM Switch User journey. The
+    service owns only its directly launched sleep; it exits naturally and the
+    outer lease restores the guest. No discovered process is signalled.
+    """
+    marker = guest.guard()
+    other = identities()['other']
+    def inventory():
+        rows = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines()
+        guest.require(len(rows) <= 32, 'expiry:foreground-session-inventory')
+        return [(row.split()[0], dict(line.split('=', 1) for line in guest.run([
+            'loginctl', 'show-session', row.split()[0], '-p', 'User', '-p', 'Class',
+            '-p', 'Type', '-p', 'Service', '-p', 'Seat', '-p', 'TTY', '-p', 'Scope',
+            '-p', 'Active', '-p', 'LockedHint']).splitlines())) for row in rows]
+    initial = inventory()
+    guest.require(not any(props.get('TTY') == 'tty7' or
+                          (props.get('User') == str(other) and props.get('Class') == 'user')
+                          for _, props in initial), 'expiry:foreground-fixture-collision')
+    other_state = account_state(other)
+    guest.run(['systemd-run', '--quiet', '--collect', '--service-type=exec',
+               '--unit=onpc-expiry-foreground-' + marker['run'], '--uid=' + str(other),
+               '--property=PAMName=login', '--property=TTYPath=/dev/tty7',
+               '--property=StandardInput=tty', '--property=StandardOutput=null',
+               '--property=StandardError=null', '/usr/bin/sleep', '90'])
+    def created():
+        matches = [(ident, props) for ident, props in inventory()
+                   if props.get('User') == str(other) and props.get('Class') == 'user']
+        guest.require(len(matches) <= 1, 'expiry:foreground-duplicate-session')
+        return matches[0] if matches else None
+    other_session, props = wait_for(created, 'expiry:foreground-session-not-created', 15)
+    record('onpc.expiry.other-foreground-created', json.dumps({
+        key: props.get(key) for key in ('Type', 'Seat', 'TTY', 'Service', 'Active', 'LockedHint')
+    }, sort_keys=True))
+    guest.require(props.get('Type') == 'tty' and props.get('Seat') == 'seat0'
+                  and props.get('TTY') == 'tty7' and props.get('Service') == 'login',
+                  'expiry:foreground-session-properties')
+    deadline = grant(child, 6)
+    guest.run(['loginctl', 'activate', other_session])
+    def foreground():
+        current = dict(inventory()).get(other_session)
+        guest.require(current is not None, 'expiry:other-session-ended')
+        return current if current.get('Active') == 'yes' else None
+    before = wait_for(foreground, 'expiry:other-session-not-foreground', 10)
+    guest.require(before.get('LockedHint') == 'no' and time.time() < deadline,
+                  'expiry:other-session-not-ready-before-expiry')
+    observation_deadline = time.monotonic() + 10
+    while time.time() <= deadline + 1:
+        guest.require(time.monotonic() < observation_deadline, 'expiry:foreground-clock-discontinuity')
+        guest.require(child_session(child)[0] == session, 'expiry:background-child-ended')
+        time.sleep(0.25)
+    after = foreground()
+    guest.require(after is not None and after.get('LockedHint') == 'no'
+                  and after['Scope'] == before['Scope']
+                  and account_state(other) == other_state
+                  and guest.run(['systemctl', 'is-active', after['Scope']]) == 'active',
+                  'expiry:foreground-user-disrupted')
+    record('onpc.expiry.other-foreground',
+           'real-local-tty; same-session-active-and-unlocked-past-child-deadline')
+    guest.run(['loginctl', 'activate', session])
+
+
 def verify(record):
     guest.guard()
+    # Retain completed observations even if a native dependency later stalls
+    # and pytest cannot finish its JUnit document. The outer collector already
+    # preserves this private results directory on both success and failure.
+    publish = record
+    observations = []
+    output = guest.PAYLOAD / 'results'
+    def record(name, value):
+        observations.append((name, value))
+        pending = output / 'session-observations.pending'
+        pending.write_text(json.dumps(observations, sort_keys=True))
+        pending.replace(output / 'session-observations.json')
+        publish(name, value)
     accounts = identities()
     for name, value in json.loads((FIXTURE / 'prerequisites.json').read_text()):
         record(name, value)
@@ -156,11 +261,16 @@ def verify(record):
     account, _ = manager._account(child)
     wait_for(lambda: manager._shell_is_available(account), 'expiry:gnome-shell-unavailable')
     guest.require(manager._runtime_state(account) == (True, True), 'expiry:extension-inactive')
+    lock_state = None
     def locked():
-        current = child_session(child)
-        guest.require(current is not None and current[0] == session, 'expiry:desktop-ended')
-        return current[1]['LockedHint'] == 'yes'
-    wait_for(locked, 'expiry:desktop-not-locked')
+        nonlocal lock_state
+        lock_state = screen_lock_observation(child, session, manager, account)
+        return lock_state['screensaver_active']
+    try:
+        wait_for(locked, 'expiry:gnome-screen-not-active')
+    finally:
+        if lock_state is not None:
+            record('onpc.expiry.lock-state', json.dumps(lock_state, sort_keys=True))
     guest.require(time.time() > seed_result['deadline']
                   and guest.run(['systemctl', 'is-active', scope]) == 'active',
                   'expiry:expired-desktop-not-retained')
@@ -180,13 +290,16 @@ def verify(record):
     verify_zero_time_pam(record)
     verify_runtime_rollback(record)
     old_deadline = verify_request_extension(record)
+    observation_deadline = time.monotonic() + 20
     while time.time() <= old_deadline + 0.5:
+        guest.require(time.monotonic() < observation_deadline, 'expiry:extension-clock-discontinuity')
         guest.require(child_session(child)[0] == session, 'expiry:extended-session-ended')
         time.sleep(0.25)
     guest.require(guest.run(['systemctl', 'is-active', scope]) == 'active'
                   and guest.run(['systemctl', 'show', scope, '--property=RuntimeMaxUSec', '--value'])
                       == 'infinity', 'expiry:extended-scope-not-retained')
     record('onpc.expiry.extended-session', 'same-session-active-past-earlier-approved-deadline')
+    verify_other_foreground(child, session, record)
 
 
 if __name__ == '__main__':

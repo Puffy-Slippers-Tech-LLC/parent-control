@@ -162,15 +162,41 @@ def installed_manager():
 
 
 def pam_password_status(uid, password, *, account_only=False):
-    """The installed GDM authentication/account stacks, with a real PAM secret.
+    """Bound each installed PAM transaction in its own recorded process.
 
-    No desktop is opened. PAM owns and frees the malloc-backed responses, as
-    required by pam_conv; prompt text and credentials never enter evidence.
+    Credentials travel only through stdin, never command arguments, artifacts,
+    or exception text. Native PAM modules must not be able to stall the entire
+    runtime suite inside its long-lived Python observer.
     """
     from system_caller import FixturePassword
     guest.guard()
     guest.require(isinstance(password, FixturePassword)
                   and uid == identities()['child'], 'expiry:pam-password-fixture')
+    phase = 'account' if account_only else 'authenticate'
+    print('onpc-system: stage=pam-password-' + phase + ' outcome=started', flush=True)
+    raw = guest.commands.run([
+        '/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_session_expiry.py'),
+        '--pam-password', phase],
+        input=json.dumps({'uid': uid, 'password': password._value.decode('ascii')}).encode(),
+        timeout=30, merge_stderr=False)
+    try:
+        result = json.loads(raw)
+    except (ValueError, UnicodeError):
+        raise guest.GuestError('expiry:pam-password-result') from None
+    guest.require(type(result) is int and 0 <= result <= 31, 'expiry:pam-password-status')
+    return result
+
+
+def pam_password_in_process(uid, secret, *, account_only=False):
+    """The installed GDM authentication/account stacks, with a real PAM secret.
+
+    No desktop is opened. PAM owns and frees the malloc-backed responses, as
+    required by pam_conv; prompt text and credentials never enter evidence.
+    """
+    guest.guard()
+    guest.require(uid == identities()['child'] and isinstance(secret, bytes)
+                  and 1 <= len(secret) <= 256 and b'\0' not in secret,
+                  'expiry:pam-password-fixture')
     pam, libc = ctypes.CDLL('libpam.so.0'), ctypes.CDLL(None)
     libc.calloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t]
     libc.calloc.restype = ctypes.c_void_p
@@ -201,7 +227,7 @@ def pam_password_status(uid, password, *, account_only=False):
             for index in range(count):
                 style = messages[index].contents.style
                 if style in (1, 2):
-                    responses[index].text = libc.strdup(password._value if style == 1 else username)
+                    responses[index].text = libc.strdup(secret if style == 1 else username)
                     if not responses[index].text:
                         raise MemoryError
                 elif style not in (3, 4):
@@ -240,7 +266,12 @@ def verify_zero_time_pam(record):
     accepted(call(parent, 'RevokeOneTimeGrant', '(u)', (child,)))
     denied = (pam_password_status(child, password),
               pam_password_status(child, password, account_only=True))
-    guest.require(denied == (13, 13), 'expiry:zero-time-pam-not-expired')
+    record('onpc.expiry.pam-denied-status', json.dumps({
+        'authentication': denied[0], 'account': denied[1]}, sort_keys=True))
+    # Our authentication hook returns PAM_ACCT_EXPIRED (13). The stock
+    # pam_malcontent account hook returns PAM_AUTH_ERR (7) for exhausted time;
+    # preserve that authoritative denial rather than demanding another code.
+    guest.require(denied == (13, 7), 'expiry:zero-time-pam-not-expired')
     grant(child, 45)
     try:
         allowed = (pam_password_status(child, password),
@@ -284,6 +315,7 @@ def verify_request_extension(record):
         guest.require(extension[0] > 0 and extension[1] >= seconds,
                       'expiry:request-grant-missing:' + surface)
         if deadline is None:
+            guest.require(extension[1] == seconds, 'expiry:unexpected-initial-approved-duration')
             deadline = sum(extension)
         else:
             guest.require(time.time() < deadline and sum(extension) > deadline,
@@ -360,7 +392,59 @@ def verify_runtime_rollback(record):
                       and (not live or manager._runtime_state(account) == runtime),
                       'expiry:injected-failure-rollback-unverified')
         manager.set_enabled(accounts['child'], True, recover_global_switch=True)
-        record('onpc.expiry.rollback.' + fault, 'injected; real-settings-and-runtime-rollback-verified')
+        mode = 'live' if live else 'offline'
+        record('onpc.expiry.rollback.' + mode + '.' + fault,
+               'injected; real-settings-and-runtime-rollback-verified')
+
+
+def verify_unavailable_enforcement(record):
+    """A real startup activation failure must prevent a new grant.
+
+    Temporarily withhold the verified extension metadata in the leased guest.
+    Keep its exact inode in a new private fixture and restore it before broker
+    recovery. No other file, process, or desktop is discovered for cleanup.
+    """
+    accounts = identities()
+    manager = installed_manager()
+    child, parent = accounts['child'], accounts['parent']
+    account, _ = manager._account(child)
+    manager._verify_installation()
+    metadata = manager.installation / 'metadata.json'
+    fixture = Path('/var/lib/onpc-test-extension-failure')
+    guest.require(not fixture.exists() and not fixture.is_symlink(),
+                  'expiry:activation-failure-fixture-collision')
+    fixture.mkdir(mode=0o700)
+    saved = fixture / 'metadata.json'
+    original = metadata.stat()
+    digest = guest.sha(metadata)
+    accepted(call(parent, 'RevokeOneTimeGrant', '(u)', (child,)))
+    before = account_state(child)
+    manager._set_boolean(account, 'disable-user-extensions', True)
+    guest.run(['systemctl', 'stop', guest.BROKER])
+    metadata.rename(saved)
+    try:
+        reply = call(child, 'RequestOwnAccess', '(uub)', (parent, 60, False))
+        guest.require('error' in reply and 'result' not in reply,
+                      'expiry:approval-without-enforcement')
+        guest.require(account_state(child) == before,
+                      'expiry:grant-written-without-enforcement')
+        owner = guest.run(['busctl', '--system', 'call', 'org.freedesktop.DBus',
+                          '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+                          'NameHasOwner', 's', guest.BUS])
+        guest.require(owner == 'b false', 'expiry:failed-startup-owned-bus')
+        guest.require(manager._boolean(account, 'disable-user-extensions'),
+                      'expiry:failed-startup-changed-global-switch')
+        record('onpc.expiry.unavailable-enforcement',
+               'startup-refused; request-failed; grant-unchanged; bus-name-unowned')
+    finally:
+        current = saved.lstat()
+        guest.require(not metadata.exists() and not metadata.is_symlink()
+                      and (current.st_dev, current.st_ino) == (original.st_dev, original.st_ino)
+                      and guest.sha(saved) == digest, 'expiry:activation-failure-restore-identity')
+        saved.rename(metadata)
+        guest.activate_broker()
+        guest.require(not manager._boolean(account, 'disable-user-extensions'),
+                      'expiry:activation-failure-recovery')
 
 
 def verify_offline_recovery(record):
@@ -391,6 +475,8 @@ def verify_offline_recovery(record):
         guest.require(account_state(accounts['other']) == before_other,
                       'expiry:offline-recovery-other-account')
         record('onpc.expiry.offline-recovery', 'broker-active; switch-restored; selections-preserved')
+        verify_runtime_rollback(record)
+        verify_unavailable_enforcement(record)
     finally:
         manager._set_boolean(account, 'disable-user-extensions', False)
         manager._set_list(account, 'enabled-extensions', enabled)
@@ -401,8 +487,18 @@ def verify_offline_recovery(record):
 if __name__ == '__main__':
     try:
         guest.guard()
-        guest.require(len(sys.argv) == 3 and sys.argv[1] == '--pam', 'expiry:arguments')
-        pam_probe(sys.argv[2])
+        guest.require(len(sys.argv) == 3, 'expiry:arguments')
+        if sys.argv[1] == '--pam-password':
+            guest.require(sys.argv[2] in ('account', 'authenticate'), 'expiry:pam-password-phase')
+            payload = json.loads(sys.stdin.buffer.read(1024))
+            guest.require(isinstance(payload, dict) and set(payload) == {'uid', 'password'}
+                          and type(payload['uid']) is int and isinstance(payload['password'], str),
+                          'expiry:pam-password-input')
+            print(json.dumps(pam_password_in_process(payload['uid'], payload['password'].encode('ascii'),
+                             account_only=sys.argv[2] == 'account')), flush=True)
+        else:
+            guest.require(sys.argv[1] == '--pam', 'expiry:arguments')
+            pam_probe(sys.argv[2])
     except Exception as error:
         category = str(error) if isinstance(error, guest.GuestError) else type(error).__name__
         print('onpc-system: stage=expiry-probe outcome=failed category=' + category,

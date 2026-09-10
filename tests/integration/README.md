@@ -91,7 +91,7 @@ coordinates host results and VM artifacts for the same source content.
 
 For implementation, use the [bounded diagnostic workflow](../../docs/TestAutomation/Implementation-Workflow.md).
 The current controller executes the registered installed/reboot/authorization/
-enforcement scope when unselected. F1 can list the registered `package`, `authorization`, and `enforcement`
+enforcement/session scope when unselected. F1 can list the registered `package`, `authorization`, `enforcement`, and `session`
 cases and their explicit prerequisite closure without artifacts, root access,
 or VM operations:
 
@@ -99,6 +99,30 @@ or VM operations:
 tools/run-tests system --list --area authorization
 tools/run-tests system --list --area authorization --test 'test_real_selected_parent_authentication[child1]'
 ```
+
+The `session` area runs installed PAM expiry checks, then a one-shot GDM
+autologin fixture across a second reboot. It observes real scope creation,
+expiry locking, extension recovery, PAM admission and authenticated broker
+requests. The fixture is a runtime diagnostic; API requests do not establish
+GUI interaction coverage. A separate fixed local-VT fixture checks another
+account's foreground session across child expiry; it does not claim a graphical
+Switch User journey. PAM password probes run in individually bounded, owned
+processes with credentials supplied only on stdin. Native module status is
+recorded before its assertion. The observer records public ScreenSaver and
+logind lock state and screen-lock settings. After successful or failed session
+diagnostics, the owning controller wakes the display with a fixed non-text
+Shift modifier and retains a private screen capture, checking ownership around
+both operations. Capture failure preserves the original test failure. See the
+[expiry evidence](../../docs/Kiosk-Session-Expiry-Runtime-2026-09-09.md).
+
+For an explicit update check, add `--previous-artifacts /tmp/onpc-...` alongside
+`--artifacts /tmp/onpc-...`. Both inputs pass the same artifact and source
+verification. The controller installs and boots the prior package, requires its
+payload unchanged and its reboot marker cleared, then uses APT `--reinstall`
+for the selected new payload. Identical package digests are refused. The update
+must request a new product reboot, and normal installed/reboot assertions run
+against the new bytes. `update-activation.json` records both package digests and
+the same-version reinstall observation. Neither package is installed on the host.
 
 Task 15A's first registered enforcement case is
 `test_native_command_policy_is_uid_scoped`. Inspect it with

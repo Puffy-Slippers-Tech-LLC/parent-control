@@ -92,6 +92,12 @@ the draft after a web-process restart.
 
 Drafts, selected file bytes, and frozen retries remain in memory until app exit;
 closing the dialog preserves them and allows an in-flight worker to continue.
+Successful sending clears the draft and, while feedback is visible, opens a
+modal thank-you confirmation above it. Its **Close now (3s)** button counts down
+each second. Clicking it, dismissing the confirmation, or reaching three seconds
+closes both confirmation and feedback, including the error-report close callback.
+Closing or destroying feedback cancels the confirmation timer. Background
+completion does not reopen feedback that the user already closed.
 The administrator can explicitly save a diagnostic ZIP to a chosen location.
 The broker's [collector](../../broker/oh_no_parent_control/diagnostics.py)
 reads only regular dated product logs from the three newest available local log

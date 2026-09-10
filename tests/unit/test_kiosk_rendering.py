@@ -238,7 +238,7 @@ class KioskRenderingTests(unittest.TestCase):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
         self.assertIn("directory.monitor_directory(", source)
-        self.assertIn('"style.css", "kiosk-background-still.png", "kiosk-background-clear.png",', source)
+        self.assertIn('"style.css", "kiosk-background-still.png", "kiosk-background-scenery-clear.png",', source)
         self.assertIn("self._load_stylesheet()", source)
         self.assertIn("window._background.reload_texture()", source)
         self.assertIn("os.execv(sys.executable, sys.orig_argv)", source)
@@ -254,6 +254,17 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("drag_handle = Gtk.WindowHandle()", source)
         self.assertIn("drag_handle.set_child(layout)", source)
         self.assertIn("self.set_content(drag_handle)", source)
+
+    def test_clean_scenery_plate_matches_source_coordinates_and_ships(self):
+        import cairo
+        from oh_no_parent_control_kiosk.floating_islands import SOURCE_WIDTH, SOURCE_HEIGHT
+
+        asset = ROOT / "kiosk/oh_no_parent_control_kiosk/kiosk-background-scenery-clear.png"
+        texture = cairo.ImageSurface.create_from_png(str(asset))
+        self.assertEqual((texture.get_width(), texture.get_height()),
+                         (SOURCE_WIDTH, SOURCE_HEIGHT))
+        self.assertIn(asset.relative_to(ROOT).as_posix(),
+                      (ROOT / "Makefile").read_text(encoding="utf-8"))
 
     def test_gateway_texture_uses_gtk_snapshot_api(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
@@ -289,7 +300,7 @@ class KioskRenderingTests(unittest.TestCase):
         from oh_no_parent_control_kiosk.snowflakes import GATEWAY_OUTER_BOUNDS
 
         for width, height in ((480, 800), (1366, 768), (1536, 960), (1920, 1080),
-                              (3440, 1440), (3840, 1080), (3840, 2160)):
+                              (3440, 1440), (3840, 1080), (3840, 1600), (3840, 2160)):
             with self.subTest(size=(width, height)):
                 regions = _gateway_scene_regions(width, height)
                 edge = 0
@@ -311,6 +322,55 @@ class KioskRenderingTests(unittest.TestCase):
                     artwork_width = _gateway_artwork_geometry(width, height)[2]
                     outer_width = artwork_width * (GATEWAY_OUTER_BOUNDS[2] - GATEWAY_OUTER_BOUNDS[0])
                     self.assertLessEqual(outer_width, width * 0.40 + 1e-6)
+
+    def test_tall_desktops_preserve_the_laptop_gateway_proportions(self):
+        from oh_no_parent_control_kiosk.main import _gateway_inner_corners
+
+        def opening(width, height):
+            corners = _gateway_inner_corners(width, height)
+            return (corners[1][0] - corners[0][0],
+                    min(point[1] for point in corners[2:])
+                    - max(point[1] for point in corners[:2]))
+
+        laptop_width, laptop_height = opening(1920, 1200)
+        for width, height in ((3440, 1440), (3840, 1600), (3840, 2160)):
+            with self.subTest(size=(width, height)):
+                opening_width, opening_height = opening(width, height)
+                self.assertGreater(opening_width, laptop_width)
+                self.assertAlmostEqual(opening_width / opening_height,
+                                       laptop_width / laptop_height)
+
+        # More horizontal space alone must not stretch the frame, and the
+        # existing laptop allocations at 100% and 125% remain unchanged.
+        for ultrawide, laptop in zip(opening(3840, 1080), opening(1920, 1080)):
+            self.assertAlmostEqual(ultrawide, laptop)
+        for width, height, expected in ((1920, 1200, 640), (1536, 960, 614.4)):
+            with self.subTest(laptop=(width, height)):
+                self.assertAlmostEqual(opening(width, height)[0], expected * 902 / 1416)
+
+    def test_scenery_keeps_source_proportions_at_every_screen_shape(self):
+        from oh_no_parent_control_kiosk.main import _gateway_scene_regions
+        from oh_no_parent_control_kiosk.floating_islands import (
+            SCENERY, SOURCE_WIDTH, SOURCE_HEIGHT, scenery_artwork_geometry,
+        )
+
+        for width, height in ((480, 800), (1366, 768), (1536, 960), (1920, 1200),
+                              (2560, 1440), (3840, 1600), (3840, 1080), (3840, 2160)):
+            with self.subTest(size=(width, height)):
+                regions = _gateway_scene_regions(width, height)
+                for item in SCENERY:
+                    index = 0 if item.outline[0][0] < SOURCE_WIDTH / 2 else 2
+                    clip, backdrop = regions[index]
+                    x, y, artwork_width, artwork_height = scenery_artwork_geometry(backdrop, item)
+                    self.assertAlmostEqual(artwork_width / SOURCE_WIDTH,
+                                           artwork_height / SOURCE_HEIGHT)
+                    for source_x, source_y in item.outline:
+                        rendered_x = x + source_x * artwork_width / SOURCE_WIDTH
+                        rendered_y = y + source_y * artwork_height / SOURCE_HEIGHT
+                        self.assertGreaterEqual(rendered_x + 1e-6, clip[0])
+                        self.assertLessEqual(rendered_x, clip[0] + clip[2] + 1e-6)
+                        self.assertGreaterEqual(rendered_y, 0)
+                        self.assertLessEqual(rendered_y, height + 1e-6)
 
     def test_request_form_uses_the_minecraft_board_chrome(self):
         content = KIOSK_CONTENT.read_text(encoding="utf-8")

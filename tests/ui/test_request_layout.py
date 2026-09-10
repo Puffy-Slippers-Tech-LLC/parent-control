@@ -89,7 +89,7 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
     print(f"Request layout evidence: {directory}")
     assert "Gtk-CRITICAL" not in log.read_text()
     records = json.loads((directory / "layout.json").read_text())
-    assert len(records) == 42
+    assert len(records) == 45
     for record in records:
         width, height = record["size"]
         x, y, board_width, board_height = record["viewport"]
@@ -104,6 +104,11 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
         assert record["status_font"] >= 12.5, record
         assert record["board_width"] >= record["board_minimum"], record
         assert record["board_width"] + record["board_margin"] <= record["viewport_allocation"][0], record
+        # Check the actual form as well as its surrounding frame: centering
+        # at natural width leaves controls squashed inside a wider viewport.
+        assert record["board_width"] + record["board_margin"] == pytest.approx(
+            record["viewport_allocation"][0], abs=1,
+        ), record
         opening = record["gateway_opening"]
         assert x >= opening[0][0] and x + board_width <= opening[1][0], record
         opening_top = max(point[1] for point in opening[:2])
@@ -126,9 +131,9 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
             first, second = record["durations"][:2]
             assert first[1] == second[1] and first[0] < second[0], record
 
-    # More logical screen space must not zoom a smaller desktop to fill it.
-    # Compare projected bounds as well as allocations: GTK may allocate the
-    # same board size and then magnify its entire render tree with a transform.
+    # Taller desktops allocate wider rows inside a proportionate gateway.
+    # Fonts and corner controls retain their native size; extra horizontal
+    # space alone must not zoom the form or stretch the gateway.
     for expanded in (False, True):
         desktops = [record for record in records
                     if record["expanded"] == expanded
@@ -136,9 +141,26 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
                     and record["size"][1] >= 768]
         reference = desktops[0]
         for record in desktops[1:]:
-            assert record["viewport"][2] == pytest.approx(
-                reference["viewport"][2], abs=1,
-            ), record
+            if record["size"][1] <= 1200:
+                assert record["viewport"][2] == pytest.approx(
+                    reference["viewport"][2], abs=1,
+                ), record
+            else:
+                assert record["viewport_allocation"][0] > reference["viewport_allocation"][0], record
+                # Allow the intended perspective but no extra rendering zoom.
+                assert record["viewport"][2] <= record["viewport_allocation"][0] * 1.04, record
+            assert record["status_font"] == reference["status_font"], record
             assert record["mute_button"][2:] == pytest.approx(
                 reference["mute_button"][2:], abs=1,
             ), record
+
+    for custom in (False, True):
+        laptop = next(record for record in records if record["size"] == [1920, 1200]
+                      and record["custom"] == custom and not record["expanded"])
+        ultrawide = next(record for record in records if record["size"] == [3840, 1600]
+                         and record["custom"] == custom and not record["expanded"])
+        assert ultrawide["viewport_allocation"][0] >= laptop["viewport_allocation"][0] * 1.30
+        for record in (laptop, ultrawide):
+            opening = record["gateway_opening"]
+            opening_width = opening[1][0] - opening[0][0]
+            assert record["viewport"][2] >= opening_width * 0.90, record

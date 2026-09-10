@@ -19,6 +19,7 @@ pytestmark = pytest.mark.ui
     (800, 600, 100, (800, 600)),
     (1920, 1200, 100, (1920, 1200)),
     (1920, 1200, 125, (1536, 960)),
+    (3840, 1600, 100, (3840, 1600)),
     (3840, 2160, 200, (1920, 1080)),
 ])
 @pytest.mark.parametrize("child", [False, True])
@@ -67,6 +68,7 @@ def test_save_rejects_unsupported_scale_then_reopens_custom_screen(hermetic_ui_s
 
 @pytest.mark.parametrize("child", [False, True])
 @pytest.mark.parametrize("width,height,percent", [(1280, 800, 100), (1920, 1200, 125),
+                                                (3840, 1600, 100),
                                                 (3840, 2160, 200)])
 def test_viewer_pixels_match_production_and_input_reaches_same_monitor(
         hermetic_ui_session, tmp_path, child, width, height, percent):

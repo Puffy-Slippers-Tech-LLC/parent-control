@@ -108,8 +108,8 @@ def check_build(root):
                XDG_CONFIG_HOME=str(attempt / 'config'), SBUILD_CONFIG=str(config),
                DEB_BUILD_OPTIONS='parallel=2', DEB_BUILD_PROFILES='')
     dsc = source / next(name for name in inputs if name.endswith('.dsc'))
-    print(f'publish: clean binary build evidence: {attempt}', flush=True)
-    print('publish: resolving dependencies, then building without network or skipped tests', flush=True)
+    print(f'test-publish: clean binary build evidence: {attempt}', flush=True)
+    print('test-publish: resolving dependencies, then building without network or skipped tests', flush=True)
     try:
         with (attempt / 'build.log').open('x') as log:
             result = subprocess.run(command(dsc, output), cwd=output, env=env,
@@ -133,5 +133,5 @@ def check_build(root):
         raise
     finally:
         report_path.write_text(json.dumps(report, indent=2) + '\n')
-        print(f'publish: clean build {report["status"]}; evidence: {attempt}', flush=True)
+        print(f'test-publish: clean build {report["status"]}; evidence: {attempt}', flush=True)
     return report

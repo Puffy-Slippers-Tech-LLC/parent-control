@@ -67,10 +67,15 @@ or repository; select a repository with the command tool's working directory.
 ## Publishing
 
 Run `make publish` to invoke the single [publisher](../../tools/publish.py).
-It validates `docs/VersionHistory.md`, signs, tests in clean local sbuild, pushes
+It validates `docs/VersionHistory.md`, signs, pushes
 the source and tags, uploads to Launchpad, and verifies binary publication.
 Its supporting modules are under `tools/publishing/`; they are not separate
 release commands.
+
+Local publishing checks run through `make test-publish` / `tools/run-tests publish`
+and the same module in `make test-all`. They create a private unsigned source
+snapshot, run source integrity and Lintian checks, and build/test it in clean
+sbuild. They require no publisher credentials and never push or upload.
 
 Manual execution on a configured host needs no approval or Polkit dialog.
 When an assistant performs an authorized publication, approve the whole
@@ -189,6 +194,7 @@ argument; the launcher expands file patterns without a shell.
 | Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
 | Established regressions | `make test-all` / `tools/run-tests all` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors |
+| Local publishing checks | `make test-publish` / `tools/run-tests publish` | Shared source/sbuild/Lintian module also included in `test-all`; no selectors or publication |
 | Future fast suite (Task 28A) | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
 
 Routine `make check`, `make build`, `make check-release-version`, `make check-unit`,

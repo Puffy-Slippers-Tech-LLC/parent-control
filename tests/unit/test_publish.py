@@ -181,22 +181,22 @@ def execution(tmp_path, monkeypatch):
     monkeypatch.setattr(publish, 'inspect_source', inspect)
     monkeypatch.setattr(publish, 'archive_preflight', lambda: None)
     monkeypatch.setattr(publish, 'sources', lambda version=None: [])
-    monkeypatch.setattr(publish.ppa_build, 'check_build', lambda root: {'directory': str(directory)})
     monkeypatch.setattr(publish, 'wait_for_publication', wait)
     monkeypatch.setattr(publish, 'finish_checkout', lambda *args: calls.append(('finish',)))
     return state, state_path, calls
 
 
-def test_full_workflow_orders_build_validation_push_upload_and_binary_acceptance(execution):
+def test_full_workflow_publishes_without_local_tests(execution):
     state, path, calls = execution
     publish.execute(ROOT, state, path)
     assert state['phase'] == 'complete'
     commands = [call[0] for call in calls]
-    assert commands.index('dpkg-buildpackage') < commands.index('debsign') < commands.index('lintian')
-    check = next(i for i, call in enumerate(calls) if call[0] == 'dput' and '--check-only' in call)
+    assert commands.index('dpkg-buildpackage') < commands.index('debsign')
+    assert not {'make', 'lintian', 'sbuild', 'dpkg-checkbuilddeps'} & set(commands)
+    assert not any('--check-only' in call for call in calls)
     push = next(i for i, call in enumerate(calls) if call[:2] == ('git', 'push'))
     upload = next(i for i, call in enumerate(calls) if call[0] == 'dput' and '--check-only' not in call)
-    assert check < push < upload < commands.index('wait') < commands.index('finish')
+    assert commands.index('debsign') < push < upload < commands.index('wait') < commands.index('finish')
     assert '--atomic' in calls[push]
 
 
@@ -209,17 +209,27 @@ def test_resume_never_reuploads_or_rebuilds_an_attempted_upload(execution, phase
     assert state['phase'] == 'complete'
 
 
-def test_local_build_failure_prevents_all_remote_mutations(execution, monkeypatch):
+def test_source_integrity_failure_prevents_all_remote_mutations(execution, monkeypatch):
     state, path, calls = execution
 
-    def fail(root):
-        raise ValueError('build failed')
+    def fail(*args):
+        raise ValueError('source integrity failed')
 
-    monkeypatch.setattr(publish.ppa_build, 'check_build', fail)
-    with pytest.raises(ValueError, match='build failed'):
+    monkeypatch.setattr(publish, 'inspect_source', fail)
+    with pytest.raises(ValueError, match='source integrity failed'):
         publish.execute(ROOT, state, path)
-    assert json.loads(path.read_text())['phase'] == 'signed'
+    assert json.loads(path.read_text())['phase'] == 'prepared'
     assert not any(call[0] == 'dput' or call[:2] == ('git', 'push') for call in calls)
+
+
+@pytest.mark.parametrize('phase', ['signed', 'built'])
+def test_resume_signed_source_publishes_without_local_tests(execution, phase):
+    state, path, calls = execution
+    state['phase'] = phase
+    publish.execute(ROOT, state, path)
+    assert state['phase'] == 'complete'
+    assert not any(call[0] in ('make', 'sbuild', 'lintian', 'dpkg-buildpackage', 'debsign') for call in calls)
+    assert sum(call[0] == 'dput' for call in calls) == 1
 
 
 def test_upload_error_monitors_instead_of_repeating(execution, monkeypatch):

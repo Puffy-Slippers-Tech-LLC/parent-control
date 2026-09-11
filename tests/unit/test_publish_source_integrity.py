@@ -81,8 +81,7 @@ def test_strict_archive_and_tag_checks(tmp_path, monkeypatch, case, reason):
         if 'verify-tag' in args:
             key = 'wrong' if case == 'signer' else release.KEY
             return SimpleNamespace(stderr=f'[GNUPG:] VALIDSIG {key} 2026 0 0 4 0 1 10 00 {key}')
-        assert args[:4] == ['lintian', '--no-cfg', '--fail-on', 'error']
-        return SimpleNamespace(returncode=0)
+        pytest.fail('source integrity verification must not run local test commands')
 
     monkeypatch.setattr(release, 'run', run)
     monkeypatch.setattr(release, 'verify_signature', lambda *args: None)

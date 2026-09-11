@@ -53,7 +53,6 @@ def verify_signature(path: Path, root: Path) -> None:
 def inspect(root: Path) -> None:
     root = root.resolve()
     clean(root)
-    run("make", "check-release-version", cwd=root)
     version = run("dpkg-parsechangelog", "-S", "Version", cwd=root)
     if not re.fullmatch(r"[0-9]+\.[0-9]+\+ppa[1-9][0-9]*~ubuntu26\.04\.1", version):
         raise ValueError("unexpected PPA package version")
@@ -75,6 +74,19 @@ def inspect(root: Path) -> None:
     archive = Path(f"{prefix}.tar.xz")
     for path in (changes, dsc):
         verify_signature(path, root)
+    inspect_archive(root, version, tag=tag)
+
+
+def inspect_archive(root: Path, version: str, *, tag: str | None = None) -> None:
+    """Check upload manifests and archive bytes against a frozen local Git tree.
+
+    Publishing authenticates signatures before calling this; local tests use an
+    unsigned snapshot and need no publisher credentials or release tags.
+    """
+    prefix = root.parent / f"{PACKAGE}_{version}"
+    changes = Path(f"{prefix}_source.changes")
+    dsc = Path(f"{prefix}.dsc")
+    archive = Path(f"{prefix}.tar.xz")
     # Authenticate every file in the upload, including source buildinfo.
     content = changes.read_text()
     for field, expected in (("Source", PACKAGE), ("Version", version), ("Architecture", "source")):
@@ -145,5 +157,4 @@ def inspect(root: Path) -> None:
               "sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                          for p in (changes, dsc, archive)}}
     (root.parent / "source-review.json").write_text(json.dumps(report, indent=2) + "\n")
-    subprocess.run(["lintian", "--no-cfg", "--fail-on", "error", str(changes)], cwd=root, check=True)
     print(json.dumps(report, indent=2))

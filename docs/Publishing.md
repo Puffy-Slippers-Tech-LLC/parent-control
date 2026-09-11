@@ -1,6 +1,13 @@
 # Publish an app upgrade
 
-Run this command from the development checkout when the release is ready:
+Run all local tests from the development checkout before publishing:
+
+```sh
+make test-all
+```
+
+Its publishing module can also run independently with `make test-publish`.
+When the release is ready, publish directly:
 
 ```sh
 make publish
@@ -13,7 +20,7 @@ uploads the signed source package to the configured Launchpad PPA. Editing or
 testing the publishing tool does not authorize a live release.
 
 [`tools/publish.py`](../tools/publish.py) is the single publishing entry point.
-Its supporting source-verification, signing and clean-build modules live in
+Its supporting source-verification and signing modules live in
 [`tools/publishing/`](../tools/publishing/). The Debian installation helper
 [`debian/package_activation.py`](../debian/package_activation.py) determines
 restart/reboot requirements for installed files; it is not a publishing command.
@@ -53,8 +60,8 @@ It never replaces tags, force-pushes, or reuses an accepted upload version.
 ## Unattended operation and approvals
 
 On an already configured development machine, manual execution needs **zero
-approvals**. It runs as the publishing user, uses unprivileged `sbuild` user
-namespaces, and invokes neither Polkit nor `sudo`. Git/SSH and GnuPG run without
+approvals**. It runs as the publishing user and invokes neither Polkit nor
+`sudo`. Git/SSH and GnuPG run without
 interactive prompts. Missing credentials or prerequisites produce a red error;
 the publisher never launches setup or falls back to a password dialog.
 
@@ -73,7 +80,35 @@ assignment without executing `.envrc`, sends the value to GnuPG through a privat
 pipe, and removes signing secrets from build, test, Git and upload environments.
 Setup/account provisioning is separate from routine publishing.
 
-## Automated checks and completion
+## Local publishing tests
+
+`make test-publish` and the publishing category in `make test-all` invoke the
+same [`tools/publishing_checks.py`](../tools/publishing_checks.py) utility through
+`tools/run-tests publish`. It takes no selectors and performs no signing,
+pushes, uploads or Launchpad requests. It needs no publisher credentials.
+
+The utility checks host build prerequisites and version consistency, freezes
+tracked and unignored working-tree files into a private `/tmp/onpc-test-publish-*`
+snapshot, and checks whitespace and generated release version consistency.
+Uncommitted edits are included; ignored credentials and build output are excluded.
+When the history announces a newer version, the snapshot receives the generated
+app version and changelog. After a release it tests current metadata instead.
+The real checkout is unchanged. The PPA revision is a local candidate; publication
+still allocates the unused revision from remote history.
+
+It builds unsigned source, verifies upload manifests and archive contents against
+the snapshot, runs source Lintian, builds that DSC in clean resolute/amd64 `sbuild`
+with declared tests enabled and build network disabled, then runs binary Lintian.
+The builder uses unprivileged user namespaces. Failures return nonzero to either
+entry point. Source, logs and `result.json` are retained in the printed test/build
+directories, and aggregate output appears in the normal `test-all` report.
+
+`make publish` does not invoke this utility, Lintian, version-test targets or
+local binary builds, and does not require a saved test result. Run the tests
+again when release inputs change. Signed upload integrity, credentials, remote
+version uniqueness and publication-state checks remain part of delivery.
+
+## Publication and completion
 
 The publisher validates prerequisites and credentials at the beginning, creates
 an isolated `/tmp/onpc-release-*` checkout, updates the product version and Debian
@@ -83,25 +118,22 @@ changelog, and signs the release commit and both version tags. It then:
    SHA-256 manifests, and checks archived bytes, symlinks and executable modes
    against the signed Git tree. Only tracked `.codex/` and `.agents/` development
    configuration may be excluded from the source archive.
-2. Builds that exact signed DSC in clean Ubuntu resolute/amd64 `sbuild`, resolves
-   declared dependencies, runs the package's declared tests with no build
-   network or `nocheck`, and runs source and binary Lintian error checks.
-3. Runs `dput --check-only`, atomically pushes the release commit and signed tags,
+2. Atomically pushes the release commit and signed tags,
    verifies public access to the tagged source, and uploads only source artifacts.
-4. Waits for the exact source, successful amd64 build, binary publication, and
+3. Waits for the exact source, successful amd64 build, binary publication, and
    PPA `Packages.gz` index. It downloads the indexed binary and verifies its size
    and SHA-256 before reporting success in green.
-5. Fast-forwards the unchanged development checkout to the release commit,
+4. Fast-forwards the unchanged development checkout to the release commit,
    including the new app version, changelog and history. Concurrent local edits
    are preserved and reported instead of overwritten.
 
-The PPA must enable only amd64, matching the existing clean builder. Build logs,
-source integrity evidence, artifact hashes and `release.json` remain in the
-reported release/build directories. Local builds catch packaging and declared
+The PPA must enable only amd64, matching the test module's clean builder. Source
+integrity evidence, artifact hashes and `release.json` remain in the reported
+release directory. Local publishing tests catch packaging and declared
 test failures but cannot guarantee Launchpad availability, account acceptance,
 or all installed-app behavior. They do not certify graphical/VM acceptance,
 privacy-page content, or human asset/license review; complete applicable release
-review before starting this command.
+review before publishing.
 
 The clean builder's `build.log` captures launcher output; detailed package/test
 output is retained in its `output/` directory as an sbuild `.build` log. Build
@@ -151,8 +183,9 @@ packaging correction, needs a newer product entry in `VersionHistory.md`.
 The publisher chooses an unused PPA revision and creates both signed tags.
 Published tags and accepted upload versions are never reused or replaced.
 
-Every new source candidate receives source verification and a complete clean
-binary build. Previously compiled application output is not reused. The builder
+Run `make test-publish` (or `make test-all`) for each new source candidate to
+perform source verification and a complete clean binary build. Previously
+compiled application output is not reused by the tests. The builder
 supports Ubuntu 26.04/resolute on amd64; other Ubuntu releases or architectures
 need an explicit tooling extension. Setup need not be repeated for each version.
 
@@ -264,8 +297,9 @@ rejected value produces a redacted configuration error, with no prompt fallback.
 This supplies credentials for already-authorized signing; it does not replace
 any outstanding publication decision. Sandbox approval boundaries still apply.
 
-The publisher builds and inspects the source and binary automatically before
-pushing signed tags and uploading. Source archive exclusions are controlled by
+Run the local publishing tests to build and inspect source and binary packages
+before publishing. The publisher builds and authenticates the signed source
+upload. Source archive exclusions are controlled by
 `debian/source/options`. Review unexplained Lintian warnings, package contents
 and licensing as part of release readiness; do not add blanket overrides.
 See [Local PPA validation](Local-PPA-Validation.md) for build evidence and limits.

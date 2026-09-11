@@ -19,6 +19,19 @@ decision: it creates signed source and tags in the public Git repository and
 uploads the signed source package to the configured Launchpad PPA. Editing or
 testing the publishing tool does not authorize a live release.
 
+To check or resume monitoring an uploaded release without publishing anything:
+
+```sh
+make publish-status
+```
+
+It checks the exact version in the latest local release journal, including a
+completed release. Without a journal it selects the newest source version for
+resolute in the PPA. It immediately checks publication, prints green success and
+exits if verified, or continues polling with the same checks as `make publish`.
+A recorded attempt that has not reached the upload step reports an error; this
+command cannot upload it. The target invokes `tools/publish.py --status`.
+
 [`tools/publish.py`](../tools/publish.py) is the single publishing entry point.
 Its supporting source-verification and signing modules live in
 [`tools/publishing/`](../tools/publishing/). The Debian installation helper
@@ -146,8 +159,16 @@ using the packaged inputs (including `.gitignore`). The report-provenance case i
 
 A lock in the checkout's Git common directory prevents concurrent publishers.
 `onpc-publish/state.json` there records the exact source, version, artifacts and
-phase. Run the same no-argument command again after an interruption or a repaired
-local prerequisite; it resumes that release. Preserve the printed `/tmp` evidence
+phase. Use `make publish-status` after an interruption to resume monitoring,
+including after updating the publishing tool or changing local files, HEAD,
+branch, or release notes. It only reads the journal and public endpoints; it does
+not build, sign, push, upload, update the journal, or fast-forward the checkout.
+It can also run alongside a publisher, monitoring the release selected at startup.
+Missing temporary build artifacts do not prevent status checks.
+
+For the full publishing workflow, run `make publish` again with its original
+inputs after an interruption or a repaired local prerequisite. This resumes the
+recorded workflow, including checkout finalization. Preserve the printed `/tmp` evidence
 directories until completion. Missing or altered frozen artifacts stop the run.
 If application fixes are committed or history changes before any public push
 was attempted, the next run retains the previous evidence and prepares a fresh
@@ -159,6 +180,17 @@ an interrupted or failed upload is treated as uncertain: reruns only monitor it
 and never upload it again automatically. Status reads tolerate transient service
 errors and poll every 30 seconds for up to 24 hours per invocation. A confirmed
 build failure is a red error, not a success or an automatic source rewrite.
+Each pending check reports its UTC timestamp, elapsed monitoring time, exact
+remaining condition and retry delay. Source acceptance/publication, build
+creation/queue/building, binary publication, and package-index propagation have
+distinct messages; a completed build is not reported as still pending. Network
+errors identify the check that could not be read, without printing response
+bodies or private error details. Public reads request HTTP cache revalidation.
+Success requires the exact source version, successful amd64 build, matching
+binary publication, package-index entry, and downloaded package checksum to
+agree. A timeout includes the last observed condition. After editing monitoring
+code, stop the old command and run `make publish-status` to load the changes.
+Unlike `make publish`, status checks accept a changed development checkout.
 
 If no source appears, inspect Launchpad and the publisher's rejection email.
 Resolve confirmed rejection or failed builds before starting a corrected release;

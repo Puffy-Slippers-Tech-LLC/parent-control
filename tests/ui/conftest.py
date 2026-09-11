@@ -118,6 +118,62 @@ def hermetic_ui_session(ui_monitor_size):
 
 
 @pytest.fixture
+def request_display_scale(hermetic_ui_session, dpi_scale):
+    """Set actual Wayland scaling on the fixture's private compositor only.
+
+    GDK_SCALE is an X11 override and cannot exercise Wayland HiDPI. Use
+    Mutter's documented DisplayConfig interface with a temporary configuration:
+    https://gitlab.gnome.org/GNOME/mutter/-/blob/main/data/dbus-interfaces/org.gnome.Mutter.DisplayConfig.xml
+    """
+    from gi.repository import Gio, GLib
+
+    connection = Gio.DBusConnection.new_for_address_sync(
+        hermetic_ui_session.bus_address,
+        Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT
+        | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
+        None, None,
+    )
+
+    def call(method, parameters=None):
+        return connection.call_sync(
+            "org.gnome.Mutter.DisplayConfig", "/org/gnome/Mutter/DisplayConfig",
+            "org.gnome.Mutter.DisplayConfig", method, parameters, None,
+            Gio.DBusCallFlags.NONE, 3000, None,
+        ).unpack()
+
+    try:
+        _serial, monitors, logical_monitors, _properties = call("GetCurrentState")
+        assert len(monitors) == len(logical_monitors) == 1
+        specification, modes, _properties = monitors[0]
+        mode = next(mode for mode in modes if mode[-1].get("is-current"))
+        # Use the compositor's exact supported value (fractional scales may
+        # be represented as floats with slightly different precision).
+        matching_scales = [scale for scale in mode[5] if scale == pytest.approx(dpi_scale)]
+        assert matching_scales, (
+            f"Private test output {mode[1]}x{mode[2]} does not support "
+            f"required scale {dpi_scale}; supported scales: {mode[5]}"
+        )
+        supported_scale = matching_scales[0]
+        x, y, original_scale, transform, primary, _monitors, _properties = logical_monitors[0]
+
+        def apply(scale):
+            serial, *_state = call("GetCurrentState")
+            call("ApplyMonitorsConfig", GLib.Variant(
+                "(uua(iiduba(ssa{sv}))a{sv})",
+                (serial, 1, [(x, y, scale, transform, primary,
+                              [(specification[0], mode[0], {})])], {}),
+            ))
+
+        try:
+            apply(supported_scale)
+            yield
+        finally:
+            apply(original_scale)
+    finally:
+        connection.close_sync(None)
+
+
+@pytest.fixture
 def launch_ui(hermetic_ui_session, tmp_path):
     """Expose the shared owned-process launcher on this private compositor."""
     with preview_applications(hermetic_ui_session, tmp_path) as launch:

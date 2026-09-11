@@ -50,6 +50,10 @@ sub run {
     if ($ready->{vt6_prompt}) {
         onpc_vt6::inspect_prompt(\&exchange);
     }
+    if ($ready->{vt6_auth}) {
+        onpc_vt6::authenticate(\&exchange);
+        record_info('vt6-authentication', 'Fixture terminal command completion independently verified.');
+    }
     if ($ready->{install_refusal}) {
         onpc_serial::run_install_refusal(\&exchange);
     } elsif ($ready->{install}) {

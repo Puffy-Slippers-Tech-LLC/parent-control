@@ -43,14 +43,26 @@ sub send_key {
 }
 sub wait_still_screen { event('still'); return 1; }
 sub type_string {
-    die 'wrong fixture input' unless @_ == 3 && $_[0] eq 'onpc-parent-jamie'
-        && $_[1] eq 'secret' && $_[2] == 1;
-    event('fixture');
+    die 'wrong input options' unless @_ == 3 && $_[1] eq 'secret' && $_[2] == 1;
+    if ($_[0] eq 'onpc-parent-jamie') { event('fixture'); }
+    else {
+        my $nonce = 'c' x 64;
+        my $expected = "(umask 077; set -C; builtin printf '%s\\n' '$nonce' "
+            . '"$$" > /tmp/onpc-vt6-command-' . $nonce . ')';
+        die 'wrong command' unless $_[0] eq $expected;
+        die 'capture open' if eval { onpc_password::capture_before_authentication(); 1; };
+        event('command');
+    }
 }
 sub assert_screen {
     die 'wrong needle' unless @_ == 2 && $_[0] eq 'onpc-vt6-parent-password' && $_[1] == 30;
     event('needle');
     return $main::fault eq 'no-match' ? 0 : 1;
+}
+sub check_screen {
+    die 'wrong refusal check' unless @_ == 2 && $_[0] eq 'onpc-vt6-parent-password' && $_[1] == 1;
+    event('negative-needle');
+    return $main::fault eq 'false-positive' ? 1 : 0;
 }
 sub save_screenshot {
     event('capture');
@@ -78,6 +90,8 @@ my %proofs = (
         vt6_password_input_authorized)],
     'vt6-authenticated' => [qw(active_local_vt6_session active_vt6_verified
         vt6_shell_ready_verified vt6_login_continuity_verified)],
+    'vt6-shell' => [qw(active_local_vt6_session active_vt6_verified
+        vt6_login_continuity_verified vt6_command_input_authorized)],
 );
 my $exchange = sub {
     my ($stage, $shot) = @_;
@@ -89,6 +103,8 @@ my $exchange = sub {
     }
     my $reply = {stage => $stage, boot_sha256 => 'a' x 64,
         map { $_ => JSON::PP::true } @{$proofs{$stage}}};
+    $reply->{command_challenge} = $fault eq 'challenge' ? JSON::PP::decode_json($target)
+        : 'c' x 64 if $stage eq 'vt6-shell';
     if ($fault eq 'proof' && exists($reply->{$target})) {
         $reply->{$target} = JSON::PP::false;
     }
@@ -138,13 +154,14 @@ def test_one_shot_worker_seals_capture_before_receipt_and_secret_access():
     data = invoke()
     assert data['ok']
     assert data['events'] == [
-        'video', 'select', 'video', 'console', 'ctrl-alt-f6', 'still', 'vt6-login-ready',
+        'video', 'select', 'video', 'console', 'ctrl-alt-f6', 'still', 'vt6-login-ready', 'negative-needle',
         'video', 'console', 'fixture', 'return-1', 'still', 'vt6-password-ready',
         'needle', 'capture', 'vt6-password-screen', 'video', 'console', 'secret-read',
-        'video', 'console', 'password', 'video', 'console', 'return-2', 'vt6-authenticated']
+        'video', 'console', 'password', 'video', 'console', 'return-2', 'vt6-shell',
+        'video', 'console', 'command', 'video', 'console', 'return-3', 'vt6-authenticated']
 
 
-STAGES = ['vt6-login-ready', 'vt6-password-ready', 'vt6-password-screen', 'vt6-authenticated']
+STAGES = ['vt6-login-ready', 'vt6-password-ready', 'vt6-password-screen', 'vt6-shell', 'vt6-authenticated']
 
 
 @pytest.mark.parametrize('stage', STAGES)
@@ -153,7 +170,7 @@ STAGES = ['vt6-login-ready', 'vt6-password-ready', 'vt6-password-screen', 'vt6-a
 def test_receipt_failure_refuses_input_or_completion_without_retry(stage, fault):
     data = invoke(fault, stage)
     assert not data['ok']
-    if stage != 'vt6-authenticated':
+    if stage not in ('vt6-shell', 'vt6-authenticated'):
         assert 'secret-read' not in data['events']
     assert data['events'].count('password') <= 1
 
@@ -164,7 +181,7 @@ def test_receipt_failure_refuses_input_or_completion_without_retry(stage, fault)
 def test_reordered_receipt_or_changed_boot_never_advances(fault, stage):
     data = invoke(fault, stage)
     assert not data['ok']
-    if stage != 'vt6-authenticated':
+    if stage not in ('vt6-shell', 'vt6-authenticated'):
         assert 'secret-read' not in data['events']
 
 
@@ -172,16 +189,18 @@ def test_reordered_receipt_or_changed_boot_never_advances(fault, stage):
     'vt6_getty_verified', 'active_vt6_verified', 'vt6_login_process_verified',
     'terminal_echo_disabled', 'vt6_recipient_continuity_verified', 'vt6_prompt_pixels_verified',
     'vt6_password_input_authorized', 'active_local_vt6_session', 'vt6_shell_ready_verified',
-    'vt6_login_continuity_verified'])
+    'vt6_login_continuity_verified', 'vt6_command_input_authorized'])
 def test_every_controller_proof_is_mandatory(proof):
     data = invoke('proof', proof)
     assert not data['ok']
-    if proof not in ('active_local_vt6_session', 'vt6_shell_ready_verified', 'vt6_login_continuity_verified'):
+    if proof not in ('active_local_vt6_session', 'vt6_shell_ready_verified',
+                     'vt6_login_continuity_verified', 'vt6_command_input_authorized'):
         assert 'secret-read' not in data['events']
 
 
 @pytest.mark.parametrize('fault,target', [
     ('arguments', ''), ('prior-inspection', ''), ('no-match', ''), ('bad-capture', ''),
+    ('false-positive', ''), ('api', 'negative-needle'),
     *[(fault, stage) for fault in ('console', 'video')
       for stage in ('initial', 'vt6-login-ready', 'vt6-password-screen')],
     *[('api', api) for api in ('select', 'ctrl-alt-f6', 'still', 'fixture', 'return-1',
@@ -203,3 +222,19 @@ def test_late_console_or_capture_policy_change_prevents_submission(fault, after)
     assert not data['ok'] and 'return-2' not in data['events']
     if after == 'secret-read':
         assert 'password' not in data['events']
+
+
+@pytest.mark.parametrize('value', [None, [], {}, True, '', 'c' * 63, 'C' * 64, 'x; id'])
+def test_command_challenge_cannot_supply_arbitrary_input(value):
+    data = invoke('challenge', json.dumps(value))
+    assert not data['ok'] and 'command' not in data['events']
+
+
+@pytest.mark.parametrize('fault,target', [('api', 'command'), ('api', 'return-3'),
+    ('api', 'vt6-authenticated'), ('video', 'vt6-shell'), ('console', 'vt6-shell'),
+    ('video', 'command'), ('console', 'command')])
+def test_command_partial_input_and_completion_timeout_never_retry(fault, target):
+    data = invoke(fault, target)
+    assert not data['ok'] and data['events'].count('command') <= 1
+    if target in ('command', 'vt6-shell'):
+        assert 'return-3' not in data['events']

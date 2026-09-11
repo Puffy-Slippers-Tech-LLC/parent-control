@@ -14,6 +14,7 @@ from pathlib import Path
 import stat
 import subprocess
 import sys
+import time
 
 from evidence import EvidenceContract
 from private_artifacts import EvidenceError, require
@@ -252,15 +253,26 @@ class VerifiedInputs:
 
     def recheck(self):
         require(self._failure is None, self._failure or 'provenance:previous-failure')
+        self.recheck_milliseconds = {}
+        component = 'source'
+        started = time.monotonic()
         try:
             require(snapshot(self.root, source=True) == self._source, 'provenance:source-changed')
+            self.recheck_milliseconds[component] = round((time.monotonic() - started) * 1000)
+            component, started = 'assets', time.monotonic()
             if self.assets is not None:
                 require(snapshot(self.assets) == self._assets, 'provenance:assets-changed')
+            self.recheck_milliseconds[component] = round((time.monotonic() - started) * 1000)
+            component, started = 'baseline', time.monotonic()
             require(baseline_inputs(self.lease) == self._baseline, 'provenance:baseline-changed')
         except Exception as error:
             self._failure = str(error) if isinstance(error, EvidenceError) else 'provenance:recheck-failed'
             print('e2e:provenance-rejected', file=sys.stderr, flush=True)
             raise EvidenceError(self._failure) from None
+        finally:
+            # Fixed component names and elapsed durations only, including the
+            # failing component. No paths, metadata or exception text escape.
+            self.recheck_milliseconds[component] = round((time.monotonic() - started) * 1000)
 
     def contract(self, *, run_id, selector=None):
         self.recheck()

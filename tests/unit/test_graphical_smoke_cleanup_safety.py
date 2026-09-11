@@ -8,7 +8,156 @@ import pytest
 
 import check_graphical_smoke as smoke
 import check_graphical_recovery as recovery
+import fixture_credentials
 from tests.support.vm_baseline import local_preparation_source
+
+
+@pytest.fixture
+def login_window():
+    lease = Mock(fd=42, state={'phase': 'isolated', 'domain_id': None})
+    lease.capture.state = {'source': {'layout': {'disk': '/fixture/active.qcow2'}}}
+    verified = Mock(lease=lease)
+    guestfs = Mock()
+    g = guestfs.GuestFS.return_value
+    g.inspect_os.return_value = ['/dev/fixture']
+    g.inspect_get_mountpoints.return_value = {'/': '/dev/fixture'}
+    g.realpath.side_effect = lambda path: path
+    info = dict(st_mode=0o100644, st_uid=0, st_gid=0, st_nlink=1, st_ino=123, st_dev=4)
+    g.lstatns.side_effect = lambda path: dict(info)
+    contents = [b'# LOGIN_TIMEOUT 60\nLOGIN_RETRIES 3\n  LOGIN_TIMEOUT\t60 # bounded login\nOTHER value\n']
+    g.filesize.side_effect = lambda path: len(contents[0])
+    g.read_file.side_effect = lambda path: contents[0]
+    g.write.side_effect = lambda path, data: contents.__setitem__(0, data)
+    return lease, verified, guestfs, g, info, contents
+
+
+def test_login_window_preserves_unrelated_bytes_and_metadata_and_closes(login_window):
+    lease, verified, guestfs, g, info, contents = login_window
+    original = contents[0]
+    metadata = dict(info)
+    result = fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
+    assert contents[0] == original.replace(b'\t60 #', b'\t600 #')
+    assert info == metadata
+    assert result == {'login_timeout_seconds': 600, 'configuration': 'login.defs',
+                      'readback_verified': True}
+    g.add_drive_opts.assert_called_once_with('/fixture/active.qcow2', format='qcow2', readonly=False)
+    g.set_network.assert_called_once_with(False)
+    g.sync.assert_called_once()
+    g.close.assert_called_once()
+    fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
+    assert g.write.call_count == 1  # Same prepared fixture is idempotent.
+
+
+def test_login_window_full_guard_runs_outside_appliance_disk_lock(login_window):
+    lease, verified, guestfs, g, _, _ = login_window
+    opened = False
+    guards = []
+
+    def launch():
+        nonlocal opened
+        opened = True
+
+    def close():
+        nonlocal opened
+        opened = False
+
+    def guard(*, off):
+        # Capture.inventory uses locking qemu-img info for a powered-off VM.
+        # Its disk cannot be reopened while the libguestfs writer holds it.
+        if opened:
+            raise RuntimeError('command:failed')
+        guards.append(off)
+
+    g.launch.side_effect = launch
+    g.close.side_effect = close
+    lease.guard.side_effect = guard
+    result = fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
+    assert result['readback_verified'] is True
+    assert guards == [True, True, True, True]
+    assert not opened
+    g.write.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['unowned', 'running', 'booted', 'different-lease', 'guard'])
+def test_login_window_refuses_outside_held_offline_preparation(login_window, fault):
+    lease, verified, guestfs, g, _, _ = login_window
+    if fault == 'unowned':
+        lease.fd = None
+    elif fault == 'running':
+        lease.state['phase'] = 'running'
+    elif fault == 'booted':
+        lease.state['domain_id'] = 7
+    elif fault == 'different-lease':
+        verified.lease = Mock()
+    else:
+        lease.guard.side_effect = RuntimeError('private-canary')
+    expected = ('credential:login-window-lease-failed' if fault == 'guard'
+                else 'credential:outside-provisioning')
+    with pytest.raises(smoke.EvidenceError, match='^' + expected + '$'):
+        fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
+    guestfs.GuestFS.assert_not_called()
+    g.write.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['symlink', 'owner', 'group', 'hardlink', 'writable',
+    'special', 'missing', 'duplicate', 'malformed', 'unexpected-timeout', 'oversize', 'nul',
+    'late-guard', 'before-write-metadata', 'partial-write', 'metadata-changed',
+    'sync', 'close', 'interrupt'])
+def test_login_window_unsafe_or_partial_preparation_refuses_and_closes(login_window, fault):
+    lease, verified, guestfs, g, info, contents = login_window
+    if fault == 'symlink':
+        g.realpath.side_effect = lambda path: '/unexpected'
+    elif fault in ('owner', 'group', 'hardlink', 'writable', 'special'):
+        key, value = {'owner': ('st_uid', 1000), 'group': ('st_gid', 1000),
+                      'hardlink': ('st_nlink', 2), 'writable': ('st_mode', 0o100666),
+                      'special': ('st_mode', 0o020644)}[fault]
+        info[key] = value
+    elif fault in ('missing', 'duplicate', 'malformed', 'unexpected-timeout', 'oversize', 'nul'):
+        contents[0] = {'missing': b'OTHER 60\n', 'duplicate': b'LOGIN_TIMEOUT 60\nLOGIN_TIMEOUT 60\n',
+                       'malformed': b'LOGIN_TIMEOUT 60 junk\n', 'unexpected-timeout': b'LOGIN_TIMEOUT 0\n',
+                       'oversize': b'x' * 65537, 'nul': b'LOGIN_TIMEOUT 60\n\x00'}[fault]
+    elif fault == 'late-guard':
+        lease.guard.side_effect = [None, None, RuntimeError('private-canary')]
+    elif fault == 'before-write-metadata':
+        changed = dict(info, st_ino=info['st_ino'] + 1)
+        g.lstatns.side_effect = [dict(info), changed]
+    elif fault == 'partial-write':
+        g.write.side_effect = lambda path, data: contents.__setitem__(0, data[:5])
+    elif fault == 'metadata-changed':
+        def changed(path, data):
+            contents[0] = data
+            info['st_ino'] += 1
+        g.write.side_effect = changed
+    elif fault == 'interrupt':
+        g.write.side_effect = KeyboardInterrupt('private-canary')
+    else:
+        getattr(g, fault).side_effect = RuntimeError('private-canary')
+    with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else smoke.EvidenceError) as error:
+        fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
+    assert 'private-canary' not in str(error.value)
+    expected = {
+        'symlink': 'login-path', 'owner': 'login-file', 'group': 'login-file',
+        'hardlink': 'login-file', 'writable': 'login-file', 'special': 'login-file',
+        'missing': 'login-setting', 'duplicate': 'login-setting', 'malformed': 'login-setting',
+        'unexpected-timeout': 'login-setting', 'oversize': 'login-size', 'nul': 'login-content',
+        'late-guard': 'login-window-close-failed', 'before-write-metadata': 'login-file-changed',
+        'partial-write': 'login-write-failed',
+        'metadata-changed': 'login-write-failed', 'sync': 'login-window-close-failed',
+        'close': 'login-window-close-failed', 'interrupt': 'login-window-interrupted'}
+    assert str(error.value) == 'credential:' + expected[fault]
+    g.close.assert_called_once()
+    if fault not in ('late-guard', 'partial-write', 'metadata-changed', 'sync', 'close', 'interrupt'):
+        g.write.assert_not_called()
+
+
+@pytest.mark.parametrize('method,boundary', [('launch', 'mount'), ('read_file', 'read'), ('write', 'write')])
+def test_login_window_api_failure_keeps_boundary_without_private_exception(login_window, method, boundary):
+    lease, verified, guestfs, g, _, _ = login_window
+    getattr(g, method).side_effect = smoke.EvidenceError('private-canary')
+    with pytest.raises(smoke.EvidenceError) as error:
+        fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
+    assert str(error.value) == 'credential:login-window-' + boundary + '-failed'
+    g.close.assert_called_once()
 
 
 @pytest.mark.parametrize('arguments,uid', [(['check', 'extra'], 0), (['check'], 1000)])
@@ -34,6 +183,38 @@ def test_backend_poll_failure_still_closes_worker_and_callback(tmp_path):
             patch.object(smoke.e2e_worker, 'Worker', return_value=worker):
         with pytest.raises(RuntimeError, match='fixture backend failure'):
             smoke.run_backend(tmp_path, lease, Mock(), 'host-key', smoke.runner.RunLedger(), smoke.inputs())
+    worker.close.assert_called_once()
+    server.close.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', [None, 'worker-exit', 'not-ready', 'backend-exit', 'distribution'])
+def test_input_guard_binds_live_worker_and_staged_bytes_and_always_cleans(tmp_path, fault):
+    lease = Mock(state={'run': 'a' * 32})
+    worker, server = Mock(ready=True, result=None), Mock(path=tmp_path / 'callback.sock')
+    worker.poll.return_value = None
+    adapter = Mock(events=[])
+    tmp_path.chmod(0o700)
+    verified = []
+    def observe(guard):
+        if fault == 'worker-exit':
+            worker.poll.return_value = 0
+        elif fault == 'not-ready':
+            worker.ready = False
+        elif fault == 'backend-exit':
+            worker.result = 0
+        elif fault == 'distribution':
+            (tmp_path / 'distribution/lib/onpc_vt6.pm').write_text('changed')
+        guard()
+        verified.append(True)
+        raise RuntimeError('bounded test stop')
+    with patch.object(smoke.e2e_worker, 'Adapter', return_value=adapter), \
+            patch.object(smoke.e2e_worker, 'CallbackServer', return_value=server), \
+            patch.object(smoke.e2e_worker, 'Worker', return_value=worker):
+        with pytest.raises(RuntimeError):
+            smoke.e2e_worker.run_distribution(tmp_path, lease, smoke.runner.RunLedger(),
+                expected_inputs=smoke.inputs(), observe=Mock(), validate=Mock(),
+                guarded_observe=observe)
+    assert verified == ([] if fault else [True])
     worker.close.assert_called_once()
     server.close.assert_called_once()
 
@@ -203,6 +384,47 @@ def test_install_recipient_refusal_is_durable_without_completed_step(qualificati
         'recipient_refusal': 'foreground-distinct'}
 
 
+@pytest.mark.parametrize('code', [*sorted(smoke.VT6_AUTH_REFUSALS), 'private-canary',
+                                  'vt6-auth:capture-owner-refused private-canary', None])
+def test_vt6_refusal_checkpoint_retains_only_fixed_codes_without_authorization(qualification, code):
+    controller, _ = qualification
+    controller.vt6_auth = True
+    if code not in smoke.VT6_AUTH_REFUSALS:
+        with pytest.raises(RuntimeError, match='diagnostic-condition'):
+            controller.progress('vt6-password-screen', {'vt6_refusal': code})
+        assert not reports(controller)
+    else:
+        controller.progress('vt6-password-screen', {'vt6_refusal': code})
+        saved = reports(controller)[-1]
+        assert saved['event'] == 'stage-rejected'
+        assert saved['result']['vt6_refusal'] == {'stage': 'vt6-password-screen', 'code': code}
+        assert saved['result']['steps'] == []
+
+
+@pytest.mark.parametrize('fault', [None, 'private', 'timing', 'boolean'])
+def test_vt6_timing_checkpoint_never_counts_as_authorization(qualification, fault):
+    controller, _ = qualification
+    controller.vt6_auth = True
+    report = {'phase': 'inputs-before', 'recipient': {},
+              'recheck_ms': {'source': 5, 'assets': 0, 'baseline': 68000}}
+    if fault == 'private':
+        report['recipient'] = {'private-canary': 'private-canary'}
+    if fault == 'timing':
+        report['recheck_ms']['baseline'] = 'private-canary'
+    if fault == 'boolean':
+        report['recheck_ms']['source'] = True
+    if fault:
+        with pytest.raises(RuntimeError, match='diagnostic-condition'):
+            controller.progress('vt6-password-ready', {'vt6_diagnostic': report})
+        assert not reports(controller)
+    else:
+        controller.progress('vt6-password-ready', {'vt6_diagnostic': report})
+        saved = reports(controller)[-1]
+        assert saved['event'] == 'terminal-diagnostic'
+        assert saved['result']['vt6_diagnostics'] == [{'stage': 'vt6-password-ready', **report}]
+        assert saved['result']['steps'] == []
+
+
 @pytest.mark.parametrize('fault', [None, 'bootstrap', 'worker', 'interrupt', 'cleanup',
                                   'provenance', 'host', 'report', 'late-source'])
 def test_live_controller_ordering_and_retained_diagnostics(qualification, fault):
@@ -334,6 +556,46 @@ def test_transfer_failure_is_durable_and_prevents_worker_with_one_outer_cleanup(
     assert 'asset-transfer-verified' not in [d['event'] for d in docs]
     assert docs[-1]['result']['outcome'] == 'failed'
     assert docs[-1]['outcomes']['infrastructure']['category'] == 'transfer:copied-digest-mismatch'
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_login_window_preparation_gates_worker_and_outer_restoration(qualification, failure):
+    controller, lease = qualification
+    controller.vt6_auth = True
+    prepared = {'login_timeout_seconds': 600, 'configuration': 'login.defs', 'readback_verified': True}
+    def backend(*args, **kwargs):
+        assert controller.result['vt6_login_window'] == prepared
+        assert 'login-window-preparation-verified' in [d['event'] for d in reports(controller)]
+        return {'worker_evidence': {'outcome': 'passed'}}
+    with patch.object(smoke, 'provision_vt6_login_window', return_value=prepared,
+                      side_effect=smoke.EvidenceError('credential:login-window-failed')
+                      if failure else None), patch.object(smoke, 'run_backend', side_effect=backend) as run:
+        if failure:
+            with pytest.raises(smoke.EvidenceError, match='login-window-failed'):
+                with lease:
+                    controller.execute(lease, Mock())
+            run.assert_not_called()
+            assert 'login-window-preparation-verified' not in [d['event'] for d in reports(controller)]
+        else:
+            with lease:
+                controller.execute(lease, Mock())
+            run.assert_called_once()
+    lease.finish.assert_called_once()
+    lease.release.assert_called_once()
+    assert lease.fd is None
+    assert reports(controller)[-1]['result']['outcome'] == ('failed' if failure else 'passed')
+
+
+@pytest.mark.parametrize('vt6_auth,install,refusal,expected', [
+    (True, False, False, 960), (False, False, False, 600),
+    (False, True, False, 960), (False, True, True, 600)])
+def test_vt6_worker_uses_existing_finite_extended_budget(tmp_path, vt6_auth, install, refusal, expected):
+    installation = Mock(refusal=refusal) if install else None
+    with patch.object(smoke, 'Smoke', return_value=Mock(steps=[])), \
+            patch.object(smoke.e2e_worker, 'run_distribution') as run:
+        smoke.run_backend(tmp_path, Mock(), Mock(), 'host-key', smoke.runner.RunLedger(), {},
+                          vt6_auth=vt6_auth, installation=installation)
+    assert run.call_args.kwargs['timeout'] == expected
 
 
 def test_booted_asset_refusal_prevents_first_graphical_action(tmp_path):

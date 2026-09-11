@@ -149,4 +149,11 @@ if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-attachments":
     parent_main.FeedbackDialog = AttachedFeedbackDialog
 
 
-raise SystemExit(Application(client_factory=ScriptedParentBroker).run([sys.argv[0]]))
+application = Application(client_factory=ScriptedParentBroker)
+if directory := os.environ.get("ONPC_PARENT_ALLOWANCE_LAYOUT_DIRECTORY"):
+    from tests.ui.parent_allowance_probe import attach
+    application.connect_after("activate", attach, directory)
+if directory := os.environ.get("ONPC_PARENT_LEGEND_LAYOUT_DIRECTORY"):
+    from tests.ui.parent_legend_probe import attach
+    application.connect_after("activate", attach, directory)
+raise SystemExit(application.run([sys.argv[0]]))

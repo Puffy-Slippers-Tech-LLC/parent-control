@@ -64,6 +64,16 @@ Verification below is task acceptance; edits use the smallest affected selection
 
 ## Task 15A continuation — 2026-09-08
 
+**Current scheduling — 2026-09-10, operator update after Session 65:** concurrent
+edits have stopped, satisfying
+[Task 20's return condition](Task-20.md#task-20-continuation--2026-09-08).
+Task 20 is next eligible again; preserve this unfinished acknowledgement work.
+The temporary fallback after
+[Task 20 attempt 8](Evidence/20-VT6-Joined-Flow-20260910.md) no longer applies.
+No 15A code or acceptance changed in that slice. Resume the supported
+active-policy acknowledgement boundary below when checklist order or a new
+evidenced blocker makes 15A eligible, and reassess settings then.
+
 **Scheduling correction — 2026-09-08:** preserve this unfinished work while
 returning to [19B qualification](Task-19.md#task-19b-continuation--2026-09-08),
 then [Task 20](Task-20.md), in master-checklist order. The old 19B writer hold is

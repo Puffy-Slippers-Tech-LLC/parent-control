@@ -169,7 +169,8 @@ def variables(directory, server, run, *, serial=False):
 
 
 def run_distribution(directory, lease, ledger, *, expected_inputs, observe, validate,
-                     timeout=600, on_failure=None, credentials=None, serial=False):
+                     timeout=600, on_failure=None, credentials=None, serial=False,
+                     guarded_observe=None):
     """Run fixed trusted code against an existing isolated lease, then retain reports.
 
     observe/validate are controller functions, never supplied by the guest or
@@ -237,6 +238,20 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                 adapter.serial = SerialConsole(adapter, directory)
             secrets.stage(directory, variables(directory, server, lease.state['run'], serial=serial))
             worker = Worker(directory, server.path, lease.state['run'], list(COMMAND))
+            def guard_current_worker():
+                adapter.revalidate()
+                require(worker.poll() is None and worker.ready and worker.result is None,
+                        'e2e:input-worker-not-running')
+                # The worker executes this frozen private distribution. Recheck
+                # its bytes before authorizing input after blocking observations.
+                prefix = DISTRIBUTION.relative_to(ROOT).as_posix() + '/'
+                for key, digest in expected_inputs.items():
+                    if key.startswith(prefix):
+                        path = directory / 'distribution' / key.removeprefix(prefix)
+                        require(not path.is_symlink() and path.resolve().is_relative_to(
+                            directory / 'distribution') and
+                            hashlib.sha256(path.read_bytes()).hexdigest() == digest,
+                            'e2e:input-distribution-changed')
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:
                 # Revalidate even when no callback is queued or the worker exits.
@@ -262,7 +277,10 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                     result['outcome'] = 'passed'
                     break
                 server.serve_once()
-                if serial:
+                if guarded_observe is not None:
+                    require(not serial, 'e2e:guarded-observer-surface')
+                    guarded_observe(guard_current_worker)
+                elif serial:
                     adapter.serial.step()
                     observe(adapter.serial)
                 else:

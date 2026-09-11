@@ -41,8 +41,15 @@ exit behavior differ.
 
 The Parent App's allowance and app-filter popovers use native menu buttons
 and scrollable contents that can shrink to the space supplied by the compositor.
+Before each opening, the allowance popover measures the space above and below
+its button within the current window, chooses the roomier side and caps its
+natural height to fit. This keeps its arrow attached to the button on short
+displays, including after scrolling or resizing; the presets scroll while
+the custom-amount action stays visible.
 Its pages scroll on shorter displays, and legend text wraps without imposing a
-wide minimum window size. The shared About window can resize and scroll so its
+wide minimum window size. A grid measures the legend's two columns at their
+allocated widths so the expanded card follows the wrapped content's height.
+The shared About window can resize and scroll so its
 legal notices remain reachable on scaled displays. These layout changes load
 with the next app process and do not change saved data.
 

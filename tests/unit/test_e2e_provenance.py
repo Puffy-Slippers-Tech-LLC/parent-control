@@ -28,6 +28,23 @@ def test_source_git_trust_is_scoped_to_the_selected_checkout(tmp_path):
     assert '*' not in args and run.call_args.kwargs['cwd'] == tmp_path
 
 
+@pytest.mark.parametrize('failure', [False, True])
+def test_recheck_timings_preserve_checks_and_latch_failure(source, lease, monkeypatch, failure):
+    captured = provenance.VerifiedInputs(root=source, lease=lease)
+    clock = iter([0, 2, 2, 3, 3, 70])
+    monkeypatch.setattr(provenance.time, 'monotonic', lambda: next(clock))
+    if failure:
+        lease.capture.verify_snapshot = Mock(side_effect=RuntimeError('private-canary'))
+        with pytest.raises(provenance.EvidenceError, match='provenance:recheck-failed'):
+            captured.recheck()
+    else:
+        captured.recheck()
+    assert captured.recheck_milliseconds == {'source': 2000, 'assets': 1000, 'baseline': 67000}
+    if failure:
+        with pytest.raises(provenance.EvidenceError, match='provenance:recheck-failed'):
+            captured.recheck()
+
+
 def test_git_fixture_provenance_matches_artifact_builder(source, monkeypatch):
     builder = provenance.build_test_artifacts
     # Debian source archives have no Git metadata. Exercise both real Git

@@ -32,7 +32,10 @@ review changes no task order or completion status.
   [shared support guide](../../tests/support/README.md). Use explicit support
   imports; do not import another collected case to obtain its fixture. The
   architecture regression enforces this dependency direction for existing and
-  future cases. Synthetic evidence remains distinct from live acceptance.
+  future cases. Shared UI compositor scaling is owned by `tests/ui/conftest.py`;
+  both layout/overflow consumers use that fixture through normal discovery.
+  See the [fixture relocation evidence](Evidence/20-VT6-Command-and-Shutdown-20260911.md#verification-and-cleanup).
+  Synthetic evidence remains distinct from live acceptance.
 
 - Installed selection, lease, staging, transport and real-caller assertions:
   [runner contracts](../../tests/integration/README.md#reusable-implementation-contracts).
@@ -104,15 +107,82 @@ regressions. The owning VT6 contract defines its mandatory receipts and shared
 GDM/VT6 matcher API. The [recipient-gate evidence](Evidence/20-VT6-Recipient-Gate-20260910.md)
 adds locally tested fixed identity probes and the observer's single-use
 getty/password/recheck sequence. The owning contract records its boot/process
-digest binding, regressions and refusal/privacy limits. Authentication dispatch
-remains disabled: fresh capture authorization and authenticated shell readiness/
-lineage must still be implemented before issuing the full receipt set. Live
-input/session qualification and sudo/notice pixels remain pending.
-Neither this collection pass nor the earlier
+digest binding, regressions and refusal/privacy limits. The
+[shell-lineage evidence](Evidence/20-VT6-Shell-Lineage-20260910.md) adds the fixed
+direct-child probe and fourth ordered identity read; the owning contract links
+its executable regressions and distinguishes foreground ownership from command
+readiness. The [integrated authentication evidence](Evidence/20-VT6-Authentication-Attempt-20260910.md)
+now records locally verified command completion, current-worker/source/capture
+authorization, durable receipts and guarded dispatch. The owning VT6 contract
+publishes the fixed marker, filesystem freshness barrier, regressions and limits.
+The first guarded auth attempt refused before authorization with
+`provenance:source-changed`; the
+[provenance contract](../../tests/e2e/README.md#controller-owned-provenance)
+now qualifies live retention of that category while leaving the exact differing
+input/metadata unresolved. Baseline restoration, host preservation and worker/
+callback closure passed; source preservation failed. The
+[second auth attempt](Evidence/20-VT6-Password-Recipient-20260910.md) passed final
+preservation, first getty authorization and the live negative needle, but refused
+the selected login executable at password readiness before authorizing a password.
+Those long intervals motivated bounded component timing and selected-recipient
+observations in the next attempt.
+The [third attempt](Evidence/20-VT6-Revalidation-Timing-20260910.md) now isolates
+the cost: baseline revalidation exceeds the configured 60-second login window,
+with `login` before the wait and `agetty` afterward. The owning contracts publish
+`VerifiedInputs.recheck_milliseconds`, `VT6_LOGIN_DIAGNOSTIC`, durable diagnostic
+checkpoints and their regressions. They explicitly invalidate that run's
+advisory identity-match Booleans; the tuple-comparison correction has local
+coverage through real observer pins; attempt 6 below qualifies the matching
+branch live, while replacement/false remains locally tested. Reuse the
+remaining timing/configuration evidence behind the now implemented finite fixture
+and worker timeouts. The [fourth attempt](Evidence/20-VT6-Login-Window-20260910.md)
+refused offline login-window preparation before worker startup; the precise
+cause was lost by the initial generic wrapper. The owning VT6 contract now
+publishes `provision_vt6_login_window`, its preservation/refusal regressions and
+bounded diagnostic correction. The [fifth/sixth attempts](Evidence/20-VT6-Offline-Guard-20260910.md)
+now identify and correct an in-mount full guard conflicting with the appliance's
+disk lock. The owning contract records canonical pre-open/post-close guard reuse
+and occupied-disk/metadata/late-guard regressions. Attempt 6 qualifies preparation,
+effective timeout 600, matching advisory continuity and durable password readiness.
+It refuses at password-screen capture before password authorization, despite a
+PNG byte-identical to the reference. The
+[seventh attempt and correction](Evidence/20-VT6-Capture-Identity-20260910.md)
+retain `capture-changed-refused` after the initial metadata and exact pixel checks.
+The owning contract now records the local delayed-read atime reproduction,
+`Authentication._pixels` reuse of `provenance.identity` plus UID/GID stability,
+and descriptor/path metadata and safe checkpoint regressions. The corrected
+capture comparison subsequently passes live stages in attempts 9/10 below.
+No new prompt collection or unchanged rerun is needed. Complete worker-budget
+and normal-shutdown qualification remain unfinished.
+All three attempts pass preservation and cleanup.
+The [joined-flow review and attempt 8](Evidence/20-VT6-Joined-Flow-20260910.md)
+extend that owning contract with a reproduced marker-read atime correction and
+the SSH shell observer's reproduced `tcgetpgrp`/`ENOTTY` mismatch. Command marker
+metadata now uses stable nanosecond fields; foreground observation reuses pinned
+`/proc` session/terminal/pgrp/tpgid reads. Their regressions are linked from the
+same contract. Attempt 8 refused source drift before worker startup as new
+Parent UI edits appeared; it qualifies neither correction. Baseline/host
+preservation and cleanup passed, source preservation failed. The
+[current handoff](Task-20.md#task-20-continuation--2026-09-08) records the operator's
+confirmation after Session 65 that concurrent edits have stopped, satisfying
+the source-stability return condition. Resume corrected live qualification with
+fresh inputs and all existing guards. The subsequent
+[command and shutdown evidence](Evidence/20-VT6-Command-and-Shutdown-20260911.md)
+records live password/session/shell proof in attempt 9, then correction of the
+standalone controller's late `vt6_command` import. Attempt 10 completes every
+authentication/command stage but fails `e2e:deadline` after power-off. The
+[owning worker contract](../../tests/e2e/README.md#shared-guarded-worker) records
+the inadequate finite budget, missing normal shutdown proof and existing
+callback/cleanup regressions to extend. Both attempts pass outer restoration,
+source/host preservation and cleanup. The [VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal)
+now distinguishes live capture/shell/marker stage evidence from failed complete
+qualification. Finish that shutdown boundary before extending installation,
+18A/18C or 26C terminal consumers. Sudo/notice pixels remain pending.
+Neither the credential-free prompt collection nor the earlier
 [VT6 surface evidence](Evidence/20-Visible-VT6-20260909.md) qualifies
-authentication or E2E-002. These qualifications do not resolve the
-intermittent recipient failure; diagnostics passed locally and were not triggered
-in the latest live attempt. The [active Task 20 handoff](Task-20.md#task-20-continuation--2026-09-08)
+authentication or E2E-002. The historical serial sudo recipient failure remains
+separate and unresolved; its executable-resolution diagnostic was not triggered
+by these VT6 attempts. The [active Task 20 handoff](Task-20.md#task-20-continuation--2026-09-08)
 owns changing attempt details and the next result. The
 [customer reboot observation boundary](../../tests/e2e/README.md#customer-reboot-observation-boundary)
 has local stale-boot, reconnect and refusal coverage, plus live changed-boot and

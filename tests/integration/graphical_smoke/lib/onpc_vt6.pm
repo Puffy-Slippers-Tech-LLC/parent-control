@@ -29,8 +29,8 @@ sub _input_console {
     die 'vt6:console' unless testapi::current_console() eq 'sut';
 }
 
-# Not selected by smoke.pm until the controller implements every receipt below.
-# No installation command, shell command, logout or retry is implicit in login.
+# Selected only by the guarded authentication qualification controller.
+# No installation command, logout or retry is implicit in login.
 sub authenticate {
     die "vt6:already-attempted\n" if $attempted++;
     my ($exchange) = @_;
@@ -43,6 +43,7 @@ sub authenticate {
         testapi::wait_still_screen(1, 10);
         my $boot = _receipt($exchange->('vt6-login-ready', undef), 'vt6-login-ready', undef,
             qw(vt6_getty_verified active_vt6_verified));
+        die 'vt6:prompt-false-positive' if testapi::check_screen('onpc-vt6-parent-password', 1);
         _input_console();
         testapi::type_string('onpc-parent-jamie', secret => 1);
         testapi::send_key('ret');
@@ -68,6 +69,23 @@ sub authenticate {
         _input_console();
         testapi::type_password($password);
         # A failed or partially delivered password must never submit or retry.
+        _input_console();
+        testapi::send_key('ret');
+        my $command = $exchange->('vt6-shell', undef);
+        die 'vt6:command-receipt' unless ref($command) eq 'HASH';
+        my %proof = %$command;
+        my $challenge = delete $proof{command_challenge};
+        die 'vt6:command-challenge' unless defined($challenge) && !ref($challenge)
+            && $challenge =~ /\A[0-9a-f]{64}\z/;
+        _receipt(\%proof, 'vt6-shell', $boot,
+            qw(active_local_vt6_session active_vt6_verified vt6_login_continuity_verified
+               vt6_command_input_authorized));
+        # The fresh nonce is nonsecret. Only this grammar is accepted: no
+        # controller-supplied command, output capture or input retry is possible.
+        my $line = "(umask 077; set -C; builtin printf '%s\\n' '$challenge' "
+            . '"$$" > /tmp/onpc-vt6-command-' . $challenge . ')';
+        _input_console();
+        testapi::type_string($line, secret => 1);
         _input_console();
         testapi::send_key('ret');
         _receipt($exchange->('vt6-authenticated', undef), 'vt6-authenticated', $boot,

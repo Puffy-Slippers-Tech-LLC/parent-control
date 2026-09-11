@@ -290,9 +290,37 @@ flag stays false, the original exception survives, and outer cleanup still relea
 the lease. [Cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py)
 cover both boundaries and private-text refusal; the
 [startup observation evidence](../../docs/TestAutomation/Evidence/20-Startup-Enforcement-Observation-20260909.md)
-records local scope. This diagnosis has not run live. Worker wrappers can still
-collapse an earlier provenance error, and no differing file/snapshot comparison
-is exported. A historical false source-preservation flag alone cannot identify
+records its initial local scope. The first
+[integrated VT6 authentication attempt](../../docs/TestAutomation/Evidence/20-VT6-Authentication-Attempt-20260910.md)
+now qualifies live retention of `provenance:source-changed` through failed
+finalization and successful guarded cleanup. It refused at the first VT6
+authorization stage, before input. All nine changed runtime-file byte digests
+still matched the captured map after cleanup; the changed checkout input or
+metadata remains unknown. The [second VT6 attempt](../../docs/TestAutomation/Evidence/20-VT6-Password-Recipient-20260910.md)
+passed final source/host preservation and the getty authorization, then refused
+the password recipient. This does not explain or erase the first source change.
+Its 138.845-second getty stage and 68.995-second password-stage failure expose
+an unqualified latency interaction: each `Authentication.observe` brackets its
+proof with `VerifiedInputs.recheck`, which also calls `baseline_inputs` and
+`Capture.verify_snapshot` (including backing-chain digests). Component timing
+is now available through `VerifiedInputs.recheck_milliseconds`, including failed
+components. The [third VT6 attempt](../../docs/TestAutomation/Evidence/20-VT6-Revalidation-Timing-20260910.md)
+isolated 69.027 seconds in baseline verification and 0.091 seconds in source
+capture during the password-stage recheck. Guest `login` had a configured
+60-second lifetime and the selected executable changed from `login` to `agetty`
+across this wait. Full checks remain mandatory; neither caching nor skipping a
+check is qualified. Finite fixture login preparation and password readiness are
+now live-qualified in attempt 6 under the VT6 contract below. Subsequent
+[attempt 10](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
+completes authentication/command stages but demonstrates insufficient worker
+budget through normal shutdown; the [worker contract](#shared-guarded-worker)
+owns that limit. Timing/privacy/failure regressions are in
+[test_e2e_provenance.py](../unit/test_e2e_provenance.py) and
+[test_e2e_vt6_controller.py](../unit/test_e2e_vt6_controller.py).
+Worker wrappers can still collapse the initial error,
+and no differing file/snapshot comparison is exported. This does not close
+historical provenance failures or qualify authentication. A historical false
+source-preservation flag alone cannot identify
 the changed input or exclude assets/baseline failure. The [refused reboot-wiring attempt](../../docs/TestAutomation/Evidence/20-Customer-Reboot-Wiring-20260909.md)
 retains actual concurrent checkout modifications between artifact creation and
 installation preflight, together with the live provenance refusal and successful
@@ -300,6 +328,16 @@ guarded cleanup. Preserve that failed result; build fresh inputs for required
 work without weakening the latch or restoring the historical VM hold.
 [Provenance regressions](../unit/test_e2e_provenance.py) own local source, metadata,
 assets and baseline refusal coverage.
+
+[VT6 attempt 8](../../docs/TestAutomation/Evidence/20-VT6-Joined-Flow-20260910.md)
+retained `provenance:source-changed` during credential preparation, before worker
+startup. New Parent UI changes appeared during the attempt while this session
+made no checkout writes. The first differing path/field was not retained, so
+the evidence supports current concurrent source activity without attributing a
+specific comparison. Baseline restoration and host preservation passed; source
+preservation failed. Reuse unchanged-input capture and its existing refusal
+latch after that current writer finishes; no source exclusion, digest cache,
+permission change or blanket VM hold is warranted.
 
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
@@ -499,7 +537,7 @@ the sudo probes remain **locally tested only**. Repeated foreground checks are
 not an atomic observation-to-keyboard guarantee, and this collection pass does
 not qualify password input or authenticated session continuity.
 
-**Cross-observation recipient gate — locally tested, not live-qualified:**
+**Cross-observation recipient gate — local regressions and live stage evidence:**
 `VT6_GETTY_IDENTITY` and `VT6_PASSWORD_IDENTITY` in
 [guest_observations.py](guest_observations.py) reuse those same getty/login
 predicates. They bracket them with boot reads, then recheck the selected unit's
@@ -522,7 +560,9 @@ reader keeps the recipient digest private and returns the existing fixed proofs,
 adding `vt6_recipient_continuity_verified` only on the latter two reads. Changed
 identity/boot, missing boot, reordered/repeated reads, malformed/private output,
 ownership loss or transport failure latch refusal. A later boot read cannot
-repin the original recipient. This sequence is single-use per observer.
+repin the original recipient. This sequence is single-use per observer. Its
+fourth and final read is now `vt6-shell-identity`, described below; it compares
+the detached login parent to the same pinned recipient and boot.
 
 Regressions execute the real guest programs in
 [test_e2e_serial_observation.py](../unit/test_e2e_serial_observation.py), including
@@ -530,10 +570,10 @@ late unit/executable/start-time replacement, credentials, boot changes and
 unchanged serial/prompt behavior. [test_e2e_vt6_recipient.py](../unit/test_e2e_vt6_recipient.py)
 covers ordered fresh dispatch, proof-only output and all parser/ownership/replay
 refusals. [Recipient-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Recipient-Gate-20260910.md)
-records verification. These reads are not connected to `Smoke` and cannot
-authorize password input. The controller must still bind worker/capture/input
-provenance, compare exact pixels, persist authorization before reply, and prove
-authenticated shell readiness/lineage. Matching digests do not prove empty
+records the initial verification. These reads are now connected to `Smoke`
+through `vt6_authentication.Authentication`, with the current worker, capture,
+provenance and durable-receipt gates below. Matching digests alone cannot
+authorize password input or prove empty
 invisible input or fresh pixels; do not repeat prompt-only collection to qualify
 these missing boundaries.
 
@@ -549,18 +589,88 @@ The canonical regressions are `test_actual_guest_authentication_probe_rejects_wr
 [transport tests](../unit/test_e2e_observation_transport.py). The
 [session-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Session-Gate-20260910.md)
 records local verification, including the unchanged graphical/serial contracts.
-This probe is **locally tested only** and not yet wired to an authenticated
-worker. It proves neither shell readiness nor continuity from an earlier login
+This probe has live stage evidence in authenticated attempts 9/10 below; complete
+qualification still requires normal worker shutdown. It proves neither shell
+readiness nor continuity from an earlier login
 recipient. Worker/controller boot and one-shot input gates remain necessary;
 repeated active-VT checks cannot make observation and keyboard input atomic.
 
-For the remaining shell gate, reuse the direct-child traversal already in
-[installation_observations.py](installation_observations.py), anchored to the
-new pinned recipient. [util-linux login's session fork](https://raw.githubusercontent.com/util-linux/util-linux/master/login-utils/login.c)
-detaches the parent terminal and gives the shell a new session; matching the
-child's session ID to the pre-authentication login would be incorrect. A Bash
-executable, empty child list or active logind session alone does not prove
-command-input readiness. That proof and live lineage qualification remain open.
+**Shell lineage — local regressions and live stage evidence:** `VT6_SHELL_IDENTITY`
+in [guest_observations.py](guest_observations.py) now reuses the direct-child
+semantics of [installation_observations.py](installation_observations.py).
+[util-linux login's session fork](https://raw.githubusercontent.com/util-linux/util-linux/master/login-utils/login.c)
+detaches the parent terminal and gives the shell a new session. The fixed probe
+requires the selected unit's root login parent, its sole direct fixture-owned
+`-bash` child in that new session, no shell children, three VT6 standard
+descriptors and terminal foreground ownership. It brackets observation with
+unit/process/start-time, executable/credentials, boot and active-VT rechecks;
+opened terminal descriptors close on refusal as well as success. It follows
+only that lineage and performs no guest write, input, signal or process scan.
+
+The SSH observer does not own VT6 as its controlling terminal, so
+[`tcgetpgrp`](https://man7.org/linux/man-pages/man3/tcgetpgrp.3.html) refuses its
+descriptor with `ENOTTY`. The joined review reproduced this with a real local
+PTY; the earlier probe doubles incorrectly returned success. Foreground checks
+now reuse the repeated pinned shell's
+[`/proc` terminal/session/process-group fields](https://www.kernel.org/doc/html/latest/filesystems/proc.html),
+including `tpgid`, before and after the terminal open. `test_e2e_vt6_shell.py`
+retains late foreground replacement refusal, descriptor closure and a real
+noncontrolling-terminal ioctl regression. No observer session or terminal
+ownership is changed. Attempts 9/10 below now exercise this correction live;
+their complete qualification remains failed.
+
+The fourth ordered observer read compares the original login recipient digest
+and returns only `vt6_login_continuity_verified`,
+`vt6_foreground_shell_verified`, `active_vt6_verified` and the boot digest.
+It also retains a private shell digest binding boot, terminal, parent and shell
+PID/start times for the command round trip. It does **not** return
+`vt6_shell_ready_verified` or session/input authorization.
+`vt6-session` remains independently required. The probe is an immediate
+observation, not a startup wait; an incomplete shell transition currently
+refuses. A Bash executable, empty child list, foreground terminal or active
+logind session cannot distinguish command parsing from startup scripts or a
+builtin consuming input. A fixed nonsecret keyboard command round trip with
+fresh boot/shell/attempt-bound completion evidence is the next readiness
+boundary; [vt6_command.py](vt6_command.py) now has local regression coverage and
+completed live stage evidence in attempt 10 below. Do not replace it with syscall/wait-channel
+heuristics or synthesize readiness from the lineage booleans.
+
+[test_e2e_vt6_shell.py](../unit/test_e2e_vt6_shell.py) executes the actual probe
+against explicit process/terminal fixtures, including late replacement,
+credentials, ancestry, session/foreground, descriptor and cleanup refusals.
+[test_e2e_vt6_recipient.py](../unit/test_e2e_vt6_recipient.py) extends its strict
+parser, ordering, replay, ownership and privacy cases to the fourth read.
+[Shell-lineage evidence](../../docs/TestAutomation/Evidence/20-VT6-Shell-Lineage-20260910.md)
+records its original local inputs and verification. No live authentication or
+command readiness is qualified by these tests. Dispatch is now connected only
+through the guarded qualification described below.
+
+**Command round trip — locally tested; live stage passed in attempt 10:**
+`ReadOnlyObservations.vt6_command_boundary`
+can be acquired once after the fourth identity read. `CommandRoundTrip.prepare`
+rechecks pinned lineage and absence of a fresh nonce-named marker before issuing
+the fixed nonsecret command challenge. The worker constructs the command from
+that exact 64-hex challenge; it accepts no command text or path. A noclobber
+subshell writes only the nonce and original shell PID to a mode-0600 temporary
+file. `complete` waits at most 30 seconds for the marker and subshell exit,
+then rechecks the complete pinned lineage, foreground VT, boot and stable safe
+file metadata/content. The SSH timeout bounds the whole program. No output
+capture is reopened. A consumed/partial line, stale marker, replacement, timeout
+or ownership failure permanently refuses; typing never retries. These guest
+probes only read. Outer baseline restoration removes the visible command's
+marker, including in failed attempt 10 below. [Command regressions](../unit/test_e2e_vt6_command.py)
+execute the real Bash grammar, marker reader and bounded wait, and cover
+transport/ordering/privacy refusals. See
+[integrated evidence](../../docs/TestAutomation/Evidence/20-VT6-Authentication-Attempt-20260910.md).
+
+The joined authentication review found the capture reader's whole-stat defect
+also in `vt6_command.READ_MARKER`. A delayed first read on `/tmp` reproduces a
+false refusal locally. The guest's `marker_identity` now compares the stable
+fields of `provenance.identity` plus UID/GID, excluding read-driven atime and
+preserving nanosecond mtime/ctime. The delayed-read regression and per-field
+descriptor/path mutations in `test_e2e_vt6_command.py` protect that boundary.
+This correction now has completed live command-stage evidence in attempt 10;
+normal worker shutdown remains unqualified for that integrated route.
 
 The selected fixture echo and empty login challenge now have a
 [reviewed image contract](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md#direct-image-review-and-needle-contract).
@@ -590,9 +700,10 @@ GDM/VT6 tests share the installed matcher through
 See [pixel-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Pixel-Gate-20260910.md)
 for the failed initial matcher checks, correction and common-check recovery.
 
-`onpc_vt6::authenticate(exchange)` now implements the **locally tested worker
-side only** of one-shot parent login. It is deliberately not selected by
-`smoke.pm`: the controller cannot yet issue its required proofs. The existing
+`onpc_vt6::authenticate(exchange)` implements the locally tested worker
+side of one-shot parent login and command completion. `smoke.pm` selects it only
+for the guarded VT6 authentication qualification; other modes retain their own
+routes. The existing
 credential-free inspector and this function share a single attempt latch.
 Every exception seals explicit capture and returns a fixed error; neither
 function can retry after either was attempted. The worker selects `sut`, enters
@@ -602,34 +713,216 @@ It seals capture before sending that image reference to the controller and
 before any secret retrieval. Only the final authorization receipt permits
 `type_password` with fixed options and a separate Enter. Console and `NOVIDEO`
 checks run again before secret access, typing and submission; partial input
-failure never retries. No subsequent shell command is implemented.
+failure never retries. A separate session/lineage/command-preparation receipt
+then permits the fixed nonsecret round trip above. The worker first requires
+the password needle to reject the preceding login screen, providing a live
+negative case when the first receipt is reached.
 
 The authentication callback protocol is distinct from prompt inspection. Each
 reply has exactly `stage`, a lowercase 64-hex `boot_sha256` (unchanged after the
 first reply), and the following JSON **true booleans**; extra fields, missing
 proofs, strings/numbers in place of booleans, reordered stages and changed boot
-refuse. Only `vt6-password-screen` carries a screenshot request.
+refuse. Only `vt6-password-screen` carries a screenshot request. The `vt6-shell`
+reply additionally requires one lowercase 64-hex `command_challenge`, from which
+the worker independently constructs the fixed command.
 
 | Stage | Mandatory controller proofs |
 | --- | --- |
 | `vt6-login-ready` | `vt6_getty_verified`, `active_vt6_verified` |
 | `vt6-password-ready` | `vt6_login_process_verified`, `terminal_echo_disabled`, `active_vt6_verified`, `vt6_recipient_continuity_verified` |
 | `vt6-password-screen` | The four password-ready proofs plus `vt6_prompt_pixels_verified`, `vt6_password_input_authorized` |
+| `vt6-shell` | `active_local_vt6_session`, `active_vt6_verified`, `vt6_login_continuity_verified`, `vt6_command_input_authorized`; plus the challenge above |
 | `vt6-authenticated` | `active_local_vt6_session`, `active_vt6_verified`, `vt6_shell_ready_verified`, `vt6_login_continuity_verified` |
 
-These are required acknowledgements; **the controller cannot yet issue the full set**.
-Before enabling dispatch, the controller must bind ordered, one-use callbacks to
-the current worker and boot; bracket a fresh private capture and exact comparison
-against `VerifiedInputs`-bound reference bytes with recipient checks; persist
-proofs before acknowledgement; and latch every failure. The identity sequence
-above now supplies locally tested cross-observation getty/password continuity;
-the older fixed-token probes remain observation-local. Dispatch and durable
-capture authorization are still unimplemented. The existing `VT6_SESSION`
-gate must be supplemented with shell readiness and continuity from the original
-login recipient before issuing the final receipt. Do not synthesize those
-missing proofs from session activity or screen pixels. A same-stage, same-boot
-replayed receipt cannot be distinguished by this worker protocol alone; current
-attempt/capture freshness remains a mandatory controller responsibility.
+All five authentication acknowledgements have live stage evidence in attempt 10
+below. The complete run still failed normal worker shutdown and is unaccepted.
+[vt6_authentication.py](vt6_authentication.py) composes the
+ordered identity/session/command observers and exact pixels with `VerifiedInputs`.
+Before capture it records existing file names/inodes and creates a private
+same-filesystem timestamp barrier. Python wall-clock comparison was found to
+race filesystem timestamp granularity; the barrier avoids that false refusal.
+Only a new regular caller-owned image in the pinned result directory, with
+stable identity/content metadata and matching reviewed pixels, can advance. Earlier or renamed
+images, links, directory replacement and changed source/boot/recipient refuse.
+
+`run_distribution` supplies the trusted `guarded_observe` hook with a guard
+bound to its owned `Worker`, held lease and staged distribution bytes. `Smoke`
+requires this guard and a durable progress callback for VT6 auth, persists
+source/run/capture identities before publication and rechecks the worker after
+the checkpoint. Existing replies and partial publication refuse. The observer,
+controller and worker each latch failures. The private working directory and
+verified ordered worker code provide input provenance; pixels/timestamps alone
+do not prove the absence of invisible input or make observation/input atomic.
+A same-stage, same-boot replay cannot be distinguished by the worker protocol
+alone; the controller's one-use order and fresh current-attempt capture remain
+mandatory. [Controller tests](../unit/test_e2e_vt6_controller.py) cover those
+gates and checkpoint failure; `test_input_guard_binds_live_worker_and_staged_bytes_and_always_cleans`
+in [cleanup tests](../unit/test_graphical_smoke_cleanup_safety.py) covers current
+worker/distribution refusal and resource closure.
+
+The fixed route is `tools/run-tests integration check_graphical_vt6_authentication`.
+Its [first guarded attempt](../../docs/TestAutomation/Evidence/20-VT6-Authentication-Attempt-20260910.md)
+passed GDM stages, then refused with `provenance:source-changed` at the first
+VT6 receipt. No getty identity read or VT6 fixture/password/command input was
+authorized. Outer baseline restoration and host preservation passed, while
+source preservation failed and normal worker shutdown was not qualified.
+The [second guarded attempt](../../docs/TestAutomation/Evidence/20-VT6-Password-Recipient-20260910.md)
+passed source/host preservation, the first durable getty authorization and the
+negative needle on the login screen. It submitted the fixture name, then
+refused at `vt6-password-ready` before password authorization. The retained
+guest traceback maps to the first selected-unit executable check: the recipient
+was not `/usr/bin/login`. Its actual executable and transition cause
+were not retained in that attempt; cross-observation continuity, password input,
+capture/command proofs and normal shutdown remain unqualified. Its 68.995-second
+request-to-refusal interval motivated the discriminator below. Reuse the existing
+recipient probes and provenance contract; do not weaken checks, repeat unchanged,
+or restore the old VM hold. The earlier failed attempt remains failed.
+
+The [third guarded attempt](../../docs/TestAutomation/Evidence/20-VT6-Revalidation-Timing-20260910.md)
+now qualifies the bounded executable/configuration/timing discriminator:
+`VT6_LOGIN_DIAGNOSTIC` observes only the selected unit and fixed login config,
+never terminal content, argv or account records. `ReadOnlyObservations` validates
+its exact safe output, retains no new recipient pin, and cannot advance the
+authorization sequence with a diagnostic. `Authentication` obtains early/late
+reads around the full recheck; `Qualification.progress` retains these and fixed
+component durations as `terminal-diagnostic` checkpoints, never completed proof
+steps. The guest was running util-linux 2.41.3 with `LOGIN_TIMEOUT=60`; the
+executable changed from `login` to `agetty` across 69.027 seconds of baseline
+verification. This supports prompt expiry during revalidation; no exit signal
+was traced. Source/host preservation and outer cleanup passed, but password
+authorization and live authentication remain unqualified.
+
+Both `matches_pinned_recipient` Booleans in that run are **invalid**: the initial
+parser compared a digest with the stored `(boot, recipient)` tuple. The corrected
+parser compares with its recipient member; the digest already binds the boot.
+The correction cannot qualify continuity retroactively. Attempt 6 below now
+qualifies its matching branch live; the replaced/false branch is locally tested.
+The old run's executable/configuration/timing fields are unaffected.
+[test_e2e_vt6_diagnostic.py](../unit/test_e2e_vt6_diagnostic.py) executes the fixed
+guest program and covers malformed/private output, late ownership loss, no gate
+advancement, and both matching/replaced digests pinned through the real reader.
+Controller and [cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py)
+cover durable diagnostics without authorization and checkpoint refusal.
+
+**Finite fixture login window — preparation and password readiness qualified:**
+`fixture_credentials.provision_vt6_login_window` now reuses the existing
+held-lease/offline `system_runner.mounted_guest` path to change only the attempt
+disk's existing `LOGIN_TIMEOUT=60` to 600 (an already prepared 600 is idempotent).
+It validates root-owned, singly linked regular-file metadata, preserves
+unrelated bytes and identity/mode, and verifies readback before allowing the
+worker. Missing, duplicate, malformed or unexpected settings refuse. Outer
+restoration preserves the accepted baseline and host configuration even after
+partial preparation. `run_backend` selects its existing finite 960-second
+worker limit for VT6 auth; other modes are unchanged. No authentication, retry,
+provenance, recipient or capture guard is relaxed. The
+[login manual](https://raw.githubusercontent.com/util-linux/util-linux/v2.41/login-utils/login.1.adoc)
+documents this configuration; the measured revalidation cost motivates it.
+
+The [fourth attempt](../../docs/TestAutomation/Evidence/20-VT6-Login-Window-20260910.md)
+failed with `credential:login-window-failed` during preparation, after credential
+verification and before worker startup or any authentication input. Exact cause
+and partial-write state are unknown because the first wrapper discarded the
+specific error. Baseline restoration and final source/host preservation passed.
+After cleanup, the helper was corrected to retain a finite allowlist of its
+fixed predicate codes, otherwise only a fixed operation-boundary category;
+private exception text is never published. This diagnostic correction is locally
+tested at that point. Neither the new budgets nor live authentication/advisory continuity
+are qualified by that old run. Do not rerun the old timing experiment or relax a
+configuration/ownership guard without evidence. The
+[cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py) cover
+preservation/idempotence, unsafe/partial preparation, closure/interruption,
+worker gating, outer restoration and exact safe error categories. The
+[active handoff](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08)
+owns the next discriminating integrated attempt and milestone review.
+
+The [fifth and sixth attempts](../../docs/TestAutomation/Evidence/20-VT6-Offline-Guard-20260910.md)
+resolve preparation: the helper's redundant in-mount `Lease.guard` invoked
+locking `qemu-img info` against its own libguestfs writer. Reuse the established
+`mounted_guest` full checks before opening and after closing the appliance;
+do not call disk inventory while it holds the disk or weaken disk locking.
+Pre-write/readback metadata validation remains. The cleanup regressions now
+exercise occupied-disk refusal of incompatible guard placement, pre-write
+metadata replacement and post-close guard loss. Attempt 6 passes readback,
+observes effective timeout 600 and matching `login` identity across full baseline
+revalidation, and issues durable login/password-ready proofs. Full worker-budget
+adequacy, credential submission and command readiness remain unqualified.
+
+Attempt 6 then refuses at `vt6-password-screen`; its generic worker wrapper
+retains no exact predicate. Its pre-password PNG is byte-identical to the pinned
+reference. The [seventh attempt and local correction](../../docs/TestAutomation/Evidence/20-VT6-Capture-Identity-20260910.md)
+now qualify safe durable `vt6_refusal` checkpoints: `Authentication.refusal`
+retains a finite controller-owned code, and `Qualification.progress` validates
+`REFUSALS` before saving a rejected stage without an authorization reply.
+Unknown exception text, paths and metadata values are never exported.
+Attempt 7 reaches `capture-changed-refused` after the initial metadata and exact
+pixel checks. It passes outer cleanup and preservation, but still authorizes no
+password. The generic worker failure remains a failed infrastructure outcome.
+
+**Stable capture identity — corrected; live stage proof in attempts 9/10:**
+The installed `basetest::_result_add_screenshot` calls tinycv's
+`write_with_thumbnail`, which locally produces a fresh singly linked image.
+A delayed first read on `/tmp` reproduces the original whole-stat refusal:
+access time advances while identity/content metadata remains stable. Whole-stat
+tuple equality uses integer-second timestamps, hiding the change in fast tests.
+The separate `/tmp` tmpfs is not covered by the root filesystem's `noatime` flag.
+The live run did not retain individual fields; this local reproduction supports
+its atime diagnosis without retroactively claiming a live field measurement.
+
+`Authentication._pixels` now reuses `provenance.identity` for both descriptor and
+path, adding explicit UID/GID stability. Device/inode, mode, links, size and
+nanosecond mtime/ctime remain invariant; read-driven atime is excluded. All
+initial freshness, directory, reference/pixel, worker, source, boot and recipient
+gates remain. A changed stable field retains its fixed descriptor/path predicate.
+[Controller regressions](../unit/test_e2e_vt6_controller.py) cover the installed
+writer with a 1.05-second first-read delay, every stable field on both views,
+single-use refusal and publication ordering. The
+[cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py) validate
+fixed-code checkpoints and reject private or malformed diagnostics.
+Attempts 9/10 below pass the corrected capture stage, and attempt 10 completes
+the authenticated command stage. Complete worker-budget and normal-shutdown
+qualification still affect installation and downstream terminal consumers.
+Sudo/notice pixels remain unqualified; no new prompt collection is needed to
+resolve the current worker deadline.
+
+**Joined review and attempt 8 — historical source drift:**
+The [joined-flow evidence](../../docs/TestAutomation/Evidence/20-VT6-Joined-Flow-20260910.md)
+records the marker atime and noncontrolling-terminal ioctl reproductions and
+corrections above. Attempt 8 then refused `provenance:source-changed` during
+credential preparation, before worker startup or any VT6 input. New Parent UI
+changes appeared during the attempt while this session made no checkout writes.
+The exact first differing source path/field was not retained. Baseline restoration,
+lease completion and host preservation passed; source preservation failed.
+This attempt does not qualify either correction, the earlier screenshot fix,
+password submission or shell/command readiness. Current source-bound live work
+needs unchanged checkout inputs; do not weaken provenance or reinstate the old
+VM-authorization hold. The operator subsequently cleared that deferral; the
+active Task 20 handoff records current selection. That failed attempt remains failed.
+
+**Attempts 9/10 — command proof reached; normal shutdown hit the deadline:**
+The [command and shutdown evidence](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
+records fresh stable inputs, both failures and completed outer cleanup. Attempt
+9 passed password authorization and observed authenticated session/shell lineage,
+then refused command preparation. The standalone controller had restored its
+temporary E2E import path before `vt6_command_boundary` tried to import
+`vt6_command`. Pytest's permanent path/cache concealed this late dependency.
+`ReadOnlyObservations` now imports `CommandRoundTrip` with its other module
+dependencies. `test_command_boundary_survives_launcher_import_path_restoration`
+in [command regressions](../unit/test_e2e_vt6_command.py) reproduces the old
+`ModuleNotFoundError` and passes after correction without a transport/path fallback.
+
+Attempt 10 durably records all five stages, including command authorization and
+fresh boot/shell/attempt-bound completion. This is live evidence for the capture,
+shell and marker corrections, not a complete qualification: it then fails
+`e2e:deadline` after power-off, with no backend exit status or `status-off` event
+and `shutdown_verified=false`. Its ten baseline rechecks consume 802.363 seconds;
+the worker finishes its failed attempt after 1036.426 seconds against a 960-second
+loop budget. The [worker contract](#shared-guarded-worker) owns this remaining
+deadline/shutdown boundary. Both attempts pass baseline restoration, source/host
+preservation and owned cleanup; product/collection remain `not-run`. Do not
+repeat the unchanged budget, rediscover prompt gates, skip provenance checks or
+use this failed run as accepted authentication infrastructure. The active
+[handoff](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08)
+owns the next correction and guarded qualification.
 
 The canonical worker regressions are
 [test_e2e_vt6_authentication.py](../unit/test_e2e_vt6_authentication.py), executing
@@ -638,10 +931,10 @@ before receipt/secret access, all mandatory proofs, malformed/reordered receipts
 changed boot, API/credential failures, partial-input refusal, late console/policy
 changes, and the shared inspector/authentication no-retry latch. See
 [worker-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Worker-Gate-20260910.md).
-This does not extend live qualification. Identical stale pixels, the excluded
+These local regressions supplement the live stage evidence above. Identical stale pixels, the excluded
 cursor cell and invisible input still require independent input and capture
-provenance. Wire and qualify the controller's real success/refusal before using
-this worker for installation. Sudo challenge and final
+provenance. Complete the integrated controller's normal shutdown qualification
+before using this worker for installation. Sudo challenge and final
 red-notice pixels remain uncollected. A prompt image alone
 cannot identify the password consumer. Only after that boundary is qualified
 should E2E-002 type the documented package/reboot commands on this surface and
@@ -865,6 +1158,24 @@ Require `check_shutdown(0)` to succeed; `assert_shutdown` also captures a screen
 Leaving VNC active after display revocation allows its background stall handler
 to attempt reconnection to a stopped guest. Graphics ownership must still refuse
 that request. Disabling the console ends observation; it does not change VM state.
+
+**VT6 deadline limitation:** [authenticated attempt 10](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
+completed every authentication/command receipt and reached `poweroff`, then
+failed with the original `e2e:deadline` at finalization. Its worker report retains
+the generic `worker-execution-failed`, null backend status, no `status-off` event
+and false shutdown verification. The 960-second `run_distribution` budget was
+insufficient for that joined execution: ten mandatory baseline rechecks used
+802.363 seconds, and the worker report reached 1036.426 seconds. Synchronous
+`CallbackServer.serve_once` work can cross the outer loop deadline before another
+poll/off observation; preserve that fact when correcting the finite budget.
+Outer baseline restoration and source/host preservation passed; this does not
+establish normal worker shutdown. Reuse `Adapter`, `Lease.stop`,
+`test_timeout_refuses_and_cleans_up` in
+[worker cleanup regressions](../unit/test_e2e_worker_cleanup_safety.py) and
+[public shutdown regressions](../unit/test_e2e_shutdown.py). Add the demonstrated
+delayed-callback boundary to local verification before a corrected guarded run;
+retain the full validation and shutdown requirements above. No new generic
+diagnostic layer or unchanged full attempt is needed.
 
 Private `worker-before-cleanup.json` and `worker-result.json` reports contain
 only fixed diagnostic fields, distribution digest, timing, failure history and

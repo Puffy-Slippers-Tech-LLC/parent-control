@@ -235,6 +235,38 @@ def _time_status_subtitle(status, daily_limit_minutes):
     )
 
 
+class DailyLimitPopover(Gtk.Popover):
+    """Keep the scrollable allowance menu beside its button on short windows."""
+
+    _height_limit = None
+
+    def prepare(self, button):
+        # MenuButton calls this before presenting the native popup, including
+        # subsequent opens after a window resize or a page scroll. Constrain
+        # the complete popup (arrow, CSS, fixed footer and scrolling choices)
+        # before the compositor places it; compositor resizing alone can put
+        # an oversized popup at the screen edge with its arrow detached.
+        root = button.get_root()
+        valid, bounds = button.compute_bounds(root)
+        if not valid or root.get_height() <= 0:
+            return
+        above = bounds.get_y()
+        below = root.get_height() - bounds.get_y() - bounds.get_height()
+        self._height_limit = max(0, int(max(above, below)) - 8)
+        self.set_position(Gtk.PositionType.TOP if above > below else Gtk.PositionType.BOTTOM)
+        self.queue_resize()
+        LOG.debug("allowance popup prepared side=%s available_height=%d",
+                  self.get_position().value_nick, self._height_limit)
+
+    def do_measure(self, orientation, for_size):
+        minimum, natural, minimum_baseline, natural_baseline = Gtk.Popover.do_measure(
+            self, orientation, for_size,
+        )
+        if orientation == Gtk.Orientation.VERTICAL and self._height_limit is not None:
+            natural = max(minimum, min(natural, self._height_limit))
+        return minimum, natural, minimum_baseline, natural_baseline
+
+
 class ParentWindow(Adw.ApplicationWindow):
     def __init__(self, application, *, client_factory=BrokerClient):
         super().__init__(application=application, title=app_name())
@@ -533,7 +565,9 @@ class ParentWindow(Adw.ApplicationWindow):
             self._daily_limit, "Daily time allowance",
             "Choose the selected child's daily screen-time allowance.",
         )
-        self._daily_limit.set_popover(self._daily_limit_popover())
+        allowance_popover = self._daily_limit_popover()
+        self._daily_limit.set_popover(allowance_popover)
+        self._daily_limit.set_create_popup_func(allowance_popover.prepare)
         daily_limit_row.add_suffix(self._daily_limit)
         screen_limit_rows.append(daily_limit_row)
         self._custom_daily_limit = Adw.ActionRow(
@@ -938,24 +972,27 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         card.append(header)
 
-        sections = Gtk.Box(css_classes=["policy-legend-sections"])
-        sections.append(self._legend_section(
+        # Measure both columns at their allocated widths. A horizontal Box
+        # can retain the wrapped labels' narrow-width height after its children
+        # receive more space, leaving a large empty area below the legend.
+        sections = Gtk.Grid(css_classes=["policy-legend-sections"])
+        sections.attach(self._legend_section(
             "App Access (What happens)", APP_LIST_STATES, {
                 "allowed": "App can always be used",
                 "permanent": "App is completely blocked and can only be allowed by admins",
                 "conditional": "App is blocked and can be granted one-time extension per child request if time limit is enabled",
             }, access=True,
-        ))
-        sections.append(Gtk.Separator(
+        ), 0, 0, 1, 1)
+        sections.attach(Gtk.Separator(
             orientation=Gtk.Orientation.VERTICAL,
             css_classes=["policy-legend-divider"],
-        ))
-        sections.append(self._legend_section(
+        ), 1, 0, 1, 1)
+        sections.attach(self._legend_section(
             "Match Rule (How apps are matched)", MATCH_RULES, {
                 "pattern": "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)",
                 "precise": "Matches exact app path\n(e.g., /usr/bin/firefox)",
             }, access=False,
-        ))
+        ), 2, 0, 1, 1)
 
         revealer = Gtk.Revealer(
             transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
@@ -1560,9 +1597,8 @@ class ParentWindow(Adw.ApplicationWindow):
         menu = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, width_request=300)
         menu.append(Gtk.ScrolledWindow(
             child=choices,
-            # Prefer the full menu height, but let the compositor shrink it
-            # when there is less room beside the button. A fixed minimum can
-            # make GTK reject the popup allocation and immediately close it.
+            # DailyLimitPopover caps the whole popup to the available space;
+            # keep the choices shrinkable while the custom action stays fixed.
             propagate_natural_height=True,
             max_content_height=378,
             hscrollbar_policy=Gtk.PolicyType.NEVER,
@@ -1578,7 +1614,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         menu.append(custom)
         self._update_daily_limit_choice_styles()
-        return Gtk.Popover(
+        return DailyLimitPopover(
             child=menu,
             css_classes=["daily-limit-popover"],
         )

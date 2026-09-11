@@ -9,322 +9,6 @@ This is an operator log, not context for future sessions.
 The launcher never reads or rewrites previous entries. Implementation workers
 must exclude this file from reads, searches, diffs and edits.
 
-
-## Session 35 — 2026-09-08 20:33 PDT
-
-- Completion: 2026-09-08 20:33 PDT
-- Duration: 29 minutes (rounded up)
-- Outcome: continue
-- Settings: `gpt-6-astra` / `high`
-- Processing: Standard
-- Attempt: `slice-48d154fc3eba4d55bf15669d4b2fa7dd`
-- CLI token counts: input_tokens: 3915981; cached_input_tokens: 3812480; output_tokens: 19147; reasoning_output_tokens: 3862. These are not weekly allowance measurements.
-- Supervisor: Cleanup and handoff confirmed.
-
-- Task: Task 20 — qualify the explicit-newline authentication boundary.
-
-- Completed: Implemented the explicit-newline sudo prompt and strict argv matching. One guarded attempt passed prompt recognition, independent recipient proof, single password submission, authenticated installation, package verification and GDM return. Task 20 remains unaccepted.
-
-- Verification and cleanup: 1597 focused tests passed; final parser refinement passed 115 tests; 526 cleanup tests plus 3 subtests passed. Initial 51 parser-fixture failures were corrected. Guarded attempt exited 0; worker/callback closed, baseline restored, lease released and screenshot export removed. Links/whitespace passed. Ten historical failures remain failed; intermittent executable refusal remains unresolved. Evidence: docs/TestAutomation/Evidence/20-Install-Explicit-Newline-20260908.md; handoff: docs/TestAutomation/Task-20.md.
-
-- Next session: Task 20 remains earliest ready. Qualify one deliberate installation refusal with no retry, no installed package, private capture and cleanup. Continuation.md selects gpt-5.6-sol/high, Standard; VM clearance persists.
-
-- Estimated sessions remaining for this task: Unknown
-
-- Estimated minutes remaining for this task: Unknown
-
-- Estimate basis and uncertainty: The successful helper attempt took 19.4 minutes. Remaining denial, reboot/readiness and startup-fault work lacks measured completion evidence.
-
-
-## Session 36 — 2026-09-08 21:18 PDT
-
-- Completion: 2026-09-08 21:18 PDT
-- Duration: 38 minutes (rounded up)
-- Outcome: continue
-- Settings: `gpt-5.6-sol` / `high`
-- Processing: Standard
-- Attempt: `slice-e6a142b11bc148f8864ebfc0e225665a`
-- CLI token counts: input_tokens: 8729990; cached_input_tokens: 8571264; output_tokens: 35578; reasoning_output_tokens: 9023. These are not weekly allowance measurements.
-- Supervisor: Cleanup and handoff confirmed.
-
-- Task: Task 20 — qualify a fixed deliberate installation refusal
-
-- Completed: Task 20 refusal path implemented. The live attempt proved one fixed invalid password was rejected with no retry, then localized cancellation failure to graphical-key input on the pipe-backed serial console. Cancellation now uses the qualified serial-byte transport; see `docs/TestAutomation/Evidence/20-Install-Refusal-Attempt-20260908.md`.
-
-- Verification and cleanup: 1,474 focused tests passed; post-correction affected tests passed 134/134; cleanup prerequisites passed 526 tests plus 3 subtests; links and `git diff --check` passed. Initial new-test failures were corrected. Guarded handle 14132 exited 1 after the refusal checkpoint; product remained not-run. Worker/callback/display closed, retained baseline restored and verified, lease completed, host/source preserved, and all commands exited. No recovery or policy denial remains.
-
-- Next session: Task 20 remains earliest ready. Build fresh artifacts, repeat isolated safety prerequisites, and run one corrected refusal qualification proving shell return, installer/package absence, logout/GDM return, and cleanup. Next settings: gpt-5.6-sol / high, Standard.
-
-- Estimated sessions remaining for this task: 1 session for the refusal qualification; full Task 20 Unknown
-
-- Estimated minutes remaining for this task: 15–25 minutes for the refusal qualification; full Task 20 Unknown
-
-- Estimate basis and uncertainty: The failed guarded attempt took 980.910 seconds. The correction passes local checks but still needs one live qualification. Remaining reboot/readiness and startup-fault batches are unmeasured.
-
-
-## Session 37 — 2026-09-08 21:50 PDT
-
-- Completion: 2026-09-08 21:50 PDT
-- Duration: 28 minutes (rounded up)
-- Outcome: continue
-- Settings: `gpt-5.6-sol` / `high`
-- Processing: Standard
-- Attempt: `slice-efc5bf5fe9694b719848fbc5eec98100`
-- CLI token counts: input_tokens: 2821509; cached_input_tokens: 2731776; output_tokens: 14051; reasoning_output_tokens: 2735. These are not weekly allowance measurements.
-- Supervisor: Cleanup and handoff confirmed.
-
-- Task: Task 20 — corrected deliberate installation refusal qualification completed; full task remains in progress.
-
-- Completed: Task 20’s corrected deliberate-installation-refusal qualification passed. It proved rejection without retry, shell return, installer/package/payload/reboot-marker absence, serial logout, GDM return, and guarded cleanup. Evidence is recorded in docs/TestAutomation/Evidence/20-Install-Refusal-Corrected-20260908.md; the active handoff and Continuation.md were updated. Task 20 remains unchecked.
-
-- Verification and cleanup: Fresh artifact build passed. Isolated and dispatcher cleanup closures each passed 526 tests plus 3 subtests. The guarded selection exited 0; retained result: /tmp/onpc-graphical-smoke-cm06m6zu/result.json. Worker, callback, display, baseline restoration, host/source preservation, collection, and lease release passed. VM is off and all commands exited. Documentation links (19 checked) and git diff --check passed.
-
-- Next session: Task 20 remains earliest ready. Implement the clean E2E-002 boundary through the exact red notice, customer-visible reboot, changed boot identity, and correlated fapolicyd/broker readiness. Next settings: gpt-6-astra / high.
-
-- Estimated sessions remaining for this task: Unknown for full Task 20; three complete customer/fault paths remain.
-
-- Estimated minutes remaining for this task: Unknown for full Task 20; remaining lifecycle batches are unmeasured.
-
-- Estimate basis and uncertainty: The qualification took 1,227.72 seconds. Remaining clean reboot/readiness and two startup-fault callbacks have not yet been implemented or measured, so a reliable Task 20 estimate is unavailable.
-
-
-## Session 38 — 2026-09-08 23:42 PDT
-
-- Completion: 2026-09-08 23:42 PDT
-- Duration: 29 minutes (rounded up)
-- Outcome: continue
-- Settings: `gpt-6-astra` / `high`
-- Processing: Standard
-- Attempt: `slice-6d31c816ae5246a0ac2a332a702b1df3`
-- CLI token counts: input_tokens: 3503812; cached_input_tokens: 3397376; output_tokens: 17636; reasoning_output_tokens: 2503. These are not weekly allowance measurements.
-- Supervisor: Cleanup and handoff confirmed.
-
-- Task: Task 20 — validate the successful installation's exact final red reboot notice.
-
-- Completed: Implemented strict final red-notice validation with private output handling. Live qualification recognized the sudo prompt, then refused at getty-initial-exe-resolve before password submission; the notice assertion was not reached. Task 20 remains unchecked. Details: docs/TestAutomation/Evidence/20-Install-Notice-Recipient-Refusal-20260908.md.
-
-- Verification and cleanup: 293 focused tests passed; isolated and dispatcher safety closures each passed 546 tests plus 3 subtests. Fresh artifacts, links and whitespace checks passed. Attempt 14 exited 1; twelve failures remain retained. Product/aggregate collection were not-run and the module result was absent; fixed checkpoint/worker evidence was collected using the approved artifact reader after an ordinary read refused. Normal journey shutdown was not reached, but worker/callback/display closure, outer baseline restoration, preservation and lease release passed. VM confirmed off; all commands exited, no recovery remains.
-
-- Next session: Task 20 remains earliest ready. Add fixed executable-resolution error and process-continuity diagnostics, verify refusal/redaction paths locally, then make one fresh guarded attempt. Handoffs saved; next settings are gpt-6-astra / high, Standard.
-
-- Estimated sessions remaining for this task: Unknown
-
-- Estimated minutes remaining for this task: Unknown
-
-- Estimate basis and uncertainty: The guarded attempt took 20.2 minutes. The recurring recipient failure and remaining reboot/readiness/startup-fault interfaces lack a reliable completion bound.
-
-
-## Session 39 — 2026-09-09 08:07 PDT
-
-- Completion: 2026-09-09 08:07 PDT
-- Duration: 3 minutes (rounded up)
-- Outcome: needs-review
-- Settings: `gpt-6-astra` / `high`
-- Processing: Standard
-- Attempt: `slice-89cf20dd42424aa2a549e6582b182dc4`
-- CLI token counts: not reported. These are not weekly allowance measurements.
-- Supervisor: Codex exited without a clean completed turn; inspect the current task handoff and owned operations.
-
-- Completed: No valid end-of-session report was returned; work is unconfirmed.
-- Next session: Retry only if the supervisor confirms a failure before tool use; otherwise reconcile the current task handoff and owned operations.
-- Estimated sessions/minutes remaining: Unknown.
-
-
-## Session 40 — 2026-09-09 08:55 PDT
-
-- Completion: 2026-09-09 08:55 PDT
-- Duration: 34 minutes (rounded up)
-- Outcome: continue
-- Settings: `gpt-6-astra` / `high`
-- Processing: Standard
-- Attempt: `slice-a52f52e68df9483e93ce6d64be844505`
-- CLI token counts: input_tokens: 6547416; cached_input_tokens: 6429440; output_tokens: 23207; reasoning_output_tokens: 2730. These are not weekly allowance measurements.
-- Supervisor: Cleanup and handoff confirmed.
-
-- Task: Task 20 — recipient diagnostics and final reboot-notice qualification; task remains unaccepted.
-
-- Completed: Added privacy-safe executable-resolution diagnostics without weakening password gates. One guarded qualification passed authenticated installation, exact final red notice, package identity, reboot marker and GDM return. The intermittent recipient refusal did not recur and remains unresolved. Evidence: docs/TestAutomation/Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md.
-
-- Verification and cleanup: 1784 focused tests passed after correcting two new-test assertions. Isolated and dispatcher safety runs each passed 546 tests plus 3 subtests. Live qualification exited 0; full E2E-002 acceptance remains pending. Artifact permission failure was resolved through the approved reader; no policy denial occurred. Notice/image review, links and whitespace checks passed. All commands exited; worker closed, baseline restored, lease released, VM confirmed off and screenshot export removed.
-
-- Next session: Task 20 remains earliest ready. Implement real customer reboot, changed boot identity and guarded reconnection using fresh artifacts. Continuation.md records gpt-6-astra/high for unresolved cross-boot ownership and observation continuity.
-
-- Estimated sessions remaining for this task: Unknown
-
-- Estimated minutes remaining for this task: Unknown
-
-- Estimate basis and uncertainty: Qualification took 21.4 minutes. Reboot, readiness and fault-control implementation lack measured completion bounds; intermittent prerequisite failure remains possible.
-
-
-## Session 41 — 2026-09-09 09:18 PDT
-
-- Task: Task 20 — guarded reconnection prerequisite for the installation/reboot journey.
-- Duration: 10 minutes
-- Completed: Implemented guarded changed-boot observation with stale-boot waiting, ownership checks, fresh confirmation and terminal failure handling. Updated shared contracts and handoff. Customer reboot wiring remains unfinished; E2E-002 stays pending.
-
-- Verification and cleanup: 1,329 focused and 423 affected regression tests passed. make check passed 5,228 unit/contracts and 17 components plus syntax/source checks. All 140 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-Reboot-Observation-20260909.md. All commands exited; no VM operation or export was started.
-
-- Next session: Task 20: connect customer reboot input and ordered acknowledgements, then verify serial/display continuity and GDM return in one guarded attempt. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 42 — 2026-09-09 09:48 PDT
-
-- Completion: 2026-09-09 09:48 PDT
-- Duration: 24 minutes (rounded up)
-- Outcome: continue
-- Settings: `gpt-6-astra` / `high`
-- Processing: Standard
-- Attempt: `slice-41922846da5d413189a62ed1c7c79558`
-- CLI token counts: input_tokens: 5272625; cached_input_tokens: 5141888; output_tokens: 21242; reasoning_output_tokens: 4377. These are not weekly allowance measurements.
-- Supervisor: Cleanup and handoff confirmed.
-
-- Task: Task 20 — customer reboot and startup readiness
-
-- Completed: Implemented ordered customer-reboot input, boot-change acknowledgement and refusal handling. Updated shared contracts, reuse map and handoffs. E2E-002 remains pending.
-
-- Verification and cleanup: Passed 1,677 focused checks, 546 isolated safety checks plus 3 subtests, and make check with 5,241 unit/contracts and 17 components. Corrected one nonexistent test selector. The guarded attempt passed GDM and serial login but refused provenance before installation/reboot; concurrent checkout changes were evidenced, though the exact first mismatch was not retained. Product and collection aggregates remain not-run. Worker/callback/display closed; outer baseline restoration and cleanup passed, VM confirmed off, all commands exited. Ordinary artifact access failed; the approved privileged reader succeeded. Links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/20-Customer-Reboot-Wiring-20260909.md.
-
-- Next session: Task 20: build fresh artifacts, run isolated safety prerequisites, then qualify reboot and serial/display continuity in one guarded attempt. Continuation.md selects gpt-6-astra/high; VM clearance persists.
-
-- Estimated sessions remaining for this task: Unknown
-
-- Estimated minutes remaining for this task: Unknown
-
-- Estimate basis and uncertainty: The failed live prerequisite took 11.9 minutes. Successful reboot, readiness and startup-fault coverage remain unmeasured.
-
-
-## Session 43 — 2026-09-09 10:23 PDT
-
-- Task: Task 20 — qualify customer reboot and serial/GDM return.
-- Duration: 33 minutes
-- Completed: Task 20 advanced through verified authenticated installation to customer reboot input. The reboot observation failed after 330.085 seconds without a changed-boot acknowledgement. Cause remains unknown; retained evidence lacks complete-input delivery, command outcome and probe categories. E2E-002 and startup-fault acceptance remain unfinished. Updated the owning contract, reuse map and handoff.
-
-- Verification and cleanup: Fresh artifacts and isolated safety passed: 546 tests plus 3 subtests, also passed by the dispatcher. The single live attempt failed; product/collection aggregates remain not-run. Evidence: docs/TestAutomation/Evidence/20-Customer-Reboot-Attempt-20260909.md. Worker/callback/display closed; normal worker shutdown was unverified, but baseline restoration, lease completion and source/host preservation passed. VM confirmed off; all commands exited. Privileged artifact reads resolved an ordinary permission failure; bounded-read truncation was corrected. Document links and scoped whitespace checks passed.
-
-- Next session: Task 20: add and locally verify fixed serial-delivery, command-result and boot-probe diagnostics before one fresh guarded attempt. Preserve refusal, privacy and ownership guards. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 44 — 2026-09-09 10:57 PDT
-
-- Task: Task 20 — distinguish the customer reboot failure.
-- Duration: 33 minutes
-- Completed: Added privacy-safe reboot diagnostics. The live attempt proved the guest executed the reboot command and returned nonzero; the helper stopped without retrying or entering the boot wait. The rejection reason remains unknown. Corrected the handoff’s overlooked existing serial-drain gate. E2E-002 reboot/readiness and E2E-028 acceptance remain unfinished.
-
-- Verification and cleanup: 1392 focused checks passed after fixing four test-stub failures; make check passed 5253 unit/contracts and 17 components. Build and isolated cleanup safety passed. Live infrastructure failed after the nonzero command result; new drain/probe diagnostics remain locally tested only. Backend failure artifact prevented false success despite exit zero. Worker/callback/display closed, baseline restored, lease completed, VM confirmed off, and source/host preservation passed. All commands exited; no recovery remains. Evidence: docs/TestAutomation/Evidence/20-Reboot-Command-Result-20260909.md. Documentation links and scoped whitespace checks passed.
-
-- Next session: Task 20 remains earliest ready. Determine the rejection reason and supported authenticated customer reboot path, validate it locally, then run one fresh guarded qualification. Continuation and shared contracts are updated; VM clearance persists. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 45 — 2026-09-09 11:29 PDT
-
-- Task: Task 20 — diagnose customer reboot rejection.
-- Duration: 33 minutes
-- Completed: Added secret-safe reboot diagnostics. The guarded attempt observed Access denied; the exact denied method/policy remains unknown. Corrected a diagnostic wording gap locally; retained flags cannot exclude an authentication challenge. E2E-002 and assigned E2E-028 acceptance remain unfinished.
-
-- Verification and cleanup: Final make check passed 5275 unit/contracts and 17 components; focused regressions, cleanup prerequisites, links and whitespace passed. Live installation and red notice passed, but reboot returned nonzero; normal worker shutdown remained unverified. All commands exited; worker/callback/display closed, baseline restored, lease completed, preservation passed and VM is off. Evidence: docs/TestAutomation/Evidence/20-Reboot-Access-Diagnostic-20260909.md.
-
-- Next session: Task 20: adapt the existing fresh sudo challenge and verified password-recipient checks to a fixed customer reboot command, test refusal/privacy, then run one fresh guarded qualification. Handoff: docs/TestAutomation/Task-20.md. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 46 — 2026-09-09 13:45 PDT
-
-- Task: Task 20 — startup enforcement observations, using gpt-6-astra/high, Standard.
-- Duration: 17 minutes
-- Completed: Implemented fapolicyd/GDM startup-order observations and durable final-provenance refusal reporting. Updated shared contracts and handoffs. Task 20 remains unaccepted: broker ordering, complete E2E-002 observations, live qualification and both startup-fault cases remain unfinished.
-
-- Verification and cleanup: Passed 1,478 focused checks and final make check: 5,667 unit/contracts plus 17 components. A regression reproduced a boot-id newline mismatch; the corrected observer matches the canonical reboot probe. Links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/20-Startup-Enforcement-Observation-20260909.md. No live attempt occurred; the earlier provenance failure’s cause remains unknown. All commands exited; no VM resources or cleanup obligations remain.
-
-- Next session: Continue Task 20 with correlated broker reconciliation-before-D-Bus evidence, then finish the complete journey’s observations before a guarded VM attempt. VM authorization remains effective. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 47 — 2026-09-09 13:59 PDT
-
-- Task: Task 20 — broker startup ordering evidence; actual settings gpt-6-astra/high, Standard.
-- Duration: 14 minutes
-- Completed: Added broker startup timestamps and an observer that correlates reconciliation with actual D-Bus publication. Wired it into installation return and updated shared contracts. Task 20 remains unaccepted: layout, visible-notice evidence, complete live qualification and startup fault cases remain.
-
-- Verification and cleanup: Passed 1,481 focused checks and make check: 5,719 unit/contracts plus 25 components. Eight initial fixture-permission failures were corrected. Evidence: docs/TestAutomation/Evidence/20-Broker-Startup-Witness-20260909.md. Links and scoped whitespace checks passed. All commands exited and private-bus cleanup completed; no VM resources acquired. Historical final-provenance failure remains unexplained.
-
-- Next session: Continue Task 20 with installed-layout observation using existing package assertions. Continuation.md and Task-20.md are updated; VM clearance persists. Next settings: gpt-5.6-sol/high, Standard.
-
-
-## Session 48 — 2026-09-09 14:16 PDT
-
-- Task: Task 20 — deliver the fixed installed-layout observation required by E2E-002.
-- Duration: 18 minutes
-- Completed: **Solid and healthy** — Implemented Task 20’s fixed post-reboot installed-layout observer and controller digest binding. It validates package files, ownership, modes, symlinks, configuration, PAM, Polkit, and session registrations, then composes the result with GDM and both startup witnesses. Reusable details are recorded in `docs/TestAutomation/Evidence/20-Installed-Layout-Observation-20260909.md`, the owning E2E contract, reuse map, and active handoff. Task 20 remains unaccepted; graphical notice evidence, live E2E-002 qualification, and both E2E-028 fault variants remain.
-
-- Verification and cleanup: The exact guest-program/transport/boundary/controller selection passed 1,446 tests; the final boundary/controller rerun passed 91 tests. Link validation checked 162 links with none missing, and `git diff --check` passed. Two `make check` attempts each passed 5,746/5,747 tests but failed unrelated `ExtensionManagerTests.test_global_extension_switch_fails_before_activation_writes` after concurrent extension-manager edits appeared; the approved escalated retry produced the same EPERM-backed mismatch. All commands exited; no VM lease, guest process, screenshot, or recovery state was created.
-
-- Next session: Continue Task 20 by implementing the customer-visible graphical reboot-notice assertion through the established screen/capture contract, then reconcile callback readiness. Repeat the common check after the concurrent extension-manager/test mismatch settles. Next settings: gpt-5.6-sol/high, Standard.
-
-
-## Session 49 — 2026-09-09 17:43 PDT
-
-- Task: Task 20 — determine and preserve the truthful customer-visible graphical reboot-notice boundary.
-- Duration: 10 minutes
-- Completed: **Solid and healthy.** Proved the existing serial installation cannot supply graphical notice evidence: its text-only os-autoinst console has no image, VNC remains at GDM, and authentication correctly seals capture. Recorded the missing genuine graphical-terminal boundary in tests/e2e/README.md, Reuse-Map.md, Task-20.md, and Evidence/20-Graphical-Notice-Boundary-20260909.md. Task 20 remains unfinished.
-
-- Verification and cleanup: 379 focused tests passed; 168 documentation links checked with none missing; git diff whitespace validation passed. The common check was not repeated because its unrelated extension-manager mismatch remains documented. One overbroad read-only search mistakenly returned three lines from the excluded operator log; it was not opened, edited, or used afterward. All commands exited; no VM lease, guest process, screenshot, or background resource was created.
-
-- Next session: Continue Task 20 by designing the real graphical terminal launch, fixed sudo-recipient proof, private authentication handling, and reviewed red-notice pixels. Do not replay serial output or synthesize evidence. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 50 — 2026-09-09 18:02 PDT
-
-- Task: Task 20 — establish a genuine visible installation terminal and its recipient checks.
-- Duration: 20 minutes
-- Completed: Proved the accepted baseline’s VT6 terminal is visible over VNC. Added fixed VT6 login/install/reboot recipient probes with foreground checks and refusal handling. Authentication, notice pixels and complete Task 20 acceptance remain unfinished.
-
-- Verification and cleanup: Initial tests found 12 failures from a diagnostic still querying the serial getty; corrected it to follow the selected terminal. Final probe tests passed 2,349 cases; compatibility tests passed 434. Maintenance safety prerequisites, 182 documentation links and whitespace checks passed. All commands exited; guarded cleanup restored and verified the baseline and original configuration, leaving the VM off. Private screenshots remain as evidence. Details: docs/TestAutomation/Evidence/20-Visible-VT6-20260909.md.
-
-- Next session: Continue Task 20: wire and qualify VT6 authentication through the guarded graphical worker, with reviewed challenge evidence, session/boot checks and private capture. Continuation.md and the owning contract are updated. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 51 — 2026-09-09 18:06 PDT
-
-- Task: Unconfirmed; consult the current task handoff.
-- Duration: 5 minutes
-- Completed: No valid end-of-session report was returned; work is unconfirmed.
-
-- Verification and cleanup: Outcome: needs-review. Codex exited without a clean completed turn; inspect the current task handoff and owned operations. Worker acceptance or cleanup is unconfirmed. Verification and cleanup are unconfirmed.
-
-- Next session: Retry only if the supervisor confirms a failure before tool use; otherwise reconcile the current task handoff and owned operations.
-
-
-## Session 52 — 2026-09-09 23:50 PDT
-
-- Task: Task 20 — qualify VT6 prompt collection before authenticated installation.
-- Duration: 19 minutes
-- Completed: Identified and corrected the VT6 getty readiness predicate after a guarded attempt refused before fixture input. Password checks remain unchanged. Updated the owning contract, reuse map and handoffs; preserved unrelated frontend edits. Task 20 acceptance remains unfinished.
-
-- Verification and cleanup: Corrected focused checks: 1,415 passed. Isolated safety: 585 passed plus 3 subtests. Live attempt failed at vt6-ready; exact traceback and recovery are retained in docs/TestAutomation/Evidence/20-VT6-Prompt-Readiness-20260909.md. Normal graphical shutdown was not reached, but worker/callback cleanup, baseline restoration and source/host preservation passed. All commands exited. Documentation: 183 links valid; scoped whitespace checks passed.
-
-- Next session: Run the corrected credential-free collector once, review the actual fixture/challenge screenshots, then establish the authentication needle contract. Task 20 remains earliest ready. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 53 — 2026-09-10 00:08 PDT
-
-- Task: Task 20 — qualify corrected VT6 prompt collection.
-- Duration: 19 minutes
-- Completed: Qualified corrected VT6 prompt collection live and reviewed both terminal images. Updated the shared contract, reuse map and handoffs. Authenticated input, sudo/notice pixels and complete installation/startup acceptance remain unfinished.
-
-- Verification and cleanup: check_graphical_vt6_prompt passed; both safety runs passed 585 tests and 3 subtests. Evidence: docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md. Original failure retained. Product acceptance not run. All commands exited; shutdown, baseline restoration and source/host preservation passed. Temporary exports removed. Documentation checks passed.
-
-- Next session: Task 20 remains earliest ready: implement and verify authenticated VT6 input/session gates using the reviewed image contract. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 54 — 2026-09-10 00:16 PDT
-
-- Task: Task 20 — authenticated VT6 session observation.
-- Duration: 9 minutes
-- Completed: Implemented the fixed VT6 session observer with selected-user, terminal, active-VT and transport refusal checks. Updated the owning contract, reuse map and handoff. Password-input wiring, live qualification and Task 20 acceptance remain unfinished.
-
-- Verification and cleanup: 1,470 focused tests passed. make check passed 6,631 unit/contract and 58 component tests; 198 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Session-Gate-20260910.md. All commands exited; no VM operation or cleanup obligation was created.
-
-- Next session: Task 20 remains earliest ready. Implement the reviewed prompt needle and one-shot worker/controller input gates, then qualify guarded authentication after safety checks. Next settings: gpt-6-astra/high, Standard.
-
-
 ## Session 55 — 2026-09-10 17:23 PDT
 
 - Task: Task 20 — verify the VT6 prompt screen boundary.
@@ -356,3 +40,102 @@ must exclude this file from reads, searches, diffs and edits.
 - Verification and cleanup: 1,561 focused tests passed. make check passed 6,973 unit/contract and 58 component tests; 218 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Recipient-Gate-20260910.md. No test failures or VM operations; all commands exited and cleanup is complete.
 
 - Next session: Continue Task 20: prove authenticated-shell readiness and lineage from the pinned login recipient, then complete capture authorization before guarded live qualification. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 58 — 2026-09-10 18:04 PDT
+
+- Task: Task 20 — establish authenticated VT6 shell lineage.
+- Duration: 11 minutes
+- Completed: Implemented and locally verified pinned login-to-shell lineage, foreground ownership and permanent refusal on identity replacement or replay. Updated the owning contract, reuse map and handoff. Command readiness, capture authorization and live install/reboot/startup acceptance remain unfinished; authentication dispatch stays disabled.
+
+- Verification and cleanup: 1,637 focused tests passed. make check passed 7,051 unit/contract and 58 private-D-Bus tests. All 226 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Shell-Lineage-20260910.md. No tests failed or VM attempts started. All commands exited; no owned resources or cleanup obligations remain.
+
+- Next session: Continue Task 20 with a fixed nonsecret keyboard command round trip and fresh completion evidence bound to the attempt, boot and pinned shell. VM authorization remains active. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 59 — 2026-09-10 18:45 PDT
+
+- Task: Task 20 — qualify guarded VT6 authentication to a command-ready shell.
+- Duration: 41 minutes
+- Completed: Integrated VT6 command completion, capture authorization, durable receipts and guarded dispatch. Task 20 remains unaccepted; live authentication and subsequent installation/startup acceptance remain unfinished.
+
+- Verification and cleanup: Final make check passed 7,167 unit/contract and 58 component tests; isolated safety passed 595 tests and 3 subtests. Exception-expectation, timestamp-race and fixture failures were corrected. The live attempt failed before VT6 input with provenance:source-changed; the differing input remains unidentified. Baseline restoration, host preservation and worker/callback cleanup passed; source preservation failed. All commands exited. Evidence: docs/TestAutomation/Evidence/20-VT6-Authentication-Attempt-20260910.md.
+
+- Next session: Retry the guarded authentication route with fresh current inputs. If source drift recurs, identify the changed input or metadata before another attempt. Continuation.md and the active handoff are updated. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 60 — 2026-09-10 19:10 PDT
+
+- Task: Task 20 — qualify live VT6 authentication and command readiness.
+- Duration: 25 minutes
+- Completed: Passed live getty authorization and source preservation, advancing beyond the prior refusal. Password readiness then failed because the selected recipient executable was not login. Retained timing narrows the next investigation; authentication and Task 20 acceptance remain unfinished. Updated handoff and shared contracts.
+
+- Verification and cleanup: Safety checks passed 595 tests and 3 subtests, including the runner’s repeat. Live attempt exited 1 before password authorization. Baseline restoration, source/host preservation and worker/callback cleanup passed; all commands exited. Documentation checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Password-Recipient-20260910.md.
+
+- Next session: Continue Task 20: distinguish prompt expiry during revalidation from an incorrect recipient transition using bounded timing and safe observations; correct the evidenced cause before another guarded attempt. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 61 — 2026-09-10 19:46 PDT
+
+- Task: Task 20 — qualify a live authenticated VT6 command-ready shell.
+- Duration: 37 minutes
+- Completed: Added diagnostics showing baseline revalidation took 69.027 seconds against a 60-second login timeout; the executable changed from login to agetty. Authentication attempt 3 failed before password authorization. Live authentication and Task 20 acceptance remain unfinished. Updated the owning contracts, reuse map and handoff.
+
+- Verification and cleanup: Final make check passed 7,200 unit/contracts and 58 component tests; 135 focused tests passed. Isolated safety and dispatcher repeat each passed 599 tests and 3 subtests. Corrected a checkpoint-name failure and an advisory digest/tuple comparison bug; the live run’s identity-match Booleans are invalid, and their correction is locally verified only. Evidence: docs/TestAutomation/Evidence/20-VT6-Revalidation-Timing-20260910.md. Product/collection remain not-run; normal scenario shutdown was not reached. Worker/callback closure, baseline restoration and source/host preservation passed. All commands exited; no recovery obligations remain. Links and scoped whitespace checks passed.
+
+- Next session: Continue Task 20: implement a bounded fixture login timeout and matching worker budget, preserving full provenance and authorization checks, then qualify live authentication. Continuation.md records the concrete scope. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 62 — 2026-09-10 20:10 PDT
+
+- Task: Task 20 — qualify VT6 authentication with bounded login timing.
+- Duration: 24 minutes
+- Completed: Implemented finite fixture/worker budgets and preparation safety checks. Live attempt 4 refused preparation before authentication; its precise cause remains unknown. Added tested, privacy-safe failure categories. Authentication and Task 20 acceptance remain unfinished.
+
+- Verification and cleanup: Final checks: 7,233 unit/contracts, 58 D-Bus cases and 142 focused tests passed. Four initial test-double failures were corrected. Isolated safety and dispatch repeat each passed 629 tests plus 3 subtests. Live attempt failed; baseline restoration, source/host preservation and cleanup passed. All commands exited. Links/whitespace passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Login-Window-20260910.md.
+
+- Next session: Task 20 remains first. Run the guarded authentication route with corrected diagnostics, resolve the precise preparation refusal, then qualify command-ready login. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 63 — 2026-09-10 20:46 PDT
+
+- Task: Task 20 — resolve preparation refusal and reach a verified command-ready VT6 shell.
+- Duration: 37 minutes
+- Completed: Corrected offline guard placement. Attempt 6 qualified login-window preparation and password readiness, then refused password-screen authorization despite a capture byte-identical to the reference. Authentication and Task 20 acceptance remain unfinished. Updated the owning contract, reuse map and handoff.
+
+- Verification and cleanup: 144 focused tests and make check passed: 7,235 unit/contracts plus 58 private-D-Bus cases. Safety closures passed. Attempt 5 failed before writing; corrected attempt 6 failed before password authorization. Evidence: docs/TestAutomation/Evidence/20-VT6-Offline-Guard-20260910.md. Both runs passed baseline restoration and source/host preservation; worker/callback closure confirmed. All commands exited and the temporary screenshot export was removed.
+
+- Next session: Task 20 remains earliest ready. Reproduce the capture freshness/metadata refusal locally using retained evidence, correct the demonstrated cause, then run guarded authentication. No outside intervention identified. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 64 — 2026-09-10 21:27 PDT
+
+- Task: Task 20 — resolve VT6 capture refusal and qualify an authenticated command-ready shell.
+- Duration: 41 minutes
+- Completed: Corrected the capture comparison after locally reproducing a read-driven access-time refusal. It now reuses stable provenance identity while preserving ownership and content-change checks. Live authentication, full Task 20 acceptance and both E2E-028 faults remain unfinished.
+
+- Verification and cleanup: Attempt 7 failed with capture-changed-refused after exact pixels passed; no password authorization occurred. Baseline restoration, lease completion, source/host preservation and worker/callback/display cleanup passed. Local diagnostic failures and delayed-read reproduction led to the correction; final checks passed 222 focused tests, 7,306 unit/contracts and 58 private-D-Bus tests. Links and whitespace checks passed. All commands exited; temporary test captures were cleaned. Evidence: docs/TestAutomation/Evidence/20-VT6-Capture-Identity-20260910.md.
+
+- Next session: Task 20: run isolated cleanup safety, then qualify the corrected comparison through the guarded VT6 authentication route through final cleanup. Continuation and owning contracts are updated. Next settings: gpt-5.6-sol/high, Standard.
+
+
+## Session 65 — 2026-09-10 22:47 PDT
+
+- Task: Task 20 — qualify one authenticated VT6 shell and completed nonsecret command.
+- Duration: 23 minutes
+- Completed: Reproduced and corrected marker-read timestamp handling and shell foreground observation. Live authentication remains stalled: attempt 8 refused source drift before worker startup as concurrent Parent UI edits appeared. All eight authentication attempts remain failed; Task 20 acceptance is unfinished. Evidence: docs/TestAutomation/Evidence/20-VT6-Joined-Flow-20260910.md.
+
+- Verification and cleanup: 1,861 affected tests passed; isolated and dispatcher safety each passed 685 tests/3 subtests. Final make check had 7,325 passes and one existing UI fixture-import failure; later stages did not execute. Attempt 8 exited 1 with provenance:source-changed; the exact differing path was not retained. Baseline restoration, lease completion and host preservation passed; source preservation failed. All commands exited and temporary resources closed. No recovery obligation or approval denial remains. Updated contracts and handoffs; 307 links and scoped whitespace checks passed.
+
+- Next session: Recheck whether current checkout writes have finished; return to Task 20 when inputs can remain unchanged through qualification. Otherwise continue Task 15A’s independent active-policy acknowledgement and rollback work. The current-writer question remains unanswered; VM authorization persists. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 66 — 2026-09-11 00:14 PDT
+
+- Task: Task 20 — authenticated VT6 command readiness through verified shutdown.
+- Duration: 76 minutes
+- Completed: Completed live VT6 password submission, shell continuity and nonsecret command proof. Fixed the standalone command-helper import and shared UI fixture import. Normal-shutdown qualification, full Task 20 and E2E-028 acceptance remain unfinished.
+
+- Verification and cleanup: Attempt 9 failed at command preparation; its import defect was reproduced and corrected. Attempt 10 passed every authentication stage, then failed e2e:deadline after power-off, before shutdown verification. Final make check passed 7,327 unit/contracts and 58 components; 1,988 affected checks, 2 UI cases and required cleanup safety passed. Both attempts restored the baseline and preserved source/host state; all commands and owned resources closed. Documentation checks passed 336 links. Evidence: docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md.
+
+- Next session: Task 20: reproduce the deadline across synchronous shutdown, correct the finite budget while preserving all guards, then rerun focused checks and guarded qualification. Handoff and Continuation.md updated. Next settings: gpt-6-astra/high, Standard.

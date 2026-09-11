@@ -252,3 +252,120 @@ VT6_GETTY_IDENTITY = (VT6 + _RECIPIENT_BOOT + _GETTY +
 VT6_PASSWORD_IDENTITY = (VT6 + _RECIPIENT_BOOT + _LOGIN_PASSWORD +
     "recipient_probe = 'vt6-password-identity'\nrecipient_executable = '/usr/bin/login'\n" +
     _RECIPIENT_RESULT)
+
+# Advisory only: diagnose prompt expiry across a slow host provenance check.
+# Read only the selected unit; never terminal content, argv or account records.
+# Digests remain private to the transport parser and cannot advance its gate.
+VT6_LOGIN_DIAGNOSTIC = VT6 + _RECIPIENT_BOOT + '''import subprocess
+check_active_terminal()
+config = pathlib.Path('/etc/login.defs').read_text()
+assert len(config) <= 131072
+values = [line.split('#', 1)[0].split()[1:] for line in config.splitlines()
+          if line.split('#', 1)[0].split()[:1] == ['LOGIN_TIMEOUT']]
+assert len(values) <= 1
+assert not values or (len(values[0]) == 1 and re.fullmatch(r'[0-9]{1,5}', values[0][0]))
+timeout = int(values[0][0]) if values else 60
+assert 0 <= timeout <= 86400
+version = subprocess.run(['/usr/bin/login', '--version'], capture_output=True,
+                         text=True, check=True, timeout=10).stdout
+match = re.fullmatch(r'login from util-linux ([0-9]+(?:\\.[0-9]+){1,2})\\n', version)
+assert match is not None
+pid = int(subprocess.run(['systemctl', 'show', terminal_unit,
+    '--property=MainPID', '--value'], capture_output=True, text=True,
+    check=True, timeout=10).stdout.strip())
+assert pid > 1
+proc = pathlib.Path('/proc') / str(pid)
+starttime = (proc/'stat').read_text().rpartition(') ')[2].split()[19]
+assert re.fullmatch(r'[0-9]{1,20}', starttime)
+executable = {pathlib.Path('/usr/bin/login'): 'login',
+              pathlib.Path('/usr/sbin/agetty'): 'agetty'}.get((proc/'exe').resolve(), 'other')
+assert (proc/'stat').read_text().rpartition(') ')[2].split()[19] == starttime
+assert read_boot() == recipient_boot
+check_active_terminal()
+encoded = json.dumps([recipient_boot, terminal_unit, pid, starttime],
+                     separators=(',', ':')).encode('ascii')
+print(json.dumps({'executable': executable, 'login_timeout_seconds': timeout,
+    'timeout_source': 'login.defs' if values else 'default', 'login_version': match[1],
+    'recipient_sha256': hashlib.sha256(encoded).hexdigest()}, sort_keys=True))
+'''
+
+# Follow only the selected login's direct child, using the same detached-login /
+# new-shell-session semantics as the sudo observer. This proves lineage and
+# foreground ownership, deliberately NOT Bash command-input readiness.
+VT6_SHELL_LINEAGE = VT6 + _RECIPIENT_BOOT + '''import pwd,stat,subprocess
+uid = pwd.getpwnam('onpc-parent-jamie').pw_uid
+assert uid > 0
+def leader():
+    check_active_terminal()
+    value = int(subprocess.run(['systemctl','show',terminal_unit,
+        '--property=MainPID','--value'],capture_output=True,text=True,
+        check=True,timeout=10).stdout.strip())
+    assert value > 1
+    return value
+def process(value):
+    path = pathlib.Path('/proc') / str(value)
+    fields = (path/'stat').read_text().rpartition(') ')[2].split()
+    assert len(fields) >= 20 and fields[0] in ('R', 'S')
+    assert re.fullmatch(r'[0-9]{1,20}', fields[19]) and int(fields[19]) > 0
+    return path, fields
+def executable(path, expected, owner):
+    binary = pathlib.Path(expected)
+    info = binary.stat()
+    assert stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == 0
+    assert not stat.S_IMODE(info.st_mode) & 0o022
+    assert (path/'exe').resolve(strict=True) == binary
+    credentials = dict(line.split(':',1) for line in (path/'status').read_text().splitlines())
+    assert [int(value) for value in credentials['Uid'].split()] == [owner]*4
+pid = leader()
+proc, before_login = process(pid)
+children_path = proc/'task'/str(pid)/'children'
+children = children_path.read_text().split()
+assert len(children) == 1
+shell_pid = int(children[0])
+assert shell_pid > 1 and shell_pid != pid
+shell, before_shell = process(shell_pid)
+def snapshot():
+    assert leader() == pid
+    executable(proc, '/usr/bin/login', 0)
+    executable(shell, '/usr/bin/bash', uid)
+    current_login = process(pid)[1]
+    current_shell = process(shell_pid)[1]
+    # login remains root in its original session, with no controlling terminal.
+    assert [int(v) for v in current_login[2:6]] == [pid,pid,0,-1]
+    assert [int(v) for v in current_shell[1:6]] == [
+        pid,shell_pid,shell_pid,terminal_device,shell_pid]
+    assert int(current_shell[19]) >= int(current_login[19])
+    for before, after in ((before_login,current_login), (before_shell,current_shell)):
+        assert before[1:6] == after[1:6] and before[19] == after[19]
+    assert children_path.read_text().split() == children
+    assert not (shell/'task'/str(shell_pid)/'children').read_text().split()
+    assert (shell/'cmdline').read_bytes() == b'-bash\\0'
+    for descriptor in ('0', '1', '2'):
+        info = (shell/'fd'/descriptor).stat()
+        assert stat.S_ISCHR(info.st_mode) and info.st_rdev == terminal_device
+    check_active_terminal()
+snapshot()
+fd = os.open(terminal_path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY | os.O_NOFOLLOW)
+try:
+    info = os.fstat(fd)
+    assert stat.S_ISCHR(info.st_mode) and info.st_rdev == terminal_device
+    # The SSH observer does not own this controlling terminal. tcgetpgrp on
+    # its descriptor therefore refuses with ENOTTY; snapshot reads the pinned
+    # shell's kernel tty/pgrp/session/tpgid fields instead, before and after open.
+    snapshot()
+    assert read_boot() == recipient_boot
+    check_active_terminal()
+finally:
+    os.close(fd)
+encoded = json.dumps([recipient_boot, terminal_unit, pid, before_login[19]],
+                     separators=(',', ':')).encode('ascii')
+recipient_digest = hashlib.sha256(encoded).hexdigest()
+shell_digest = hashlib.sha256(json.dumps([recipient_boot, terminal_unit,
+    pid, before_login[19], shell_pid, before_shell[19]],
+    separators=(',', ':')).encode('ascii')).hexdigest()
+'''
+
+VT6_SHELL_IDENTITY = VT6_SHELL_LINEAGE + '''
+print(json.dumps({'probe': 'vt6-shell-identity', 'boot_sha256': recipient_boot,
+    'recipient_sha256': recipient_digest, 'shell_sha256': shell_digest}, sort_keys=True))
+'''

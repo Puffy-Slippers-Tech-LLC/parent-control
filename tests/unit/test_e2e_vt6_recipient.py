@@ -10,12 +10,14 @@ from observation_transport import ReadOnlyObservations
 from private_artifacts import EvidenceError
 
 
-STAGES = ('vt6-getty-identity', 'vt6-password-identity', 'vt6-password-recheck')
+STAGES = ('vt6-getty-identity', 'vt6-password-identity', 'vt6-password-recheck',
+          'vt6-shell-identity')
 
 
 def response(stage, *, boot='a' * 64, recipient='b' * 64):
-    return (json.dumps({'probe': STAGES[min(stage, 1)], 'boot_sha256': boot,
-                       'recipient_sha256': recipient}, sort_keys=True) + '\n').encode()
+    return (json.dumps({'probe': STAGES[1 if stage == 2 else stage], 'boot_sha256': boot,
+                       'recipient_sha256': recipient,
+                       **({'shell_sha256': 'c' * 64} if stage == 3 else {})}, sort_keys=True) + '\n').encode()
 
 
 @pytest.fixture
@@ -34,6 +36,8 @@ def advance(reader, transport, count):
         result = reader.read(STAGES[stage])
         assert result == {'boot_sha256': 'a' * 64, 'active_vt6_verified': True, **(
             {'vt6_getty_verified': True} if stage == 0 else {
+                'vt6_login_continuity_verified': True,
+                'vt6_foreground_shell_verified': True} if stage == 3 else {
                 'vt6_login_process_verified': True, 'terminal_echo_disabled': True,
                 'vt6_recipient_continuity_verified': True})}
     transport.reset_mock()
@@ -53,7 +57,7 @@ def assert_latched(reader, transport, capsys):
 
 def test_vt6_recipient_uses_fresh_fixed_probes_and_only_returns_proofs(observer, capsys):
     reader, transport = observer
-    for stage in range(3):
+    for stage in range(4):
         transport.call.return_value = response(stage)
         result = reader.read(STAGES[stage])
         assert 'recipient_sha256' not in result
@@ -61,7 +65,13 @@ def test_vt6_recipient_uses_fresh_fixed_probes_and_only_returns_proofs(observer,
         assert 'vt6_shell_ready_verified' not in result
         transport.call.assert_called_once_with(['/usr/bin/python3', '-c',
             guest_observations.VT6_GETTY_IDENTITY if stage == 0 else
-            guest_observations.VT6_PASSWORD_IDENTITY], timeout=60 if stage == 0 else 30)
+            guest_observations.VT6_SHELL_IDENTITY if stage == 3 else
+            guest_observations.VT6_PASSWORD_IDENTITY],
+            timeout=60 if stage == 0 else 45 if stage == 3 else 30)
+        if stage == 3:
+            assert result == {'boot_sha256': 'a' * 64, 'active_vt6_verified': True,
+                              'vt6_login_continuity_verified': True,
+                              'vt6_foreground_shell_verified': True}
         assert transport.guard.call_count == 2
         transport.copy.assert_not_called()
         transport.reboot.assert_not_called()
@@ -73,7 +83,8 @@ def test_vt6_recipient_uses_fresh_fixed_probes_and_only_returns_proofs(observer,
 
 
 @pytest.mark.parametrize('completed,requested', [
-    (0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1), (3, 0), (3, 1), (3, 2)])
+    (completed, requested) for completed in range(5) for requested in range(4)
+    if completed != requested])
 def test_vt6_recipient_refuses_skips_replays_and_repinning(observer, completed, requested, capsys):
     reader, transport = observer
     advance(reader, transport, completed)
@@ -92,7 +103,7 @@ def test_vt6_recipient_requires_independent_boot_observation(observer, capsys):
     assert_latched(reader, transport, capsys)
 
 
-@pytest.mark.parametrize('stage', [0, 1, 2])
+@pytest.mark.parametrize('stage', [0, 1, 2, 3])
 @pytest.mark.parametrize('fault', ['boot', 'recipient', 'wrong-probe', 'extra', 'duplicate',
     'noncanonical', 'private', 'boolean-digest', 'uppercase', 'missing', 'oversize',
     'before-guard', 'after-guard', 'transport', 'configuration', 'interrupt'])

@@ -1,35 +1,26 @@
 # Current implementation continuation
 
-Updated: 2026-09-10. The [master checklist](Test-Automation.md#unfinished-tasks)
+Updated: 2026-09-11. The [master checklist](Test-Automation.md#unfinished-tasks)
 owns task order and completion.
 
-- **Current: Task 20 — prove authenticated VT6 shell readiness and lineage**;
-  [active handoff](Task-20.md#task-20-continuation--2026-09-08),
-  [recipient-gate evidence](Evidence/20-VT6-Recipient-Gate-20260910.md),
-  [owning protocol and limitations](../../tests/e2e/README.md#visible-vt6-installation-terminal).
-  The observer now pins boot/process identity through an ordered single-use
-  getty/password/recheck sequence. Reuse it with `vt6-session` and the established
-  direct-login-child observer semantics to prove authenticated shell lineage
-  and command-input readiness. Session activity or a Bash executable alone is
-  insufficient; login forks a shell with a new session ID. The worker remains
-  unselected by `smoke.pm`. Bind current worker, fresh private capture,
-  provenance-bound reference, unchanged boot and exact pixel comparison to
-  durable one-use authorization before enabling dispatch. Qualify the smallest
-  guarded authenticated success/refusal after isolated safety checks once all
-  receipts have executable proofs. Keep inputs unchanged through finalization.
-  Do not repeat prompt-only collection or infer invisible input from blank pixels.
-  Sudo/notice pixels and full install/reboot/startup remain unfinished.
-- **Selection rechecked:** Task 20 earliest ready; no bypass.
-  [15A's later work](Task-15.md#task-15a-continuation--2026-09-08) stays preserved.
-- **All-task VM clearance persists** under the
-  [shared rule](Implementation-Workflow.md#vm-availability-for-all-tasks).
-  Missing controller proofs limit implementation readiness. All started commands
-  exited: 1,561 focused tests and `make check` passed (6,973 unit/contract and
-  58 private-D-Bus component tests). No current test failure, VM operation,
-  lease, worker, callback or screenshot export; no cleanup or recovery remains.
-  Historical failures stay retained in the handoff's evidence. Task 20 is
-  unaccepted; local observer verification does not qualify live authentication.
+- **Next eligible: Task 20 — complete normal shutdown qualification after the
+  live authenticated command proof.** No earlier unchecked task is bypassed.
+  See the [active handoff](Task-20.md#task-20-continuation--2026-09-08),
+  [reuse map](Reuse-Map.md#installation-helper-and-open-limits) and
+  [worker contract](../../tests/e2e/README.md#shared-guarded-worker).
+- Attempt 10 completed all authentication/command stages, then failed
+  `e2e:deadline` after power-off. Correct the evidenced finite-budget boundary
+  with delayed-callback/cleanup regressions, then run isolated safety and the
+  existing guarded VT6 authentication route through normal exit and preservation.
+  Do not repeat the unchanged 960-second attempt or reopen prompt collection.
+- [Evidence](Evidence/20-VT6-Command-and-Shutdown-20260911.md) retains both failed
+  attempts, the reproduced import correction and passing common checks. All
+  commands exited; both baselines, source/host preservation and cleanup passed.
+  No recovery or approval denial remains. Full Task 20 remains unaccepted.
+- **All-task VM clearance and the resolved writer deferral persist.** Freeze
+  fresh inputs through final cleanup; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
+  The renewed one-slice Astra/xhigh override is consumed.
 - Settings: **`gpt-6-astra` / `high`**.
-  Reason: recipient pinning and replay refusal now pass locally, but proving
-  shell readiness/lineage and binding fresh captures to durable authorization
-  remain unresolved security/correctness boundaries before credential dispatch.
+  Reason: authentication and command readiness now have live evidence; correcting
+  the deadline across synchronous shutdown still requires ownership-aware
+  reasoning and guarded qualification. Standard processing.

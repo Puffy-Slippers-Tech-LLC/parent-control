@@ -1,10 +1,11 @@
 """Pointer and overflow coverage for menus and shared auxiliary windows."""
 
+import json
+from pathlib import Path
+import tempfile
+
 import pytest
-
-# Reuse the existing private-compositor scaling fixture.
-from tests.ui.test_request_layout import request_display_scale
-
+from tests.support.events import read_events
 
 pytestmark = pytest.mark.ui
 
@@ -29,6 +30,136 @@ def click_control(hermetic_ui_session, request_display_scale):
 def _inside(control, width, height):
     x, y, w, h = control.extents
     return w > 0 and h > 0 and 0 <= x < x + w <= width and 0 <= y < y + h <= height
+
+
+@pytest.mark.parametrize("dpi_scale,scroll_page", ((1, False), (1.25, False), (1.25, True)),
+                         ids=("normal", "fractional", "fractional-scrolled"))
+def test_parent_allowance_popup_stays_attached(
+        launch_ui, request_display_scale, dpi_scale, scroll_page, click_control,
+        wait_for_accessible_node, wait_for_accessible_state):
+    directory = Path(tempfile.mkdtemp(prefix="onpc-parent-allowance-"))
+    application, log = launch_ui("parent_component_preview", environment_overrides={
+        "ONPC_PARENT_ALLOWANCE_LAYOUT_DIRECTORY": str(directory),
+        "ONPC_PARENT_COMPONENT_EVENTS_PATH": str(directory / "events.jsonl"),
+        "GSK_RENDERER": "gl",
+    })
+    window = application.child(role_name="frame", retry=False)
+    display_size = (round(1280 / dpi_scale), round(800 / dpi_scale))
+    if window.extents[2:] != display_size:
+        assert wait_for_accessible_node(application, "Maximize", "button").do_action(0)
+    wait_for_accessible_state(
+        lambda: window.extents[2:] == display_size, "maximized parent window",
+    )
+    allowance = wait_for_accessible_node(application, "Daily time allowance", "button")
+    wait_for_accessible_state(lambda: allowance.sensitive, "loaded daily allowance")
+    if scroll_page:
+        scrollbar = wait_for_accessible_node(application, "", "scroll bar")
+        original_y = allowance.extents[1]
+        scrollbar.value = scrollbar.max_value
+        wait_for_accessible_state(
+            lambda: allowance.extents[1] < original_y, "page scroll moves the allowance button",
+        )
+    click_control(allowance)
+    custom = wait_for_accessible_node(application, "Custom amount", "button")
+    wait_for_accessible_state(lambda: custom.showing, "allowance menu opens")
+
+    def assert_attached(index):
+        path = directory / f"layout-{index}.json"
+        wait_for_accessible_state(lambda: path.exists(), "popup placement evidence")
+        record = json.loads(path.read_text())
+        print("Allowance popup:", record, "scale:", dpi_scale, "evidence:", directory)
+        _x, button_y, _w, button_height = record["button"]
+        menu_x, menu_y, menu_width, menu_height = record["menu"]
+        # Use the measured content edge so shadows do not count as a gap.
+        # Gravity identifies the edge carrying the arrow; merely checking
+        # proximity accepts the regression with an arrow on the opposite edge.
+        if record["surface_anchor"] == "north":
+            assert record["rect_anchor"] == "south", record
+            gap = menu_y - button_y - button_height
+        else:
+            assert record["surface_anchor"] == "south", record
+            assert record["rect_anchor"] == "north", record
+            gap = button_y - menu_y - menu_height
+        assert 0 <= gap <= 32, record
+        assert 0 <= menu_x < menu_x + menu_width <= display_size[0], record
+        assert 0 <= menu_y < menu_y + menu_height <= display_size[1], record
+
+    assert_attached(0)
+    # Scrolling must reach the final preset while the fixed custom action
+    # remains available. Selecting it still uses the normal save path.
+    preset = wait_for_accessible_node(application, "23.5 hours", "button")
+    preset_scroller = preset.parent
+    while preset_scroller.roleName != "scroll pane":
+        preset_scroller = preset_scroller.parent
+    scrollbar = preset_scroller.child(role_name="scroll bar", retry=False)
+    scrollbar.value = scrollbar.max_value
+    wait_for_accessible_state(lambda: preset.showing, "last allowance preset scrolls into view")
+    assert custom.showing
+    assert preset.do_action(0)
+    wait_for_accessible_state(
+        lambda: any(event["event"] == "set_parent_control"
+                    and event["daily_limit_minutes"] == 1410
+                    for event in read_events(directory / "events.jsonl")),
+        "last allowance preset saves",
+    )
+    wait_for_accessible_state(lambda: allowance.sensitive, "allowance save completes")
+    if scroll_page:
+        # Reopening after moving the page must use the button's new position.
+        page_scrollbar = wait_for_accessible_node(application, "", "scroll bar")
+        original_y = allowance.extents[1]
+        page_scrollbar.value = 0
+        wait_for_accessible_state(
+            lambda: allowance.extents[1] > original_y, "page scroll returns to the top",
+        )
+    assert allowance.child(role_name="toggle button", retry=False).do_action(0)
+    assert_attached(1)
+    custom = wait_for_accessible_node(application, "Custom amount", "button")
+    assert custom.do_action(0)
+    custom_entry = wait_for_accessible_node(application, "Custom daily allowance", "text")
+    wait_for_accessible_state(lambda: custom_entry.showing, "custom allowance editor opens")
+    assert "Gtk-CRITICAL" not in log.read_text()
+
+
+@pytest.mark.parametrize("dpi_scale", (1, 1.25))
+def test_parent_expanded_legend_follows_content_height(
+        launch_ui, request_display_scale, dpi_scale,
+        wait_for_accessible_node, wait_for_accessible_state):
+    directory = Path(tempfile.mkdtemp(prefix="onpc-parent-legend-"))
+    application, log = launch_ui("parent_component_preview", environment_overrides={
+        "ONPC_PARENT_LEGEND_LAYOUT_DIRECTORY": str(directory),
+        "GSK_RENDERER": "gl",
+    })
+    window = application.child(role_name="frame", retry=False)
+    display_size = (round(1280 / dpi_scale), round(800 / dpi_scale))
+    if window.extents[2:] != display_size:
+        assert wait_for_accessible_node(application, "Maximize", "button").do_action(0)
+    wait_for_accessible_state(
+        lambda: window.extents[2:] == display_size, "maximized parent window",
+    )
+    assert wait_for_accessible_node(application, "App Limits", "page tab").do_action(0)
+    legend = wait_for_accessible_node(application, "Legend", "label").parent
+    while legend.roleName != "toggle button":
+        legend = legend.parent
+    assert legend.do_action(0)
+    path = directory / "layout.json"
+    wait_for_accessible_state(lambda: path.exists(), "expanded legend layout evidence")
+    record = json.loads(path.read_text())
+    widgets = record["widgets"]
+    card_x, card_y, card_width, card_height = widgets[0]["bounds"]
+    descriptions = [widget for widget in widgets
+                    if "policy-legend-description" in widget["classes"]]
+    assert len(descriptions) == 5
+    content_bottom = max(widget["bounds"][1] + widget["bounds"][3]
+                         for widget in descriptions)
+    bottom_gap = card_y + card_height - content_bottom
+    print("Legend evidence:", directory, "scale:", dpi_scale,
+          "height:", card_height, "bottom gap:", bottom_gap)
+    assert 0 <= bottom_gap <= 40, record
+    for widget in descriptions:
+        x, y, width, height = widget["bounds"]
+        assert card_x <= x < x + width <= card_x + card_width, record
+        assert card_y <= y < y + height <= card_y + card_height, record
+    assert "Gtk-CRITICAL" not in log.read_text()
 
 
 @pytest.mark.parametrize("dpi_scale", (1, 1.25))

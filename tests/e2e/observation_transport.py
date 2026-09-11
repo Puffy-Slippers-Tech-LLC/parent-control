@@ -13,6 +13,7 @@ import guest_observations
 import installation_observations
 import startup_observations
 from private_artifacts import EvidenceError, require
+from vt6_command import CommandRoundTrip
 
 
 class ReadOnlyObservations:
@@ -24,6 +25,7 @@ class ReadOnlyObservations:
         self._boot = None
         self._vt6_recipient = None
         self._vt6_recipient_stage = 0
+        self._vt6_shell = None
 
     def _guard(self):
         require(self._transport.config == self._config, 'observation:transport-replaced')
@@ -81,7 +83,8 @@ class ReadOnlyObservations:
                                                       'vt6-getty', 'vt6-password', 'vt6-session', 'vt6-install-password',
                                                       'vt6-reboot-password',
                                                       'vt6-getty-identity', 'vt6-password-identity',
-                                                      'vt6-password-recheck',
+                                                      'vt6-password-recheck', 'vt6-shell-identity',
+                                                      'vt6-login-diagnostic',
                                                       'package-absent', 'package-installed',
                                                       'installed-layout',
                                                       'install-password', 'reboot-password', 'install-refused',
@@ -98,6 +101,8 @@ class ReadOnlyObservations:
                 'vt6-getty-identity': (guest_observations.VT6_GETTY_IDENTITY, 60),
                 'vt6-password-identity': (guest_observations.VT6_PASSWORD_IDENTITY, 30),
                 'vt6-password-recheck': (guest_observations.VT6_PASSWORD_IDENTITY, 30),
+                'vt6-shell-identity': (guest_observations.VT6_SHELL_IDENTITY, 45),
+                'vt6-login-diagnostic': (guest_observations.VT6_LOGIN_DIAGNOSTIC, 30),
                 'vt6-session': (guest_observations.VT6_SESSION, 110),
                 'vt6-install-password': (installation_observations.VT6_SUDO_PASSWORD, 20),
                 'vt6-reboot-password': (installation_observations.VT6_REBOOT_PASSWORD, 20),
@@ -114,9 +119,9 @@ class ReadOnlyObservations:
                 'startup-broker': (startup_observations.BROKER, 40),
             }[name]
             recipient_stages = ('vt6-getty-identity', 'vt6-password-identity',
-                                'vt6-password-recheck')
+                                'vt6-password-recheck', 'vt6-shell-identity')
             if name in recipient_stages:
-                require(self._boot is not None and self._vt6_recipient_stage < 3 and
+                require(self._boot is not None and self._vt6_recipient_stage < len(recipient_stages) and
                         name == recipient_stages[self._vt6_recipient_stage],
                         'observation:vt6-recipient-order')
             self._guard()
@@ -126,6 +131,24 @@ class ReadOnlyObservations:
                     'observation:invalid-output')
             if name in recipient_stages:
                 result = self._accept_vt6_recipient(name, raw)
+            elif name == 'vt6-login-diagnostic':
+                result = json.loads(raw)
+                require(type(result) is dict and set(result) == {
+                    'executable', 'login_timeout_seconds', 'timeout_source',
+                    'login_version', 'recipient_sha256'}
+                    and result['executable'] in ('login', 'agetty', 'other')
+                    and type(result['login_timeout_seconds']) is int
+                    and 0 <= result['login_timeout_seconds'] <= 86400
+                    and result['timeout_source'] in ('login.defs', 'default')
+                    and type(result['login_version']) is str
+                    and re.fullmatch(r'[0-9]{1,3}(?:\.[0-9]{1,3}){1,2}', result['login_version'])
+                    and type(result['recipient_sha256']) is str
+                    and re.fullmatch(r'[0-9a-f]{64}', result['recipient_sha256'])
+                    and raw == (json.dumps(result, sort_keys=True) + '\n').encode(),
+                    'observation:invalid-output')
+                recipient = result.pop('recipient_sha256')
+                result['matches_pinned_recipient'] = (self._vt6_recipient is not None
+                    and recipient == self._vt6_recipient[1])
             elif name == 'startup-broker':
                 result = startup_observations.parse_broker(raw)
             elif name == 'startup-enforcement':
@@ -257,18 +280,19 @@ class ReadOnlyObservations:
     def _accept_vt6_recipient(self, name, raw):
         """Keep identity private; a matching digest is continuity, not input authority.
 
-        This fixed three-read sequence cannot be repinned or retried. The caller
+        This fixed four-read sequence cannot be repinned or retried. The caller
         still owns worker/capture provenance, pixel checks and durable one-use
-        authorization. In particular, the last read does not prove empty input
-        or shell readiness and must not itself authorize password submission.
+        authorization. The shell read proves lineage, not command readiness;
+        no read proves empty input or authorizes password submission.
         """
         identity = json.loads(raw)
         probe = 'vt6-password-identity' if name == 'vt6-password-recheck' else name
-        require(isinstance(identity, dict) and set(identity) == {
-                    'probe', 'boot_sha256', 'recipient_sha256'} and
+        digests = ('boot_sha256', 'recipient_sha256', 'shell_sha256') if name == 'vt6-shell-identity' else (
+            'boot_sha256', 'recipient_sha256')
+        require(isinstance(identity, dict) and set(identity) == {'probe', *digests} and
                 identity['probe'] == probe and all(
                     isinstance(identity[key], str) and re.fullmatch(r'[0-9a-f]{64}', identity[key])
-                    for key in ('boot_sha256', 'recipient_sha256')) and
+                    for key in digests) and
                 raw == (json.dumps(identity, sort_keys=True) + '\n').encode(),
                 'observation:invalid-output')
         pinned = (identity['boot_sha256'], identity['recipient_sha256'])
@@ -280,7 +304,27 @@ class ReadOnlyObservations:
         result = {'boot_sha256': identity['boot_sha256'], 'active_vt6_verified': True}
         if name == 'vt6-getty-identity':
             result['vt6_getty_verified'] = True
+        elif name == 'vt6-shell-identity':
+            self._vt6_shell = identity['shell_sha256']
+            result.update(vt6_login_continuity_verified=True,
+                          vt6_foreground_shell_verified=True)
         else:
             result.update(vt6_login_process_verified=True, terminal_echo_disabled=True,
                           vt6_recipient_continuity_verified=True)
         return result
+
+    def vt6_command_boundary(self):
+        """Create the sole fixed command round trip after ordered lineage proof.
+
+        This is a nonsecret keyboard operation, not a password authorization.
+        Failure and replay share this observer's permanent refusal latch.
+        """
+        require(not self._failed, 'observation:previous-failure')
+        try:
+            require(self._vt6_recipient_stage == 4 and self._vt6_shell is not None,
+                    'observation:vt6-command-order')
+            self._vt6_recipient_stage = 5
+            return CommandRoundTrip(self, self._vt6_recipient, self._vt6_shell)
+        except BaseException:
+            self._failed = True
+            raise

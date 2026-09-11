@@ -38,6 +38,10 @@ class FapolicydPolicy:
         self._reload_command = tuple(reload_command)
         self._compile_command = tuple(compile_command)
         self._lock = threading.Lock()
+        # Disk equality alone cannot establish even successful notification:
+        # an earlier process or failed rollback may have left stale live rules.
+        # This is only a command-success cache, not a daemon acknowledgement.
+        self._last_notified_contents: bytes | None = None
 
     @staticmethod
     def _digest(path: str) -> str:
@@ -160,7 +164,7 @@ class FapolicydPolicy:
     def reconcile(self, filters: dict[int, tuple[str, ...]],
                   patterns: dict[int, tuple[str, ...]] | None = None) -> None:
         LOG.info("execution policy reconcile stage=compile account_count=%d", len(filters))
-        contents = self.render(filters, patterns)
+        contents = self.render(filters, patterns).encode("utf-8")
         with self._lock:
             previous = None
             try:
@@ -170,12 +174,13 @@ class FapolicydPolicy:
             except OSError as error:
                 raise ExecutionPolicyError("could not read current execution policy") from error
 
-            if previous == contents.encode("utf-8"):
+            if previous == contents and self._last_notified_contents == contents:
                 LOG.info("execution policy reconcile outcome=unchanged")
                 return
 
+            self._last_notified_contents = None
             LOG.info("execution policy reconcile stage=replace")
-            self._replace(contents.encode("utf-8"))
+            self._replace(contents)
             try:
                 LOG.info("execution policy reconcile stage=activate")
                 self._reload()
@@ -188,13 +193,17 @@ class FapolicydPolicy:
                     else:
                         self._replace(previous)
                     self._reload()
+                    self._last_notified_contents = previous
                 except Exception as rollback_error:
+                    LOG.error("execution policy reconcile outcome=rollback-failed error_type=%s",
+                              type(rollback_error).__name__)
                     raise ExecutionPolicyError(
                         "execution-policy rollback could not be activated"
                     ) from rollback_error
                 if isinstance(error, ExecutionPolicyError):
                     raise
                 raise ExecutionPolicyError("execution policy could not be activated") from error
+            self._last_notified_contents = contents
             LOG.info("execution policy reconcile outcome=accepted")
 
     def remove(self) -> None:
@@ -213,6 +222,7 @@ class FapolicydPolicy:
                 "execution policy removal stage=activate had_rule_file=%s",
                 previous is not None,
             )
+            self._last_notified_contents = None
             try:
                 self._rules_path.unlink(missing_ok=True)
                 self._reload()
@@ -225,7 +235,10 @@ class FapolicydPolicy:
                     try:
                         self._replace(previous)
                         self._reload()
+                        self._last_notified_contents = previous
                     except Exception as rollback_error:
+                        LOG.error("execution policy removal outcome=rollback-failed error_type=%s",
+                                  type(rollback_error).__name__)
                         raise ExecutionPolicyError(
                             "execution-policy removal rollback could not be activated"
                         ) from rollback_error

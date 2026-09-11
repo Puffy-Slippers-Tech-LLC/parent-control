@@ -49,6 +49,29 @@ review changes no task order or completion status.
 - Native/Flatpak process and package assets:
   [artifact contract](../../tests/integration/README.md#package-and-fixture-inputs).
   Snap and real-game delivery remain work; sleeping fixtures cannot prove gameplay.
+- Execution-policy notification and rollback recovery: reuse
+  `FapolicydPolicy.reconcile/remove` under the
+  [owning application contract](../SystemDesign/Applications.md#notification-recovery-and-acknowledgement-limit).
+  [Local failure/recovery evidence](Evidence/15A-Notification-Recovery-20260911.md)
+  covers disk-equality false success after failed rollback and broker restart.
+  Active-policy acknowledgement and live qualification remain open. Consumers
+  include 15A/15B, 17A/17B, 18C, 21B, 25B and 26A/26B; do not interpret the
+  notification cache or old rules-only live pass as synchronous activation.
+  The [interface audit and dependency capture](Evidence/15A-Activation-Interface-Audit-20260911.md)
+  reject pre-parse journal digests as receipts. Reuse
+  `system_enforcement.record_execution_backend` for validated installed-version
+  and binary-digest properties; capture is locally tested, not live-qualified.
+  The old guest artifact path was unavailable during this audit, so its version
+  remains unverified and must not be inferred from the audited upstream tag.
+  The [generation-witness gate](../SystemDesign/Applications.md#generation-witness-design-gate)
+  and [kernel audit](Evidence/15A-Kernel-Witness-Audit-20260911.md) reject
+  nonce-denial receipts (queue overflow) and early markers (partial parsing).
+  Systemd transient execution through the existing Gio transport is the next
+  bounded probe candidate; ownership/timeout/collection checks and live
+  qualification are pending. Its
+  [removal dependency](../SystemDesign/Package-Removal.md#execution-policy-baseline)
+  applies to 18C as well as the policy/grant consumers above. No runtime witness
+  or general-purpose process helper has been added.
 - Approved selected checks, artifact builds, diagnostics and listing:
   [category commands](Approval-Tools.md#category-coverage-and-future-additions).
   Use implemented selectors; do not rediscover permissions or invent a launcher.
@@ -152,8 +175,8 @@ The owning contract now records the local delayed-read atime reproduction,
 `Authentication._pixels` reuse of `provenance.identity` plus UID/GID stability,
 and descriptor/path metadata and safe checkpoint regressions. The corrected
 capture comparison subsequently passes live stages in attempts 9/10 below.
-No new prompt collection or unchanged rerun is needed. Complete worker-budget
-and normal-shutdown qualification remain unfinished.
+No new prompt collection or unchanged rerun is needed. The worker-budget and
+normal-shutdown correction is recorded with attempt 11 below.
 All three attempts pass preservation and cleanup.
 The [joined-flow review and attempt 8](Evidence/20-VT6-Joined-Flow-20260910.md)
 extend that owning contract with a reproduced marker-read atime correction and
@@ -172,12 +195,30 @@ records live password/session/shell proof in attempt 9, then correction of the
 standalone controller's late `vt6_command` import. Attempt 10 completes every
 authentication/command stage but fails `e2e:deadline` after power-off. The
 [owning worker contract](../../tests/e2e/README.md#shared-guarded-worker) records
-the inadequate finite budget, missing normal shutdown proof and existing
-callback/cleanup regressions to extend. Both attempts pass outer restoration,
+the inadequate finite budget and its subsequent correction with delayed
+callback/cleanup regressions. Both attempts pass outer restoration,
 source/host preservation and cleanup. The [VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal)
 now distinguishes live capture/shell/marker stage evidence from failed complete
-qualification. Finish that shutdown boundary before extending installation,
-18A/18C or 26C terminal consumers. Sudo/notice pixels remain pending.
+qualification. The subsequent
+[shutdown and source-preservation evidence](Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
+records attempt 11's passing authenticated worker, normal exit and shutdown with
+the finite 1800-second selection. Its outer result fails final source preservation
+after an unrelated source-file addition. The owning worker and
+[provenance contracts](../../tests/e2e/README.md#controller-owned-provenance)
+publish the correction, refusal coverage and live scope. Capture fresh inputs
+and finish final preservation before extending installation, 18A/18C or 26C
+terminal consumers. The next
+[fresh-input attempt](Evidence/20-VT6-Fresh-Input-Refusal-20260911.md) then
+refused during preparation when three new nonignored release-tool files appeared
+after capture. The owning provenance contract records the current cause and
+successful cleanup; preserve the additions and recapture rather than changing
+the latch. Release-tool changes continued after cleanup. The
+[active deferral](Task-20.md#task-20-continuation--2026-09-08) requires writer
+completion or a coordinated window through final cleanup; a quiet status alone
+does not establish it. The one-slice intervention is consumed with verified
+15A notification recovery; normal checklist order resumes. Task 15A's remaining
+acknowledgement implementation is independently ready meanwhile. Sudo/notice
+pixels remain pending.
 Neither the credential-free prompt collection nor the earlier
 [VT6 surface evidence](Evidence/20-Visible-VT6-20260909.md) qualifies
 authentication or E2E-002. The historical serial sudo recipient failure remains
@@ -250,7 +291,7 @@ with evidence.
 | --- | --- | --- |
 | [19B](Task-19.md#task-19b) | Accepted: reuse the [qualified GDM/serial helpers and regressions](#qualified-gdm-and-serial-helpers). E2E-001 supersedes E2E-034; retain one canonical ordinary smoke. | Three reviewed qualifications are retained in acceptance evidence; repeat qualification only for applicable changes. Ordinary runs must not multiply implementation-only qualification. |
 | [20](Task-20.md) | Extend the [installation helper and open limits](#installation-helper-and-open-limits), [qualified GDM/serial helpers](#qualified-gdm-and-serial-helpers), [startup enforcement observation](../../tests/e2e/README.md#startup-enforcement-observation), [broker startup witness](../../tests/e2e/README.md#broker-startup-observation), package assertions and asset transport. | Actual authenticated installation/reboot, independent broker and fapolicyd readiness; preserve the startup audit's existing requirement mapping. |
-| [15A](Task-15.md#task-15a) | Extend F1 with one installed enforcement area and native/Snap/Flatpak case data; publish launch witnesses for 25A. | Every required platform, route, identity/matching boundary and other-user outcome. |
+| [15A](Task-15.md#task-15a) | Extend F1's installed enforcement area and native/Snap/Flatpak case data; reuse the [notification recovery contract](../SystemDesign/Applications.md#notification-recovery-and-acknowledgement-limit), [generation-witness gate](../SystemDesign/Applications.md#generation-witness-design-gate) and [dependency capture/audit](Evidence/15A-Activation-Interface-Audit-20260911.md); publish launch witnesses for 25A. | Every required platform, route, identity/matching boundary and other-user outcome; notification, early markers and nonce denials cannot qualify activation. Bounded owned probe execution and full receipt semantics remain unimplemented. |
 | [15B](Task-15.md#task-15b) | One owned-process controller and rollback witness set serves later 17B/21B/25B/26A. | Kernel identity, all relevant sessions, irreversible partial termination and unrelated-process survival. |
 | [16A](Task-16.md#task-16a) | Share time/grant witnesses across arithmetic and separate clock scenarios. | Real Malcontent/AccountsService, both DST directions and midnight; controlled clocks never replace natural expiry. |
 | [16B](Task-16.md#task-16b) | Reuse real-caller/ownership helpers for PAM/session cases; publish observations for 22A. | Authentication/account phases, exemptions, unavailable/corrupt stores, idle/suspend and other-user isolation. |
@@ -258,7 +299,7 @@ with evidence.
 | [17B](Task-17.md#task-17b) | Apply 17A's assertions to real short-grant sequences and reuse them in 22A/26C. | Both soft-app choices, replacement precedence, no termination at expiry, installed failure evidence. |
 | [18A](Task-18.md#task-18a) | Build each required activation fixture once per verified build-input set; parameterize assertions and extend applicable [installation observations](#installation-helper-and-open-limits). | All four activation classes, changed/added/removed files, real process/session/reboot transitions. |
 | [18B](Task-18.md#task-18b) | Inventory real supported schema steps once, then use data tables for their invalid/retry cases. | Every actual migration path, interruption and fail-closed data boundary; no invented historical releases. |
-| [18C](Task-18.md#task-18c) | Extend applicable [package/terminal helpers and regressions](#installation-helper-and-open-limits) for removal/reinstall/purge; publish lifecycle observations for 26C. | Removal has its own final red notice and acceptance; installation qualification does not prove it. Real lifecycle and independent refusal/retry attempts remain required. |
+| [18C](Task-18.md#task-18c) | Extend applicable [package/terminal helpers and regressions](#installation-helper-and-open-limits) for removal/reinstall/purge; preserve the [execution-witness removal dependency](../SystemDesign/Package-Removal.md#execution-policy-baseline); publish lifecycle observations for 26C. | Removal has its own final red notice and acceptance; installation qualification does not prove it. Real lifecycle and independent refusal/retry attempts remain required; notification-only reload is not active-policy acknowledgement. |
 
 ## Graphical work
 

@@ -14,7 +14,60 @@ active problem and relevant code, prove one real helper path, then batch its
 cases. Preserve a short handoff and clear solved context before a different
 problem. A fresh chat does not require rerunning unaffected tests.
 
-## Layers and boundaries
+## All established regressions
+
+Run `make test-all` from the checkout. `tools/run-tests all` is the equivalent
+validated launcher. Neither accepts suite selectors. The terminal shows only
+colored category progress and overall progress; full output is continuously
+appended and flushed to `docs/TestAutomation/Evidence/test-all-runs/<run>/report.md`.
+The accompanying `progress.json` records the latest category counts and states.
+Each run gets a new private directory; previous results are never overwritten.
+
+The command collects current unit/contract, private-D-Bus, UI and fixture runtime
+cases; runs cleanup prerequisites in isolation before protected operations;
+runs source/static, child Node/GJS and backend checks; builds two fresh artifact
+sets and compares them; then runs the full installed-system selection and every
+E2E variant whose inventory status is `ready`. New cases within these suites and
+newly registered ready variants need no edit to the aggregate. Pending roadmap
+variants and deliberate failure/recovery qualification routes are excluded.
+Register new system areas through the existing system selection contract;
+the aggregate always requests its full selection.
+
+Counts are collected pytest cases, registered installed-system executions and
+E2E variants. A non-pytest command (such as static checks, Node's complete suite,
+or an artifact build) counts as one check. Totals show `?` while discovery is
+incomplete. Completed counts include failed cases, so 100% means execution
+completed; only a green check means success. A failing prerequisite or VM
+attempt blocks its dependent operations. Skipped or expected-failure cases are
+reported as incomplete coverage and prevent a green aggregate result.
+
+Ctrl+C latches cancellation, prevents further tests from starting, and waits
+for the active child’s cleanup, including guarded VM restoration. Repeated
+Ctrl+C does not interrupt cleanup. No process-name scans or unrelated process
+signals are used. A controller losing its parent’s pipe also cancels. Cleanup
+can take several minutes; do not use SIGKILL if you want normal restoration.
+Failures are emitted when pytest reports them, including setup/teardown errors;
+partial output is flushed before progress updates. Guest traceback details are
+flushed in the private guest results, while registered failure IDs immediately
+reach the report. Existing collection returns those private diagnostics even on
+interruption. Abrupt machine power loss can still prevent guest collection.
+
+Run from the prepared development host as the normal user. The aggregate never
+installs dependencies or opens an authorization dialog: unavailable tools,
+authorization, baseline or inventory cause failure. After updating the runner,
+refresh through `./setup.sh --test-tools-only`. This installs the maintained
+dispatcher and the `make test-all` Codex rule; restart Codex to load new rules.
+Direct terminal use has no Codex approval layer. The equivalent already-approved
+`tools/run-tests all` route remains available in an existing Codex session.
+This is development/test tooling only; package update activation is **none**.
+
+Generated `test-all-runs/` reports are Git-ignored so streaming them cannot
+invalidate package or E2E source provenance. Curated evidence elsewhere in this
+directory remains tracked and continues to participate in source validation.
+This command covers established regressions, not completion of the unfinished
+release-acceptance roadmap.
+
+## Test layers
 
 | Location | Purpose | Real dependencies and isolation |
 | --- | --- | --- |
@@ -71,7 +124,7 @@ external paths, symlinks, shell commands and Make argument injection are refused
 The root-owned test dispatcher supports integration, system, E2E and pinned-VM
 operations. Its Codex approval and Polkit authorization are separate controls.
 It trusts the configured checkout's test code and imports. New files within a
-supported category need no per-file approvals. Planned E2E and aggregate runners
+supported category need no per-file approvals. Unimplemented E2E scenarios and planned runners
 remain unavailable until implemented; registering an approval is not test
 coverage. The updated rules replace broad direct pytest/privileged-reader grants
 and restrict relevant old global approvals; use the validated entry points.

@@ -17,3 +17,5 @@ artifacts/ui/
 /debian/oh-no-parent-control.substvars
 /debian/*.debhelper
 output/
+# Generated live regression output must not mutate package source provenance.
+/docs/TestAutomation/Evidence/test-all-runs/

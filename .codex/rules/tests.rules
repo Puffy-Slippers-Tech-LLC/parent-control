@@ -1,7 +1,7 @@
 # This unprivileged helper validates every path; trust includes edits to the
 # helper in this checkout. No arbitrary rm or privileged deletion is approved.
 prefix_rule(
-    pattern = [["tools/cleanup-screenshots", "./tools/cleanup-screenshots", "/home/edgar/parent-control/tools/cleanup-screenshots"]],
+    pattern = [["tools/cleanup-screenshots", "./tools/cleanup-screenshots", "/Data/Code/PST/parent-control/tools/cleanup-screenshots"]],
     decision = "allow",
     justification = "Remove explicitly selected caller-owned project PNG screenshots directly inside /tmp, with path validation.",
     match = [
@@ -58,7 +58,7 @@ prefix_rule(
 # validates unit paths and pytest options; trust includes edits to the helper
 # and the tests it loads. Always quote globs so the shell does not expand them.
 prefix_rule(
-    pattern = [["tools/run-unit-tests", "./tools/run-unit-tests", "/home/edgar/parent-control/tools/run-unit-tests"]],
+    pattern = [["tools/run-unit-tests", "./tools/run-unit-tests", "/Data/Code/PST/parent-control/tools/run-unit-tests"]],
     decision = "allow",
     justification = "Run unprivileged unit tests through a launcher that validates selections and expands quoted patterns inside tests/unit.",
     match = [
@@ -71,26 +71,13 @@ prefix_rule(
     ],
 )
 
-# Release preparation has a dedicated isolated entry point so the general
-# Python restriction does not force a prompt on every inspection/retry.
-prefix_rule(
-    pattern = [["tools/publish-release", "./tools/publish-release", "/home/edgar/parent-control/tools/publish-release"]],
-    decision = "allow",
-    justification = "Prepare and inspect caller-owned /tmp/onpc-release-* sources or validate their DSC with fixed clean sbuild settings; no signing, push or upload operations.",
-    match = ["tools/publish-release plan", "tools/publish-release status",
-             "tools/publish-release prepare /tmp/onpc-release-example",
-             "tools/publish-release inspect /tmp/onpc-release-example/source",
-             "tools/publish-release check-build /tmp/onpc-release-example/source"],
-    not_match = ["python3 tools/publish_release.py plan", "pkexec tools/publish-release plan"],
-)
-
 # Each entry point validates its own arguments; no generic tools/* prefix.
 prefix_rule(
-    pattern = [["tools/run-tests", "./tools/run-tests", "/home/edgar/parent-control/tools/run-tests",
-                "tools/run-ui-tests", "./tools/run-ui-tests", "/home/edgar/parent-control/tools/run-ui-tests",
-                "tools/diagnose", "./tools/diagnose", "/home/edgar/parent-control/tools/diagnose",
-                "tools/test-vm", "./tools/test-vm", "/home/edgar/parent-control/tools/test-vm",
-                "tools/read-only", "./tools/read-only", "/home/edgar/parent-control/tools/read-only"]],
+    pattern = [["tools/run-tests", "./tools/run-tests", "/Data/Code/PST/parent-control/tools/run-tests",
+                "tools/run-ui-tests", "./tools/run-ui-tests", "/Data/Code/PST/parent-control/tools/run-ui-tests",
+                "tools/diagnose", "./tools/diagnose", "/Data/Code/PST/parent-control/tools/diagnose",
+                "tools/test-vm", "./tools/test-vm", "/Data/Code/PST/parent-control/tools/test-vm",
+                "tools/read-only", "./tools/read-only", "/Data/Code/PST/parent-control/tools/read-only"]],
     decision = "allow",
     justification = "Use validated category, system diagnostic, or pinned test-VM operations.",
     match = [
@@ -123,7 +110,7 @@ prefix_rule(
 # Keep this separate from Python: an allow cannot override the interpreter
 # prompt, and neither --help nor a script filename makes arbitrary code safe.
 prefix_rule(
-    pattern = [["tools/codex_slices.py", "./tools/codex_slices.py", "/home/edgar/parent-control/tools/codex_slices.py"],
+    pattern = [["tools/codex_slices.py", "./tools/codex_slices.py", "/Data/Code/PST/parent-control/tools/codex_slices.py"],
                ["--help", "-h", "status"]],
     decision = "allow",
     justification = "Inspect the trusted slice launcher's help or saved status; these routes do not start workers or change control state.",
@@ -131,7 +118,7 @@ prefix_rule(
     not_match = ["python3 tools/codex_slices.py --help", "tools/codex_slices.py start", "tools/random.py --help"],
 )
 prefix_rule(
-    pattern = [["tools/codex_slices.py", "./tools/codex_slices.py", "/home/edgar/parent-control/tools/codex_slices.py"],
+    pattern = [["tools/codex_slices.py", "./tools/codex_slices.py", "/Data/Code/PST/parent-control/tools/codex_slices.py"],
                ["start", "run", "stop", "--max-slices", "--max-api-retries", "--reconciled"]],
     decision = "prompt",
     justification = "Starting or controlling unattended Codex workers needs authorization for that work; only help and status are preapproved.",
@@ -163,7 +150,7 @@ prefix_rule(
                ["build", "check", "check-release-version", "check-unit",
                 "check-component", "check-test-fixtures", "check-child-node",
                 "check-child-gjs", "check-child-shell", "check-shell",
-                "check-gjs", "check-static"]],
+                "check-gjs", "check-static", "test-all"]],
     decision = "allow",
     justification = "Run the trusted checkout's routine build and check targets without repeated approval.",
     match = ["make check", "/usr/bin/make check", "make build", "make check-component"],

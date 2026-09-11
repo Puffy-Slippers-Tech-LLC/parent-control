@@ -22,15 +22,18 @@ def test_fixture_refuses_outside_guarded_guest(monkeypatch, entry, args):
     run = Mock()
     account = Mock()
     load = Mock()
+    create = Mock()
     monkeypatch.setattr(expiry.guest, 'guard', guard)
     monkeypatch.setattr(expiry.guest.commands, 'run', run)
     monkeypatch.setattr(expiry.pwd, 'getpwnam', account)
     monkeypatch.setattr(expiry.ctypes, 'CDLL', load)
+    monkeypatch.setattr(expiry.tempfile, 'mkdtemp', create)
     with pytest.raises(expiry.guest.GuestError, match='test:guest-refused'):
         getattr(expiry, entry)(*args)
     run.assert_not_called()
     account.assert_not_called()
     load.assert_not_called()
+    create.assert_not_called()
 
 
 def test_pam_probe_refuses_unregistered_service_before_opening_pam(monkeypatch):

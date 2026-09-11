@@ -27,7 +27,7 @@ plugin packages without requesting package upgrades; ordinary test commands
 never install dependencies. Full setup includes these prerequisites too.
 
 The [rules renderer](../../tools/install_codex_rules.py) validates its entire
-fixed launcher inventory before rendering, including `publish-release`.
+fixed launcher inventory before rendering.
 Simulated checkouts must copy that complete inventory too:
 `test_rules_render_for_a_checkout_with_spaces` in the
 [installation regressions](../../tests/unit/test_dev_tool_installation.py)
@@ -64,38 +64,25 @@ Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 changing unrelated system/user rules. These reads cover any working directory
 or repository; select a repository with the command tool's working directory.
 
-## Release preparation and inspection
+## Publishing
 
-Use the maintained executable release entry point:
+Run `make publish` to invoke the single [publisher](../../tools/publish.py).
+It validates `docs/VersionHistory.md`, signs, tests in clean local sbuild, pushes
+the source and tags, uploads to Launchpad, and verifies binary publication.
+Its supporting modules are under `tools/publishing/`; they are not separate
+release commands.
 
-```sh
-tools/publish-release plan
-tools/publish-release status
-tools/publish-release prepare /tmp/onpc-release-UNIQUE
-tools/publish-release inspect /tmp/onpc-release-UNIQUE/source
-tools/publish-release check-build /tmp/onpc-release-UNIQUE/source
-```
+Manual execution on a configured host needs no approval or Polkit dialog.
+When an assistant performs an authorized publication, approve the whole
+`make publish` process outside the sandbox at launch if platform policy requires
+it. Local test permissions do not grant publication. The old preparation-only
+launcher and its maintained allow rule have been removed.
+See [unattended publishing](../Publishing.md#unattended-operation-and-approvals).
 
-The helper validates operations and confines release directories to caller-owned
-`/tmp/onpc-release-*` trees without symlinks, public writes or writes by a group
-other than the caller's primary group (the normal development umask is supported). It
-reuses the existing version planning, clone preparation and signed-artifact
-inspection implementation. `check-build` copies the checksum-verified source
-DSC/archive into a new `/tmp/onpc-ppa-check-*` attempt, then invokes sbuild with
-fixed resolute/amd64 settings, enabled tests and no build network. No arbitrary
-sbuild options, command hooks, bind mounts or environment overrides are exposed.
-It never signs, pushes, uploads, installs the app on the host or
-controls the VM. Public status is source history, not binary build acceptance.
-Trust includes the maintained helper, its implementation and reviewed release
-sources. General Python, shells and arbitrary Docker commands are not granted.
-
-Refresh with `./setup.sh --codex-rules-only`, then restart Codex in this trusted
-checkout. The rule covers relative, `./` and development-checkout absolute paths;
-use the absolute launcher when working in a release clone. Rules are loaded at
-startup, so an already-running publication session retains its loaded rules.
-Other applicable prompt/forbidden rules still take precedence over an allow.
-See [Codex rules](https://learn.chatgpt.com/docs/agent-configuration/rules).
-Activation is development-only (`none`); no product migration or restart.
+No setup, privilege-policy change or general interpreter/shell allowance is
+needed for this refactoring. Development activation is `none`: it changes no
+installed services or saved data. The Debian activation helper moved to
+`debian/package_activation.py`; its installed command and behavior are unchanged.
 
 ## Launcher inspection and workspace edits
 
@@ -201,7 +188,8 @@ argument; the launcher expands file patterns without a shell.
 | Graphical journeys, harness qualification, variants and fault/recovery scenarios | `tools/run-tests e2e --list --scenario E2E-001` / `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` | Host-safe inventory preflight; invalid/pending execution refuses before privilege checks. Ready callbacks use the accepted guarded controller; E2E-001 supersedes E2E-034 and adds ordered GDM-return evidence; [19B's three public qualifications are accepted](Evidence/19B-Acceptance-20260908.md). Other 156 variants remain pending |
 | Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
-| Future fast suite and complete gate (Task 28A) | `tools/run-tests fast --component broker --type contract` / `tools/run-tests all` | Fixed `test-fast`/`test-all` targets; currently refuse because those targets are unfinished |
+| Established regressions | `make test-all` / `tools/run-tests all` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors |
+| Future fast suite (Task 28A) | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
 
 Routine `make check`, `make build`, `make check-release-version`, `make check-unit`,
 `make check-component`, `make check-test-fixtures`, `make check-child-node`,

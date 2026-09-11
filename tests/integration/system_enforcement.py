@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 import shutil
 import stat
 import sys
@@ -27,6 +28,7 @@ RETENTION_DESKTOP_ID = 'com.puffyslippers.ONPCTest.Retention.desktop'
 RETENTION_DESKTOP = Path('/usr/share/applications') / RETENTION_DESKTOP_ID
 RULES = Path('/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules')
 COMPILED_RULES = Path('/etc/fapolicyd/compiled.rules')
+FAPOLICYD = Path('/usr/sbin/fapolicyd')
 IDENTITY = b'ONPC_TEST_LAUNCH_IDENTITY_VERIFIED\n'
 READY = b'ONPC_TEST_APPLICATION_READY\n'
 DENIED = b'ONPC_TEST_EXEC_DENIED\n'
@@ -328,12 +330,26 @@ def record_rules(stage, uid, blocked, record, variant='command'):
     return tuple(tuple(lines) for lines in texts)
 
 
+def record_execution_backend(record):
+    """Identify the installed dependency; this does not witness live policy."""
+    version = guest.run(
+        ['dpkg-query', '-W', '-f=${Version}', 'fapolicyd'], timeout=10)
+    guest.require(re.fullmatch(r'[0-9][A-Za-z0-9.+:~\-]{0,127}', version) is not None,
+                  'enforcement:backend-version')
+    # Validate before publishing command-derived text. Never put arbitrary
+    # command output, paths supplied by an account, or rule data in properties.
+    digest = guest.sha(FAPOLICYD)
+    record('onpc.enforcement.fapolicyd.package-version', version)
+    record('onpc.enforcement.fapolicyd.executable.sha256', digest)
+
+
 def native_policy_transition(accounts, record, variant='command'):
     """Hard/soft denial in both screen-time states, with UID isolation throughout."""
     guest.guard()
     target, desktop, desktop_id = native_paths(variant)
     guest.require(variant in ('command', 'whitespace', 'pattern', 'retention'),
                   'enforcement:fixture-variant')
+    record_execution_backend(record)
     prefix = f'onpc.native.{variant}'
     record(f'{prefix}.fixture.sha256', guest.sha(target))
     parent, child, other = (accounts[role] for role in ('parent', 'child', 'other'))

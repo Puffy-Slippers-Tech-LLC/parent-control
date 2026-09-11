@@ -19,6 +19,8 @@ CATEGORIES = {
     'child-gjs': 'tests/child/**/*_test.js',
     'static': 'shell, gjs, or all (default)',
     'backend': 'read-only graphical backend package/API prerequisite check',
+    'source': 'established syntax, traceability and source guards',
+    'fixture-runtime': 'all established fixture runtime pytest cases',
     'traceability': 'stage (default) or final requirement checks',
     'coverage': 'unit and private-D-Bus Python coverage in a new private directory',
     'check': 'the current make check aggregate',
@@ -29,7 +31,7 @@ CATEGORIES = {
     'system': 'guarded installed runner; --artifacts, --previous-artifacts, --area, --test, --list',
     'e2e': 'host-safe graphical inventory --list; invalid/pending execution refused before privilege',
     'fast': 'reserved for the Task 28 make test-fast target',
-    'all': 'reserved for the Task 28 make test-all target; no narrowing selectors',
+    'all': 'all established regression suites; live report and no narrowing selectors',
 }
 
 
@@ -60,6 +62,19 @@ def make_command(root, target, assignments=()):
 
 def plan(root, category, argv):
     """Validate everything before prerequisites, output creation or execution."""
+    if category == 'source':
+        if argv:
+            raise ValueError('source checks accept no arguments')
+        return [make_command(root, 'check-source')], False
+    if category == 'fixture-runtime':
+        _, options = host.arguments(argv, 'fixtures')
+        if any(not value.startswith('-') for value in argv):
+            raise ValueError('fixture runtime accepts options only')
+        paths = sorted((root / 'tests/fixtures').rglob('test_*.py'))
+        if not paths:
+            raise ValueError('fixture runtime suite is empty')
+        targets = [host.confined_file(root, path.relative_to(root)) for path in paths]
+        return [['/usr/bin/python3', '-B', '-m', 'pytest', *options, '--', *targets]], '--collect-only' not in options
     if category == 'backend':
         if argv:
             raise ValueError('backend readiness accepts no arguments')
@@ -156,6 +171,20 @@ def main(argv=None):
             raise ValueError('use this launcher as an unprivileged user')
         root = Path(__file__).resolve().parents[1]
         category, args = argv[0], argv[1:]
+        if category == 'all':
+            if args:
+                raise ValueError('all accepts no arguments')
+            from regression import main as regression_main
+            return regression_main(root)
+        if args[:1] == ['--unattended']:
+            from regression_process import host_run, category_run
+            if category in ('unit', 'component', 'ui'):
+                return host_run(root, category, args[1:])
+            if category not in ('child-node', 'child-gjs', 'static', 'backend',
+                                'traceability', 'fixtures', 'fixture-runtime', 'source',
+                                'artifacts', 'system', 'e2e'):
+                raise ValueError('unsupported unattended category')
+            return category_run(root, category, args[1:])
         if category in ('unit', 'component'):
             host.run_host(root, category, args)
             return 0

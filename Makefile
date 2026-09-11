@@ -62,7 +62,7 @@ EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
-.PHONY: bump-version build installdeb uninstalldeb prep-vm check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: publish bump-version build installdeb uninstalldeb prep-vm check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -72,6 +72,9 @@ bump-version:
 
 check-release-version:
 	@$(PYTHON) tools/bump_version.py --check
+
+publish:
+	@tools/publish.py
 
 ifeq ($(shell id -u),0)
 APT := apt
@@ -216,16 +219,23 @@ check-gjs:
 
 check-static: check-shell check-gjs
 
-check:
+test-all:
+	@tools/run-tests all
+
+.PHONY: test-all check-source
+
+check-source:
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -Wall -Wextra -Werror -fsyntax-only tools/pam_oh_no_parent_control.c
 	@for file in extension.js $(filter %.js %.mjs,$(EXTENSION_SOURCES)); do node --check "$(CHILD_DIR)/$$file"; done
 	@$(PYTHON) tools/verify_test_traceability.py --mode stage
-	@$(MAKE) --no-print-directory check-unit
-	@$(PYTEST) tests/component -m component
 	@$(PYTHON) -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for p in pathlib.Path(".").glob("**/*.py") if ".git" not in p.parts]'
 	@$(PYTHON) -c 'import pathlib,xml.etree.ElementTree as E; [E.parse(p) for p in pathlib.Path("data").glob("**/*.xml")]; [E.parse(p) for p in pathlib.Path(".").glob("**/*.policy")]'
 	@! grep -REn 'org\.freedesktop\.policykit\.imply|ApproveTimeAndApps|Properties.*Set.*(AppFilter|ActiveExtension)' child data/polkit-1
 	@! grep -REn 'resource:///org/gnome/shell|AuthPrompt|UnlockDialog|Main\.screenShield|_estimatedTimes' kiosk broker data config tools README.md
+
+check: check-source
+	@$(MAKE) --no-print-directory check-unit
+	@$(PYTEST) tests/component -m component
 
 preview-kiosk:
 	# The preview watches kiosk assets and source files; no manual relaunch is needed.
@@ -281,7 +291,7 @@ _install-product-files:
 		-o "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so" \
 		tools/pam_oh_no_parent_control.c -lpam
 	chmod 0644 "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so"
-	install -m 0755 tools/package_activation.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-activation"
+	install -m 0755 debian/package_activation.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-activation"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui"
 	install -m 0644 common/__init__.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/"
 	install -m 0644 common/oh_no_parent_control_ui/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
@@ -341,7 +351,7 @@ ifneq ($(GENERATE_ACTIVATION_MANIFEST),0)
 endif
 
 _generate-package-activation-manifest:
-	$(PYTHON) tools/package_activation.py generate --root "$(if $(strip $(DESTDIR)),$(DESTDIR),/)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json" $(foreach path,$(ACTIVATION_MANIFEST_PATHS),--include "$(patsubst /%,%,$(path))")
+	$(PYTHON) debian/package_activation.py generate --root "$(if $(strip $(DESTDIR)),$(DESTDIR),/)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json" $(foreach path,$(ACTIVATION_MANIFEST_PATHS),--include "$(patsubst /%,%,$(path))")
 
 check-child-node:
 	@node --test tests/child/indicator_logic.test.mjs tests/child/error_handler.test.mjs

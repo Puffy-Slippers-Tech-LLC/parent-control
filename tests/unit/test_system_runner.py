@@ -327,7 +327,7 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
     assert identity['selection']['test'] == 'test_first_install_requests_reboot'
     assert set(identity['files']) == {
         'system_guest.py', 'owned_commands.py', 'guest/redact.py', 'pytest.ini',
-        'test_install_smoke.py',
+        'test_install_smoke.py', 'system_progress.py',
     }
 
 

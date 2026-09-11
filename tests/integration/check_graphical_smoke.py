@@ -335,13 +335,18 @@ def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
     def validate():
         require(len(smoke.steps) == len(smoke.stages), 'smoke:missing-stages')
         module_result(directory)
+    # VT6 authentication performs ten mandatory full baseline rechecks (802s
+    # measured in attempt 10). Reserve 1200s for those checks plus the existing
+    # 600s smoke allowance, including synchronous shutdown and backend exit.
+    # This is one finite total budget; no callback or retry renews it.
+    timeout = 1800 if vt6_auth else (
+        960 if installation is not None and not installation.refusal else 600)
     try:
         worker_result = e2e_worker.run_distribution(
             directory, lease, ledger, expected_inputs=expected_inputs,
             observe=smoke.step, validate=validate, on_failure=on_failure, credentials=credentials,
             **({'guarded_observe': smoke.guarded_step} if vt6_auth else {}),
-            serial=serial, timeout=960 if vt6_auth or (
-                installation is not None and not installation.refusal) else 600)
+            serial=serial, timeout=timeout)
         return {'steps': smoke.steps, 'worker_evidence': worker_result}
     finally:
         original = sys.exception()

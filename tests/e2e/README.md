@@ -314,7 +314,7 @@ now live-qualified in attempt 6 under the VT6 contract below. Subsequent
 [attempt 10](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
 completes authentication/command stages but demonstrates insufficient worker
 budget through normal shutdown; the [worker contract](#shared-guarded-worker)
-owns that limit. Timing/privacy/failure regressions are in
+owns its correction and attempt 11's passing worker result. Timing/privacy/failure regressions are in
 [test_e2e_provenance.py](../unit/test_e2e_provenance.py) and
 [test_e2e_vt6_controller.py](../unit/test_e2e_vt6_controller.py).
 Worker wrappers can still collapse the initial error,
@@ -338,6 +338,29 @@ specific comparison. Baseline restoration and host preservation passed; source
 preservation failed. Reuse unchanged-input capture and its existing refusal
 latch after that current writer finishes; no source exclusion, digest cache,
 permission change or blanket VM hold is warranted.
+
+[Attempt 11](../../docs/TestAutomation/Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
+passes all authentication stages and normal worker shutdown, then refuses final
+`provenance:source-changed`. A new nonignored `docs/VersionHistory.md` appeared
+after the command receipt and before finalization while this session made no
+checkout writes. The addition is sufficient to invalidate `source_paths` and
+`snapshot`; `test_new_source_file_is_detected` in the provenance regressions
+covers this boundary. No full differing snapshot was exported, so the sole
+changed field and historical failures remain unproven. Preserve the unrelated
+file and capture fresh inputs. Baseline restoration, host preservation and owned
+cleanup passed; complete authenticated qualification still requires final source
+preservation. The existing refusal latch remains mandatory.
+
+[Attempt 12](../../docs/TestAutomation/Evidence/20-VT6-Fresh-Input-Refusal-20260911.md)
+captured the checkout including that prior addition, then refused during
+preparation before worker startup when three new nonignored release-tool files
+appeared. Their joint creation after pre-attempt status is sufficient to change
+`source_paths`; the controller still does not export a full differing snapshot,
+so no sole-field or historical attribution is claimed. Cleanup, baseline
+restoration and host preservation passed. Preserve the files, reconcile current
+inputs, and reuse the unchanged refusal latch; this attempt adds no worker or
+authentication qualification. Release-tool edits continued after cleanup, so a
+later preflight must establish a settled input set before another Task 20 attempt.
 
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
@@ -879,10 +902,10 @@ single-use refusal and publication ordering. The
 [cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py) validate
 fixed-code checkpoints and reject private or malformed diagnostics.
 Attempts 9/10 below pass the corrected capture stage, and attempt 10 completes
-the authenticated command stage. Complete worker-budget and normal-shutdown
-qualification still affect installation and downstream terminal consumers.
-Sudo/notice pixels remain unqualified; no new prompt collection is needed to
-resolve the current worker deadline.
+the authenticated command stage. Attempt 11 below also passes normal worker
+shutdown; complete qualification still requires final source preservation.
+Sudo/notice pixels remain unqualified; no new prompt collection is needed for
+the corrected worker deadline.
 
 **Joined review and attempt 8 — historical source drift:**
 The [joined-flow evidence](../../docs/TestAutomation/Evidence/20-VT6-Joined-Flow-20260910.md)
@@ -916,13 +939,24 @@ shell and marker corrections, not a complete qualification: it then fails
 `e2e:deadline` after power-off, with no backend exit status or `status-off` event
 and `shutdown_verified=false`. Its ten baseline rechecks consume 802.363 seconds;
 the worker finishes its failed attempt after 1036.426 seconds against a 960-second
-loop budget. The [worker contract](#shared-guarded-worker) owns this remaining
-deadline/shutdown boundary. Both attempts pass baseline restoration, source/host
+loop budget. The [worker contract](#shared-guarded-worker) owns the subsequent
+deadline correction and shutdown proof. Both attempts pass baseline restoration, source/host
 preservation and owned cleanup; product/collection remain `not-run`. Do not
 repeat the unchanged budget, rediscover prompt gates, skip provenance checks or
 use this failed run as accepted authentication infrastructure. The active
 [handoff](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08)
-owns the next correction and guarded qualification.
+owns the remaining guarded qualification.
+
+**Attempt 11 — worker shutdown passes; final source preservation fails:**
+The [retained evidence](../../docs/TestAutomation/Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
+records all five VT6 receipts, backend exit 0, no fatal artifact, ordered off-state
+observations and verified worker shutdown with the corrected 1800-second budget.
+Worker duration is 926.879 seconds. The outer attempt still fails final
+`provenance:source-changed` after a concurrent source-file addition; see the
+[provenance contract](#controller-owned-provenance). Baseline restoration, host
+preservation and cleanup pass. This is passing worker evidence within a failed
+qualification, not accepted authentication infrastructure or E2E-002. Reuse the
+corrected flow with fresh inputs through final preservation before installation.
 
 The canonical worker regressions are
 [test_e2e_vt6_authentication.py](../unit/test_e2e_vt6_authentication.py), executing
@@ -933,7 +967,7 @@ changes, and the shared inspector/authentication no-retry latch. See
 [worker-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Worker-Gate-20260910.md).
 These local regressions supplement the live stage evidence above. Identical stale pixels, the excluded
 cursor cell and invisible input still require independent input and capture
-provenance. Complete the integrated controller's normal shutdown qualification
+provenance. Complete the integrated controller's final source-preservation qualification
 before using this worker for installation. Sudo challenge and final
 red-notice pixels remain uncollected. A prompt image alone
 cannot identify the password consumer. Only after that boundary is qualified
@@ -1159,7 +1193,7 @@ Leaving VNC active after display revocation allows its background stall handler
 to attempt reconnection to a stopped guest. Graphics ownership must still refuse
 that request. Disabling the console ends observation; it does not change VM state.
 
-**VT6 deadline limitation:** [authenticated attempt 10](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
+**VT6 finite budget and delayed callbacks:** [authenticated attempt 10](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
 completed every authentication/command receipt and reached `poweroff`, then
 failed with the original `e2e:deadline` at finalization. Its worker report retains
 the generic `worker-execution-failed`, null backend status, no `status-off` event
@@ -1168,14 +1202,37 @@ insufficient for that joined execution: ten mandatory baseline rechecks used
 802.363 seconds, and the worker report reached 1036.426 seconds. Synchronous
 `CallbackServer.serve_once` work can cross the outer loop deadline before another
 poll/off observation; preserve that fact when correcting the finite budget.
-Outer baseline restoration and source/host preservation passed; this does not
-establish normal worker shutdown. Reuse `Adapter`, `Lease.stop`,
-`test_timeout_refuses_and_cleans_up` in
-[worker cleanup regressions](../unit/test_e2e_worker_cleanup_safety.py) and
-[public shutdown regressions](../unit/test_e2e_shutdown.py). Add the demonstrated
-delayed-callback boundary to local verification before a corrected guarded run;
-retain the full validation and shutdown requirements above. No new generic
-diagnostic layer or unchanged full attempt is needed.
+Outer baseline restoration and source/host preservation passed; that failed
+attempt did not establish normal worker shutdown.
+
+`check_graphical_smoke.run_backend` now selects 1800 seconds for VT6 authentication:
+1200 for the ten full rechecks plus the existing 600-second smoke allowance,
+including synchronous `Lease.stop` and backend exit. Other selections retain
+600/960 seconds. `run_distribution` accepts only finite positive numeric budgets
+at most 1800; no callback renews the deadline. After `serve_once` returns, it
+checks expiration before another observer dispatch. Owned shutdown completes
+even if it crosses the deadline; expiration still fails and closes both resources.
+All lifecycle, module, lease and final preservation checks remain required.
+
+`test_delayed_shutdown_callback_keeps_finite_deadline_and_requires_off_observation`
+in [worker cleanup regressions](../unit/test_e2e_worker_cleanup_safety.py) covers
+the old-budget refusal, delayed success with actual off observation, exhausted
+new-budget refusal and both closes. Invalid budgets refuse before resources.
+Reuse `test_timeout_refuses_and_cleans_up`, `Adapter`, `Lease.stop` and
+[public shutdown regressions](../unit/test_e2e_shutdown.py); the existing
+`test_vt6_worker_uses_existing_finite_extended_budget` in
+[smoke cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py) covers
+selection without changing other flows.
+
+[Attempt 11](../../docs/TestAutomation/Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
+passes the worker with exit 0, no fatal artifact, all authentication receipts,
+off observations and `shutdown_verified=true`. Its 926.879-second worker duration
+also fits the old budget because baseline reads were faster; the local regression
+supplies the delayed-budget counterexample. The outer attempt fails final source
+preservation after a new source file appeared. Baseline restoration, host
+preservation and cleanup pass. Normal worker shutdown now has live evidence;
+complete integrated qualification still requires final source preservation.
+No new generic diagnostic layer, prompt collection or shutdown redesign is needed.
 
 Private `worker-before-cleanup.json` and `worker-result.json` reports contain
 only fixed diagnostic fields, distribution digest, timing, failure history and

@@ -180,7 +180,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
     on_failure is a trusted controller hook for durable scenario checkpoints;
     a broken hook cannot prevent either resource's cleanup or replace the error.
     """
-    require(type(timeout) in (int, float) and 0 < timeout <= 960, 'e2e:timeout')
+    require(type(timeout) in (int, float) and 0 < timeout <= 1800, 'e2e:timeout')
     require(type(serial) is bool and (not serial or credentials is not None), 'e2e:serial-credentials')
     require(isinstance(lease.state['run'], str)
             and re.fullmatch(r'[0-9a-f]{32}', lease.state['run']), 'e2e:run')
@@ -277,6 +277,10 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                     result['outcome'] = 'passed'
                     break
                 server.serve_once()
+                # Lifecycle callbacks run synchronously on the lease owner's
+                # thread. Let an owned stop finish, but do not dispatch another
+                # observation/input step if it consumed the remaining budget.
+                require(time.monotonic() < deadline, 'e2e:deadline')
                 if guarded_observe is not None:
                     require(not serial, 'e2e:guarded-observer-surface')
                     guarded_observe(guard_current_worker)

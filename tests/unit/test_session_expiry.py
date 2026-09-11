@@ -45,31 +45,44 @@ def test_unavailable_enforcement_restores_exact_file_even_on_bad_request_result(
     metadata = installation / 'metadata.json'
     metadata.write_bytes(b'original metadata')
     original = metadata.stat()
-    fixture = tmp_path / 'failure'
-    monkeypatch.setattr(expiry, 'Path', lambda value: fixture if
-                        value == '/var/lib/onpc-test-extension-failure' else Path(value))
+    fixtures = []
+    make_directory = expiry.tempfile.mkdtemp
+    def create_fixture(*, prefix, dir):
+        assert prefix == 'onpc-test-extension-failure-' and dir == '/var/lib'
+        fixture = Path(make_directory(prefix=prefix, dir=tmp_path))
+        fixtures.append(fixture)
+        return str(fixture)
+    monkeypatch.setattr(expiry.tempfile, 'mkdtemp', create_fixture)
+    unrelated = tmp_path / 'onpc-test-extension-failure'
+    unrelated.mkdir()
+    (unrelated / 'preserve').write_bytes(b'unrelated fixture')
     monkeypatch.setattr(expiry, 'identities', lambda: {'child': 1004, 'parent': 1002})
     manager = Mock(installation=installation)
     manager._account.return_value = (Mock(), installation)
-    manager._boolean.side_effect = [False] if approved else [True, False]
+    manager._boolean.side_effect = ([False] if approved else [True, False]) * 2
     monkeypatch.setattr(expiry, 'installed_manager', lambda: manager)
     monkeypatch.setattr(expiry, 'account_state', lambda uid: 'unchanged')
     def call(uid, method, *_args):
         if method == 'RevokeOneTimeGrant':
             return {'result': []}
         assert not metadata.exists()
-        assert (fixture / 'metadata.json').stat().st_ino == original.st_ino
+        assert (fixtures[-1] / 'metadata.json').stat().st_ino == original.st_ino
         return {'result': []} if approved else {'error': 'fixed-startup-failure'}
     monkeypatch.setattr(expiry, 'call', call)
     monkeypatch.setattr(expiry.guest, 'run', Mock(return_value='b false'))
     activate = Mock()
     monkeypatch.setattr(expiry.guest, 'activate_broker', activate)
-    if approved:
-        with pytest.raises(expiry.guest.GuestError, match='approval-without-enforcement'):
+    # Enforcement and graphical preparation exercise this probe in one VM run.
+    for _ in range(2):
+        if approved:
+            with pytest.raises(expiry.guest.GuestError, match='approval-without-enforcement'):
+                expiry.verify_unavailable_enforcement(Mock())
+        else:
             expiry.verify_unavailable_enforcement(Mock())
-    else:
-        expiry.verify_unavailable_enforcement(Mock())
-    assert metadata.stat().st_ino == original.st_ino
-    assert metadata.read_bytes() == b'original metadata'
-    assert not (fixture / 'metadata.json').exists()
-    activate.assert_called_once()
+        assert metadata.stat().st_ino == original.st_ino
+        assert metadata.read_bytes() == b'original metadata'
+        assert not (fixtures[-1] / 'metadata.json').exists()
+    assert activate.call_count == 2
+    assert len(set(fixtures)) == 2
+    assert all(fixture.stat().st_mode & 0o777 == 0o700 for fixture in fixtures)
+    assert (unrelated / 'preserve').read_bytes() == b'unrelated fixture'

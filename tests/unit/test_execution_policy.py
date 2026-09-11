@@ -162,6 +162,88 @@ class ExecutionPolicyTests(unittest.TestCase):
             ("/usr/sbin/fagenrules",),
         ])
 
+    def test_identical_rules_after_failed_rollback_retry_daemon_notification(self):
+        for operation in ("reconcile", "remove"):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as temporary:
+                rules_path = Path(temporary) / "policy.rules"
+                policy = FapolicydPolicy(rules_path)
+                original = {1001: ("/usr/bin/game",)}
+                compiled = None
+                active = None
+                fail_notification = False
+                notifications = []
+
+                def run(command, **kwargs):
+                    nonlocal compiled, active
+                    if command == ("/usr/sbin/fagenrules",):
+                        compiled = rules_path.read_bytes() if rules_path.exists() else None
+                    else:
+                        notifications.append(compiled)
+                        # A failed command cannot establish whether the daemon
+                        # consumed the notification. Model candidate application
+                        # followed by rejection of the rollback notification.
+                        if not fail_notification or len(notifications) == 2:
+                            active = compiled
+                        if fail_notification:
+                            return SimpleNamespace(returncode=1)
+                    return SimpleNamespace(returncode=0)
+
+                with mock.patch("oh_no_parent_control.execution_policy.subprocess.run", side_effect=run):
+                    policy.reconcile(original)
+                    expected = active
+                    fail_notification = True
+                    with self.assertRaisesRegex(ExecutionPolicyError, "rollback"):
+                        if operation == "reconcile":
+                            policy.reconcile({})
+                        else:
+                            policy.remove()
+                    self.assertEqual(rules_path.read_bytes(), expected)
+                    self.assertNotEqual(active, expected)
+                    # Matching disk state must not conceal another failed retry.
+                    with self.assertRaises(ExecutionPolicyError):
+                        policy.reconcile(original)
+                    fail_notification = False
+                    policy.reconcile(original)
+                    self.assertEqual(active, expected)
+                    count = len(notifications)
+                    policy.reconcile(original)
+                    self.assertEqual(len(notifications), count)
+
+    def test_new_adapter_reloads_existing_identical_rules(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            rules_path = Path(temporary) / "policy.rules"
+            filters = {1001: ("/usr/bin/game",)}
+            rules_path.write_text(FapolicydPolicy.render(filters), encoding="utf-8")
+            for _ in range(2):
+                policy = FapolicydPolicy(rules_path)
+                with mock.patch("oh_no_parent_control.execution_policy.subprocess.run",
+                                return_value=SimpleNamespace(returncode=0)) as run:
+                    policy.reconcile(filters)
+                    self.assertEqual(run.call_count, 2)
+                    policy.reconcile(filters)
+                    self.assertEqual(run.call_count, 2)
+
+    def test_successful_rollback_allows_unchanged_notification_cache(self):
+        for operation in ("reconcile", "remove"):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as temporary:
+                rules_path = Path(temporary) / "policy.rules"
+                policy = FapolicydPolicy(rules_path)
+                filters = {1001: ("/usr/bin/game",)}
+                with mock.patch("oh_no_parent_control.execution_policy.subprocess.run",
+                                return_value=SimpleNamespace(returncode=0)):
+                    policy.reconcile(filters)
+                outcomes = [SimpleNamespace(returncode=0), SimpleNamespace(returncode=1),
+                            SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)]
+                with mock.patch("oh_no_parent_control.execution_policy.subprocess.run",
+                                side_effect=outcomes) as run:
+                    with self.assertRaises(ExecutionPolicyError):
+                        if operation == "reconcile":
+                            policy.reconcile({})
+                        else:
+                            policy.remove()
+                    policy.reconcile(filters)
+                    self.assertEqual(run.call_count, 4)
+
     def test_reload_command_errors_are_bounded_and_do_not_log_output(self):
         import subprocess
 

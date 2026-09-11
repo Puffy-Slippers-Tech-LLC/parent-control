@@ -13,17 +13,19 @@ import time
 import system_runner as runner
 
 
-def main():
+def main(*, graphics_type='vnc'):
     runner.require(len(sys.argv) == 1, 'recovery:invalid-arguments')
+    runner.require(graphics_type in ('vnc', 'spice'), 'recovery:invalid-graphics')
     runner.require(os.geteuid() == os.getegid() == 0, 'recovery:root-required')
     runner.require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT,
                    'recovery:checkout')
     os.umask(0o077)
-    directory = Path(tempfile.mkdtemp(prefix='onpc-graphical-recovery-'))
+    kind = 'graphical' if graphics_type == 'vnc' else 'system'
+    directory = Path(tempfile.mkdtemp(prefix=f'onpc-{kind}-recovery-'))
     commands = runner.Commands()
     commands.directory = directory
     source = None
-    result = {'scope': 'recorded-graphical-cleanup-only', 'outcome': 'failed',
+    result = {'scope': f'recorded-{kind}-cleanup-only', 'outcome': 'failed',
               'original_attempt_outcome': 'unchanged', 'evidence_directory': str(directory)}
     started = time.monotonic()
     try:
@@ -36,8 +38,11 @@ def main():
         source = runner.baseline.LibvirtSource(api)
         lease = runner.Lease(source, commands,
                             lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
-                            graphics_type='vnc')
-        lease.recover_graphical_cleanup()
+                            graphics_type=graphics_type)
+        if graphics_type == 'vnc':
+            lease.recover_graphical_cleanup()
+        else:
+            lease.recover_system_cleanup()
         result['outcome'] = 'passed'
         result['lease_phase'] = lease.state['phase']
     except (Exception, KeyboardInterrupt) as error:

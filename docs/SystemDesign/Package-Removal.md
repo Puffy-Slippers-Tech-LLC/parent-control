@@ -5,7 +5,7 @@
 Read this for APT removal/purge, rollback, package-owned accounts and files,
 PAM restoration, execution-policy baselines, and retry behavior.
 
-Implementation: [prerm](../../debian/prerm), [postrm](../../debian/postrm), [postinst](../../debian/postinst), [uninstall.py](../../broker/oh_no_parent_control/uninstall.py), [package_activation.py](../../tools/package_activation.py).
+Implementation: [prerm](../../debian/prerm), [postrm](../../debian/postrm), [postinst](../../debian/postinst), [uninstall.py](../../broker/oh_no_parent_control/uninstall.py), [package_activation.py](../../debian/package_activation.py).
 
 `make installdeb` installs the built Debian package through APT.
 `make uninstalldeb` runs `sudo apt remove oh-no-parent-control` (plain `apt`
@@ -79,6 +79,17 @@ An upgrade with a missing baseline fails rather than treating the installed
 product's enforcement as pre-existing administrator policy. Systemd reloads
 the removed display-manager dependency before stopping fapolicyd, so dependency
 stop propagation cannot end the desktop session.
+
+**Acknowledgement limitation:** the current adapter and final CLI reloads verify
+command completion, not active daemon policy. The
+[generation-witness design gate](Applications.md#generation-witness-design-gate)
+requires a fresh rollback receipt and a removal witness that survives deletion
+of the account-policy file. If implemented as a separate generated file, it
+must be removed before `postrm` tests whether administrator rules remain;
+otherwise it changes the empty-directory/baseline branch. Ship its ownership,
+retry and cleanup handling with the witness, and qualify final baseline
+restoration separately. The [audit](../TestAutomation/Evidence/15A-Kernel-Witness-Audit-20260911.md)
+does not qualify removal or change the current file layout.
 
 ## Remove, purge, and retry
 

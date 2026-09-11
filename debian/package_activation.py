@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate and compare package activation manifests.
+"""Debian installation helper: generate and compare package activation manifests.
 
 The manifest describes *installed* files, not source files, so Debian maintainer
 scripts can make an upgrade decision from the package that is actually being

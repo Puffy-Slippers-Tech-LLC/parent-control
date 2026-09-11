@@ -8,6 +8,7 @@ import pytest
 
 import check_graphical_smoke as smoke
 import check_graphical_recovery as recovery
+import check_system_recovery as system_recovery
 import fixture_credentials
 from tests.support.vm_baseline import local_preparation_source
 
@@ -273,7 +274,8 @@ def test_failed_observation_never_releases_graphical_input(tmp_path):
     ({'extra': True}, 'journal-identity'),
     ({}, None),
 ])
-def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, category,
+@pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])
+def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, category, graphics_type,
                                                           local_preparation_source):
     import hashlib
     import json
@@ -281,7 +283,11 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
     source = Mock(uuid='recorded-uuid')
     source.domain.ID.return_value = 17
     source.domain.autostart.return_value = False
-    lease = runner.Lease(source, Mock(), Mock(), directory=tmp_path, graphics_type='vnc')
+    source.domain.XMLDesc.return_value = (
+        f'<domain><devices><graphics type="{graphics_type}"/></devices></domain>')
+    lease = runner.Lease(source, Mock(), Mock(), directory=tmp_path, graphics_type=graphics_type)
+    recover = (lease.recover_graphical_cleanup if graphics_type == 'vnc'
+               else lease.recover_system_cleanup)
     baseline_state = {'phase': 'finalized', 'source': {'layout': {'source_shares': []}}, 'proof': 'proof'}
     state = {'schema_version': 1, 'run': 'a' * 32, 'phase': 'cleanup-requested',
              'domain_uuid': source.uuid, 'domain_id': 17, 'original_xml': '<recorded/>',
@@ -299,11 +305,11 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
             patch.object(runner, 'isolated_xml'):
         if category:
             with pytest.raises(RuntimeError, match=category):
-                lease.recover_graphical_cleanup()
+                recover()
             lease.finish.assert_not_called()
             lease.guard.assert_not_called()
         else:
-            lease.recover_graphical_cleanup()
+            recover()
             assert events == ['guard', 'finish']
             assert lease.view.run == state['run'] and lease.view.domain_id == 17
         assert lease.fd is None
@@ -312,26 +318,55 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
     source.domain.create.assert_not_called()
 
 
-def test_recovery_requires_exclusive_lock_before_journal_or_controls(tmp_path, local_preparation_source):
+@pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])
+def test_recovery_requires_exclusive_lock_before_journal_or_controls(tmp_path, graphics_type,
+                                                                   local_preparation_source):
     runner = smoke.runner
-    lease = runner.Lease(Mock(), Mock(), Mock(), directory=tmp_path, graphics_type='vnc')
+    lease = runner.Lease(Mock(), Mock(), Mock(), directory=tmp_path, graphics_type=graphics_type)
     lease.capture = Mock()
     lease.finish = Mock()
     with patch.object(runner.os, 'open', return_value=42), patch.object(runner.os, 'close'), \
             patch.object(runner.baseline, 'identity'), \
             patch.object(runner.fcntl, 'flock', side_effect=BlockingIOError):
         with pytest.raises(RuntimeError, match='busy-controller'):
-            lease.recover_graphical_cleanup()
+            if graphics_type == 'vnc':
+                lease.recover_graphical_cleanup()
+            else:
+                lease.recover_system_cleanup()
     lease.capture.read_state.assert_not_called()
     lease.finish.assert_not_called()
 
 
-def test_recovery_entrypoint_refuses_unprivileged_use_before_files_or_vm():
+@pytest.mark.parametrize('entrypoint', [recovery.main, system_recovery.main])
+def test_recovery_entrypoint_refuses_unprivileged_use_before_files_or_vm(entrypoint):
     with patch.object(sys, 'argv', ['check']), patch.object(recovery.os, 'geteuid', return_value=1000), \
             patch.object(recovery.tempfile, 'mkdtemp') as create:
         with pytest.raises(RuntimeError, match='root-required'):
-            recovery.main()
+            entrypoint()
     create.assert_not_called()
+
+
+@pytest.mark.parametrize('entrypoint', [recovery.main, system_recovery.main])
+def test_recovery_entrypoint_refuses_arguments_before_files_or_vm(entrypoint):
+    with patch.object(sys, 'argv', ['check', '--force']), \
+            patch.object(recovery.tempfile, 'mkdtemp') as create, \
+            patch.object(recovery.importlib, 'import_module') as load:
+        with pytest.raises(RuntimeError, match='invalid-arguments'):
+            entrypoint()
+    create.assert_not_called()
+    load.assert_not_called()
+
+
+@pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])
+def test_recovery_refuses_wrong_lease_kind_before_lock_or_journal(graphics_type,
+                                                              local_preparation_source):
+    lease = smoke.runner.Lease(Mock(), Mock(), Mock(), graphics_type=graphics_type)
+    lease.capture = Mock()
+    recover = (lease.recover_system_cleanup if graphics_type == 'vnc'
+               else lease.recover_graphical_cleanup)
+    with pytest.raises(RuntimeError, match='invalid-lease'):
+        recover()
+    lease.capture.private_directory.assert_not_called()
 
 
 @pytest.fixture
@@ -587,7 +622,7 @@ def test_login_window_preparation_gates_worker_and_outer_restoration(qualificati
 
 
 @pytest.mark.parametrize('vt6_auth,install,refusal,expected', [
-    (True, False, False, 960), (False, False, False, 600),
+    (True, False, False, 1800), (False, False, False, 600),
     (False, True, False, 960), (False, True, True, 600)])
 def test_vt6_worker_uses_existing_finite_extended_budget(tmp_path, vt6_auth, install, refusal, expected):
     installation = Mock(refusal=refusal) if install else None

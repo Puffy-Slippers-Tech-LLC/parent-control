@@ -26,7 +26,7 @@ from urllib.request import urlopen
 
 # Direct execution uses isolated Python; import only this maintained checkout.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools.publishing import build as ppa_build, source as release
+from tools.publishing import source as release
 from tools.bump_version import parse_product_version
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -236,17 +236,12 @@ def source_state(root):
 def preflight(root, log):
     if os.geteuid() == 0:
         raise ValueError('run as the publishing user, without sudo or pkexec')
-    required = ('git', 'gpg', 'dpkg-buildpackage', 'dpkg-parsechangelog', 'dpkg-checkbuilddeps',
-                'dpkg', 'make', 'lintian', 'debsign', 'dput', 'sbuild', 'mmdebstrap',
-                'newuidmap', 'newgidmap', 'unshare')
+    required = ('git', 'gpg', 'dpkg-buildpackage', 'dpkg-parsechangelog',
+                'dpkg', 'debsign', 'dput')
     if any(shutil.which(tool, path='/usr/sbin:/usr/bin:/sbin:/bin') is None for tool in required):
         raise ValueError('missing prerequisites; use ./setup.sh --dependencies-only')
     if command('dpkg', '--print-architecture', cwd=root) != 'amd64':
         raise ValueError('publishing requires an amd64 development host')
-    ppa_build.check_prerequisites()
-    command('unshare', '--user', '--map-root-user', 'true', cwd=root, log=log)
-    command('dpkg-checkbuilddeps', cwd=root, log=log)
-    command('make', 'check-release-version', cwd=root, log=log)
     archive_preflight()
     signer = root / 'tools/publishing/signing.py'
     if not os.access(signer, os.X_OK):
@@ -290,8 +285,6 @@ def prepare(root, base, history, current, product, notes, directory):
     (checkout / 'data/app.json').write_text(json.dumps({'version': product}, indent=2) + '\n')
     changelog = checkout / 'debian/changelog'
     changelog.write_text(changelog_entry(version, notes) + changelog.read_text(), encoding='utf-8')
-    command('make', 'check-release-version', cwd=checkout, log=log)
-    command('git', 'diff', '--check', cwd=checkout, log=log)
     command('git', 'add', '--', HISTORY, 'data/app.json', 'debian/changelog', cwd=checkout)
     command('git', 'commit', '-m', f'Release {product} ({version})', cwd=checkout, log=log)
     for tag in tags:
@@ -441,32 +434,23 @@ def execute(root, state, state_path):
     verify_frozen(state)
     if state['phase'] == 'prepared':
         say(f'building and signing source {state["version"]}; evidence: {directory}')
-        command('dpkg-buildpackage', '--build=source', '--no-sign', '-sa', cwd=checkout, log=log, timeout=3600)
+        command('dpkg-buildpackage', '--build=source', '--no-sign', '-d', '-sa', cwd=checkout, log=log, timeout=3600)
         command('debsign', '--no-conf', '--re-sign', '-k' + release.KEY,
                 '-p' + str(root / 'tools/publishing/signing.py'), str(changes), cwd=checkout, log=log)
         inspect_source(checkout, log)
         state['source_sha256'] = json.loads((directory / 'source-review.json').read_text())['sha256']
         advance('signed')
-    if state['phase'] == 'signed':
-        say('running clean resolute/amd64 sbuild, declared tests, and binary Lintian checks')
-        result = ppa_build.check_build(checkout)
-        build_directory = Path(result['directory'])
-        command('lintian', '--no-cfg', '--fail-on', 'error', str(build_directory / 'output' /
-                f'{release.PACKAGE}_{state["version"]}_amd64.changes'), cwd=checkout, log=log)
-        state['local_build'] = result
-        advance('built')
-    if state['phase'] == 'built':
+    # Accept retained journals from the former local-build phase as well.
+    if state['phase'] in ('signed', 'built'):
         verify_frozen(state)
         inspect_source(checkout, log)
         archive_preflight()
         if any(item['source_package_version'] == state['version'] for item in sources(state['version'])):
             raise ValueError('candidate version appeared in the PPA before this upload; refusing to reuse it')
-        config = dput_config(directory)
-        command('dput', '-c', str(config), '--check-only', 'onpc', str(changes), cwd=checkout, log=log)
         advance('push-started')
     if state['phase'] == 'push-started':
         verify_frozen(state)
-        say('local checks passed; publishing signed source and tags')
+        say('publishing signed source and tags')
         command('git', 'push', '--atomic', 'origin', 'HEAD:refs/heads/main',
                 'refs/tags/' + state['source_tag'], 'refs/tags/' + state['product_tag'], cwd=checkout, log=log)
         advance('pushed')

@@ -20,6 +20,7 @@ CATEGORIES = {
     'static': 'shell, gjs, or all (default)',
     'backend': 'read-only graphical backend package/API prerequisite check',
     'source': 'established syntax, traceability and source guards',
+    'publish': 'local source packaging, clean sbuild and Lintian; no publication',
     'fixture-runtime': 'all established fixture runtime pytest cases',
     'traceability': 'stage (default) or final requirement checks',
     'coverage': 'unit and private-D-Bus Python coverage in a new private directory',
@@ -62,6 +63,10 @@ def make_command(root, target, assignments=()):
 
 def plan(root, category, argv):
     """Validate everything before prerequisites, output creation or execution."""
+    if category == 'publish':
+        if argv:
+            raise ValueError('publishing tests accept no arguments')
+        return [python_file(root, 'tools/publishing_checks.py')], False
     if category == 'source':
         if argv:
             raise ValueError('source checks accept no arguments')
@@ -182,7 +187,7 @@ def main(argv=None):
                 return host_run(root, category, args[1:])
             if category not in ('child-node', 'child-gjs', 'static', 'backend',
                                 'traceability', 'fixtures', 'fixture-runtime', 'source',
-                                'artifacts', 'system', 'e2e'):
+                                'artifacts', 'system', 'e2e', 'publish'):
                 raise ValueError('unsupported unattended category')
             return category_run(root, category, args[1:])
         if category in ('unit', 'component'):

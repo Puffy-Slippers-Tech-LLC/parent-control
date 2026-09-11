@@ -134,11 +134,15 @@ Commit application changes on `main`, add the newest release entry to
 `docs/VersionHistory.md`, then run:
 
 ```sh
+make test-all
 make publish
 ```
 
-It validates the history, bumps the version, builds and tests in clean Ubuntu,
-signs, publishes to Launchpad, and waits for the package to become downloadable.
+`make test-all` includes the reusable publishing test module: source checks,
+clean Ubuntu sbuild with declared tests, and Lintian. Run `make test-publish`
+to execute only that module. `make publish` validates the history, bumps the
+version, signs and uploads source, and waits for the package to become
+downloadable. It does not rerun the local publishing tests.
 See [Publishing](docs/Publishing.md) for one-time credentials, release review,
 retained evidence and retry behavior. Routine manual publishing needs no prompts.
 

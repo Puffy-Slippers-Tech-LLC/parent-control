@@ -172,7 +172,7 @@ class Run:
         suite_items = [Category(name) for name, _, _ in suites]
         fixed = [('Source and traceability', 'source'), ('Static checks', 'static'),
                  ('Child Node', 'child-node'), ('Child GJS', 'child-gjs'),
-                 ('Backend prerequisites', 'backend')]
+                 ('Backend prerequisites', 'backend'), ('Publishing tests', 'publish')]
         fixed_items = [Category(name, 1) for name, _ in fixed]
         builds = Category('Package builds and reproducibility', 3)
         system = Category('Installed-system tests')

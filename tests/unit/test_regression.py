@@ -138,8 +138,8 @@ def test_generated_reports_are_ignored_by_source_provenance(tmp_path):
     assert result.returncode == 0
 
 
-@pytest.mark.parametrize('fail_unit', [False, True])
-def test_entire_plan_discovers_ready_cases_and_preserves_failure(report, tmp_path, monkeypatch, fail_unit):
+@pytest.mark.parametrize('fail_unit,fail_publish', [(False, False), (True, False), (False, True)])
+def test_entire_plan_discovers_ready_cases_and_preserves_failure(report, tmp_path, monkeypatch, fail_unit, fail_publish):
     monkeypatch.setattr(regression, 'authorization', lambda: None)
     class Commands(Control):
         def __init__(self):
@@ -172,15 +172,18 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(report, tmp_pat
             elif category == 'artifacts' and 'build' in command:
                 self.builds += 1
                 output(f'run-tests: output=/tmp/onpc-test-artifacts-fake{self.builds}\n'.encode())
+            elif category == 'publish':
+                return int(fail_publish)
             return 0
     control = Commands()
     run = regression.Run(tmp_path, report, control)
     run.run()
-    assert [item.state for item in run.categories].count('Failed') == int(fail_unit)
+    assert [item.state for item in run.categories].count('Failed') == int(fail_unit or fail_publish)
     assert all(item.done == item.total for item in run.categories)
     e2e = [call for call in control.calls if 'e2e' in call and '--scenario' in call]
     assert len(e2e) == 1 and e2e[0][-1] == 'E2E-999/future'
     assert not any('E2E-998/wait' in call for call in control.calls)
     assert len([call for call in control.calls if 'compare' in call]) == 1
+    assert len([call for call in control.calls if 'publish' in call]) == 1
     if fail_unit:
         assert 'test assertion failed' in (report.directory / 'report.md').read_text()

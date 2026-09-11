@@ -1,9 +1,9 @@
 # Clean local PPA validation
 
-`make publish` builds the exact signed source package locally before uploading it
-to Launchpad. The [publisher](../tools/publish.py) calls the
-[clean build module](../tools/publishing/build.py) automatically; there is no
-separate preparation or build launcher.
+`make test-publish` tests source packaging and a clean local binary build.
+`make test-all` includes that same [publishing test utility](../tools/publishing_checks.py),
+which calls the [clean build module](../tools/publishing/build.py). `make publish`
+delivers the release without rerunning these local tests.
 
 Ubuntu recommends [sbuild for local package builds](https://ubuntu.com/project/docs/contributors/building/build-packages-locally/)
 and its [unshare backend](https://ubuntu.com/project/docs/contributors/setup/set-up-for-ubuntu-development/#sbuild).
@@ -22,20 +22,21 @@ Full `./setup.sh` also installs these prerequisites on a clean machine. The
 focused mode installs `sbuild`, `mmdebstrap`, `uidmap` and Ubuntu archive keys,
 preserves unrelated configuration and the test VM, and can be safely repeated.
 Use standard packaged namespace support; never disable host security restrictions
-to make the builder run. Publishing reports missing prerequisites without
+to make the builder run. The test module reports missing prerequisites without
 installing anything.
 
-For each new release candidate, commit the application changes, add the new
+For each new release candidate, prepare the application changes, add the new
 `docs/VersionHistory.md` entry, and run:
 
 ```sh
-make publish
+make test-publish
 ```
 
-This command includes signing and public publication after validation succeeds.
-See [Publishing](Publishing.md) for credentials, source requirements and recovery.
-Rerun the same command to resume a recorded release; successful local build
-evidence is reused only for its unchanged, frozen source.
+Use `make test-all` to run this alongside all established suites. These commands
+include uncommitted changes in a private source snapshot, require no signing
+credentials, and never push or upload. Each invocation builds fresh source and
+binary artifacts. Commit the application changes and run `make publish` when
+ready to release; see [Publishing](Publishing.md) for its separate requirements.
 
 Each build attempt creates a new `/tmp/onpc-ppa-check-*` directory containing
 `input/`, `output/`, `build.log`, the effective sbuild configuration and
@@ -45,11 +46,13 @@ build, live progress is in the timestamped `.build` file under `output/`;
 with `tools/read-only` or ordinary unprivileged readers. Evidence is retained.
 Sbuild cleans its own temporary build environment.
 
-The publisher verifies source signatures and the signed Git tree before the
-builder checks the DSC/archive size and SHA-256 and copies the exact input bytes.
+The test utility verifies unsigned upload manifests and the archive against its
+frozen snapshot before the builder checks the DSC/archive size and SHA-256 and
+copies the exact input bytes. The publisher separately authenticates signed
+release artifacts at delivery time.
 It accepts only this project's native source package and resolute PPA version
-format. Changed source inputs require a new candidate; unarchived working-tree
-edits are never included.
+format. Working-tree edits are included when the snapshot is created; later
+edits require another test run.
 
 The build uses an amd64 host, Ubuntu resolute, standard archive components,
 declared build dependencies, no Git checkout, and no skipped tests. Dependency
@@ -79,10 +82,11 @@ activation. See [upgrade acceptance](Publishing.md#upgrade-acceptance).
 
 ## Approval scope
 
-Manual `make publish` needs no prompts on a configured host. An assistant must
-have authorization for the complete publication and may need one outer process
-approval at launch. Local test permissions do not grant signing, pushing or
-uploading. See [Approval tools](TestAutomation/Approval-Tools.md#publishing).
+`make test-publish` runs unprivileged on a configured host; namespace support and
+dependency downloads can require execution outside an assistant's sandbox.
+An assistant needs separate authorization for publication through `make publish`.
+Local test permissions do not grant signing, pushing or uploading.
+See [Approval tools](TestAutomation/Approval-Tools.md#publishing).
 
 This development tooling has activation `none`: no installed service change,
 customer data migration or reboot is introduced.

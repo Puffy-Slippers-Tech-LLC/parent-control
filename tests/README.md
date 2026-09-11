@@ -25,13 +25,21 @@ Each run gets a new private directory; previous results are never overwritten.
 
 The command collects current unit/contract, private-D-Bus, UI and fixture runtime
 cases; runs cleanup prerequisites in isolation before protected operations;
-runs source/static, child Node/GJS and backend checks; builds two fresh artifact
+runs source/static, child Node/GJS and backend checks; runs the local publishing
+module (source packaging/integrity, clean sbuild with declared tests, and source
+and binary Lintian); builds two fresh artifact
 sets and compares them; then runs the full installed-system selection and every
 E2E variant whose inventory status is `ready`. New cases within these suites and
 newly registered ready variants need no edit to the aggregate. Pending roadmap
 variants and deliberate failure/recovery qualification routes are excluded.
 Register new system areas through the existing system selection contract;
 the aggregate always requests its full selection.
+
+`make test-publish` runs that same publishing module independently through
+`tools/run-tests publish` and [`tools/publishing_checks.py`](../tools/publishing_checks.py).
+It includes current uncommitted source edits and requires no release credentials.
+It never publishes. `make publish` delivers a release without rerunning local
+publishing tests; see [publishing](../docs/Publishing.md#local-publishing-tests).
 
 Counts are collected pytest cases, registered installed-system executions and
 E2E variants. A non-pytest command (such as static checks, Node's complete suite,

@@ -150,7 +150,7 @@ prefix_rule(
                ["build", "check", "check-release-version", "check-unit",
                 "check-component", "check-test-fixtures", "check-child-node",
                 "check-child-gjs", "check-child-shell", "check-shell",
-                "check-gjs", "check-static", "test-all"]],
+                "check-gjs", "check-static", "test-all", "test-publish"]],
     decision = "allow",
     justification = "Run the trusted checkout's routine build and check targets without repeated approval.",
     match = ["make check", "/usr/bin/make check", "make build", "make check-component"],

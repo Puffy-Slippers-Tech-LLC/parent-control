@@ -222,7 +222,10 @@ check-static: check-shell check-gjs
 test-all:
 	@tools/run-tests all
 
-.PHONY: test-all check-source
+test-publish:
+	@tools/run-tests publish
+
+.PHONY: test-all test-publish check-source
 
 check-source:
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -Wall -Wextra -Werror -fsyntax-only tools/pam_oh_no_parent_control.c

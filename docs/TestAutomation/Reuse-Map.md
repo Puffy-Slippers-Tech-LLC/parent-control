@@ -77,6 +77,13 @@ review changes no task order or completion status.
   Use implemented selectors; do not rediscover permissions or invent a launcher.
   Simulated checkout fixtures must preserve the
   [rules renderer's complete launcher prerequisites](Approval-Tools.md#one-time-setup).
+- Local publishing validation: `make test-publish` and the publishing category
+  in `make test-all` share [one module](../Publishing.md#local-publishing-tests)
+  for source packaging/integrity, clean sbuild and Lintian. `make publish`
+  performs delivery without running that module. Dispatch, snapshot and failure
+  regressions live in [test_publishing_tests.py](../../tests/unit/test_publishing_tests.py)
+  and [test_regression.py](../../tests/unit/test_regression.py); publication guards
+  remain in [test_publish.py](../../tests/unit/test_publish.py).
 
 ### Qualified GDM and serial helpers
 

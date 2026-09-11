@@ -44,7 +44,7 @@ def validate_needles(files):
     names = {name for name in files if name.startswith('needles/')}
     for name in names:
         require(re.fullmatch(r'needles/onpc-(?:(gdm|polkit|lock)-(parent|child|other-parent|other-child)'
-                             r'-(masked-password|account)|gdm-parent-installed-account)\.(png|json)', name),
+                             r'-(masked-password|account)|gdm-parent-installed-account|vt6-parent-password)\.(png|json)', name),
                 'e2e:needle-name')
         require(name.rsplit('.', 1)[0] + ('.png' if name.endswith('.json') else '.json') in names,
                 'e2e:needle-pair')
@@ -64,6 +64,24 @@ def validate_needles(files):
                 and document['tags'] == [Path(name).stem]
                 and type(document['area']) is list and 1 <= len(document['area']) <= 8,
                 'e2e:needle-schema')
+        if name == 'needles/onpc-vt6-parent-password.json':
+            # Fixed baseline pixels, including the complete selected login and
+            # blank challenge. Only its six-pixel terminal cursor cell may blink.
+            # This exception must not enable exclusions on generic secret tags.
+            require((width, height) == (1024, 768)
+                    and document['area'] == [
+                        {'xpos': 0, 'ypos': 0, 'width': 1024, 'height': 768,
+                         'type': 'match', 'match': 100},
+                        {'xpos': 0, 'ypos': 48, 'width': 228, 'height': 32,
+                         'type': 'match', 'match': 100},
+                        {'xpos': 198, 'ypos': 16, 'width': 30, 'height': 16,
+                         'type': 'match', 'match': 100},
+                        {'xpos': 60, 'ypos': 64, 'width': 6, 'height': 16,
+                         'type': 'exclude'}]
+                    and all(type(value) is int for area in document['area']
+                            for key, value in area.items() if key != 'type'),
+                    'e2e:vt6-needle-layout')
+            continue
         for area in document['area']:
             require(type(area) is dict and set(area) - {'click_point'} == {'xpos', 'ypos', 'width', 'height',
                                                        'type', 'match'}

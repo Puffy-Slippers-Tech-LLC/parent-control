@@ -172,7 +172,7 @@ VT6_PASSWORD = VT6 + _LOGIN_PASSWORD + "print('vt6-password-safe')\n"
 
 # Qualification-only readiness before typing the fixed, nonsecret fixture name.
 # No password is exposed by this probe; the later login proof remains mandatory.
-VT6_GETTY = VT6 + '''import stat,subprocess,termios,time
+_GETTY = '''import stat,subprocess,termios,time
 deadline = time.monotonic() + 30
 while True:
     check_active_terminal()
@@ -191,7 +191,7 @@ def identity():
     assert len(fields) >= 20
     assert [int(value) for value in fields[2:6]] == [pid,pid,terminal_device,pid]
     return fields[19]
-start = identity()
+starttime = identity()
 fd = os.open(terminal_path,os.O_RDONLY|os.O_NONBLOCK|os.O_NOCTTY|os.O_NOFOLLOW)
 try:
     device = os.fstat(fd)
@@ -205,8 +205,50 @@ try:
     # canonical/no-echo password proof remains separate and unchanged.
     prompt_mode = flags & (termios.ICANON | termios.ECHO)
     assert prompt_mode in (0, termios.ICANON | termios.ECHO)
-    assert identity() == start
+    assert identity() == starttime
 finally:
     os.close(fd)
-print('vt6-getty-ready')
 '''
+
+VT6_GETTY = VT6 + _GETTY + "print('vt6-getty-ready')\n"
+
+# The legacy fixed-token probes intentionally remain observation-local. These
+# separate programs retain the same predicates but export bounded digests for
+# the controller's ordered, cross-observation recipient gate. agetty execs
+# login, preserving PID/starttime; executable identity is checked per phase,
+# rather than hashed into the continuity identity. Raw process/boot data never
+# leaves the guest. No worker-supplied identity, argument or program is accepted.
+_RECIPIENT_BOOT = '''import hashlib,json,re
+def read_boot():
+    value = pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
+    assert re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\\n', value)
+    # Match vm_transport.BOOT_SHA256_PROBE, including the kernel's newline.
+    return hashlib.sha256(value.encode('ascii')).hexdigest()
+recipient_boot = read_boot()
+'''
+
+_RECIPIENT_RESULT = '''# Recheck the selected unit, executable and process incarnation
+# after the terminal checks; do not follow a replacement unit leader.
+check_active_terminal()
+assert int(subprocess.run(['systemctl','show',terminal_unit,
+    '--property=MainPID','--value'],capture_output=True,text=True,
+    check=True,timeout=10).stdout.strip()) == pid
+assert (proc/'exe').resolve() == pathlib.Path(recipient_executable)
+credentials = dict(line.split(':',1) for line in (proc/'status').read_text().splitlines())
+assert [int(value) for value in credentials['Uid'].split()] == [0]*4
+assert identity() == starttime
+assert re.fullmatch(r'[0-9]{1,20}', starttime) and int(starttime) > 0
+assert read_boot() == recipient_boot
+check_active_terminal()
+encoded = json.dumps([recipient_boot, terminal_unit, pid, starttime],
+                     separators=(',', ':')).encode('ascii')
+print(json.dumps({'probe': recipient_probe, 'boot_sha256': recipient_boot,
+                  'recipient_sha256': hashlib.sha256(encoded).hexdigest()}, sort_keys=True))
+'''
+
+VT6_GETTY_IDENTITY = (VT6 + _RECIPIENT_BOOT + _GETTY +
+    "recipient_probe = 'vt6-getty-identity'\nrecipient_executable = '/usr/sbin/agetty'\n" +
+    _RECIPIENT_RESULT)
+VT6_PASSWORD_IDENTITY = (VT6 + _RECIPIENT_BOOT + _LOGIN_PASSWORD +
+    "recipient_probe = 'vt6-password-identity'\nrecipient_executable = '/usr/bin/login'\n" +
+    _RECIPIENT_RESULT)

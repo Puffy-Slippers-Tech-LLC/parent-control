@@ -499,6 +499,44 @@ the sudo probes remain **locally tested only**. Repeated foreground checks are
 not an atomic observation-to-keyboard guarantee, and this collection pass does
 not qualify password input or authenticated session continuity.
 
+**Cross-observation recipient gate — locally tested, not live-qualified:**
+`VT6_GETTY_IDENTITY` and `VT6_PASSWORD_IDENTITY` in
+[guest_observations.py](guest_observations.py) reuse those same getty/login
+predicates. They bracket them with boot reads, then recheck the selected unit's
+MainPID, executable, root credentials, process start time and active VT. They
+export only an exact probe tag and two bounded digests. The recipient digest
+binds boot, fixed unit, PID and start time; the boot digest uses the complete
+kernel file including its newline, exactly like `BOOT_SHA256_PROBE`.
+[agetty's exec of login](https://raw.githubusercontent.com/util-linux/util-linux/master/agetty-cmd/agetty.c)
+preserves the process incarnation; phase-specific executable checks remain
+separate from that digest. The
+[kernel's proc identity fields](https://www.kernel.org/doc/html/latest/filesystems/proc.html)
+provide the start-time and session/foreground observations. This is sequential
+corroboration, not an atomic process-to-keyboard guarantee.
+
+After an independent `read('boot')`, [ReadOnlyObservations](observation_transport.py)
+accepts exactly `vt6-getty-identity` → `vt6-password-identity` →
+`vt6-password-recheck`. The last two freshly execute the same fixed password
+program; all three must agree with the initially pinned boot/recipient. The
+reader keeps the recipient digest private and returns the existing fixed proofs,
+adding `vt6_recipient_continuity_verified` only on the latter two reads. Changed
+identity/boot, missing boot, reordered/repeated reads, malformed/private output,
+ownership loss or transport failure latch refusal. A later boot read cannot
+repin the original recipient. This sequence is single-use per observer.
+
+Regressions execute the real guest programs in
+[test_e2e_serial_observation.py](../unit/test_e2e_serial_observation.py), including
+late unit/executable/start-time replacement, credentials, boot changes and
+unchanged serial/prompt behavior. [test_e2e_vt6_recipient.py](../unit/test_e2e_vt6_recipient.py)
+covers ordered fresh dispatch, proof-only output and all parser/ownership/replay
+refusals. [Recipient-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Recipient-Gate-20260910.md)
+records verification. These reads are not connected to `Smoke` and cannot
+authorize password input. The controller must still bind worker/capture/input
+provenance, compare exact pixels, persist authorization before reply, and prove
+authenticated shell readiness/lineage. Matching digests do not prove empty
+invisible input or fresh pixels; do not repeat prompt-only collection to qualify
+these missing boundaries.
+
 `VT6_SESSION` now reuses the shared graphical/serial session predicate through
 fixed surface adapters, exposed as `ReadOnlyObservations.read('vt6-session')`.
 It requires the selected parent fixture's sole active local `login` session on
@@ -516,16 +554,94 @@ worker. It proves neither shell readiness nor continuity from an earlier login
 recipient. Worker/controller boot and one-shot input gates remain necessary;
 repeated active-VT checks cannot make observation and keyboard input atomic.
 
+For the remaining shell gate, reuse the direct-child traversal already in
+[installation_observations.py](installation_observations.py), anchored to the
+new pinned recipient. [util-linux login's session fork](https://raw.githubusercontent.com/util-linux/util-linux/master/login-utils/login.c)
+detaches the parent terminal and gives the shell a new session; matching the
+child's session ID to the pre-authentication login would be incorrect. A Bash
+executable, empty child list or active logind session alone does not prove
+command-input readiness. That proof and live lineage qualification remain open.
+
 The selected fixture echo and empty login challenge now have a
 [reviewed image contract](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md#direct-image-review-and-needle-contract).
-The worker's native resolution is 1024×768; do not substitute the 1280×800
-maintenance image. A needle must jointly match the complete selected fixture
-echo and adjacent `Password:` line, preserve the blank challenge area except
-the blinking cursor, and pass exact matcher/refusal checks. Empty no-echo pixels
-cannot prove absence of invisible input; one-shot input provenance is mandatory.
-Remaining before input qualification: implement and validate that needle and
-wire a bounded VNC worker/controller flow with unchanged boot, session and input
-provenance gates; live-test input and no-retry refusals. Sudo challenge and final
+The maintained `onpc-vt6-parent-password` PNG is the unchanged native 1024×768
+capture; do not substitute the 1280×800 maintenance image. Its fixed needle
+matches the full frame, the joint selected-login/challenge rectangle
+`(0,48,228,32)` and VT label `(198,16,30,16)`, excluding only the cursor cell
+`(60,64,6,16)`. `e2e_worker.validate_needles` permits precisely this layout;
+generic secret needles still forbid exclusions.
+
+**The needle is not an exact blank-screen proof.** Local installed-matcher
+verification found full-frame similarity 1 despite single-glyph changes.
+Tight text regions reject the selected-account/prompt mutations, but sparse
+extra output can still pass. Authentication must additionally call
+[vt6_prompt_pixels.verify_prompt_pixels](vt6_prompt_pixels.py) with a fresh
+private capture and provenance-bound reference bytes. This fixed GdkPixbuf
+comparison validates the reviewed reference digest, bounds native RGB decoding,
+and refuses every pixel difference outside the cursor cell. It exports only a
+fixed proof/refusal. The decoder uses existing GTK/GI host prerequisites.
+`test_needle_similarity_cannot_replace_exact_blank_screen_gate` retains the
+counterexample; [pixel regressions](../unit/test_e2e_vt6_pixels.py) also cover
+wrong identity, missing/moved prompts, visible input, cursor blink, stale output,
+single-pixel differences and invalid inputs. The
+[staging tests](../unit/test_e2e_needle_inputs.py) pin the exception's exact scope.
+GDM/VT6 tests share the installed matcher through
+[needle_matcher.py](../support/needle_matcher.py).
+See [pixel-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Pixel-Gate-20260910.md)
+for the failed initial matcher checks, correction and common-check recovery.
+
+`onpc_vt6::authenticate(exchange)` now implements the **locally tested worker
+side only** of one-shot parent login. It is deliberately not selected by
+`smoke.pm`: the controller cannot yet issue its required proofs. The existing
+credential-free inspector and this function share a single attempt latch.
+Every exception seals explicit capture and returns a fixed error; neither
+function can retry after either was attempted. The worker selects `sut`, enters
+the fixed fixture name after getty proof, requires the maintained needle, then
+takes one private capture through `onpc_password::capture_before_authentication`.
+It seals capture before sending that image reference to the controller and
+before any secret retrieval. Only the final authorization receipt permits
+`type_password` with fixed options and a separate Enter. Console and `NOVIDEO`
+checks run again before secret access, typing and submission; partial input
+failure never retries. No subsequent shell command is implemented.
+
+The authentication callback protocol is distinct from prompt inspection. Each
+reply has exactly `stage`, a lowercase 64-hex `boot_sha256` (unchanged after the
+first reply), and the following JSON **true booleans**; extra fields, missing
+proofs, strings/numbers in place of booleans, reordered stages and changed boot
+refuse. Only `vt6-password-screen` carries a screenshot request.
+
+| Stage | Mandatory controller proofs |
+| --- | --- |
+| `vt6-login-ready` | `vt6_getty_verified`, `active_vt6_verified` |
+| `vt6-password-ready` | `vt6_login_process_verified`, `terminal_echo_disabled`, `active_vt6_verified`, `vt6_recipient_continuity_verified` |
+| `vt6-password-screen` | The four password-ready proofs plus `vt6_prompt_pixels_verified`, `vt6_password_input_authorized` |
+| `vt6-authenticated` | `active_local_vt6_session`, `active_vt6_verified`, `vt6_shell_ready_verified`, `vt6_login_continuity_verified` |
+
+These are required acknowledgements; **the controller cannot yet issue the full set**.
+Before enabling dispatch, the controller must bind ordered, one-use callbacks to
+the current worker and boot; bracket a fresh private capture and exact comparison
+against `VerifiedInputs`-bound reference bytes with recipient checks; persist
+proofs before acknowledgement; and latch every failure. The identity sequence
+above now supplies locally tested cross-observation getty/password continuity;
+the older fixed-token probes remain observation-local. Dispatch and durable
+capture authorization are still unimplemented. The existing `VT6_SESSION`
+gate must be supplemented with shell readiness and continuity from the original
+login recipient before issuing the final receipt. Do not synthesize those
+missing proofs from session activity or screen pixels. A same-stage, same-boot
+replayed receipt cannot be distinguished by this worker protocol alone; current
+attempt/capture freshness remains a mandatory controller responsibility.
+
+The canonical worker regressions are
+[test_e2e_vt6_authentication.py](../unit/test_e2e_vt6_authentication.py), executing
+the actual Perl helper with public API/controller doubles. They verify sealing
+before receipt/secret access, all mandatory proofs, malformed/reordered receipts,
+changed boot, API/credential failures, partial-input refusal, late console/policy
+changes, and the shared inspector/authentication no-retry latch. See
+[worker-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Worker-Gate-20260910.md).
+This does not extend live qualification. Identical stale pixels, the excluded
+cursor cell and invisible input still require independent input and capture
+provenance. Wire and qualify the controller's real success/refusal before using
+this worker for installation. Sudo challenge and final
 red-notice pixels remain uncollected. A prompt image alone
 cannot identify the password consumer. Only after that boundary is qualified
 should E2E-002 type the documented package/reboot commands on this surface and

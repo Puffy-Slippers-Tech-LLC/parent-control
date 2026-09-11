@@ -26,6 +26,14 @@ The tools-only refresh also fills missing `curl`, `ripgrep` and Python coverage
 plugin packages without requesting package upgrades; ordinary test commands
 never install dependencies. Full setup includes these prerequisites too.
 
+The [rules renderer](../../tools/install_codex_rules.py) validates its entire
+fixed launcher inventory before rendering, including `publish-release`.
+Simulated checkouts must copy that complete inventory too:
+`test_rules_render_for_a_checkout_with_spaces` in the
+[installation regressions](../../tests/unit/test_dev_tool_installation.py)
+covers this. A missing fixture launcher is a test-fixture failure, not a reason
+to weaken rendering validation or refresh host permissions.
+
 Dedicated Polkit actions bind these exact executable paths and default to `no`,
 so missing authorization rules cannot trigger an authentication dialog. The
 wrappers query their own process identity without action details, which Polkit

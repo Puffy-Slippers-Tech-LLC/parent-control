@@ -1,3 +1,13 @@
+oh-no-parent-control (1.1+ppa1~ubuntu26.04.1) resolute; urgency=medium
+
+  Bug Fixes
+  * Parent App: Fixed an issue where Daily Allowance would not expand on small
+    screens.
+  * Broker: Fixed execution policies failing to reload when unchanged rule
+    files masked stale active rules.
+
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Fri, 11 Sep 2026 22:01:54 +0000
+
 oh-no-parent-control (1.0+ppa6~ubuntu26.04.1) resolute; urgency=medium
 
   * Build Oh No! Parent Control 1.0 for the PPA.

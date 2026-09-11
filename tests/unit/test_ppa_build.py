@@ -85,8 +85,10 @@ def test_result_requires_binary_output_and_host_options_do_not_disable_tests(rel
     if artifacts:
         ppa_build.check_build(root)
     else:
-        with pytest.raises(ValueError, match='build'):
+        with pytest.raises(ValueError, match='build') as error:
             ppa_build.check_build(root)
+        if exit_code != 0:
+            assert f'detailed sbuild logs: {attempt / "output"}' in str(error.value)
     report = json.loads((attempt / 'result.json').read_text())
     assert report['status'] == ('passed' if artifacts else 'failed')
     assert report['exit_code'] == exit_code

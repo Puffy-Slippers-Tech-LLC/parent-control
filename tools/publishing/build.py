@@ -117,7 +117,8 @@ def check_build(root):
         report['exit_code'] = result.returncode
         report['status'] = 'failed'
         if result.returncode != 0:
-            raise ValueError(f'clean package build failed; read {attempt}/build.log')
+            raise ValueError(f'clean package build failed; read {attempt}/build.log; '
+                             f'detailed sbuild logs: {output}')
         binary = output / f'oh-no-parent-control_{version}_amd64.deb'
         changes = output / f'oh-no-parent-control_{version}_amd64.changes'
         if any(path.is_symlink() or not path.is_file() or path.stat().st_size == 0

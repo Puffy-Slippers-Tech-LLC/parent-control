@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Publish docs/VersionHistory.md end to end; run `make publish` without arguments."""
+"""Publish with `make publish`; monitor without publishing with `make publish-status`."""
 from __future__ import annotations
 
 import argparse
@@ -22,7 +22,7 @@ import textwrap
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 # Direct execution uses isolated Python; import only this maintained checkout.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -145,12 +145,16 @@ def save(path, value):
         Path(temporary).unlink(missing_ok=True)
 
 
-@contextmanager
-def locked(root):
+def journal_directory(root):
     common = Path(command('git', 'rev-parse', '--git-common-dir', cwd=root))
     if not common.is_absolute():
         common = root / common
-    directory = common / 'onpc-publish'
+    return common / 'onpc-publish'
+
+
+@contextmanager
+def locked(root):
+    directory = journal_directory(root)
     directory.mkdir(mode=0o700, exist_ok=True)
     if directory.is_symlink() or directory.stat().st_uid != os.getuid():
         raise ValueError('unsafe publishing journal directory')
@@ -169,7 +173,10 @@ def read_url(url):
     if (parsed.scheme != 'https' or parsed.username or parsed.password
             or parsed.hostname not in ('api.launchpad.net', 'ppa.launchpadcontent.net')):
         raise ValueError('unexpected publication service URL')
-    with urlopen(url, timeout=30) as response:
+    # Publication endpoints change while we poll. Require intermediaries to
+    # revalidate stored responses rather than reuse an earlier pending result.
+    request = Request(url, headers={'Cache-Control': 'no-cache'})
+    with urlopen(request, timeout=30) as response:
         return response.read()
 
 
@@ -334,13 +341,19 @@ post_upload_command =
     return path
 
 
-def published_binary(version):
+def published_binary(version, *, progress=None):
     """Return only when the exact source/build/binary and apt index agree."""
+    if progress is None:
+        progress = {}
+    progress['detail'] = 'checking Launchpad source acceptance'
     entries = [item for item in sources(version) if item['source_package_version'] == version
                and item['distro_series_link'] == SERIES]
     if any(item['status'] in ('Deleted', 'Obsolete', 'Superseded') for item in entries):
         raise ValueError('release source was removed or superseded; inspect the PPA')
+    if not entries:
+        progress['detail'] = 'waiting for Launchpad source acceptance (exact version not yet listed)'
     for source in entries:
+        progress['detail'] = 'source accepted; checking amd64 build status'
         builds = collection(source['self_link'] + '?ws.op=getBuilds')
         for build in builds:
             if build['arch_tag'] != 'amd64':
@@ -349,9 +362,20 @@ def published_binary(version):
             if status in ('Failed to build', 'Dependency wait', 'Chroot problem', 'Build for superseded Source',
                           'Failed to upload', 'Cancelled', 'Cannot be built'):
                 raise ValueError(f'Launchpad build {status}; {build["web_link"]}')
-        if (source['status'] != 'Published' or not builds
-                or any(build['buildstate'] != 'Successfully built' for build in builds)):
+        if source['status'] != 'Published':
+            progress['detail'] = 'source accepted; waiting for Launchpad source publication'
             continue
+        if not builds:
+            progress['detail'] = 'source published; waiting for Launchpad to create the amd64 build'
+            continue
+        if any(build['buildstate'] != 'Successfully built' for build in builds):
+            # Use only known public states, never arbitrary remote text in logs.
+            states = {build['buildstate'] for build in builds}
+            label = ('building' if 'Currently building' in states else
+                     'queued' if states == {'Needs building'} else 'not yet successful')
+            progress['detail'] = f'source published; waiting for amd64 build ({label})'
+            continue
+        progress['detail'] = 'source published, amd64 build succeeded; checking binary publication'
         query = urlencode({'ws.op': 'getPublishedBinaries', 'binary_name': release.PACKAGE,
                            'exact_match': 'true', 'version': version, 'status': 'Published'})
         binaries = collection(API + '?' + query)
@@ -360,11 +384,16 @@ def published_binary(version):
                    and item['distro_arch_series_link'] == SERIES + '/amd64'
                    and item['build_link'] in {build['self_link'] for build in builds}
                    for item in binaries):
+            progress['detail'] = ('source published, amd64 build succeeded; '
+                                  'waiting for Launchpad binary publication for this exact build')
             continue
+        progress['detail'] = 'source and binary published, amd64 build succeeded; checking PPA package index'
         try:
             index = gzip.decompress(read_url(PPA_FILES + 'dists/resolute/main/binary-amd64/Packages.gz')).decode()
         except HTTPError as error:
             if error.code == 404:
+                error.close()
+                progress['detail'] = 'binary published; waiting for PPA package index (HTTP 404)'
                 return None
             raise
         for paragraph in index.split('\n\n'):
@@ -376,33 +405,90 @@ def published_binary(version):
             name = fields['Filename']
             if not name.startswith('pool/') or '..' in PurePosixPath(name).parts or '?' in name or '#' in name:
                 raise ValueError('unsafe PPA binary filename')
+            progress['detail'] = 'exact version indexed; downloading and verifying the published amd64 package'
             binary = read_url(PPA_FILES + name)
             if len(binary) != int(fields['Size']) or hashlib.sha256(binary).hexdigest() != fields['SHA256']:
                 raise ValueError('published binary does not match the PPA package index')
             return dict(version=version, architecture='amd64', filename=name,
                         size=len(binary), sha256=fields['SHA256'], builds=[b['web_link'] for b in builds])
+        progress['detail'] = 'binary published; waiting for the exact version in the PPA amd64 package index'
     return None
 
 
-def wait_for_publication(state, state_path):
-    deadline = time.monotonic() + WAIT_SECONDS
+def wait_for_publication(state, state_path=None):
+    """Verify publication; only the publisher supplies a journal to update."""
+    started = time.monotonic()
+    deadline = started + WAIT_SECONDS
+    detail = 'checking publication status'
+    say(f'checking publication of {state["version"]} for resolute/amd64; '
+        f'poll interval {POLL_SECONDS}s, timeout {WAIT_SECONDS // 3600}h')
     while time.monotonic() < deadline:
+        progress = {'detail': 'checking publication status'}
+        unavailable = False
         try:
-            binary = published_binary(state['version'])
+            binary = published_binary(state['version'], progress=progress)
         except (URLError, TimeoutError, ConnectionError) as error:
             if isinstance(error, HTTPError) and error.code not in (404, 408, 429, 500, 502, 503, 504):
                 raise
-            say('publication status temporarily unavailable; retrying', error=True)
+            unavailable = True
+            reason = f'HTTP {error.code}' if isinstance(error, HTTPError) else type(error).__name__
+            if isinstance(error, HTTPError):
+                error.close()
+            detail = f'{progress["detail"]}; status unavailable ({reason})'
         else:
             if binary is not None:
-                state['binary'] = binary
-                state['phase'] = 'published'
-                save(state_path, state)
-                return
-            say('waiting for Launchpad acceptance, amd64 build, and PPA package index')
+                if state_path is not None:
+                    state['binary'] = binary
+                    state['phase'] = 'published'
+                    save(state_path, state)
+                say('publication confirmed: source, amd64 build, binary, index and package checksum verified')
+                return binary
+            detail = progress['detail']
+        stamp = datetime.now(timezone.utc).strftime('%H:%M:%S UTC')
+        elapsed = int(time.monotonic() - started)
+        say(f'{stamp} (+{elapsed}s): {detail}; retrying in {POLL_SECONDS}s', error=unavailable)
         time.sleep(POLL_SECONDS)
-    raise ValueError('publication not confirmed within 24 hours; rerun to resume monitoring without re-uploading; '
+    raise ValueError(f'publication not confirmed within 24 hours; last check: {detail}; '
+                     'rerun to resume monitoring without re-uploading; '
                      'check Launchpad and the publisher rejection email if no source was accepted')
+
+
+def publication_version_key(version):
+    """Order the product and PPA revision numerically for our fixed series."""
+    if not isinstance(version, str):
+        raise ValueError('invalid publication version')
+    match = re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\+ppa([1-9][0-9]*)~ubuntu26\.04\.1', version)
+    if match is None:
+        raise ValueError('unsupported publication version; expected X.Y+ppaN~ubuntu26.04.1')
+    return tuple(int(part) for part in match.groups())
+
+
+def publication_status(root=ROOT):
+    """Read one release snapshot and monitor it without local or remote writes.
+
+    The publisher atomically replaces the journal. Readers need no writer lock,
+    so this also works alongside an active publisher and never changes its phase.
+    Frozen upload artifacts and the development checkout are not monitoring inputs.
+    """
+    path = journal_directory(root) / 'state.json'
+    try:
+        state = json.loads(path.read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        entries = [item for item in sources() if item['distro_series_link'] == SERIES]
+        if not entries:
+            raise ValueError('no recorded release or Launchpad source for resolute to monitor') from None
+        version = max((item['source_package_version'] for item in entries), key=publication_version_key)
+        say('no local release journal; monitoring the latest Launchpad source for resolute')
+    else:
+        if not isinstance(state, dict) or state.get('phase') not in PHASES:
+            raise ValueError('invalid publishing journal; preserve it and inspect the recorded release')
+        if state['phase'] not in ('upload-started', 'published', 'complete'):
+            raise ValueError('recorded release has not reached the upload step; status mode cannot publish it')
+        version = state.get('version')
+        publication_version_key(version)
+        say('monitoring the recorded release; checkout changes do not affect status checks')
+    wait_for_publication({'version': version})
+    say(f'published {version} for resolute/amd64', success=True)
 
 
 def finish_checkout(root, state, log):
@@ -516,19 +602,24 @@ def publish(root=ROOT):
 
 class PublisherParser(argparse.ArgumentParser):
     def error(self, message):
-        say('this publisher accepts no parameters; use --help for usage', error=True)
+        say('use make publish or make publish-status; use --help for usage', error=True)
         self.exit(2)
 
 
 def main(argv=None):
     parser = PublisherParser(description=__doc__, allow_abbrev=False)
-    parser.parse_args(argv)  # No parameters, overrides, hooks, or interactive fallback.
+    parser.add_argument('--status', action='store_true',
+                        help='monitor the latest recorded release without publishing or changing local files')
+    args = parser.parse_args(argv)
     original_env = dict(os.environ)
     safe_env = environment()
     try:
         os.environ.clear()
         os.environ.update(safe_env)
-        publish()
+        if args.status:
+            publication_status()
+        else:
+            publish()
     except ValueError as error:
         say(str(error), error=True)
         return 1

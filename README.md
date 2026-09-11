@@ -146,6 +146,12 @@ downloadable. It does not rerun the local publishing tests.
 See [Publishing](docs/Publishing.md) for one-time credentials, release review,
 retained evidence and retry behavior. Routine manual publishing needs no prompts.
 
+To check or resume monitoring an uploaded release:
+
+```sh
+make publish-status
+```
+
 ## Diagnose failures
 
 Logs: `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log`.

@@ -85,17 +85,37 @@ output stays plain text.
 **Earliest ready task; not accepted.** [Task 19B remains accepted](Evidence/19B-Acceptance-20260908.md).
 No earlier entry is bypassed; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
 
-**Current result — 2026-09-10, session observer verified locally:** implemented
-`VT6_SESSION` and the fixed `vt6-session` transport route, reusing the shared
-graphical/serial session predicate. The sole selected local tty6 session and
-active-VT checks now have executable success/refusal coverage; existing graphical
-and serial consumers passed. See the
-[session-gate evidence](Evidence/20-VT6-Session-Gate-20260910.md) and
-[owning VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal).
-The broader input slice was narrowed to this missing session prerequisite.
-No authenticated worker or needle was added and no new VM attempt was made.
-The session token alone does not prove shell readiness or continuity from the
-earlier login recipient; those worker/controller gates remain required.
+**Current result — 2026-09-10, recipient continuity verified locally:** added
+fixed VT6 identity programs and an ordered, single-use observer sequence that
+pins boot/unit/PID/start-time digests across getty, password and post-capture
+password recheck. It reuses the existing recipient predicates and keeps the
+recipient digest private. Replaced process/boot, replay, reordering, ownership
+loss and malformed output latch refusal. See
+[recipient-gate evidence](Evidence/20-VT6-Recipient-Gate-20260910.md) and the
+[owning contract](../../tests/e2e/README.md#visible-vt6-installation-terminal).
+This slice completed that missing cross-observation boundary; it did not enable
+dispatch or issue password authorization. Shell readiness/lineage, capture
+provenance and durable authorization remain required before live qualification.
+No VM attempt was made; the all-task clearance remains active.
+
+**Prior result — one-shot worker gate verified locally:** added
+`onpc_vt6::authenticate(exchange)` with exact stage/boot/boolean receipts,
+mandatory needle and exact-pixel authorization, sealing before receipt/secret
+access, one password submission and mandatory session/shell completion receipts.
+API, proof or partial-input failure seals capture and refuses retries; the
+credential-free inspector shares that latch. Late console/policy changes refuse
+typing or submission. See [worker-gate evidence](Evidence/20-VT6-Worker-Gate-20260910.md)
+and the [owning protocol](../../tests/e2e/README.md#visible-vt6-installation-terminal).
+The route remains unselected by `smoke.pm`; no controller authorization or live
+input is claimed. The slice ended at the worker boundary because existing
+getty/password probes establish identity only within individual observations,
+and the [session observer](Evidence/20-VT6-Session-Gate-20260910.md) supplies
+neither shell readiness nor continuity from the original login recipient.
+Those proofs must be implemented before enabling dispatch. The
+[pixel comparator and matcher counterexample](Evidence/20-VT6-Pixel-Gate-20260910.md)
+remain applicable. Stage/boot receipts alone cannot distinguish same-stage/
+same-boot replay; current capture/input provenance remains mandatory.
+No new VM attempt was made.
 
 **Prior result — corrected prompt qualification passed:** the
 [sole corrected worker attempt](Evidence/20-VT6-Prompt-Qualification-20260910.md)
@@ -142,14 +162,19 @@ remain unqualified. Installation history is unchanged: 21 attempts, three
 historical passes and eighteen failures. Preserve those failures; do not reopen
 solved serial authentication/probe semantics.
 
-**Next bounded result:** implement the reviewed native-resolution VT6 prompt
-needle and one-shot worker/controller input route, reusing the now locally
-verified `vt6-session` observer and existing credential/private capture helpers.
-Validate exact image matching and wrong-account/stale-screen/
-missing-prompt refusals, unchanged boot, selected recipient, capture sealing and
-no-retry behavior locally; then qualify the smallest guarded authenticated flow
-after isolated safety checks. Empty no-echo pixels require independent one-shot
-input provenance; they cannot establish absence of invisible typed characters.
+**Next bounded result:** implement authenticated-shell readiness/lineage proof
+using the now-pinned recipient and the fixed `vt6-session` predicate. Follow only
+the selected login's direct shell lineage, reusing the established sudo observer
+semantics; util-linux login detaches its terminal and forks a new shell session,
+so do not require the shell to retain the login's session ID. Prove actual
+command-input readiness, not merely a Bash executable or active logind session.
+Then connect the controller's fresh capture/`verify_prompt_pixels`/`VerifiedInputs`
+and current-worker gates to ordered one-use authorization, persisting proofs
+before reply and latching failures. Reuse the new getty/password/recheck sequence;
+do not replace it with the older observation-local booleans. Connect dispatch
+only when every receipt has executable proof, then qualify the smallest guarded
+authenticated success/refusal after isolated safety checks.
+Empty no-echo pixels cannot establish absence of invisible input.
 Keep inputs unchanged through live finalization. Sudo/notice needles and complete
 installation/reboot/startup follow under existing layout/startup/provenance
 contracts. Do not reopen solved serial authentication or reboot semantics.
@@ -157,17 +182,20 @@ The prompt pass does not establish the cause of historical provenance or
 intermittent recipient failures. Exact getty flag values remain unexported.
 
 **Verification/cleanup:** actual settings `gpt-6-astra` / `high`, Standard.
-Focused observation/login/prompt tests: **1,470 passed**. `make check` exited 0:
-**6,631 unit/contract and 58 private-D-Bus component tests passed**, plus common
-source and stage traceability checks. Exact selectors and regression scope are
-in the [current evidence](Evidence/20-VT6-Session-Gate-20260910.md).
-No live session qualification or package acceptance run. Prompt-route history
+Focused guest-program/recipient/transport tests: **1,561 passed**.
+`make check` exited 0:
+**6,973 unit/contract and 58 private-D-Bus component tests passed**, plus common
+source and stage traceability checks. No test failed in this slice; selectors
+and regressions are in [current evidence](Evidence/20-VT6-Recipient-Gate-20260910.md).
+Prior matcher and fixture failures remain in the pixel-gate evidence.
+No live qualification or package acceptance run. Prompt-route history
 remains two attempts (one original failure, one corrected pass); installation
 history remains 21 (3 historical passes, 18 failures).
 
-All commands this session started exited and results were collected. No VM
-operation, lease, worker, callback or screenshot export was created; no recovery
-or cleanup obligation remains. Documentation edits began after checks exited.
+All commands this session started exited and results were collected. No screenshot
+export, VM operation, lease, worker or callback was created; no recovery or cleanup
+obligation remains. Prior workspace edits were preserved.
+Documentation edits began after checks exited.
 Prior VM restoration is recorded in the prompt evidence, not reasserted from a
 new VM observation. No approval or Polkit denial. **All-task VM clearance persists**.
 Selection rechecked:
@@ -177,10 +205,10 @@ unfinished. Historical maintenance/probe failures remain in their linked
 evidence; current success is not asserted for those old failed attempts.
 
 **Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
-**Reason:** the session observer now passes local success/refusal and shared
-consumer checks, but reviewed-screen secret authorization, recipient/input
-continuity and capture sealing across the new VNC route remain unresolved
-security/correctness boundaries. Standard.
+**Reason:** cross-observation getty/password recipient pinning now passes locally,
+but authenticated-shell readiness/lineage and current-attempt capture authorization
+remain unresolved security/correctness work before dispatch and live qualification.
+Standard.
 
 ### Reboot unblock intervention — 2026-09-09
 

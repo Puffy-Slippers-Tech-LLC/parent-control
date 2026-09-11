@@ -22,6 +22,8 @@ class ReadOnlyObservations:
         self._failed = False
         self._on_diagnostic = on_diagnostic
         self._boot = None
+        self._vt6_recipient = None
+        self._vt6_recipient_stage = 0
 
     def _guard(self):
         require(self._transport.config == self._config, 'observation:transport-replaced')
@@ -78,6 +80,8 @@ class ReadOnlyObservations:
                                                       'serial-password', 'serial-session', 'boot',
                                                       'vt6-getty', 'vt6-password', 'vt6-session', 'vt6-install-password',
                                                       'vt6-reboot-password',
+                                                      'vt6-getty-identity', 'vt6-password-identity',
+                                                      'vt6-password-recheck',
                                                       'package-absent', 'package-installed',
                                                       'installed-layout',
                                                       'install-password', 'reboot-password', 'install-refused',
@@ -91,6 +95,9 @@ class ReadOnlyObservations:
                 'serial-password': (guest_observations.SERIAL_PASSWORD, 20),
                 'vt6-password': (guest_observations.VT6_PASSWORD, 20),
                 'vt6-getty': (guest_observations.VT6_GETTY, 50),
+                'vt6-getty-identity': (guest_observations.VT6_GETTY_IDENTITY, 60),
+                'vt6-password-identity': (guest_observations.VT6_PASSWORD_IDENTITY, 30),
+                'vt6-password-recheck': (guest_observations.VT6_PASSWORD_IDENTITY, 30),
                 'vt6-session': (guest_observations.VT6_SESSION, 110),
                 'vt6-install-password': (installation_observations.VT6_SUDO_PASSWORD, 20),
                 'vt6-reboot-password': (installation_observations.VT6_REBOOT_PASSWORD, 20),
@@ -106,12 +113,20 @@ class ReadOnlyObservations:
                 'startup-enforcement': (startup_observations.ENFORCEMENT, 40),
                 'startup-broker': (startup_observations.BROKER, 40),
             }[name]
+            recipient_stages = ('vt6-getty-identity', 'vt6-password-identity',
+                                'vt6-password-recheck')
+            if name in recipient_stages:
+                require(self._boot is not None and self._vt6_recipient_stage < 3 and
+                        name == recipient_stages[self._vt6_recipient_stage],
+                        'observation:vt6-recipient-order')
             self._guard()
             raw = self._transport.call(['/usr/bin/python3', '-c', program], timeout=timeout)
             self._guard()
             require(isinstance(raw, bytes) and 0 < len(raw) <= 1024,
                     'observation:invalid-output')
-            if name == 'startup-broker':
+            if name in recipient_stages:
+                result = self._accept_vt6_recipient(name, raw)
+            elif name == 'startup-broker':
                 result = startup_observations.parse_broker(raw)
             elif name == 'startup-enforcement':
                 result = startup_observations.parse_enforcement(raw)
@@ -231,9 +246,41 @@ class ReadOnlyObservations:
             if isinstance(error, EvidenceError) and str(error) in {
                 'observation:transport-replaced', 'observation:unknown-probe',
                 'observation:invalid-output',
+                'observation:vt6-recipient-order', 'observation:vt6-recipient-changed',
                 'observation:startup-enforcement-order',
                 *('observation:startup-enforcement-' + stage
                   for stage in startup_observations.REFUSALS),
             }:
                 raise
             raise EvidenceError('observation:probe-failed') from None
+
+    def _accept_vt6_recipient(self, name, raw):
+        """Keep identity private; a matching digest is continuity, not input authority.
+
+        This fixed three-read sequence cannot be repinned or retried. The caller
+        still owns worker/capture provenance, pixel checks and durable one-use
+        authorization. In particular, the last read does not prove empty input
+        or shell readiness and must not itself authorize password submission.
+        """
+        identity = json.loads(raw)
+        probe = 'vt6-password-identity' if name == 'vt6-password-recheck' else name
+        require(isinstance(identity, dict) and set(identity) == {
+                    'probe', 'boot_sha256', 'recipient_sha256'} and
+                identity['probe'] == probe and all(
+                    isinstance(identity[key], str) and re.fullmatch(r'[0-9a-f]{64}', identity[key])
+                    for key in ('boot_sha256', 'recipient_sha256')) and
+                raw == (json.dumps(identity, sort_keys=True) + '\n').encode(),
+                'observation:invalid-output')
+        pinned = (identity['boot_sha256'], identity['recipient_sha256'])
+        require(identity['boot_sha256'] == self._boot and
+                (self._vt6_recipient is None or self._vt6_recipient == pinned),
+                'observation:vt6-recipient-changed')
+        self._vt6_recipient = pinned
+        self._vt6_recipient_stage += 1
+        result = {'boot_sha256': identity['boot_sha256'], 'active_vt6_verified': True}
+        if name == 'vt6-getty-identity':
+            result['vt6_getty_verified'] = True
+        else:
+            result.update(vt6_login_process_verified=True, terminal_echo_disabled=True,
+                          vt6_recipient_continuity_verified=True)
+        return result

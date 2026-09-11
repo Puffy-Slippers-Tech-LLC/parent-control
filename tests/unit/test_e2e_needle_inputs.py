@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from pathlib import Path
 import struct
 
 import pytest
@@ -106,6 +107,30 @@ def test_password_prompt_cannot_add_a_click_point(distribution):
     doc['area'][0]['click_point'] = {'xpos': 10, 'ypos': 10}
     path.write_text(json.dumps(doc))
     with pytest.raises(RuntimeError, match='needle-click-point'):
+        worker.distribution_inputs()
+
+
+@pytest.mark.parametrize('fault', [None, 'cursor', 'threshold', 'bool', 'click',
+                                  'missing', 'extra', 'dimensions'])
+def test_vt6_needle_permits_only_reviewed_full_frame_and_cursor(distribution, fault):
+    dist, _ = distribution
+    needles = Path(worker.__file__).resolve().parents[1] / 'integration/graphical_smoke/needles'
+    base = dist / 'needles/onpc-vt6-parent-password'
+    png = (needles / (base.name + '.png')).read_bytes()
+    doc = json.loads((needles / (base.name + '.json')).read_bytes())
+    if fault == 'cursor': doc['area'][-1]['width'] += 1
+    elif fault == 'threshold': doc['area'][0]['match'] = 99
+    elif fault == 'bool': doc['area'][0]['xpos'] = False
+    elif fault == 'click': doc['area'][0]['click_point'] = {'xpos': 1, 'ypos': 1}
+    elif fault == 'missing': doc['area'].pop(1)
+    elif fault == 'extra': doc['area'].append(dict(doc['area'][0]))
+    elif fault == 'dimensions': png = png[:16] + struct.pack('!II', 1280, 800) + png[24:]
+    base.with_suffix('.png').write_bytes(png)
+    base.with_suffix('.json').write_text(json.dumps(doc))
+    if fault:
+        with pytest.raises(RuntimeError, match='vt6-needle-layout'):
+            worker.distribution_inputs()
+    else:
         worker.distribution_inputs()
 
 

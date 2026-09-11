@@ -49,6 +49,8 @@ review changes no task order or completion status.
 - Approved selected checks, artifact builds, diagnostics and listing:
   [category commands](Approval-Tools.md#category-coverage-and-future-additions).
   Use implemented selectors; do not rediscover permissions or invent a launcher.
+  Simulated checkout fixtures must preserve the
+  [rules renderer's complete launcher prerequisites](Approval-Tools.md#one-time-setup).
 
 ### Qualified GDM and serial helpers
 
@@ -93,8 +95,19 @@ reviewed native 1024×768 login/challenge pixels and a documented needle contrac
 The fixed `VT6_SESSION` observer now shares the graphical/serial session predicate
 and has [local gate/refusal verification](Evidence/20-VT6-Session-Gate-20260910.md),
 linked with its regression IDs and limits from that same owning contract.
-Needle implementation, password input, worker/controller session continuity,
-live session qualification and sudo/notice pixels remain pending.
+The [pixel-gate evidence](Evidence/20-VT6-Pixel-Gate-20260910.md) now records the
+maintained needle and mandatory exact RGB comparison, its installed-matcher
+counterexample, and local screen/staging regressions. The
+[worker-gate evidence](Evidence/20-VT6-Worker-Gate-20260910.md) adds the locally
+tested `onpc_vt6::authenticate` one-shot protocol, capture sealing and no-retry
+regressions. The owning VT6 contract defines its mandatory receipts and shared
+GDM/VT6 matcher API. The [recipient-gate evidence](Evidence/20-VT6-Recipient-Gate-20260910.md)
+adds locally tested fixed identity probes and the observer's single-use
+getty/password/recheck sequence. The owning contract records its boot/process
+digest binding, regressions and refusal/privacy limits. Authentication dispatch
+remains disabled: fresh capture authorization and authenticated shell readiness/
+lineage must still be implemented before issuing the full receipt set. Live
+input/session qualification and sudo/notice pixels remain pending.
 Neither this collection pass nor the earlier
 [VT6 surface evidence](Evidence/20-Visible-VT6-20260909.md) qualifies
 authentication or E2E-002. These qualifications do not resolve the

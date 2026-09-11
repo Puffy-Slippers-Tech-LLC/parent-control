@@ -323,3 +323,36 @@ must exclude this file from reads, searches, diffs and edits.
 - Verification and cleanup: 1,470 focused tests passed. make check passed 6,631 unit/contract and 58 component tests; 198 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Session-Gate-20260910.md. All commands exited; no VM operation or cleanup obligation was created.
 
 - Next session: Task 20 remains earliest ready. Implement the reviewed prompt needle and one-shot worker/controller input gates, then qualify guarded authentication after safety checks. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 55 — 2026-09-10 17:23 PDT
+
+- Task: Task 20 — verify the VT6 prompt screen boundary.
+- Duration: 15 minutes
+- Completed: Implemented the reviewed VT6 needle and mandatory exact pixel gate. Initial matcher tests exposed four false acceptances; tighter regions and exact comparison address them. Updated shared contracts and handoff. Authenticated input and Task 20 acceptance remain unfinished.
+
+- Verification and cleanup: 112 focused tests passed. First common check exposed a stale launcher fixture; repaired it and passed its 15 tests. Final make check passed 6,764 unit/contract and 58 component tests. Documentation checks passed. All commands exited; review export removed; no VM operation started. Evidence: docs/TestAutomation/Evidence/20-VT6-Pixel-Gate-20260910.md.
+
+- Next session: Task 20: wire both screen gates into the one-shot authenticated worker/controller flow, verify continuity and refusal behavior, then perform guarded qualification. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 56 — 2026-09-10 17:36 PDT
+
+- Task: Task 20 — VT6 authenticated installation input boundary.
+- Duration: 13 minutes
+- Completed: Implemented and locally verified the one-shot VT6 worker gate, capture sealing, strict authorization receipts and retry refusals. Dispatch remains disabled pending controller continuity proofs; Task 20 acceptance is unfinished. Updated the owning contract, reuse map and handoffs.
+
+- Verification and cleanup: 309 focused tests passed; make check passed 6,841 unit/contract and 58 component tests. Documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Worker-Gate-20260910.md. No test failures or live VM attempt. All commands exited; no cleanup remains.
+
+- Next session: Continue Task 20: implement controller capture freshness and recipient/shell continuity, then connect and qualify guarded authentication. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 57 — 2026-09-10 17:48 PDT
+
+- Task: Task 20 — cross-observation VT6 recipient continuity.
+- Duration: 13 minutes
+- Completed: Implemented ordered VT6 recipient identity pinning with permanent refusal on replacement, replay, boot change or ownership loss. Updated the owning contract, reuse map and handoff. Task 20 remains unaccepted; shell readiness, capture authorization and live authentication are unfinished.
+
+- Verification and cleanup: 1,561 focused tests passed. make check passed 6,973 unit/contract and 58 component tests; 218 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Recipient-Gate-20260910.md. No test failures or VM operations; all commands exited and cleanup is complete.
+
+- Next session: Continue Task 20: prove authenticated-shell readiness and lineage from the pinned login recipient, then complete capture authorization before guarded live qualification. Next settings: gpt-6-astra/high, Standard.

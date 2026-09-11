@@ -54,6 +54,7 @@ COMMON_SELECTED_INPUTS = (
     ('tests/integration/owned_commands.py', 'owned_commands.py'),
     ('tests/integration/guest/redact.py', 'guest/redact.py'),
     ('tests/system/pytest.ini', 'pytest.ini'),
+    ('tools/regression_events.py', 'system_progress.py'),
 )
 AREA_SELECTED_HELPERS = {
     'package': (),
@@ -537,6 +538,15 @@ class Lease:
         Replaced/off domains and other incomplete phases require separate review.
         """
         require(self.fd is None and self.view.graphics_type == 'vnc', 'recovery:invalid-lease')
+        self._recover_recorded_cleanup()
+
+    def recover_system_cleanup(self):
+        """Resume only the recorded, still-running installed-system cleanup."""
+        require(self.fd is None and self.view.graphics_type == 'spice', 'recovery:invalid-lease')
+        self._recover_recorded_cleanup()
+
+    def _recover_recorded_cleanup(self):
+        """Reacquire ownership and verify every saved identity before mutation."""
         try:
             self.capture.directory_identity = self.capture.private_directory()
             self.fd = os.open(self.directory / '.lock', os.O_RDWR | os.O_NOFOLLOW)
@@ -561,10 +571,14 @@ class Lease:
                 'recovery:journal-identity')
             require(not self.source.domain.autostart() and
                     self.source.domain.ID() == state['domain_id'], 'recovery:domain-replaced-or-off')
+            displays = ET.fromstring(self.source.domain.XMLDesc(0)).findall('devices/graphics')
+            require(len(displays) == 1 and displays[0].get('type') == self.view.graphics_type,
+                    'recovery:graphics-changed')
             self.original_xml = state['original_xml']
             require(baseline.domain_layout(self.original_xml, self.source.uuid) ==
                     self.capture.state['source']['layout'], 'recovery:original-layout')
-            isolated_xml(self.original_xml, self.source.uuid, state['run'], graphics_type='vnc')
+            isolated_xml(self.original_xml, self.source.uuid, state['run'],
+                         graphics_type=self.view.graphics_type)
             self.state = state
             self.view.original_shares = self.capture.state['source']['layout']['source_shares']
             self.view.run = state['run']
@@ -573,7 +587,7 @@ class Lease:
             self.guard()
             require(self.capture.verify_snapshot() == self.capture.state['proof'], 'recovery:baseline-changed')
             self.mutated = True
-            log('recovery:recorded-graphical-cleanup')
+            log('recovery:recorded-cleanup')
             self.finish()
         finally:
             self.release()
@@ -866,10 +880,11 @@ def pytest_command(run, phase, selection):
     qualification = (['-p', 'system_qualification', '--onpc-qualification-failure']
                      if selection.qualification_failure and phase == 'authorization' else [])
     return ['env', f'ONPC_EXPECTED_RUN={run}', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1',
+            'ONPC_REGRESSION_EVENTS=1', f'ONPC_REGRESSION_PRIVATE={PAYLOAD}/results',
             f'PYTHONPATH={PAYLOAD}',
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-m', 'pytest',
             '-c', PAYLOAD + '/pytest.ini', '--noconftest', '--rootdir', PAYLOAD,
-            '--junitxml', f'{PAYLOAD}/results/{phase}.xml', '-q',
+            '--junitxml', f'{PAYLOAD}/results/{phase}.xml', '-q', '-p', 'system_progress',
             *qualification, *selectors]
 
 
@@ -967,6 +982,17 @@ def capture_session_screen(lease, output):
         raise
 
 
+def run_pytest(vm, run, phase, selection):
+    """Forward only registered test events; raw SSH output stays private."""
+    from system_progress import Progress
+    previous = getattr(vm.commands, 'progress', None)
+    vm.commands.progress = Progress(phase, phase_executions(selection, phase))
+    try:
+        return vm.call(pytest_command(run, phase, selection), timeout=900)
+    finally:
+        vm.commands.progress = previous
+
+
 def installed_run(vm, lease, directory, selection, ledger=None):
     ledger = ledger or RunLedger()
     run = lease.state['run']
@@ -990,7 +1016,7 @@ def installed_run(vm, lease, directory, selection, ledger=None):
             lease.save('pytest-installed')
             with ledger.measure('test'):
                 try:
-                    vm.call(pytest_command(run, 'installed', selection), timeout=900)
+                    run_pytest(vm, run, 'installed', selection)
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')
@@ -1009,7 +1035,7 @@ def installed_run(vm, lease, directory, selection, ledger=None):
             lease.save('pytest-rebooted')
             with ledger.measure('test'):
                 try:
-                    vm.call(pytest_command(run, 'rebooted', selection), timeout=900)
+                    run_pytest(vm, run, 'rebooted', selection)
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')
@@ -1031,7 +1057,7 @@ def installed_run(vm, lease, directory, selection, ledger=None):
             lease.save('pytest-' + phase)
             with ledger.measure('test'):
                 try:
-                    vm.call(pytest_command(run, phase, selection), timeout=900)
+                    run_pytest(vm, run, phase, selection)
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')

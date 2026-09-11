@@ -75,8 +75,8 @@ AppImage is denied before a later rescan while unrelated existing executables
 remain usable.
 
 Every broker `AppFilter` write synchronously reconciles the aggregate fapolicyd
-policy. The renderer replaces and reloads the rule file only when its contents
-change; identical contents return without a reload. The broker uses
+policy. The renderer skips replacement and reload only when the disk contents
+match a successful notification recorded by this adapter instance. The broker uses
 the public rules-only reload interface: it compiles with `fagenrules` and
 notifies with `fapolicyd-cli --reload-rules`, avoiding the trust-database refresh
 triggered by `fagenrules --load` (SIGHUP). Command success alone does not
@@ -89,6 +89,86 @@ failure restores and reloads the previous rule file. On startup, reconciliation
 completes before the D-Bus object is registered. An external AccountsService
 allowlist is not converted into native denials: the adapter supplies no targets
 or patterns for that account until it has a blocklist again.
+
+### Notification recovery and acknowledgement limit
+
+`FapolicydPolicy.reconcile` and `remove` invalidate the in-memory notification
+record before changing rules. A successful compile/notification records the
+candidate, or the previous contents after successful rollback. Failed rollback
+leaves the record unknown: restoring the source file alone must not let a later
+identical reconciliation return success without retrying compilation and
+notification. A new adapter also starts unknown, so broker restart does not
+inherit an unverified disk-only success. All updates remain under the existing
+policy lock; rollback logs contain operation and exception type only.
+
+This record establishes command completion, **not active daemon policy**.
+Successful notification followed by asynchronous daemon rejection/restart or
+external rule changes is not detected by this cache. Generation-specific bounded
+acknowledgement, including rollback, remains [Task 15A work](../TestAutomation/Task-15.md#task-15a-continuation--2026-09-08).
+The boot canary proves initial enforcement only. The existing public
+[`--reload-rules` contract](https://github.com/linux-application-whitelisting/fapolicyd/blob/v1.4.5/doc/fapolicyd-cli.8)
+describes notification; disk rule listings and performance statistics cannot
+be assumed to acknowledge a requested generation.
+
+The [activation interface audit](../TestAutomation/Evidence/15A-Activation-Interface-Audit-20260911.md)
+also rejects the journal's ruleset digest as an activation receipt: released
+v1.4.5 `open_file` emits it before `_load_rules` parses the file. Its public
+status report has no requested-generation receipt. These are audited upstream
+facts, not qualification of the guest's installed version. That version could
+not be recovered from the historical artifact path in this slice.
+`tests/integration/system_enforcement.py::record_execution_backend` now records
+validated package version and installed executable digest through the existing
+native-case evidence callback. Local regressions in
+`tests/unit/test_system_enforcement.py` cover refusal and partial-evidence
+boundaries; the added capture has not run in the guest. It does not identify
+active daemon rules. The next witness design must distinguish stale rules and
+absent/permissive enforcement, bound its operations, and acknowledge rollback
+and removal; a single allow/deny canary is insufficient.
+
+[Local recovery evidence](../TestAutomation/Evidence/15A-Notification-Recovery-20260911.md)
+retains failing-before/passing-after checks in
+`tests/unit/test_execution_policy.py`: separate disk/compiled/daemon doubles,
+failed forward and rollback notifications for reconciliation/removal, repeated
+failure, eventual recovery, new-adapter recovery and successful-rollback reuse.
+This increment is locally tested, not installed-qualified. It uses the existing
+`process-restart` activation class and changes no persistent schema. Downstream
+policy-save, grant/session and removal transactions reuse this adapter; the
+[rules-only live evidence](../TestAutomation/Evidence/15A-Rules-Only-Reload-20260908.md)
+retains its original scope and does not qualify this new recovery behavior.
+
+### Generation witness design gate
+
+The [kernel-witness audit](../TestAutomation/Evidence/15A-Kernel-Witness-Audit-20260911.md)
+adds two concrete constraints: upstream v1.4.5 reload ignores the parser's
+failure return, and queue overflow can produce a denial without evaluating
+any rule. A marker before product rules, or a nonce denial with an adjacent
+allowance, therefore cannot acknowledge the requested policy. These findings
+are source analysis, not installed qualification.
+
+The candidate is a fresh generation's positive rule-decision receipt plus
+actual execution, paired with a rule-attributed deny control. Bind both to
+the compiled inputs and daemon invocation; reject stale/foreign decisions,
+partial parsing, missing records, permissive/stopped enforcement and identity
+changes. The linked audit records the acceptance matrix and remaining proof
+obligations. This protocol is not yet implemented or established sufficient;
+in particular, a product marker cannot certify arbitrary administrator rules.
+
+Reuse the broker's Gio system-bus transport for a narrowly scoped systemd
+transient probe service with explicit startup/runtime/stop deadlines. This is
+the next implementation candidate because `subprocess` timeouts do not bound
+initial process creation, and the boot/terminal helpers cannot supply an owned
+handle while exec is stalled there. Public systemd interfaces exist; their
+installed behavior, lost-create-reply ownership, evidence retention and cleanup
+must be tested before product integration. Do not infer ownership from a unit
+name or interpret generic exec failure as a policy decision.
+
+Rollback requires a fresh receipt for restored content. Reversible removal
+needs a witness that survives deletion of the account-policy file; any separate
+witness must ship its `postrm` deletion and baseline/empty-directory handling
+together. See the [removal limitation](Package-Removal.md#execution-policy-baseline).
+No witness files, transient services, persistent schema or activation behavior
+have been added. Current notifications and their cache remain weaker than
+acknowledgement.
 
 ## Session-entry reconciliation
 

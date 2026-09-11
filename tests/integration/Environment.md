@@ -101,6 +101,15 @@ It cannot boot, provision, create a baseline, recover another phase, or operate
 on an already-off/replaced instance. Recovery evidence is retained separately
 under `/tmp/onpc-graphical-recovery-*`; original failure evidence is unchanged.
 
+For the same `cleanup-requested` interruption in an installed-system attempt,
+use `tools/run-tests integration check_system_recovery`. It uses the same
+exclusive lock and journal/domain/baseline checks, requires the recorded running
+SPICE instance, and performs only ordinary lease cleanup. Neither recovery route
+can adopt the other display kind. Evidence is retained separately under
+`/tmp/onpc-system-recovery-*`. An interrupted suite remains incomplete and needs
+a fresh full run after successful recovery. This development test helper
+activates on invocation (`none`); it changes no product or saved application data.
+
 Read product logs at
 `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log` and journals without
 editing or deleting them. If sandbox access is denied, request the minimum

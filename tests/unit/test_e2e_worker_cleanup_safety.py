@@ -242,6 +242,62 @@ def test_timeout_refuses_and_cleans_up(attempt, monkeypatch):
     attempt.options['validate'].assert_not_called()
 
 
+@pytest.mark.parametrize('timeout,stop_seconds,passes', [
+    (960, 180, False), (1800, 180, True), (1800, 1000, False),
+])
+def test_delayed_shutdown_callback_keeps_finite_deadline_and_requires_off_observation(
+        attempt, monkeypatch, timeout, stop_seconds, passes):
+    clock = Mock(return_value=0.0)
+    monkeypatch.setattr(runtime.time, 'monotonic', clock)
+    attempt.adapter.phase = 'running'
+    attempt.adapter.events = ['initial-off', 'poweron']
+    attempt.worker.poll.side_effect = [None, None, None, 0]
+    callbacks = []
+
+    def callback():
+        callbacks.append(clock.return_value)
+        if len(callbacks) == 1:
+            # Retained attempt 10: required checks and authentication consume
+            # most of the old budget before synchronous Lease.stop begins.
+            clock.return_value = 856.0
+        elif len(callbacks) == 2:
+            clock.return_value += stop_seconds
+            attempt.adapter.phase = 'stopped'
+            attempt.adapter.events.append('poweroff')
+        else:
+            clock.return_value += 1.0
+            attempt.adapter.events.append('status-off')
+
+    attempt.server.serve_once.side_effect = callback
+    if passes:
+        result = attempt.run(timeout=timeout)
+        assert result['shutdown_verified'] and result['backend_exit_status'] == 0
+        attempt.options['validate'].assert_called_once_with()
+        attempt.lease.guard.assert_called_once_with(off=True)
+        assert len(callbacks) == 3
+    else:
+        with pytest.raises(RuntimeError, match='e2e:deadline'):
+            attempt.run(timeout=timeout)
+        assert len(callbacks) == 2
+        # An expired synchronous callback must not authorize further input.
+        attempt.options['observe'].assert_called_once_with()
+        attempt.options['validate'].assert_not_called()
+        assert not report(attempt)['shutdown_verified']
+        assert 'status-off' not in report(attempt)['lifecycle']
+    attempt.worker.close.assert_called_once()
+    attempt.server.close.assert_called_once()
+    assert report(attempt)['worker_stopped'] and report(attempt)['callback_closed']
+
+
+@pytest.mark.parametrize('timeout', [True, 0, -1, 1801, float('inf'), float('nan')])
+def test_invalid_worker_budget_refuses_before_lease_or_resources(attempt, timeout):
+    with pytest.raises(RuntimeError, match='e2e:timeout'):
+        attempt.run(timeout=timeout)
+    runtime.Adapter.assert_not_called()
+    runtime.CallbackServer.assert_not_called()
+    runtime.Worker.assert_not_called()
+
+
 @pytest.mark.parametrize('status', [1, -1, 124])
 def test_nonzero_worker_status_never_reaches_validation(attempt, status):
     attempt.worker.poll.return_value = status

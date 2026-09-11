@@ -68,7 +68,7 @@ def command(dsc, output):
             '--build-dir=' + str(output), str(dsc)]
 
 
-def check_build(root):
+def check_prerequisites():
     for tool in ('sbuild', 'mmdebstrap', 'newuidmap', 'newgidmap'):
         if not shutil.which(tool, path='/usr/bin:/bin'):
             raise ValueError('missing local build tools; run ./setup.sh --ppa-build-tools')
@@ -80,6 +80,10 @@ def check_build(root):
     if system_config.exists() and any(line.strip() not in ('', '1;') and not line.lstrip().startswith('#')
                                       for line in system_config.read_text().splitlines()):
         raise ValueError('custom system sbuild configuration needs review before clean PPA validation')
+
+
+def check_build(root):
+    check_prerequisites()
     version, inputs = source_inputs(root)
     attempt = Path(tempfile.mkdtemp(prefix='onpc-ppa-check-', dir='/tmp'))
     source = attempt / 'input'
@@ -92,7 +96,7 @@ def check_build(root):
     config.write_text(CONFIG)
     for name, payload in inputs.items():
         (source / name).write_bytes(payload)
-    report = {'version': version, 'distribution': 'resolute', 'architecture': 'amd64',
+    report = {'directory': str(attempt), 'version': version, 'distribution': 'resolute', 'architecture': 'amd64',
               'backend': 'sbuild-unshare', 'build_network': False, 'status': 'running',
               'input_sha256': {name: hashlib.sha256(payload).hexdigest() for name, payload in inputs.items()}}
     report_path = attempt / 'result.json'
@@ -104,12 +108,12 @@ def check_build(root):
                XDG_CONFIG_HOME=str(attempt / 'config'), SBUILD_CONFIG=str(config),
                DEB_BUILD_OPTIONS='parallel=2', DEB_BUILD_PROFILES='')
     dsc = source / next(name for name in inputs if name.endswith('.dsc'))
-    print(f'publish-release: clean binary build evidence: {attempt}', flush=True)
-    print('publish-release: resolving dependencies, then building without network or skipped tests', flush=True)
+    print(f'publish: clean binary build evidence: {attempt}', flush=True)
+    print('publish: resolving dependencies, then building without network or skipped tests', flush=True)
     try:
         with (attempt / 'build.log').open('x') as log:
             result = subprocess.run(command(dsc, output), cwd=output, env=env,
-                                    stdout=log, stderr=subprocess.STDOUT, check=False)
+                                    stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=False)
         report['exit_code'] = result.returncode
         report['status'] = 'failed'
         if result.returncode != 0:
@@ -128,4 +132,5 @@ def check_build(root):
         raise
     finally:
         report_path.write_text(json.dumps(report, indent=2) + '\n')
-        print(f'publish-release: clean build {report["status"]}; evidence: {attempt}', flush=True)
+        print(f'publish: clean build {report["status"]}; evidence: {attempt}', flush=True)
+    return report

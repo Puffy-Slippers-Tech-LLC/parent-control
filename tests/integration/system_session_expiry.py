@@ -12,6 +12,7 @@ from pathlib import Path
 import pwd
 import re
 import sys
+import tempfile
 import time
 
 import system_guest as guest
@@ -410,10 +411,9 @@ def verify_unavailable_enforcement(record):
     account, _ = manager._account(child)
     manager._verify_installation()
     metadata = manager.installation / 'metadata.json'
-    fixture = Path('/var/lib/onpc-test-extension-failure')
-    guest.require(not fixture.exists() and not fixture.is_symlink(),
-                  'expiry:activation-failure-fixture-collision')
-    fixture.mkdir(mode=0o700)
+    # Both enforcement and graphical preparation run this probe in one attempt.
+    # Retain each private directory for outer VM cleanup without reusing it.
+    fixture = Path(tempfile.mkdtemp(prefix='onpc-test-extension-failure-', dir='/var/lib'))
     saved = fixture / 'metadata.json'
     original = metadata.stat()
     digest = guest.sha(metadata)

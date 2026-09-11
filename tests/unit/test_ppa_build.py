@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools import ppa_build
+from tools.publishing import build as ppa_build
 
 
 @pytest.fixture

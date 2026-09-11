@@ -1,9 +1,29 @@
 import json
+import runpy
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from tools.package_activation import activation_for, changed_impacts, generate
+_activation = runpy.run_path(str(Path(__file__).resolve().parents[2] / "debian/package_activation.py"))
+activation_for = _activation["activation_for"]
+changed_impacts = _activation["changed_impacts"]
+generate = _activation["generate"]
+
+
+def test_make_generates_activation_manifest_from_relocated_debian_helper(tmp_path):
+    root = Path(__file__).resolve().parents[2]
+    broker = tmp_path / 'usr/libexec/oh-no-parent-control-broker'
+    broker.parent.mkdir(parents=True)
+    broker.write_text('staged broker fixture')
+    subprocess.run(['make', '--no-print-directory', '_generate-package-activation-manifest',
+                    f'DESTDIR={tmp_path}'], cwd=root, check=True, capture_output=True, text=True)
+    manifest = json.loads((tmp_path / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
+    assert manifest['files'] == [{
+        'path': 'usr/libexec/oh-no-parent-control-broker',
+        'sha256': _activation['file_digest'](broker),
+        'activation': 'process-restart',
+    }]
 
 
 class PackageActivationTests(unittest.TestCase):

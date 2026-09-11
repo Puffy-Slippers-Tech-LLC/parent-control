@@ -121,6 +121,26 @@ def selection(root, argv):
 
 
 def run(root, argv, caller):
+    if argv[:1] == ['--unattended']:
+        # This fixed mode accepts the same validated selections. Stdin is a
+        # cancellation channel, never a command or privileged path source.
+        argv = argv[1:]
+        command = selection(root, argv)
+        if argv[0] not in ('system', 'e2e') or '--list' in argv:
+            raise ValueError('test-runner:invalid-unattended-category')
+        module = runpy.run_path(str(confined_file(root, 'tools/regression_process.py')))
+        sys.path.insert(0, str(root / 'tools'))
+        environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+                       'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1',
+                       'PYTHONUNBUFFERED': '1'}
+        with module['Control']().installed(pipe=True) as control:
+            status = control.run(module['safety_command'](root), cwd=root, env=environment,
+                                 user=caller.pw_uid, group=caller.pw_gid,
+                                 extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid))
+            if status:
+                return status
+            environment.update(PKEXEC_UID=str(caller.pw_uid), HOME='/root')
+            return control.run(command, cwd=root, env=environment)
     command = selection(root, argv)
     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                    'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1'}

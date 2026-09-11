@@ -1,31 +1,133 @@
 # Publish an app upgrade
 
-This is the single entry point for publishing app upgrades.
-When ready, say:
-**“Follow docs/Publishing.md to prepare the next app upgrade, automate the
-steps, and present the tested release for publication approval.”**
+Run this command from the development checkout when the release is ready:
 
-The assistant handles the following flow:
+```sh
+make publish
+```
 
-1. **Choose the release source.** Review current changes and confirm which
-   belong in the selected product version only if the intended inputs are unclear.
-2. **Prepare and validate.** Verify existing account/tool setup, select an
-   unused PPA version, create an isolated release clone, build and test the
-   package, review compliance, and prepare signed source artifacts.
-3. **Present the release.** Show the exact version, test results, outstanding
-   gaps, and artifacts. Obtain any outstanding readiness/publication decision.
-4. **Publish and finish.** Push the source and signed tags, upload to Launchpad,
-   monitor the actual build and package publication, and provide installation
-   commands and the release report.
+It takes no parameters and publishes the newest entry in
+[`VersionHistory.md`](VersionHistory.md) end to end. Running it is the release
+decision: it creates signed source and tags in the public Git repository and
+uploads the signed source package to the configured Launchpad PPA. Editing or
+testing the publishing tool does not authorize a live release.
 
-Your normal work is resolving ambiguous release inputs, manually configuring
-the signing passphrase in the gitignored `.envrc`, and making the release
-decision. Verify the existing account and signing key; do not repeat setup routinely.
+[`tools/publish.py`](../tools/publish.py) is the single publishing entry point.
+Its supporting source-verification, signing and clean-build modules live in
+[`tools/publishing/`](../tools/publishing/). The Debian installation helper
+[`debian/package_activation.py`](../debian/package_activation.py) determines
+restart/reboot requirements for installed files; it is not a publishing command.
 
-Use `tools/publish-release` for version planning, isolated preparation, source
-inspection, clean local package builds, and source-publication status. The
-assistant runs the remaining build, test, signing, push, upload, and monitoring
-commands. The helper is not an unattended end-to-end release command.
+## Release history and source inputs
+
+Commit application changes on `main`, then manually add the new history entry
+at the top. The history file itself may be untracked or uncommitted; it is the
+only working-tree change the publisher automatically includes. Other local
+changes cause an error before signing, building, or publishing. Ignored files,
+including `.envrc` and local build output, are not copied into the release clone.
+
+Use this format, with at least two entries:
+
+```markdown
+## v1.1 — 2026-09-11
+### Bug Fixes
+- **Parent App:** Fixed an issue on small screens.
+
+## v1.0 — 2026-09-10
+### New Features
+- Initial release.
+```
+
+The newest version must be numerically greater than `data/app.json`; the second
+must exactly equal that current product version. All history versions must be
+unique and descend in `x.y` order. Dates must be valid `YYYY-MM-DD` dates and the
+new entry must contain a change bullet. Section headings and the newest entry's
+notes become the Debian/PPA changelog, with Markdown styling removed.
+
+The app version becomes the newest history version. The Debian version adds
+the next unused PPA suffix: product `1.1` ordinarily becomes
+`1.1+ppa1~ubuntu26.04.1`. The publisher checks Launchpad history, including deleted
+and superseded sources, fetched public tags, and the existing Debian changelog.
+It never replaces tags, force-pushes, or reuses an accepted upload version.
+
+## Unattended operation and approvals
+
+On an already configured development machine, manual execution needs **zero
+approvals**. It runs as the publishing user, uses unprivileged `sbuild` user
+namespaces, and invokes neither Polkit nor `sudo`. Git/SSH and GnuPG run without
+interactive prompts. Missing credentials or prerequisites produce a red error;
+the publisher never launches setup or falls back to a password dialog.
+
+When an assistant runs it, authorize the single `make publish` process outside
+the sandbox at launch if the platform requires approval. Its child commands do
+not request additional approvals. This does not override an organization deny
+rule or other platform policy. Local test permissions do not grant publication.
+
+One-time prerequisites belong to `./setup.sh --dependencies-only`; the focused
+`./setup.sh --ppa-build-tools` mode installs the clean builder. Use the recorded
+publisher key, configure GitHub SSH authentication and its known host key, and
+set the signing passphrase as a literal assignment in the original checkout's
+gitignored `.envrc`, as described under [Noninteractive signing](#noninteractive-signing).
+Single-quote values containing dollar signs or backticks. The signer parses the
+assignment without executing `.envrc`, sends the value to GnuPG through a private
+pipe, and removes signing secrets from build, test, Git and upload environments.
+Setup/account provisioning is separate from routine publishing.
+
+## Automated checks and completion
+
+The publisher validates prerequisites and credentials at the beginning, creates
+an isolated `/tmp/onpc-release-*` checkout, updates the product version and Debian
+changelog, and signs the release commit and both version tags. It then:
+
+1. Builds and signs the source upload, verifies the publisher signatures and
+   SHA-256 manifests, and checks archived bytes, symlinks and executable modes
+   against the signed Git tree. Only tracked `.codex/` and `.agents/` development
+   configuration may be excluded from the source archive.
+2. Builds that exact signed DSC in clean Ubuntu resolute/amd64 `sbuild`, resolves
+   declared dependencies, runs the package's declared tests with no build
+   network or `nocheck`, and runs source and binary Lintian error checks.
+3. Runs `dput --check-only`, atomically pushes the release commit and signed tags,
+   verifies public access to the tagged source, and uploads only source artifacts.
+4. Waits for the exact source, successful amd64 build, binary publication, and
+   PPA `Packages.gz` index. It downloads the indexed binary and verifies its size
+   and SHA-256 before reporting success in green.
+5. Fast-forwards the unchanged development checkout to the release commit,
+   including the new app version, changelog and history. Concurrent local edits
+   are preserved and reported instead of overwritten.
+
+The PPA must enable only amd64, matching the existing clean builder. Build logs,
+source integrity evidence, artifact hashes and `release.json` remain in the
+reported release/build directories. Local builds catch packaging and declared
+test failures but cannot guarantee Launchpad availability, account acceptance,
+or all installed-app behavior. They do not certify graphical/VM acceptance,
+privacy-page content, or human asset/license review; complete applicable release
+review before starting this command.
+
+## Retry and recovery
+
+A lock in the checkout's Git common directory prevents concurrent publishers.
+`onpc-publish/state.json` there records the exact source, version, artifacts and
+phase. Run the same no-argument command again after an interruption or a repaired
+local prerequisite; it resumes that release. Preserve the printed `/tmp` evidence
+directories until completion. Missing or altered frozen artifacts stop the run.
+If application fixes are committed or history changes before any public push
+was attempted, the next run retains the previous evidence and prepares a fresh
+attempt automatically. A durable `push-started` record prevents this replacement
+once a source push may have reached the server.
+
+The journal records `upload-started` **before** invoking `dput`. After that point,
+an interrupted or failed upload is treated as uncertain: reruns only monitor it
+and never upload it again automatically. Status reads tolerate transient service
+errors and poll every 30 seconds for up to 24 hours per invocation. A confirmed
+build failure is a red error, not a success or an automatic source rewrite.
+
+If no source appears, inspect Launchpad and the publisher's rejection email.
+Resolve confirmed rejection or failed builds before starting a corrected release;
+preserve the journal and published source tags as evidence. Do not clear the
+journal merely to retry an uncertain upload. A failed source push can be retried
+with the same signed refs; no tags are recreated. If development advanced during
+publication, reconcile it with the recorded release commit before resuming local
+completion. The command does not discard work or roll back public releases.
 
 Before every upload, verify a clean binary build with its declared tests,
 inspect the final installed licenses/notices and both front-end About displays,
@@ -36,28 +138,16 @@ than treating historical rehearsal results as acceptance.
 
 ## Upgrade acceptance
 
-Reuse the existing PPA, signing identity, setup and command approvals. Product
-versions come from `data/app.json`.
-Choose the release type before committing the source and running `prepare`:
+`make publish` performs the product/version changes itself; do not manually
+bump `data/app.json` or `debian/changelog` first. Every release, including a
+packaging correction, needs a newer product entry in `VersionHistory.md`.
+The publisher chooses an unused PPA revision and creates both signed tags.
+Published tags and accepted upload versions are never reused or replaced.
 
-| Change | Version handling | Illustrative package version |
-| --- | --- | --- |
-| Packaging correction for the same product version | Retain the product version and published product tag; `plan` selects the next unused PPA revision | `1.1+ppa1~ubuntu26.04.1` → `1.1+ppa2~ubuntu26.04.1` |
-| Compatible product update | Use the [product-version command](#prepare-each-release) to advance `1.0` to `1.1`, then commit and prepare | `1.1+ppa1~ubuntu26.04.1` if no `1.1` revision has been used |
-| New major product release | Advance the product version, retain earlier tags, and ship any required data migrations | `2.0+ppa1~ubuntu26.04.1` if unused |
-
-These are examples, not proposed live release numbers. `plan` checks PPA history,
-local tags and the changelog and rejects a candidate that is not newer than
-known releases. Each upload receives a new package version and signed package
-tag. Product tags are created only for new product versions; published tags
-and accepted upload versions are never reused or replaced.
-
-Run the same `inspect` and `check-build` commands on every release's newly built
-source artifacts. Each local check builds a complete package in a clean
-environment; it does not reuse previously compiled application output. A new
-version or release directory needs no new Codex rule or routine setup run.
-The current builder remains scoped to Ubuntu 26.04/resolute on amd64; other
-Ubuntu releases or architectures need an explicit tooling extension.
+Every new source candidate receives source verification and a complete clean
+binary build. Previously compiled application output is not reused. The builder
+supports Ubuntu 26.04/resolute on amd64; other Ubuntu releases or architectures
+need an explicit tooling extension. Setup need not be repeated for each version.
 
 For installed-user upgrades, additionally verify the previous supported
 release upgrading to the candidate, including retained parental settings,
@@ -75,20 +165,6 @@ older-version upgrade, no-reboot update or saved-settings migration acceptance.
 Use it only for its documented scope; implement missing guarded upgrade cases
 when needed and report any remaining release coverage gap. A successful clean
 package build alone does not certify those installed-state transitions.
-
-<details>
-<summary>Assistant procedure and command reference</summary>
-
-The assistant executes preparation, checks, builds, signing commands, source
-publication and upload as described below, stopping on failures. The publisher
-supplies release decisions and maintains the local `.envrc` signing value.
-The supported target is Ubuntu 26.04 LTS (`resolute`). Launchpad accepts a
-signed source upload and builds the architecture-specific `.deb`; do not upload
-the locally built binary package.
-
-Run checkout commands from the repository root on Ubuntu 26.04. The helper
-uses only Python's standard library and the tools already installed by
-`setup.sh`. No additional host setup is needed solely for this helper.
 
 ## Bundled asset release checks
 
@@ -134,7 +210,7 @@ routine release task.
 ## Recorded publisher details
 
 These are public release metadata, also recorded in
-[`tools/publish_release.py`](../tools/publish_release.py). Update both places if
+[`tools/publishing/source.py`](../tools/publishing/source.py). Update both places if
 the publishing identity changes. Never store a private key, passphrase, access
 token, private administrative email, or decrypted confirmation link here.
 
@@ -157,141 +233,6 @@ is also distinct from the publisher's source-upload key. Verify prerequisites
 and repair only concrete failures. Always query current PPA history before
 choosing a version.
 
-## Assistant-led release workflow
-
-This is the primary workflow. The sections below it are command references
-and recovery instructions, not a second checklist to run again.
-
-1. **Select source once.** Inspect Git status, branch, remote history and tags.
-   Read the selected product version from `data/app.json`; for later product
-   updates, apply the version bump described above before preparation. Review
-   uncommitted changes and clarify which belong only when the intended release
-   inputs are unclear; commit those specific paths.
-   Never silently include ongoing work or use `git add .`. If the checkout is
-   clean and its intended release source is clear, do not ask again. Fetch the
-   public remote and tags before planning. Resolve divergence before proceeding;
-   never force-push or move a published tag.
-2. **Check prerequisites.** Verify Ubuntu 26.04/amd64, declared build dependencies
-   (`dpkg-checkbuilddeps`), publishing commands (`debuild`, `dput`, `dch`,
-   `lintian`), Git push authentication, the recorded signing key's availability,
-   and Launchpad registration. Inspect the PPA's enabled architectures and
-   ensure only supported architectures are enabled. Use public Launchpad API
-   reads wherever possible. A missing tool is a reason to use `setup.sh` or the
-   focused `./setup.sh --dependencies-only` mode; do not rerun setup routinely.
-   Never request secrets in chat. Use the
-   [noninteractive signing procedure](#noninteractive-signing) for GnuPG;
-   SSH authentication remains separate.
-3. **Prepare automatically.** Run:
-
-   ```sh
-   tools/publish-release plan
-   tools/publish-release prepare /tmp/onpc-release-UNIQUE
-   ```
-
-   The assistant chooses a new directory name; the publisher need not type it.
-   `plan` is read-only. It queries all source publication states, including
-   deleted/superseded versions, follows pagination, and considers local tags
-   and the changelog. Network/API failure stops planning. `prepare` requires a
-   clean development checkout, creates an independent clone at `.../source`,
-   configures the public Git identity and signing key locally, and writes the
-   next native PPA version into its changelog. Ignored development output is
-   not copied. It saves `release.json` beside the clone. It does not commit,
-   tag, build, push, or upload. It refuses an existing destination; resume an
-   existing release using its recorded checkout instead of preparing over it.
-   Check pending uploads from earlier attempts as well: uploads not yet accepted
-   may not appear in publication history. Never blindly retry an uncertain upload.
-4. **Review and freeze.** Review the changelog and [Compliance.md](Compliance.md).
-   Commit the release entry in the clone, then create and verify the signed
-   package tag and, for a new product version, the product tag using the commands
-   below. Existing product tags are retained for packaging-only rebuilds.
-   Record the exact commit and tag fingerprints outside the source checkout.
-5. **Build and validate.** Execute the binary build and inspection commands below
-   from the release clone, with artifacts in its parent. Run the isolated
-   cleanup-safety prerequisites before any protected test/build command. Follow
-   [Test-Automation.md](Test-Automation.md) for available host, UI and guarded VM
-   validation. Respect any fixed-development-checkout requirements in the
-   current test harness; do not rewrite paths or bypass guards to run in the
-   release clone. Establish matching source inputs and exact package evidence.
-   Do not substitute older test artifacts for the newly versioned package.
-   If a clean package build cannot run declared tests on Launchpad, fix that
-   packaging/test portability issue before upload; do not silently use `nocheck`.
-   Record commands, outcomes, package hashes, environment and coverage gaps in
-   a release report beside `release.json`. Comprehensive `test-all` and graphical
-   E2E acceptance are currently unfinished: report this explicitly and resolve
-   the release-readiness decision with the publisher, without inventing a pass
-   or silently starting the test-automation implementation backlog.
-6. **Sign and inspect source.** Run the source build below, then:
-
-   ```sh
-   tools/publish-release inspect /tmp/onpc-release-UNIQUE/source
-   ```
-
-   The helper checks source signatures against the recorded publisher key,
-   verifies SHA-256 and size for every upload file, checks the package tag's
-   commit, compares archived file bytes with Git, rejects extra/duplicate files,
-   and runs Lintian. It saves `source-review.json` beside the artifacts. Review
-   every excluded tracked file for complete corresponding source, source modes
-   and symlinks, Lintian warnings, binary contents and licensing. This helper
-   does not replace these reviews or regression acceptance. Keep reports and
-   logs outside the clone. Fix unexplained failures before proceeding.
-   Before upload, validate this exact DSC in a clean local Ubuntu builder:
-
-   ```sh
-   tools/publish-release check-build /tmp/onpc-release-UNIQUE/source
-   ```
-
-   See [Local PPA validation](Local-PPA-Validation.md) for setup, evidence and
-   limitations. It extracts the source through `sbuild` without Git metadata,
-   installs declared dependencies in a fresh environment, runs tests, and
-   completes package staging and debhelper processing. A source extraction
-   built directly on the development host can conceal missing dependencies;
-   a passing build inside a Git clone does not establish source portability.
-   Tests that need Git must create their own temporary checkout fixtures, and
-   their external commands must be declared in `Build-Depends`.
-   Also run `make check-test-fixtures` on the prepared development host. This
-   separate acceptance gate runs real Flatpak installation and launch with
-   private services and owned processes. Launchpad prohibits the unprivileged
-   kernel namespaces required by Flatpak, so its package-build tests verify
-   the generated native/Flatpak bundles and native launch; the Flatpak runtime
-   check lives in `tests/fixtures/test_runtime.py`. Record both results. Do not
-   bypass Flatpak's sandbox or describe the runtime check as passed on Launchpad.
-   Keep source-portability checks sensitive to Debian version punctuation.
-   Audit test commands and package staging against `Build-Depends`; runtime
-   `Depends` does not provision a clean builder. The acceptance boundary is
-   the full binary build, including staging and debhelper processing.
-7. **Present the concrete release.** Summarize version, source commit/tags,
-   architecture, artifact hashes, validation and reviewed warnings/gaps. If
-   publication authorization has not already been given for this concrete
-   release, ask once to publish the source and upload to the named PPA. Explain
-   that this makes the release public and successful builds publish automatically.
-   Do all preparation and review before asking; do not ask separate permissions
-   for every routine step. Platform sandbox approvals may still be necessary.
-8. **Publish and monitor.** Execute the source push and `dput` commands below.
-   Explicitly push the release branch to the intended branch, normally
-   `git push origin HEAD:main`; the clone's `release/...` branch must not be
-   mistaken for `main`. Use a normal fast-forward push; reconcile concurrent
-   development before publication if it is refused. Push the signed tags and
-   verify their exact source is publicly retrievable before `dput`. Monitor
-   the source, every enabled architecture's build, and binary publication:
-
-   ```sh
-   tools/publish-release status
-   ```
-
-   `status` reports source history, not binary acceptance. Follow source API
-   links to builds or use the PPA web UI to verify **Successfully built** and
-   **Published** for the exact version. An empty result immediately after upload
-   is not a rejection or a reason to upload again. Ask the publisher for a
-   Launchpad rejection email only if necessary; do not access email implicitly.
-   Record the final PPA URL, version, tags and installation commands. Preserve
-   artifacts and evidence through completion; a `dput` exit code alone does
-   not establish publication.
-
-The normal manual work is choosing release inputs when ambiguous, configuring
-the local signing value once, and making any outstanding release decision.
-All publisher identifiers are already supplied. Do not publish anything merely
-because this guide or its helper is being edited.
-
 ## Noninteractive signing
 
 **Never prompt for the signing passphrase, open a passphrase dialog, or ask for
@@ -306,264 +247,43 @@ by its absolute path; do not copy it into the clone, package source, or release
 evidence. Gitignore alone does not exclude a file from `dpkg-source` archives.
 Keep the private key in GnuPG's key store and only the passphrase in `.envrc`.
 
-Before invoking the Git or Debian signing commands below, configure their GnuPG
-signer explicitly for batch/loopback operation and supply the passphrase through
-a private file descriptor (`--batch --pinentry-mode loopback --passphrase-fd`).
-GnuPG does not automatically consume this environment-variable name. Load the
-value only in the signer, without shell tracing, and keep it out of build/test
-environments, command arguments, tool output, logs, reports and tracked files.
-Do not read `.envrc` through a tool that returns its contents to the conversation.
-If the file/value is missing, empty, still a placeholder, or rejected, stop with
-a redacted configuration error; never fall back to a passphrase prompt.
+The publisher configures its GnuPG adapter for batch/loopback operation and
+supplies the passphrase through a private file descriptor. The value is loaded
+only in the signer and kept out of build/test environments, command arguments,
+tool output, logs, reports and tracked files. Do not read `.envrc` through a tool
+that returns its contents to the conversation. A missing, empty, placeholder or
+rejected value produces a redacted configuration error, with no prompt fallback.
 
 This supplies credentials for already-authorized signing; it does not replace
 any outstanding publication decision. Sandbox approval boundaries still apply.
 
-## Prepare each release
+The publisher builds and inspects the source and binary automatically before
+pushing signed tags and uploading. Source archive exclusions are controlled by
+`debian/source/options`. Review unexplained Lintian warnings, package contents
+and licensing as part of release readiness; do not add blanket overrides.
+See [Local PPA validation](Local-PPA-Validation.md) for build evidence and limits.
 
-Manual preparation reference only. The normal assistant workflow uses `plan`
-and `prepare` above; do not repeat setup or add another PPA changelog entry
-after the helper has prepared the release clone. Continue with source review,
-the clean-state checks, commit, and signed tags below. Read `product` from
-`release.json` into `product_version` before creating the product tag.
-
-Automated regression acceptance follows the
-[test automation guide](Test-Automation.md). Record evidence for the exact
-release source/package and supported environment before publishing. Local
-syntax/unit checks or a previously accepted package do not certify a new
-release. The comprehensive `make test-all` gate remains planned until its
-implementation and full acceptance are complete; do not claim it has run when
-only the current focused commands are available. Publisher account/key setup
-is separate from daily test execution.
-
-1. Use a dedicated clean release checkout. Verify prerequisites as described
-   in the assistant workflow; run the appropriate `setup.sh` mode only when
-   tools are missing.
-
-2. Export the Debian publisher identity for this terminal. The email must be a
-   confirmed address on the Launchpad account. The release command uses this
-   identity for the changelog entry:
-
-   ```sh
-   export DEBFULLNAME='Puffy Slippers Tech LLC'
-   export DEBEMAIL='dev@tech.puffyslippers.com'
-   ```
-
-3. Prepare the product release with the repository command. Product versions
-   have exactly two components: `x` identifies a major, potentially
-   incompatible release and `y` identifies a smaller, compatible update that
-   does not change saved-data meaning. The command updates the single
-   authoritative release record in `data/app.json` and adds the required
-   Debian changelog entry:
-
-   ```sh
-   make bump-version VERSION=1.1 CHANGE='Describe the user-visible changes.'
-   ```
-
-   The command rejects a reused or decreasing version. Product versions do not
-   control saved-data compatibility: follow [Data migration](SystemDesign/Data-Migration.md)
-   whenever a code change makes saved application data incompatible.
-
-   Omit the product bump for a packaging-only rebuild of an already published product
-   version; increment the PPA revision in the next step instead.
-
-4. Add the PPA build revision to the changelog. This is a `3.0 (native)`
-   package, so the package version must not contain a Debian revision separated
-   by a hyphen. Derive the product version from its authoritative record rather
-   than typing it again. Use the unused revision selected by `plan`; the
-   example below assumes revision 1 is available:
-
-   ```sh
-   product_version=$(/usr/bin/python3 -c \
-       'import json; print(json.load(open("data/app.json"))["version"])')
-   ppa_revision=1
-   dch --newversion "${product_version}+ppa${ppa_revision}~ubuntu26.04.1" \
-       --distribution resolute \
-       "Build Oh No! Parent Control ${product_version} for the PPA."
-   ```
-
-   Set `ppa_revision` to the next unused integer for another upload of the same
-   product version. Never reuse a version already accepted by this PPA, even if
-   that publication was later deleted.
-5. Review [Compliance.md](Compliance.md), including the source-availability and
-   third-party attribution checklist. Publish the exact source tags before the
-   public PPA upload, as described below.
-6. Commit the release state and confirm there are no uncommitted or untracked
-   files:
-
-   ```sh
-   make check-release-version
-   git diff --check
-   git status --short --untracked-files=all
-   ```
-
-   The status command must produce no output. Git status does not report
-   ignored files by default, and `dpkg-source` does not use `.gitignore` as its
-   archive exclusion list. Review `git status --short --ignored` and
-   `debian/source/options`; keep unrelated files and prior build artifacts
-   outside this checkout. In particular, the ignored `output/` directory is
-   not excluded by the current source options.
-7. Create a signed tag for this exact Debian package version:
-
-   Git forbids `~` in reference names. Replace it with `_` in the source tag
-   only: package `1.0+ppa1~ubuntu26.04.1` maps to tag
-   `v1.0+ppa1_ubuntu26.04.1`. The helper uses the same mapping.
-
-   ```sh
-   version=$(dpkg-parsechangelog -S Version)
-   source_tag="v$(printf '%s' "$version" | tr '~' '_')"
-   git tag -s "$source_tag" -m "Oh No! Parent Control ${version} source"
-   git verify-tag "$source_tag"
-   ```
-
-   For the first upload of a new product version, also create its signed
-   product tag:
-
-   ```sh
-   product_tag="v${product_version}"
-   git tag -s "$product_tag" -m "Oh No! Parent Control ${product_version}"
-   git verify-tag "$product_tag"
-   ```
-
-   A packaging-only rebuild retains the existing product tag and receives a
-   new package-version tag. If inputs change before publication, commit the
-   correction, recreate only the affected unpushed tags, and repeat validation.
-   Never move a pushed tag; use a new version and tag for a correction.
-
-8. Build and inspect the binary package using the next section.
-
-## Build and inspect a local binary
-
-The package is architecture-specific because it contains a PAM shared object.
-Launchpad must build that object independently for every published
-architecture.
-
-If prerequisite checks found missing build dependencies, install them through
-`./setup.sh --dependencies-only`. Then build without root privileges:
-
-```sh
-dpkg-buildpackage --build=binary --no-sign
-```
-
-The `.deb`, `.changes`, and
-`.buildinfo` files are written to the parent of the source directory. Inspect
-the actual version and architecture rather than assuming an artifact name:
-
-```sh
-version=$(dpkg-parsechangelog -S Version)
-architecture=$(dpkg-architecture -qDEB_HOST_ARCH)
-changes="../oh-no-parent-control_${version}_${architecture}.changes"
-deb="../oh-no-parent-control_${version}_${architecture}.deb"
-test -f "$changes" && test -f "$deb"
-lintian "$changes"
-dpkg-deb --info "$deb"
-dpkg-deb --contents "$deb"
-sha256sum "$deb"
-```
-
-## Create and inspect the signed source package
-
-Set shell variables to the publisher-specific values, then build the signed
-source upload:
-
-```sh
-launchpad_owner='puffyslipperstechllc'
-ppa_name='oh-no-parent-control'
-signing_key='4449F02C3E57F8215261A57958109B593907EFDE'
-
-make check-release-version
-test "$(dpkg-parsechangelog -S Distribution)" = resolute
-debuild -S -sa -k"$signing_key"
-```
-
-After a successful source build, inspect the upload artifacts:
-
-```sh
-version=$(dpkg-parsechangelog -S Version)
-source_changes="../oh-no-parent-control_${version}_source.changes"
-source_dsc="../oh-no-parent-control_${version}.dsc"
-source_archive="../oh-no-parent-control_${version}.tar.xz"
-test -f "$source_changes" && test -f "$source_dsc" && test -f "$source_archive"
-gpg --verify "$source_changes"
-gpg --verify "$source_dsc"
-lintian "$source_changes"
-tar -tf "$source_archive"
-sha256sum "$source_changes" "$source_dsc" "$source_archive"
-git status --short --untracked-files=all
-test "$(git rev-parse HEAD)" = "$(git rev-parse "${source_tag}^{commit}")"
-```
-
-Verify both signatures belong to the registered publisher key. Review the
-native source tarball for complete corresponding source and unintended files,
-including local build output, credentials, and other generated artifacts. The archive
-exclusions are controlled by `debian/source/options`, as described in the
-[dpkg-source manual](https://manpages.debian.org/testing/dpkg-dev/dpkg-source.1.en.html).
-Keep all files listed by `_source.changes` together in the parent directory;
-`dput` uploads the files referenced there.
-
-Do not continue if the source build, signature, or Lintian review reports an
-unexplained error. Warnings must either be fixed or reviewed and documented;
-do not add blanket Lintian overrides.
-
-Review policy-version warnings against the current Debian Policy and the
-packaged Lintian version; do not lower a reviewed policy declaration solely
-to silence an older checker. Record the review for the candidate release.
-
-## Publish the source and upload
-
-After artifact review passes, publish the release commit
-and the signed package-version tag to the public source repository:
-
-```sh
-git push origin HEAD:main
-git push origin "$source_tag"
-```
-
-For a new product version, also push its product tag:
-
-```sh
-git push origin "$product_tag"
-```
-
-Confirm the exact tags and corresponding source are publicly accessible at the
-location in [Compliance.md](Compliance.md#product-license-and-corresponding-source).
-Then upload the reviewed signed source package:
-
-```sh
-dput "ppa:${launchpad_owner}/${ppa_name}" "$source_changes"
-```
-
-This changes a public archive: successful builds may be published automatically
-and become available to existing PPA subscribers immediately.
-If a problem is found after upload, stop promotion, investigate, and publish a
-corrected newer package version. Deleting a PPA publication does not roll back
-packages already installed by consumers or make its version reusable.
-
-Launchpad's upload instructions are:
-<https://documentation.ubuntu.com/launchpad/user/how-to/packaging/ppa-package-upload/>.
+If a problem is found after upload, investigate and publish a corrected newer
+product release. Deleting a PPA publication does not roll back installed packages
+or make its version reusable. Preserve the recorded journal and artifacts.
 
 ## Confirm publication and deliver the upgrade
 
-1. Confirm the exact source version and every enabled architecture's build
-   succeeded and the corresponding binary publication is **Published**.
-   Access publisher email only with authorization if upload rejection details
-   are needed.
-2. Verify the archive's Packages index contains the exact package version and
-   architecture. Reconcile its filename, size and SHA-256 with the published
-   binary and retained release evidence. A successful build or source
-   publication alone is not completed binary publication.
-3. Record the source commit, signed package/product tags, PPA URL, indexed
-   package identity and validation results in the release report.
-4. Provide existing PPA subscribers these commands:
+The publisher automatically verifies source/build/binary publication and the
+downloadable package's indexed size and SHA-256, then records its evidence in
+the release report. A source upload or successful build alone is not completion.
+Access publisher email only with authorization if rejection details are needed.
 
-   ```sh
-   sudo apt update
-   sudo apt install --only-upgrade oh-no-parent-control
-   ```
+After green success, existing PPA subscribers can upgrade with:
 
-   State the expected activation from the candidate's manifest comparison:
-   no action, process restart, session renewal, or reboot. Include any
-   user-facing migration requirements and verified coverage limits.
+```sh
+sudo apt update
+sudo apt install --only-upgrade oh-no-parent-control
+```
+
+Release communications should state the expected activation from the candidate's
+manifest comparison: no action, process restart, session renewal, or reboot.
+Include user-facing migration requirements and verified coverage limits.
 
 For new Ubuntu 26.04/amd64 computers, provide:
 
@@ -579,11 +299,9 @@ sudo apt install oh-no-parent-control
 First installation requires a reboot before using child or kiosk sessions.
 Existing-user upgrades follow the activation contract below.
 
-</details>
-
 ## Package update activation
 
-Each Debian package contains `/usr/share/oh-no-parent-control/package-activation.json`. The file lists each activation-relevant installed file, its SHA-256 digest, and the action needed when that file changes. It is generated from the staged package by `tools/package_activation.py`; it must never be edited by hand.
+Each Debian package contains `/usr/share/oh-no-parent-control/package-activation.json`. The file lists each activation-relevant installed file, its SHA-256 digest, and the action needed when that file changes. It is generated from the staged package by `debian/package_activation.py`; it must never be edited by hand.
 
 During an APT install or upgrade, `debian/preinst` records that an activation comparison is pending and, for upgrades, saves the manifest from the currently installed package. After unpacking, `debian/postinst` compares that saved manifest with the new one. Added, changed, and removed files all count. The pending marker prevents a later `dpkg --configure` retry from inventing a reboot requirement. A package without a prior manifest is treated as a first installation and requires a reboot, which is conservative for migrations from releases that predate this mechanism.
 
@@ -703,7 +421,7 @@ notice activate in the package lifecycle (`none`). They do not change any saved
 preference schema and need no data migration. These packaging changes target
 clean installations; they do not adopt untracked installations or accounts.
 
-`activation_for()` in `tools/package_activation.py` is the complete, reviewed mapping from installed path to activation level. `ACTIVATION_MANIFEST_PATHS` in the `Makefile` selects the corresponding installed files for hashing. When adding, moving, or removing a packaged integration file, update both and add a focused unit test in `tests/unit/test_package_activation.py`. Classify by the installed path, not its source directory.
+`activation_for()` in `debian/package_activation.py` is the complete, reviewed mapping from installed path to activation level. `ACTIVATION_MANIFEST_PATHS` in the `Makefile` selects the corresponding installed files for hashing. When adding, moving, or removing a packaged integration file, update both and add a focused unit test in `tests/unit/test_package_activation.py`. Classify by the installed path, not its source directory.
 
 For a normal UI or broker update, do not assign `reboot` merely for caution: the manifest comparison must be able to avoid a reboot prompt. Conversely, any new PAM, GDM, or pre-session file must be classified as `reboot` before it ships.
 

@@ -3,24 +3,20 @@
 Updated: 2026-09-11. The [master checklist](Test-Automation.md#unfinished-tasks)
 owns task order and completion.
 
-- **Next eligible: Task 20 — complete normal shutdown qualification after the
-  live authenticated command proof.** No earlier unchecked task is bypassed.
-  See the [active handoff](Task-20.md#task-20-continuation--2026-09-08),
-  [reuse map](Reuse-Map.md#installation-helper-and-open-limits) and
-  [worker contract](../../tests/e2e/README.md#shared-guarded-worker).
-- Attempt 10 completed all authentication/command stages, then failed
-  `e2e:deadline` after power-off. Correct the evidenced finite-budget boundary
-  with delayed-callback/cleanup regressions, then run isolated safety and the
-  existing guarded VT6 authentication route through normal exit and preservation.
-  Do not repeat the unchanged 960-second attempt or reopen prompt collection.
-- [Evidence](Evidence/20-VT6-Command-and-Shutdown-20260911.md) retains both failed
-  attempts, the reproduced import correction and passing common checks. All
-  commands exited; both baselines, source/host preservation and cleanup passed.
-  No recovery or approval denial remains. Full Task 20 remains unaccepted.
-- **All-task VM clearance and the resolved writer deferral persist.** Freeze
-  fresh inputs through final cleanup; preserve [15A's later work](Task-15.md#task-15a-continuation--2026-09-08).
-  The renewed one-slice Astra/xhigh override is consumed.
+- Next: [Task 15A acknowledgement](Task-15.md#task-15a-continuation--2026-09-08).
+  Implement and locally prove a narrowly scoped systemd transient probe operation
+  through the existing Gio transport: execution/start timeout, lost create reply,
+  collision/replacement, evidence retention and owned cleanup. The
+  [kernel audit](Evidence/15A-Kernel-Witness-Audit-20260911.md) rules out nonce
+  denials and early markers; full receipt and rollback/removal semantics remain
+  unimplemented. Do not use subprocess timeout as a bound on initial exec.
+- Earlier [Task 20 deferral](Task-20.md#task-20-continuation--2026-09-08): retained
+  source-preservation failures and no writer-completion/pause evidence. Return
+  first when completion or a coordinated window covers capture through cleanup;
+  then run fresh guarded VT6 qualification. No unchanged stability experiment.
+- The one-slice override is consumed. All-task VM clearance persists. Live
+  qualification requires stable inputs; no new VM approval or manual-review hold.
 - Settings: **`gpt-6-astra` / `high`**.
-  Reason: authentication and command readiness now have live evidence; correcting
-  the deadline across synchronous shutdown still requires ownership-aware
-  reasoning and guarded qualification. Standard processing.
+  Reason: the source audit identifies a supported systemd execution candidate;
+  lost-reply ownership, terminal evidence lifetime and timeout cleanup remain
+  unresolved security/concurrency boundaries requiring Astra high.

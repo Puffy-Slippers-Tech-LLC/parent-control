@@ -5,7 +5,7 @@
 Read this for broker readiness, boot/login ordering, installed paths,
 provisioning, and package activation. Removal has its own focused document.
 
-Implementation: [service.py](../../broker/oh_no_parent_control/service.py), [Makefile](../../Makefile), [preinst](../../debian/preinst), [postinst](../../debian/postinst), [provision.py](../../tools/provision.py), [package_activation.py](../../tools/package_activation.py), [execution_policy_ready.py](../../tools/execution_policy_ready.py).
+Implementation: [service.py](../../broker/oh_no_parent_control/service.py), [Makefile](../../Makefile), [preinst](../../debian/preinst), [postinst](../../debian/postinst), [provision.py](../../tools/provision.py), [package_activation.py](../../debian/package_activation.py), [execution_policy_ready.py](../../tools/execution_policy_ready.py).
 
 ## Startup, login, and update lifecycle
 

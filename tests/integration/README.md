@@ -132,6 +132,14 @@ the same-version reinstall observation. Neither package is installed on the host
 Task 15A's first registered enforcement case is
 `test_native_command_policy_is_uid_scoped`. Inspect it with
 `tools/run-tests system --list --area enforcement --test test_native_command_policy_is_uid_scoped`.
+Each native transition case now records validated fapolicyd package version and
+installed executable digest before policy access, using
+`system_enforcement.record_execution_backend`. The
+[interface audit](../../docs/TestAutomation/Evidence/15A-Activation-Interface-Audit-20260911.md)
+owns the missing historical dependency identity and local verification. This
+new evidence capture awaits live qualification; it does not witness daemon
+activation. In particular, the upstream ruleset journal digest is emitted before
+parsing and must not replace the runtime launch assertions below.
 It requires the four package/reboot executions, then tests native command allow,
 hard denial, restored allow, soft denial, and restored allow again with screen-time
 control disabled, then repeats those transitions with screen-time control enabled

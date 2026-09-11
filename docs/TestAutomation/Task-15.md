@@ -64,15 +64,57 @@ Verification below is task acceptance; edits use the smallest affected selection
 
 ## Task 15A continuation — 2026-09-08
 
-**Current scheduling — 2026-09-10, operator update after Session 65:** concurrent
-edits have stopped, satisfying
-[Task 20's return condition](Task-20.md#task-20-continuation--2026-09-08).
-Task 20 is next eligible again; preserve this unfinished acknowledgement work.
-The temporary fallback after
-[Task 20 attempt 8](Evidence/20-VT6-Joined-Flow-20260910.md) no longer applies.
-No 15A code or acceptance changed in that slice. Resume the supported
-active-policy acknowledgement boundary below when checklist order or a new
-evidenced blocker makes 15A eligible, and reassess settings then.
+**Current handoff — 2026-09-11: kernel-witness counterexamples established;
+bounded probe execution is the next implementation gate. 15A remains unchecked.**
+Task 20's [source-change deferral](Task-20.md#task-20-continuation--2026-09-08)
+was rechecked at entry and handoff: no new completion/window evidence establishes
+its return condition. Return there first when ready. All-task VM clearance
+persists; the consumed intervention adds no scheduling priority or permission hold.
+
+**Result:** source audit found that v1.4.5 reload ignores the parser's failure
+return and that queue overflow can deny without evaluating a rule. Early
+markers and nonce-denial receipts are therefore unsafe. Python subprocess
+timeouts also do not bound initial process creation. The
+[owning design gate](../SystemDesign/Applications.md#generation-witness-design-gate),
+[removal contract](../SystemDesign/Package-Removal.md#execution-policy-baseline),
+[reuse map](Reuse-Map.md#existing-interfaces-to-find-once) and
+[new evidence](Evidence/15A-Kernel-Witness-Audit-20260911.md) record the proposed
+positive decision/kernel witness, its unresolved proof obligations, and why
+existing boot/terminal helpers cannot bound a stalled exec. No product code or
+probe protocol was implemented; acknowledgement remains a substantive design
+and implementation gap, not a waiting-for-VM task.
+
+**Verification:** upstream interface/source and local adapter/recovery/removal
+review; changed links and scoped whitespace checks. No product tests, build,
+live attempt or acceptance check ran for this documentation-only audit. The
+[prior capture verification](Evidence/15A-Activation-Interface-Audit-20260911.md)
+retains its 19 initial failures and corrected 191-test/8-subtest pass. Installed
+dependency identity is still unverified; reuse `record_execution_backend` on
+the next native run. The activation attempt count remains two. Full receipt
+semantics, routes/update, Snap/Flatpak and all task acceptance remain open.
+
+**Next bounded result:** implement and locally test the narrowly scoped owned
+probe operation over systemd's public transient-service API, reusing the Gio
+transport. Cover normal execution, exec failure, startup timeout, lost create
+reply, collision/replacement and terminal-evidence/cleanup failure. Do not
+signal by guessed unit name or treat generic exec failure as a fapolicyd deny.
+The evidence gives the missing capability and acceptance gate. Resolve this
+ownership boundary before wiring the full decision/compiled-input receipt and
+fresh rollback/removal witnesses. Installed qualification follows local refusal
+coverage with fresh stable inputs and the actual dependency-version audit.
+
+**Cleanup/settings:** all commands exited; no VM, lease, worker, screenshot or
+owned background process started. No recovery or approval/Polkit denial remains.
+Unrelated edits preserved. Actual settings: **`gpt-6-astra` / `high`, Standard**.
+**Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
+**Reason:** new source counterexamples narrow the witness, and systemd provides
+a supported execution candidate; lost-reply ownership, evidence lifetime and
+timeout cleanup remain unresolved security/concurrency work requiring Astra high.
+
+### Prior native qualification and scheduling history
+
+The current handoff above supersedes the historical next-action/settings text
+below; retained runtime evidence keeps its original scope.
 
 **Scheduling correction — 2026-09-08:** preserve this unfinished work while
 returning to [19B qualification](Task-19.md#task-19b-continuation--2026-09-08),

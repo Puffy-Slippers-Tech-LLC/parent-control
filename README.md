@@ -81,7 +81,7 @@ Follow package reboot notices. Log out of the kiosk session before removal; remo
 Select test files as needed. Quote patterns and parametrized test IDs:
 
 ```sh
-tools/run-unit-tests tests/unit/test_publish_release.py -q
+tools/run-unit-tests tests/unit/test_publish.py -q
 tools/run-ui-tests --timeout 180s tests/ui/test_request_form_component.py -q
 ```
 
@@ -117,13 +117,30 @@ tools/run-tests e2e --artifacts "$ARTIFACT_DIR" --scenario E2E-001
 
 Keep the checkout unchanged during artifact builds and test attempts. Stop VM maintenance before starting tests. Use `tools/test-vm status` to inspect the pinned VM.
 
-Use registered E2E scenarios. The `make test-fast`, `make test-system`, `make test-e2e`, and `make test-all` aliases are unavailable. References: [system tests](tests/integration/README.md), [E2E tests](tests/e2e/README.md).
+Run `make test-all` for all established regression suites, a colored progress
+dashboard, and continuously saved detailed reports under
+`docs/TestAutomation/Evidence/test-all-runs/`. Ctrl+C cancels the active test
+and waits for owned cleanup. New tests in established suites and E2E variants
+marked ready are discovered automatically; unfinished roadmap scenarios are
+excluded. See [the regression command](tests/README.md#all-established-regressions).
+
+Use registered E2E scenarios for selected runs. The `make test-fast`,
+`make test-system`, and `make test-e2e` aliases are unavailable. References:
+[system tests](tests/integration/README.md), [E2E tests](tests/e2e/README.md).
 
 ## Publish an app upgrade
 
-Follow [Publishing](docs/Publishing.md) for the complete upgrade workflow:
-version planning, isolated preparation, validation, signing, publication and
-installed-user activation. It is the single publishing entry point.
+Commit application changes on `main`, add the newest release entry to
+`docs/VersionHistory.md`, then run:
+
+```sh
+make publish
+```
+
+It validates the history, bumps the version, builds and tests in clean Ubuntu,
+signs, publishes to Launchpad, and waits for the package to become downloadable.
+See [Publishing](docs/Publishing.md) for one-time credentials, release review,
+retained evidence and retry behavior. Routine manual publishing needs no prompts.
 
 ## Diagnose failures
 

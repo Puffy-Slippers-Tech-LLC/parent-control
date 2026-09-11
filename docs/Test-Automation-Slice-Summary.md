@@ -9,105 +9,6 @@ This is an operator log, not context for future sessions.
 The launcher never reads or rewrites previous entries. Implementation workers
 must exclude this file from reads, searches, diffs and edits.
 
-## Session 55 — 2026-09-10 17:23 PDT
-
-- Task: Task 20 — verify the VT6 prompt screen boundary.
-- Duration: 15 minutes
-- Completed: Implemented the reviewed VT6 needle and mandatory exact pixel gate. Initial matcher tests exposed four false acceptances; tighter regions and exact comparison address them. Updated shared contracts and handoff. Authenticated input and Task 20 acceptance remain unfinished.
-
-- Verification and cleanup: 112 focused tests passed. First common check exposed a stale launcher fixture; repaired it and passed its 15 tests. Final make check passed 6,764 unit/contract and 58 component tests. Documentation checks passed. All commands exited; review export removed; no VM operation started. Evidence: docs/TestAutomation/Evidence/20-VT6-Pixel-Gate-20260910.md.
-
-- Next session: Task 20: wire both screen gates into the one-shot authenticated worker/controller flow, verify continuity and refusal behavior, then perform guarded qualification. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 56 — 2026-09-10 17:36 PDT
-
-- Task: Task 20 — VT6 authenticated installation input boundary.
-- Duration: 13 minutes
-- Completed: Implemented and locally verified the one-shot VT6 worker gate, capture sealing, strict authorization receipts and retry refusals. Dispatch remains disabled pending controller continuity proofs; Task 20 acceptance is unfinished. Updated the owning contract, reuse map and handoffs.
-
-- Verification and cleanup: 309 focused tests passed; make check passed 6,841 unit/contract and 58 component tests. Documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Worker-Gate-20260910.md. No test failures or live VM attempt. All commands exited; no cleanup remains.
-
-- Next session: Continue Task 20: implement controller capture freshness and recipient/shell continuity, then connect and qualify guarded authentication. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 57 — 2026-09-10 17:48 PDT
-
-- Task: Task 20 — cross-observation VT6 recipient continuity.
-- Duration: 13 minutes
-- Completed: Implemented ordered VT6 recipient identity pinning with permanent refusal on replacement, replay, boot change or ownership loss. Updated the owning contract, reuse map and handoff. Task 20 remains unaccepted; shell readiness, capture authorization and live authentication are unfinished.
-
-- Verification and cleanup: 1,561 focused tests passed. make check passed 6,973 unit/contract and 58 component tests; 218 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Recipient-Gate-20260910.md. No test failures or VM operations; all commands exited and cleanup is complete.
-
-- Next session: Continue Task 20: prove authenticated-shell readiness and lineage from the pinned login recipient, then complete capture authorization before guarded live qualification. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 58 — 2026-09-10 18:04 PDT
-
-- Task: Task 20 — establish authenticated VT6 shell lineage.
-- Duration: 11 minutes
-- Completed: Implemented and locally verified pinned login-to-shell lineage, foreground ownership and permanent refusal on identity replacement or replay. Updated the owning contract, reuse map and handoff. Command readiness, capture authorization and live install/reboot/startup acceptance remain unfinished; authentication dispatch stays disabled.
-
-- Verification and cleanup: 1,637 focused tests passed. make check passed 7,051 unit/contract and 58 private-D-Bus tests. All 226 documentation links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Shell-Lineage-20260910.md. No tests failed or VM attempts started. All commands exited; no owned resources or cleanup obligations remain.
-
-- Next session: Continue Task 20 with a fixed nonsecret keyboard command round trip and fresh completion evidence bound to the attempt, boot and pinned shell. VM authorization remains active. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 59 — 2026-09-10 18:45 PDT
-
-- Task: Task 20 — qualify guarded VT6 authentication to a command-ready shell.
-- Duration: 41 minutes
-- Completed: Integrated VT6 command completion, capture authorization, durable receipts and guarded dispatch. Task 20 remains unaccepted; live authentication and subsequent installation/startup acceptance remain unfinished.
-
-- Verification and cleanup: Final make check passed 7,167 unit/contract and 58 component tests; isolated safety passed 595 tests and 3 subtests. Exception-expectation, timestamp-race and fixture failures were corrected. The live attempt failed before VT6 input with provenance:source-changed; the differing input remains unidentified. Baseline restoration, host preservation and worker/callback cleanup passed; source preservation failed. All commands exited. Evidence: docs/TestAutomation/Evidence/20-VT6-Authentication-Attempt-20260910.md.
-
-- Next session: Retry the guarded authentication route with fresh current inputs. If source drift recurs, identify the changed input or metadata before another attempt. Continuation.md and the active handoff are updated. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 60 — 2026-09-10 19:10 PDT
-
-- Task: Task 20 — qualify live VT6 authentication and command readiness.
-- Duration: 25 minutes
-- Completed: Passed live getty authorization and source preservation, advancing beyond the prior refusal. Password readiness then failed because the selected recipient executable was not login. Retained timing narrows the next investigation; authentication and Task 20 acceptance remain unfinished. Updated handoff and shared contracts.
-
-- Verification and cleanup: Safety checks passed 595 tests and 3 subtests, including the runner’s repeat. Live attempt exited 1 before password authorization. Baseline restoration, source/host preservation and worker/callback cleanup passed; all commands exited. Documentation checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Password-Recipient-20260910.md.
-
-- Next session: Continue Task 20: distinguish prompt expiry during revalidation from an incorrect recipient transition using bounded timing and safe observations; correct the evidenced cause before another guarded attempt. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 61 — 2026-09-10 19:46 PDT
-
-- Task: Task 20 — qualify a live authenticated VT6 command-ready shell.
-- Duration: 37 minutes
-- Completed: Added diagnostics showing baseline revalidation took 69.027 seconds against a 60-second login timeout; the executable changed from login to agetty. Authentication attempt 3 failed before password authorization. Live authentication and Task 20 acceptance remain unfinished. Updated the owning contracts, reuse map and handoff.
-
-- Verification and cleanup: Final make check passed 7,200 unit/contracts and 58 component tests; 135 focused tests passed. Isolated safety and dispatcher repeat each passed 599 tests and 3 subtests. Corrected a checkpoint-name failure and an advisory digest/tuple comparison bug; the live run’s identity-match Booleans are invalid, and their correction is locally verified only. Evidence: docs/TestAutomation/Evidence/20-VT6-Revalidation-Timing-20260910.md. Product/collection remain not-run; normal scenario shutdown was not reached. Worker/callback closure, baseline restoration and source/host preservation passed. All commands exited; no recovery obligations remain. Links and scoped whitespace checks passed.
-
-- Next session: Continue Task 20: implement a bounded fixture login timeout and matching worker budget, preserving full provenance and authorization checks, then qualify live authentication. Continuation.md records the concrete scope. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 62 — 2026-09-10 20:10 PDT
-
-- Task: Task 20 — qualify VT6 authentication with bounded login timing.
-- Duration: 24 minutes
-- Completed: Implemented finite fixture/worker budgets and preparation safety checks. Live attempt 4 refused preparation before authentication; its precise cause remains unknown. Added tested, privacy-safe failure categories. Authentication and Task 20 acceptance remain unfinished.
-
-- Verification and cleanup: Final checks: 7,233 unit/contracts, 58 D-Bus cases and 142 focused tests passed. Four initial test-double failures were corrected. Isolated safety and dispatch repeat each passed 629 tests plus 3 subtests. Live attempt failed; baseline restoration, source/host preservation and cleanup passed. All commands exited. Links/whitespace passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Login-Window-20260910.md.
-
-- Next session: Task 20 remains first. Run the guarded authentication route with corrected diagnostics, resolve the precise preparation refusal, then qualify command-ready login. Next settings: gpt-6-astra/high, Standard.
-
-
-## Session 63 — 2026-09-10 20:46 PDT
-
-- Task: Task 20 — resolve preparation refusal and reach a verified command-ready VT6 shell.
-- Duration: 37 minutes
-- Completed: Corrected offline guard placement. Attempt 6 qualified login-window preparation and password readiness, then refused password-screen authorization despite a capture byte-identical to the reference. Authentication and Task 20 acceptance remain unfinished. Updated the owning contract, reuse map and handoff.
-
-- Verification and cleanup: 144 focused tests and make check passed: 7,235 unit/contracts plus 58 private-D-Bus cases. Safety closures passed. Attempt 5 failed before writing; corrected attempt 6 failed before password authorization. Evidence: docs/TestAutomation/Evidence/20-VT6-Offline-Guard-20260910.md. Both runs passed baseline restoration and source/host preservation; worker/callback closure confirmed. All commands exited and the temporary screenshot export was removed.
-
-- Next session: Task 20 remains earliest ready. Reproduce the capture freshness/metadata refusal locally using retained evidence, correct the demonstrated cause, then run guarded authentication. No outside intervention identified. Next settings: gpt-6-astra/high, Standard.
-
-
 ## Session 64 — 2026-09-10 21:27 PDT
 
 - Task: Task 20 — resolve VT6 capture refusal and qualify an authenticated command-ready shell.
@@ -139,3 +40,58 @@ must exclude this file from reads, searches, diffs and edits.
 - Verification and cleanup: Attempt 9 failed at command preparation; its import defect was reproduced and corrected. Attempt 10 passed every authentication stage, then failed e2e:deadline after power-off, before shutdown verification. Final make check passed 7,327 unit/contracts and 58 components; 1,988 affected checks, 2 UI cases and required cleanup safety passed. Both attempts restored the baseline and preserved source/host state; all commands and owned resources closed. Documentation checks passed 336 links. Evidence: docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md.
 
 - Next session: Task 20: reproduce the deadline across synchronous shutdown, correct the finite budget while preserving all guards, then rerun focused checks and guarded qualification. Handoff and Continuation.md updated. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 67 — 2026-09-11 08:47 PDT
+
+- Task: Task 20 — qualify authenticated VT6 shutdown and final preservation.
+- Duration: 38 minutes
+- Completed: Corrected the finite VT6 worker budget and post-callback deadline check. Attempt 11 passed authentication, command execution and verified worker shutdown. Overall qualification failed final source preservation after unrelated docs/VersionHistory.md appeared; preserved that file. Task 20 remains unaccepted.
+
+- Verification and cleanup: Final make check passed 7,336 unit/contracts and 58 components; safety passed 694 tests and 3 subtests. Initial mock and stale-budget test failures were corrected. Attempt 11 exited 1 with provenance:source-changed; baseline restoration, host preservation and cleanup passed. All commands exited. Documentation checks passed. Evidence: docs/TestAutomation/Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md.
+
+- Next session: Continue Task 20 with fresh inputs, isolated safety and guarded VT6 qualification through final source/host preservation. Handoff and shared contracts updated; VM clearance persists. Next settings: gpt-5.6-sol/high, Standard.
+
+
+## Session 68 — 2026-09-11 09:00 PDT
+
+- Task: Task 20 — qualify authenticated VT6 final source/host preservation with fresh inputs.
+- Duration: 13 minutes
+- Completed (assessment corrected by operator-requested review): **Recurring blocker; no new qualification progress.** Task 20 attempt 12 identified fresh concurrent source changes but failed the same preservation boundary as attempt 11, this time before worker startup. The owning provenance contract, reuse map, milestone checklist, and active handoffs now retain the cause and return condition in `docs/TestAutomation/Evidence/20-VT6-Fresh-Input-Refusal-20260911.md`. Task 20 remains unaccepted; authentication qualification, notice pixels, E2E-002, and both startup-fault variants remain unfinished.
+
+- Verification and cleanup: Explicit and dispatcher cleanup suites each passed 694 tests and 3 subtests. The guarded attempt failed `provenance:source-changed` before worker startup; product and collection did not run. Cleanup passed, lease completed, baseline and host preservation passed, and the VM is off. All commands exited. Documentation verification passed 326 links, scoped whitespace/diff checks, and exactly one Continuation settings line.
+
+- Next session: Recheck Task 20’s current release-tool writer first. If stable, return immediately to fresh-input VT6 qualification; otherwise continue the independent Task 15A active-policy acknowledgement and rollback boundary selected in `docs/TestAutomation/Continuation.md`. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 69 — 2026-09-11 09:23 PDT
+
+- Task: Task 15A — execution-policy rollback recovery, selected under Task 20’s one-slice fallback.
+- Duration: 8 minutes
+- Completed: Fixed Task 15A’s false success after failed rollback: identical rules now retry notification when prior completion is unknown, including after broker restart. Updated owning contract, reuse map and handoffs; consumed the one-slice override. Active-policy acknowledgement and full acceptance remain unfinished.
+
+- Verification and cleanup: New regressions reproduced three failures before correction; final focused suite passed 201 tests and 24 subtests. Markdown links and scoped diff checks passed. Evidence: docs/TestAutomation/Evidence/15A-Notification-Recovery-20260911.md. All commands exited and local fixtures cleaned up; no VM operation ran. Installed qualification remains pending.
+
+- Next session: Continue Task 15A’s bounded active-policy acknowledgement and rollback boundary. Return first to Task 20 when writer-completion or pause evidence establishes stable inputs through cleanup. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 70 — 2026-09-11 09:39 PDT
+
+- Task: Task 15A — establish reliable active-policy acknowledgement.
+- Duration: 8 minutes
+- Completed: Rejected pre-parse journal digests as activation acknowledgements. Added validated dependency-version and executable-digest capture to native tests. Updated contracts and handoffs. Active acknowledgement and full 15A acceptance remain unfinished.
+
+- Verification and cleanup: 191 tests and 8 subtests passed after correcting 19 fixture-isolation failures. Links and scoped whitespace checks passed. Historical guest artifacts were unavailable; installed dependency version remains unverified. Evidence: docs/TestAutomation/Evidence/15A-Activation-Interface-Audit-20260911.md. No VM attempt; all commands exited, with no outstanding cleanup.
+
+- Next session: Design a generation-specific kernel witness with stale/absent-enforcement controls and bounded rollback/removal semantics. Recheck Task 20’s source-stability return condition first. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 71 — 2026-09-11 09:48 PDT
+
+- Task: 15A — establish trustworthy execution-policy activation acknowledgement.
+- Duration: 10 minutes
+- Completed: Rejected unsafe activation witnesses: reload ignores parser failure, and queue overflow can deny without matching a rule. Documented the subprocess startup-timeout limitation, proposed systemd probe approach, and rollback/removal dependencies. Acknowledgement implementation and Task 15A acceptance remain unfinished.
+
+- Verification and cleanup: Source audit retained in docs/TestAutomation/Evidence/15A-Kernel-Witness-Audit-20260911.md. Updated owning contracts, reuse map and handoffs; 241 links and scoped whitespace checks passed. No product tests or VM attempt ran. All commands exited; no owned resources or recovery obligations remain.
+
+- Next session: Implement and locally test owned transient-probe execution, including startup timeout, lost replies, identity replacement and cleanup. Recheck Task 20’s source-stability return condition first. Next settings: gpt-6-astra/high, Standard.

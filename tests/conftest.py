@@ -4,6 +4,9 @@ from pathlib import Path
 
 from hypothesis import settings
 
+from tools.regression_events import (pytest_collection_finish, pytest_collectreport,
+                                     pytest_runtest_logreport)
+
 # Generated broker tests must be reproducible in CI and on a developer's
 # machine. Keep the profile bounded because installed-system behavior belongs
 # to later plan stages; this stage exercises host-safe policy transactions.

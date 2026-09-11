@@ -15,6 +15,51 @@ import pytest
 import system_enforcement as enforcement
 
 
+@pytest.mark.parametrize('version', ['1.3.3-1build1', '1:1.4.5-2ubuntu1~test+1'])
+def test_execution_backend_records_bounded_validated_dependency_identity(monkeypatch, version):
+    run = Mock(return_value=version)
+    sha = Mock(return_value='b' * 64)
+    monkeypatch.setattr(enforcement.guest, 'run', run)
+    monkeypatch.setattr(enforcement.guest, 'sha', sha)
+    record = Mock()
+    enforcement.record_execution_backend(record)
+    run.assert_called_once_with(
+        ['dpkg-query', '-W', '-f=${Version}', 'fapolicyd'], timeout=10)
+    sha.assert_called_once_with(Path('/usr/sbin/fapolicyd'))
+    assert [call.args for call in record.call_args_list] == [
+        ('onpc.enforcement.fapolicyd.package-version', version),
+        ('onpc.enforcement.fapolicyd.executable.sha256', 'b' * 64),
+    ]
+
+
+@pytest.mark.parametrize('version', ['', 'private output', '1.2\nprivate-output',
+                                   '1.2\x00', '1' * 129, '/private-path', 'version=1.2'])
+def test_invalid_backend_identity_refuses_before_policy_access(monkeypatch, version):
+    policy_rig(monkeypatch)
+    monkeypatch.setattr(enforcement.guest, 'run', Mock(return_value=version))
+    broker = Mock()
+    monkeypatch.setattr(enforcement, 'call', broker)
+    record = Mock()
+    with pytest.raises(enforcement.guest.GuestError, match='^enforcement:backend-version$'):
+        enforcement.native_policy_transition({'child': 1001, 'other': 1002, 'parent': 1003}, record)
+    record.assert_not_called()
+    broker.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', ['query', 'binary'])
+def test_backend_identity_read_failure_does_not_publish_partial_evidence(monkeypatch, failure):
+    run = Mock(return_value='1.3.3-1build1')
+    sha = Mock(return_value='b' * 64)
+    error = enforcement.guest.GuestError('dependency-unavailable')
+    (run if failure == 'query' else sha).side_effect = error
+    monkeypatch.setattr(enforcement.guest, 'run', run)
+    monkeypatch.setattr(enforcement.guest, 'sha', sha)
+    record = Mock()
+    with pytest.raises(enforcement.guest.GuestError, match='dependency-unavailable'):
+        enforcement.record_execution_backend(record)
+    record.assert_not_called()
+
+
 @pytest.mark.parametrize(('allowed', 'raw', 'code'), [
     (True, enforcement.IDENTITY + enforcement.READY, 0),
     (False, enforcement.IDENTITY + enforcement.DENIED, 77),
@@ -36,12 +81,15 @@ def test_launch_witness_requires_identity_payload_and_exit(monkeypatch, allowed,
 
 def policy_rig(monkeypatch, variant='command'):
     target, _, desktop_id = enforcement.native_paths(variant)
+    # Cases that restore real hashing must still use an owned fixture binary.
+    monkeypatch.setattr(enforcement, 'FAPOLICYD', target)
     original = json.dumps({'apps': {}, 'parent_control_enabled': False,
                            'daily_time_limit_minutes': 45})
     state = {'current': original, 'saved': [], 'toggles': []}
     records, launches, rules = [], [], []
     monkeypatch.setattr(enforcement.guest, 'guard', Mock())
     monkeypatch.setattr(enforcement.guest, 'sha', Mock(return_value='a' * 64))
+    monkeypatch.setattr(enforcement.guest, 'run', Mock(return_value='1.3.3-1build1'))
 
     def call(uid, method, signature='()', args=()):
         assert uid == 1003
@@ -100,6 +148,8 @@ def test_native_scenario_checks_other_user_at_each_transition_and_restores(monke
     assert all(item['apps'][desktop_id]['targets'] == [str(target)]
                for item in state['saved'] if item['apps'])
     assert (f'onpc.native.{variant}.fixture.sha256', 'a' * 64) in records
+    assert ('onpc.enforcement.fapolicyd.package-version', '1.3.3-1build1') in records
+    assert ('onpc.enforcement.fapolicyd.executable.sha256', 'a' * 64) in records
     assert (f'onpc.native.{variant}.soft.child', 'denied') in records
     assert (f'onpc.native.{variant}.soft.other', 'allowed') in records
     assert (f'onpc.native.{variant}.enabled-soft.child', 'denied') in records

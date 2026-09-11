@@ -197,7 +197,11 @@ def main(argv=None, *, category='unit'):
         if os.geteuid() == 0:
             raise ValueError('run host tests as an unprivileged user')
         root = Path(__file__).resolve().parents[1]
-        run_host(root, category, sys.argv[1:] if argv is None else argv)
+        argv = list(sys.argv[1:] if argv is None else argv)
+        if argv[:1] == ['--unattended']:
+            from regression_process import host_run
+            return host_run(root, category, argv[1:])
+        run_host(root, category, argv)
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'filesystem or execution failure'
         print(f'run-tests: {detail}', file=sys.stderr)

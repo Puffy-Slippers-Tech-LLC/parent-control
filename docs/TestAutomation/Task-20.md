@@ -82,60 +82,173 @@ output stays plain text.
 
 ### Task 20 continuation — 2026-09-08
 
-**Current handoff — 2026-09-11: live command proof reached; normal shutdown
-qualification remains unfinished. Task 20 is still earliest ready.**
+**Current handoff — 2026-09-11: source-change deferral rechecked; no new Task 20
+attempt. Task 20 remains scoped-deferred and unaccepted.**
 
-Attempt 9 passed password authorization and observed authenticated shell lineage,
-then refused command preparation. A focused regression reproduced the standalone
-controller's late `vt6_command` import failure after its temporary path was
-restored. `ReadOnlyObservations` now loads `CommandRoundTrip` with its other
-dependencies. Attempt 10 then durably completed all five authentication stages,
-including the fresh boot/shell/attempt-bound nonsecret command. It failed
-`e2e:deadline` after power-off and before backend exit/off-state verification.
-All ten attempts remain failed; normal-shutdown qualification, sudo/notice pixels,
-full Task 20 and both E2E-028 startup faults remain unaccepted. See
-[attempts, correction, timings and cleanup](Evidence/20-VT6-Command-and-Shutdown-20260911.md).
+No writer-completion or arranged-pause evidence established a stable input
+window at entry or handoff; the release-tool additions remain present, which
+alone does not prove ongoing writes or a stable window. The consumed intervention
+delivered [notification recovery](Evidence/15A-Notification-Recovery-20260911.md).
+This slice advanced the independent
+[15A kernel-witness audit](Evidence/15A-Kernel-Witness-Audit-20260911.md):
+queue-overflow denials and ignored parser failures invalidate candidate
+receipts; the next gate is bounded owned probe execution. No Task 20 experiment
+was repeated. This is new source evidence, not runtime qualification.
+Normal checklist selection resumes with
+[15A's active acknowledgement boundary](Task-15.md#task-15a-continuation--2026-09-08).
+Task 20's blocker is the retained attempt-12 source addition and subsequent
+release-tool activity, not Git dirtiness or the cleared historical VM hold.
+Return when that writer's completion or an arranged pause covers capture through
+cleanup; a quiet status alone is insufficient. Then capture fresh inputs and
+run the existing guarded VT6 authentication route through final preservation.
+Reuse the [provenance contract](../../tests/e2e/README.md#controller-owned-provenance)
+and [installation helper](Reuse-Map.md#installation-helper-and-open-limits);
+no prompt, shutdown or provenance implementation changed in this slice.
 
-The [VT6 contract](../../tests/e2e/README.md#visible-vt6-installation-terminal)
-now records live capture/shell/marker stage evidence and the import regression.
-The [worker contract](../../tests/e2e/README.md#shared-guarded-worker) and
-[reuse map](Reuse-Map.md#installation-helper-and-open-limits) own the remaining
-deadline limitation: attempt 10's mandatory baseline rechecks took 802.363 seconds;
-worker duration was 1036.426 against the 960-second loop budget. Finalization
-confirmed the original `e2e:deadline`, while stored worker/outer categories remain
-generic. No new prompt collector or generic diagnostic gate is needed.
+All twelve outer attempts remain failed. Authentication qualification,
+sudo/notice pixels, E2E-002 and both startup faults remain unaccepted. No new
+VM/worker/lease/screenshot was started; all local commands exited and temporary
+test fixtures closed. No approval/Polkit denial or outstanding recovery.
+All-task VM clearance persists. Actual settings: `gpt-6-astra/high`, Standard.
+Next-session settings for selected 15A: `gpt-6-astra/high`; model/effort: keep.
+Reason: systemd offers a supported bounded probe candidate, while lost-reply
+ownership, evidence lifetime and cleanup remain unresolved security/concurrency.
+For Task 20 when eligible,
+reassess against the actual source-stability evidence before launch.
 
-**Next result:** locally reproduce the deadline across a delayed synchronous
-shutdown callback, correct the finite budget for the full required flow, then
-run affected checks, isolated safety and
-`tools/run-tests integration check_graphical_vt6_authentication` through normal
-worker exit and final preservation. Read `run_distribution`,
-`CallbackServer.serve_once`, `Adapter`, `Lease.stop` and their existing
-timeout/shutdown regressions together. Preserve every provenance/ownership check
-and refusal of incomplete shutdown; do not repeat the unchanged budget.
+#### Retained attempt-12 handoff (historical)
 
-Final checks: **1,988 affected**, **7,327 unit/contracts and 58 components** in
-`make check`, plus **2 guarded UI cases**. The shared scaling fixture moved
-unchanged into UI conftest, resolving the prior architecture failure. Safety and
-dispatcher prerequisites each passed **685 tests/3 subtests** before both runs.
-Both attempts exited 1 with lease `complete`, baseline restoration, source/host
-preservation and cleanup passed; product/collection stayed `not-run`. Workers,
-callbacks and displays closed; all commands exited. No export, recovery obligation
-or approval/Polkit denial remains. Only documentation changed after final checks.
-Local links and scoped whitespace checks passed; Continuation has one supported
-settings line. The authoritative checklist remains unchanged.
+The current handoff above supersedes scheduling/settings instructions below;
+their evidence and failure scope remain valid.
 
-**All-task VM clearance persists**, and both attempts preserved source. The
-operator's cleared writer deferral stays cleared; no bypass or new coordination
-confirmation is needed. Preserve [15A's work](Task-15.md#task-15a-continuation--2026-09-08)
-for later selection. This slice used **`gpt-6-astra` / `xhigh`, Standard** and
-consumed the renewed one-slice override. Its overrun completed two guarded
-attempts and their cleanup; no third attempt began.
+The [manual one-slice intervention](#manual-source-stability-intervention--2026-09-11)
+governs the next launcher slice only while pending/active; it expires when that
+slice ends. Its consumed record does not override later handoffs.
 
-**Next-session settings:** `gpt-6-astra` / `high`, Standard; model: keep;
-effort: lower. **Reason:** authenticated command behavior now has live evidence;
-the remaining finite deadline and synchronous shutdown boundary still require
-ownership-aware correction and live qualification, without the prior xhigh override.
+Attempt 12 captured the checkout including the unrelated addition from attempt
+11, then refused `provenance:source-changed` during preparation before worker
+startup. Three new nonignored release-tool files appeared together after the
+pre-attempt status. Their addition changes the captured source path set and
+explains this attempt; the full differing snapshot is still not exported, so no
+sole-field or historical attribution is claimed. Preserve those unrelated files.
+See the [new evidence](Evidence/20-VT6-Fresh-Input-Refusal-20260911.md), updated
+[provenance contract](../../tests/e2e/README.md#controller-owned-provenance) and
+[reuse map](Reuse-Map.md#installation-helper-and-open-limits).
+
+Release-tool activity continued after cleanup with further content, mode and
+path changes. Task 20 is therefore deferred at this safe boundary. Its return
+condition is evidence that this current release-tool work has finished or an
+arranged pause covers input capture through final cleanup; a quiet status
+snapshot alone does not establish that window. Until then,
+[Task 15A](Task-15.md#task-15a-continuation--2026-09-08) is the next independent
+ready checklist entry; its existing work is preserved.
+
+Attempt 11's [retained evidence](Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
+still proves all authentication/command receipts and normal worker shutdown
+inside a failed outer qualification. Attempt 12 did not start that worker and
+does not contradict or extend its scope. All twelve outer attempts remain
+failed. Complete authentication qualification, sudo/notice pixels, E2E-002 and
+both startup-fault variants remain unaccepted.
+
+**Next Task 20 result when ready:** reconcile the current nonignored path set at
+session start. Once the intervention's stable-input condition is met, capture fresh inputs including
+the release-tool work, run isolated safety, then run the unchanged guarded VT6 authentication
+route through final source/host preservation. Reuse `run_backend`,
+`run_distribution`, `VerifiedInputs` and `Qualification.finalize`; do not weaken
+the latch or reopen prompt/shutdown design. A further refusal ends Task 20 live
+attempts in this manual slice; retain its cause and the required changed action.
+
+Explicit and dispatcher safety each passed **694 tests/3 subtests**. Attempt 12
+exited 1 after 267.537 seconds: infrastructure failed before worker startup;
+product/collection were `not-run`. Cleanup passed, lease is `complete`, baseline
+restoration and host preservation passed, source preservation is false, and a
+fresh guarded VM status is off. All commands exited; no worker, callback,
+display, screenshot export, lease or recovery obligation remains. No approval
+or Polkit denial. Documentation changed only after finalization. The checklist
+stays unchecked.
+
+**All-task VM clearance persists.** The manual intervention addresses evidenced
+source activity without reinstating the historical VM hold or requiring renewed
+VM permission. Actual attempt-12 settings: **`gpt-5.6-sol` / `high`, Standard**.
+
+**Next-session settings:** `gpt-6-astra` / `high`, Standard; model: raise;
+effort: keep. **Reason:** resolve current source concurrency in the manual slice;
+Task 15A's fallback acknowledgement and rollback boundary needs transaction and
+failure-semantics reasoning. Reassess after this one-slice intervention.
+
+### Manual source-stability intervention — 2026-09-11
+
+**Override status: consumed — 2026-09-11, gpt-6-astra/high, Standard.** Entry
+selected the Task 15A acknowledgement/rollback implementation branch: no
+writer-completion or arranged-pause evidence established a stable window.
+[Notification recovery](Evidence/15A-Notification-Recovery-20260911.md) was
+implemented and locally verified; no Task 20 VM attempt ran. All commands and
+local cleanup completed. The following intervention instructions are historical
+only and do not rearm the override or impose a later manual-review hold.
+Applies to the next slice launched with
+`tools/codex_slices.py start --max-slices 1`; no custom prompt is required.
+The ordinary launcher reads Continuation.md and this handoff. Before input
+capture or builds, change this status to **active** and record the current slice
+identity if available. This claims the override for that slice only. Recovery
+of an interrupted slice reconciles its work and cleanup without rearming the
+override for a new slice.
+
+**Scope:** one launcher slice following the operator's progress review.
+Attempts 10–11 advanced from live authentication to verified worker shutdown.
+Attempts 11–12 then failed the same source-preservation boundary; attempt 12
+never started the worker. Identifying a different concurrent file addition is
+useful diagnosis, but adds no qualification progress. Existing attempt evidence
+and acceptance requirements remain unchanged.
+
+**At slice entry:** determine whether the current release-tool writer has
+finished or an arranged pause covers the qualification window. This responds to the
+[documented concurrent changes](Evidence/20-VT6-Fresh-Input-Refusal-20260911.md),
+not a new VM permission gate. Reuse any already-established completion or pause;
+do not ask for it again. Preserve all unrelated work and do not terminate another
+session's processes. This documentation update does not establish that the
+writer has stopped or that an unattended launcher has been paused.
+
+**Select once at entry:** inspect current changes and available writer-completion
+or coordination evidence. A clean Git tree is unnecessary, and a momentarily
+unchanged status is insufficient. If a stable window is established, choose
+Task 20. Otherwise choose the existing
+[15A acknowledgement/rollback boundary](Task-15.md#task-15a-continuation--2026-09-08)
+and implement and locally verify one concrete behavior within that boundary.
+Do not spend a VM attempt testing whether the writer is still active. Task 15A
+is independent implementation work, not an exemption from provenance: defer its
+guarded qualification too if inputs cannot stay stable. Record the selected
+observable result before implementation and retain it through this slice.
+
+**Task 20 execution:** finish all checkout edits, including documentation; run
+required isolated safety and prepare fresh artifacts against current inputs.
+Keep checkout inputs unchanged through collection and cleanup. Use the existing
+`tools/run-tests integration check_graphical_vt6_authentication` route for
+**at most one guarded Task 20 attempt in this slice**. Required progress is a
+passing outer qualification with authenticated command proof, verified shutdown,
+baseline restoration and final source/host preservation. Local test counts,
+fresh snapshots and further refusal labels do not satisfy that result. Preserve
+`VerifiedInputs` and all existing privacy, ownership and cleanup guards.
+
+**Exit:** after a failed attempt, complete cleanup and record the demonstrated
+cause, remaining uncertainty and concrete change required before another run;
+do not retry or start a second task in this slice. If neither branch can execute,
+retain the specific missing condition and required owner action. Report success,
+partial implementation progress or blockage accurately. A passing Task 20
+authentication qualification closes only its corresponding milestone, not the
+remaining notice, E2E-002 or startup-fault acceptance.
+
+**Expiry on every outcome:** mark the override status above **consumed**, with
+the slice identity/result, even if qualification failed or no attempt ran.
+Replace the active Task 20 handoff and Continuation.md with the actual result,
+normal next-task selection and freshly reassessed settings; remove the pending
+override pointer and reconcile Task 15A's scheduling note. Retain this section
+as historical evidence only. Neither its one-attempt cap, fixed branch selection,
+settings recommendation nor an operator-review hold carries into future slices.
+Actual unresolved blockers and all normal safety/acceptance rules persist.
+Return the ordinary truthful structured launcher report; the existing
+`--max-slices 1` limit stops the run. Do not report roadmap completion merely to
+stop, change launcher control state or start another launcher. Normal checklist
+selection resumes in the next slice without renewed intervention approval.
 
 ### Prior handoff — capture correction before the joined intervention
 
@@ -460,8 +573,9 @@ Use this finite remaining checklist; update it in place with evidence:
   completion proof, and timeout/partial-input refusals using the existing lineage
   and session observers. Locally verified in the
   [integrated attempt evidence](Evidence/20-VT6-Authentication-Attempt-20260910.md);
-  attempt 10 now supplies [live command-stage evidence](Evidence/20-VT6-Command-and-Shutdown-20260911.md),
-  with normal worker shutdown still unqualified.
+  attempt 10 supplies [live command-stage evidence](Evidence/20-VT6-Command-and-Shutdown-20260911.md),
+  and attempt 11 supplies passing normal worker shutdown in the
+  [subsequent evidence](Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md).
 - [x] Bind fresh capture and exact pixels to current-worker/input provenance and
   durable, ordered, one-use controller authorization; preserve sealing and all
   recipient/replay refusals. Locally verified in the same evidence; attempts
@@ -488,10 +602,13 @@ Use this finite remaining checklist; update it in place with evidence:
   Its cleanup passed too. Attempt 8 refused source drift before worker startup;
   the operator cleared that deferral. Attempts 9/10 now advance through password
   submission, the corrected standalone command import and all authentication
-  stages, but attempt 10 fails the worker deadline after power-off. See the
-  [current evidence](Evidence/20-VT6-Command-and-Shutdown-20260911.md).
-  All ten attempts remain failed. Correct the normal-shutdown budget and complete
-  guarded qualification before checking this item.
+  stages, but attempt 10 fails the worker deadline after power-off. Attempt 11
+  corrects that boundary and passes normal shutdown, then fails final source
+  preservation. Attempt 12 captures that addition but refuses before worker
+  startup after three later source additions. See the
+  [current evidence](Evidence/20-VT6-Fresh-Input-Refusal-20260911.md). All twelve
+  attempts remain failed. Complete guarded qualification through final
+  preservation before checking this item.
 
 Plan the remaining dependency chain together at the start of the next slice.
 Reuse the qualified prompt, pixel, worker, recipient and lineage contracts;

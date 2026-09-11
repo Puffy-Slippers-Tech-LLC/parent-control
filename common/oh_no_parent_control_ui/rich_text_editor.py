@@ -203,7 +203,9 @@ body {{ display: flex; flex-direction: column; }}
 #toolbar .ql-picker-label::after {{ content: ''; width: 5px; height: 5px;
                                   border-right: 2px solid; border-bottom: 2px solid;
                                   transform: rotate(45deg); margin: -3px 2px 0 auto; }}
-#toolbar .ql-picker-options {{ border-radius: 8px; background: white; }}
+/* Keep formatting choices inside even the shortest editor viewport. */
+#toolbar .ql-picker-options {{ border-radius: 8px; background: white;
+  max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box; }}
 #toolbar .ql-stroke {{ stroke: #343437; }}
 #toolbar .ql-fill {{ fill: #343437; }}
 #toolbar .ql-active .ql-stroke, #toolbar button:hover .ql-stroke {{ stroke: #7650ff; }}

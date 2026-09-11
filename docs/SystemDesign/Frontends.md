@@ -39,6 +39,13 @@ The child overlay and kiosk deliberately use the same GTK request form and
 validation. Only account selection, mute surface, broker request method, and
 exit behavior differ.
 
+The Parent App's allowance and app-filter popovers use native menu buttons
+and scrollable contents that can shrink to the space supplied by the compositor.
+Its pages scroll on shorter displays, and legend text wraps without imposing a
+wide minimum window size. The shared About window can resize and scroll so its
+legal notices remain reachable on scaled displays. These layout changes load
+with the next app process and do not change saved data.
+
 ## Responsive request layout
 
 `make preview-kiosk` and `make preview-child-overlay` use the

@@ -43,6 +43,23 @@ def test_parent_preview_smoke(launch_ui, wait_for_accessible_node,
     )
 
 
+def test_parent_daily_allowance_menu_opens(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state):
+    from dogtail import rawinput
+
+    application, _log_path = launch_ui("parent_preview")
+    allowance = wait_for_accessible_node(application, "Daily time allowance", "button")
+    wait_for_accessible_state(lambda: allowance.sensitive, "loaded daily allowance")
+    trigger = allowance.child(role_name="toggle button", retry=False)
+    x, y = trigger.position
+    width, height = trigger.size
+    rawinput.click(x + width / 2, y + height / 2)
+    preset = wait_for_accessible_node(application, "45 minutes", "button")
+    wait_for_accessible_state(lambda: preset.showing, "visible allowance choice")
+    custom = wait_for_accessible_node(application, "Custom amount", "button")
+    wait_for_accessible_state(lambda: custom.showing, "visible custom allowance choice")
+
+
 def test_parent_component_scripted_broker_behavior(launch_ui, wait_for_accessible_node,
                                                     capture_ui_snapshot,
                                                     collect_application_logs):

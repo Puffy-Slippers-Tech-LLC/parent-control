@@ -106,6 +106,15 @@ def test_responsive_form_accepts_pointer_selection_and_submission(
         wait_for_accessible_node(application, "Request 5 minutes", "toggle button")
         wait_for_accessible_state(lambda: events(path, "pointer_layout"), "allocated controls")
         for name in ("duration", "request"):
+            layout = events(path, "pointer_layout")[-1]
+            if not layout["reachable"][name]:
+                # Short displays intentionally scroll the form. A mapped
+                # widget can still be below the viewport and cannot be clicked.
+                click_at(backend, 1, *layout["targets"]["scrollbar"])
+                wait_for_accessible_state(
+                    lambda: events(path, "pointer_layout")[-1]["reachable"][name],
+                    f"pointer-reachable {name} after scrolling",
+                )
             x, y = events(path, "pointer_layout")[-1]["targets"][name]
             click_at(backend, 1, x, y)
             if name == "duration":

@@ -656,7 +656,7 @@ button.about-link > label {
   font-weight: 800;
 }
 
-.app-policy-filter {
+.app-policy-filter > button {
   padding: 4px 8px;
   border: 0;
   border-radius: 10px;
@@ -664,7 +664,7 @@ button.about-link > label {
   box-shadow: none;
 }
 
-.app-policy-filter:hover {
+.app-policy-filter > button:hover {
   background: alpha(@window_fg_color, 0.07);
 }
 

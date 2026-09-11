@@ -242,7 +242,9 @@ class ParentWindow(Adw.ApplicationWindow):
         # desktop icon uses the product-wide name.
         self.set_icon_name(APPLICATION_ICON_NAME)
         self.set_default_size(DEFAULT_WINDOW_WIDTH, 1168)
-        self.set_size_request(820, 700)
+        # Both pages scroll; let shorter logical displays shrink the window
+        # instead of forcing its lower controls off-screen.
+        self.set_size_request(820, -1)
         self._client = client_factory()
         self._users = []
         self._preferences = None
@@ -784,7 +786,7 @@ class ParentWindow(Adw.ApplicationWindow):
         """Overlay a filter heading on a measurement-matched, inert policy control."""
         overlay = Gtk.Overlay(css_classes=["app-policy-heading", css_class])
         overlay.set_child(slot)
-        trigger = Gtk.Button(
+        trigger = Gtk.MenuButton(
             tooltip_text=f"Filter by {label}",
             halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
             css_classes=["app-policy-filter"],
@@ -808,7 +810,6 @@ class ParentWindow(Adw.ApplicationWindow):
             autohide=True, has_arrow=True,
             css_classes=["app-policy-filter-popover"],
         )
-        popover.set_parent(trigger)
         menu = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL, spacing=2,
             css_classes=["app-policy-filter-menu"],
@@ -825,13 +826,19 @@ class ParentWindow(Adw.ApplicationWindow):
                 css_classes=["app-policy-filter-item-label"],
             ))
             choice.set_child(content)
+            describe_control(choice, item["label"],
+                             f"Show apps with this {label.casefold()}.")
             choice.connect(
                 "toggled", self._column_filter_toggled, item["id"], selected,
                 trigger, items,
             )
             menu.append(choice)
-        popover.set_child(menu)
-        trigger.connect("clicked", lambda *_args: popover.popup())
+        popover.set_child(Gtk.ScrolledWindow(
+            child=menu, propagate_natural_height=True,
+            hscrollbar_policy=Gtk.PolicyType.NEVER,
+        ))
+        # MenuButton owns popup positioning, keyboard activation and teardown.
+        trigger.set_popover(popover)
         overlay.add_overlay(trigger)
         overlay.set_measure_overlay(trigger, False)
         overlay.set_clip_overlay(trigger, False)
@@ -998,12 +1005,12 @@ class ParentWindow(Adw.ApplicationWindow):
                 )
             rows.attach(icon, 0, row, 1, 1)
             rows.attach(Gtk.Label(
-                label=item["label"], xalign=0, wrap=True, width_chars=22,
+                label=item["label"], xalign=0, wrap=True, max_width_chars=22,
                 css_classes=["policy-legend-item-title"],
             ), 1, row, 1, 1)
             rows.attach(Gtk.Label(
                 label=descriptions[item["id"]], xalign=0, wrap=True,
-                width_chars=22, hexpand=True,
+                max_width_chars=22, hexpand=True,
                 css_classes=["policy-legend-description"],
             ), 2, row, 1, 1)
         section.append(rows)
@@ -1553,7 +1560,10 @@ class ParentWindow(Adw.ApplicationWindow):
         menu = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, width_request=300)
         menu.append(Gtk.ScrolledWindow(
             child=choices,
-            min_content_height=378,
+            # Prefer the full menu height, but let the compositor shrink it
+            # when there is less room beside the button. A fixed minimum can
+            # make GTK reject the popup allocation and immediately close it.
+            propagate_natural_height=True,
             max_content_height=378,
             hscrollbar_policy=Gtk.PolicyType.NEVER,
         ))

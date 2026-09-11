@@ -140,7 +140,6 @@ class AboutDialog(Gtk.Window):
         values = branding()
         super().__init__(title="About", transient_for=parent, modal=True)
         self.set_default_size(460, 680)
-        self.set_resizable(False)
         self.add_css_class("about-dialog")
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
@@ -192,7 +191,11 @@ class AboutDialog(Gtk.Window):
             justify=Gtk.Justification.CENTER, css_classes=["dim-label"],
             halign=Gtk.Align.CENTER,
         ))
-        self.set_child(content)
+        # Legal notices must remain reachable on short or scaled displays.
+        self.set_child(Gtk.ScrolledWindow(
+            child=content, hscrollbar_policy=Gtk.PolicyType.NEVER,
+            propagate_natural_height=True, focusable=True,
+        ))
 
 
 def open_help() -> None:

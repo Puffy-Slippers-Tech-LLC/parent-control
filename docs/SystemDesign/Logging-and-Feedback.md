@@ -42,6 +42,10 @@ diagnostic-log explanation. In the dedicated kiosk session the privacy dialog
 omits its external link, and feedback hides log download, Add files, and the
 editor's attachment shortcut. The in-session request overlay is Child App and
 retains those controls. File chooser entry points enforce the same restriction.
+The footer stays outside the form's scrolling area so Close and Send remain
+visible on short displays, including when all five file attachments or a long
+status message are shown. The rich-text editor continues to scroll its own text;
+its formatting dropdown scrolls within the editor viewport when space is tight.
 
 ### Error reports
 

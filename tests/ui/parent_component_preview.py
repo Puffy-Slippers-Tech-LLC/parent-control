@@ -102,6 +102,7 @@ class ScriptedParentBroker:
 from unittest.mock import Mock
 import requests
 from common.oh_no_parent_control_ui import feedback, feedback_transport
+from parent.oh_no_parent_control_parent import main as parent_main
 
 feedback.collect_logs = lambda: b"PK\x03\x04component-test archive"
 feedback_status = int(os.environ.get("ONPC_FEEDBACK_STATUS", "202"))
@@ -134,6 +135,18 @@ feedback_session.__enter__ = Mock(return_value=feedback_session)
 feedback_session.__exit__ = Mock(return_value=False)
 feedback_session.post.side_effect = feedback_post
 feedback_transport.requests.Session = lambda: feedback_session
+
+
+if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-attachments":
+    class AttachedFeedbackDialog(feedback.FeedbackDialog):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._attachments_loaded([
+                feedback_transport.Attachment.create(f"sample-{index}.txt", b"test attachment")
+                for index in range(feedback_transport.MAX_ATTACHMENT_COUNT)
+            ], None)
+
+    parent_main.FeedbackDialog = AttachedFeedbackDialog
 
 
 raise SystemExit(Application(client_factory=ScriptedParentBroker).run([sys.argv[0]]))

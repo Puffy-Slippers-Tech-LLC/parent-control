@@ -83,7 +83,7 @@ class FeedbackDialog(Adw.Window):
         ))
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16,
                           margin_start=28, margin_end=28,
-                          margin_top=8, margin_bottom=28)
+                          margin_top=8, margin_bottom=8)
         introduction = Gtk.Box(spacing=18, margin_bottom=8)
         hero_icon = _feedback_icon("mail", 38, "#6740ef")
         hero_icon.set_valign(Gtk.Align.CENTER)
@@ -183,7 +183,8 @@ class FeedbackDialog(Adw.Window):
         attachments.add(self._attachment)
         content.append(attachments)
 
-        footer = Gtk.Box(spacing=16, margin_top=14, valign=Gtk.Align.END)
+        footer = Gtk.Box(spacing=16, margin_top=14, margin_bottom=28,
+                         margin_start=28, margin_end=28, valign=Gtk.Align.END)
         privacy_notice = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL, spacing=6,
             hexpand=True, valign=Gtk.Align.CENTER,
@@ -227,10 +228,13 @@ class FeedbackDialog(Adw.Window):
         self._send_button.connect("clicked", self._send)
         actions.append(self._send_button)
         footer.append(actions)
-        content.append(footer)
-        # Keep the complete form and its actions in the window allocation.
-        # Only the expanding rich-text editor scrolls its contents.
-        toolbar.set_content(content)
+        # Extra attachments and status messages may outgrow a short display.
+        # Let the form scroll while keeping Close and Send always available.
+        toolbar.set_content(Gtk.ScrolledWindow(
+            child=content, hscrollbar_policy=Gtk.PolicyType.NEVER,
+            propagate_natural_height=True, vexpand=True, focusable=True,
+        ))
+        toolbar.add_bottom_bar(footer)
         self.set_content(toolbar)
         keys = Gtk.EventControllerKey()
         keys.connect("key-pressed", self._key_pressed)

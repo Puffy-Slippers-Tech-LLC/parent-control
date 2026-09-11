@@ -261,14 +261,14 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertIn("Gtk.Popover(", source)
         self.assertIn("Gtk.CheckButton(", source)
-        self.assertIn("popover.popup()", source)
+        self.assertIn("trigger.set_popover(popover)", source)
         self.assertIn("icon_factory(item)", source)
         self.assertIn('css_classes=["app-policy-filter-item-label"]', source)
         self.assertIn("MATCH_RULES, self._match_rule_filters", build)
         self.assertIn("STATES, self._access_rule_filters", build)
         self.assertIn("self._match_rule_filter_icon", build)
         self.assertIn("self._access_rule_filter_icon", build)
-        self.assertIn(".app-policy-filter {", stylesheet)
+        self.assertIn(".app-policy-filter > button {", stylesheet)
         self.assertIn(".app-policy-filter-item-label {", stylesheet)
         self.assertIn(
             ".match-rule-header .app-policy-filter {\n  margin-right: 41px;",

@@ -103,6 +103,13 @@ or all installed-app behavior. They do not certify graphical/VM acceptance,
 privacy-page content, or human asset/license review; complete applicable release
 review before starting this command.
 
+The clean builder's `build.log` captures launcher output; detailed package/test
+output is retained in its `output/` directory as an sbuild `.build` log. Build
+failures report both locations. Declared tests must run from an unpacked source
+archive without `.git`; tests of Git behavior create their own temporary repository
+using the packaged inputs (including `.gitignore`). The report-provenance case in
+[`test_regression.py`](../tests/unit/test_regression.py) covers this boundary.
+
 ## Retry and recovery
 
 A lock in the checkout's Git common directory prevents concurrent publishers.

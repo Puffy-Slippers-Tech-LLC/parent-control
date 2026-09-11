@@ -127,11 +127,14 @@ def test_private_guest_failure_is_fsynced_before_public_event(tmp_path, monkeypa
     assert 'private failure detail' not in events[0]['detail']
 
 
-def test_generated_reports_are_ignored_by_source_provenance():
+def test_generated_reports_are_ignored_by_source_provenance(tmp_path):
     root = Path(__file__).resolve().parents[2]
+    # Debian source builds contain the ignore rules, but no checkout metadata.
+    (tmp_path / '.gitignore').write_bytes((root / '.gitignore').read_bytes())
+    subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
     result = subprocess.run(['git', 'check-ignore',
                              'docs/TestAutomation/Evidence/test-all-runs/example/report.md'],
-                            cwd=root, stdout=subprocess.PIPE, check=False)
+                            cwd=tmp_path, stdout=subprocess.PIPE, check=False)
     assert result.returncode == 0
 
 

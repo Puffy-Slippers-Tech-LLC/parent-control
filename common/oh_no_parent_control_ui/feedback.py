@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 from pathlib import Path
 import threading
 
@@ -20,7 +20,7 @@ from .rich_text_editor import RichTextEditor
 from common.oh_no_parent_control_ui.about import app_version
 from common.oh_no_parent_control_ui.accessibility import describe_control
 
-LOG = logging.getLogger("oh-no-parent-control-parent")
+LOG = get_logger("feedback")
 PRIVACY_URL = "https://tech.puffyslippers.com/oh-no-parent-control/privacy/"
 
 
@@ -65,6 +65,9 @@ class FeedbackDialog(Adw.Window):
         )
         self.connect("destroy", self._destroyed)
         self._busy = False
+        self._collecting = False
+        self._collection_failed = False
+        self._disposed = False
         self._submission = None
         self._logs = None
         self._cancelled = threading.Event()
@@ -142,6 +145,17 @@ class FeedbackDialog(Adw.Window):
         attachments = Adw.PreferencesGroup(title="Attachments (optional)",
                                            css_classes=["feedback-attachments"])
         self._attachments_group = attachments
+        self._collection_row = Adw.ActionRow(
+            title="Collecting diagnostic information...", visible=False,
+        )
+        # Adw.Spinner keeps essential progress moving when desktop animations
+        # are disabled. Mapping the collection row controls its lifecycle.
+        self._collection_spinner = Adw.Spinner(
+            valign=Gtk.Align.CENTER, width_request=24, height_request=24,
+            css_classes=["feedback-collection-spinner"],
+        )
+        self._collection_row.add_prefix(self._collection_spinner)
+        attachments.add(self._collection_row)
         self._add_attachment_button = Gtk.Button(
             valign=Gtk.Align.CENTER, css_classes=["feedback-add-files"],
         )
@@ -167,13 +181,17 @@ class FeedbackDialog(Adw.Window):
         self._include_logs = True
         self._attachment_button.connect("clicked", self._toggle_attachment)
         attachment_actions = Gtk.Box(spacing=4, valign=Gtk.Align.CENTER)
+        self._retry_logs = Gtk.Button(label="Retry collection", visible=False,
+                                     valign=Gtk.Align.CENTER)
+        self._retry_logs.connect("clicked", self._start_collection)
+        attachment_actions.append(self._retry_logs)
         self._download_button = Gtk.Button(
             child=_feedback_icon("download", 22, "#7650ff"),
             css_classes=["flat", "feedback-attachment-button"],
             tooltip_text="Save compressed logs to examine them before sending",
         )
         describe_control(self._download_button, "Download",
-                         "Save a ZIP of diagnostic logs from the latest 3 log dates.")
+                         "Save a ZIP containing a readable diagnostic report and validated technical events.")
         self._download_button.connect("clicked", self._download_logs)
         self._download_button.set_visible(not kiosk_session)
         attachment_actions.append(self._download_button)
@@ -239,14 +257,74 @@ class FeedbackDialog(Adw.Window):
         keys = Gtk.EventControllerKey()
         keys.connect("key-pressed", self._key_pressed)
         self.add_controller(keys)
+        self.connect("notify::visible", self._visibility_changed)
         message.grab_editor_focus()
+
+    def _visibility_changed(self, *_args):
+        if self.get_visible() and not self._busy and self._include_logs:
+            self._start_collection()
+
+    def _start_collection(self, *_args):
+        if self._disposed or self._busy or self._collecting or not self._include_logs:
+            return
+        self._collecting = True
+        self._collection_failed = False
+        self._logs = None
+        self._without_logs.set_visible(False)
+        self._retry_logs.set_visible(False)
+        self._attachment.set_visible(False)
+        self._collection_row.set_visible(True)
+        self._set_busy(self._busy)
+        LOG.info("feedback.collection-started")
+
+        def collect():
+            try:
+                data = collect_logs()
+            except Exception as error:
+                # The worker must always resolve the pending UI state. Neither
+                # the log nor the user-facing failure includes exception text.
+                LOG.warning("feedback.collection-failed", error_type=error_code(error))
+                GLib.idle_add(self._collection_done, None)
+            else:
+                GLib.idle_add(self._collection_done, data)
+
+        try:
+            threading.Thread(target=collect, daemon=True).start()
+        except Exception as error:
+            LOG.warning("feedback.collection-failed", error_type=error_code(error))
+            self._collection_done(None)
+
+    def _collection_done(self, data):
+        if self._disposed:
+            return GLib.SOURCE_REMOVE
+        self._collecting = False
+        self._logs = data
+        self._collection_failed = data is None
+        self._collection_row.set_visible(False)
+        self._attachment.set_visible(True)
+        self._render_attachment()
+        self._set_busy(self._busy)
+        if data is None:
+            self._status.set_label(
+                "Logs could not be prepared. You can send this feedback without the attachment.",
+            )
+        else:
+            self._status.set_label("")
+            LOG.info("feedback.collection-ready", bytes=len(data))
+        return GLib.SOURCE_REMOVE
 
     def _show_log_privacy(self, *_args):
         dialog = Adw.AlertDialog.new(
             "Feedback privacy",
             transport.RETENTION_DISCLOSURE + "\n\nDiagnostic logs do not collect "
-            "personally identifiable information (PII), such as account names, email "
-            "addresses, or file contents. Review files and logs before sending.",
+            "account names, email addresses, file contents, raw system journals, or "
+            "exception messages. Automatic diagnostics contain validated technical "
+            "events, health checks, and system information: OS and dependency versions, "
+            "timezone, session type, and aggregate account counts. Names and custom "
+            "version text are omitted or irreversibly replaced; identities are never hashed. "
+            "Your own feedback, reply email, and selected "
+            "files are separate and may contain personal information. Review them "
+            "before sending.",
         )
         portal_link = Gtk.LinkButton(
             uri=PRIVACY_URL,
@@ -279,6 +357,7 @@ class FeedbackDialog(Adw.Window):
         return True
 
     def _destroyed(self, *_args):
+        self._disposed = True
         self._clear_success_dialog()
         self._cancelled.set()
         Gtk.StyleContext.remove_provider_for_display(self.get_display(), self._css_provider)
@@ -288,14 +367,19 @@ class FeedbackDialog(Adw.Window):
         self._close_button.set_label(
             "Stop sending and close" if busy and self._on_close is not None else "Close",
         )
-        for widget in (self._message, self._reply, self._attachment_button,
-                       self._download_button, self._add_attachment_button,
-                       self._without_logs, *self._attachment_rows):
+        for widget in (self._message, self._reply, *self._attachment_rows):
             widget.set_sensitive(not busy)
-        self._send_button.set_sensitive(not busy and transport.SENDING_ENABLED)
+        for widget in (self._attachment_button, self._download_button,
+                       self._add_attachment_button, self._without_logs, self._retry_logs):
+            widget.set_sensitive(not busy and not self._collecting)
+        self._send_button.set_sensitive(
+            not busy and not self._collecting and transport.SENDING_ENABLED
+            and (not self._include_logs or self._logs is not None),
+        )
 
     def _send(self, _button):
-        if self._busy or not transport.SENDING_ENABLED:
+        if (self._busy or self._collecting or not transport.SENDING_ENABLED
+                or (self._include_logs and self._logs is None)):
             return
         message = self._message.plain_text
         message_html = self._message.html
@@ -320,13 +404,6 @@ class FeedbackDialog(Adw.Window):
         cached_logs = self._logs
         def work():
             logs = cached_logs
-            if include_logs and logs is None:
-                try:
-                    logs = collect_logs()
-                except (OSError, ValueError) as error:
-                    LOG.warning("feedback logs unavailable error_type=%s", type(error).__name__)
-                    GLib.idle_add(self._submission_done, transport.Result("logs_unavailable"), submission)
-                    return
             frozen = replace(submission, logs=logs if include_logs else None)
             GLib.idle_add(self._submission_progress,
                           "Sending feedback… " + self._sending_hint())
@@ -352,7 +429,7 @@ class FeedbackDialog(Adw.Window):
         if submission.logs is not None:
             self._logs = submission.logs
         self._set_busy(False)
-        LOG.info("feedback submission finished outcome=%s", result.kind)
+        LOG.info("feedback.002", outcome=result.kind)
         messages = {
             "success": "Feedback submitted.",
             "expired": "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate.",
@@ -419,12 +496,23 @@ class FeedbackDialog(Adw.Window):
         self._send(None)
 
     def _toggle_attachment(self, _button):
+        if self._busy or self._collecting:
+            return
         self._include_logs = not self._include_logs
+        self._render_attachment()
+        self._set_busy(self._busy)
+        if self._include_logs and self._logs is None:
+            self._start_collection()
+
+    def _render_attachment(self):
+        failed = self._include_logs and self._collection_failed
         self._attachment.set_title(
+            "Diagnostics unavailable" if failed else
             "diagnostic-logs.zip" if self._include_logs else "No logs attached",
         )
         self._attachment.set_subtitle(
-            "Latest 3 log dates · ZIP archive"
+            "Retry collection or send without diagnostics." if failed else
+            "Latest 3 log dates · System information · ZIP archive"
             if self._include_logs else "Your feedback can be sent without logs.",
         )
         if self._include_logs:
@@ -432,18 +520,20 @@ class FeedbackDialog(Adw.Window):
         else:
             self._attachment_button.set_label("Add logs")
         self._attachment_button.set_tooltip_text("Remove logs" if self._include_logs else "Add logs")
-        self._download_button.set_visible(self._include_logs and not self._kiosk_session)
+        self._download_button.set_visible(self._include_logs and not failed and not self._kiosk_session)
+        self._retry_logs.set_visible(failed)
+        self._without_logs.set_visible(failed)
         self._update_attachment_accessibility()
 
     def _update_attachment_accessibility(self):
         describe_control(
             self._attachment_button,
             "Remove" if self._include_logs else "Add logs",
-            "Choose whether to include compressed diagnostic logs from the latest 3 log dates with your feedback.",
+            "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report.",
         )
 
     def _choose_attachments(self, _button=None):
-        if self._busy or self._kiosk_session:
+        if self._busy or self._collecting or self._kiosk_session:
             return
         chooser = Gtk.FileDialog(title="Add feedback attachments")
         chooser.open_multiple(self, None, self._attachments_selected)
@@ -453,8 +543,7 @@ class FeedbackDialog(Adw.Window):
             selected = chooser.open_multiple_finish(result)
         except GLib.Error as error:
             if not error.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED):
-                LOG.warning("feedback attachment chooser failed error_type=%s",
-                            type(error).__name__)
+                LOG.warning("feedback.003", error_type=error_code(error))
                 self._status.set_label("Could not choose attachments. Try again.")
             return
         files = [selected.get_item(index) for index in range(selected.get_n_items())]
@@ -467,7 +556,7 @@ class FeedbackDialog(Adw.Window):
             return
         self._set_busy(True)
         self._status.set_label("Reading attachments…")
-        LOG.info("feedback attachment read started file_count=%d", len(files))
+        LOG.info("feedback.004", file_count=len(files))
 
         def load():
             loaded = []
@@ -494,8 +583,7 @@ class FeedbackDialog(Adw.Window):
             except ValueError as error:
                 GLib.idle_add(self._attachments_loaded, None, str(error))
             except (GLib.Error, OSError) as error:
-                LOG.warning("feedback attachment read failed error_type=%s",
-                            type(error).__name__)
+                LOG.warning("feedback.005", error_type=error_code(error))
                 GLib.idle_add(
                     self._attachments_loaded, None,
                     "Could not read one or more attachments. Try different files.",
@@ -508,7 +596,7 @@ class FeedbackDialog(Adw.Window):
     def _attachments_loaded(self, attachments, error):
         self._set_busy(False)
         if error:
-            LOG.warning("feedback attachment read failed error_type=attachment_validation")
+            LOG.warning("feedback.006")
             self._status.set_label(error)
             return GLib.SOURCE_REMOVE
         for attachment in attachments:
@@ -529,8 +617,11 @@ class FeedbackDialog(Adw.Window):
             row.add_suffix(remove)
             self._attachment_rows.append(row)
             self._attachments_group.add(row)
-        LOG.info("feedback attachments ready added_count=%d total_count=%d",
-                 len(attachments), len(self._user_attachments))
+        LOG.info(
+            "feedback.007",
+            added_count=len(attachments),
+            total_count=len(self._user_attachments),
+        )
         self._status.set_label(
             f"{len(self._user_attachments)} file attachment"
             f"{'s' if len(self._user_attachments) != 1 else ''} ready.",
@@ -541,8 +632,7 @@ class FeedbackDialog(Adw.Window):
         self._user_attachments.remove(attachment)
         self._attachment_rows.remove(row)
         self._attachments_group.remove(row)
-        LOG.info("feedback attachment removed remaining_count=%d",
-                 len(self._user_attachments))
+        LOG.info("feedback.008", remaining_count=len(self._user_attachments))
 
     def _clear_user_attachments(self):
         for row in self._attachment_rows:
@@ -559,24 +649,11 @@ class FeedbackDialog(Adw.Window):
         return f"{size / (1024 * 1024):.1f} MB"
 
     def _download_logs(self, _button):
-        if self._busy or self._kiosk_session:
+        if self._busy or self._collecting or self._kiosk_session or self._logs is None:
             return
         self._set_busy(True)
-        self._attachment.set_subtitle("Preparing compressed logs…")
-        LOG.info("diagnostic download preparation started")
-
-        def collect():
-            try:
-                data = collect_logs()
-            except (OSError, ValueError) as error:
-                LOG.warning("diagnostic download preparation failed error_type=%s",
-                            type(error).__name__)
-                GLib.idle_add(self._download_done,
-                              "Could not prepare logs. They may be unavailable or exceed 16 MB.")
-            else:
-                GLib.idle_add(self._choose_download, data)
-
-        threading.Thread(target=collect, daemon=True).start()
+        LOG.info("feedback.009")
+        self._choose_download(self._logs)
 
     def _choose_download(self, data):
         self._logs = data
@@ -595,8 +672,7 @@ class FeedbackDialog(Adw.Window):
             if error.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED):
                 self._download_done("Latest 3 log dates · ZIP archive")
             else:
-                LOG.warning("diagnostic download chooser failed error_type=%s",
-                            type(error).__name__)
+                LOG.warning("feedback.011", error_type=error_code(error))
                 self._download_done("Could not choose a download location. Try again.")
             return
         destination.replace_contents_bytes_async(
@@ -609,11 +685,10 @@ class FeedbackDialog(Adw.Window):
         try:
             destination.replace_contents_finish(result)
         except GLib.Error as error:
-            LOG.warning("diagnostic download save failed error_type=%s",
-                        type(error).__name__)
+            LOG.warning("feedback.012", error_type=error_code(error))
             self._download_done("Could not save logs. Try another location.")
         else:
-            LOG.info("diagnostic download saved")
+            LOG.info("feedback.013")
             self._download_done("Downloaded · Ready to examine")
 
     def _download_done(self, subtitle):

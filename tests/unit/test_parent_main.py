@@ -506,22 +506,23 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(_daily_limit_selection(30), (2, False))
         self.assertEqual(_daily_limit_selection(31), (CUSTOM_DAILY_LIMIT_INDEX, True))
 
-    def test_time_explanation_distinguishes_grant_only_from_exhausted_daily_limit(self):
+    def test_time_explanation_shows_both_amounts_and_remaining_time(self):
         status = {
             "daily_allowance_remaining_seconds": 0,
             "one_time_grant_remaining_seconds": 10 * 60,
             "additional_one_time_grant_seconds": 0,
             "calculated_active_extension_seconds": 10 * 60,
         }
-        self.assertEqual(
-            _time_status_subtitle(status, 0), "One-time grant remaining: 10m.",
-        )
-        self.assertEqual(_time_status_subtitle(status, 60), (
-            "Daily allowance remaining: 0m.\nOne-time grant remaining: 10m.\n"
-            "The larger amount applies."
+        self.assertEqual(_time_status_subtitle(status), (
+            "Daily allowance remaining: <b>0m</b>\nOne-time grant remaining: <b>10m</b>\n"
+            "<b>Remaining time: 10m</b> — the larger of the two amounts."
         ))
         status["daily_allowance_remaining_seconds"] = 31 * 60
-        self.assertIn("Daily allowance remaining: 31m", _time_status_subtitle(status, 60))
+        status["calculated_active_extension_seconds"] = 31 * 60
+        self.assertEqual(_time_status_subtitle(status), (
+            "Daily allowance remaining: <b>31m</b>\nOne-time grant remaining: <b>10m</b>\n"
+            "<b>Remaining time: 31m</b> — the larger of the two amounts."
+        ))
 
     def test_revoke_confirmation_discloses_that_the_child_is_locked(self):
         source = inspect.getsource(ParentWindow._confirm_revoke)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import configparser
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import os
 import pwd
 import shlex
@@ -34,7 +34,7 @@ SYSTEM_APPLICATION_DIRS = (
 SYSTEM_EXECUTABLE_DIRS = (
     Path("/usr/local/bin"), Path("/usr/bin"), Path("/bin"),
 )
-LOG = logging.getLogger("oh-no-parent-control.catalog")
+LOG = get_logger("catalog")
 
 
 def suggested_patterns(target: str) -> tuple[str, ...]:
@@ -119,20 +119,20 @@ def _snap_target(entry, executable: str):
     instance_name = entry.get("X-SnapInstanceName", "").strip()
     app_name = entry.get("X-SnapAppName", "").strip()
     if not instance_name or not app_name or not os.path.isabs(executable):
-        LOG.warning("catalog launcher outcome=rejected reason=invalid-snap-metadata")
+        LOG.warning("catalog.001")
         return None
     command = Path(os.path.normpath(executable))
     command_names = {instance_name, f"{instance_name}.{app_name}"}
     if command.name not in command_names or command.parent not in SNAP_COMMAND_DIRS:
-        LOG.warning("catalog launcher outcome=rejected reason=invalid-snap-command")
+        LOG.warning("catalog.002")
         return None
     if not command.is_symlink():
-        LOG.warning("catalog launcher outcome=rejected reason=unavailable-snap-command")
+        LOG.warning("catalog.003")
         return None
     if os.path.realpath(command) not in SNAP_LAUNCHERS or not command.is_file():
-        LOG.warning("catalog launcher outcome=rejected reason=invalid-snap-launcher")
+        LOG.warning("catalog.004")
         return None
-    LOG.debug("catalog launcher outcome=accepted target_type=snap")
+    LOG.debug("catalog.005")
     return str(command)
 
 
@@ -170,7 +170,7 @@ def _executable_target(entry, home: Path):
             if system_target:
                 resolved = os.path.realpath(system_target)
     if not resolved or resolved in GENERIC_LAUNCHERS or not os.path.isfile(resolved):
-        LOG.debug("catalog launcher outcome=rejected reason=unavailable-native-target")
+        LOG.debug("catalog.006")
         return None
     return resolved
 
@@ -209,10 +209,10 @@ def list_apps(user: UserAccount):
     try:
         account = pwd.getpwnam(user.username)
     except KeyError:
-        LOG.warning("catalog discovery outcome=account-unavailable")
+        LOG.warning("catalog.007")
         return ()
     if account.pw_uid != user.uid:
-        LOG.warning("catalog discovery outcome=identity-mismatch")
+        LOG.warning("catalog.008")
         return ()
     home = Path(account.pw_dir)
     directories = (
@@ -235,5 +235,5 @@ def list_apps(user: UserAccount):
             if application:
                 result[desktop_id] = application
     applications = tuple(sorted(result.values(), key=lambda app: app["name"].casefold()))
-    LOG.info("catalog discovery outcome=accepted app_count=%d", len(applications))
+    LOG.info("catalog.009", app_count=len(applications))
     return applications

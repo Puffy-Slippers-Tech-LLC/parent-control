@@ -74,6 +74,90 @@ def test_atomic_helper_install_and_symlink_refusal(tmp_path, monkeypatch):
     assert target.read_bytes() == b'validated-helper'
 
 
+def test_tools_refresh_repairs_only_root_owned_cache_directory(tmp_path, monkeypatch):
+    tools = tmp_path / 'tools'
+    cache = tools / '__pycache__'
+    cache.mkdir(parents=True)
+    bytecode = cache / 'test_launcher.cpython-314.pyc'
+    bytecode.write_bytes(b'preserved cache contents')
+    original = cache.stat()
+    real_fstat = os.fstat
+
+    def root_owned_cache(descriptor):
+        info = real_fstat(descriptor)
+        if info.st_ino == original.st_ino and info.st_dev == original.st_dev:
+            values = list(info)
+            values[4] = values[5] = 0
+            return os.stat_result(values)
+        return info
+
+    changed = []
+
+    def chown(descriptor, uid, gid):
+        info = real_fstat(descriptor)
+        changed.append((info.st_dev, info.st_ino, uid, gid))
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'fstat', root_owned_cache)
+        patch.setattr(os, 'fchown', chown)
+        installer['repair_checkout_bytecode'](tmp_path)
+    assert changed == [(original.st_dev, original.st_ino,
+                        tools.stat().st_uid, tools.stat().st_gid)]
+    assert bytecode.read_bytes() == b'preserved cache contents'
+    assert bytecode.stat().st_uid == os.getuid()
+    assert cache.stat().st_mode == original.st_mode
+
+    # An already caller-owned cache and an absent cache are repeatable no-ops.
+    untouched = Mock(side_effect=AssertionError('must not change caller-owned cache'))
+    monkeypatch.setattr(os, 'fchown', untouched)
+    installer['repair_checkout_bytecode'](tmp_path)
+    bytecode.unlink()
+    cache.rmdir()
+    installer['repair_checkout_bytecode'](tmp_path)
+    untouched.assert_not_called()
+
+
+@pytest.mark.parametrize('kind', ['tools-symlink', 'cache-symlink', 'cache-file'])
+def test_tools_refresh_refuses_unsafe_cache_path(tmp_path, monkeypatch, kind):
+    tools = tmp_path / 'tools'
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    if kind == 'tools-symlink':
+        tools.symlink_to(outside, target_is_directory=True)
+    else:
+        tools.mkdir()
+        cache = tools / '__pycache__'
+        if kind == 'cache-symlink':
+            cache.symlink_to(outside, target_is_directory=True)
+        else:
+            cache.write_bytes(b'preserve non-directory')
+    chown = Mock(side_effect=AssertionError('unsafe path must not change ownership'))
+    monkeypatch.setattr(os, 'fchown', chown)
+    with pytest.raises((OSError, ValueError)):
+        installer['repair_checkout_bytecode'](tmp_path)
+    chown.assert_not_called()
+
+
+def test_tools_refresh_installs_fixed_helper_before_cache_repair_and_can_retry(monkeypatch):
+    main = installer['main']
+    installed = Mock(side_effect=OSError('installation failed'))
+    repaired = Mock()
+    monkeypatch.setattr(os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(installer['sys'], 'argv', ['install_test_runner.py'])
+    monkeypatch.setitem(main.__globals__, 'pinned_vm_uuid', lambda: None)
+    monkeypatch.setitem(main.__globals__, 'install_missing_dependencies', Mock())
+    monkeypatch.setitem(main.__globals__, 'install_file', installed)
+    monkeypatch.setitem(main.__globals__, 'repair_checkout_bytecode', repaired)
+    with pytest.raises(OSError, match='installation failed'):
+        main()
+    repaired.assert_not_called()
+    installed.side_effect = None
+    for _ in range(2):
+        main()
+    assert repaired.call_count == 2
+    repaired.assert_called_with(ROOT)
+
+
 def test_rules_render_for_a_checkout_with_spaces(tmp_path):
     root = tmp_path / 'checkout with spaces'
     (root / 'tools').mkdir(parents=True)

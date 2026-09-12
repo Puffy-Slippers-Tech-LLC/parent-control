@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import configure_console
 import os
 import pwd
 import re
@@ -15,7 +16,7 @@ from pathlib import Path
 from .config import UINT32_MAX
 
 
-LOG = logging.getLogger("oh-no-parent-control.uninstall")
+LOG = get_logger("uninstall")
 PREFERENCES_DIRECTORY = Path("/var/lib/oh-no-parent-control/preferences")
 SNAPSHOT_PATH = Path("/var/lib/oh-no-parent-control/uninstall-enforcement.json")
 PREFERENCE_NAME = re.compile(r"([1-9][0-9]*)\.json")
@@ -119,7 +120,7 @@ def managed_uids(
     try:
         directory_status = directory.lstat()
     except FileNotFoundError:
-        LOG.info("uninstall discovery outcome=no-preference-directory")
+        LOG.info("uninstall.001")
         return ()
     except OSError as error:
         raise UninstallCleanupError("could not inspect preference directory") from error
@@ -153,9 +154,9 @@ def managed_uids(
         uids.append(uid)
     result = tuple(sorted(set(uids)))
     LOG.info(
-        "uninstall discovery outcome=accepted managed_account_count=%d "
-        "unavailable_record_count=%d",
-        len(result), unavailable,
+        "uninstall.002",
+        managed_account_count=len(result),
+        unavailable_record_count=unavailable,
     )
     return result
 
@@ -215,11 +216,7 @@ class UninstallCleaner:
             try:
                 callback()
             except Exception as error:
-                LOG.error(
-                    "uninstall account cleanup outcome=failed operation=%s "
-                    "target=[Managed user] error_type=%s",
-                    operation, type(error).__name__,
-                )
+                LOG.error("uninstall.003", operation=operation, error_type=error_code(error))
                 errors.append(error)
 
         checks = (
@@ -235,23 +232,16 @@ class UninstallCleaner:
                         f"{operation} cleanup verification failed"
                     )
             except Exception as error:
-                LOG.error(
-                    "uninstall account verification outcome=failed operation=%s "
-                    "target=[Managed user] error_type=%s",
-                    operation, type(error).__name__,
-                )
+                LOG.error("uninstall.004", operation=operation, error_type=error_code(error))
                 errors.append(error)
         if not errors:
-            LOG.info("uninstall account cleanup outcome=accepted target=[Managed user]")
+            LOG.info("uninstall.005")
         return errors
 
     def remove(self, uids: tuple[int, ...]) -> None:
         if os.geteuid() != 0:
             raise UninstallCleanupError("uninstall cleanup must run as root")
-        LOG.info(
-            "uninstall enforcement cleanup stage=started managed_account_count=%d",
-            len(uids),
-        )
+        LOG.info("uninstall.006", managed_account_count=len(uids))
         snapshot = _read_snapshot(
             self._snapshot_path, required_owner=self._snapshot_owner,
         )
@@ -263,10 +253,7 @@ class UninstallCleaner:
                     required_owner=self._snapshot_owner,
                 )
             except Exception as error:
-                LOG.critical(
-                    "uninstall snapshot outcome=failed error_type=%s",
-                    type(error).__name__,
-                )
+                LOG.critical("uninstall.007", error_type=error_code(error))
                 raise UninstallCleanupError(
                     "could not snapshot derived enforcement"
                 ) from error
@@ -277,20 +264,14 @@ class UninstallCleaner:
         try:
             self._execution_policy.remove()
         except Exception as error:
-            LOG.error(
-                "uninstall execution-policy cleanup outcome=failed error_type=%s",
-                type(error).__name__,
-            )
+            LOG.error("uninstall.008", error_type=error_code(error))
             errors.append(error)
         if errors:
-            LOG.critical(
-                "uninstall enforcement cleanup outcome=failed failure_count=%d",
-                len(errors),
-            )
+            LOG.critical("uninstall.009", failure_count=len(errors))
             raise UninstallCleanupError(
                 "product-derived enforcement cleanup could not be verified"
             )
-        LOG.info("uninstall enforcement cleanup outcome=accepted")
+        LOG.info("uninstall.010")
 
     def restore(self) -> None:
         if os.geteuid() != 0:
@@ -299,12 +280,9 @@ class UninstallCleaner:
             self._snapshot_path, required_owner=self._snapshot_owner,
         )
         if snapshot is None:
-            LOG.info("uninstall rollback outcome=no-snapshot")
+            LOG.info("uninstall.011")
             return
-        LOG.warning(
-            "uninstall rollback stage=started managed_account_count=%d",
-            len(snapshot["accounts"]),
-        )
+        LOG.warning("uninstall.012", managed_account_count=len(snapshot["accounts"]))
         errors = []
         for state in snapshot["accounts"]:
             uid = state["uid"]
@@ -321,11 +299,7 @@ class UninstallCleaner:
                 try:
                     callback()
                 except Exception as error:
-                    LOG.error(
-                        "uninstall rollback outcome=failed operation=%s "
-                        "target=[Managed user] error_type=%s",
-                        operation, type(error).__name__,
-                    )
+                    LOG.error("uninstall.013", operation=operation, error_type=error_code(error))
                     errors.append(error)
             checks = (
                 ("limit-type", lambda: self._accounts.get_limit_type(uid),
@@ -344,24 +318,17 @@ class UninstallCleaner:
                             f"{operation} rollback verification failed"
                         )
                 except Exception as error:
-                    LOG.error(
-                        "uninstall rollback verification outcome=failed "
-                        "operation=%s target=[Managed user] error_type=%s",
-                        operation, type(error).__name__,
-                    )
+                    LOG.error("uninstall.014", operation=operation, error_type=error_code(error))
                     errors.append(error)
         try:
             self._accounts.sync_execution_policy()
         except Exception as error:
-            LOG.error(
-                "uninstall rollback outcome=failed operation=execution-policy "
-                "error_type=%s", type(error).__name__,
-            )
+            LOG.error("uninstall.015", error_type=error_code(error))
             errors.append(error)
         if errors:
             raise UninstallCleanupError("uninstall rollback could not be verified")
         self._snapshot_path.unlink()
-        LOG.info("uninstall rollback outcome=accepted")
+        LOG.info("uninstall.016")
 
 
 def main() -> int:
@@ -370,10 +337,7 @@ def main() -> int:
     action.add_argument("--remove", action="store_true")
     action.add_argument("--restore", action="store_true")
     args = parser.parse_args()
-    logging.basicConfig(
-        level=logging.INFO,
-        format="oh-no-parent-control-uninstall: %(levelname)s: %(message)s",
-    )
+    configure_console()
     if os.geteuid() != 0:
         raise SystemExit("oh-no-parent-control-uninstall: must run as root")
 

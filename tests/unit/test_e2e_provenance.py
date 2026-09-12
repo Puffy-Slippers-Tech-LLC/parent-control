@@ -153,6 +153,42 @@ def test_new_source_file_is_detected(source, lease):
         captured.recheck()
 
 
+@pytest.mark.parametrize('mutation, field', [
+    ('add', 'added'), ('remove', 'removed'), ('edit', 'content'),
+    ('mode', 'mode'), ('timestamp', 'mtime'),
+])
+def test_source_change_diagnostic_counts_without_private_data(
+        source, lease, capsys, mutation, field):
+    target = source / 'private-canary.py'
+    target.write_text('secret-canary')
+    captured = provenance.VerifiedInputs(root=source, lease=lease)
+    if mutation == 'add':
+        (source / 'another-private-canary.py').write_text('secret-canary')
+    elif mutation == 'remove':
+        target.unlink()
+    elif mutation == 'edit':
+        target.write_text('changed-secret-canary')
+    elif mutation == 'mode':
+        target.chmod(0o700)
+    else:
+        metadata = target.stat()
+        os.utime(target, ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 1_000_000))
+    with pytest.raises(provenance.EvidenceError, match='provenance:source-changed'):
+        captured.recheck()
+    output = capsys.readouterr().err
+    summary = json.loads(next(line.removeprefix('e2e:source-change ')
+                              for line in output.splitlines()
+                              if line.startswith('e2e:source-change ')))
+    assert summary[field] == 1
+    assert set(summary) == {'added', 'removed', 'content', 'directory', 'device',
+                            'inode', 'mode', 'links', 'size', 'mtime', 'ctime'}
+    assert all(type(value) is int and value >= 0 for value in summary.values())
+    assert 'canary' not in output and str(source) not in output
+    with pytest.raises(provenance.EvidenceError, match='provenance:source-changed'):
+        captured.recheck()
+    assert 'e2e:source-change' not in capsys.readouterr().err
+
+
 def test_source_preflight_accepts_current_package_without_vm(source, assets):
     result = provenance.preflight_source(assets, root=source)
     assert result == {'source_sha256': provenance.snapshot(source, source=True)['sha256'],

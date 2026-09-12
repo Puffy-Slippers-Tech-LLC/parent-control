@@ -23,6 +23,8 @@ METHODS = (
     'SetRequestMuted', 'SetPreferences', 'SetParentControl', 'RevokeOneTimeGrant',
     'RequestOwnAccess', 'RequestAccess', 'LogEvent',
 )
+LOG_EVENT = json.dumps({'v': 1, 'event': 'diagnostic.rejected',
+                       'operation': 0, 'fields': {}})
 
 
 
@@ -95,7 +97,7 @@ def invocation(method, role, accounts):
         # in-flight cases are separate tests, not acceptance inferred from this cell.
         'RequestOwnAccess': ('(uub)', (accounts['parent1'], 300, False), False),
         'RequestAccess': ('(uuub)', (target, accounts['parent1'], 300, False), role == 'kiosk'),
-        'LogEvent': ('(sss)', (component, 'INFO', 'authorization matrix [Test user]'), True),
+        'LogEvent': ('(sss)', (component, 'INFO', LOG_EVENT), True),
     }
     if method == 'SetPreferences':
         current = accepted(call(accounts['parent1'], 'GetPreferences', '(u)', (target,)))[0]
@@ -143,7 +145,7 @@ def test_private_records_and_log_components(accounts, role):
                   'authorization:private-probe-write')
     own = 'parent' if role in ('parent1', 'parent2', 'locked') else 'kiosk' if role == 'kiosk' else 'child'
     for component in {'parent', 'child', 'kiosk', 'broker'} - {own}:
-        reply = call(accounts[role], 'LogEvent', '(sss)', (component, 'INFO', 'forbidden component test'))
+        reply = call(accounts[role], 'LogEvent', '(sss)', (component, 'INFO', LOG_EVENT))
         guest.require(reply.get('error') == DENIED, 'authorization:log-impersonation')
 
 
@@ -324,7 +326,7 @@ def test_root_method_permissions_and_approver_exclusion(accounts):
                 account_state(accounts[key]) == state for key, state in others.items()),
                 'authorization:root-approver-denial-write')
         for component in ('child', 'kiosk', 'broker'):
-            reply = call(0, 'LogEvent', '(sss)', (component, 'INFO', 'root component test'),
+            reply = call(0, 'LogEvent', '(sss)', (component, 'INFO', LOG_EVENT),
                          allow_root=True)
             guest.require(reply.get('error') == DENIED, 'authorization:root-log-impersonation')
     finally:
@@ -660,10 +662,10 @@ def test_requester_disconnect_during_approval(accounts, passwords,
     selected, other = accounts['parent1'], accounts['parent2']
 
     def request_log_lines():
-        # Read only guest product logs. Raw lines remain private; public evidence
-        # contains fixed stages and the product's random request correlation ID.
-        return {line for path in Path('/var/log/oh-no-parent-control/broker').glob('*.log')
-                for line in path.read_text().splitlines() if 'request=' in line}
+        # Include rotated event segments; ignore a writer's unfinished final line.
+        return {line for path in Path('/var/log/oh-no-parent-control/broker').glob('*.events*')
+                for line in path.read_text().splitlines(keepends=True)
+                if line.endswith('\n')}
 
     for surface in ('child', 'kiosk'):
         accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))
@@ -691,9 +693,10 @@ def test_requester_disconnect_during_approval(accounts, passwords,
                 }
                 caller.send(operation)
                 agent.prompt(selected, other)
-                started = [match.group(1) for line in request_log_lines() - previous_lines
-                           if (match := re.search(r'request=([0-9a-f-]{36}) .*kind=' +
-                                                  surface + r' stage=authorize$', line))]
+                started = [record['fields']['request']
+                           for line in request_log_lines() - previous_lines
+                           if (record := json.loads(line))['event'] == 'core.026'
+                           and record['fields']['kind'] == surface]
                 guest.require(len(started) == 1, 'authorization:disconnect-request-correlation')
                 correlation = started[0]
                 guest.require(transaction_probe() == guest.BUS + '.Error.Busy',
@@ -724,22 +727,22 @@ def test_requester_disconnect_during_approval(accounts, passwords,
                                   time.monotonic() < deadline,
                                   'authorization:disconnect-transaction-not-finished')
                     time.sleep(0.05)
-                finished = request_log_lines() - previous_lines
-                guest.require(any(line.endswith('request=' + correlation + ' outcome=cancelled')
-                                  for line in finished),
+                finished = [record for line in request_log_lines() - previous_lines
+                            if (record := json.loads(line))['fields'].get('request') == correlation]
+                guest.require(any(record['event'] == 'core.027' and
+                                  record['fields']['outcome'] == 'cancelled'
+                                  for record in finished),
                               'authorization:disconnect-terminal-outcome-missing')
-                guest.require(any('request=' + correlation +
-                                  ' authorization cancel-check outcome=accepted' in line
-                                  for line in finished),
+                guest.require(any(record['event'] == 'authorization.003'
+                                  for record in finished),
                               'authorization:disconnect-remote-cancellation-missing')
                 guest.require(agent.child.poll() is None,
                               'authorization:disconnect-agent-did-not-survive')
                 record_testsuite_property('onpc.requester-disconnect-agent',
                                           surface + ':alive-after-broker-cancellation')
-                guest.require(not any('request=' + correlation + ' stage=' + stage in line
-                                      for line in finished for stage in (
-                                          'usage-query', 'limit-initialize', 'filter-write',
-                                          'blocked-app-termination', 'extension-write')),
+                guest.require(not any(record['event'] in (
+                    'core.029', 'core.034', 'core.035', 'core.036', 'core.038')
+                    for record in finished),
                               'authorization:disconnect-reached-write-pipeline')
                 guest.require(all(account_state(accounts[key]) == state
                                   for key, state in before.items()),

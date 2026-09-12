@@ -154,11 +154,12 @@ def verify_pam_scope(service, record):
 
 def installed_manager():
     guest.guard()
-    sys.path.insert(0, '/usr/lib/oh-no-parent-control/broker')
+    previous_path = sys.path[:]
+    sys.path[:0] = ['/usr/lib/oh-no-parent-control', '/usr/lib/oh-no-parent-control/broker']
     try:
         from oh_no_parent_control.extension_manager import ExtensionManager
     finally:
-        sys.path.pop(0)
+        sys.path[:] = previous_path
     return ExtensionManager()
 
 

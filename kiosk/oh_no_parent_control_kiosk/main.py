@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import cairo
 import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import record_payload, ConsoleHandler, log_version
 import json
 import math
 import os
@@ -98,7 +100,7 @@ GATEWAY_FORM_YAW_DEGREES = 10.0
 GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0
 PREVIEW_DEFAULT_WIDTH = 1918
 PREVIEW_DEFAULT_HEIGHT = 1443
-LOG = logging.getLogger("oh-no-parent-control")
+LOG = get_logger("kiosk")
 
 
 def _gateway_artwork_geometry(width, height):
@@ -228,7 +230,7 @@ class BrokerLogHandler(logging.Handler):
                 self._connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
             self._connection.call(
                 BUS_NAME, OBJECT_PATH, INTERFACE, "LogEvent",
-                GLib.Variant("(sss)", (self._component, record.levelname, self.format(record))),
+                GLib.Variant("(sss)", (self._component, record.levelname, record_payload(record))),
                 GLib.VariantType.new("()"), Gio.DBusCallFlags.NONE, 5_000, None, None,
             )
         except Exception:
@@ -266,10 +268,7 @@ class GatewayBackground(Gtk.Widget):
             )
             return Gdk.Texture.new_from_file(image_file)
         except GLib.Error as error:
-            LOG.warning(
-                "kiosk background unavailable asset=%s error_type=%s",
-                name, type(error).__name__,
-            )
+            LOG.warning("kiosk.001", asset=name, error_type=error_code(error))
             return None
 
     def reload_texture(self):
@@ -302,7 +301,7 @@ class GatewayBackground(Gtk.Widget):
         # bolts immediately so a muted screen cannot retain a fading strike.
         self._next_lightning_burst_at = 0.0
         self.queue_draw()
-        LOG.info("gateway lightning enabled=%s", self._lightning_enabled)
+        LOG.info("kiosk.002", enabled=self._lightning_enabled)
 
     def do_snapshot(self, snapshot):
         width = self.get_width()
@@ -328,10 +327,11 @@ class GatewayBackground(Gtk.Widget):
             snapshot.pop()
         if self._last_scene_layout != (width, height):
             LOG.debug(
-                "gateway scene viewport=%dx%d scenery-fit=uniform "
-                "left-scale=%.3f right-scale=%.3f",
-                width, height, min(regions[0][1][2] / SOURCE_WIDTH, height / SOURCE_HEIGHT),
-                min(regions[2][1][2] / SOURCE_WIDTH, height / SOURCE_HEIGHT),
+                "kiosk.003",
+                viewport=width,
+                value1=height,
+                scale=min(regions[0][1][2] / SOURCE_WIDTH, height / SOURCE_HEIGHT),
+                scale_3=min(regions[2][1][2] / SOURCE_WIDTH, height / SOURCE_HEIGHT),
             )
             self._last_scene_layout = (width, height)
         self._lava.draw(snapshot, artwork, now)
@@ -381,8 +381,9 @@ class GatewayBackground(Gtk.Widget):
             starts_at += bolt["duration"] + self._random.uniform(0.10, 0.32)
         self._next_lightning_burst_at = starts_at + self._random.uniform(0.9, 2.4)
         LOG.debug(
-            "gateway lightning burst strikes=%d next_burst_in_ms=%d",
-            ejection_count, int((self._next_lightning_burst_at - elapsed) * 1_000),
+            "kiosk.004",
+            strikes=ejection_count,
+            next_burst_in_ms=int((self._next_lightning_burst_at - elapsed) * 1_000),
         )
 
     def _append_gateway_energy(self, snapshot, width, height, elapsed):
@@ -609,14 +610,19 @@ class GatewayAlignedRequest(Gtk.Widget):
                   content_width, monitor_scale, surface_scale)
         if layout != self._last_layout:
             LOG.debug(
-                "request layout viewport=%dx%d board=%dx%d monitor-scale=%d "
-                "surface-scale=%.3f content-width=%d scroll=%s "
-                "gateway-width=%.0f opening-height=%.0f chain-gap=%.0f",
-                width, height, child_width, child_height, monitor_scale,
-                surface_scale, content_width, natural_height > child_height,
-                _gateway_artwork_geometry(width, height)[2]
+                "kiosk.005",
+                viewport=width,
+                value1=height,
+                board=child_width,
+                value3=child_height,
+                scale=monitor_scale,
+                scale_5=surface_scale,
+                width=content_width,
+                scroll=natural_height > child_height,
+                width_8=_gateway_artwork_geometry(width, height)[2]
                 * (GATEWAY_OUTER_BOUNDS[2] - GATEWAY_OUTER_BOUNDS[0]),
-                opening_bottom - opening_top, gap,
+                height=opening_bottom - opening_top,
+                gap=gap,
             )
             self._last_layout = layout
 
@@ -881,8 +887,7 @@ class GatewayAlignedRequest(Gtk.Widget):
 
 def configure_logging(preview=False, component="kiosk"):
     """Use local logging for preview; production records belong to the broker."""
-    handler = logging.StreamHandler() if preview else BrokerLogHandler(component)
-    handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+    handler = ConsoleHandler() if preview else BrokerLogHandler(component)
     root = logging.getLogger()
     root.handlers.clear()
     root.addHandler(handler)
@@ -935,10 +940,7 @@ class RequestWindow(Adw.ApplicationWindow):
         # surface can emit audio while preferences are loading.
         self._apply_mute(True)
         self.connect("destroy", self._on_destroy)
-        LOG.info(
-            "request station window initialized overlay=%s",
-            child_overlay,
-        )
+        LOG.info("kiosk.006", overlay=child_overlay)
         if not preview or child_overlay or os.environ.get("ONPC_PREVIEW_SCREEN_FD"):
             self.fullscreen()
             self.connect("map", lambda *_args: self.fullscreen())
@@ -1130,11 +1132,7 @@ class RequestWindow(Adw.ApplicationWindow):
         AboutDialog(self, links_enabled=self._child_overlay).present()
 
     def _menu_state_changed(self, menu_button, _property):
-        LOG.info(
-            "request-screen menu expanded=%s overlay=%s",
-            menu_button.get_active(),
-            self._child_overlay,
-        )
+        LOG.info("kiosk.007", expanded=menu_button.get_active(), overlay=self._child_overlay)
 
     @staticmethod
     def _hud_menu_item(label, icon_pixels):
@@ -1167,10 +1165,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._mute_button.add_css_class("oh-no-parent-control-hud-muted")
         else:
             self._mute_button.remove_css_class("oh-no-parent-control-hud-muted")
-        LOG.info(
-            "request-screen media muted=%s lightning_enabled=%s overlay=%s",
-            muted, not muted, self._child_overlay,
-        )
+        LOG.info("kiosk.008", muted=muted, lightning_enabled=not muted, overlay=self._child_overlay)
 
     def _toggle_mute(self, *_args):
         if not REQUEST_MEDIA_ENABLED:
@@ -1197,12 +1192,12 @@ class RequestWindow(Adw.ApplicationWindow):
             return
         # OnSuccess=gnome-session-shutdown.target on the application unit turns
         # this clean exit into a supported kiosk-session logout back to GDM.
-        LOG.info("return to login requested")
+        LOG.info("kiosk.009")
         self.get_application().quit()
 
     def _close_overlay(self, *_args):
         self._cancel_success_dismiss()
-        LOG.info("child request overlay closed")
+        LOG.info("kiosk.010")
         application = self.get_application()
         self.close()
         if application is not None:
@@ -1224,10 +1219,10 @@ class RequestWindow(Adw.ApplicationWindow):
     def _dismiss_after_success(self):
         self._success_logout_source_id = None
         if self._child_overlay:
-            LOG.info("approved request acknowledged; closing overlay")
+            LOG.info("kiosk.011")
             self._close_overlay()
         else:
-            LOG.info("approved request acknowledged; returning to login")
+            LOG.info("kiosk.012")
             self._logout()
         return GLib.SOURCE_REMOVE
 
@@ -1288,7 +1283,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_content.set_approvers(PREVIEW_APPROVERS)
             self._queue_time_estimate()
             return
-        LOG.info("request-account discovery started overlay=%s", self._child_overlay)
+        LOG.info("kiosk.013", overlay=self._child_overlay)
         self._request_content.set_loading()
         if self._child_overlay:
             self._bus_call("GetOwnAccount", None, "(uss)", self._own_account_done)
@@ -1299,29 +1294,29 @@ class RequestWindow(Adw.ApplicationWindow):
     def _own_account_done(self, connection, result):
         try:
             uid, label, icon_file = connection.call_finish(result).unpack()
-            LOG.info("own-account discovery completed account=[Child user]")
+            LOG.info("kiosk.014")
             self._request_content.set_accounts(((uid, label, icon_file),))
         except Exception as error:
-            LOG.warning("own-account outcome=unavailable error_type=%s", type(error).__name__)
+            LOG.warning("kiosk.015", error_type=error_code(error))
             self._show_error(error)
 
     def _users_done(self, connection, result):
         try:
             users, = connection.call_finish(result).unpack()
-            LOG.info("managed-user discovery completed count=%d", len(users))
+            LOG.info("kiosk.016", count=len(users))
             self._request_content.set_accounts(users)
         except Exception as error:
-            LOG.warning("users outcome=unavailable error_type=%s", type(error).__name__)
+            LOG.warning("kiosk.017", error_type=error_code(error))
             self._show_error(error)
 
     def _approvers_done(self, connection, result):
         try:
             users, = connection.call_finish(result).unpack()
-            LOG.info("approver discovery completed count=%d", len(users))
+            LOG.info("kiosk.018", count=len(users))
             self._request_content.set_approvers(users)
             self._queue_time_estimate()
         except Exception as error:
-            LOG.warning("approvers outcome=unavailable error_type=%s", type(error).__name__)
+            LOG.warning("kiosk.019", error_type=error_code(error))
             self._show_error(error)
 
     def _load_preferences(self, target_uid):
@@ -1340,7 +1335,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._applying_preferences = False
             self._queue_time_estimate()
             return
-        LOG.info("preferences load started target=[Child user]")
+        LOG.info("kiosk.020")
         self._bus_call(
             "GetPreferences", GLib.Variant("(u)", (target_uid,)), "(s)",
             lambda connection, result: self._preferences_done(
@@ -1362,9 +1357,9 @@ class RequestWindow(Adw.ApplicationWindow):
             finally:
                 self._applying_preferences = False
             self._queue_time_estimate()
-            LOG.info("preferences load completed target=[Child user]")
+            LOG.info("kiosk.021")
         except Exception as error:
-            LOG.warning("preferences outcome=unavailable error_type=%s", type(error).__name__)
+            LOG.warning("kiosk.022", error_type=error_code(error))
             self._show_error(error)
 
     def _form_values_changed(self):
@@ -1434,13 +1429,12 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._refresh_time_estimate()
             return
         if error is not None:
-            LOG.warning("time estimate unavailable target=[Child user] error_type=%s",
-                        type(error).__name__)
+            LOG.warning("kiosk.023", error_type=error_code(error))
             self._request_content.set_time_estimate("Time estimate unavailable")
             self._errors.handle(error, "Time estimate unavailable",
                                 "The estimated remaining time could not be loaded.")
         else:
-            LOG.debug("time estimate loaded target=[Child user] seconds=%d", seconds)
+            LOG.debug("kiosk.024", seconds=seconds)
             self._request_content.set_time_estimate(_time_estimate_label(seconds))
 
     def _persist_form_values(self):
@@ -1463,10 +1457,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 "(s)", self._preferences_save_done,
             )
         except Exception as error:
-            LOG.warning(
-                "request preferences save failed error_type=%s",
-                type(error).__name__,
-            )
+            LOG.warning("kiosk.025", error_type=error_code(error))
             self._errors.handle(error, "Settings could not be saved",
                                 "Your request choices could not be saved. Please try again later.")
 
@@ -1484,7 +1475,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 "(s)", self._preferences_save_done,
             )
         except Exception as error:
-            LOG.warning("mute save failed error_type=%s", type(error).__name__)
+            LOG.warning("kiosk.026", error_type=error_code(error))
             self._errors.handle(error, "Settings could not be saved",
                                 "Your sound preference could not be saved. Please try again later.")
 
@@ -1492,10 +1483,7 @@ class RequestWindow(Adw.ApplicationWindow):
         try:
             connection.call_finish(result)
         except Exception as error:
-            LOG.warning(
-                "request preferences outcome=unavailable error_type=%s",
-                type(error).__name__,
-            )
+            LOG.warning("kiosk.027", error_type=error_code(error))
             self._errors.handle(error, "Settings could not be saved",
                                 "Your request preferences could not be saved. Please try again later.")
 
@@ -1525,9 +1513,12 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_content.show_validation_error(str(error))
             return
         self._set_request_controls(False)
-        LOG.info("target=[Child user] approver=[Administrator] duration_seconds=%d "
-                 "allow_soft=%s overlay=%s stage=request",
-                 duration_seconds, allow_soft, self._child_overlay)
+        LOG.info(
+            "kiosk.028",
+            duration_seconds=duration_seconds,
+            allow_soft=allow_soft,
+            overlay=self._child_overlay,
+        )
         try:
             self._pending_request = (
                 target_uid, approver_uid, duration_seconds, allow_soft,
@@ -1576,7 +1567,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 correlation_id, outcome = unpacked
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise ValueError("broker returned malformed result")
-            LOG.info("request=%s outcome=%s", correlation_id, outcome)
+            LOG.info("kiosk.029", request=correlation_id, outcome=outcome)
             if outcome == "approved":
                 if self._child_overlay:
                     self._show_child_success()
@@ -1603,7 +1594,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._queue_time_estimate()
 
     def _request_failed(self, error):
-        LOG.warning("outcome=unavailable error_type=%s", type(error).__name__)
+        LOG.warning("kiosk.030", error_type=error_code(error))
         self._state.finish()
         self._set_request_controls(True)
         self._show_error(error)
@@ -1711,16 +1702,16 @@ class Application(Adw.Application):
         names = {path.name for path in changed_paths}
         if "style.css" in names:
             self._load_stylesheet()
-            LOG.info("preview stylesheet reloaded")
+            LOG.info("kiosk.031")
         window = self.get_active_window()
         if (
             names & {"kiosk-background-still.png", "kiosk-background-scenery-clear.png"}
             and window is not None
         ):
             window._background.reload_texture()
-            LOG.info("preview artwork reloaded")
+            LOG.info("kiosk.032")
         if any(path.suffix == ".py" for path in changed_paths):
-            LOG.info("preview source changed; relaunching")
+            LOG.info("kiosk.033")
             os.execv(sys.executable, sys.orig_argv)
         return GLib.SOURCE_REMOVE
 
@@ -1765,12 +1756,13 @@ def main(argv=None):
         parser.error("--preview is only available from the development checkout")
     if args.error_report_stdin and not args.child_overlay:
         parser.error("--error-report-stdin requires --child-overlay")
-    report_error = RuntimeError(sys.stdin.read(3500)) if args.error_report_stdin else None
+    report_error = RuntimeError() if args.error_report_stdin else None
     configure_logging(
         preview=args.preview,
         component="child" if args.child_overlay else "kiosk",
     )
-    LOG.info("kiosk app starting overlay=%s", args.child_overlay)
+    LOG.info("kiosk.034", overlay=args.child_overlay)
+    log_version()
     return Application(
         preview=args.preview,
         child_overlay=args.child_overlay,
@@ -1779,4 +1771,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from common.oh_no_parent_control_ui.diagnostic_events import run_cli
+    raise SystemExit(run_cli(main))

@@ -131,12 +131,13 @@ BROKER = Broker()
 
 # Exercise the real dialog/encoder without any external feedback submission.
 from common.oh_no_parent_control_ui import feedback, feedback_transport
+from common.oh_no_parent_control_ui.diagnostic_bundle import build_bundle
 from unittest.mock import Mock
 
 def feedback_logs():
     if BROKER.scenario == "service-failure-logs-unavailable":
         raise PermissionError("component-test diagnostic access denied")
-    return b"PK\x03\x04component-test archive"
+    return build_bundle([])
 
 
 feedback.collect_logs = feedback_logs

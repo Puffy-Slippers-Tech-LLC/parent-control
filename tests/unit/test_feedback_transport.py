@@ -3,13 +3,17 @@
 from dataclasses import replace
 from email.parser import BytesParser
 from email.policy import default
+from io import BytesIO
 from unittest.mock import Mock
+from zipfile import ZipFile
 import uuid
 
 import pytest
 import requests
 
 from common.oh_no_parent_control_ui import feedback_transport as ft
+from common.oh_no_parent_control_ui.diagnostic_bundle import build_bundle
+from common.oh_no_parent_control_ui.diagnostic_report import build_report
 
 
 @pytest.fixture
@@ -41,7 +45,26 @@ def install_response(monkeypatch, result):
     return session
 
 
-@pytest.mark.parametrize("logs", [None, b"PK\x03\x04frozen zip"])
+def test_invalid_automatic_diagnostics_prevent_delivery(monkeypatch, report):
+    session = install_response(monkeypatch, response(202, {"ok": True}))
+    assert ft.send_once(replace(report, logs=b"private raw logs")).kind == "logs_unavailable"
+    session.post.assert_not_called()
+
+
+@pytest.mark.parametrize("clean", [build_bundle([]), build_report({})])
+def test_diagnostic_zip_metadata_is_removed_but_customer_files_are_kept(monkeypatch, report, clean):
+    output = BytesIO(clean)
+    with ZipFile(output, "a") as archive:
+        archive.comment = b"private diagnostic comment"
+    session = install_response(monkeypatch, response(202, {"ok": True}))
+    assert ft.send_once(replace(report, logs=output.getvalue())).kind == "success"
+    parts = session.post.call_args.kwargs["files"]
+    attached = [value for key, value in parts if key == "attachments"]
+    assert attached[-1][1] == clean
+    assert attached[0][0:2] == ("private-note.txt", b"private attachment one")
+
+
+@pytest.mark.parametrize("logs", [None, build_bundle([]), build_report({})])
 def test_multipart_encoding_and_private_logging(monkeypatch, report, logs, caplog):
     report = replace(report, logs=logs)
     session = install_response(monkeypatch, response(202, {"ok": True, "receiptId": report.key}))

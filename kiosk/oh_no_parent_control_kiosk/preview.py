@@ -7,7 +7,7 @@ Each new screen is verified before the previous preview is stopped.
 
 import argparse
 from contextlib import ExitStack
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, configure_console, run_cli
 import os
 from pathlib import Path
 import select
@@ -21,7 +21,7 @@ import time
 
 from .preview_screen import ACTUAL_SCALE, CONTROL_FD, SCREEN, Screen
 
-LOG = logging.getLogger(__name__)
+LOG = get_logger("preview")
 DISPLAY_NAME = "org.gnome.Mutter.DisplayConfig"
 DISPLAY_PATH = "/org/gnome/Mutter/DisplayConfig"
 REGISTRY_PATHS = ("/usr/libexec/at-spi2-registryd", "/usr/lib/at-spi2-core/at-spi2-registryd",
@@ -125,9 +125,7 @@ def apply_screen(connection, screen):
     _serial, _monitors, logical, _properties = call("GetCurrentState")
     if len(logical) != 1 or abs(logical[0][2] - scale) > 0.0001:
         raise RuntimeError("Mutter did not apply the requested display scale.")
-    LOG.info("preview screen physical=%dx%d scale=%.4f logical=%dx%d",
-             screen.width, screen.height, scale,
-             round(screen.width / scale), round(screen.height / scale))
+    LOG.info("preview.changed")
     return scale
 
 
@@ -167,7 +165,7 @@ class PreviewSession:
             wait_until(lambda: (self.root / "runtime/pipewire-0").is_socket(),
                        [bus, pipewire], "private PipeWire")
             self.start(["wireplumber", "--profile=policy"])
-            LOG.info("private PipeWire linking policy started (no hardware monitors)")
+            LOG.info("preview.policy-started")
             self.compositor = self.start([
                 "mutter", "--headless", "--devkit", "--wayland", "--no-x11",
                 "--wayland-display", "preview-wayland",
@@ -277,7 +275,7 @@ def main(argv=None, *, session_factory=PreviewSession):
                              check=True, timeout=5).stdout.strip()
     if not version.startswith("mutter 50."):
         parser.error("Screen previews require the validated Mutter 50.x development interface.")
-    logging.basicConfig(level=logging.INFO)
+    configure_console()
     host = dict(os.environ)
     session = None
 
@@ -302,7 +300,7 @@ def main(argv=None, *, session_factory=PreviewSession):
             except Exception as error:
                 # Includes GIO display/renderer errors. The prior session is
                 # still owned and usable when preparation of a new one fails.
-                LOG.warning("preview screen change rejected: %s", error)
+                LOG.warning("preview.failed")
                 session.control.send(str(error).encode()[:4096])
                 continue
             old = session
@@ -322,4 +320,4 @@ def main(argv=None, *, session_factory=PreviewSession):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run_cli(main))

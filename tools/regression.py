@@ -31,6 +31,17 @@ class Category:
     done: int = 0
     state: str = 'Pending'
     failures: int = 0
+    elapsed: float = 0.0
+    started: float | None = None
+
+    def duration(self, now):
+        seconds = self.elapsed + (now - self.started if self.started is not None else 0)
+        return f'{seconds:.0f}s' if seconds < 60 else f'{seconds / 60:.1f}m'
+
+    def stop_timer(self):
+        if self.started is not None:
+            self.elapsed += time.monotonic() - self.started
+            self.started = None
 
 
 class Dashboard:
@@ -39,13 +50,14 @@ class Dashboard:
         self.stream = stream or sys.stdout
         self.lines = 0
         self.last = 0.0
+        self.started = time.monotonic()
 
     @staticmethod
     def counts(done, failures, total):
         passed = max(0, done - failures)
-        counts = f'\033[0m(\033[32m{passed}\033[0m / '
+        counts = f'\033[0m(\033[32m{passed}\033[0m/'
         if failures:
-            counts += f'\033[31m{failures}\033[0m / '
+            counts += f'\033[31m{failures}\033[0m/'
         return counts + f'{total})'
 
     def draw(self, *, force=False):
@@ -61,7 +73,8 @@ class Dashboard:
             color = {'Passed': '32', 'Failed': '31', 'Interrupted': '31',
                      'Blocked': '31', 'Running': '97;1', 'Pending': '90'}[item.state]
             lines.append(f'\033[{color}m[{label}] {item.name} - {percent}% '
-                         + self.counts(item.done, item.failures, total))
+                         + self.counts(item.done, item.failures, total)
+                         + f' - {item.duration(self.last)}')
         done = sum(item.done for item in self.categories)
         known = all(item.total is not None for item in self.categories)
         total = sum(item.total or 0 for item in self.categories)
@@ -70,7 +83,8 @@ class Dashboard:
             '32' if all(c.state == 'Passed' for c in self.categories) else '97;1')
         failures = sum(item.failures for item in self.categories)
         lines.append(f'\033[{color}mOverall - {percent}% '
-                     + self.counts(done, failures, total if known else '?'))
+                     + self.counts(done, failures, total if known else '?')
+                     + f' - {(self.last - self.started) / 60:.1f}m')
         prefix = f'\033[{self.lines}F' if self.lines and self.stream.isatty() else ''
         self.stream.write(prefix + '\n'.join('\033[2K' + line for line in lines) + '\n')
         self.stream.flush()
@@ -126,6 +140,7 @@ class Run:
             item.state = 'Interrupted'
             return 130, ''
         item.state = 'Running'
+        item.started = time.monotonic()
         self.report.write('\n## ' + item.name + (' — collection' if collect else '') + '\n\n<pre>\n')
         self.dashboard.draw(force=True)
         pending = b''
@@ -159,8 +174,11 @@ class Run:
                         item.failures = len(failed)
                     self.report.snapshot(self.categories)
                     self.dashboard.draw()
-        status = self.control.run(command, cwd=self.root, env=host.environment(self.root),
-                                  output=output, cooperative=True)
+        try:
+            status = self.control.run(command, cwd=self.root, env=host.environment(self.root),
+                                      output=output, cooperative=True)
+        finally:
+            item.stop_timer()
         self.report.write(html.escape(decoder.decode(b'', final=True)))
         self.report.write('\n</pre>\n\nExit status: ' + str(status) + '\n')
         if collect:
@@ -195,6 +213,7 @@ class Run:
         safety = Category('Cleanup safety prerequisites')
         self.categories.extend([safety, *suite_items, *fixed_items, builds, system, graphical])
         discovery.state = 'Running'
+        discovery.started = time.monotonic()
         self.dashboard.draw(force=True)
 
         # Collection uses the same launchers/selections as execution. No
@@ -222,6 +241,7 @@ class Run:
                           'Pending variants excluded: ' + str(len(inventory['pending_cases'])) + '\n')
         authorization()
         discovery.done, discovery.state = 1, 'Passed'
+        discovery.stop_timer()
 
         status, _ = self.execute(safety, self.command('unit', *selections[0][1], '-q'), events=True)
         if status or safety.state != 'Passed':
@@ -282,6 +302,7 @@ def main(root=None):
                 status = 130
             if run is not None:
                 for item in run.categories:
+                    item.stop_timer()
                     if item.state in ('Running', 'Pending'):
                         item.state = 'Interrupted' if status == 130 else 'Blocked'
                 report.snapshot(run.categories)
@@ -289,7 +310,7 @@ def main(root=None):
                              'Interrupted; owned child cleanup finished' if status == 130 else 'Failed') + '\n')
                 run.dashboard.draw(force=True)
             elif report is None:
-                print('\033[31m[✗] Report initialization - 0% (0 / 1)\033[0m')
+                print('\033[31m[✗] Report initialization - 0% (0/1)\033[0m')
             if report is not None:
                 report.stream.close()
     if report is not None and (status == 1 or (run is not None and any(

@@ -3,7 +3,12 @@
 No host service, account, process, or policy is changed.
 """
 
+import hashlib
+import json
+from pathlib import Path
+import runpy
 import subprocess
+import sys
 
 import pytest
 
@@ -14,6 +19,53 @@ REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***
 
 
 from tests.support.package_scripts import package_machine
+
+
+@pytest.mark.parametrize("boot_order_changed", [False, True])
+def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_changed):
+    root, state, run = package_machine
+    activation = runpy.run_path(str(ROOT / "debian/package_activation.py"))
+    # v1.1 marked all three diagnostic-only changes as requiring a reboot.
+    old_levels = {
+        "usr/libexec/oh-no-parent-control-session-limit-check": "reboot",
+        "usr/libexec/oh-no-parent-control-execution-policy-ready": "reboot",
+        "usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so": "reboot",
+        "usr/libexec/oh-no-parent-control-broker": "process-restart",
+        "usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/extension.js": "session-renewal",
+        "usr/lib/systemd/system/display-manager.service.d/oh-no-parent-control.conf": "reboot",
+    }
+    old_files = []
+    for path, level in old_levels.items():
+        old_files.append({
+            "path": path,
+            "sha256": hashlib.sha256(b"old payload").hexdigest(),
+            "activation": level,
+        })
+        target = root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        changed = boot_order_changed or "display-manager.service.d/" not in path
+        target.write_text("updated payload" if changed else "old payload")
+    (state / "previous-package-activation.json").write_text(json.dumps({
+        "version": 1, "files": old_files,
+    }))
+    activation["generate"](
+        root, root / "usr/share/oh-no-parent-control/package-activation.json",
+        [Path(path) for path in old_levels],
+    )
+    # Replace only this fixture's comparison stub with the shipped helper.
+    helper = root / "usr/libexec/oh-no-parent-control-package-activation"
+    helper.unlink()
+    source = (ROOT / "debian/package_activation.py").read_text()
+    helper.write_text(f"#!{sys.executable}\n" + source.split("\n", 1)[1])
+    helper.chmod(0o755)
+
+    result = run()
+    assert result.returncode == 0, result.stderr
+    commands = (root / "commands").read_text().splitlines()
+    assert f"systemctl --system restart {BROKER}" in commands
+    assert ("notify-reboot-required " in commands) == boot_order_changed
+    assert (root / "run/reboot-required").exists() == boot_order_changed
+    assert (REBOOT_NOTICE in result.stderr) == boot_order_changed
 
 
 @pytest.mark.parametrize("reboot", [False, True])

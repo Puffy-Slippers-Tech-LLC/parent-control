@@ -55,8 +55,14 @@ def test_feedback_draft_and_optional_attachment(
         "to support. Retention depends on our support mailbox and service providers, "
         "including their backup policies. We do not currently guarantee deletion "
         "within a fixed period.\n\nDiagnostic logs do not collect "
-        "personally identifiable information (PII), such as account names, email "
-        "addresses, or file contents. Review files and logs before sending.",
+        "account names, email addresses, file contents, raw system journals, or "
+        "exception messages. Automatic diagnostics contain validated technical "
+        "events, health checks, and system information: OS and dependency versions, "
+        "timezone, session type, and aggregate account counts. Names and custom "
+        "version text are omitted or irreversibly replaced; identities are never hashed. "
+        "Your own feedback, reply email, and selected "
+        "files are separate and may contain personal information. Review them "
+        "before sending.",
     )
     wait_for_accessible_node(
         privacy_dialog, "View full privacy notice", "link",
@@ -82,6 +88,36 @@ def test_feedback_draft_and_optional_attachment(
     assert "Feedback draft must stay local." not in log
     assert "Traceback" not in log
     assert "Theme parser error" not in log
+
+
+@pytest.mark.parametrize("animations", ["false", "true"])
+def test_collection_animation_disables_send_but_allows_editing(
+        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path,
+        animations):
+    application, _log = launch_ui("parent_component_preview", environment_overrides={
+        "ONPC_PARENT_COMPONENT_SCENARIO": "feedback-collecting",
+        "ONPC_FEEDBACK_SPINNER_DIRECTORY": str(tmp_path),
+        "ONPC_FEEDBACK_ANIMATIONS": animations,
+    })
+    find = wait_for_accessible_node
+    assert find(application, "Feedback", "button").do_action(0)
+    dialog = find(application, "Send Feedback", "frame")
+    find(dialog, "Collecting diagnostic information...")
+    send = find(dialog, "Send Feedback", "button")
+    assert not send.sensitive
+    assert find(dialog, "Close", "button").sensitive
+    editor = feedback_editor(application, find)
+    assert editor.sensitive
+    type_feedback(editor, "Draft during collection", wait_for_accessible_state)
+    find(dialog, "diagnostic-logs.zip")
+    wait_for_accessible_state(lambda: send.sensitive, "collection enables sending")
+    assert editor.text.strip() == "Draft during collection"
+    assert not dialog.is_child("Collecting diagnostic information...", retry=False)
+    # Starting a spinner is insufficient: verify that its rendered pixels move,
+    # including when the desktop disables decorative animations.
+    frames = sorted(tmp_path.glob("spinner-*.png"))
+    assert len(frames) == 8
+    assert len({frame.read_bytes() for frame in frames}) > 1, "Spinner is frozen"
 
 
 @pytest.mark.parametrize("status", [202, 409, 413, 422])

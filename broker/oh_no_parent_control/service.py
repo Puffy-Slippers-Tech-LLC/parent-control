@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
-import logging
+from pathlib import Path
+from common.oh_no_parent_control_ui.diagnostic_events import (
+    get_logger, error_code, operation_scope, log_version, configure_console, record_exception,
+)
 import os
-import re
 import signal
 import sys
 import threading
@@ -28,12 +30,12 @@ from .authorization import PolkitAuthorizer
 from .app_termination import RunningAppTerminator
 from .catalog import list_apps
 from .core import Broker, BrokerError, Busy, InvalidRequest
-from .diagnostics import collect_logs
 from .extension_manager import ExtensionManager
 from .execution_policy import FapolicydPolicy
 from .logs import DailyLogWriter, configure_broker_logging
 from .preferences import PreferenceStore
 
+LOG = get_logger("service")
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
 OBJECT_PATH = "/com/puffyslippers/OhNoParentControl1"
 INTERFACE = BUS_NAME
@@ -130,6 +132,9 @@ INTROSPECTION_XML = f"""
     <method name="ExportDiagnosticLogs">
       <arg name="archive" type="ay" direction="out"/>
     </method>
+    <method name="GetStartupTimings">
+      <arg name="timings" type="a{{st}}" direction="out"/>
+    </method>
     <method name="LogEvent">
       <arg name="component" type="s" direction="in"/>
       <arg name="level" type="s" direction="in"/>
@@ -185,6 +190,7 @@ class Service:
         self._startup_times = {"started_ns": time.monotonic_ns()}
         self.connection = connection
         self._diagnostic_export_lock = threading.Lock()
+        self._grant_observation_lock = threading.Lock()
         dependencies = dependencies or production_dependencies(connection)
         self.credentials = dependencies.credentials
         self.accounts = dependencies.accounts
@@ -209,21 +215,14 @@ class Service:
         refreshed_uids = self.broker.refresh_enabled_extensions()
         self._startup_times["extensions_ready_ns"] = time.monotonic_ns()
         if refreshed_uids:
-            logging.info(
-                "reasserted child extension activation child_count=%d",
-                len(refreshed_uids),
-            )
+            LOG.info("service.001", child_count=len(refreshed_uids))
         try:
             cap_uids = self.broker.clear_live_session_runtime_caps()
         except Exception as error:
-            logging.error("could not clear managed session runtime caps error_type=%s",
-                          type(error).__name__)
+            LOG.error("service.002", error_type=error_code(error))
         else:
             if cap_uids:
-                logging.info(
-                    "cleared systemd session runtime caps child_count=%d",
-                    len(cap_uids),
-                )
+                LOG.info("service.003", child_count=len(cap_uids))
         self._startup_times["caps_attempted_ns"] = time.monotonic_ns()
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
         self.log_writer = log_writer
@@ -249,11 +248,17 @@ class Service:
             )
             self._policy_rescan_thread.start()
         self._registration_id = None
+        self._grant_signal_id = self.connection.signal_subscribe(
+            ACCOUNTS_NAME, PROPERTIES_INTERFACE, "PropertiesChanged",
+            None, "com.endlessm.ParentalControls.SessionLimits",
+            Gio.DBusSignalFlags.NONE, self._grant_changed,
+        )
 
     def _periodic_policy_rescan(self):
         while not self._policy_rescan_stop.wait(
                 self._policy_rescan_interval_seconds):
             self._sync_execution_policy_after_signal()
+            self._observe_grants()
 
     def _app_filter_changed(self, *_args):
         # Mirror supported AccountsService changes regardless of which broker
@@ -263,11 +268,58 @@ class Service:
             daemon=True,
         ).start()
 
+    def _observe_grants(self):
+        try:
+            self.broker.observe_grants()
+        except Exception as error:
+            LOG.warning("service.grant-observation-failed", error_type=error_code(error))
+
+    def _grant_changed(self, *_args):
+        # Coalesce signal bursts; diagnostics must not create an unbounded
+        # number of workers or hold up the main D-Bus loop.
+        if not self._grant_observation_lock.acquire(blocking=False):
+            return
+        try:
+            threading.Thread(target=self._grant_observation_worker, daemon=True).start()
+        except Exception:
+            self._grant_observation_lock.release()
+
+    def _grant_observation_worker(self):
+        try:
+            self._observe_grants()
+        finally:
+            self._grant_observation_lock.release()
+
+    def _health_snapshot(self):
+        result = {}
+        for key, name in (("accounts", "org.freedesktop.Accounts"),
+                          ("timer", "org.freedesktop.MalcontentTimer1"),
+                          ("polkit", "org.freedesktop.PolicyKit1"),
+                          ("systemd", "org.freedesktop.systemd1")):
+            try:
+                owned, = self.connection.call_sync(
+                    "org.freedesktop.DBus", "/org/freedesktop/DBus",
+                    "org.freedesktop.DBus", "NameHasOwner", GLib.Variant("(s)", (name,)),
+                    GLib.VariantType.new("(b)"), Gio.DBusCallFlags.NONE, 1000, None,
+                ).unpack()
+                result[key] = "available" if owned else "inactive"
+            except Exception:
+                result[key] = "unknown"
+        try:
+            incomplete = Path("/var/lib/oh-no-parent-control/migration-in-progress").exists()
+            result["migration"] = "incomplete" if incomplete else "available"
+        except OSError:
+            result["migration"] = "unknown"
+        result["storage"] = self.log_writer.storage_state()
+        for probe, status in result.items():
+            get_logger("runtime").info("runtime.health", probe=probe, status=status)
+        return result
+
     def _sync_execution_policy_after_signal(self):
         try:
             self.accounts.sync_execution_policy()
         except Exception:
-            logging.exception("app execution policy signal sync failed")
+            LOG.error("service.004")
 
     def register(self):
         if self._registration_id is not None:
@@ -280,20 +332,14 @@ class Service:
             self._registration_id = None
             raise RuntimeError("D-Bus object registration failed")
         self._startup_times["register_finished_ns"] = time.monotonic_ns()
-        # This is a diagnostic witness, not a new readiness gate or public API.
-        # Correlate in-guest with systemd and the bus owner; never include users,
-        # configuration, exception text or caller-supplied log fields.
-        try:
-            invocation = os.environ.get("INVOCATION_ID", "")
-            if not re.fullmatch(r"[0-9a-f]{32}", invocation):
-                invocation = ""
-            witness = {**self._startup_times, "invocation_id": invocation,
-                       "pid": os.getpid(), "bus_owner": self.connection.get_unique_name()}
-            self.log_writer.write("broker", "INFO", "startup-witness " +
-                                  json.dumps(witness, sort_keys=True))
-        except Exception as error:
-            logging.error("broker startup witness unavailable error_type=%s",
-                          type(error).__name__)
+        start = self._startup_times["started_ns"]
+        LOG.info("service.ready",
+                 policy_ms=(self._startup_times["policy_ready_ns"] - start) // 1_000_000,
+                 extensions_ms=(self._startup_times["extensions_ready_ns"] - start) // 1_000_000,
+                 register_ms=(self._startup_times["register_finished_ns"] -
+                              self._startup_times["register_started_ns"]) // 1_000_000,
+                 total_ms=(self._startup_times["register_finished_ns"] - start) // 1_000_000)
+        self._grant_changed()
 
     def close(self):
         """Release transport resources owned by this service instance."""
@@ -301,6 +347,9 @@ class Service:
         if self._policy_rescan_thread is not None:
             self._policy_rescan_thread.join(timeout=1)
             self._policy_rescan_thread = None
+        if self._grant_signal_id is not None:
+            self.connection.signal_unsubscribe(self._grant_signal_id)
+            self._grant_signal_id = None
         if self._app_filter_signal_id is not None:
             self.connection.signal_unsubscribe(self._app_filter_signal_id)
             self._app_filter_signal_id = None
@@ -308,13 +357,14 @@ class Service:
             self.connection.unregister_object(self._registration_id)
             self._registration_id = None
 
+    @operation_scope
     def _method_call(self, _connection, sender, _path, _interface, method,
                      parameters, invocation):
         try:
             caller_uid = self.credentials.uid(sender)
             deferred_reply = False
-            if method != "LogEvent":
-                logging.info("dbus method=%s caller=[Authorized user] stage=dispatch", method)
+            if method not in ("LogEvent", "CalculateOwnRemainingTime"):
+                LOG.info("service.006", method=method)
             if method == "ListManagedUsers":
                 users = self.broker.list_managed_users(caller_uid)
                 invocation.return_value(GLib.Variant(
@@ -436,6 +486,9 @@ class Service:
                     self._diagnostic_export_lock.release()
                     raise
                 deferred_reply = True
+            elif method == "GetStartupTimings":
+                self.broker.authorize_diagnostic_export(caller_uid)
+                invocation.return_value(GLib.Variant("(a{st})", (dict(self._startup_times),)))
             elif method == "LogEvent":
                 component, level, message = parameters.unpack()
                 self.broker.authorize_log_component(caller_uid, component)
@@ -445,30 +498,25 @@ class Service:
                     raise InvalidRequest(str(error)) from error
                 invocation.return_value(None)
             else:
-                logging.warning(
-                    "dbus method=%s outcome=denied error_type=UnknownMethod",
-                    method,
-                )
+                LOG.warning("service.007", method=method)
                 invocation.return_dbus_error(
                     f"{BUS_NAME}.Error.InvalidRequest", "unknown method"
                 )
-            if method != "LogEvent" and not deferred_reply:
-                logging.info("dbus method=%s caller=[Authorized user] outcome=accepted", method)
+            if method not in ("LogEvent", "CalculateOwnRemainingTime") and not deferred_reply:
+                LOG.info("service.008", method=method)
         except BrokerError as error:
-            logging.warning("dbus method=%s outcome=denied error_type=%s",
-                            method, type(error).__name__)
+            LOG.warning("service.009", method=method, error_type=error_code(error))
             invocation.return_dbus_error(error.dbus_name, str(error))
         except Exception as error:
-            logging.error("dbus method=%s outcome=failed error_type=%s", method, type(error).__name__)
+            LOG.error("service.010", method=method, error_type=error_code(error))
             invocation.return_dbus_error(f"{BUS_NAME}.Error.Failed", "service failure")
 
     def _export_logs_worker(self, invocation, caller_uid):
         data = None
         try:
-            data = collect_logs(self.log_writer.root)
+            data = self.log_writer.snapshot(health=self._health_snapshot())
         except Exception as error:
-            logging.warning("diagnostic export outcome=failed error_type=%s",
-                            type(error).__name__)
+            LOG.warning("service.011", error_type=error_code(error))
         GLib.idle_add(self._export_logs_done, invocation, caller_uid, data)
 
     def _export_logs_done(self, invocation, caller_uid, data):
@@ -485,72 +533,63 @@ class Service:
                     GLib.VariantType.new("ay"), GLib.Bytes.new(data), True,
                 )
                 invocation.return_value(GLib.Variant.new_tuple(archive))
-                logging.info("diagnostic export outcome=accepted bytes=%d", len(data))
+                LOG.info("service.012", bytes=len(data))
         except BrokerError as error:
             invocation.return_dbus_error(error.dbus_name, str(error))
         finally:
             self._diagnostic_export_lock.release()
         return GLib.SOURCE_REMOVE
 
+    @operation_scope
     def _request_worker(self, invocation, caller_uid, sender, target_uid,
                         approver_uid, duration_seconds, allow_soft):
         try:
             result = self.broker.request_access(
                 caller_uid, sender, target_uid, approver_uid, duration_seconds, allow_soft
             )
-            logging.info("dbus method=RequestAccess outcome=accepted")
+            LOG.info("service.013")
             GLib.idle_add(self._return_value, invocation, result)
         except BrokerError as error:
-            logging.warning(
-                "dbus method=RequestAccess outcome=denied error_type=%s",
-                type(error).__name__,
-            )
+            LOG.warning("service.014", error_type=error_code(error))
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
-            logging.error("request worker kind=kiosk outcome=failed error_type=%s", type(error).__name__)
+            LOG.error("service.015", error_type=error_code(error))
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )
 
+    @operation_scope
     def _request_own_worker(self, invocation, caller_uid, sender,
                             approver_uid, duration_seconds, allow_soft):
         try:
             result = self.broker.request_own_access(
                 caller_uid, sender, approver_uid, duration_seconds, allow_soft,
             )
-            logging.info("dbus method=RequestOwnAccess outcome=accepted")
+            LOG.info("service.016")
             GLib.idle_add(self._return_own_value, invocation, result)
         except BrokerError as error:
-            logging.warning(
-                "dbus method=RequestOwnAccess outcome=denied error_type=%s",
-                type(error).__name__,
-            )
+            LOG.warning("service.017", error_type=error_code(error))
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
-            logging.error("request worker kind=child outcome=failed error_type=%s", type(error).__name__)
+            LOG.error("service.018", error_type=error_code(error))
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )
 
+    @operation_scope
     def _prepare_own_session_worker(self, invocation, caller_uid):
         try:
             reconciled = self.broker.prepare_own_session(caller_uid)
-            logging.info("dbus method=PrepareOwnSession outcome=accepted")
+            LOG.info("service.019")
             GLib.idle_add(
                 self._return_value_variant, invocation,
                 GLib.Variant("(b)", (reconciled,)),
             )
         except BrokerError as error:
-            logging.warning(
-                "dbus method=PrepareOwnSession outcome=denied error_type=%s",
-                type(error).__name__,
-            )
+            LOG.warning("service.020", error_type=error_code(error))
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
-            logging.error(
-                "session-prepare worker outcome=failed error_type=%s",
-                type(error).__name__,
-            )
+            LOG.error("service.021", error_type=error_code(error))
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )
@@ -578,12 +617,13 @@ class Service:
 
 def main():
     if os.geteuid() != 0:
-        logging.basicConfig(level=logging.INFO)
-        logging.critical("broker must run as root")
+        configure_console()
+        LOG.critical("service.022")
         return 1
     log_writer = DailyLogWriter()
     configure_broker_logging(log_writer)
-    logging.info("broker starting config=%s", CONFIG_PATH)
+    log_version()
+    LOG.info("service.023")
     loop = GLib.MainLoop()
     service_holder = []
     startup_failed = []
@@ -593,14 +633,15 @@ def main():
             service = Service(_connection, log_writer)
             service.register()
             service_holder.append(service)
-            logging.info("system bus acquired; broker ready")
-        except Exception:
+            LOG.info("service.024")
+        except Exception as error:
             startup_failed.append(True)
-            logging.exception("broker initialization failed")
+            record_exception(error)
+            LOG.error("service.025")
             loop.quit()
 
     def on_name_lost(_connection, _name):
-        logging.critical("could not own the system-bus name")
+        LOG.critical("service.026")
         loop.quit()
 
     owner_id = Gio.bus_own_name(
@@ -612,7 +653,7 @@ def main():
     try:
         loop.run()
     finally:
-        logging.info("broker stopping")
+        LOG.info("service.027")
         if service_holder:
             service_holder[0].close()
         Gio.bus_unown_name(owner_id)
@@ -620,4 +661,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from common.oh_no_parent_control_ui.diagnostic_events import run_cli
+    sys.exit(run_cli(main))

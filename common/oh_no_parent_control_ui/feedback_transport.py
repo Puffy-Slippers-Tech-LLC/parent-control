@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from html import escape
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import mimetypes
 import random
 import re
@@ -11,8 +11,9 @@ import unicodedata
 import uuid
 
 import requests
+from .diagnostic_bundle import validate_bundle
 
-LOG = logging.getLogger("oh-no-parent-control-parent")
+LOG = get_logger("feedback-transport")
 ENDPOINT = "https://tech.puffyslippers.com/api/oh-no-parent-control/feedback"
 # Production activation authorized after backend deployment.
 SENDING_ENABLED = True
@@ -43,8 +44,10 @@ def title_error(title):
 
 
 def validation_error(message, reply_email, version, message_html=""):
-    if not message.strip() or "\0" in message:
-        return "Enter feedback without NUL characters."
+    if not message.strip():
+        return "Please enter your feedback."
+    if "\0" in message:
+        return "Your feedback contains an unsupported hidden character. Please retype it and try again."
     if len(message.encode("utf-16-le", errors="surrogatepass")) // 2 > MAX_MESSAGE_UTF16:
         return "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
     if "\0" in message_html or len(message_html.encode("utf-16-le", errors="surrogatepass")) // 2 > MAX_HTML_UTF16:
@@ -172,6 +175,11 @@ def send_once(submission):
         return Result("disabled")
     if submission.logs is not None and len(submission.logs) > MAX_LOG_BYTES:
         return Result("oversized")
+    if submission.logs is not None:
+        try:
+            safe_logs = validate_bundle(submission.logs)
+        except ValueError:
+            return Result("logs_unavailable")
     if attachments_error(submission.attachments, submission.logs):
         return Result("oversized")
     if title_error(submission.title):
@@ -186,7 +194,7 @@ def send_once(submission):
         parts.append(("attachments", (attachment.name, attachment.data,
                                       attachment.content_type)))
     if submission.logs is not None:
-        parts.append(("attachments", ("oh-no-parent-control-logs.zip", submission.logs,
+        parts.append(("attachments", ("oh-no-parent-control-logs.zip", safe_logs,
                                "application/zip")))
     try:
         with requests.Session() as session:
@@ -196,7 +204,7 @@ def send_once(submission):
                               headers={"Idempotency-Key": submission.key},
                               timeout=TIMEOUT, allow_redirects=False) as response:
                 status = response.status_code
-                LOG.info("feedback response status=%d", status)
+                LOG.info("feedback-transport.001", status=status)
                 try:
                     body = response.json()
                 except ValueError:
@@ -217,7 +225,7 @@ def send_once(submission):
                     return Result("retry")
                 return Result("failed")
     except requests.RequestException as error:
-        LOG.warning("feedback network failure error_type=%s", type(error).__name__)
+        LOG.warning("feedback-transport.002", error_type=error_code(error))
         return Result("retry")
 
 
@@ -228,8 +236,12 @@ def submit(submission, cancelled, progress, *, send=send_once, now=time.time, ji
         if now() >= submission.expires_at:
             return Result("expired")
         attempt += 1
-        LOG.info("feedback attempt started attempt=%d diagnostic_logs=%s attachment_count=%d",
-                 attempt, submission.logs is not None, len(submission.attachments))
+        LOG.info(
+            "feedback-transport.003",
+            attempt=attempt,
+            diagnostic_logs=submission.logs is not None,
+            attachment_count=len(submission.attachments),
+        )
         result = send(submission)
         if result.kind != "retry":
             return result
@@ -237,7 +249,7 @@ def submit(submission, cancelled, progress, *, send=send_once, now=time.time, ji
         remaining = submission.expires_at - now()
         if delay >= remaining:
             return Result("expired")
-        LOG.info("feedback retry scheduled attempt=%d delay_seconds=%d", attempt, delay)
+        LOG.info("feedback-transport.004", attempt=attempt, delay_seconds=int(delay))
         progress(f"Could not confirm submission. Retrying in {int(delay) + 1} seconds…")
         if cancelled.wait(delay):
             break

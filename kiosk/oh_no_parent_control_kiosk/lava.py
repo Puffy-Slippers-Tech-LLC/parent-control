@@ -1,6 +1,6 @@
 """Stationary lava artwork with gently varying incandescent color."""
 
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import math
 
 import gi
@@ -10,7 +10,7 @@ gi.require_version("Graphene", "1.0")
 from gi.repository import Gdk, GLib, Graphene
 
 
-LOG = logging.getLogger("oh-no-parent-control")
+LOG = get_logger("kiosk-lava")
 # Limit color selection to the portal, in fractions of the source artwork.
 PORTAL_BOUNDS = (480 / 1672, 36 / 941, 1090 / 1672, 906 / 941)
 
@@ -83,7 +83,7 @@ class LavaBands:
                 selected += 1
 
         if not selected:
-            LOG.warning("gateway lava mask contains no warm pixels; heat disabled")
+            LOG.warning("kiosk-lava.001")
             return
         self._cool, self._hot = (
             Gdk.MemoryTexture.new(
@@ -92,10 +92,7 @@ class LavaBands:
             )
             for treatment in (cool, hot)
         )
-        LOG.debug(
-            "gateway lava heat configured pixels=%d animation=color-only "
-            "mask=fixed geometry=fixed", selected,
-        )
+        LOG.debug("kiosk-lava.002", pixels=selected)
 
     def draw(self, snapshot, artwork, elapsed):
         if self._hot is None:

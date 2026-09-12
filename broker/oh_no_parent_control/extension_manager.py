@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import os
 import pwd
 import stat
@@ -16,7 +16,7 @@ ENABLED_KEY = "enabled-extensions"
 DISABLED_KEY = "disabled-extensions"
 DISABLE_ALL_KEY = "disable-user-extensions"
 COMMAND_TIMEOUT_SECONDS = 10
-LOG = logging.getLogger("oh-no-parent-control")
+LOG = get_logger("extension-manager")
 
 
 class ExtensionManager:
@@ -80,10 +80,7 @@ class ExtensionManager:
         if require_live and transport != "live-session":
             raise RuntimeError("child GNOME session is unavailable")
         operation = arguments[1] if len(arguments) > 1 else "unknown"
-        LOG.info(
-            "child GNOME command stage=started operation=%s transport=%s",
-            operation, transport,
-        )
+        LOG.info("extension-manager.001", operation=operation, transport=transport)
         try:
             result = subprocess.run(
                 command, check=True, text=True, capture_output=True,
@@ -92,15 +89,13 @@ class ExtensionManager:
             )
         except (OSError, subprocess.SubprocessError) as error:
             LOG.error(
-                "child GNOME command outcome=failed operation=%s "
-                "transport=%s error_type=%s",
-                operation, transport, type(error).__name__,
+                "extension-manager.002",
+                operation=operation,
+                transport=transport,
+                error_type=error_code(error),
             )
             raise RuntimeError("child GNOME interface is unavailable") from error
-        LOG.info(
-            "child GNOME command outcome=accepted operation=%s transport=%s",
-            operation, transport,
-        )
+        LOG.info("extension-manager.003", operation=operation, transport=transport)
         return result
 
     def _session_transport(self, account):
@@ -126,8 +121,7 @@ class ExtensionManager:
         value = result.stdout.strip()
         if value not in {"(true,)", "(false,)"}:
             raise RuntimeError("D-Bus returned an invalid GNOME Shell state")
-        LOG.info("child GNOME Shell availability outcome=accepted available=%s",
-                 value == "(true,)")
+        LOG.info("extension-manager.004", available=value == "(true,)")
         return value == "(true,)"
 
     def _list(self, account, key):
@@ -203,11 +197,7 @@ class ExtensionManager:
         if ((UUID in enabled_settings) != enabled or
                 (enabled and UUID in disabled_settings)):
             raise RuntimeError("GNOME extension activation verification failed")
-        LOG.info(
-            "child extension runtime verification outcome=accepted "
-            "configured=%s active=%s",
-            configured, active,
-        )
+        LOG.info("extension-manager.005", configured=configured, active=active)
 
     def _verify_installation(self):
         try:
@@ -230,7 +220,7 @@ class ExtensionManager:
 
     def set_enabled(self, uid: int, enabled: bool, *,
                     recover_global_switch: bool = False) -> None:
-        LOG.info("child extension update stage=started enabled=%s", enabled)
+        LOG.info("extension-manager.006", enabled=enabled)
         account, home = self._account(uid)
         if home.is_symlink() or not home.is_dir() or home.stat().st_uid != uid:
             raise RuntimeError("child home directory has unsafe ownership")
@@ -241,8 +231,7 @@ class ExtensionManager:
         old_disabled = self._list(account, DISABLED_KEY)
         restore_switch = enabled and self._boolean(account, DISABLE_ALL_KEY)
         if restore_switch and not recover_global_switch:
-            LOG.error("child extension update outcome=failed enabled=true "
-                      "reason=user-extensions-disabled")
+            LOG.error("extension-manager.007")
             raise RuntimeError("GNOME user extensions are disabled")
 
         shell_available = self._shell_is_available(account)
@@ -255,8 +244,7 @@ class ExtensionManager:
                 # outer preference transaction that could subsequently fail.
                 # The parent-enabled enforcement extension requires it off;
                 # preserve individual extension choices and verify recovery.
-                LOG.info("child extension recovery stage=restore-switch "
-                         "reason=user-extensions-disabled")
+                LOG.info("extension-manager.008")
                 self._set_boolean(account, DISABLE_ALL_KEY, False)
             if shell_available:
                 # Use GNOME's supported extension-management interface when a
@@ -267,10 +255,7 @@ class ExtensionManager:
                 # Persist the desired state for Shell to consume at next login.
                 self._set_offline(account, enabled, old_enabled, old_disabled)
         except Exception as error:
-            LOG.warning(
-                "child extension update stage=rollback enabled=%s error_type=%s",
-                enabled, type(error).__name__,
-            )
+            LOG.warning("extension-manager.009", enabled=enabled, error_type=error_code(error))
             try:
                 try:
                     if restore_switch:
@@ -288,21 +273,21 @@ class ExtensionManager:
                     )
             except Exception as rollback_error:
                 LOG.critical(
-                    "child extension update outcome=rollback-failed enabled=%s "
-                    "error_type=%s",
-                    enabled, type(rollback_error).__name__,
+                    "extension-manager.010",
+                    enabled=enabled,
+                    error_type=error_code(rollback_error),
                 )
                 raise RuntimeError(
                     "child GNOME extension rollback could not be verified"
                 ) from rollback_error
             raise
         if restore_switch:
-            LOG.info("child extension recovery outcome=accepted")
-        LOG.info("child extension update outcome=accepted enabled=%s", enabled)
+            LOG.info("extension-manager.011")
+        LOG.info("extension-manager.012", enabled=enabled)
 
     def remove(self, uid: int) -> None:
         """Disable the product extension and remove its per-user list entries."""
-        LOG.info("child extension removal stage=started")
+        LOG.info("extension-manager.013")
         account, home = self._account(uid)
         if home.is_symlink() or not home.is_dir() or home.stat().st_uid != uid:
             raise RuntimeError("child home directory has unsafe ownership")
@@ -326,4 +311,4 @@ class ExtensionManager:
             raise RuntimeError("GNOME extension removal verification failed")
         if shell_available and self._runtime_state(account) != (False, False):
             raise RuntimeError("GNOME extension runtime removal verification failed")
-        LOG.info("child extension removal outcome=accepted")
+        LOG.info("extension-manager.014")

@@ -399,6 +399,25 @@ values quoted, avoid shell substitutions/assignments/redirections, and do not
 request a generic Bash grant. No policy change or restart is needed to use this
 form with the already-installed direct search allowance.
 
+Quote every literal file/directory operand for ordinary reads, including paths
+without spaces. Package build filenames can contain `~` in their version; leaving
+such paths unquoted can cause conservative shell classification. Submit the
+read directly, without adding a Bash wrapper, and keep each full filename on
+one command line. For example:
+
+```sh
+tail -100 '/tmp/onpc-build/output/package_1.2+ppa1~ubuntu26.04.1_amd64.build'
+rg -n -B 8 -A 18 'Fatal Python|Segmentation|Current thread|test_feedback' '/tmp/onpc-build/output/package_1.2+ppa1~ubuntu26.04.1_amd64.build'
+```
+
+If the general-shell approval reason appears for an ordinary read, correct
+quoting and command shape before retrying the same read. Reuse existing reader
+allowances; do not add a Bash allowance or duplicate rules. Honor actual denials
+and any remaining sandbox restriction. Quoted `tail` and `rg` reads of the
+reported `onpc-ppa-check-hmbj287y` build log succeeded through the command tool
+without approval on 2026-09-12; this verifies the corrected form in that session,
+not every parser version or execution context.
+
 `codex execpolicy check` tests the supplied argument vector; it does not exercise
 the command tool's shell splitting. Passing a raw Bash wrapper to that checker
 will match the shell rule even when a command tool could split its script.

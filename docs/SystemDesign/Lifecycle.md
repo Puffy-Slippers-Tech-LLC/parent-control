@@ -28,17 +28,17 @@ service from becoming ready. Clearing stale session caps is best-effort:
 unavailable sessions may be skipped, and an exception at this stage is logged
 without preventing registration.
 
-Successful object registration writes one fixed `startup-witness` diagnostic to
-the broker's existing daily log. It records real monotonic nanosecond timestamps
-for construction, completed policy/extension reconciliation, attempted cap
-cleanup, and the start/end of object registration. Systemd's invocation ID,
-the broker PID and its unique bus name correlate the record with that process;
-no account or configuration data is recorded. Missing systemd context produces
-an empty invocation ID, and diagnostic-write failure does not gate readiness.
+Successful object registration emits fixed `onpc.service` elapsed phase timings.
+The role-checked read-only `GetStartupTimings` D-Bus method supplies six real
+monotonic nanosecond timestamps for construction, completed policy/extension
+reconciliation, attempted cap cleanup, and the start/end of registration.
 The [startup observer](../../tests/e2e/README.md#broker-startup-observation)
-requires a current correlated witness for test evidence. Broker code activates
-with `process-restart`; this diagnostic adds no saved-data migration or GDM
-dependency.
+queries the pinned live bus owner and brackets those timings with the existing
+systemd invocation/process and boot continuity checks. Invocation IDs, PIDs,
+bus names, and absolute monotonic timestamps are not recorded in automatic
+diagnostic logs or feedback reports. Diagnostic-write failure does not gate
+readiness. Broker code activates with `process-restart`; this additive method
+adds no saved-data migration or GDM dependency.
 
 The packaged fapolicyd drop-in keeps the daemon in systemd's `activating` state
 until a root-owned canary execution is denied by the live kernel policy. The

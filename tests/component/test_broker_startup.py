@@ -70,25 +70,21 @@ def test_startup_witness_tracks_real_publication_and_required_failures(
                 files = list((harness.writer.root / 'broker').iterdir())
                 if fault == 'log':
                     assert not files
-                    assert 'startup witness unavailable error_type=OSError' in caplog.text
-                else:
-                    assert len(files) == 1
-                    line = files[0].read_text().splitlines()
-                    assert len(line) == 1
-                    witness = json.loads(line[0].split(' INFO startup-witness ', 1)[1])
-                    assert witness['invocation_id'] == 'a' * 32
-                    assert witness['bus_owner'] == harness.server.get_unique_name()
-                    assert witness['pid'] > 0
-                    times = [witness[key] for key in (
-                        'started_ns', 'policy_ready_ns', 'extensions_ready_ns',
-                        'caps_attempted_ns', 'register_started_ns', 'register_finished_ns')]
-                    assert times == sorted(times)
-                    assert times[0] <= intervals['policy'][0]
-                    for name, index in (('policy', 1), ('extensions', 2), ('caps', 3)):
-                        assert intervals[name][1] <= times[index]
-                    assert intervals['registration'][0] <= times[4] <= times[5]
-                    assert times[5] <= intervals['registration'][1]
-                    assert 'private-startup-canary' not in line[0]
+                    assert 'private-startup-canary' not in caplog.text
+                witness = call(client, 'GetStartupTimings', None, '(a{st})').unpack()[0]
+                assert set(witness) == {
+                    'started_ns', 'policy_ready_ns', 'extensions_ready_ns',
+                    'caps_attempted_ns', 'register_started_ns', 'register_finished_ns'}
+                times = [witness[key] for key in (
+                    'started_ns', 'policy_ready_ns', 'extensions_ready_ns',
+                    'caps_attempted_ns', 'register_started_ns', 'register_finished_ns')]
+                assert times == sorted(times)
+                assert times[0] <= intervals['policy'][0]
+                for name, index in (('policy', 1), ('extensions', 2), ('caps', 3)):
+                    assert intervals[name][1] <= times[index]
+                assert intervals['registration'][0] <= times[4] <= times[5]
+                assert times[5] <= intervals['registration'][1]
+                assert 'private-startup-canary' not in json.dumps(witness)
             if fault == 'caps':
                 assert 'runtime caps error_type=RuntimeError' in caplog.text
             assert 'private-startup-canary' not in caplog.text
@@ -101,7 +97,8 @@ def test_startup_does_not_log_invalid_invocation_or_require_systemd(
         dbusmock_system, dbusmock_session, tmp_path, monkeypatch, invocation):
     monkeypatch.setenv('INVOCATION_ID', invocation)
     with broker_service(dbusmock_system, dbusmock_session, tmp_path) as harness:
-        line = next((harness.writer.root / 'broker').iterdir()).read_text()
-        witness = json.loads(line.split(' INFO startup-witness ', 1)[1])
-        assert witness['invocation_id'] == ''
-        assert 'private-startup-canary' not in line
+        witness = call(harness.client, 'GetStartupTimings', None, '(a{st})').unpack()[0]
+        assert 'invocation_id' not in witness
+        assert 'bus_owner' not in witness
+        assert 'pid' not in witness
+        assert 'private-startup-canary' not in json.dumps(witness)

@@ -3,10 +3,17 @@ import sys
 from pathlib import Path
 
 if Path("/var/lib/oh-no-parent-control/migration-in-progress").exists():
-    raise SystemExit("oh-no-parent-control-broker: saved-data migration is incomplete")
+    raise SystemExit("onpc.service: saved-data migration is incomplete")
 
 sys.path.insert(0, "/usr/lib/oh-no-parent-control/broker")
+sys.path.insert(0, "/usr/lib/oh-no-parent-control")
 
-from oh_no_parent_control.service import main
+try:
+    from common.oh_no_parent_control_ui.diagnostic_events import configure_console, run_cli
+    configure_console()
+    from oh_no_parent_control.service import main
+except Exception:
+    sys.stderr.write("onpc.runtime startup failed\n")
+    raise SystemExit(1) from None
 
-raise SystemExit(main())
+raise SystemExit(run_cli(main))

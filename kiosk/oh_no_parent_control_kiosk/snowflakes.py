@@ -1,14 +1,14 @@
 """Quiet, continuous snowflake paths around the gateway artwork."""
 
 from dataclasses import dataclass
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import math
 import random
 
 import cairo
 
 
-LOG = logging.getLogger("oh-no-parent-control")
+LOG = get_logger("kiosk-snowflakes")
 # Bounds of the entire frame, including its neon edges, in artwork fractions.
 GATEWAY_OUTER_BOUNDS = (1104 / 3840, 72 / 2160, 2520 / 3840, 2100 / 2160)
 PIXEL_SIZE_RANGE = (0.9, 6.6)
@@ -108,12 +108,7 @@ class SnowflakeField:
                 self._random.uniform(0.40, 0.85),
                 self._random.choice(PIXEL_FLAKES),
             ))
-        LOG.debug(
-            "gateway snowflakes configured count=%d base_count=%d "
-            "count_multiplier=%s pixel_size_range=%s drift_period_seconds=%s",
-            len(self._flakes), base_count, COUNT_MULTIPLIER, PIXEL_SIZE_RANGE,
-            DRIFT_PERIOD_RANGE,
-        )
+        LOG.debug("kiosk-snowflakes.001", count=len(self._flakes), base_count=base_count)
 
     def _new_drift(self, lower, upper, maximum_amplitude):
         # Choose a visible excursion before placing its center. Choosing the

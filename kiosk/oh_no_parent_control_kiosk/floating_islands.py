@@ -1,7 +1,7 @@
 """Original crystal artwork on independent, smoothly randomized float paths."""
 
 from dataclasses import dataclass
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import random
 
 import gi
@@ -12,7 +12,7 @@ gi.require_version("Graphene", "1.0")
 from gi.repository import Graphene, Gsk, Gtk
 
 
-LOG = logging.getLogger("oh-no-parent-control")
+LOG = get_logger("kiosk-floating-islands")
 SOURCE_WIDTH = 1672
 SOURCE_HEIGHT = 941
 # The previous shortest turn was 3.4 / 2.1 seconds. Lengthening it by the
@@ -167,11 +167,7 @@ class FloatingIslands:
         # expose remnants or a patch with a different sky/floor texture. The
         # gateway's central band is always drawn from the original artwork.
         self._background = clear
-        LOG.debug(
-            "gateway scenery configured count=%d aspect=source turn_seconds=%s "
-            "max_speed_percent_of_previous=85 excursion_at_1080px=(6, 13)",
-            len(self._sprites), TURN_SECONDS,
-        )
+        LOG.debug("kiosk-floating-islands.001", count=len(self._sprites))
 
     @property
     def ready(self):

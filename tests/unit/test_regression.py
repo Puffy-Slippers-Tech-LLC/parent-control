@@ -32,15 +32,15 @@ def test_dashboard_colors_counts_and_no_diagnostics():
     stream = io.StringIO()
     regression.Dashboard(categories, stream).draw(force=True)
     value = stream.getvalue()
-    assert '\033[32m[✓] Unit - 100% \033[0m(\033[32m4\033[0m / 4)' in value
-    assert '\033[97;1m[Running] UI - 30% \033[0m(\033[32m3\033[0m / 10)' in value
-    assert '\033[90m[Pending] VM - 0% \033[0m(\033[32m0\033[0m / 2)' in value
-    assert 'Overall - 43% \033[0m(\033[32m7\033[0m / 16)' in value
+    assert '\033[32m[✓] Unit - 100% \033[0m(\033[32m4\033[0m/4)' in value
+    assert '\033[97;1m[Running] UI - 30% \033[0m(\033[32m3\033[0m/10)' in value
+    assert '\033[90m[Pending] VM - 0% \033[0m(\033[32m0\033[0m/2)' in value
+    assert 'Overall - 43% \033[0m(\033[32m7\033[0m/16)' in value
     categories[0].state = 'Failed'
     categories[0].failures = 1
     regression.Dashboard(categories, stream).draw(force=True)
-    assert ('\033[31m[✗] Unit - 100% \033[0m(\033[32m3\033[0m / '
-            '\033[31m1\033[0m / 4)') in stream.getvalue()
+    assert ('\033[31m[✗] Unit - 100% \033[0m(\033[32m3\033[0m/'
+            '\033[31m1\033[0m/4)') in stream.getvalue()
 
 
 def test_partial_failure_is_durable_before_cancellation(report, tmp_path):

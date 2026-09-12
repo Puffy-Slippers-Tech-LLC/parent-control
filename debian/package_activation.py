@@ -31,6 +31,20 @@ def activation_for(path: str) -> str:
         "usr/lib/oh-no-parent-control/broker/oh_no_parent_control/uninstall.py",
     }:
         return "none"
+    # The PAM helper is executed afresh for each authentication. The readiness
+    # helper exits after checking fapolicyd at service startup; no copy remains
+    # resident once the gate has passed. Replacing either executable (including
+    # its diagnostics) needs no machine restart. Boot ordering and the canary
+    # contract remain classified separately below.
+    if path in {
+        "usr/libexec/oh-no-parent-control-session-limit-check",
+        "usr/libexec/oh-no-parent-control-execution-policy-ready",
+    }:
+        return "none"
+    # Existing PAM transactions may retain the loaded library. New login
+    # sessions use its replacement without restarting the machine.
+    if path.endswith("/security/pam_oh_no_parent_control.so"):
+        return "session-renewal"
     if path.startswith((
         "etc/gdm3/",
         "usr/share/pam-configs/",
@@ -38,12 +52,10 @@ def activation_for(path: str) -> str:
         "usr/lib/systemd/system/display-manager.service.d/",
         "usr/lib/systemd/system/fapolicyd.service.d/",
     )) or path in {
-        "usr/libexec/oh-no-parent-control-execution-policy-ready",
         "usr/libexec/oh-no-parent-control-execution-policy-probe",
-        "usr/libexec/oh-no-parent-control-session-limit-check",
         "usr/libexec/oh-no-parent-control-login-check",
         "usr/share/oh-no-parent-control/gdm-presession",
-    } or path.endswith("/security/pam_oh_no_parent_control.so"):
+    }:
         return "reboot"
     # polkitd monitors its action and rule directories and evaluates them for
     # each authorization request, so no service or session restart is required.

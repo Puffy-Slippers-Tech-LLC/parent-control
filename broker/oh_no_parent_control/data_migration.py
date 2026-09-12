@@ -245,14 +245,23 @@ def migrate_all_state(state_directory: Path = STATE_DIRECTORY) -> int:
 
 
 def main() -> int:
+    from common.oh_no_parent_control_ui.diagnostic_events import (
+        get_logger, error_code, configure_console,
+    )
+    configure_console()
+    LOG = get_logger("migration")
     if os.geteuid() != 0:
-        raise SystemExit("oh-no-parent-control-migrate-state: must run as root")
+        raise SystemExit("onpc.migration: must run as root")
+    LOG.info("migration.started")
     try:
-        migrate_all_state()
+        rewritten = migrate_all_state()
     except MigrationError as error:
-        raise SystemExit(f"oh-no-parent-control-migrate-state: {error}") from error
+        LOG.error("migration.failed", error_type=error_code(error))
+        return 1
+    LOG.info("migration.completed", rewritten_count=rewritten)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from common.oh_no_parent_control_ui.diagnostic_events import run_cli
+    raise SystemExit(run_cli(main))

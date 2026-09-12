@@ -14,10 +14,11 @@ def test_child_panel_stdin_entry_opens_a_prefilled_report(
     dialog = wait_for_accessible_node(application, "Send Feedback", "frame")
     editor = feedback_editor(application, wait_for_accessible_node)
     wait_for_accessible_state(
-        lambda: "TypeError: child panel could not refresh its timer" in editor.text,
+        lambda: "Error categories: RuntimeError" in editor.text,
         "child panel error draft loaded",
     )
     assert editor.text.startswith("Something went wrong\nThe operation could not be completed.")
+    assert "child panel could not refresh its timer" not in editor.text
     assert wait_for_accessible_node(dialog, "Add files", "button").sensitive
 
 
@@ -32,10 +33,11 @@ def test_request_error_review_restrictions_and_submission(
     assert find(application, "Close" if overlay else "Return to Login", "button").do_action(0)
     dialog = find(application, "Send Feedback", "frame")
     editor = feedback_editor(application, find)
-    wait_for_accessible_state(lambda: "RuntimeError: org.example.Secret /private/path" in editor.text,
+    wait_for_accessible_state(lambda: "Error categories: RuntimeError" in editor.text,
                               "error draft loaded")
-    assert editor.text.startswith("Request unavailable\nThe request could not be completed.")
-    assert "\n--------------------\n" in editor.text
+    assert editor.text.startswith("Something went wrong\nThe operation could not be completed.")
+    assert "org.example.Secret" not in editor.text
+    assert "/private/path" not in editor.text
     assert not events(path, "feedback")
     assert not events(path, "close_overlay" if overlay else "logout")
     for label, role in (("Add files", "button"), ("Download", "button"),
@@ -70,9 +72,10 @@ def test_parent_discovery_error_opens_prefilled_feedback(
     })
     dialog = wait_for_accessible_node(application, "Send Feedback", "frame")
     editor = feedback_editor(application, wait_for_accessible_node)
-    wait_for_accessible_state(lambda: "RuntimeError: service unavailable" in editor.text,
+    wait_for_accessible_state(lambda: "Error categories: RuntimeError" in editor.text,
                               "parent error draft loaded")
-    assert "The Parent App could not load. Please try again later." in editor.text
+    assert "The operation could not be completed. Please try again later." in editor.text
+    assert "service unavailable" not in editor.text
     assert wait_for_accessible_node(dialog, "Add files", "button").sensitive
     assert wait_for_accessible_node(dialog, "Send Feedback", "button").do_action(0)
     wait_for_accessible_node(application, "Thank you for your feedback!", "alert")
@@ -91,7 +94,7 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
     assert find(application, "Close" if overlay else "Return to Login", "button").do_action(0)
     dialog = find(application, "Send Feedback", "frame")
     editor = feedback_editor(application, find)
-    wait_for_accessible_state(lambda: "RuntimeError:" in editor.text, "error draft loaded")
+    wait_for_accessible_state(lambda: "Error categories: RuntimeError" in editor.text, "error draft loaded")
     original = editor.text
     assert editor.grab_focus()
     rawinput.keyCombo("<Control>End")
@@ -100,8 +103,9 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
                               "edited error draft loaded")
     draft = editor.text
     assert original.strip() in draft
-    assert find(dialog, "Send Feedback", "button").do_action(0)
     find(dialog, "Logs could not be prepared. You can send this feedback without the attachment.")
+    assert not find(dialog, "Send Feedback", "button").sensitive
+    assert find(dialog, "Retry collection", "button").sensitive
     assert editor.text == draft
     assert find(dialog, "Remove", "button").do_action(0)
     find(dialog, "No logs attached")

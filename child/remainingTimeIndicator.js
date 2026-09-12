@@ -241,7 +241,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         Main.uiGroup.add_child(this._contextMenu.actor);
         this._contextMenuManager.addMenu(this._contextMenu);
         this._contextMenu.connect('open-state-changed', (_menu, open) => {
-            logDebug(`countdown animation menu ${open ? 'opened' : 'closed'}`);
+            logDebug('child.animation-menu', {open});
             if (!open && !this._destroyed && !this._contextMenuDestroyId) {
                 this._contextMenuDestroyId = GLib.idle_add(
                     GLib.PRIORITY_DEFAULT_IDLE, () => {
@@ -256,12 +256,12 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             COUNTDOWN_ANIMATION_LABEL, this._countdownAnimationsEnabled);
         this._countdownAnimationItem.connect('toggled', (_item, enabled) => {
             if (!this._settings?.set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)) {
-                logWarning('could not save countdown animation preference');
+                logWarning('child.animation-save-failed');
                 this._onError?.(new Error('Could not save countdown animation preference'));
                 this._syncCountdownAnimationSetting();
                 return;
             }
-            logInfo(`countdown animation ${enabled ? 'enabled' : 'disabled'}`);
+            logInfo('child.animation', {enabled});
         });
         this._contextMenu.addMenuItem(this._countdownAnimationItem);
         this._contextMenu.open();
@@ -309,7 +309,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             try {
                 object.disconnect(id);
             } catch (_error) {
-                logDebug('signal already disconnected');
+                logDebug('child.signal-disconnected');
             }
         }
         this._signals = [];
@@ -334,7 +334,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             Gio.DBus.system.signal_unsubscribe(this._timerSignalId);
         this._timerSignalId = 0;
         this._actorDestroyId = 0;
-        logDebug('remaining time indicator lifecycle stopped');
+        logDebug('child.indicator-stopped');
     }
 
     _clearTimeout() {
@@ -418,14 +418,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 calculated, currentTime);
             this._calculatedEnd = next.calculatedEnd;
             this._statusLoaded = next.statusLoaded;
-            logInfo('timer estimate loaded; ' +
-                `calculated remaining=${calculated}`);
+            logInfo('child.estimate', {remaining: calculated});
         } catch (error) {
             if (!this._destroyed) {
                 // A transient daemon/database failure says nothing about the
                 // last successful estimate. Preserve it until a supported
                 // D-Bus query supplies a replacement.
-                logWarning('timer query failed; keeping previous estimate');
+                logWarning('child.estimate-failed');
                 this._onError?.(error);
             }
         } finally {
@@ -457,12 +456,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             if (this._destroyed)
                 return;
             this._sessionPrepared = true;
-            logInfo(reconciled
-                ? 'restored expired-grant application policy for session entry'
-                : 'session entry application policy already current');
+            logInfo('child.prepared', {reconciled});
         } catch (error) {
             if (!this._destroyed) {
-                logWarning('could not prepare application policy for session entry');
+                logWarning('child.prepare-failed');
                 this._onError?.(error);
             }
         } finally {
@@ -520,7 +517,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 `greeter=${Main.sessionMode.isGreeter} pending=${this._lockPending}`;
             if (diagnostic !== this._expiryDiagnostic) {
                 this._expiryDiagnostic = diagnostic;
-                logInfo(`expiry enforcement state: ${diagnostic}`);
+                logInfo('child.expiry', {
+                    loaded: this._statusLoaded, limit_enabled: manager.dailyLimitEnabled,
+                    locked: Main.sessionMode.isLocked, greeter: Main.sessionMode.isGreeter,
+                    pending: this._lockPending,
+                });
             }
         } else {
             this._expiryDiagnostic = null;
@@ -546,17 +547,17 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             return;
 
         this._lockPending = true;
-        logInfo('requesting managed desktop lock because no time remains');
+        logInfo('child.lock-requested');
         Gio.DBus.session.call(
             SCREEN_SAVER_NAME, SCREEN_SAVER_PATH, SCREEN_SAVER_INTERFACE, 'Lock',
             null, null, Gio.DBusCallFlags.NONE, -1, null,
             (connection, result) => {
                 try {
                     connection.call_finish(result);
-                    logInfo('locked managed desktop because no time remains');
+                    logInfo('child.locked');
                 } catch (error) {
                     if (!this._destroyed) {
-                        logWarning('could not lock managed desktop');
+                        logWarning('child.lock-failed');
                         this._onError?.(error);
                     }
                 } finally {
@@ -567,7 +568,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
     _setShown(shown) {
         if (shown && !this.container.visible)
-            logInfo('showing remaining time indicator');
+            logInfo('child.indicator-shown');
         if (!shown) {
             this._tooltip.hide();
             this._contextMenu?.close();

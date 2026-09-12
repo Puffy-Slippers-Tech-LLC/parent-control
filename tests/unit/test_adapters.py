@@ -169,7 +169,7 @@ class PolkitAdapterTests(unittest.TestCase):
                 mock.patch("oh_no_parent_control.adapters.subprocess.run",
                            side_effect=self._helper_result("[[10,20],[30,40]]")) as run, \
                 mock.patch("oh_no_parent_control.adapters._call") as root_call, \
-                self.assertLogs("oh-no-parent-control.adapters", level="INFO") as logs:
+                self.assertLogs("onpc.adapters", level="INFO") as logs:
             self.assertEqual(TimerUsage(object()).query_usage(1001), ((10, 20), (30, 40)))
         lookup.assert_called_once_with(1001)
         root_call.assert_not_called()

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import os
 import pwd
 import re
@@ -44,7 +44,7 @@ RUNTIME_MAX_USEC_INFINITY = (1 << 64) - 1
 CALL_TIMEOUT_MS = 30_000
 USAGE_HELPER = "/usr/libexec/oh-no-parent-control-query-usage"
 MAX_USAGE_HELPER_OUTPUT_BYTES = 8 * 1024 * 1024
-LOG = logging.getLogger("oh-no-parent-control.adapters")
+LOG = get_logger("adapters")
 
 
 class TimerUsageError(RuntimeError):
@@ -88,7 +88,7 @@ class CallerCredentials:
             )
             return reply.unpack()[0]
         except GLib.Error as error:
-            LOG.warning("caller liveness check outcome=failed error_type=%s", type(error).__name__)
+            LOG.warning("adapters.001", error_type=error_code(error))
             return False
 
 
@@ -230,7 +230,7 @@ class AccountsService:
         if self._execution_policy is None:
             return
         with self._execution_policy_lock:
-            LOG.info("execution-policy sync stage=collect-filters")
+            LOG.info("adapters.002")
             filters = {}
             patterns = {}
             for user in self.list_users():
@@ -250,8 +250,11 @@ class AccountsService:
                     patterns[user.uid] = tuple(sorted(set(active)))
                 except Exception as error:
                     raise RuntimeError("could not load wildcard policy") from error
-            LOG.info("execution-policy sync stage=reconcile account_count=%d pattern_account_count=%d",
-                     len(filters), len(patterns))
+            LOG.info(
+                "adapters.003",
+                account_count=len(filters),
+                pattern_account_count=len(patterns),
+            )
             if patterns:
                 self._execution_policy.reconcile(filters, patterns)
             else:
@@ -288,7 +291,7 @@ class TimerUsage:
         # The broker has authorized the target before reaching this adapter.
         # Malcontent rejects root, but permits an account to query its own
         # records. Open the helper's fresh bus connection as that exact child.
-        LOG.info("usage query scope=own stage=identity")
+        LOG.info("adapters.004")
         try:
             identity = pwd.getpwuid(uid)
         except KeyError as error:
@@ -299,7 +302,7 @@ class TimerUsage:
             self, uid: int,
             approver: UserAccount) -> tuple[tuple[int, int], ...]:
         """Query through a new bus connection owned by the authenticated approver."""
-        LOG.info("usage query scope=approver stage=identity")
+        LOG.info("adapters.005")
         try:
             identity = pwd.getpwuid(approver.uid)
         except KeyError as error:
@@ -311,7 +314,7 @@ class TimerUsage:
     def _query_usage_with_identity(
             self, uid: int, reader_uid: int,
             reader_gid: int) -> tuple[tuple[int, int], ...]:
-        LOG.info("usage helper stage=launch")
+        LOG.info("adapters.006")
         try:
             with tempfile.TemporaryFile() as output:
                 result = subprocess.run(
@@ -336,8 +339,7 @@ class TimerUsage:
                         69: "backend-unavailable",
                         70: "invalid-backend-reply",
                     }.get(result.returncode, "helper-failed")
-                    LOG.warning("usage helper outcome=failed category=%s returncode=%d",
-                                category, result.returncode)
+                    LOG.warning("adapters.007", category=category, returncode=result.returncode)
                     raise TimerUsageError(category)
                 output.flush()
                 if os.fstat(output.fileno()).st_size > MAX_USAGE_HELPER_OUTPUT_BYTES:
@@ -345,10 +347,10 @@ class TimerUsage:
                 output.seek(0)
                 encoded = output.read(MAX_USAGE_HELPER_OUTPUT_BYTES + 1)
         except subprocess.TimeoutExpired as error:
-            LOG.warning("usage helper outcome=timeout")
+            LOG.warning("adapters.008")
             raise TimerUsageError("timeout") from error
         except OSError as error:
-            LOG.warning("usage helper outcome=unavailable error_type=%s", type(error).__name__)
+            LOG.warning("adapters.009", error_type=error_code(error))
             raise TimerUsageError("helper-unavailable") from error
 
         try:
@@ -365,5 +367,5 @@ class TimerUsage:
                         for value in interval)):
                 raise TimerUsageError("invalid-helper-reply")
             intervals.append(tuple(interval))
-        LOG.info("usage helper outcome=accepted interval_count=%d", len(intervals))
+        LOG.info("adapters.010", interval_count=len(intervals))
         return tuple(intervals)

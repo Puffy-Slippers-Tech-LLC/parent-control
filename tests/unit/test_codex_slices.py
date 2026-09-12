@@ -190,12 +190,28 @@ if '--help' in sys.argv:
 root = Path.cwd()
 calls = root / 'calls.jsonl'
 number = len(calls.read_text().splitlines()) if calls.exists() else 0
+schema = json.loads(Path(sys.argv[sys.argv.index('--output-schema') + 1]).read_text())
+reviewing = 'decision' in schema['properties']
+if calls.exists():
+    number = sum('decision' not in json.loads(line)['schema']['properties']
+                 for line in calls.read_text().splitlines())
 with calls.open('a') as stream:
     stream.write(json.dumps({
         'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
         'schema': json.loads(Path(sys.argv[sys.argv.index('--output-schema') + 1]).read_text()),
     }) + '\n')
-step = json.loads((root / 'steps.json').read_text())[number]
+if reviewing:
+    review_steps = root / 'review-steps.json'
+    review_number = sum('decision' in json.loads(line)['schema']['properties']
+                        for line in calls.read_text().splitlines()) - 1
+    pending = json.loads((root / 'output/codex-slices/state.json').read_text())['pending_review']
+    step = (json.loads(review_steps.read_text())[review_number] if review_steps.exists() else {
+        'handoff': False,
+        'review_result': {'decision': 'blocked' if pending['outcome'] == 'blocked' else 'healthy',
+                          'evaluation': 'Brief progress evaluation.', 'effort': 'none',
+                          'breakthrough': '', 'task_document': ''}})
+else:
+    step = json.loads((root / 'steps.json').read_text())[number]
 def emit(value):
     print(json.dumps(value), flush=True)
 thread_id = sys.argv[sys.argv.index('resume') + 1] if 'resume' in sys.argv else str(uuid.uuid4())
@@ -238,6 +254,9 @@ if step.get('handoff', True):
     handoff.write_text(handoff.read_text() + f'\nNext observable result {number}.\n')
 if 'settings' in step:
     handoff.write_text(step['settings'])
+if step.get('task_edit'):
+    task = root / 'docs/TestAutomation/Task-20.md'
+    task.write_text(task.read_text() + '\nRequire a new observable breakthrough.\n')
 backlog = root / 'docs/TestAutomation/Test-Automation.md'
 if step.get('check_all'):
     backlog.write_text(backlog.read_text().replace('- [ ]', '- [x]'))
@@ -255,6 +274,8 @@ response.setdefault('summary', {
 })
 if step.get('omit_summary'):
     response.pop('summary')
+if reviewing:
+    response = step.get('review_result', {})
 if not step.get('omit_result'):
     Path(sys.argv[sys.argv.index('--output-last-message') + 1]).write_text(json.dumps(response))
     emit({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': json.dumps(response)}})
@@ -275,6 +296,8 @@ def rig(tmp_path, monkeypatch):
         '- [ ] [Task 20 — Second](Task-20.md)\n')
     (tmp_path / loop.HANDOFF).write_text('- Settings: **`gpt-5.6-sol` / `high`**.\n  Reason: settled contract.\n')
     (tmp_path / loop.PROMPT).write_bytes((ROOT / loop.PROMPT).read_bytes())
+    (tmp_path / loop.REVIEW_PROMPT).write_bytes((ROOT / loop.REVIEW_PROMPT).read_bytes())
+    (docs / 'Task-20.md').write_text('# Task 20\n\nCurrent handoff.\n')
     (tmp_path / 'tools').mkdir()
     (tmp_path / 'tools/codex_slices.py').write_bytes((ROOT / 'tools/codex_slices.py').read_bytes())
     binary_dir = tmp_path / 'bin'
@@ -295,13 +318,184 @@ def run(root, *, limit=0, retries=0):
     return loop.run(root, argparse.Namespace(max_slices=limit, max_api_retries=retries, reconciled=False))
 
 
-def calls(root):
+def calls(root, *, reviews=False):
     path = root / 'calls.jsonl'
-    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    values = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    return values if reviews else [value for value in values if 'decision' not in value['schema']['properties']]
 
 
 def complete(**fields):
     return {'status': 'complete', 'cleanup_complete': True, 'made_progress': True, 'blocker': 'none', **fields}
+
+
+def review_step(decision='healthy', effort='none', **extra):
+    intervention = decision == 'intervene'
+    return {'handoff': intervention, 'task_edit': intervention, 'review_result': {
+        'decision': decision, 'evaluation': 'High-level assessment only.', 'effort': effort,
+        'breakthrough': 'Qualify the corrected boundary with a discriminating check.' if intervention else '',
+        'task_document': 'docs/TestAutomation/Task-20.md' if intervention else '',
+    }, **extra}
+
+
+def set_reviews(root, steps):
+    (root / 'review-steps.json').write_text(json.dumps(steps))
+
+
+@pytest.mark.parametrize('effort', ['xhigh', 'max'])
+def test_review_intervenes_once_then_returns_to_handoff_settings(rig, effort, capsys):
+    root = rig([{}, {}, {'check_all': True, 'result': complete()}])
+    set_reviews(root, [review_step('intervene', effort), review_step(), review_step()])
+    assert run(root) == 0
+    launched = calls(root, reviews=True)
+    assert [call['schema'] == loop.REVIEW_SCHEMA for call in launched] == [False, True] * 3
+    assert [call['argv'][call['argv'].index('--model') + 1] for call in launched] == [
+        'gpt-5.6-sol', 'gpt-6-astra', 'gpt-6-astra', 'gpt-6-astra', 'gpt-5.6-sol', 'gpt-6-astra']
+    assert f'model_reasoning_effort="{effort}"' in launched[2]['argv']
+    assert 'ONE-SLICE INTERVENTION:' in launched[2]['prompt']
+    assert 'ONE-SLICE INTERVENTION:' not in launched[4]['prompt']
+    for call in launched[1::2]:
+        assert 'model_reasoning_effort="xhigh"' in call['argv']
+        assert 'resume' not in call['argv']
+    assert loop.read_state(root / loop.STORAGE)['next_slice_override'] is None
+    assert (root / loop.SUMMARY).read_text().count('## Session ') == 3
+    assert capsys.readouterr().out.count('Progress review: High-level assessment only.') == 3
+
+
+def test_review_input_contains_only_latest_two_sections_and_no_worker_prompt(rig):
+    root = rig([{}, {'check_all': True, 'result': complete()}])
+    (root / loop.SUMMARY).write_text('# Preface secret\n\n## Old\nOld secret\n\n## Recent\nRecent fact\n')
+    assert run(root) == 0
+    reviews = [call for call in calls(root, reviews=True) if call['schema'] == loop.REVIEW_SCHEMA]
+    assert 'Recent fact' in reviews[0]['prompt']
+    assert 'Recent fact' not in reviews[1]['prompt']
+    assert 'Completed slice result 0.' in reviews[1]['prompt']
+    assert 'Completed slice result 1.' in reviews[1]['prompt']
+    for call in reviews:
+        assert 'Old secret' not in call['prompt'] and 'Preface secret' not in call['prompt']
+        assert 'Continue the next unfinished task' not in call['prompt']
+
+
+@pytest.mark.parametrize('step', [
+    review_step('intervene', 'max', handoff=False),
+    review_step('intervene', 'max', task_edit=False),
+    review_step('intervene', 'high'),
+    review_step(omit_result=True),
+    review_step(failure='model_not_found'),
+    review_step(delete_task=True),
+])
+def test_failed_review_never_launches_next_slice(rig, step):
+    root = rig([{}, {}])
+    set_reviews(root, [step])
+    with pytest.raises(loop.Error):
+        run(root)
+    assert len(calls(root)) == 1
+    assert loop.read_state(root / loop.STORAGE)['status'] == 'needs-review'
+    assert (root / loop.SUMMARY).read_text().count('## Session ') == 1
+
+
+def test_no_progress_gets_course_correction_before_next_slice(rig):
+    root = rig([{'result': {'status': 'continue', 'cleanup_complete': True,
+                           'made_progress': False, 'blocker': 'none'}},
+                {'check_all': True, 'result': complete()}])
+    set_reviews(root, [review_step('intervene', 'xhigh'), review_step()])
+    assert run(root) == 0
+    assert 'ONE-SLICE INTERVENTION:' in calls(root)[1]['prompt']
+
+
+def test_review_and_override_survive_slice_limit_and_stop(rig):
+    root = rig([{'stop': True}, {}, {'check_all': True, 'result': complete()}])
+    set_reviews(root, [review_step('intervene', 'max'), review_step(), review_step()])
+    assert run(root) == 0
+    assert len(calls(root, reviews=True)) == 1
+    assert loop.read_state(root / loop.STORAGE)['pending_review']
+    assert run(root, limit=1) == 0
+    assert 'ONE-SLICE INTERVENTION:' in calls(root)[1]['prompt']
+    assert len(calls(root, reviews=True)) == 4
+    assert run(root) == 0
+    assert 'ONE-SLICE INTERVENTION:' not in calls(root)[2]['prompt']
+
+
+def test_override_waits_for_next_run_after_review_at_slice_limit(rig):
+    root = rig([{}, {'check_all': True, 'result': complete()}])
+    set_reviews(root, [review_step('intervene', 'max'), review_step()])
+    assert run(root, limit=1) == 0
+    assert len(calls(root, reviews=True)) == 2
+    assert loop.read_state(root / loop.STORAGE)['next_slice_override']['effort'] == 'max'
+    assert run(root) == 0
+    assert 'ONE-SLICE INTERVENTION:' in calls(root)[1]['prompt']
+
+
+def test_killed_review_resumes_review_thread_before_implementation(rig):
+    root = rig([{}, {'check_all': True, 'result': complete()}])
+    set_reviews(root, [review_step(kill=True), review_step('intervene', 'xhigh'), review_step()])
+    assert run(root) == 0
+    state = loop.read_state(root / loop.STORAGE)
+    assert state['status'] == 'killed' and state['phase'] == 'review'
+    thread = state['thread_id']
+    assert run(root) == 0
+    launched = calls(root, reviews=True)
+    assert launched[2]['argv'][-3:] == ['resume', thread, '-']
+    assert launched[2]['schema'] == loop.REVIEW_SCHEMA
+    assert 'resume' not in launched[3]['argv']
+    assert (root / loop.SUMMARY).read_text().count('## Session ') == 2
+
+
+def test_review_retries_only_pretool_transient_failure(rig, monkeypatch):
+    root = rig([{'check_all': True, 'result': complete()}])
+    set_reviews(root, [review_step(tools=False, failure='503'), review_step()])
+    monkeypatch.setattr(loop, 'wait_retry', lambda *_: None)
+    assert run(root, retries=1) == 0
+    assert len(calls(root, reviews=True)) == 3
+    assert (root / loop.SUMMARY).read_text().count('## Session ') == 1
+
+
+@pytest.mark.parametrize('blocker', ['approval', 'decision'])
+def test_review_cannot_turn_required_outside_input_into_autopilot(rig, blocker):
+    root = rig([{'result': {'status': 'blocked', 'cleanup_complete': True,
+                           'made_progress': False, 'blocker': blocker}}])
+    set_reviews(root, [review_step('intervene', 'max')])
+    with pytest.raises(loop.Error, match='cannot waive'):
+        run(root)
+    assert len(calls(root)) == 1
+
+
+def test_intervention_survives_transport_retry_and_killed_slice(rig, monkeypatch):
+    root = rig([{}, {'tools': False, 'failure': '503'}, {'kill': True},
+                {'check_all': True, 'result': complete()}])
+    set_reviews(root, [review_step('intervene', 'max'), review_step()])
+    monkeypatch.setattr(loop, 'wait_retry', lambda *_: None)
+    assert run(root, retries=1) == 0
+    thread = loop.read_state(root / loop.STORAGE)['thread_id']
+    assert run(root) == 0
+    for call in calls(root)[1:]:
+        assert 'model_reasoning_effort="max"' in call['argv']
+        assert 'ONE-SLICE INTERVENTION:' in call['prompt']
+    assert calls(root)[-1]['argv'][-3:] == ['resume', thread, '-']
+
+
+def test_review_posttool_failure_never_retries(rig, monkeypatch):
+    root = rig([{}])
+    set_reviews(root, [review_step(failure='503')])
+    monkeypatch.setattr(loop, 'wait_retry', lambda *_: pytest.fail('unsafe retry'))
+    with pytest.raises(loop.Error, match='Progress review exited'):
+        run(root, retries=3)
+    assert len(calls(root, reviews=True)) == 2
+
+
+def test_stopped_review_retry_resumes_same_thread(rig, monkeypatch):
+    root = rig([{'check_all': True, 'result': complete()}])
+    set_reviews(root, [review_step(tools=False, failure='503'), review_step()])
+
+    def stop_retry(*_args):
+        state = loop.read_state(root / loop.STORAGE)
+        loop.write_json(root / loop.STORAGE / 'STOP', {'request_id': state['request_id']})
+
+    monkeypatch.setattr(loop, 'wait_retry', stop_retry)
+    assert run(root, retries=1) == 0
+    state = loop.read_state(root / loop.STORAGE)
+    assert state['status'] == 'stopped' and state['phase'] == 'review'
+    assert run(root) == 0
+    assert calls(root, reviews=True)[-1]['argv'][-3:] == ['resume', state['thread_id'], '-']
 
 
 @pytest.fixture
@@ -453,7 +647,6 @@ def test_summary_omits_metadata_but_lifecycle_retains_allowlisted_usage(rig, usa
     ({'result': complete()}, 'tasks remain unfinished'),
     ({'check_all': True, 'handoff': False, 'result': complete()}, 'completion handoff'),
     ({'result': complete(cleanup_complete=False)}, 'cleanup'),
-    ({'result': {'status': 'continue', 'cleanup_complete': True, 'made_progress': False, 'blocker': 'none'}}, 'no progress'),
     ({'handoff': False}, 'did not update'),
     ({'delete_task': True}, 'removed recorded'),
     ({'omit_result': True}, 'structured handoff'),
@@ -923,10 +1116,13 @@ def test_summaries_append_without_reading_history_across_restarts(rig, monkeypat
 
     def checked_open(path, flags, *args, **kwargs):
         if Path(path) == summary:
-            assert flags & os.O_ACCMODE == os.O_WRONLY
-            assert flags & os.O_APPEND
+            if flags & os.O_ACCMODE == os.O_WRONLY:
+                assert flags & os.O_APPEND
+                appends.append(path)
+            else:
+                assert flags & os.O_ACCMODE == os.O_RDONLY
+                assert flags & os.O_NOFOLLOW
             assert not flags & os.O_TRUNC
-            appends.append(path)
         return original_open(path, flags, *args, **kwargs)
 
     def checked_path_open(path, *args, **kwargs):
@@ -1411,6 +1607,37 @@ def test_terminal_markdown_sanitizes_input_and_survives_closed_stream(monkeypatc
     live.markdown('## Terminal closed')
     assert live.stream is None
     live.markdown('## Still closed')
+
+
+@pytest.mark.parametrize('terminal', [False, True])
+def test_command_dashboard_updates_in_place_with_split_controls(monkeypatch, terminal):
+    monkeypatch.setenv('TERM', 'xterm')
+    stream = TerminalBuffer() if terminal else io.StringIO()
+    live = loop.LiveOutput(stream)
+    discovery = '[✓] Discovery and prerequisites - 100% (1 / 1)\n'
+    first = '[Running] Cleanup safety prerequisites - 5% (42 / 820)\n'
+    latest = '[Running] Cleanup safety prerequisites - 46% (376 / 820)\n'
+    output = '\x1b[32m' + discovery + first
+    def emit(kind, value):
+        live.event({'type': kind, 'item': {
+            'id': 'progress', 'type': 'command_execution', 'command': 'make check',
+            'aggregated_output': value, 'exit_code': 0}})
+    emit('item.updated', output + '\x1b[')
+    output += '\x1b[2F\x1b[2K' + discovery + latest
+    emit('item.updated', output)
+    if terminal:
+        assert live.progress is not None
+        assert list(live.progress_rows.values()) == [discovery.rstrip(), latest.rstrip()]
+        # Rich generates local cursor-up/erase controls for the replacement.
+        assert re.search(r'\x1b\[\d*A', stream.getvalue())
+    else:
+        assert '\x1b' not in stream.getvalue()
+        assert latest in stream.getvalue()
+    emit('item.completed', output + 'diagnostic without final newline')
+    assert live.progress is None
+    assert 'diagnostic without final newline' in stream.getvalue()
+    assert 'Command completed' in stream.getvalue()
+    assert not live.items
 
 
 def test_live_renderer_shows_incremental_messages_commands_and_tool_results():

@@ -127,6 +127,10 @@
   margin-right: 16px;
 }
 
+.feedback-collection-spinner {
+  color: #7650ff;
+}
+
 .feedback-reply-field image {
   color: #363637;
 }

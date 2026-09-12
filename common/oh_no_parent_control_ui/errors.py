@@ -1,15 +1,12 @@
-"""One reviewable error-report flow for the unprivileged GTK front ends.
-
-Exception messages are draft content, never log content. No report is sent
-until the user explicitly submits it in the feedback dialog.
-"""
+"""Error reports contain fixed categories only, never exception messages."""
 
 from dataclasses import dataclass
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, ERROR_CODES
+from common.oh_no_parent_control_ui.diagnostic_events import record_exception
 import sys
 import threading
 
-LOG = logging.getLogger("oh-no-parent-control-ui")
+LOG = get_logger("errors")
 COMPONENTS = frozenset(("Kiosk App", "Child App", "Parent App"))
 GENERIC_TITLE = "Something went wrong"
 GENERIC_DETAIL = "The operation could not be completed. Please try again later."
@@ -37,24 +34,25 @@ class ErrorReport:
 
     @property
     def message(self):
-        return f"{self.title}\n{self.detail}\n\n--------------------\n\n{self.internal}"
+        codes = self.internal.split(",") if type(self.internal) is str else []
+        safe = codes if 0 < len(codes) <= 8 and all(code in ERROR_CODES for code in codes) else ["other"]
+        return f"{GENERIC_TITLE}\n{GENERIC_DETAIL}\n\nError categories: " + ", ".join(safe)
 
     @classmethod
     def capture(cls, component, error, title=GENERIC_TITLE, detail=GENERIC_DETAIL):
         if component not in COMPONENTS:
             raise ValueError("Unknown error-report component")
-        # Preserve causes and exception messages without frame locals or a
-        # traceback's source lines, which can contain credentials and paths.
+        # Do not format exception messages, arbitrary caller explanations,
+        # tracebacks, source lines, paths, or locals into the report.
         messages, seen = [], set()
         current = error
-        while current is not None and id(current) not in seen:
+        while current is not None and id(current) not in seen and len(messages) < 8:
             seen.add(id(current))
-            messages.append(f"{type(current).__name__}: {current}")
+            messages.append(error_code(current))
             current = current.__cause__ or (
                 None if current.__suppress_context__ else current.__context__
             )
-        return cls(component, _bounded(title, 150), _bounded(detail, 600),
-                   _bounded("\nCaused by: ".join(messages), 3500))
+        return cls(component, GENERIC_TITLE, GENERIC_DETAIL, ",".join(messages))
 
 
 class ErrorHandler:
@@ -66,8 +64,8 @@ class ErrorHandler:
         self._presenting = False
 
     def capture(self, error, title=GENERIC_TITLE, detail=GENERIC_DETAIL):
-        LOG.warning("application error component=%s error_type=%s",
-                    self.component, type(error).__name__)
+        record_exception(error)
+        LOG.warning("errors.001", component=self.component, error_type=error_code(error))
         return ErrorReport.capture(self.component, error, title, detail)
 
     def handle(self, error, title=GENERIC_TITLE, detail=GENERIC_DETAIL, *, on_close=None):
@@ -104,8 +102,7 @@ class ErrorHandler:
             return self._dialog
         except Exception as error:
             # Reporting failures cannot recursively trigger another reporter.
-            LOG.warning("error reporter unavailable component=%s error_type=%s",
-                        self.component, type(error).__name__)
+            LOG.warning("errors.002", component=self.component, error_type=error_code(error))
             self._dialog = None
             from gi.repository import Adw
             fallback = Adw.AlertDialog.new(
@@ -167,7 +164,7 @@ def install_exception_hooks(application, component):
                     # error surface yet. Keep startup failures reviewable.
                     show_startup_error(application, component, error)
         except Exception as caught:
-            LOG.warning("uncaught error presentation failed error_type=%s", type(caught).__name__)
+            LOG.warning("errors.003", error_type=error_code(caught))
         finally:
             with lock:
                 pending = False

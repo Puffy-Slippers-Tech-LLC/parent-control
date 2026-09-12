@@ -2,6 +2,8 @@
 
 import json
 import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import record_payload
 
 import gi
 
@@ -11,7 +13,7 @@ from gi.repository import Gio, GLib
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
 OBJECT_PATH = "/com/puffyslippers/OhNoParentControl1"
 INTERFACE = BUS_NAME
-LOG = logging.getLogger(__name__)
+LOG = get_logger("parent-client")
 
 
 class BrokerClient:
@@ -55,8 +57,7 @@ class BrokerClient:
                 "(uuuu)",
             )
         except Exception as error:
-            LOG.warning("time-status stage=broker outcome=failed target=[Child user] error_type=%s",
-                        type(error).__name__)
+            LOG.warning("parent-client.001", error_type=error_code(error))
             raise
         return {
             "daily_allowance_remaining_seconds": daily,
@@ -100,7 +101,7 @@ class BrokerLogHandler(logging.Handler):
         try:
             if self._client is None:
                 self._client = BrokerClient()
-            self._client.log_event(record.levelname, self.format(record))
+            self._client.log_event(record.levelname, record_payload(record))
         except Exception:
             # Logging must never prevent the management UI from opening.
             self._client = None
@@ -108,7 +109,6 @@ class BrokerLogHandler(logging.Handler):
 
 def configure_logging():
     handler = BrokerLogHandler()
-    handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
     root = logging.getLogger()
     root.handlers.clear()
     root.addHandler(handler)

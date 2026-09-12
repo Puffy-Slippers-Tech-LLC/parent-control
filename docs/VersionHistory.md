@@ -3,6 +3,12 @@
 - Software Updater: Fixed the description to match app name
 - Harden execution probes with isolated D-Bus clients, retained late replies, recoverable cleanup, and stricter execution identity checks.
 
+### New Features
+- Logging: Added bunch of logging to help troubleshoot - no PII logged, as promised
+- Logging: Changed time from local to UTC
+- Feedback dialog: Log collection is now asynchronous, Send feedback button is disabled until logs are collected. Added system-info to logs. No PII logged, as promised
+- Parent App: Made "How it's calculated" clearer to understand
+
 ## v1.1 — 2026-09-11
 ### Bug Fixes
 - **Parent App:** Fixed an issue where Daily Allowance would not expand on small screens.

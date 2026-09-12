@@ -117,3 +117,102 @@ must exclude this file from reads, searches, diffs and edits.
 - Verification and cleanup: 64 tests and 24 subtests passed, including 37 probe cases; no test failed. Document links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/15A-Probe-Recovery-20260911.md. Web retrieval errors were resolved through direct public source reads. No build or VM qualification ran. All commands exited, test threads joined, and no live resources or recovery remain.
 
 - Next session: Establish bounded creation and closure of an independently owned bus client, testing dispatch around disconnect. Task 20 remains deferred on documented source-preservation failures pending writer-completion/window evidence; VM authorization remains cleared. Updated handoffs and Continuation.md. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 74 — 2026-09-11 19:04 PDT
+
+- Task: Task 15A — independently owned probe bus-client lifecycle.
+- Duration: 10 minutes
+- Completed: Implemented independently owned Gio client creation/closure with bounded waits, cancellation and retained late callbacks. Qualified client isolation and cancellation on a private bus. Probe integration, systemd dispatch settlement and Task 15A acceptance remain unfinished; contracts and handoffs updated.
+
+- Verification and cleanup: Passed 83 focused tests/24 subtests, 769 cleanup prerequisites/3 subtests, and 3 private-bus cases. Initial 10 failures came from a corrected test-double callback signature. Links and scoped whitespace checks passed. All commands exited and owned clients, sockets and fixtures were cleaned up; no VM attempt ran. Evidence: docs/TestAutomation/Evidence/15A-Probe-Client-Lifecycle-20260911.md.
+
+- Next session: Continue Task 15A: integrate the client lifecycle into ExecutionProbe while preserving the observer and recovery coordinates; verify delayed dispatch across disconnect without treating closure as process cleanup. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 75 — 2026-09-11 19:12 PDT
+
+- Task: Task 15A — integrate execution-probe client ownership and cleanup recovery.
+- Duration: 8 minutes
+- Completed: Integrated owned-sender lifecycle, same-bus validation and retained close recovery into ExecutionProbe. Updated the owning contract and handoffs. Task 15A remains unfinished: systemd disconnect settlement, original-job binding and installed launch coverage are still required.
+
+- Verification and cleanup: Passed 91 tests/24 subtests, 777 cleanup prerequisites/3 subtests and 6 private-bus cases; no test failures. Document links and scoped whitespace checks passed. All commands and owned cleanup completed; no VM or systemd probe started. Evidence: docs/TestAutomation/Evidence/15A-Probe-Client-Integration-20260911.md.
+
+- Next session: Continue Task 15A by qualifying systemd dispatch/reference lifetime across sender disconnect while preserving terminal evidence. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 76 — 2026-09-11 19:36 PDT
+
+- Task: Task 15A — preserve probe evidence through delayed execution and recovery.
+- Duration: 6 minutes
+- Completed: Fixed premature probe-reference release that could discard late terminal evidence. Recovery now retains evidence without replaying creation or promoting failure to success. Updated the owning contract, reuse map and handoff. Task 15A’s installed acceptance remains unfinished.
+
+- Verification and cleanup: Five regressions reproduced the defect before the fix; the final focused suite passed 96 tests and 24 subtests. Links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/15A-Probe-Evidence-Retention-20260911.md. A web retrieval error recovered through a direct public read. No installed qualification ran. All commands exited; no live resources remain.
+
+- Next session: Continue Task 15A: settle dispatch completion and evidence ownership across sender disappearance before guarded systemd qualification. VM clearance persists. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 77 — 2026-09-11 19:44 PDT
+
+- Task: Task 15A — preserve creation replies and owned cleanup evidence.
+- Duration: 8 minutes
+- Completed: Extended ProbeBusClient to retain late creation replies across bounded waits, refuse premature closure, and prevent replay. Published the dispatch/cleanup contract and updated handoffs. ExecutionProbe integration and installed enforcement acceptance remain unfinished.
+
+- Verification and cleanup: 75 focused unit tests passed. Initial component run had three failures from deprecated test registration; corrected to the broker's supported API. Rerun passed nine components after 788 cleanup prerequisites/three subtests. Links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/15A-Probe-Retained-Reply-20260911.md. All commands exited and private buses were cleaned up; no VM or systemd probe started. Actual settings: gpt-6-astra/high, Standard.
+
+- Next session: Continue Task 15A: integrate retained replies into ExecutionProbe.run/recover using the published outcome table and focused cleanup regressions. Next settings: gpt-5.6-sol/high, Standard.
+
+
+## Session 78 — 2026-09-11 20:01 PDT
+
+- Task: Task 15A — retained creation-reply integration into ExecutionProbe
+- Duration: 10 minutes
+- Completed: **Solid and healthy** — Integrated retained asynchronous creation replies into `ExecutionProbe.run/recover`. Late jobs are copied before release; pending/collision/uncertain outcomes retain correct ownership without replay or failure promotion. Updated the owning contract, reuse map, active handoff, continuation, and `docs/TestAutomation/Evidence/15A-Probe-Reply-Integration-20260911.md`. Task 15A remains unfinished: original-job binding and installed native/Snap/Flatpak acceptance remain open.
+
+- Verification and cleanup: Initial focused run passed 71 and failed 8, exposing settlement re-entry and an overlong absent-unit wait; both were corrected. Final verification: 79 unit tests passed; component runs passed 792 cleanup prerequisites, 3 subtests, and 10 private-bus tests. All 182 changed-document links resolved and scoped whitespace passed. Every subprocess and executor exited; private buses, connections, and registrations were cleaned up. No VM, lease, host systemd probe, screenshot, approval denial, or residual resource remains.
+
+- Next session: Continue Task 15A by defining and implementing original-job/invocation binding against privileged replacement, with focused race regressions before live systemd qualification. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 79 — 2026-09-11 20:08 PDT
+
+- Task: Task 15A — original-job/invocation identity boundary.
+- Duration: 8 minutes
+- Completed: Closed a false-success path: positive probe exits now remain identity-unproven while preserving evidence and cleanup. Systemd can rerun the same job ID, invalidating the proposed binding. Positive execution qualification and Task 15A acceptance remain unfinished. Updated the owning contract, reuse map and handoff.
+
+- Verification and cleanup: 108 tests and 24 subtests passed. After correcting a test hook's post-GC access, both replacement regressions reproduced false success before the fix. Links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/15A-Probe-Job-Identity-20260911.md. All commands exited; no live resources were started. No installed qualification was attempted.
+
+- Next session: Continue Task 15A by establishing a causal execution witness that handles pre-observation restart; further job polling is insufficient. VM clearance persists. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 80 — 2026-09-11 21:23 PDT
+
+- Task: Task 15A — establish a causal execution-witness design.
+- Duration: 8 minutes
+- Completed: Selected pre-exec admission to bind one target execution before it starts. Recorded the contract, rejected alternatives and planned ADMIT-01–12 checks in docs/TestAutomation/Evidence/15A-Probe-Admission-Design-20260911.md; updated the owning contract, reuse map and handoffs. Implementation, runtime qualification and Task 15A acceptance remain unfinished.
+
+- Verification and cleanup: Source/contract audit completed; 193 links across five documents passed and whitespace checks found no errors. Browser HTTP 403 failures recovered through direct upstream reads; file discovery resolved an absent guessed source path. No runtime tests or VM attempts ran. Existing implementation edits were preserved. All commands exited; no live resources or cleanup obligations remain.
+
+- Next session: Continue Task 15A: implement the native gate/witness and single-use channel, then verify actual execution, replacement refusal and owned cleanup. Preserve current identity-unproven refusal until qualified. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 81 — 2026-09-11 21:33 PDT
+
+- Task: Task 15A — implement and locally qualify the native pre-exec admission protocol.
+- Duration: 10 minutes
+- Completed: Implemented the native admission gate/witness with bounded framing, deadlines, descriptor refusal and distinct exec-success/failure signals. Updated the owning contract, reuse map and handoff. Broker integration, installed qualification and Task 15A acceptance remain unfinished.
+
+- Verification and cleanup: 35 native component tests passed; isolated cleanup prerequisites passed. Links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/15A-Probe-Native-Admission-20260911.md. All commands exited, children joined and temporary resources were removed. No VM attempt, test failure or approval denial.
+
+- Next session: Continue Task 15A with the broker channel: bind one peer, consume admission before sending, prevent replay and preserve socket/path ownership during cleanup. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 82 — 2026-09-11 21:45 PDT
+
+- Task: Task 15A — broker admission channel.
+- Duration: 12 minutes
+- Completed: Implemented and verified Task 15A’s single-use broker admission channel, bounded results, interruption refusal and socket ownership cleanup. Published evidence in docs/TestAutomation/Evidence/15A-Probe-Broker-Channel-20260911.md and updated the owning contract and handoffs. Manager binding and installed acceptance remain unfinished.
+
+- Verification and cleanup: Passed 17 isolated safety tests, 66 focused component tests, and make check: 7,589 unit plus 134 component tests. Document links and whitespace checks passed. No test failures or approval denials. All commands exited; owned children, descriptors and temporary fixtures cleaned up. No VM attempt.
+
+- Next session: Continue Task 15A: integrate authenticated manager/unit/invocation binding and retained lifecycle ownership, then qualify the guarded guest. Next settings: gpt-6-astra/high, Standard.

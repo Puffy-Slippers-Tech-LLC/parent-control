@@ -40,6 +40,14 @@ class Dashboard:
         self.lines = 0
         self.last = 0.0
 
+    @staticmethod
+    def counts(done, failures, total):
+        passed = max(0, done - failures)
+        counts = f'\033[0m(\033[32m{passed}\033[0m / '
+        if failures:
+            counts += f'\033[31m{failures}\033[0m / '
+        return counts + f'{total})'
+
     def draw(self, *, force=False):
         if not force and time.monotonic() - self.last < 0.2:
             return
@@ -53,14 +61,16 @@ class Dashboard:
             color = {'Passed': '32', 'Failed': '31', 'Interrupted': '31',
                      'Blocked': '31', 'Running': '97;1', 'Pending': '90'}[item.state]
             lines.append(f'\033[{color}m[{label}] {item.name} - {percent}% '
-                         f'({item.done} / {total})\033[0m')
+                         + self.counts(item.done, item.failures, total))
         done = sum(item.done for item in self.categories)
         known = all(item.total is not None for item in self.categories)
         total = sum(item.total or 0 for item in self.categories)
         percent = str(int(100 * done / max(total, 1))) if known else '?'
         color = '31' if any(c.state in ('Failed', 'Interrupted', 'Blocked') for c in self.categories) else (
             '32' if all(c.state == 'Passed' for c in self.categories) else '97;1')
-        lines.append(f'\033[{color}mOverall - {percent}% ({done} / {total if known else "?"})\033[0m')
+        failures = sum(item.failures for item in self.categories)
+        lines.append(f'\033[{color}mOverall - {percent}% '
+                     + self.counts(done, failures, total if known else '?'))
         prefix = f'\033[{self.lines}F' if self.lines and self.stream.isatty() else ''
         self.stream.write(prefix + '\n'.join('\033[2K' + line for line in lines) + '\n')
         self.stream.flush()
@@ -122,6 +132,7 @@ class Run:
         decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
         captured = []
         finished = set()
+        failed = set()
 
         def output(data):
             nonlocal pending
@@ -144,7 +155,8 @@ class Run:
                         finished.add(event['nodeid'])
                         item.done = len(finished)
                     elif event['kind'] == 'failure':
-                        item.failures += 1
+                        failed.add(event['nodeid'])
+                        item.failures = len(failed)
                     self.report.snapshot(self.categories)
                     self.dashboard.draw()
         status = self.control.run(command, cwd=self.root, env=host.environment(self.root),
@@ -155,7 +167,10 @@ class Run:
             item.state = 'Pending' if status == 0 else 'Failed'
         else:
             if not events and not self.control.stopped.is_set():
+                before = item.done
                 item.done = min(item.total or 1, item.done + units) if units is not None else item.total or 1
+                if status:
+                    item.failures += item.done - before
             item.state = ('Interrupted' if self.control.stopped.is_set() else
                           'Failed' if status or item.failures else
                           'Passed' if item.done == item.total else 'Running' if units else 'Failed')
@@ -237,7 +252,6 @@ class Run:
         for case in ready:
             status, _ = self.execute(graphical, self.command('e2e', '--artifacts', self.artifacts[0],
                                                            '--scenario', case), units=1)
-            graphical.failures += int(status != 0)
             if status:
                 # Never start another VM attempt after an unproven cleanup.
                 break
@@ -278,4 +292,12 @@ def main(root=None):
                 print('\033[31m[✗] Report initialization - 0% (0 / 1)\033[0m')
             if report is not None:
                 report.stream.close()
+    if report is not None and (status == 1 or (run is not None and any(
+            item.failures or item.state == 'Failed' for item in run.categories))):
+        print('\nCopy this prompt into a new Codex session:\n')
+        print(f'In {root.resolve()}, investigate and fix the failures in '
+              f'{(report.directory / "report.md").resolve()}. '
+              'Read the adjacent progress.json for category results and follow '
+              'any detailed evidence paths in the report. Fix the root causes, '
+              'rerun the relevant checks, and report anything still unresolved.')
     return status

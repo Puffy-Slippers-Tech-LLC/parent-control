@@ -64,8 +64,9 @@ Verification below is task acceptance; edits use the smallest affected selection
 
 ## Task 15A continuation — 2026-09-08
 
-**Current handoff — 2026-09-11: late-create recovery implemented and locally
-verified; indefinite-dispatch settlement remains open. 15A stays unchecked.**
+**Current handoff — 2026-09-11: broker admission channel passed native exec,
+single-use, interruption and socket cleanup checks; manager binding remains open.
+15A stays unchecked.**
 **Scheduling update — 2026-09-11:** the operator prioritized installed-app
 behavior and all independent work before Task 20 in the
 [master checklist](Test-Automation.md#unfinished-tasks).
@@ -75,44 +76,75 @@ runner's verified installation/reboot prerequisites. This supersedes the earlier
 Task 20-first scope; preserve its recovery plan and ledger for later resumption.
 All-task VM clearance persists. The old one-slice intervention stays consumed.
 
-**Result:** `ExecutionProbe.pending/recover()` retains the attempt before
-dispatch and through interrupted release, blocks another creation while cleanup
-is uncertain, and serializes overlapping operations. Eventual late creation and
-lost release replies can now be collected without replay or process signals.
-Recovery preserves the failed outcome. The public `NotReferenced` error name
-was corrected in the double. Reuse the existing finite Gio calls, packaged
-canary, evidence pinning and sender-only release under the
-[owning transport contract](../SystemDesign/Applications.md#bounded-probe-transport-and-open-limits),
-[reuse map](Reuse-Map.md#existing-interfaces-to-find-once) and
-[recovery evidence](Evidence/15A-Probe-Recovery-20260911.md).
-The adapter remains dormant. Its guard is per retained instance; indefinite
-absence still leaves a pending reference-lifetime risk. Original-job binding,
-generation receipts, fresh paths, rollback/removal, installed qualification,
-native routes/update and Snap/Flatpak acceptance remain open.
+**Result:** implemented `probe_channel.ProbeChannel` under the
+[pre-exec admission contract](../SystemDesign/Applications.md#pre-exec-admission-for-a-causal-witness).
+It accepts one candidate, compares kernel credentials/hello with the supplied
+binding, consumes admission before send, retains bounded results and closes only
+owned sockets. Pinned-directory/inode checks preserve replaced paths; unknown
+inode or unlink failure retains cleanup uncertainty. It never removes the
+generation owner's directory/witness. The [channel evidence](Evidence/15A-Probe-Broker-Channel-20260911.md)
+records tests, hashes and partial ADMIT coverage. Native gate/witness and
+`tests.support.terminal.capture` were reused; no new process scheduler.
+Manager/unit/job coordinates are caller-supplied and not authenticated by this
+adapter. No product caller or installed path uses it yet. The owning contract
+and reuse map publish this exact qualification boundary.
 
-**Verification:** 64 focused tests and 24 subtests passed, including 37 probe
-cases. Exact selection and upstream findings are in the evidence; no test failed.
-No build, VM attempt or full acceptance suite ran. Changed-document links and
-scoped whitespace checks passed. Unrelated edits were preserved.
-Installed dependency identity remains unverified; reuse
+Reuse the owned lifecycle, retained replies, `pending/recover()` and reference-retention fix under the
+[owning transport contract](../SystemDesign/Applications.md#bounded-probe-transport-and-open-limits),
+[reuse map](Reuse-Map.md#existing-interfaces-to-find-once),
+[retention correction](Evidence/15A-Probe-Evidence-Retention-20260911.md) and
+[reply-integration evidence](Evidence/15A-Probe-Reply-Integration-20260911.md).
+The [job-identity evidence](Evidence/15A-Probe-Job-Identity-20260911.md) retains
+the previous false-positive correction. Current snapshots still return
+`identity-unproven`; the existing probe and boot canary were unchanged here.
+Unexpected sender loss and permanently missing replies remain unresolved
+resources; automatic disconnection remains deliberately absent.
+The probe remains dormant. Manager/identity integration, generation receipts,
+fresh paths, rollback/removal, installed qualification, native routes/update and
+Snap/Flatpak acceptance remain open; 15A is not accepted.
+
+**Verification:** final native component selection **66 passed** (initial 62).
+Isolated channel/terminal cleanup prerequisites passed **17**; each focused
+launch's safety closure passed **806 tests / 3 subtests**. Final-code `make check`
+passed source/stage checks, **7589 unit tests** and **134 component tests**.
+No test failure, skip or approval/Polkit denial. Tests cover real admitted/denied
+exec, candidate loss, queued/new duplicate refusal, consumed partial/interrupted
+send, malformed/ancillary data, deadlines and path/capture/unlink cleanup failure.
+Changed-document links and scoped whitespace passed. No package build,
+VM attempt or installed acceptance. Installed dependency identity
+remains unverified; reuse
 `record_execution_backend` on the next native run. Activation attempts remain two.
 
-**Next bounded result:** establish independently owned, bounded bus-client
-creation/closure so indefinitely delayed dispatch cannot pin a reference on the
-broker's long-lived connection. Upstream tracking checks sender existence and
-watches disconnect; qualify dispatch before/during/after close and keep stuck
-process cleanup uncertain. Reuse the current recovery path; do not add another
-create retry or disconnect the shared broker bus. Read `execution_probe.py`,
-its cleanup-safety regression, the owning contract and linked source findings.
-Then resolve original-job binding and qualify actual success/failure/cleanup.
+**Next bounded result:** integrate the locally tested channel with retained
+`ExecutionProbe` lifecycle and pending state. Authenticate captured manager,
+returned job, exact unit/command, MainPID and stable invocation before supplying
+`AdmissionBinding`; retain the directory/witness generation identity through
+settlement and validate terminal evidence against the admitted invocation.
+Test pre/post-admission replacement, mismatched manager metadata and terminal
+failure without admission replay or lost unit/client ownership. Then qualify
+guarded systemd success/failure/cleanup; channel frames are not those receipts.
+Keep the fixed boot canary and current positive refusal until the new path is
+qualified. Packaging/removal and immutable root-owned generation/digest
+preparation must precede the installed launch matrix. Full
+receipt sufficiency still requires rule records, daemon/input binding and
+forward/rollback/removal qualification.
+Task 15A remains the earliest ready entry on reapplying checklist order; none was bypassed.
+All-task VM clearance persists; readiness, not the historical hold, limits the
+current live attempt. No Task 20 R1 recovery work was brought forward or charged.
 
-**Cleanup/settings:** all commands exited; no VM, lease, worker, screenshot or
-owned background process started. No recovery or approval/Polkit denial remains.
-Unrelated edits preserved. Actual settings: **`gpt-6-astra` / `high`, Standard**.
+**Cleanup/settings:** all commands exited and results were collected. Captured
+compiler/gate/witness children and executor workers joined; owned sockets/pipes
+and retained directory descriptors closed, replacement fixtures reconciled,
+and native fixture temporary directories removed. Common-suite teardown passed.
+No VM, lease, host
+systemd probe, screenshot or background operation was started. Existing
+staged/untracked work was preserved. No recovery or approval/Polkit denial remains.
+Actual settings: **`gpt-6-astra` / `high`, Standard**.
 **Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
-**Reason:** eventual late-create and lost-release recovery now have refusal
-coverage; dedicated client cancellation/closure and original-job binding still
-require ownership/concurrency reasoning, so Astra high remains appropriate.
+**Reason:** native transport, single-use admission and socket cleanup are now
+locally proven. Manager/invocation authentication, replacement races and retained
+unit/client/generation ownership remain unresolved integration boundaries;
+retain Astra/high for that work, then reassess for settled implementation.
 
 ### Prior native qualification and scheduling history
 

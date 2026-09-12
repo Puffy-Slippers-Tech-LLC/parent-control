@@ -73,8 +73,44 @@ review changes no task order or completion status.
   [local refusal coverage](Evidence/15A-Bounded-Probe-Transport-20260911.md).
   Reuse its retained `pending`/`recover()` path for late creation and lost-release
   cleanup; [recovery evidence](Evidence/15A-Probe-Recovery-20260911.md) covers
-  per-adapter serialization and preservation of failed outcomes. Indefinite
-  dispatch settlement, original-job binding and live qualification remain open;
+  per-adapter serialization and preservation of failed outcomes. Reuse
+  `execution_probe.ProbeBusClient` for independently owned connection lifecycle;
+  [client-lifecycle evidence](Evidence/15A-Probe-Client-Lifecycle-20260911.md)
+  qualifies late-callback ownership locally and creation/refusal/cancellation on
+  a real private bus. The [integration evidence](Evidence/15A-Probe-Client-Integration-20260911.md)
+  qualifies owned-sender routing, same-bus validation and retained close recovery
+  locally, plus real pre-dispatch closure/observer survival. Ambiguous dispatch
+  keeps the sender for late reference release. The
+  [evidence-retention correction](Evidence/15A-Probe-Evidence-Retention-20260911.md)
+  also retains the reference until terminal evidence is copied: previously,
+  early release could let GC discard a late exit or failed snapshot's evidence.
+  Failing-before/passing-after local regressions qualify this correction;
+  [retained-reply extension](Evidence/15A-Probe-Retained-Reply-20260911.md)
+  qualifies late asynchronous success/error replies on a private bus and bounded
+  polling without replay or disconnect. The
+  [reply-integration evidence](Evidence/15A-Probe-Reply-Integration-20260911.md)
+  qualifies `ExecutionProbe.run/recover` use of the retained request, separate
+  reply/unit/client settlement, late-job copying and failure non-promotion
+  locally, plus collision cleanup over a real private bus. The
+  [job-identity audit/refusal](Evidence/15A-Probe-Job-Identity-20260911.md)
+  supersedes positive snapshot claims: systemd may merge/re-run the same job ID;
+  current matching exits are `identity-unproven`, with owned cleanup preserved.
+  Reuse the refusal regressions; another job-property bracket cannot solve this.
+  The selected [pre-exec admission design](../SystemDesign/Applications.md#pre-exec-admission-for-a-causal-witness)
+  binds a waiting gate's invocation/connection before one authorized target exec;
+  [source audit and planned cases](Evidence/15A-Probe-Admission-Design-20260911.md)
+  reject self-written markers and resettable start limits as substitutes. The
+  [native gate/witness evidence](Evidence/15A-Probe-Native-Admission-20260911.md)
+  qualifies local exec, failure/EOF, framing, ancillary refusal and deadlines;
+  reuse those payloads and the owning contract's wire/path interface. The broker
+  channel now has [local adapter qualification](Evidence/15A-Probe-Broker-Channel-20260911.md)
+  through `probe_channel.ProbeChannel`: one candidate, consumed admission,
+  bounded results and identity-checked socket cleanup. It compares supplied
+  peer bindings but does not authenticate manager/unit/job coordinates. Reuse
+  its safety/native regressions; manager binding, directory/witness ownership
+  and installed lifecycle integration remain unimplemented.
+  Permanent-loss settlement,
+  executable causal binding and installed qualification remain open;
   this dormant adapter is not a generation witness. Its
   [removal dependency](../SystemDesign/Package-Removal.md#execution-policy-baseline)
   applies to 18C as well as the policy/grant consumers above. No runtime policy
@@ -318,7 +354,7 @@ publish the bounded result once and retain each consumer's own acceptance.
 | --- | --- | --- |
 | [19B](Task-19.md#task-19b) | Accepted: reuse the [qualified GDM/serial helpers and regressions](#qualified-gdm-and-serial-helpers). E2E-001 supersedes E2E-034; retain one canonical ordinary smoke. | Three reviewed qualifications are retained in acceptance evidence; repeat qualification only for applicable changes. Ordinary runs must not multiply implementation-only qualification. |
 | [20](Task-20.md) | First complete [bounded recovery R1](Task-20.md#bounded-recovery--2026-09-11) over the current provenance/worker contracts. Then extend the [installation helper](#installation-helper-and-open-limits), [GDM/serial helpers](#qualified-gdm-and-serial-helpers), [startup enforcement observation](../../tests/e2e/README.md#startup-enforcement-observation), [broker witness](../../tests/e2e/README.md#broker-startup-observation), package assertions and asset transport. | Equivalent integrity and fresh recipient proof before changing check placement; actual authenticated installation/reboot and independent broker/fapolicyd readiness. Preserve the three declared cases and cumulative recovery checkpoints. |
-| [15A](Task-15.md#task-15a) | Extend F1's installed enforcement area and native/Snap/Flatpak case data; reuse the [notification recovery contract](../SystemDesign/Applications.md#notification-recovery-and-acknowledgement-limit), [generation-witness gate](../SystemDesign/Applications.md#generation-witness-design-gate), [bounded transport/recovery](../SystemDesign/Applications.md#bounded-probe-transport-and-open-limits) and [dependency capture/audit](Evidence/15A-Activation-Interface-Audit-20260911.md); publish launch witnesses for 25A. | Every required platform, route, identity/matching boundary and other-user outcome; notification, early markers and nonce denials cannot qualify activation. Fixed-canary transport and eventual late-create recovery have local refusal coverage; indefinite-dispatch settlement, original-job binding, live qualification and full receipts remain open. |
+| [15A](Task-15.md#task-15a) | Extend F1's installed enforcement area and native/Snap/Flatpak case data; reuse the [notification recovery contract](../SystemDesign/Applications.md#notification-recovery-and-acknowledgement-limit), [generation-witness gate](../SystemDesign/Applications.md#generation-witness-design-gate), [bounded transport/recovery and dispatch table](../SystemDesign/Applications.md#bounded-probe-transport-and-open-limits), [owned-client integration](Evidence/15A-Probe-Client-Integration-20260911.md), [evidence-retention correction](Evidence/15A-Probe-Evidence-Retention-20260911.md), [retained replies](Evidence/15A-Probe-Retained-Reply-20260911.md), [job-identity refusal](Evidence/15A-Probe-Job-Identity-20260911.md), [pre-exec admission design](Evidence/15A-Probe-Admission-Design-20260911.md), [native protocol qualification](Evidence/15A-Probe-Native-Admission-20260911.md), [broker channel qualification](Evidence/15A-Probe-Broker-Channel-20260911.md) and [dependency capture/audit](Evidence/15A-Activation-Interface-Audit-20260911.md); publish launch witnesses for 25A. | Every required platform, route, identity/matching boundary and other-user outcome; notification, early markers and nonce denials cannot qualify activation. Fixed-canary run/recovery, retained-reply integration and identity refusal have local coverage; Gio lifecycle, pre-dispatch cleanup and late reply retention have private-bus qualification. Current positive exits are identity-unproven. Native payloads and the broker socket channel have local exec/refusal, single-use and cleanup coverage. Manager/peer authentication, generation ownership, lifecycle integration, permanent-loss settlement, installed qualification and full receipts remain open. |
 | [15B](Task-15.md#task-15b) | One owned-process controller and rollback witness set serves later 17B/21B/25B/26A. | Kernel identity, all relevant sessions, irreversible partial termination and unrelated-process survival. |
 | [16A](Task-16.md#task-16a) | Share time/grant witnesses across arithmetic and separate clock scenarios. | Real Malcontent/AccountsService, both DST directions and midnight; controlled clocks never replace natural expiry. |
 | [16B](Task-16.md#task-16b) | Reuse real-caller/ownership helpers for PAM/session cases; publish observations for 22A. | Authentication/account phases, exemptions, unavailable/corrupt stores, idle/suspend and other-user isolation. |

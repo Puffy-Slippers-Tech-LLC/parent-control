@@ -9,6 +9,14 @@ every package transition; host mocks are supporting tests only.
 
 ## Implementation slices
 
+**Scheduling — 2026-09-11:** these installed package tests precede Task 20.
+Use the existing guarded runner's package/reboot setup. Reuse applicable
+[package and terminal helpers](Reuse-Map.md#installation-helper-and-open-limits),
+qualifying a missing capability in its first affected consumer and publishing
+the result for later tasks. Task 20's complete graphical clean-install
+acceptance is not required. Keep 18C's real continuous lifecycle and terminal
+notice assertions; setup-only evidence cannot replace those operations.
+
 Use the [implementation workflow](Implementation-Workflow.md). These are small
 work boundaries within the existing task, not extra acceptance checklists.
 Verification below is task acceptance; edits use the smallest affected selection.

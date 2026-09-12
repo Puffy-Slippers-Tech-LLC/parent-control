@@ -224,15 +224,16 @@ lease phase `complete`. Fresh VM status was off. All three private review
 exports were removed through the approved helper. All commands exited; no
 owned operation or recovery remains.
 
-**Next selection:** [Task 20](Task-20.md#task-20-continuation--2026-09-08) is the
-earliest ready unchecked entry, now that 19B is accepted. Audit E2E-002 and the
-assigned E2E-028 variants, then implement the first bounded clean-install
-journey capability. Preserve [15A's saved work](Task-15.md#task-15a-continuation--2026-09-08).
-No earlier entry is bypassed. The operator's all-task VM clearance remains
+**Scheduling update — 2026-09-11:** follow the
+[master checklist](Test-Automation.md#unfinished-tasks) and resume
+[15A's saved work](Task-15.md#task-15a-continuation--2026-09-08).
+The operator prioritized independent installed-app and everyday-family coverage
+before Task 20, superseding this acceptance handoff's original next selection.
+The operator's all-task VM clearance remains
 effective; no renewed coordination confirmation is due. Build fresh inputs
 after these documentation edits when the next live selection is ready.
 
-**Next-session settings:** follow [Task 20's active handoff](Task-20.md#task-20-continuation--2026-09-08)
+**Next-session settings:** follow the selected task's active handoff
 and [Continuation.md](Continuation.md). The shared model policy supersedes
 the old blanket pin; the settings in previous qualifications record those runs.
 **Remaining 19B:** **0 sessions / 0 minutes**; all acceptance requirements passed.

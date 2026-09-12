@@ -3,18 +3,24 @@
 Updated: 2026-09-11. The [master checklist](Test-Automation.md#unfinished-tasks)
 owns task order and completion.
 
-- Next: [Task 20 recovery R1](Task-20.md#task-20-continuation--2026-09-08).
-  Correct baseline-validation timing and recipient freshness with equivalent
-  integrity protection; establish stable execution inputs, then qualify VT6.
-  Local execution-design work is ready. No unchanged source-stability VM attempt.
-- Follow [bounded recovery](Task-20.md#bounded-recovery--2026-09-11) through the
-  clean case and two startup faults before ordinary checklist selection resumes.
-  Preserve [15A](Task-15.md#task-15a-continuation--2026-09-08); no automatic fallback.
-- Ledger: implementation not started; 0 charged hours, 0 new attempts; next
-  checkpoint 4 hours; decision hold none. Keep cumulative totals in Task 20.
-  An unmet stop checkpoint returns `blocked/decision` after cleanup.
+- Next: [Task 15A](Task-15.md#task-15a-continuation--2026-09-08).
+  Establish independently owned, bounded bus-client creation/closure so delayed
+  dispatch cannot pin a reference on the broker's long-lived connection; then
+  resolve original-job binding and qualify success/failure/cleanup.
+- The operator prioritized Tasks 15–18, 21–27 and 28A before Task 20, especially
+  installed-app behavior and families' everyday journeys. Select in
+  master-checklist order with actual dependencies; 28B/C remain after Task 20.
+  Verified installation is prerequisite setup. Qualify any missing shared
+  helper with the first affected consumer and publish evidence for reuse;
+  this does not require full Task 20 acceptance or waive its coverage.
+  This supersedes the Task 20-first scope.
+- Preserve [Task 20 recovery R1](Task-20.md#task-20-continuation--2026-09-08)
+  for resumption in checklist order. Its ledger remains 0 charged hours and
+  0 new attempts, next checkpoint 4 hours, decision hold none. Its recovery
+  checkpoints apply when Task 20 resumes or an earlier consumer brings forward
+  R1 recovery; charge only that recovery portion, not unrelated consumer work.
 - All-task VM clearance persists. Stable live inputs remain required; historical
   one-slice overrides stay consumed. No launcher or VM was started by this update.
 - Settings: **`gpt-6-astra` / `high`**.
-  Reason: validation lifetime, source ownership and recipient freshness need
-  review together before live qualification; use Sol high once settled.
+  Reason: dedicated client cancellation/closure and original-job binding still
+  require ownership/concurrency reasoning; use Sol high once settled.

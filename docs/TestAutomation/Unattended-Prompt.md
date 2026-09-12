@@ -67,8 +67,12 @@ run. A failed test is work to diagnose within the plan, not evidence of success.
 If a task is blocked, retain its blocker and select independent ready work as
 the workflow permits. An explicit operator-scoped cumulative recovery plan takes
 precedence: carry its ledger across sessions, check its outcome thresholds, and
-do not select fallback work when that plan requires a decision. For Task 20 use
-Task-20.md#bounded-recovery--2026-09-11 and its active handoff. At an unmet stop
+do not select fallback work when that plan requires a decision. When Task 20
+resumes in checklist order, use Task-20.md#bounded-recovery--2026-09-11 and its
+active handoff; its retained scope does not override the newer priority for
+independent work in the master checklist. Earlier consumers may qualify shared
+helpers; record any R1 recovery portion in its ledger and apply its checkpoints
+to further recovery work without blocking unrelated tasks. At an unmet stop
 checkpoint, finish owned work and cleanup, save the exact required decision,
 then return status=blocked and blocker=decision with truthful progress/cleanup.
 Do not reset the budget on restart or alter launcher control state. The current

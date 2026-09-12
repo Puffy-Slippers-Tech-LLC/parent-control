@@ -230,8 +230,13 @@ the latch. Release-tool changes continued after cleanup. The
 source execution and baseline-validation timing/freshness before further live
 qualification. A quiet status alone does not establish a source window, but
 missing historical completion evidence does not prevent local recovery work.
-The one-slice intervention stays consumed; Task 15A's notification/probe progress
-is preserved for later resumption. R1 may change check placement only with
+The one-slice intervention stays consumed. The operator now prioritizes Tasks
+15–18, 21–27 and 28A before Task 20; resume 15A's notification/probe work under
+its current handoff. Full Task 20 acceptance is not their prerequisite; a
+consumer needing VT6 or another unqualified helper must first qualify that
+specific capability and publish its evidence. R1's plan and ledger remain
+preserved; charge any R1 recovery brought forward to its ledger without
+charging unrelated consumer work. R1 may change check placement only with
 equivalent integrity protection and qualification; the existing provenance
 contract remains implemented behavior until that correction is accepted.
 Sudo/notice pixels remain pending.
@@ -302,6 +307,12 @@ must verify affected consumers; keep unresolved limitations linked until closed
 with evidence.
 
 ## Installed and runner work
+
+The [master checklist](Test-Automation.md#unfinished-tasks) owns execution order;
+rows below group reusable interfaces. Shared observations attributed to Task 20
+may be qualified by an earlier consumer without waiting for all of Task 20.
+Preserve provenance, ownership, privacy and live-qualification requirements;
+publish the bounded result once and retain each consumer's own acceptance.
 
 | Task | Reuse and opportunity | Quality boundary to retain |
 | --- | --- | --- |

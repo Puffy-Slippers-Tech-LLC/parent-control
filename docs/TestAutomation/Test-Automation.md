@@ -147,23 +147,40 @@ not override an earlier task whose blocker has cleared. No second checklist is
 needed for individual slices.
 
 The order delivers focused feedback and resolves graphical feasibility first,
-then proves installed authorization and the graphical install path before
-expanding policy/lifecycle matrices. Later tasks extend these helpers. Required
+then prioritizes installed-app behavior and families' everyday graphical
+journeys before the clean-install journey. Later tasks extend these helpers. Required
 coverage remains unchanged; these milestones are partial implementation results,
 not release passes. Use measured slice/attempt times to forecast remaining work.
 
-**Current operator scope — 2026-09-11:** execute
-[Task 20 bounded recovery](Task-20.md#bounded-recovery--2026-09-11) before another
-15A fallback slice. Carry its cumulative ledger and stop checkpoints through
-fresh sessions. Resume the order below after Task 20 acceptance; a required
-recovery decision stops continuation without marking the task complete.
+**Current operator scope — 2026-09-11:** prioritize all work that does not need
+Task 20 acceptance before it: Tasks 15–18, 21–27 and 28A, preserving their
+actual dependencies. Installed cases reuse verified installation/reboot setup,
+as Task 14 did; graphical daily-use cases reuse Task 19B's accepted runner.
+Task 21A's former Task 20 dependency was an installation-setup dependency and
+is corrected in its task. Task 17A is unit/component coverage; Tasks 27/28A
+complete evidence and dispatch infrastructure without claiming a release pass.
+Task 20 separately proves clean graphical installation and startup faults;
+28B's complete release gate and 28C's accepted-results runbook remain after it.
+
+Shared terminal, reboot, startup-observation and provenance helpers still need
+their applicable qualification. The first affected consumer may complete that
+bounded prerequisite under the [reuse workflow](Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work)
+and publish evidence for Task 20; helper reuse does not require full Task 20
+acceptance or make unqualified behavior available. Tasks 18C/26C retain their
+own complete package journeys and real customer operations where required.
+Record any concrete helper blocker against its affected task and continue
+independent ready work; do not turn a task number into a blanket dependency.
+
+This supersedes the earlier Task 20-first recovery scope. Preserve its
+[bounded recovery](Task-20.md#bounded-recovery--2026-09-11), cumulative ledger
+and checkpoints for when checklist selection returns to Task 20 or brings
+forward R1 recovery. Its unfinished acceptance alone does not block earlier work.
 
 - [x] [Task F1 — Focused installed diagnosis, moved forward from Tasks 28/27](Task-F1.md)
 - [x] [Task 19P — Prove graphical backend compatibility](Task-19.md#task-19p)
 - [x] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md)
 - [x] [Task 19A — Add the guarded os-autoinst worker and console transport](Task-19.md#task-19a)
 - [x] [Task 19B — Add stable screen matching and graphical smoke](Task-19.md#task-19b)
-- [ ] [Task 20 — Automate clean installation, reboot, and startup readiness](Task-20.md)
 - [ ] [Task 15A — Test installed catalog and application launch enforcement](Task-15.md#task-15a)
 - [ ] [Task 15B — Test process confinement and execution-policy rollback](Task-15.md#task-15b)
 - [ ] [Task 16A — Test real usage, grant arithmetic, midnight, and DST](Task-16.md#task-16a)
@@ -190,5 +207,6 @@ recovery decision stops continuation without marking the task complete.
 - [ ] [Task 27B — Wire the remaining runners to the evidence contract](Task-27.md#task-27b)
 - [ ] [Task 27C — Finish bounded waits and flake classification](Task-27.md#task-27c)
 - [ ] [Task 28A — Implement the four test commands, CI, and the comprehensive gate](Task-28.md#task-28a)
+- [ ] [Task 20 — Automate clean installation, reboot, and startup readiness](Task-20.md)
 - [ ] [Task 28B — Audit executable traceability and pass the release gate](Task-28.md#task-28b)
 - [ ] [Task 28C — Finish the operator runbook and evidence index](Task-28.md#task-28c)

@@ -27,7 +27,6 @@ from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.errors import (
     ErrorHandler, install_exception_hooks, show_startup_error,
 )
-from common.oh_no_parent_control_ui.test_identities import preview_users
 
 from .model import RequestState, public_error
 from .request_content import RequestContent
@@ -99,50 +98,6 @@ GATEWAY_FORM_YAW_DEGREES = 10.0
 GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0
 PREVIEW_DEFAULT_WIDTH = 1918
 PREVIEW_DEFAULT_HEIGHT = 1443
-PREVIEW_USERS = preview_users("child")
-PREVIEW_APPROVERS = preview_users("parent")
-PREVIEW_PREFERENCES = {
-    1001: {
-        "parent_control_enabled": True,
-        "request": {
-            "last_selected_duration": "1800",
-            "last_custom_minutes": 30,
-            "allow_soft_blocked_apps": False,
-        },
-    },
-    1002: {
-        "parent_control_enabled": False,
-        "request": {
-            "last_selected_duration": "1800",
-            "last_custom_minutes": 30,
-            "allow_soft_blocked_apps": False,
-        },
-    },
-    1003: {
-        "parent_control_enabled": True,
-        "request": {
-            "last_selected_duration": "1800",
-            "last_custom_minutes": 30,
-            "allow_soft_blocked_apps": False,
-        },
-    },
-    1004: {
-        "parent_control_enabled": True,
-        "request": {
-            "last_selected_duration": "1800",
-            "last_custom_minutes": 30,
-            "allow_soft_blocked_apps": False,
-        },
-    },
-    1005: {
-        "parent_control_enabled": True,
-        "request": {
-            "last_selected_duration": "1800",
-            "last_custom_minutes": 30,
-            "allow_soft_blocked_apps": False,
-        },
-    },
-}
 LOG = logging.getLogger("oh-no-parent-control")
 
 
@@ -1325,6 +1280,8 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _load_users(self, *_args):
         if self._preview and not self._interactive_preview:
+            from .preview_data import PREVIEW_APPROVERS, PREVIEW_USERS
+
             users = PREVIEW_USERS[:1] if self._child_overlay else PREVIEW_USERS
             self._request_content.set_loading()
             self._request_content.set_accounts(users)
@@ -1370,6 +1327,8 @@ class RequestWindow(Adw.ApplicationWindow):
     def _load_preferences(self, target_uid):
         self._queue_time_estimate()
         if self._preview and not self._interactive_preview:
+            from .preview_data import PREVIEW_PREFERENCES
+
             self._applying_preferences = True
             try:
                 self._request_content.set_preferences(PREVIEW_PREFERENCES[target_uid])
@@ -1787,9 +1746,11 @@ class Application(Adw.Application):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    preview_available = Path(__file__).with_name("preview_data.py").is_file()
     parser.add_argument(
         "--preview", action="store_true",
-        help="render the kiosk UI with fixture data and no privileged services",
+        help=("render the kiosk UI with fixture data and no privileged services"
+              if preview_available else argparse.SUPPRESS),
     )
     parser.add_argument(
         "--child-overlay", action="store_true",
@@ -1800,6 +1761,8 @@ def main(argv=None):
         help="review a Child App error received on standard input (requires --child-overlay)",
     )
     args = parser.parse_args(argv)
+    if args.preview and not preview_available:
+        parser.error("--preview is only available from the development checkout")
     if args.error_report_stdin and not args.child_overlay:
         parser.error("--error-report-stdin requires --child-overlay")
     report_error = RuntimeError(sys.stdin.read(3500)) if args.error_report_stdin else None

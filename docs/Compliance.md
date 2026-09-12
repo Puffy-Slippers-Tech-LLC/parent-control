@@ -67,7 +67,13 @@ no separate publisher-maintained asset document or checklist.
 
 `debian/copyright` is the machine-readable package copyright record. It must cover every distributed file class, identify the upstream source, and include or reference the required license text and notices. The built package must install it as `/usr/share/doc/oh-no-parent-control/copyright`.
 
-The package also installs the product license, copyright, `NOTICE`, README, compliance guide, and system design under `/usr/share/doc/oh-no-parent-control/`. The extension payload includes the GPL text, copyright, and notice because it may be distributed separately from the main package.
+The package also installs the product license, copyright, and `NOTICE` under
+`/usr/share/doc/oh-no-parent-control/`, alongside Debian's copyright record and
+changelog. The README and everything under `docs/` are developer documentation
+and are excluded from the binary package. Preview code, fixtures, and preview
+artwork remain in the source checkout and source distribution only. The
+extension payload includes the GPL text, copyright, and notice because it may
+be distributed separately from the main package.
 
 ## Release checklist
 

@@ -152,6 +152,12 @@ expanding policy/lifecycle matrices. Later tasks extend these helpers. Required
 coverage remains unchanged; these milestones are partial implementation results,
 not release passes. Use measured slice/attempt times to forecast remaining work.
 
+**Current operator scope — 2026-09-11:** execute
+[Task 20 bounded recovery](Task-20.md#bounded-recovery--2026-09-11) before another
+15A fallback slice. Carry its cumulative ledger and stop checkpoints through
+fresh sessions. Resume the order below after Task 20 acceptance; a required
+recovery decision stops continuation without marking the task complete.
+
 - [x] [Task F1 — Focused installed diagnosis, moved forward from Tasks 28/27](Task-F1.md)
 - [x] [Task 19P — Prove graphical backend compatibility](Task-19.md#task-19p)
 - [x] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md)

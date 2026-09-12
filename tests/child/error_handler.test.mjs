@@ -75,10 +75,49 @@ test('failed extension startup remains failed with a public exception and a priv
         Extension: class {},
         ChildErrorHandler: class { report(error) { reports.push(error); } },
         logInfo() {},
-        isPreview() { throw original; },
+        appName() { throw original; },
     });
     vm.runInContext(source, context);
     assert.throws(() => new context.ExtensionUnderTest().enable(),
         {message: 'Child App could not start; see the error report.'});
     assert.equal(reports[0], original);
+});
+
+test('production extension uses live state while the separate preview supplies fixtures', () => {
+    const indicators = [];
+    const context = vm.createContext({
+        Extension: class { getSettings() { return {}; } },
+        ChildErrorHandler: class { report(error) { throw error; } },
+        RemainingTimeIndicator: class { constructor(...args) { indicators.push(args); } },
+        appName: () => 'Parent Control',
+        appLogoPath: () => '/product-logo.png',
+        logInfo() {},
+        GLib: {getenv() { throw new Error('Production must not read preview overrides'); }},
+    });
+    const source = readFileSync(new URL('../../child/extension.js', import.meta.url), 'utf8')
+        .replace(/^import[\s\S]*?;\n/gm, '')
+        .replace('export default class OhNoParentControlExtension',
+            'globalThis.OhNoParentControlExtension = class OhNoParentControlExtension');
+    vm.runInContext(source, context);
+    const production = new context.OhNoParentControlExtension();
+    production.enable();
+    assert.deepEqual(Array.from(production._requestAppArgv()),
+        ['/usr/bin/oh-no-parent-control', '--child-overlay']);
+    assert.equal(indicators[0][1], 0);
+    assert.equal(indicators[0][2], false);
+    assert.equal(indicators[0][4], '');
+
+    context.GLib = {getenv: () => 'preview-app', shell_parse_argv: () => [true, ['preview-app']]};
+    context.previewStartsWithRequestOpen = () => false;
+    context.previewGenerationMarker = () => 'generation-one';
+    const previewSource = readFileSync(new URL('../../child/previewExtension.js', import.meta.url), 'utf8')
+        .replace(/^import[\s\S]*?;\n/gm, '')
+        .replace('export default class PreviewExtension', 'globalThis.PreviewExtension = class PreviewExtension');
+    vm.runInContext(previewSource, context);
+    const preview = new context.PreviewExtension();
+    preview.enable();
+    assert.deepEqual(Array.from(preview._requestAppArgv()), ['preview-app']);
+    assert.equal(indicators[1][1], 45 * 60);
+    assert.equal(indicators[1][2], true);
+    assert.equal(indicators[1][4], 'generation-one');
 });

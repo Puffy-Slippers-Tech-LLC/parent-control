@@ -8,8 +8,8 @@ import os
 import sys
 import time
 
-from parent.oh_no_parent_control_parent.main import (
-    Application,
+from parent.oh_no_parent_control_parent.main import Application
+from parent.oh_no_parent_control_parent.preview_data import (
     PREVIEW_APPS,
     PREVIEW_PREFERENCES,
     PREVIEW_USERS,

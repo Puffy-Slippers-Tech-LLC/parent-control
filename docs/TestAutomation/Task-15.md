@@ -64,52 +64,53 @@ Verification below is task acceptance; edits use the smallest affected selection
 
 ## Task 15A continuation — 2026-09-08
 
-**Current handoff — 2026-09-11: kernel-witness counterexamples established;
-bounded probe execution is the next implementation gate. 15A remains unchecked.**
-Task 20's [source-change deferral](Task-20.md#task-20-continuation--2026-09-08)
-was rechecked at entry and handoff: no new completion/window evidence establishes
-its return condition. Return there first when ready. All-task VM clearance
-persists; the consumed intervention adds no scheduling priority or permission hold.
+**Current handoff — 2026-09-11: late-create recovery implemented and locally
+verified; indefinite-dispatch settlement remains open. 15A stays unchecked.**
+**Scheduling update — 2026-09-11:** the operator selected
+[Task 20 bounded recovery](Task-20.md#bounded-recovery--2026-09-11).
+Its execution-design work is ready despite the remaining live-source condition.
+Preserve the result and next 15A action below for resumption after Task 20;
+do not take another fallback slice or bypass its recovery checkpoints.
+All-task VM clearance persists. The old one-slice intervention stays consumed.
 
-**Result:** source audit found that v1.4.5 reload ignores the parser's failure
-return and that queue overflow can deny without evaluating a rule. Early
-markers and nonce-denial receipts are therefore unsafe. Python subprocess
-timeouts also do not bound initial process creation. The
-[owning design gate](../SystemDesign/Applications.md#generation-witness-design-gate),
-[removal contract](../SystemDesign/Package-Removal.md#execution-policy-baseline),
+**Result:** `ExecutionProbe.pending/recover()` retains the attempt before
+dispatch and through interrupted release, blocks another creation while cleanup
+is uncertain, and serializes overlapping operations. Eventual late creation and
+lost release replies can now be collected without replay or process signals.
+Recovery preserves the failed outcome. The public `NotReferenced` error name
+was corrected in the double. Reuse the existing finite Gio calls, packaged
+canary, evidence pinning and sender-only release under the
+[owning transport contract](../SystemDesign/Applications.md#bounded-probe-transport-and-open-limits),
 [reuse map](Reuse-Map.md#existing-interfaces-to-find-once) and
-[new evidence](Evidence/15A-Kernel-Witness-Audit-20260911.md) record the proposed
-positive decision/kernel witness, its unresolved proof obligations, and why
-existing boot/terminal helpers cannot bound a stalled exec. No product code or
-probe protocol was implemented; acknowledgement remains a substantive design
-and implementation gap, not a waiting-for-VM task.
+[recovery evidence](Evidence/15A-Probe-Recovery-20260911.md).
+The adapter remains dormant. Its guard is per retained instance; indefinite
+absence still leaves a pending reference-lifetime risk. Original-job binding,
+generation receipts, fresh paths, rollback/removal, installed qualification,
+native routes/update and Snap/Flatpak acceptance remain open.
 
-**Verification:** upstream interface/source and local adapter/recovery/removal
-review; changed links and scoped whitespace checks. No product tests, build,
-live attempt or acceptance check ran for this documentation-only audit. The
-[prior capture verification](Evidence/15A-Activation-Interface-Audit-20260911.md)
-retains its 19 initial failures and corrected 191-test/8-subtest pass. Installed
-dependency identity is still unverified; reuse `record_execution_backend` on
-the next native run. The activation attempt count remains two. Full receipt
-semantics, routes/update, Snap/Flatpak and all task acceptance remain open.
+**Verification:** 64 focused tests and 24 subtests passed, including 37 probe
+cases. Exact selection and upstream findings are in the evidence; no test failed.
+No build, VM attempt or full acceptance suite ran. Changed-document links and
+scoped whitespace checks passed. Unrelated edits were preserved.
+Installed dependency identity remains unverified; reuse
+`record_execution_backend` on the next native run. Activation attempts remain two.
 
-**Next bounded result:** implement and locally test the narrowly scoped owned
-probe operation over systemd's public transient-service API, reusing the Gio
-transport. Cover normal execution, exec failure, startup timeout, lost create
-reply, collision/replacement and terminal-evidence/cleanup failure. Do not
-signal by guessed unit name or treat generic exec failure as a fapolicyd deny.
-The evidence gives the missing capability and acceptance gate. Resolve this
-ownership boundary before wiring the full decision/compiled-input receipt and
-fresh rollback/removal witnesses. Installed qualification follows local refusal
-coverage with fresh stable inputs and the actual dependency-version audit.
+**Next bounded result:** establish independently owned, bounded bus-client
+creation/closure so indefinitely delayed dispatch cannot pin a reference on the
+broker's long-lived connection. Upstream tracking checks sender existence and
+watches disconnect; qualify dispatch before/during/after close and keep stuck
+process cleanup uncertain. Reuse the current recovery path; do not add another
+create retry or disconnect the shared broker bus. Read `execution_probe.py`,
+its cleanup-safety regression, the owning contract and linked source findings.
+Then resolve original-job binding and qualify actual success/failure/cleanup.
 
 **Cleanup/settings:** all commands exited; no VM, lease, worker, screenshot or
 owned background process started. No recovery or approval/Polkit denial remains.
 Unrelated edits preserved. Actual settings: **`gpt-6-astra` / `high`, Standard**.
 **Next-session settings:** `gpt-6-astra` / `high`; model: keep; effort: keep.
-**Reason:** new source counterexamples narrow the witness, and systemd provides
-a supported execution candidate; lost-reply ownership, evidence lifetime and
-timeout cleanup remain unresolved security/concurrency work requiring Astra high.
+**Reason:** eventual late-create and lost-release recovery now have refusal
+coverage; dedicated client cancellation/closure and original-job binding still
+require ownership/concurrency reasoning, so Astra high remains appropriate.
 
 ### Prior native qualification and scheduling history
 

@@ -1,5 +1,10 @@
 ### Task 20 — Automate clean installation, reboot, and startup readiness
 
+The [bounded recovery](#bounded-recovery--2026-09-11) and
+[active handoff](#task-20-continuation--2026-09-08) govern the next launcher work.
+They supersede historical instructions to repeat unchanged VT6 qualification or
+fall back to Task 15A while the execution-design work below remains ready.
+
 Follow [E2E-Coverage.md](E2E-Coverage.md). Audit the existing E2E-002 and assigned
 E2E-028 variants before implementing gaps; real customer steps
 and declared OS fault controls must have distinct categories and evidence.
@@ -12,7 +17,7 @@ Verification below is task acceptance; edits use the smallest affected selection
 
 | Task | First proof, then expansion |
 | --- | --- |
-| 20 | One real clean install/reboot/readiness journey; then separately declared startup failures. |
+| 20 | Correct input stability and validation timing; qualify the existing visible terminal; complete one clean install/reboot/readiness journey and the two declared startup failures. |
 
 - Depends on: Task 19B.
 - Complexity: high. This is the first complete release-path graphical job.
@@ -80,46 +85,182 @@ output stays plain text.
   installation and reboot with visible and backend readiness evidence. Register
   and run the separate E2E-028 startup-failure variants as well.
 
+### Bounded recovery — 2026-09-11
+
+**Operator direction:** update the existing tasks and handoff so the ordinary
+launcher carries out the course correction. This is the active work plan, not
+another review or one-slice override. Retain the current VM, baseline, guarded
+controller, serial observations and VT6 path. Required product coverage, privacy,
+provenance, ownership and cleanup remain mandatory. Resume ordinary checklist
+selection after Task 20 acceptance; preserve Task 15A until then. A concrete
+unresolvable dependency or a failed recovery checkpoint requires a decision,
+rather than automatic fallback that hides Task 20's cost.
+
+**Reasons to change execution:** the [serial terminal cannot supply notice
+pixels](Evidence/20-Graphical-Notice-Boundary-20260909.md); complete the existing
+VT6 surface rather than starting a third transport. Authentication currently
+performs ten full baseline rechecks. [Attempt 10](Evidence/20-VT6-Command-and-Shutdown-20260911.md)
+spent 802.363 seconds on them and [attempt 11](Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
+spent 690.364 seconds, approximately 77% and 74% of worker time. A
+[69-second check outlasted the stock 60-second login window](Evidence/20-VT6-Revalidation-Timing-20260910.md).
+Timeout increases enabled progress but left the expensive check between prompt
+observation and input. Source changes then invalidated attempts 11 and 12.
+The launcher accepts per-slice progress without measuring cumulative milestone
+cost; apply the checkpoints below through its existing structured result.
+
+| Order | Observable result and required work | Current state | Planning allowance |
+| --- | --- | --- | --- |
+| R1 | Establish stable execution inputs and correct validation timing/freshness; qualify the existing VT6 authentication through final preservation. | Ready for execution-design implementation; twelve historical outer VT6 authentication attempts failed. Attempt 11 has live command/shutdown stage evidence. | 6–10 hours |
+| R2 | Register and pass `E2E-002/clean`: visible authenticated installation and final red notice, actual reboot, GDM return, independent broker/fapolicyd readiness, layout and other-user evidence. | Callback pending. Serial installation/notice qualified; reboot has stage evidence; startup/layout observers locally tested. | 8–14 hours |
+| R3 | Register and pass `E2E-028/startup-enforcement` and `E2E-028/startup-broker` independently, proving failure before recovery in each complete attempt. | Both callbacks/fault controls pending. | 6–10 hours |
+| R4 | Complete current-input package/system and common acceptance checks, remaining corrections, evidence reconciliation and cleanup. | Pending R1–R3. | 4–6 hours |
+
+These are work boundaries under the existing single Task 20 checklist entry.
+The finite product finish line is the three named cases, all required assertions
+and evidence, affected checks and verified cleanup. Local helper passes do not
+replace complete cases. Retain the workflow's three complete qualification
+smokes for new graphical/cleanup transport and record their scope; do not repeat
+unaffected qualification merely because a chat changes.
+
+**R1 implementation contract:**
+
+1. Read the current `Authentication.observe` → `VerifiedInputs.recheck` →
+   `baseline_inputs` → `Capture.verify_snapshot` call chain and held-lease guard
+   together. Reuse [provenance](../../tests/e2e/README.md#controller-owned-provenance),
+   [VT6](../../tests/e2e/README.md#visible-vt6-installation-terminal) and
+   [worker ownership](../../tests/e2e/README.md#shared-guarded-worker). The known
+   latency and source-coupling defects justify reopening these boundaries;
+   another prompt collector or narrower failure label does not.
+2. Separate expensive backing-content verification from immediate domain,
+   worker, boot, prompt and recipient checks. Establish the protection lifetime
+   before moving any full check: retained write exclusion or another reviewed
+   integrity mechanism must preserve the guarantee through the interval.
+   Cached digests, metadata equality or pre/post hashing alone do not prove
+   protection against transient mutation. Retain full validation at required
+   safe boundaries and latch failures. Place fresh recipient verification next
+   to authorization/input; the present expensive post-recipient recheck ages
+   that evidence. Preserve current checks until the replacement is demonstrated.
+   Do not use another timeout increase as the primary correction.
+3. Resolve execution-source ownership. An explicitly owned stable-input window
+   through cleanup is the smallest supported route. Missing old writer-completion
+   evidence does not prove a writer is active now and does not prevent local R1
+   work. Do not infer a window from Git cleanliness or two quiet status reads,
+   or spend another VM run testing whether writing continues. If concurrent
+   writing must continue, implement only the necessary immutable source capture
+   through the maintained pinned dispatcher, binding controller imports, harness,
+   inventory and assets to the captured inputs. A worktree or package-only copy
+   does not supply that contract. This narrow capability moves forward from
+   [28A](Task-28.md#task-28a); broader build caching and CI remain there. Preserve
+   unrelated files and never bypass the fixed-checkout or VM guards.
+4. Exercise realistic delayed callbacks, actual descriptor/terminal behavior
+   and standalone import paths where affected, plus mutation/replacement,
+   wrong-recipient, refusal and cleanup cases. Reuse the
+   [joined-flow regressions](Evidence/20-VT6-Joined-Flow-20260910.md). First prove
+   the changed execution contract locally, then run isolated safety and the
+   existing `tools/run-tests integration check_graphical_vt6_authentication`
+   route with stable inputs. Product-free qualification needs no package build.
+   Record component timing, all receipts, normal shutdown and final preservation.
+   Carry historical failures forward; do not count a renamed refusal as closure.
+
+Once R1 is qualified, compose the existing helpers into R2 before expanding
+further infrastructure. Preserve safe capture around sudo and the real terminal
+notice. Size the complete journey's finite deadline from the composed stages,
+not the current authentication-only budget. R3 faults must independently prove
+fapolicyd/GDM denial and broker publication denial; GDM need not depend on broker
+readiness. Other tasks may use verified installation as a prerequisite.
+
+**Estimate and continuation checkpoints:** 24–40 focused working hours, roughly
+3–5 eight-hour days, is a low-confidence planning range for this task only. It
+assumes prepared VM availability, stable inputs, reuse of current helpers and no
+major new product defect or broad privilege redesign. Re-estimate from actual
+complete-case results; do not present the range as measured agent throughput.
+
+Maintain the recovery ledger in the active handoff. Start its clock at the first
+R1 implementation slice; count that slice and all subsequent Task 20 working
+time, including owned verification/VM waits. Exclude gaps between sessions and
+this documentation review. Record start/end times, slice hours, cumulative hours,
+attempt counts and accepted milestones before handing off. Interrupted slices
+retain their start and owned recovery time. Never reset totals on a new chat,
+model, predicate, restart or revised estimate; do not reconstruct old transcripts.
+
+- **4 hours:** require controlled inputs plus a complete authenticated
+  qualification, or a locally demonstrated execution-design correction with
+  the exact remaining qualification action. Otherwise finish cleanup and stop
+  for a concrete design/owner decision; another diagnostic label is insufficient.
+- **16 hours:** require one complete `E2E-002/clean` attempt reaching product
+  assertions with attributable outcomes. If still confined to login/harness
+  setup, stop for a changed approach. A failed product assertion stays failed.
+- **24 hours:** update the forecast from the actual clean-case outcome and both
+  fault implementations; list remaining defects/owners. This does not extend
+  the 40-hour limit.
+- **40 hours:** deliver acceptance or stop with exact unfinished cases, causes
+  and a revised proposal. No automatic renewal or fallback task.
+
+Evaluate at safe boundaries; finish owned work/collection/cleanup before stopping.
+At an unmet stop checkpoint, keep Task 20 unchecked and return the existing
+launcher fields `status=blocked`, `blocker=decision`, truthful `made_progress`
+and actual `cleanup_complete`. The decision is renewal/change of this bounded
+work, not renewed VM permission. Keep it pending across later launches until
+resolved; merely restarting does not reset it. Do not fake completion/no-progress,
+change launcher control files, launch a nested supervisor or add a new scheduler.
+The [unattended prompt](Unattended-Prompt.md) applies this explicit recovery scope
+before ordinary independent-task fallback.
+
 ### Task 20 continuation — 2026-09-08
 
-**Current handoff — 2026-09-11: source-change deferral rechecked; no new Task 20
-attempt. Task 20 remains scoped-deferred and unaccepted.**
+**Current handoff — 2026-09-11: bounded recovery R1 selected by the operator;
+implementation has not started. Task 20 remains unaccepted.**
 
-No writer-completion or arranged-pause evidence established a stable input
-window at entry or handoff; the release-tool additions remain present, which
-alone does not prove ongoing writes or a stable window. The consumed intervention
-delivered [notification recovery](Evidence/15A-Notification-Recovery-20260911.md).
-This slice advanced the independent
-[15A kernel-witness audit](Evidence/15A-Kernel-Witness-Audit-20260911.md):
-queue-overflow denials and ignored parser failures invalidate candidate
-receipts; the next gate is bounded owned probe execution. No Task 20 experiment
-was repeated. This is new source evidence, not runtime qualification.
-Normal checklist selection resumes with
-[15A's active acknowledgement boundary](Task-15.md#task-15a-continuation--2026-09-08).
-Task 20's blocker is the retained attempt-12 source addition and subsequent
-release-tool activity, not Git dirtiness or the cleared historical VM hold.
-Return when that writer's completion or an arranged pause covers capture through
-cleanup; a quiet status alone is insufficient. Then capture fresh inputs and
-run the existing guarded VT6 authentication route through final preservation.
-Reuse the [provenance contract](../../tests/e2e/README.md#controller-owned-provenance)
-and [installation helper](Reuse-Map.md#installation-helper-and-open-limits);
-no prompt, shutdown or provenance implementation changed in this slice.
+**Next observable result:** implement and locally verify the smallest safe
+correction to baseline-validation timing and recipient freshness, while resolving
+stable source execution under the [R1 contract](#bounded-recovery--2026-09-11).
+Then qualify the existing VT6 route through final preservation. Do not run the
+unchanged source-stability experiment or switch to 15A while this work is ready.
+The former source deferral still limits live runs until inputs are controlled;
+it does not block local execution-design work or establish current writer activity.
 
-All twelve outer attempts remain failed. Authentication qualification,
-sudo/notice pixels, E2E-002 and both startup faults remain unaccepted. No new
-VM/worker/lease/screenshot was started; all local commands exited and temporary
-test fixtures closed. No approval/Polkit denial or outstanding recovery.
-All-task VM clearance persists. Actual settings: `gpt-6-astra/high`, Standard.
-Next-session settings for selected 15A: `gpt-6-astra/high`; model/effort: keep.
-Reason: systemd offers a supported bounded probe candidate, while lost-reply
-ownership, evidence lifetime and cleanup remain unresolved security/concurrency.
-For Task 20 when eligible,
-reassess against the actual source-stability evidence before launch.
+**Read next:** `tests/e2e/vt6_authentication.py`, `tests/e2e/provenance.py`,
+`tests/integration/prepare_host.py:Capture.verify_snapshot`,
+`tests/integration/system_runner.py:Lease.guard`, the
+[owning provenance contract](../../tests/e2e/README.md#controller-owned-provenance)
+and [installation reuse record](Reuse-Map.md#installation-helper-and-open-limits).
+Reuse existing delayed-callback/ownership, provenance and VT6 regressions;
+inspect source-capture/dispatcher code only for the missing input-lifetime
+capability. Guard scheduling may change only with equivalent integrity proof.
+
+**Retained evidence:** installation/reboot has 21 attempts (three historical
+helper passes/eighteen failures); VT6 authentication has twelve failed outer
+attempts. [Attempt 11](Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
+completed all authentication/command receipts and normal shutdown; source
+preservation failed. [Attempt 12](Evidence/20-VT6-Fresh-Input-Refusal-20260911.md)
+refused new source additions before worker startup. Sudo/notice pixels,
+`E2E-002/clean` and both startup faults remain unaccepted. Preserve these results
+and [15A's dormant probe progress](Task-15.md#task-15a-continuation--2026-09-08).
+
+**Recovery ledger:** start pending; implementation slices **0**; charged hours
+**0**; new live attempts **0**; R1–R4 pending; next checkpoint **4 hours**;
+decision hold **none**. Historical effort is not reconstructed. Update this
+ledger cumulatively under the recovery plan; subsequent sessions must not reset
+it. The first slice records its start before implementation.
+
+**Verification/cleanup:** this handoff update is documentation only. No fresh
+qualification, package build, VM/worker/lease or launcher operation was started.
+There is no newly owned recovery. All-task VM clearance persists; unrelated
+edits are preserved. Previous one-slice overrides stay consumed. Ordinary
+launcher startup reads this handoff without a custom prompt.
+The nine changed guides passed 319 local-link checks and `git diff --check`.
+
+**Next-session settings:** `gpt-6-astra` / `high`, Standard; model: keep;
+effort: keep. **Reason:** R1 changes validation lifetime, source ownership and
+credential freshness across controller/guest boundaries. Return to Sol high
+after those contracts and qualification are settled.
 
 #### Retained attempt-12 handoff (historical)
 
-The current handoff above supersedes scheduling/settings instructions below;
-their evidence and failure scope remain valid.
+The bounded recovery and current handoff above supersede all scheduling,
+settings, budgets and stop/fallback instructions in the historical sections
+below. Their evidence and failure scope remain valid; no old intervention is
+rearmed by a new launch.
 
 The [manual one-slice intervention](#manual-source-stability-intervention--2026-09-11)
 governs the next launcher slice only while pending/active; it expires when that

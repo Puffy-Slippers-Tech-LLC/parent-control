@@ -28,8 +28,11 @@ class LicensingTests(unittest.TestCase):
         self.assertIn('"Legal notices"', source)
         self.assertNotIn("All rights reserved.", source)
 
-    def test_installation_ships_notices_and_integration_documentation(self):
+    def test_installation_ships_legal_notices_without_developer_documentation(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn("LICENSE COPYRIGHT NOTICE", makefile)
-        self.assertIn("docs/System-Design.md", makefile)
-        self.assertIn("docs/Compliance.md", makefile)
+        product_files = makefile.split("_install-product-files:\n", 1)[1].split(
+            "\n_generate-package-activation-manifest:", 1
+        )[0]
+        self.assertNotIn("docs/", product_files)
+        self.assertNotIn("README.md", product_files)

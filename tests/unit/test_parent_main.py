@@ -5,8 +5,11 @@ from pathlib import Path
 from unittest import mock
 
 from parent.oh_no_parent_control_parent.main import (
-    APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, PREVIEW_USERS, PreviewBrokerClient, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
-    PREVIEW_THUNDERBIRD_ICON, _time_status_subtitle,
+    APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
+    _time_status_subtitle,
+)
+from parent.oh_no_parent_control_parent.preview_data import (
+    PREVIEW_USERS, PreviewBrokerClient, PREVIEW_THUNDERBIRD_ICON,
 )
 
 

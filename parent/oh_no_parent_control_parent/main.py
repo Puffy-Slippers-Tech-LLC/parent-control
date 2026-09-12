@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import logging
 import os
 import sys
@@ -28,7 +27,6 @@ from common.oh_no_parent_control_ui.errors import (
     show_startup_error,
 )
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
-from common.oh_no_parent_control_ui.test_identities import preview_users
 
 from .client import BrokerClient, configure_logging
 
@@ -89,119 +87,6 @@ CUSTOM_DAILY_LIMIT_SAVE_DELAY_MS = 350
 # Yield between small batches so the App Limits tab can switch immediately
 # and the loading mask can keep animating.
 CATALOG_ROW_BATCH_SIZE = 8
-PREVIEW_USERS = preview_users("child")
-PREVIEW_THUNDERBIRD_ICON = str(Path(__file__).with_name("thunderbird-default128.png"))
-PREVIEW_PREFERENCES = {
-    1001: {
-        "parent_control_enabled": True,
-        "daily_time_limit_minutes": 90,
-        "apps": {
-            "thunderbird_thunderbird.desktop": {
-                "state": "allowed",
-                "targets": ["/snap/bin/thunderbird"],
-                "patterns": ["ABC"],
-                "user_saved_match_rule": True,
-            },
-            "lunarclient.desktop": {
-                "state": "permanent",
-                "targets": ["/home/riley/Applications/Lunar Client-3.8.0.AppImage"],
-                "patterns": ["/home/riley/Applications/Lunar Client-*.AppImage"],
-                "user_saved_match_rule": True,
-            },
-            "com.mojang.Minecraft.desktop": {
-                "state": "conditional",
-                "targets": ["app/com.mojang.Minecraft/x86_64/stable"],
-                "patterns": [],
-                "user_saved_match_rule": False,
-            },
-            "steam.desktop": {
-                "state": "conditional",
-                "targets": ["/usr/bin/steam"],
-                "patterns": [],
-                "user_saved_match_rule": False,
-            },
-        },
-        "request": {},
-    },
-    1002: {
-        "parent_control_enabled": False,
-        "daily_time_limit_minutes": 60,
-        "apps": {},
-        "request": {},
-    },
-}
-PREVIEW_APPS = (
-    {
-        "id": "thunderbird_thunderbird.desktop",
-        "name": "Thunderbird",
-        "description": "Email and calendar",
-        "icon": PREVIEW_THUNDERBIRD_ICON,
-        "targets": ["/snap/bin/thunderbird"],
-        "suggested_patterns": ["ABC"],
-    },
-    {
-        "id": "lunarclient.desktop",
-        "name": "Lunar Client",
-        "description": "Play Minecraft",
-        "icon": "lunar-client",
-        "targets": ["/home/riley/Applications/Lunar Client-3.8.0.AppImage"],
-        "suggested_patterns": ["/home/riley/Applications/Lunar Client-*.AppImage"],
-    },
-    {
-        "id": "com.mojang.Minecraft.desktop",
-        "name": "Minecraft",
-        "description": "Play Minecraft",
-        "icon": "com.mojang.Minecraft",
-        "targets": ["app/com.mojang.Minecraft/x86_64/stable"],
-        "suggested_patterns": [],
-    },
-    {
-        "id": "steam.desktop",
-        "name": "Steam",
-        "description": "Play games",
-        "icon": "steam",
-        "targets": ["/usr/bin/steam"],
-        "suggested_patterns": [],
-    },
-)
-
-
-class PreviewBrokerClient:
-    """In-memory representative data for GUI work without system services."""
-
-    def __init__(self):
-        self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
-
-    def list_users(self):
-        return PREVIEW_USERS
-
-    def get_preferences(self, uid):
-        return copy.deepcopy(self._preferences[uid])
-
-    def list_apps(self, _uid):
-        return copy.deepcopy(PREVIEW_APPS)
-
-    def get_time_status(self, _uid):
-        return {
-            "daily_allowance_remaining_seconds": 47 * 60,
-            "one_time_grant_remaining_seconds": 15 * 60,
-            "additional_one_time_grant_seconds": 0,
-            "calculated_active_extension_seconds": 47 * 60,
-        }
-
-    def set_preferences(self, uid, value):
-        self._preferences[uid] = copy.deepcopy(value)
-        return self.get_preferences(uid)
-
-    def set_parent_control(self, uid, enabled, daily_limit_minutes):
-        preferences = self._preferences[uid]
-        preferences["parent_control_enabled"] = enabled
-        preferences["daily_time_limit_minutes"] = daily_limit_minutes
-        return self.get_preferences(uid)
-
-    def revoke_one_time_grant(self, _uid):
-        return None
-
 
 def _minutes_label(minutes):
     return f"{minutes} minute" if minutes == 1 else f"{minutes} minutes"
@@ -1978,9 +1863,11 @@ class Application(Adw.Application):
         # seam used by the preview.  Production continues to construct only the
         # system-D-Bus client below, so this does not create a test-only broker
         # path or weaken the broker's caller authorization boundary.
-        self._client_factory = client_factory or (
-            PreviewBrokerClient if preview else BrokerClient
-        )
+        if preview and client_factory is None:
+            from .preview_data import PreviewBrokerClient
+
+            client_factory = PreviewBrokerClient
+        self._client_factory = client_factory or BrokerClient
         self._css_provider = None
         self._preview_monitor = None
         self._preview_reload_source_id = None
@@ -2069,11 +1956,15 @@ def _can_start(client_factory=BrokerClient, on_error=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    preview_available = Path(__file__).with_name("preview_data.py").is_file()
     parser.add_argument(
         "--preview", action="store_true",
-        help="render the parent UI with fixture data and no privileged services",
+        help=("render the parent UI with fixture data and no privileged services"
+              if preview_available else argparse.SUPPRESS),
     )
     args = parser.parse_args(argv)
+    if args.preview and not preview_available:
+        parser.error("--preview is only available from the development checkout")
     if not args.preview:
         configure_logging()
     else:

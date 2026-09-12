@@ -47,15 +47,19 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
 	$(DATADIR)/oh-no-parent-control/gdm-presession
 CHILD_DIR := child
-EXTENSION_SOURCES := branding.js errorHandler.js indicatorLogic.mjs logger.js previewMode.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
+EXTENSION_SOURCES := branding.js errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
+# Explicit production modules prevent preview/test helpers from entering the package.
+COMMON_SOURCES := __init__.py about.py accessibility.py diagnostics.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py
+KIOSK_SOURCES := __init__.py chrome.py floating_islands.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
+PARENT_SOURCES := __init__.py client.py main.py
+BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py extension_manager.py logs.py preferences.py service.py uninstall.py
 OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
-EXTENSION_ASSETS := request-options.json
 EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
 BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_logo.png
 PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png
-EXTENSION_BRANDING_ASSETS := $(BRANDING_ASSETS) data/app_logo_gnome_launcher.png
+EXTENSION_BRANDING_ASSETS := data/brand.json data/app_logo_gnome_launcher.png
 # gnome-extensions resolves extra sources relative to CHILD_DIR.
 EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../LICENSE ../COPYRIGHT ../NOTICE
 EXTENSION_BASE ?= $(HOME)/.local/share
@@ -261,7 +265,7 @@ preview-child:
 	$(CHILD_DIR)/preview
 
 pack-extension:
-	gnome-extensions pack "$(CHILD_DIR)" --force --out-dir=. --schema="$(EXTENSION_SCHEMA)" $(EXTENSION_SOURCES:%=--extra-source=%) $(EXTENSION_ASSETS:%=--extra-source=%) $(EXTENSION_PACK_ASSETS:%=--extra-source=%)
+	gnome-extensions pack "$(CHILD_DIR)" --force --out-dir=. --schema="$(EXTENSION_SCHEMA)" $(EXTENSION_SOURCES:%=--extra-source=%) $(EXTENSION_PACK_ASSETS:%=--extra-source=%)
 
 install-extension:
 	@./setup.sh --install-extension
@@ -271,7 +275,7 @@ install-extension:
 _install-development-extension:
 	install -d "$(EXTENSION_DIR)" "$(EXTENSION_DIR)/schemas"
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(EXTENSION_DIR)/$(file)")
-	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(EXTENSION_DIR)/"
+	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(EXTENSION_DIR)/"
 	install -m 0644 $(EXTENSION_BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(EXTENSION_DIR)/schemas/"
 	glib-compile-schemas "$(EXTENSION_DIR)/schemas"
@@ -301,25 +305,23 @@ _install-product-files:
 	install -m 0755 debian/package_activation.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-activation"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui"
 	install -m 0644 common/__init__.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/"
-	install -m 0644 common/oh_no_parent_control_ui/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
+	install -m 0644 $(addprefix common/oh_no_parent_control_ui/,$(COMMON_SOURCES)) "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
 	install -m 0644 common/oh_no_parent_control_ui/feedback.css "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor"
 	install -m 0644 common/oh_no_parent_control_ui/rich_editor/quill.js common/oh_no_parent_control_ui/rich_editor/quill.snow.css common/oh_no_parent_control_ui/rich_editor/quill.js.LICENSE.txt common/oh_no_parent_control_ui/rich_editor/LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor/"
-	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons"
-	install -m 0644 common/oh_no_parent_control_ui/test_user_icons/*.png "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/test_user_icons/"
-	install -m 0644 kiosk/oh_no_parent_control_kiosk/*.py kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png kiosk/oh_no_parent_control_kiosk/kiosk-background-scenery-clear.png child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
+	install -m 0644 $(addprefix kiosk/oh_no_parent_control_kiosk/,$(KIOSK_SOURCES)) kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png kiosk/oh_no_parent_control_kiosk/kiosk-background-scenery-clear.png child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts"
 	install -m 0644 kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas"
-	install -m 0644 parent/oh_no_parent_control_parent/*.py parent/oh_no_parent_control_parent/style.css parent/oh_no_parent_control_parent/thunderbird-default128.png parent/oh_no_parent_control_parent/THUNDERBIRD-BRANDING-LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"
+	install -m 0644 $(addprefix parent/oh_no_parent_control_parent/,$(PARENT_SOURCES)) parent/oh_no_parent_control_parent/style.css "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent/"
 	# GNOME Shell discovers extensions only when the Shell process starts. Keep
 	# one immutable system payload discoverable in every session; the broker
 	# controls per-child activation through that child's GNOME settings.
-	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES) $(EXTENSION_ASSETS)) "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
+	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	install -m 0644 $(EXTENSION_BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas/"
 	glib-compile-schemas "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas"
-	install -m 0644 broker/oh_no_parent_control/*.py "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"
+	install -m 0644 $(addprefix broker/oh_no_parent_control/,$(BROKER_SOURCES)) "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"
 	install -d "$(DESTDIR)$(DATADIR)/dbus-1/system-services" "$(DESTDIR)$(DATADIR)/dbus-1/interfaces"
 	install -m 0644 data/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service "$(DESTDIR)$(DATADIR)/dbus-1/system-services/"
 	install -m 0644 data/dbus-1/com.puffyslippers.OhNoParentControl1.xml "$(DESTDIR)$(DATADIR)/dbus-1/interfaces/"
@@ -352,7 +354,7 @@ _install-product-files:
 	install -m 0644 config/config.example.json $(BRANDING_ASSETS) $(PARENT_TITLEBAR_ASSET) data/app_logo_gnome_launcher.png data/kiosk_account_icon.png LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf.in "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0755 tools/provision.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision"
-	install -m 0644 README.md LICENSE COPYRIGHT NOTICE docs/Compliance.md docs/System-Design.md docs/Publishing.md docs/SystemDesign/Data-Migration.md docs/SystemDesign/Logging-and-Feedback.md "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"
+	install -m 0644 LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"
 ifneq ($(GENERATE_ACTIVATION_MANIFEST),0)
 	$(MAKE) --no-print-directory _generate-package-activation-manifest DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)" SYSCONFDIR="$(SYSCONFDIR)" LIBEXECDIR="$(LIBEXECDIR)" DATADIR="$(DATADIR)" SYSTEMD_SYSTEM_DIR="$(SYSTEMD_SYSTEM_DIR)" SYSTEMD_USER_DIR="$(SYSTEMD_USER_DIR)" PRODUCT_LIBDIR="$(PRODUCT_LIBDIR)"
 endif

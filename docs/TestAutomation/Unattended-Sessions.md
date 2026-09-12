@@ -272,6 +272,16 @@ malformed or deleted task entries cannot make a running backlog complete.
 The model must still perform the task's acceptance checks: checkbox validation
 alone cannot establish test correctness.
 
+For the active [Task 20 recovery](Task-20.md#bounded-recovery--2026-09-11), workers
+also maintain cumulative working time/attempts in its existing handoff and check
+the specified milestone thresholds. An unmet stop checkpoint produces the
+existing `blocked` result with blocker `decision` after cleanup, which stops the
+supervisor even if another backlog task is independently ready. This is enforced
+by the task/prompt and existing blocked-result handling; the launcher does not
+independently calculate an hours budget. A restart does not renew a pending
+decision or reset the ledger. The normal `start` command needs no custom prompt
+or code refresh for these document changes.
+
 Only one supervisor/worker pair can hold this checkout's loop lock. The loop
 does not lock out independently opened editors or interactive Codex sessions;
 let it own implementation of this backlog while it runs. Existing guarded test

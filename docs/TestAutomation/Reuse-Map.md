@@ -66,12 +66,19 @@ review changes no task order or completion status.
   The [generation-witness gate](../SystemDesign/Applications.md#generation-witness-design-gate)
   and [kernel audit](Evidence/15A-Kernel-Witness-Audit-20260911.md) reject
   nonce-denial receipts (queue overflow) and early markers (partial parsing).
-  Systemd transient execution through the existing Gio transport is the next
-  bounded probe candidate; ownership/timeout/collection checks and live
-  qualification are pending. Its
+  Reuse `execution_probe.ExecutionProbe` and the
+  [bounded transport contract](../SystemDesign/Applications.md#bounded-probe-transport-and-open-limits):
+  fixed-canary deadlines, client-reference evidence retention and non-signaling
+  release/collection have
+  [local refusal coverage](Evidence/15A-Bounded-Probe-Transport-20260911.md).
+  Reuse its retained `pending`/`recover()` path for late creation and lost-release
+  cleanup; [recovery evidence](Evidence/15A-Probe-Recovery-20260911.md) covers
+  per-adapter serialization and preservation of failed outcomes. Indefinite
+  dispatch settlement, original-job binding and live qualification remain open;
+  this dormant adapter is not a generation witness. Its
   [removal dependency](../SystemDesign/Package-Removal.md#execution-policy-baseline)
-  applies to 18C as well as the policy/grant consumers above. No runtime witness
-  or general-purpose process helper has been added.
+  applies to 18C as well as the policy/grant consumers above. No runtime policy
+  witness or general-purpose process helper has been added.
 - Approved selected checks, artifact builds, diagnostics and listing:
   [category commands](Approval-Tools.md#category-coverage-and-future-additions).
   Use implemented selectors; do not rediscover permissions or invent a launcher.
@@ -193,10 +200,9 @@ metadata now uses stable nanosecond fields; foreground observation reuses pinned
 same contract. Attempt 8 refused source drift before worker startup as new
 Parent UI edits appeared; it qualifies neither correction. Baseline/host
 preservation and cleanup passed, source preservation failed. The
-[current handoff](Task-20.md#task-20-continuation--2026-09-08) records the operator's
-confirmation after Session 65 that concurrent edits have stopped, satisfying
-the source-stability return condition. Resume corrected live qualification with
-fresh inputs and all existing guards. The subsequent
+[joined-flow record](Evidence/20-VT6-Joined-Flow-20260910.md) retains that failure.
+The later operator clearance after Session 65 applied to the following attempts;
+it does not establish a stable input window for every future run. The subsequent
 [command and shutdown evidence](Evidence/20-VT6-Command-and-Shutdown-20260911.md)
 records live password/session/shell proof in attempt 9, then correction of the
 standalone controller's late `vt6_command` import. Attempt 10 completes every
@@ -220,12 +226,15 @@ refused during preparation when three new nonignored release-tool files appeared
 after capture. The owning provenance contract records the current cause and
 successful cleanup; preserve the additions and recapture rather than changing
 the latch. Release-tool changes continued after cleanup. The
-[active deferral](Task-20.md#task-20-continuation--2026-09-08) requires writer
-completion or a coordinated window through final cleanup; a quiet status alone
-does not establish it. The one-slice intervention is consumed with verified
-15A notification recovery; normal checklist order resumes. Task 15A's remaining
-acknowledgement implementation is independently ready meanwhile. Sudo/notice
-pixels remain pending.
+[active recovery](Task-20.md#bounded-recovery--2026-09-11) now owns stable
+source execution and baseline-validation timing/freshness before further live
+qualification. A quiet status alone does not establish a source window, but
+missing historical completion evidence does not prevent local recovery work.
+The one-slice intervention stays consumed; Task 15A's notification/probe progress
+is preserved for later resumption. R1 may change check placement only with
+equivalent integrity protection and qualification; the existing provenance
+contract remains implemented behavior until that correction is accepted.
+Sudo/notice pixels remain pending.
 Neither the credential-free prompt collection nor the earlier
 [VT6 surface evidence](Evidence/20-Visible-VT6-20260909.md) qualifies
 authentication or E2E-002. The historical serial sudo recipient failure remains
@@ -297,8 +306,8 @@ with evidence.
 | Task | Reuse and opportunity | Quality boundary to retain |
 | --- | --- | --- |
 | [19B](Task-19.md#task-19b) | Accepted: reuse the [qualified GDM/serial helpers and regressions](#qualified-gdm-and-serial-helpers). E2E-001 supersedes E2E-034; retain one canonical ordinary smoke. | Three reviewed qualifications are retained in acceptance evidence; repeat qualification only for applicable changes. Ordinary runs must not multiply implementation-only qualification. |
-| [20](Task-20.md) | Extend the [installation helper and open limits](#installation-helper-and-open-limits), [qualified GDM/serial helpers](#qualified-gdm-and-serial-helpers), [startup enforcement observation](../../tests/e2e/README.md#startup-enforcement-observation), [broker startup witness](../../tests/e2e/README.md#broker-startup-observation), package assertions and asset transport. | Actual authenticated installation/reboot, independent broker and fapolicyd readiness; preserve the startup audit's existing requirement mapping. |
-| [15A](Task-15.md#task-15a) | Extend F1's installed enforcement area and native/Snap/Flatpak case data; reuse the [notification recovery contract](../SystemDesign/Applications.md#notification-recovery-and-acknowledgement-limit), [generation-witness gate](../SystemDesign/Applications.md#generation-witness-design-gate) and [dependency capture/audit](Evidence/15A-Activation-Interface-Audit-20260911.md); publish launch witnesses for 25A. | Every required platform, route, identity/matching boundary and other-user outcome; notification, early markers and nonce denials cannot qualify activation. Bounded owned probe execution and full receipt semantics remain unimplemented. |
+| [20](Task-20.md) | First complete [bounded recovery R1](Task-20.md#bounded-recovery--2026-09-11) over the current provenance/worker contracts. Then extend the [installation helper](#installation-helper-and-open-limits), [GDM/serial helpers](#qualified-gdm-and-serial-helpers), [startup enforcement observation](../../tests/e2e/README.md#startup-enforcement-observation), [broker witness](../../tests/e2e/README.md#broker-startup-observation), package assertions and asset transport. | Equivalent integrity and fresh recipient proof before changing check placement; actual authenticated installation/reboot and independent broker/fapolicyd readiness. Preserve the three declared cases and cumulative recovery checkpoints. |
+| [15A](Task-15.md#task-15a) | Extend F1's installed enforcement area and native/Snap/Flatpak case data; reuse the [notification recovery contract](../SystemDesign/Applications.md#notification-recovery-and-acknowledgement-limit), [generation-witness gate](../SystemDesign/Applications.md#generation-witness-design-gate), [bounded transport/recovery](../SystemDesign/Applications.md#bounded-probe-transport-and-open-limits) and [dependency capture/audit](Evidence/15A-Activation-Interface-Audit-20260911.md); publish launch witnesses for 25A. | Every required platform, route, identity/matching boundary and other-user outcome; notification, early markers and nonce denials cannot qualify activation. Fixed-canary transport and eventual late-create recovery have local refusal coverage; indefinite-dispatch settlement, original-job binding, live qualification and full receipts remain open. |
 | [15B](Task-15.md#task-15b) | One owned-process controller and rollback witness set serves later 17B/21B/25B/26A. | Kernel identity, all relevant sessions, irreversible partial termination and unrelated-process survival. |
 | [16A](Task-16.md#task-16a) | Share time/grant witnesses across arithmetic and separate clock scenarios. | Real Malcontent/AccountsService, both DST directions and midnight; controlled clocks never replace natural expiry. |
 | [16B](Task-16.md#task-16b) | Reuse real-caller/ownership helpers for PAM/session cases; publish observations for 22A. | Authentication/account phases, exemptions, unavailable/corrupt stores, idle/suspend and other-user isolation. |

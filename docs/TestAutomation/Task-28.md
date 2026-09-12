@@ -22,6 +22,16 @@ Verification below is task acceptance; edits use the smallest affected selection
 
 ## Task 28A
 
+**Earlier prerequisite ownership — 2026-09-11:**
+[Task 20 recovery R1](Task-20.md#bounded-recovery--2026-09-11) now owns the minimum
+source-execution isolation needed to stop unrelated edits invalidating live
+qualification, and the validation-lifetime/timing correction. Reuse its accepted
+contract and evidence here; do not defer that prerequisite until CI or reimplement
+it in another runner. A controlled source window can satisfy R1 without a general
+cache. The complete package/fixture build-input closure, safe artifact reuse,
+automatic builds, reproducibility and CI below remain 28A work. None is available
+merely because its planning ownership changed.
+
 - Title: Implement the four test commands, CI, and the comprehensive gate.
 - Depends on: Task 27C.
 - Complexity: high. Inventory/selector dispatch, artifact consistency, guarded

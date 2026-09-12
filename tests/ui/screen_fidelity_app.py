@@ -11,6 +11,9 @@ import random
 import sys
 
 from kiosk.oh_no_parent_control_kiosk import main
+from kiosk.oh_no_parent_control_kiosk.preview_data import (
+    PREVIEW_APPROVERS, PREVIEW_PREFERENCES, PREVIEW_USERS,
+)
 from kiosk.oh_no_parent_control_kiosk.preview_screen import notify_screen_ready
 
 random.SystemRandom = lambda: random.Random(7321)
@@ -31,12 +34,12 @@ class Broker:
              _flags, _timeout, _cancellable, callback):
         values = parameters.unpack() if parameters else ()
         replies = {
-            "GetOwnAccount": main.PREVIEW_USERS[0],
-            "ListManagedUsers": (main.PREVIEW_USERS,),
-            "ListApprovers": (main.PREVIEW_APPROVERS,),
+            "GetOwnAccount": PREVIEW_USERS[0],
+            "ListManagedUsers": (PREVIEW_USERS,),
+            "ListApprovers": (PREVIEW_APPROVERS,),
         }
         if method == "GetPreferences":
-            reply = (json.dumps(main.PREVIEW_PREFERENCES[values[0]]),)
+            reply = (json.dumps(PREVIEW_PREFERENCES[values[0]]),)
         elif method == "GetTimeStatus":
             reply = (0, 900, values[1], 900 + values[1])
         else:

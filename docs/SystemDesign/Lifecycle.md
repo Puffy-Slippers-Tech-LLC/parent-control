@@ -97,6 +97,13 @@ configuration and triggers finish so later APT/dpkg lines cannot follow it.
 
 The [Makefile](../../Makefile) is the complete installation map, including
 assets, the compiled PAM module, integration templates, and package helpers.
+Its production module lists exclude tests, preview launchers and fixtures,
+preview artwork, and developer documentation (including all of `docs/`).
+The binary retains runtime assets, user command manuals, legal notices and
+Debian metadata. Development previews load their fixtures only when requested;
+the child preview supplies a separate entry point in its disposable directory.
+Removing developer files requires no new system integration or saved-data
+migration; existing path classifications continue to select update activation.
 
 ## Related design
 

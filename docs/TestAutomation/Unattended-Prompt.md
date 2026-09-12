@@ -65,8 +65,16 @@ Mark a checklist task complete only when all its required deliverables and
 acceptance checks pass. Do not delete checklist entries during the unattended
 run. A failed test is work to diagnose within the plan, not evidence of success.
 If a task is blocked, retain its blocker and select independent ready work as
-the workflow permits. Return blocked only if no ready work can proceed without
-outside input. Record any denied action and its reason in the active handoff;
+the workflow permits. An explicit operator-scoped cumulative recovery plan takes
+precedence: carry its ledger across sessions, check its outcome thresholds, and
+do not select fallback work when that plan requires a decision. For Task 20 use
+Task-20.md#bounded-recovery--2026-09-11 and its active handoff. At an unmet stop
+checkpoint, finish owned work and cleanup, save the exact required decision,
+then return status=blocked and blocker=decision with truthful progress/cleanup.
+Do not reset the budget on restart or alter launcher control state. The current
+supervisor already stops on this result; no new launcher feature is implied.
+Otherwise return blocked only if no ready work can proceed without outside
+input. Record any denied action and its reason in the active handoff;
 do not retry the denied action through a different route or new session.
 
 Before ending, update the task's active handoff with the result, reusable
@@ -91,7 +99,8 @@ active task handoff. The final response must conform to the supplied schema:
 
 - status: continue after a slice with remaining ready work; complete only when
   every authoritative checklist entry is accepted; blocked when outside input
-  is necessary and no independent ready work remains.
+  is necessary and no independent ready work remains, or when the explicit
+  recovery scope above requires a decision before further work.
 - cleanup_complete: true only after all commands this session started have
   exited, results are collected, and their required cleanup is confirmed.
   If state is uncertain, save exact owned identities/recovery information in the

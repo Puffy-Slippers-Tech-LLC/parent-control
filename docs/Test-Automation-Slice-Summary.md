@@ -95,3 +95,25 @@ must exclude this file from reads, searches, diffs and edits.
 - Verification and cleanup: Source audit retained in docs/TestAutomation/Evidence/15A-Kernel-Witness-Audit-20260911.md. Updated owning contracts, reuse map and handoffs; 241 links and scoped whitespace checks passed. No product tests or VM attempt ran. All commands exited; no owned resources or recovery obligations remain.
 
 - Next session: Implement and locally test owned transient-probe execution, including startup timeout, lost replies, identity replacement and cleanup. Recheck Task 20’s source-stability return condition first. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 72 — 2026-09-11 16:49 PDT
+
+- Task: Task 15A — bounded execution-probe transport and ownership.
+- Duration: 12 minutes
+- Completed: Implemented a dormant systemd probe adapter with finite deadlines, retained terminal evidence, collision/replacement refusal and non-signaling reference cleanup. Delayed-create settlement, generation receipts, live qualification and full Task 15A acceptance remain unfinished. Updated owning contracts and handoffs; preserved concurrent edits.
+
+- Verification and cleanup: 52 tests and 24 subtests passed, including 25 probe cases; no test failures. Links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/15A-Bounded-Probe-Transport-20260911.md. All commands exited; no live units, VM operations or cleanup obligations remain.
+
+- Next session: Continue Task 15A by resolving delayed-create reference lifetime and original-job/invocation binding before guarded qualification. Task 20 remains deferred on source-preservation evidence. Next settings: gpt-6-astra/high, Standard.
+
+
+## Session 73 — 2026-09-11 16:57 PDT
+
+- Task: Task 15A — recover delayed probe creation and lost reference-release replies.
+- Duration: 8 minutes
+- Completed: Added retained probe recovery, concurrent-operation guards, and cleanup of eventual late creation without replay or signals. Recovery preserves the original failure. Task 15A remains unfinished: indefinite-dispatch settlement, original-job binding, installed qualification and full enforcement acceptance remain open.
+
+- Verification and cleanup: 64 tests and 24 subtests passed, including 37 probe cases; no test failed. Document links and scoped whitespace checks passed. Evidence: docs/TestAutomation/Evidence/15A-Probe-Recovery-20260911.md. Web retrieval errors were resolved through direct public source reads. No build or VM qualification ran. All commands exited, test threads joined, and no live resources or recovery remain.
+
+- Next session: Establish bounded creation and closure of an independently owned bus client, testing dispatch around disconnect. Task 20 remains deferred on documented source-preservation failures pending writer-completion/window evidence; VM authorization remains cleared. Updated handoffs and Continuation.md. Next settings: gpt-6-astra/high, Standard.

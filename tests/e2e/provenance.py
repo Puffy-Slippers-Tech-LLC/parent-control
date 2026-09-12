@@ -173,6 +173,22 @@ def baseline_inputs(lease):
             'environment_id': 'ubuntu26-04-' + digest(state['guest'])}
 
 
+def source_change_summary(expected, current):
+    """Describe a rejected comparison using fixed fields and counts only."""
+    before, after = expected['files'], current['files']
+    shared = before.keys() & after.keys()
+    fields = ('device', 'inode', 'mode', 'links', 'size', 'mtime', 'ctime')
+    return {
+        'added': len(after.keys() - before.keys()),
+        'removed': len(before.keys() - after.keys()),
+        'content': sum(before[path] != after[path] for path in shared),
+        'directory': int(expected['directory'] != current['directory']),
+        **{field: sum(expected['metadata'][path][index]
+                      != current['metadata'][path][index] for path in shared)
+           for index, field in enumerate(fields)},
+    }
+
+
 def preflight_source(assets, *, root=ROOT):
     """Reject stale package inputs before acquiring or preparing the guest.
 
@@ -257,7 +273,12 @@ class VerifiedInputs:
         component = 'source'
         started = time.monotonic()
         try:
-            require(snapshot(self.root, source=True) == self._source, 'provenance:source-changed')
+            current_source = snapshot(self.root, source=True)
+            if current_source != self._source:
+                print('e2e:source-change ' + json.dumps(
+                    source_change_summary(self._source, current_source), sort_keys=True),
+                    file=sys.stderr, flush=True)
+                raise EvidenceError('provenance:source-changed')
             self.recheck_milliseconds[component] = round((time.monotonic() - started) * 1000)
             component, started = 'assets', time.monotonic()
             if self.assets is not None:

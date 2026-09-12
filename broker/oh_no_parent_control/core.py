@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from .grant_diagnostics import GrantDiagnostics
 import re
 import threading
 import time
@@ -17,7 +18,7 @@ from .preferences import (
     blocked_patterns, blocked_targets, validate_preferences,
 )
 
-LOG = logging.getLogger("oh-no-parent-control")
+LOG = get_logger("core")
 MAX_LOCAL_MIDNIGHT_SECONDS = 26 * 60 * 60
 MIN_REQUEST_SECONDS = 6
 MAX_REQUEST_SECONDS = 24 * 60 * 60
@@ -182,8 +183,54 @@ class Broker:
         self._now = now
         self._caller_alive = caller_alive
         self._request_lock = threading.Lock()
+        self._transaction_revision = 0
         self._rate_lock = threading.Lock()
         self._last_request = {}
+        self._grant_diagnostics = GrantDiagnostics()
+
+    def _acquire_request_lock(self):
+        if not self._request_lock.acquire(blocking=False):
+            return False
+        self._transaction_revision += 1
+        return True
+
+    def _write_extension(self, uid, value):
+        self._grant_diagnostics.write_started(uid)
+        self._accounts.set_extension(uid, value)
+        if self._accounts.get_extension(uid) != value:
+            raise BackendFailure("extension verification failed")
+        try:
+            self._grant_diagnostics.wrote(uid, value)
+            self._observe_grant(uid, *value)
+        except Exception:
+            get_logger("grant").warning("grant.invalid")
+
+    def _observe_grant(self, uid, issued, duration, *, is_current=None):
+        try:
+            self._grant_diagnostics.observe(
+                uid, (issued, duration), self._now(), self._monotonic(),
+                is_current=is_current,
+            )
+        except Exception:
+            # Diagnostics cannot turn a policy operation into a failure.
+            get_logger("grant").warning("grant.invalid")
+
+    def observe_grants(self):
+        """Read live state after supported account-change signals or periodic checks."""
+        revision = self._transaction_revision
+
+        def is_current():
+            return not self._request_lock.locked() and self._transaction_revision == revision
+
+        if not is_current():
+            return
+        config = self._load_config()
+        for account in self._accounts.list_users():
+            if not is_current():
+                return
+            if self._eligible(config, account):
+                value = self._accounts.get_extension(account.uid)
+                self._observe_grant(account.uid, *value, is_current=is_current)
 
     def refresh_enabled_extensions(self) -> tuple[int, ...]:
         """Reassert extension activation for every enabled managed child."""
@@ -207,7 +254,7 @@ class Broker:
                     self._extensions.set_enabled(user.uid, True, recover_global_switch=True)
                     refreshed.append(user.uid)
             except Exception as error:
-                LOG.error("extension refresh outcome=failed error_type=%s", type(error).__name__)
+                LOG.error("core.001", error_type=error_code(error))
                 raise BackendFailure("could not refresh the child extension") from error
         return tuple(refreshed)
 
@@ -256,7 +303,7 @@ class Broker:
         transaction lock so a current grant always wins and its applications
         remain untouched.
         """
-        if not self._request_lock.acquire(blocking=False):
+        if not self._acquire_request_lock():
             raise Busy("another request is already in progress")
         try:
             config = self._load_config()
@@ -271,16 +318,10 @@ class Broker:
 
             now_seconds = int(self._now().timestamp())
             if grant_duration == 0:
-                LOG.info(
-                    "session-prepare target=[Child user] outcome=unchanged "
-                    "reason=no-prior-grant",
-                )
+                LOG.info("core.002")
                 return False
             if grant_time + grant_duration > now_seconds:
-                LOG.info(
-                    "session-prepare target=[Child user] outcome=unchanged "
-                    "reason=active-grant",
-                )
+                LOG.info("core.003")
                 return False
 
             preferences = self._load_request_preferences(target.uid)
@@ -303,11 +344,7 @@ class Broker:
             filter_changed = False
             termination_started = False
             try:
-                LOG.info(
-                    "session-prepare target=[Child user] stage=filter-restore "
-                    "blocked_target_count=%d",
-                    len(desired_filter[1]),
-                )
+                LOG.info("core.004", blocked_target_count=len(desired_filter[1]))
                 self._accounts.set_filter(target.uid, desired_filter)
                 filter_changed = True
                 if self._accounts.get_filter(target.uid) != desired_filter:
@@ -319,12 +356,8 @@ class Broker:
                     )
                     if type(terminated) is not int or terminated < 0:
                         raise BackendFailure("blocked application termination failed")
-                    LOG.info(
-                        "session-prepare target=[Child user] "
-                        "stage=blocked-app-termination outcome=accepted count=%d",
-                        terminated,
-                    )
-                LOG.info("session-prepare target=[Child user] outcome=accepted")
+                    LOG.info("core.005", count=terminated)
+                LOG.info("core.006")
                 return True
             except Exception as error:
                 # Once termination starts, processes cannot be restored. Keep
@@ -336,16 +369,14 @@ class Broker:
                         if self._accounts.get_filter(target.uid) != old_filter:
                             raise RuntimeError("app-filter rollback read-back mismatch")
                     except Exception as rollback_error:
-                        LOG.critical(
-                            "session-prepare outcome=rollback-failed error_type=%s",
-                            type(rollback_error).__name__,
-                        )
+                        LOG.critical("core.007", error_type=error_code(rollback_error))
                         raise RollbackFailure(
                             "session app-filter rollback could not be verified"
                         ) from rollback_error
                 LOG.warning(
-                    "session-prepare outcome=failed error_type=%s strict_filter=%s",
-                    type(error).__name__, termination_started,
+                    "core.008",
+                    error_type=error_code(error),
+                    strict_filter=termination_started,
                 )
                 if isinstance(error, BrokerError):
                     raise
@@ -372,8 +403,7 @@ class Broker:
             stage = "grant"
             grant_time, grant_duration = self._accounts.get_extension(target_uid)
         except Exception as error:
-            LOG.warning("time-status stage=%s outcome=failed error_type=%s",
-                        stage, type(error).__name__)
+            LOG.warning("core.009", stage=stage, error_type=error_code(error))
             raise BackendFailure("remaining-time status is unavailable") from error
 
         return self._time_status_from_usage(
@@ -599,7 +629,7 @@ class Broker:
             raise BackendFailure("application catalog is unavailable") from error
 
     def set_preferences(self, caller_uid: int, target_uid: int, value: object) -> dict:
-        if not self._request_lock.acquire(blocking=False):
+        if not self._acquire_request_lock():
             raise Busy("another request is already in progress")
         try:
             return self._set_preferences_locked(caller_uid, target_uid, value)
@@ -665,12 +695,11 @@ class Broker:
                     "blocked applications could not be stopped"
                 ) from error
         LOG.info(
-            "app-policy update stage=started blocked_target_count=%d "
-            "newly_blocked_target_count=%d newly_blocked_pattern_count=%d "
-            "terminate_blocked_apps=%s",
-            len(desired_filter[1]), len(termination_targets),
-            len(termination_patterns),
-            terminate_blocked_apps,
+            "core.010",
+            blocked_target_count=len(desired_filter[1]),
+            newly_blocked_target_count=len(termination_targets),
+            newly_blocked_pattern_count=len(termination_patterns),
+            terminate_blocked_apps=terminate_blocked_apps,
         )
         preferences_saved = False
         termination_started = False
@@ -693,12 +722,8 @@ class Broker:
                 )
                 if type(terminated) is not int or terminated < 0:
                     raise BackendFailure("blocked application termination failed")
-                LOG.info(
-                    "app-policy update target=[Child user] "
-                    "stage=blocked-app-termination outcome=accepted count=%d",
-                    terminated,
-                )
-            LOG.info("app-policy update outcome=accepted")
+                LOG.info("core.011", count=terminated)
+            LOG.info("core.012")
             return saved
         except Exception as error:
             # Once termination starts, an exited process cannot be restored.
@@ -706,20 +731,13 @@ class Broker:
             # remains enforced and its patterns remain available to the
             # execution-policy reconciler.
             if termination_started:
-                LOG.warning(
-                    "app-policy update outcome=failed error_type=%s "
-                    "strict_policy=true",
-                    type(error).__name__,
-                )
+                LOG.warning("core.013", error_type=error_code(error))
                 if isinstance(error, BrokerError):
                     raise
                 raise BackendFailure(
                     "blocked applications could not be stopped"
                 ) from error
-            LOG.warning(
-                "app-policy update stage=rollback error_type=%s",
-                type(error).__name__,
-            )
+            LOG.warning("core.014", error_type=error_code(error))
             try:
                 if preferences_saved:
                     self._preferences.save(target.uid, current)
@@ -727,8 +745,7 @@ class Broker:
                 if self._accounts.get_filter(target.uid) != old_filter:
                     raise RuntimeError("app-filter rollback read-back mismatch")
             except Exception as rollback_error:
-                LOG.critical("app-policy update outcome=rollback-failed error_type=%s",
-                             type(rollback_error).__name__)
+                LOG.critical("core.015", error_type=error_code(rollback_error))
                 raise RollbackFailure(
                     "app-filter rollback could not be verified"
                 ) from rollback_error
@@ -780,8 +797,7 @@ class Broker:
                 "daily time limit must be an integer from 0 to 1440 minutes"
             )
         target = self._target(config, target_uid)
-        LOG.info("parent-control update stage=started enabled=%s daily_limit_minutes=%d",
-                 enabled, daily_limit_minutes)
+        LOG.info("core.016", enabled=enabled, daily_limit_minutes=daily_limit_minutes)
         if self._preferences is None or self._extensions is None:
             raise BackendFailure("extension management is unavailable")
         try:
@@ -806,7 +822,7 @@ class Broker:
                     self._accounts.set_limit_type(target.uid, desired_limit_type)
                 self._accounts.set_daily_limit(target.uid, desired_daily_limit)
                 if extension_changed:
-                    self._accounts.set_extension(target.uid, (0, 0))
+                    self._write_extension(target.uid, (0, 0))
                 if enabled:
                     self._accounts.set_limit_type(target.uid, desired_limit_type)
                 self._accounts.set_filter(target.uid, desired_filter)
@@ -823,16 +839,15 @@ class Broker:
                 current["parent_control_enabled"] = enabled
                 current["daily_time_limit_minutes"] = daily_limit_minutes
                 saved = self._preferences.save(target.uid, current)
-                LOG.info("parent-control update outcome=accepted enabled=%s", enabled)
+                LOG.info("core.017", enabled=enabled)
                 return saved
             except Exception as error:
-                LOG.warning("parent-control update stage=rollback error_type=%s",
-                            type(error).__name__)
+                LOG.warning("core.018", error_type=error_code(error))
                 rollback_error = None
                 try:
                     self._restore(
                         target.uid, old_limit_type, old_daily_limit, old_filter,
-                        old_extension, "parent-control",
+                        old_extension, None,
                     )
                 except Exception as caught:
                     rollback_error = caught
@@ -842,8 +857,7 @@ class Broker:
                 except Exception as caught:
                     rollback_error = rollback_error or caught
                 if rollback_error is not None:
-                    LOG.critical("parent-control update outcome=rollback-failed error_type=%s",
-                                 type(rollback_error).__name__)
+                    LOG.critical("core.019", error_type=error_code(rollback_error))
                     raise RollbackFailure(
                         "parent-control rollback could not be verified"
                     ) from rollback_error
@@ -855,10 +869,10 @@ class Broker:
 
     def revoke_one_time_grant(self, caller_uid: int, target_uid: int) -> None:
         """Remove a live grant and stop the selected child's blocked apps."""
-        if not self._request_lock.acquire(blocking=False):
+        if not self._acquire_request_lock():
             raise Busy("another request is already in progress")
         try:
-            LOG.info("revoke stage=started caller=[Administrator] target=[Child user]")
+            LOG.info("core.020")
             config = self._load_config()
             if not self._is_admin(caller_uid):
                 raise AccessDenied("administrator access is required")
@@ -884,10 +898,7 @@ class Broker:
                 old_filter = self._accounts.get_filter(target.uid)
                 old_extension = self._accounts.get_extension(target.uid)
             except Exception as error:
-                LOG.warning(
-                    "revoke stage=account-snapshot outcome=failed error_type=%s",
-                    type(error).__name__,
-                )
+                LOG.warning("core.021", error_type=error_code(error))
                 raise BackendFailure("one-time grant state is unavailable") from error
             termination_may_have_changed_processes = False
             try:
@@ -902,18 +913,16 @@ class Broker:
                     if type(terminated) is not int or terminated < 0:
                         raise BackendFailure("blocked application termination failed")
                     termination_may_have_changed_processes = terminated > 0
-                    LOG.info(
-                        "revoke target=[Child user] stage=blocked-app-termination "
-                        "outcome=accepted count=%d", terminated,
-                    )
-                self._accounts.set_extension(target.uid, (0, 0))
+                    LOG.info("core.022", count=terminated)
+                self._write_extension(target.uid, (0, 0))
                 if self._accounts.get_extension(target.uid) != (0, 0):
                     raise BackendFailure("extension verification failed")
-                LOG.info("revoke outcome=accepted")
+                self._observe_grant(target.uid, 0, 0)
+                LOG.info("core.023")
             except Exception as error:
-                LOG.warning("revoke stage=rollback error_type=%s", type(error).__name__)
+                LOG.warning("core.024", error_type=error_code(error))
                 try:
-                    self._accounts.set_extension(target.uid, old_extension)
+                    self._write_extension(target.uid, old_extension)
                     rollback_filter = (
                         desired_filter
                         if termination_may_have_changed_processes
@@ -924,8 +933,7 @@ class Broker:
                             self._accounts.get_filter(target.uid) != rollback_filter):
                         raise RuntimeError("rollback read-back mismatch")
                 except Exception as rollback_error:
-                    LOG.critical("revoke outcome=rollback-failed error_type=%s",
-                                 type(rollback_error).__name__)
+                    LOG.critical("core.025", error_type=error_code(rollback_error))
                     raise RollbackFailure(
                         "one-time grant rollback could not be verified"
                     ) from rollback_error
@@ -957,7 +965,7 @@ class Broker:
                         duration_seconds: int,
                         allow_soft_blocked_apps: bool) -> tuple[str, str, int]:
         correlation_id = str(uuid.uuid4())
-        if not self._request_lock.acquire(blocking=False):
+        if not self._acquire_request_lock():
             raise Busy("another request is already in progress")
         try:
             config = self._load_config()
@@ -990,10 +998,13 @@ class Broker:
             # new authorization dialog. Denied and cancelled attempts do not
             # consume the interval; only a completed grant records it below.
             self._apply_rate_limit(caller_uid, config.minimum_request_interval_seconds)
-            LOG.info("request=%s caller=[Request surface] target=[Child user] approver=[Administrator] "
-                     "duration_seconds=%d allow_soft=%s kind=%s stage=authorize",
-                     correlation_id,
-                     duration_seconds, allow_soft_blocked_apps, request_kind)
+            LOG.info(
+                "core.026",
+                request=correlation_id,
+                duration_seconds=duration_seconds,
+                allow_soft=allow_soft_blocked_apps,
+                kind=request_kind,
+            )
 
             outcome = self._authorizer.check(
                 request_kind, sender, correlation_id, target.label, approver.username,
@@ -1003,10 +1014,10 @@ class Broker:
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise BackendFailure("authorizer returned an invalid outcome")
             if outcome != "approved":
-                LOG.info("request=%s outcome=%s", correlation_id, outcome)
+                LOG.info("core.027", request=correlation_id, outcome=outcome)
                 return correlation_id, outcome, 0
             if not self._caller_alive(sender):
-                LOG.warning("request=%s outcome=denied reason=caller-disconnected", correlation_id)
+                LOG.warning("core.028", request=correlation_id)
                 return correlation_id, "denied", 0
             # Fail closed if the selected account changed while the parent was
             # authenticating (including an AccountType promotion to admin), or
@@ -1021,25 +1032,23 @@ class Broker:
             if duration_seconds == 0:
                 issued_at_time = self._now()
                 duration = seconds_until_local_midnight(issued_at_time)
+                LOG.info("core.grant-rest-of-day", request=correlation_id, calculated=duration)
             else:
                 if self._preferences is None or self._timer_usage is None:
                     raise BackendFailure("remaining-time status is unavailable")
-                LOG.info("request=%s stage=usage-query approver=[Administrator]",
-                         correlation_id)
+                LOG.info("core.029", request=correlation_id)
                 try:
                     usage_entries = self._timer_usage.query_usage_as(target.uid, approver)
                 except Exception as error:
                     category = getattr(error, "category", type(error).__name__)
-                    LOG.warning("request=%s stage=usage-query outcome=failed error=%s",
-                                correlation_id, category)
+                    LOG.warning("core.030", request=correlation_id, error=category)
                     raise BackendFailure("remaining-time status is unavailable") from error
-                LOG.info("request=%s stage=usage-query outcome=accepted", correlation_id)
+                LOG.info("core.031", request=correlation_id)
 
                 # Fail closed before consuming a result obtained under an
                 # identity which may have changed during the helper call.
                 if not self._caller_alive(sender):
-                    LOG.warning("request=%s outcome=denied reason=caller-disconnected",
-                                correlation_id)
+                    LOG.warning("core.028", request=correlation_id)
                     return correlation_id, "denied", 0
                 if self._target(config, target_uid) != target:
                     raise AccessDenied("selected account changed during authorization")
@@ -1053,16 +1062,21 @@ class Broker:
                 except Exception as error:
                     raise BackendFailure("remaining-time status is unavailable") from error
                 issued_at_time = self._now()
-                duration = self._time_status_from_usage(
+                self._observe_grant(target.uid, grant_time, grant_duration)
+                status = self._time_status_from_usage(
                     preferences, usage_entries, grant_time, grant_duration,
                     duration_seconds, issued_at_time,
-                ).calculated_active_extension_seconds
+                )
+                duration = status.calculated_active_extension_seconds
+                LOG.info("core.grant-calculation", request=correlation_id,
+                         daily=status.daily_allowance_remaining_seconds,
+                         grant=status.one_time_grant_remaining_seconds,
+                         additional=duration_seconds, calculated=duration)
 
             # The identity-scoped query may take up to the backend timeout.
             # Revalidate again immediately before privileged account writes.
             if not self._caller_alive(sender):
-                LOG.warning("request=%s outcome=denied reason=caller-disconnected",
-                            correlation_id)
+                LOG.warning("core.028", request=correlation_id)
                 return correlation_id, "denied", 0
             if self._target(config, target_uid) != target:
                 raise AccessDenied("selected account changed during authorization")
@@ -1094,7 +1108,7 @@ class Broker:
                 termination_patterns if terminate_blocked_apps else None,
             )
             self._record_rate_limit(caller_uid)
-            LOG.info("request=%s outcome=approved", correlation_id)
+            LOG.info("core.032", request=correlation_id)
             return correlation_id, "approved", duration
         finally:
             self._request_lock.release()
@@ -1103,7 +1117,7 @@ class Broker:
         try:
             return self._config_loader()
         except ConfigurationError as error:
-            LOG.error("configuration rejected error_type=%s", type(error).__name__)
+            LOG.error("core.033", error_type=error_code(error))
             raise BackendFailure("broker configuration is unavailable") from error
 
     def _apply_rate_limit(self, caller_uid: int, interval: int) -> None:
@@ -1143,7 +1157,7 @@ class Broker:
             snapshot_complete = True
             desired_daily_limit = preferences["daily_time_limit_minutes"] * 60
             if old_limit_type == 0 or old_daily_limit != desired_daily_limit:
-                LOG.info("request=%s stage=limit-initialize", correlation_id)
+                LOG.info("core.034", request=correlation_id)
                 if old_daily_limit != desired_daily_limit:
                     self._accounts.set_daily_limit(target_uid, desired_daily_limit)
                     if self._accounts.get_daily_limit(target_uid) != desired_daily_limit:
@@ -1152,12 +1166,12 @@ class Broker:
                     self._accounts.set_limit_type(target_uid, DAILY_LIMIT_FLAG)
                     if self._accounts.get_limit_type(target_uid) != DAILY_LIMIT_FLAG:
                         raise BackendFailure("limit-type verification failed")
-            LOG.info("request=%s stage=filter-write", correlation_id)
+            LOG.info("core.035", request=correlation_id)
             self._accounts.set_filter(target_uid, desired_filter)
             if self._accounts.get_filter(target_uid) != desired_filter:
                 raise BackendFailure("app-filter verification failed")
             if termination_patterns is not None:
-                LOG.info("request=%s stage=blocked-app-termination", correlation_id)
+                LOG.info("core.036", request=correlation_id)
                 termination_may_have_changed_processes = True
                 terminated = self._running_apps.terminate(
                     target_uid, desired_filter[1], termination_patterns,
@@ -1165,20 +1179,15 @@ class Broker:
                 if type(terminated) is not int or terminated < 0:
                     raise BackendFailure("blocked application termination failed")
                 termination_may_have_changed_processes = terminated > 0
-                LOG.info(
-                    "request=%s stage=blocked-app-termination outcome=accepted count=%d",
-                    correlation_id, terminated,
-                )
-            LOG.info("request=%s stage=extension-write", correlation_id)
-            self._accounts.set_extension(target_uid, extension)
+                LOG.info("core.037", request=correlation_id, count=terminated)
+            LOG.info("core.038", request=correlation_id)
+            self._write_extension(target_uid, extension)
             if self._accounts.get_extension(target_uid) != extension:
                 raise BackendFailure("extension verification failed")
+            self._observe_grant(target_uid, *extension)
         except Exception as error:
             if not snapshot_complete:
-                LOG.warning(
-                    "request=%s stage=account-snapshot outcome=failed error_type=%s",
-                    correlation_id, type(error).__name__,
-                )
+                LOG.warning("core.039", request=correlation_id, error_type=error_code(error))
             elif termination_may_have_changed_processes:
                 # A killed process cannot be restored. Keep the canonical
                 # hard+soft block filter active, but restore every reversible
@@ -1200,10 +1209,8 @@ class Broker:
             self, target_uid: int, old_limit_type: int, old_daily_limit: int,
             desired_filter, old_extension, correlation_id: str) -> None:
         try:
-            LOG.warning(
-                "request=%s stage=rollback-after-termination", correlation_id,
-            )
-            self._accounts.set_extension(target_uid, old_extension)
+            LOG.warning("core.040", request=correlation_id)
+            self._write_extension(target_uid, old_extension)
             self._accounts.set_limit_type(target_uid, old_limit_type)
             self._accounts.set_daily_limit(target_uid, old_daily_limit)
             self._accounts.set_filter(target_uid, desired_filter)
@@ -1213,16 +1220,19 @@ class Broker:
                     self._accounts.get_daily_limit(target_uid) != old_daily_limit):
                 raise RuntimeError("post-termination rollback read-back mismatch")
         except Exception as error:
-            LOG.critical("request=%s outcome=rollback-failed", correlation_id)
+            LOG.critical("core.041", request=correlation_id)
             raise RollbackFailure(
                 "account rollback after app termination could not be verified"
             ) from error
 
     def _restore(self, target_uid: int, old_limit_type: int, old_daily_limit: int,
-                 old_filter, old_extension, correlation_id: str) -> None:
+                 old_filter, old_extension, correlation_id: str | None) -> None:
         try:
-            LOG.warning("request=%s stage=rollback", correlation_id)
-            self._accounts.set_extension(target_uid, old_extension)
+            if correlation_id is None:
+                LOG.warning("core.parent-control-rollback")
+            else:
+                LOG.warning("core.042", request=correlation_id)
+            self._write_extension(target_uid, old_extension)
             self._accounts.set_filter(target_uid, old_filter)
             self._accounts.set_limit_type(target_uid, old_limit_type)
             self._accounts.set_daily_limit(target_uid, old_daily_limit)
@@ -1232,5 +1242,8 @@ class Broker:
                     self._accounts.get_daily_limit(target_uid) != old_daily_limit):
                 raise RuntimeError("rollback read-back mismatch")
         except Exception as error:
-            LOG.critical("request=%s outcome=rollback-failed", correlation_id)
+            if correlation_id is None:
+                LOG.critical("core.parent-control-rollback-failed")
+            else:
+                LOG.critical("core.041", request=correlation_id)
             raise RollbackFailure("account rollback could not be verified") from error

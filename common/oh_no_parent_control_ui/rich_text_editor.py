@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from html import escape
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 from pathlib import Path
 
 import gi
@@ -17,7 +17,7 @@ from gi.repository import Gtk, WebKit
 from common.oh_no_parent_control_ui.accessibility import describe_control
 
 
-LOG = logging.getLogger("oh-no-parent-control-parent")
+LOG = get_logger("rich-text-editor")
 ASSET_DIR = Path(__file__).with_name("rich_editor")
 
 
@@ -107,10 +107,10 @@ class RichTextEditor(Gtk.Box):
         try:
             payload = json.loads(value.to_string())
         except (TypeError, ValueError):
-            LOG.warning("rich editor bridge rejected malformed message")
+            LOG.warning("rich-text-editor.001")
             return
         if not isinstance(payload, dict):
-            LOG.warning("rich editor bridge rejected non-object message")
+            LOG.warning("rich-text-editor.002")
             return
         kind = payload.get("type")
         if kind == "ready":
@@ -120,28 +120,28 @@ class RichTextEditor(Gtk.Box):
                 f"window.feedbackEditor.restore(JSON.parse({encoded_delta}));",
                 -1, None, None, None, None, None,
             )
-            LOG.info("rich editor ready engine=quill version=2.0.3")
+            LOG.info("rich-text-editor.003")
             return
         if kind == "attachment":
             if self._attachment_requested is not None:
                 self._attachment_requested()
             return
         if kind != "change":
-            LOG.warning("rich editor bridge rejected unknown message type")
+            LOG.warning("rich-text-editor.004")
             return
         text = payload.get("text")
         rich_html = payload.get("html")
         delta = payload.get("delta")
         if not all(isinstance(item, str) for item in (text, rich_html, delta)):
-            LOG.warning("rich editor bridge rejected invalid change payload")
+            LOG.warning("rich-text-editor.005")
             return
         try:
             parsed_delta = json.loads(delta)
         except ValueError:
-            LOG.warning("rich editor bridge rejected invalid delta")
+            LOG.warning("rich-text-editor.006")
             return
         if not isinstance(parsed_delta, dict) or not isinstance(parsed_delta.get("ops"), list):
-            LOG.warning("rich editor bridge rejected invalid delta shape")
+            LOG.warning("rich-text-editor.007")
             return
         # Contents are deliberately never logged: feedback may contain PII.
         self._plain_text = text
@@ -156,13 +156,13 @@ class RichTextEditor(Gtk.Box):
             uri = request.get_uri() if request is not None else ""
             if uri and uri != "about:blank":
                 decision.ignore()
-                LOG.info("rich editor blocked external navigation")
+                LOG.info("rich-text-editor.008")
                 return True
         return False
 
     def _web_process_terminated(self, _view, reason):
         self._ready = False
-        LOG.warning("rich editor process terminated reason=%s", reason.value_nick)
+        LOG.warning("rich-text-editor.009", reason=reason.value_nick)
         self._view.reload()
 
     def _document(self):

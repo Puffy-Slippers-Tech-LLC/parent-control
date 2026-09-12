@@ -25,10 +25,9 @@ def sample():
 
 @pytest.mark.parametrize('fault,reason', [
     (None, None), ('boot', 'boot'), ('activation', 'activation'), ('inactive', 'unit'), ('restart', 'unit'),
-    ('unit-field', 'unit'), ('owner', 'owner'), ('pid', 'witness'), ('stale', 'witness'),
-    ('duplicate', 'witness'), ('missing', 'witness'), ('private-field', 'witness'),
-    ('bool', 'witness'), ('nonroot', 'witness'), ('writable', 'witness'),
-    ('symlink', 'witness'), ('old-record', 'witness'), ('object', 'object'),
+    ('unit-field', 'unit'), ('owner', 'owner'), ('pid', 'witness'),
+    ('query-failed', 'witness'), ('missing', 'witness'), ('private-field', 'witness'),
+    ('bool', 'witness'), ('object', 'object'),
     ('bus-replaced', 'continuity'), ('unit-replaced', 'continuity'),
     ('boot-replaced', 'continuity'), ('order', 'timestamps'),
     ('before-process', 'timestamps'), ('after-active', 'timestamps'),
@@ -37,29 +36,15 @@ def test_broker_guest_program_rejects_uncorrelated_or_unpublished_evidence(
         tmp_path, monkeypatch, capsys, fault, reason):
     data = sample()
     record = {k: data[k] for k in startup.BROKER_TIMESTAMPS}
-    record.update(invocation_id='a' * 32, bus_owner=':1.9', pid=17)
-    if fault == 'stale':
-        record['invocation_id'] = 'b' * 32
+    if fault == 'missing':
+        del record['policy_ready_ns']
     if fault == 'private-field':
         record['private'] = 'private-startup-canary'
     if fault == 'bool':
         record['policy_ready_ns'] = True
     if fault == 'order':
         record['policy_ready_ns'] = 900000
-    log = tmp_path / '2026-09-09.log'
-    content = '2026-09-09T00:00:00+00:00 INFO startup-witness ' + json.dumps(record) + '\n'
-    if fault == 'duplicate':
-        content *= 2
-    if fault == 'old-record':
-        content += 'unrelated log\n' * 50000
-    log.write_text(content)
-    log.chmod(0o640)
-    if fault == 'symlink':
-        link = tmp_path / '2026-09-08.log'
-        link.symlink_to(log)
-        log = link
     original_read = Path.read_text
-    original_fstat = os.fstat
     reads = []
     calls = []
     units = []
@@ -71,15 +56,6 @@ def test_broker_guest_program_rejects_uncorrelated_or_unpublished_evidence(
         if fault == 'boot':
             raise OSError('private-startup-canary')
         return BOOT.replace('001', '002') if fault == 'boot-replaced' and len(reads) > 1 else BOOT
-
-    def metadata(fd):
-        meta = original_fstat(fd)
-        return SimpleNamespace(st_size=meta.st_size, st_uid=1 if fault == 'nonroot' else 0,
-                               st_mode=meta.st_mode | (0o020 if fault == 'writable' else 0))
-
-    def paths(path):
-        assert str(path) == '/var/log/oh-no-parent-control/broker'
-        return iter([] if fault == 'missing' else [log])
 
     def run(args, **kwargs):
         assert args[:3] == ('systemctl', 'show', 'oh-no-parent-control-broker.service')
@@ -113,6 +89,11 @@ def test_broker_guest_program_rejects_uncorrelated_or_unpublished_evidence(
             return GLib.Variant('(s)', (owner,))
         if method == 'GetConnectionUnixProcessID':
             return GLib.Variant('(u)', (18 if fault == 'pid' else 17,))
+        if method == 'GetStartupTimings':
+            assert args[0] == ':1.9' and args[2] == 'com.puffyslippers.OhNoParentControl1'
+            if fault == 'query-failed':
+                raise RuntimeError('private-startup-canary')
+            return SimpleNamespace(unpack=lambda: (record,))
         assert method == 'Introspect' and args[0] == ':1.9'
         xml = '<node/>' if fault == 'object' else (
             '<node><interface name="com.puffyslippers.OhNoParentControl1">'
@@ -120,8 +101,6 @@ def test_broker_guest_program_rejects_uncorrelated_or_unpublished_evidence(
         return GLib.Variant('(s)', (xml,))
 
     monkeypatch.setattr(Path, 'read_text', read)
-    monkeypatch.setattr(Path, 'iterdir', paths)
-    monkeypatch.setattr(os, 'fstat', metadata)
     monkeypatch.setattr('subprocess.run', run)
     monkeypatch.setattr(Gio, 'bus_get_sync', Mock(return_value=Mock(call_sync=call)))
     exec(compile(startup.BROKER, '<broker-startup-observation>', 'exec'), {})

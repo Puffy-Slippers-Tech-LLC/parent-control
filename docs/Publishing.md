@@ -387,7 +387,23 @@ During an APT install or upgrade, `debian/preinst` records that an activation co
 | `session-renewal` | Reassert child activation through broker startup; the next child or kiosk GNOME session uses updated payloads | No |
 | `reboot` | Normal Ubuntu reboot-required marker is created | Yes |
 
-`reboot` is reserved for changes to PAM or login-manager/pre-session integration. These must activate at a clean login-manager boundary. This includes the kiosk login-check helper as well as the PAM profiles which invoke it. The system GNOME extension payload, kiosk session units, and GNOME session descriptors are `session-renewal`, because an existing graphical session cannot load their replacement safely but the machine does not need to reboot. For this activation level, the package starts the broker, which reasserts extension activation for enabled managed children; a new Shell session loads the updated immutable system payload. Broker code, its systemd unit, and its D-Bus contract are `process-restart`. The packaged fapolicyd fallback rule is also `process-restart`: broker startup regenerates the UID-scoped deny rules and asks fapolicyd to load the resulting aggregate before the broker begins serving requests. Polkit action definitions and administrator-selection rules are `none` because polkitd monitors both directories and loads their changes for subsequent authorization requests. A request-flow update can still require a broker restart or session renewal through its changed broker and child payload files. The display-manager/fapolicyd readiness gate and its executable canary are also `reboot`: their fail-closed ordering can only be guaranteed when the login manager starts in the same boot transaction after fapolicyd becomes ready.
+`reboot` is reserved for changes to PAM stack configuration or login-manager/pre-session integration that must activate at a clean login-manager boundary. This includes the kiosk login-check helper as well as the PAM profiles which invoke it. The system GNOME extension payload, kiosk session units, and GNOME session descriptors are `session-renewal`, because an existing graphical session cannot load their replacement safely but the machine does not need to reboot. For this activation level, the package starts the broker, which reasserts extension activation for enabled managed children; a new Shell session loads the updated immutable system payload. Broker code, its systemd unit, and its D-Bus contract are `process-restart`. The packaged fapolicyd fallback rule is also `process-restart`: broker startup regenerates the UID-scoped deny rules and asks fapolicyd to load the resulting aggregate before the broker begins serving requests. Polkit action definitions and administrator-selection rules are `none` because polkitd monitors both directories and loads their changes for subsequent authorization requests. A request-flow update can still require a broker restart or session renewal through its changed broker and child payload files. The display-manager/fapolicyd systemd drop-ins and executable canary are also `reboot`: changes to their fail-closed boot ordering or probe contract need a fresh login-manager boundary.
+
+The compiled `pam_oh_no_parent_control.so` module is `session-renewal`: an
+existing PAM transaction can retain its loaded library, while a new login
+session uses the replacement. The `session-limit-check` executable is `none`
+because PAM executes it afresh for each authentication. The
+`execution-policy-ready` executable is also `none`: it checks enforcement
+during fapolicyd startup and exits, leaving no resident helper to replace.
+Its replacement is used on the next service start. Logging and sanitized error
+reporting changes in these files since v1.1 do not change enforcement or boot
+ordering and must not request a reboot. Reassess activation if a future change
+requires an already-completed readiness check to be repeated; changing that
+contract is different from replacing the helper's diagnostics.
+
+Existing v1.1 manifests remain valid: changed files use the new package's
+classification, while removed files retain their previous requirement. No
+package-version exception or saved-data migration is needed.
 
 The uninstall helper is `none`: it is invoked only while removing the package
 and cannot affect an installed update. It is therefore intentionally excluded
@@ -408,11 +424,13 @@ defers marker creation for Livepatch, `postinst` still records the reboot needed
 by our PAM/display-manager integration. Configuration retries avoid duplicate
 entries and retain the activation comparison if the hook fails.
 `make installdeb` locates the built `.deb` and hands off to ordinary
-`apt install <deb>`; `make uninstalldeb` runs `apt remove oh-no-parent-control`.
+`apt install --reinstall <deb>`; `make uninstalldeb` runs `apt remove oh-no-parent-control`.
 Both use only the package payload, installed maintainer scripts, and package
 manager integration. They must never add checkout-side setup, cleanup, notices,
-or success messages. Installation does not force repair or reinstallation; APT
-decides whether the supplied version needs installation just as in production.
+or success messages. Installation forces reinstallation of the supplied local
+package even when its version is already installed, so rebuilding with the same
+version replaces the installed payload. Running frontends must be closed and
+reopened to load updated code.
 APT installation output is deferred until dpkg finishes configuration and
 triggers. `preinst` generates the package-owned
 `/etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice`, using dpkg's documented
@@ -496,6 +514,6 @@ clean installations; they do not adopt untracked installations or accounts.
 
 `activation_for()` in `debian/package_activation.py` is the complete, reviewed mapping from installed path to activation level. `ACTIVATION_MANIFEST_PATHS` in the `Makefile` selects the corresponding installed files for hashing. When adding, moving, or removing a packaged integration file, update both and add a focused unit test in `tests/unit/test_package_activation.py`. Classify by the installed path, not its source directory.
 
-For a normal UI or broker update, do not assign `reboot` merely for caution: the manifest comparison must be able to avoid a reboot prompt. Conversely, any new PAM, GDM, or pre-session file must be classified as `reboot` before it ships.
+For a normal UI or broker update, do not assign `reboot` merely for caution: the manifest comparison must be able to avoid a reboot prompt. New PAM stack configuration, GDM, or pre-session integration must be classified as `reboot` before it ships. Distinguish those integration changes from replacing a module or short-lived helper that already has a supported activation boundary.
 
 Saved-data migration happens before this activation comparison and has its own retry and failure contract. The migration runner is therefore classified `none`: `postinst` invokes it unconditionally rather than as a later activation action. See [Data migration](SystemDesign/Data-Migration.md#package-lifecycle).

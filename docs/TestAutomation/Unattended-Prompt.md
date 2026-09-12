@@ -43,9 +43,9 @@ request another coordination confirmation because of that resolved hold.
 Preserve this clearance in each handoff. Actual runner refusals still require
 current evidence and scoped diagnosis under the existing guards.
 Never read, search, diff, edit or include docs/Test-Automation-Slice-Summary.md
-in context, including through broad repository reads. It is an operator-only,
-append-only log. The supervisor appends your final summary without reading its
-existing contents; it is not a handoff input. Exclude it from bulk searches and
+in context, including through broad repository reads. It is an append-only
+operator log used only by the separate progress reviewer. The supervisor appends
+your final summary; it is not an implementation handoff input. Exclude it from bulk searches and
 diffs, and inspect only relevant source changes.
 
 State the next bounded result, verification and actual settings, then implement
@@ -76,7 +76,7 @@ to further recovery work without blocking unrelated tasks. At an unmet stop
 checkpoint, finish owned work and cleanup, save the exact required decision,
 then return status=blocked and blocker=decision with truthful progress/cleanup.
 Do not reset the budget on restart or alter launcher control state. The current
-supervisor already stops on this result; no new launcher feature is implied.
+progress reviewer must preserve this required operator decision before further implementation.
 Otherwise return blocked only if no ready work can proceed without outside
 input. Record any denied action and its reason in the active handoff;
 do not retry the denied action through a different route or new session.
@@ -94,8 +94,12 @@ reason on the next line:
 
 Use one of `gpt-5.6-sol`, `gpt-6-astra`, `gpt-5.6-terra`, `gpt-5.6-luna` and
 `low`, `medium`, `high`, `xhigh`, `max` under that policy. The supervisor validates
-and uses this choice for the next fresh session without a routing-model call or
-another approval pause. Missing, duplicate or unsupported settings stop launch;
+and uses this choice for the next fresh implementation session unless the
+separate progress review supplies a one-slice intervention. That review always
+uses Astra xHigh and may choose Astra xHigh or max for one breakthrough slice.
+Follow an explicit supervisor-supplied breakthrough requirement, report whether
+it was achieved, then reassess ordinary settings instead of retaining the boost.
+No further settings approval is required. Missing, duplicate or unsupported settings stop launch;
 there is no silent fallback. Do not claim to switch this running conversation.
 
 Do not log PII or secrets. Describe any blocker and required intervention in the
@@ -143,5 +147,6 @@ active task handoff. The final response must conform to the supplied schema:
   its own clock. Do not append the report yourself.
 
 After saving this one slice's handoff, end the turn. The supervisor will verify
-the result and start a new Codex session if work remains. When all tasks are
+the result and start a separate progress review before another implementation
+session if work remains. When all tasks are
 complete, record completion and stop without rerunning accepted suites.

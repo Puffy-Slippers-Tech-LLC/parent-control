@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Install the development test dispatcher, bound to this checkout."""
 
+from contextlib import ExitStack
 import json
 import importlib.util
 import os
@@ -97,6 +98,33 @@ def install_file(destination, data, mode):
         Path(temporary).unlink(missing_ok=True)
 
 
+def repair_checkout_bytecode(root):
+    """Return the old dispatcher's cache directory to the tools directory owner.
+
+    Only this generated directory needs repair: the caller can then unlink its
+    contents during normal package clean. Do not traverse or chown its files.
+    Pin each directory before changing ownership, refusing symlinks/replacements.
+    """
+    if any(part.is_symlink() for part in (root, *root.parents)):
+        raise ValueError('test-runner-install:symlink-checkout-path')
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    with ExitStack() as stack:
+        checkout_fd = os.open(root, flags)
+        stack.callback(os.close, checkout_fd)
+        tools_fd = os.open('tools', flags, dir_fd=checkout_fd)
+        stack.callback(os.close, tools_fd)
+        try:
+            cache_fd = os.open('__pycache__', flags, dir_fd=tools_fd)
+        except FileNotFoundError:
+            return
+        stack.callback(os.close, cache_fd)
+        owner = os.fstat(tools_fd)
+        cache = os.fstat(cache_fd)
+        if cache.st_uid == 0 and owner.st_uid != 0:
+            os.fchown(cache_fd, owner.st_uid, owner.st_gid)
+            print('test-runner-install: restored checkout bytecode directory ownership')
+
+
 def main():
     if len(sys.argv) != 1 or os.geteuid() != 0:
         raise SystemExit('test-runner-install: run as root without arguments')
@@ -125,6 +153,7 @@ def main():
     for name, _prefix in policies:
         destination = Path('/etc/polkit-1/rules.d') / name
         install_file(destination, (root / 'config' / name).read_bytes(), 0o644)
+    repair_checkout_bytecode(root)
     print('test-runner-install: installed root-owned development tools and scoped authorizations')
     print('test-runner-install: VM identity ' + ('pinned' if identity else 'unavailable; VM operations disabled'))
 

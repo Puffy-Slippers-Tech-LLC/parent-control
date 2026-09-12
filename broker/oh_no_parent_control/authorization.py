@@ -6,7 +6,7 @@ that context has marked it cancelled. The broker retains its transaction lock
 until this adapter has finished local cancellation and attempted remote cleanup.
 """
 
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 
 from gi.repository import Gio, GLib
 
@@ -16,7 +16,7 @@ from .adapters import (
     PROPERTIES_INTERFACE, _call,
 )
 
-LOG = logging.getLogger("oh-no-parent-control.authorization")
+LOG = get_logger("authorization")
 LIFECYCLE_TIMEOUT_MS = 5_000
 LOGIN_USER_INTERFACE = "org.freedesktop.login1.User"
 POLKIT_NAME = "org.freedesktop.PolicyKit1"
@@ -184,8 +184,11 @@ class _PendingAuthorization:
             if Gio.dbus_error_get_remote_error(error) == "org.freedesktop.DBus.Error.NameHasNoOwner":
                 self._cancel("caller-disconnected")
             else:
-                LOG.warning("request=%s authorization outcome=backend-failed error_type=%s",
-                            self.correlation_id, type(error).__name__)
+                LOG.warning(
+                    "authorization.001",
+                    request=self.correlation_id,
+                    error_type=error_code(error),
+                )
             return self.outcome
         finally:
             for subscription in self.subscriptions:
@@ -225,8 +228,7 @@ class _PendingAuthorization:
             return
         self.cancel_reason = reason
         self.outcome = "cancelled"
-        LOG.info("request=%s authorization outcome=cancelled reason=%s silent=True",
-                 self.correlation_id, reason)
+        LOG.info("authorization.002", request=self.correlation_id, reason=reason)
         if not self.started:
             return
         # Use the SAME connection and cancellation ID as CheckAuthorization.
@@ -249,22 +251,27 @@ class _PendingAuthorization:
                     "cancelled" if challenge else "denied")
         except GLib.Error as error:
             if not self.cancel_reason:
-                LOG.warning("request=%s authorization outcome=backend-failed error_type=%s",
-                            self.correlation_id, type(error).__name__)
+                LOG.warning(
+                    "authorization.001",
+                    request=self.correlation_id,
+                    error_type=error_code(error),
+                )
         self._finish_if_ready()
 
     def _cancellation_finished(self, connection, result):
         self.cancel_done = True
         try:
             connection.call_finish(result)
-            LOG.info("request=%s authorization cancel-check outcome=accepted",
-                     self.correlation_id)
+            LOG.info("authorization.003", request=self.correlation_id)
         except GLib.Error as error:
             # Completion may have raced cancellation, or the authority may
             # have gone away. Never revive the cancelled grant or retain its
             # transaction lock; log the failed remote cleanup without PII.
-            LOG.warning("request=%s authorization cancel-check outcome=failed error_type=%s",
-                        self.correlation_id, type(error).__name__)
+            LOG.warning(
+                "authorization.004",
+                request=self.correlation_id,
+                error_type=error_code(error),
+            )
         self._finish_if_ready()
 
     def _finish_if_ready(self):

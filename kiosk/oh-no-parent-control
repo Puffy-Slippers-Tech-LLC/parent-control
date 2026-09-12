@@ -4,6 +4,12 @@ import sys
 sys.path.insert(0, "/usr/lib/oh-no-parent-control/kiosk")
 sys.path.insert(0, "/usr/lib/oh-no-parent-control")
 
-from oh_no_parent_control_kiosk.main import main
+try:
+    from common.oh_no_parent_control_ui.diagnostic_events import configure_console, run_cli
+    configure_console()
+    from oh_no_parent_control_kiosk.main import main
+except Exception:
+    sys.stderr.write("onpc.runtime startup failed\n")
+    raise SystemExit(1) from None
 
-raise SystemExit(main())
+raise SystemExit(run_cli(main))

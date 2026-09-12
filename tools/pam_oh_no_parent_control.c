@@ -65,7 +65,7 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
         return PAM_SUCCESS;
     if (result != PAM_SUCCESS) {
         pam_syslog(pamh, LOG_ERR,
-                   "session runtime cap outcome=failed stage=read status=%d",
+                   "onpc.pam session runtime cap outcome=failed stage=read status=%d",
                    result);
         return result;
     }
@@ -75,7 +75,7 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
     /* pam_set_data invokes the previous owner's cleanup when replacing data. */
     result = pam_set_data(pamh, RUNTIME_MAX_DATA, (void *) "infinity", NULL);
     pam_syslog(pamh, result == PAM_SUCCESS ? LOG_INFO : LOG_ERR,
-               "session runtime cap outcome=%s stage=before-session status=%d",
+               "onpc.pam session runtime cap outcome=%s stage=before-session status=%d",
                result == PAM_SUCCESS ? "cleared" : "failed", result);
     return result;
 }

@@ -88,6 +88,9 @@
     <method name="ExportDiagnosticLogs">
       <arg name="archive" type="ay" direction="out"/>
     </method>
+    <method name="GetStartupTimings">
+      <arg name="timings" type="a{st}" direction="out"/>
+    </method>
     <method name="LogEvent">
       <arg name="component" type="s" direction="in"/>
       <arg name="level" type="s" direction="in"/>

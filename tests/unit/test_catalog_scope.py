@@ -194,7 +194,7 @@ def test_unavailable_or_replaced_account_does_not_fall_back_to_system_catalog(
 
     assert catalog.list_apps(user) == ()
     assert [record.getMessage() for record in caplog.records] == [
-        f'catalog discovery outcome={reason}',
+        f'onpc.catalog catalog discovery outcome={reason}',
     ]
 
 

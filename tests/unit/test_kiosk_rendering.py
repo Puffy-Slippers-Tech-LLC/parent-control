@@ -126,7 +126,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('f"{self._success_action_label} ({remaining})"', source)
         self.assertIn("self._tick_success_countdown", source)
         self.assertIn("self._schedule_success_logout()", source)
-        self.assertIn("approved request acknowledged; closing overlay", source)
+        self.assertIn('LOG.info("kiosk.011")', source)
         self.assertNotIn('close_click.connect("released", self._close_overlay)', source)
         self.assertIn('self._result_action.connect("clicked", self._result_dismissed)', source)
         self.assertIn("self.close()", source)
@@ -150,7 +150,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("popover_content.append(HudMenuStem())", source)
         self.assertIn("menu_board.append(menu_actions)", source)
         self.assertIn("menu_button.connect(\"notify::active\", self._menu_state_changed)", source)
-        self.assertIn('"request-screen menu expanded=%s overlay=%s"', source)
+        self.assertIn('LOG.info("kiosk.007", expanded=menu_button.get_active(), overlay=self._child_overlay)', source)
         self.assertNotIn("open-menu-symbolic", source)
 
     def test_result_action_matches_request_and_cancel_button_width(self):

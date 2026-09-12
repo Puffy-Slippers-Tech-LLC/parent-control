@@ -104,7 +104,19 @@ import requests
 from common.oh_no_parent_control_ui import feedback, feedback_transport
 from parent.oh_no_parent_control_parent import main as parent_main
 
-feedback.collect_logs = lambda: b"PK\x03\x04component-test archive"
+from common.oh_no_parent_control_ui.diagnostic_bundle import build_bundle
+
+def feedback_logs():
+    if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-collecting":
+        time.sleep(8)
+    return build_bundle([])
+
+
+feedback.collect_logs = feedback_logs
+if os.environ.get("ONPC_FEEDBACK_SPINNER_DIRECTORY"):
+    from tests.ui.feedback_spinner_probe import ObservedFeedbackDialog
+    parent_main.FeedbackDialog = ObservedFeedbackDialog
+
 feedback_status = int(os.environ.get("ONPC_FEEDBACK_STATUS", "202"))
 feedback_attempts = 0
 

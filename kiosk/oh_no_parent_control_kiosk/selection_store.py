@@ -1,12 +1,12 @@
 """User-local request selector defaults; never an account authority."""
 
 import json
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import os
 from pathlib import Path
 import tempfile
 
-LOG = logging.getLogger(__name__)
+LOG = get_logger("kiosk-selection-store")
 
 
 class SelectionStore:
@@ -24,7 +24,7 @@ class SelectionStore:
         except FileNotFoundError:
             pass
         except (OSError, ValueError):
-            LOG.warning("local request selections could not be loaded")
+            LOG.warning("kiosk-selection-store.001")
 
     def preferred(self, key):
         if key == "child_uid" and self.child_overlay:
@@ -46,9 +46,9 @@ class SelectionStore:
                 json.dump(self.values, stream)
             os.replace(temporary, self.path)
             temporary = None
-            LOG.info("local request selection saved selector=%s", key)
+            LOG.info("kiosk-selection-store.002", selector={"child_uid": "child", "approver_uid": "approver"}.get(key, "other"))
         except OSError:
-            LOG.warning("local request selection could not be saved selector=%s", key)
+            LOG.warning("kiosk-selection-store.003", selector={"child_uid": "child", "approver_uid": "approver"}.get(key, "other"))
         finally:
             if temporary is not None:
                 Path(temporary).unlink(missing_ok=True)

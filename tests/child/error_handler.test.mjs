@@ -36,7 +36,7 @@ test('reports travel over stdin with Child App context and no private logging', 
     assert.deepEqual(Array.from(calls[0].argv), [
         '/usr/bin/oh-no-parent-control', '--error-report-stdin', '--child-overlay',
     ]);
-    assert.equal(calls[0].text, 'Error: private@example.test /private/path');
+    assert.equal(calls[0].text, 'child-operation-failed');
     assert(!logs.join('').includes('private'));
 });
 
@@ -57,7 +57,7 @@ test('duplicate failures preserve the owned reporter and cleanup signals only th
 test('a completed reporter releases ownership and long diagnostics are bounded', () => {
     const {handler, calls} = harness();
     handler.report(new Error('x'.repeat(10000)));
-    assert.equal(calls[0].text.length, 3500);
+    assert.equal(calls[0].text, 'child-operation-failed');
     calls[0].done();
     handler.report(new Error('next'));
     assert.equal(calls.length, 2);

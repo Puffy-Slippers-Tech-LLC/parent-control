@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import math
 import os
 import re
@@ -28,7 +28,7 @@ REQUIRED_REQUEST_KEYS = {
 OPTIONAL_REQUEST_KEYS = {
     "last_selected_approver_uid", "kiosk_muted", "child_muted",
 }
-LOG = logging.getLogger("oh-no-parent-control.preferences")
+LOG = get_logger("preferences")
 
 
 class PreferencesError(ValueError):
@@ -199,20 +199,20 @@ class PreferenceStore:
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
-            LOG.info("preference load outcome=default-record")
+            LOG.info("preferences.001")
             return default_preferences()
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
-            LOG.warning("preference load outcome=failed error_type=%s", type(error).__name__)
+            LOG.warning("preferences.002", error_type=error_code(error))
             raise PreferencesError("could not read preferences") from error
         try:
             return validate_preferences(raw)
         except PreferencesError as error:
-            LOG.warning("preference load outcome=invalid error_type=%s", type(error).__name__)
+            LOG.warning("preferences.003", error_type=error_code(error))
             raise
 
     def save(self, uid: int, preferences: object) -> dict:
         normalized = validate_preferences(preferences)
-        LOG.info("preference save stage=validated app_policy_count=%d", len(normalized["apps"]))
+        LOG.info("preferences.004", app_policy_count=len(normalized["apps"]))
         path = self._path(uid)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.directory, 0o700)
@@ -226,12 +226,12 @@ class PreferenceStore:
             os.chmod(temporary, 0o600)
             os.replace(temporary, path)
         except OSError as error:
-            LOG.error("preference save outcome=failed error_type=%s", type(error).__name__)
+            LOG.error("preferences.005", error_type=error_code(error))
             raise
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
-        LOG.info("preference save outcome=accepted")
+        LOG.info("preferences.006")
         return normalized
 
     def update_request(self, uid: int, selected: str, custom: float,

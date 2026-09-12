@@ -8,7 +8,7 @@ observes collection. This adapter is not yet connected to policy activation.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import secrets
 import threading
 import time
@@ -24,7 +24,7 @@ PROBE = "/usr/libexec/oh-no-parent-control-execution-policy-probe"
 PROBE_EXECUTED = 23
 UNIT_INTERFACE = "org.freedesktop.systemd1.Unit"
 SERVICE_INTERFACE = "org.freedesktop.systemd1.Service"
-LOG = logging.getLogger("oh-no-parent-control.execution-probe")
+LOG = get_logger("execution-probe")
 CALL_MS = 1000
 OBSERVE_SECONDS = 15
 CLEANUP_SECONDS = 3
@@ -77,7 +77,7 @@ class ProbeBusClient:
         except GLib.Error as error:
             outcome = "collision" if _error_name(error) == UNIT_EXISTS else "uncertain"
             self._create_reply = ProbeCreateReply(outcome)
-            LOG.info("execution probe create reply outcome=%s", outcome)
+            LOG.info("execution-probe.001", outcome=outcome)
         finally:
             self._create_pending = False
 
@@ -150,7 +150,7 @@ class ProbeBusClient:
             self._connection = Gio.DBusConnection.new_for_address_finish(result)
             self._connection.set_exit_on_close(False)
         except GLib.Error:
-            LOG.info("execution probe client open failed")
+            LOG.info("execution-probe.002")
         finally:
             self._pending = None
             self._cancel = None
@@ -159,7 +159,7 @@ class ProbeBusClient:
         try:
             connection.close_finish(result)
         except GLib.Error:
-            LOG.info("execution probe client close failed")
+            LOG.info("execution-probe.003")
         finally:
             self._pending = None
             self._cancel = None
@@ -232,7 +232,7 @@ class ProbeBusClient:
             if self._create_pending:
                 # Disconnection would discard the reply and may release AddRef
                 # before terminal evidence is copied. Keep the sender usable.
-                LOG.info("execution probe client retained pending create reply")
+                LOG.info("execution-probe.004")
                 return False
             self._closing = True
             self._context.push_thread_default()
@@ -362,8 +362,11 @@ class ExecutionProbe:
             if closed:
                 self._client = None
         self._pending = None if result.cleanup_complete else result
-        LOG.info("execution probe cleanup unit_settled=%s client_closed=%s",
-                 self._settled, result.client_closed)
+        LOG.info(
+            "execution-probe.005",
+            unit_settled=self._settled,
+            client_closed=result.client_closed,
+        )
         return result
 
     def _collect_create(self, result, *, preserve_outcome):
@@ -523,8 +526,11 @@ class ExecutionProbe:
             result = replace(result, cleanup_complete=False)
             self._pending = result
             result = self._finish_client(result)
-        LOG.info("execution probe outcome=%s cleanup_complete=%s",
-                 result.outcome, result.cleanup_complete)
+        LOG.info(
+            "execution-probe.006",
+            outcome=result.outcome,
+            cleanup_complete=result.cleanup_complete,
+        )
         return result
 
     def recover(self):
@@ -570,8 +576,11 @@ class ExecutionProbe:
                 result = replace(result, cleanup_complete=False)
                 self._pending = result
                 result = self._finish_client(result)
-            LOG.info("execution probe recovery outcome=%s cleanup_complete=%s",
-                     result.outcome, result.cleanup_complete)
+            LOG.info(
+                "execution-probe.007",
+                outcome=result.outcome,
+                cleanup_complete=result.cleanup_complete,
+            )
             return result
         finally:
             self._operation.release()
@@ -583,8 +592,10 @@ class ExecutionProbe:
         # evidence required to settle this attempt, even with the sender open.
         if result.create_outcome == "pending" or not result.terminal_observed:
             LOG.info(
-                "execution probe reference retained create_collected=%s terminal_evidence=%s",
-                result.create_outcome != "pending", result.terminal_observed)
+                "execution-probe.008",
+                create_collected=result.create_outcome != "pending",
+                terminal_evidence=result.terminal_observed,
+            )
             return result
         deadline = time.monotonic() + CLEANUP_SECONDS
         try:

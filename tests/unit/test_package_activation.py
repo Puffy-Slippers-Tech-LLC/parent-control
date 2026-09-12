@@ -142,22 +142,26 @@ class PackageActivationTests(unittest.TestCase):
 
             self.assertEqual(changed_impacts(old, new), ["session-renewal"])
 
-    def test_pam_policy_and_runtime_cap_modules_require_reboot(self):
+    def test_pam_limit_helper_activates_on_invocation(self):
         self.assertEqual(
             activation_for(
                 "usr/libexec/oh-no-parent-control-session-limit-check"
             ),
-            "reboot",
+            "none",
         )
+
+    def test_kiosk_login_integration_requires_reboot(self):
         self.assertEqual(
             activation_for("usr/libexec/oh-no-parent-control-login-check"),
             "reboot",
         )
+
+    def test_pam_runtime_cap_module_activates_at_next_session(self):
         self.assertEqual(
             activation_for(
                 "usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so"
             ),
-            "reboot",
+            "session-renewal",
         )
 
     def test_login_stack_change_requires_reboot(self):
@@ -173,7 +177,7 @@ class PackageActivationTests(unittest.TestCase):
 
             self.assertEqual(changed_impacts(old, new), ["reboot"])
 
-    def test_execution_readiness_gate_requires_reboot(self):
+    def test_execution_readiness_boot_order_requires_reboot(self):
         self.assertEqual(
             activation_for(
                 "usr/lib/systemd/system/display-manager.service.d/"
@@ -181,10 +185,18 @@ class PackageActivationTests(unittest.TestCase):
             ),
             "reboot",
         )
+
+    def test_execution_readiness_helper_activates_on_invocation(self):
         self.assertEqual(
             activation_for(
                 "usr/libexec/oh-no-parent-control-execution-policy-ready"
             ),
+            "none",
+        )
+
+    def test_execution_canary_contract_requires_reboot(self):
+        self.assertEqual(
+            activation_for("usr/libexec/oh-no-parent-control-execution-policy-probe"),
             "reboot",
         )
 

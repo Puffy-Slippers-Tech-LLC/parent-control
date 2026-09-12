@@ -1,4 +1,6 @@
 .envrc
+# One-time diagnostic downloads from test machines; never commit their contents.
+/diagnostic-logs/
 *.zip
 schemas/gschemas.compiled
 __pycache__/

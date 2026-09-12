@@ -7,7 +7,7 @@ one finite sound. Short PCM blocks keep the attack close to the rendered flash.
 from array import array
 from dataclasses import dataclass
 from functools import lru_cache
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import math
 import random
 import sys
@@ -19,7 +19,7 @@ gi.require_version("Gst", "1.0")
 from gi.repository import GLib, Gst
 
 
-LOG = logging.getLogger("oh-no-parent-control")
+LOG = get_logger("kiosk-thunder")
 SAMPLE_RATE = 24_000
 BLOCK_FRAMES = SAMPLE_RATE // 100
 MAX_VOICES = 8
@@ -180,7 +180,7 @@ class LightningAudio:
             self._bus.connect("message::error", self._error)
             self._bus.connect("message::warning", self._warning)
         except GLib.Error as error:
-            LOG.warning("lightning audio unavailable error_type=%s", type(error).__name__)
+            LOG.warning("kiosk-thunder.001", error_type=error_code(error))
             self.close()
 
     @staticmethod
@@ -211,14 +211,14 @@ class LightningAudio:
         # Contiguous timestamps preserve the waveform through block boundaries.
         result = source.emit("push-buffer", buffer)
         if result not in (Gst.FlowReturn.OK, Gst.FlowReturn.FLUSHING):
-            LOG.debug("lightning audio buffer rejected flow=%s", result.value_nick)
+            LOG.debug("kiosk-thunder.002", flow=result.value_nick)
 
     def play(self, brightness=1.0, pan=0.0):
         with self._lock:
             if self._closed or self._muted or self._pipeline is None:
                 return
             self._mixer.strike(brightness, pan)
-        LOG.debug("lightning thunder triggered brightness=%.2f pan=%.2f", brightness, pan)
+        LOG.debug("kiosk-thunder.003", brightness=brightness, pan=pan)
 
     def _apply_volume(self):
         if self._gain is not None:
@@ -236,9 +236,9 @@ class LightningAudio:
         if self._pipeline is not None:
             state = Gst.State.READY if muted else Gst.State.PLAYING
             if self._pipeline.set_state(state) == Gst.StateChangeReturn.FAILURE:
-                LOG.warning("lightning audio state change failed muted=%s", muted)
+                LOG.warning("kiosk-thunder.004", muted=muted)
                 self.close()
-        LOG.info("lightning audio muted=%s", muted)
+        LOG.info("kiosk-thunder.005", muted=muted)
 
     def fade_out(self, duration_ms):
         self.cancel_fade(restore=False)
@@ -269,13 +269,13 @@ class LightningAudio:
     def _error(self, _bus, message):
         error, _debug = message.parse_error()
         # Device names and GStreamer debug strings may contain personal paths.
-        LOG.warning("lightning audio playback failed error_code=%d", error.code)
+        LOG.warning("kiosk-thunder.006", error_code=error.code)
         self.close()
 
     @staticmethod
     def _warning(_bus, message):
         warning, _debug = message.parse_warning()
-        LOG.warning("lightning audio backend warning error_code=%d", warning.code)
+        LOG.warning("kiosk-thunder.007", error_code=warning.code)
 
     def close(self):
         self.cancel_fade(restore=False)
@@ -289,4 +289,4 @@ class LightningAudio:
         if self._bus is not None:
             self._bus.remove_signal_watch()
             self._bus = None
-        LOG.debug("lightning audio closed")
+        LOG.debug("kiosk-thunder.008")

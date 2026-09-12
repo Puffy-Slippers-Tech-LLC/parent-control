@@ -143,7 +143,7 @@ def _log_authentication_outcome(outcome: AuthenticationOutcome) -> None:
     syslog.syslog(
         syslog.LOG_INFO if outcome == AuthenticationOutcome.ALLOWED
         else syslog.LOG_WARNING,
-        f"screen-time authentication outcome={labels[outcome]} "
+        f"onpc.session-limit authentication outcome={labels[outcome]} "
         "target=[Child user]",
     )
 

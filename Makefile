@@ -47,12 +47,12 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
 	$(DATADIR)/oh-no-parent-control/gdm-presession
 CHILD_DIR := child
-EXTENSION_SOURCES := branding.js errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
+EXTENSION_SOURCES := branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 # Explicit production modules prevent preview/test helpers from entering the package.
-COMMON_SOURCES := __init__.py about.py accessibility.py diagnostics.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py
+COMMON_SOURCES := __init__.py about.py accessibility.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py
 KIOSK_SOURCES := __init__.py chrome.py floating_islands.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
 PARENT_SOURCES := __init__.py client.py main.py
-BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py extension_manager.py logs.py preferences.py service.py uninstall.py
+BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py extension_manager.py grant_diagnostics.py logs.py preferences.py service.py uninstall.py
 OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
 EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
@@ -61,7 +61,7 @@ BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_
 PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png
 EXTENSION_BRANDING_ASSETS := data/brand.json data/app_logo_gnome_launcher.png
 # gnome-extensions resolves extra sources relative to CHILD_DIR.
-EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../LICENSE ../COPYRIGHT ../NOTICE
+EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../common/oh_no_parent_control_ui/diagnostic_catalog.json ../LICENSE ../COPYRIGHT ../NOTICE
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
@@ -128,7 +128,7 @@ installdeb:
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
 	step='installing package with APT'; \
-	exec $(APT) install "$$deb_file"
+	exec $(APT) install --reinstall "$$deb_file"
 
 uninstalldeb:
 	$(APT) remove oh-no-parent-control
@@ -276,7 +276,7 @@ _install-development-extension:
 	install -d "$(EXTENSION_DIR)" "$(EXTENSION_DIR)/schemas"
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(EXTENSION_DIR)/"
-	install -m 0644 $(EXTENSION_BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
+	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(EXTENSION_DIR)/schemas/"
 	glib-compile-schemas "$(EXTENSION_DIR)/schemas"
 	@echo "Installed $(UUID) to $(EXTENSION_DIR)"
@@ -318,7 +318,7 @@ _install-product-files:
 	# one immutable system payload discoverable in every session; the broker
 	# controls per-child activation through that child's GNOME settings.
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
-	install -m 0644 $(EXTENSION_BRANDING_ASSETS) LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
+	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas/"
 	glib-compile-schemas "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas"
 	install -m 0644 $(addprefix broker/oh_no_parent_control/,$(BROKER_SOURCES)) "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"

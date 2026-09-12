@@ -2,6 +2,9 @@
 
 from pathlib import Path
 import runpy
+import shutil
+import subprocess
+import textwrap
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -91,3 +94,91 @@ def test_prerequisites_drop_privileges_and_gate_root_test(checkout, monkeypatch,
     assert any(p.endswith('test_future_cleanup_safety.py') for p in prerequisites.args[0])
     if safety_status == 0:
         assert 'user' not in execute.call_args_list[1].kwargs
+
+
+@pytest.mark.parametrize('safety_status', [0, 1])
+def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_status):
+    """Exercise interpreter startup -> checkout imports -> real package clean.
+
+    In-process runpy tests inherit pytest's no-bytecode setting and miss the
+    installed dispatcher's interpreter flags. Publishing builds also use a fresh
+    source snapshot, which omits caches left in the developer's checkout.
+    """
+    root = Path(__file__).resolve().parents[2]
+    tools = checkout / 'tools'
+    tools.mkdir()
+    for name in ('onpc-test-runner', 'regression_process.py', 'test_launcher.py'):
+        shutil.copy2(root / 'tools' / name, tools / name)
+    installer = runpy.run_path(str(root / 'tools/install_test_runner.py'))
+    rendered = installer['render_helper'](checkout, 'onpc-test-runner', None)
+    installed = checkout.parent / 'installed-test-runner'
+    installed.write_text(rendered)
+
+    # Use the rendered helper's actual shebang in a fresh process. Only process
+    # execution and signal/pipe setup are replaced: selection, safety_command,
+    # and the import of the real test_launcher module all execute unchanged.
+    probe = checkout.parent / 'dispatcher-probe'
+    probe.write_text(rendered.splitlines()[0] + '\n' + textwrap.dedent('''\
+        from contextlib import nullcontext
+        import os
+        from pathlib import Path
+        import pwd
+        import runpy
+        import sys
+        from unittest.mock import patch
+
+        load = runpy.run_path
+        dispatcher = load(sys.argv[1])
+        calls = []
+        safety_status = int(sys.argv[2])
+
+        def execute(self, command, **kwargs):
+            calls.append(command)
+            return safety_status if len(calls) == 1 else 0
+
+        def load_with_owned_process_stub(path):
+            namespace = load(path)
+            if Path(path).name == 'regression_process.py':
+                namespace['Control'].installed = lambda self, **kwargs: nullcontext(self)
+                namespace['Control'].run = execute
+            return namespace
+
+        with patch.object(runpy, 'run_path', load_with_owned_process_stub):
+            status = dispatcher['run'](
+                Path(dispatcher['CHECKOUT']),
+                ['--unattended', 'system', '--artifacts', '/tmp/onpc-build-regression'],
+                pwd.getpwuid(os.getuid()))
+        assert status == safety_status
+        assert len(calls) == (1 if safety_status else 2)
+        assert 'test_launcher' in sys.modules
+        assert any('test_future_cleanup_safety.py' in arg for arg in calls[0])
+        print('dispatcher checkout imports exercised')
+        '''))
+    probe.chmod(0o755)
+    environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+                   'PYTHONDONTWRITEBYTECODE': '1'}
+    result = subprocess.run([str(probe), str(installed), str(safety_status)],
+                            cwd=checkout, env=environment, capture_output=True,
+                            text=True, timeout=20, check=False)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'dispatcher checkout imports exercised' in result.stdout
+
+    debian = checkout / 'debian'
+    debian.mkdir()
+    for name in ('rules', 'control', 'changelog'):
+        shutil.copy2(root / 'debian' / name, debian / name)
+    caches = list(tools.rglob('__pycache__'))
+    # Model the caller's inability to unlink files in a root-owned cache without
+    # requiring root or leaving privileged artifacts in the real checkout.
+    for cache in caches:
+        cache.chmod(0o555)
+    try:
+        clean = subprocess.run(['/usr/bin/make', '-f', 'debian/rules', 'clean'],
+                               cwd=checkout, env=environment, capture_output=True,
+                               text=True, timeout=30, check=False)
+        assert clean.returncode == 0, clean.stdout + clean.stderr
+        assert not caches, 'the dispatcher must not write bytecode into the checkout'
+    finally:
+        for cache in caches:
+            if cache.exists():
+                cache.chmod(0o755)

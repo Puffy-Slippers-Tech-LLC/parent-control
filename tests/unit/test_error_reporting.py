@@ -18,10 +18,10 @@ def test_error_report_component_copy_and_exception_chain(component, caplog):
     handler = ErrorHandler(None, component)
     report = handler.capture(error, "Request unavailable", "Please try again later.")
     assert report.subject == f"[Oh No! Parent Control] [{component}] Error Report"
-    assert report.message == (
-        "Request unavailable\nPlease try again later.\n\n--------------------\n\n"
-        "RuntimeError: operation failed\nCaused by: ValueError: internal /private/path user@example.test"
-    )
+    assert "Error categories: RuntimeError, ValueError" in report.message
+    assert "user@example.test" not in repr(report)
+    assert "/private/path" not in repr(report)
+    assert "operation failed" not in repr(report)
     assert "user@example.test" not in caplog.text
     assert "/private/path" not in caplog.text
     assert "operation failed" not in caplog.text
@@ -30,7 +30,8 @@ def test_error_report_component_copy_and_exception_chain(component, caplog):
 
 def test_large_exception_is_a_valid_editable_report():
     report = ErrorReport.capture("Child App", RuntimeError("😀\0" * 5000))
-    assert "[truncated]" in report.message
+    assert "RuntimeError" in report.message
+    assert "😀" not in report.message
     assert transport.validation_error(report.message, "", "1.0") is None
     assert len(report.message.encode("utf-16-le")) // 2 < 4500
 
@@ -50,7 +51,8 @@ def test_report_coalesces_failures_without_overwriting_draft():
     assert first is second
     assert len(dialogs) == 1
     assert first.kwargs["kiosk_session"] is True
-    assert "first" in first.kwargs["report"].message
+    assert first.kwargs["report"].internal == "RuntimeError"
+    assert "first" not in first.kwargs["report"].message
     done.assert_not_called()
     first.kwargs["on_close"]()
     done.assert_called_once()
@@ -129,5 +131,6 @@ def test_uncaught_callbacks_and_threads_share_main_loop_handler_and_stop_at_shut
 def test_syntax_errors_do_not_copy_source_lines_into_report():
     error = SyntaxError("invalid syntax", ("example.py", 1, 1, 'secret = "private-token"'))
     report = ErrorReport.capture("Parent App", error)
-    assert "SyntaxError: invalid syntax" in report.message
+    assert "Error categories: other" in report.message
+    assert "invalid syntax" not in report.message
     assert "private-token" not in report.message

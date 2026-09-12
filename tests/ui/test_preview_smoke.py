@@ -345,10 +345,10 @@ def test_shared_request_preview_smoke(launch_ui, wait_for_accessible_node,
 
 
 @pytest.mark.parametrize("scenario, expected", (
-    ("normal", "Daily allowance remaining: 47m.\nOne-time grant remaining: 15m.\nThe larger amount applies."),
-    ("grant-only", "One-time grant remaining: 15m."),
-    ("exact-hours", "One-time grant remaining: 2h."),
-    ("daily-exhausted", "Daily allowance remaining: 0m.\nOne-time grant remaining: 15m.\nThe larger amount applies."),
+    ("normal", "Daily allowance remaining: 47m\nOne-time grant remaining: 15m\nRemaining time: 47m — the larger of the two amounts."),
+    ("grant-only", "Daily allowance remaining: 0m\nOne-time grant remaining: 15m\nRemaining time: 15m — the larger of the two amounts."),
+    ("exact-hours", "Daily allowance remaining: 0m\nOne-time grant remaining: 2h\nRemaining time: 2h — the larger of the two amounts."),
+    ("daily-exhausted", "Daily allowance remaining: 0m\nOne-time grant remaining: 15m\nRemaining time: 15m — the larger of the two amounts."),
 ))
 def test_parent_remaining_time_explanation(
         launch_ui, wait_for_accessible_node, scenario, expected):

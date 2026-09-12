@@ -79,7 +79,8 @@ def test_every_public_method_uses_real_dbus_signatures_and_serialization(private
         ("SetParentControl", GLib.Variant("(ubu)", (1100, True, 60)),
          "(s)", None),
         ("RevokeOneTimeGrant", GLib.Variant("(u)", (1100,)), "()", ()),
-        ("LogEvent", GLib.Variant("(sss)", ("child", "INFO", "safe event")),
+        ("LogEvent", GLib.Variant("(sss)", ("child", "INFO",
+         '{"v":1,"event":"child.enabled","fields":{},"operation":0}')),
          "()", ()),
     )
 
@@ -98,10 +99,11 @@ def test_every_public_method_uses_real_dbus_signatures_and_serialization(private
             assert unpacked == expected
 
     forwarded_log = (
-        private_service.writer.root / "child" / "2026-09-03.log"
+        private_service.writer.root / "child" / "2026-09-03.events"
     ).read_text(encoding="utf-8")
-    assert "safe event" in forwarded_log
-    assert str(os.getuid()) not in forwarded_log
+    assert '"event":"child.enabled"' in forwarded_log
+    assert '"uid"' not in forwarded_log
+    assert '"source_uid"' not in forwarded_log
 
 
 def test_malformed_json_unknown_methods_and_worker_failures_are_public_errors(

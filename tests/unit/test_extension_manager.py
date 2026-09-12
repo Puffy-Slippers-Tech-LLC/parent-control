@@ -91,7 +91,7 @@ class ExtensionManagerTests(unittest.TestCase):
             1, ["dbus-run-session"], stderr="session bus failed",
         )
 
-        with self.assertLogs("oh-no-parent-control", "ERROR") as logs:
+        with self.assertLogs("onpc", "ERROR") as logs:
             with self.assertRaisesRegex(RuntimeError, "GNOME interface is unavailable"):
                 self.manager._run_as(
                     self.account, "gsettings", "get", "schema", "key"
@@ -351,7 +351,7 @@ class ExtensionManagerTests(unittest.TestCase):
         for live in (False, True):
             with self.subTest(live=live):
                 state = GnomeRecoveryState()
-                with self.assertLogs("oh-no-parent-control", "INFO") as logs:
+                with self.assertLogs("onpc", "INFO") as logs:
                     self._recover(state, live=live)
                 self.assertEqual(state.values, {
                     ENABLED_KEY: ["other-enabled@example.com", UUID],
@@ -398,7 +398,7 @@ class ExtensionManagerTests(unittest.TestCase):
 
     def test_failed_global_switch_rollback_is_reported_without_command_details(self):
         state = GnomeRecoveryState(inactive=True, rollback_failure=True)
-        with self.assertLogs("oh-no-parent-control", "WARNING") as logs:
+        with self.assertLogs("onpc", "WARNING") as logs:
             with self.assertRaisesRegex(RuntimeError, "rollback could not be verified"):
                 self._recover(state, live=True)
         self.assertIn("rollback-failed", logs.output[-1])

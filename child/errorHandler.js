@@ -2,8 +2,8 @@ import Gio from 'gi://Gio';
 
 import {logWarning} from './logger.js';
 
-// One reporting window per extension instance. Exception text travels only on
-// the child's private stdin pipe, never in process arguments or log records.
+// One reporting window per extension instance. Exception content is never
+// copied into a pipe, command argument, diagnostic event, or feedback report.
 export class ChildErrorHandler {
     constructor(requestArgv) {
         this._requestArgv = requestArgv;
@@ -12,7 +12,7 @@ export class ChildErrorHandler {
     }
 
     report(error) {
-        logWarning('child operation failed; error report available');
+        logWarning('child.error');
         if (this._closed || this._process)
             return;
         try {
@@ -21,19 +21,18 @@ export class ChildErrorHandler {
                 argv.push('--child-overlay');
             const process = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDIN_PIPE);
             this._process = process;
-            const text = `${error?.name ?? 'Error'}: ${error?.message ?? 'Unknown error'}`;
-            process.communicate_utf8_async(text.slice(0, 3500), null, (owned, result) => {
+            process.communicate_utf8_async('child-operation-failed', null, (owned, result) => {
                 try {
                     owned.communicate_utf8_finish(result);
                 } catch (_error) {
-                    logWarning('child error reporter communication failed');
+                    logWarning('child.report-communication-failed');
                 } finally {
                     if (this._process === owned)
                         this._process = null;
                 }
             });
         } catch (_error) {
-            logWarning('child error reporter unavailable');
+            logWarning('child.report-unavailable');
         }
     }
 
@@ -45,7 +44,7 @@ export class ChildErrorHandler {
             try {
                 owned.force_exit();
             } catch (_error) {
-                logWarning('child error reporter cleanup failed');
+                logWarning('child.report-cleanup-failed');
             }
         }
     }

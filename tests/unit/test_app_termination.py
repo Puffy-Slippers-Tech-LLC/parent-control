@@ -178,7 +178,7 @@ class RunningAppTerminatorTests(unittest.TestCase):
             self._process(proc_root, 106, uid, "/usr/bin/other", parent=101, started=99)
             terminator = RunningAppTerminator(proc_root=proc_root)
             terminator._pidfd_open = lambda _pid, _flags: os.open("/dev/null", os.O_RDONLY)
-            with self.assertLogs("oh-no-parent-control.app-termination", level="INFO") as logs:
+            with self.assertLogs("onpc.app-termination", level="INFO") as logs:
                 matches = terminator._matching_native_processes(
                     uid, ("/home/child/Applications/Lunar.AppImage",), (), (), (app_id,),
                 )
@@ -221,7 +221,7 @@ class RunningAppTerminatorTests(unittest.TestCase):
             (root / "106/mountinfo").write_text(mountinfo.replace(f"user_id={uid}", f"user_id={uid + 1}"))
             terminator = RunningAppTerminator(proc_root=root)
             terminator._pidfd_open = lambda _pid, _flags: os.open("/dev/null", os.O_RDONLY)
-            with self.assertLogs("oh-no-parent-control.app-termination", level="INFO") as logs:
+            with self.assertLogs("onpc.app-termination", level="INFO") as logs:
                 matches = terminator._matching_native_processes(
                     uid, (old,), (pattern,), (), ("new-desktop-id",),
                 )

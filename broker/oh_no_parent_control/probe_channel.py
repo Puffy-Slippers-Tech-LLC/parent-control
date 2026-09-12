@@ -8,7 +8,7 @@ module compares peer credentials; it does not authenticate systemd metadata.
 
 from array import array
 from dataclasses import dataclass
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import os
 import re
 import select
@@ -19,7 +19,7 @@ import threading
 import time
 
 
-LOG = logging.getLogger("oh-no-parent-control.execution-probe")
+LOG = get_logger("probe-channel")
 FRAME_SIZE = 40
 TIMEOUT = 2.0
 
@@ -113,7 +113,7 @@ class ProbeChannel:
     def _fail(self, category):
         if self._failure is None:
             self._failure = category
-            LOG.info("execution probe channel outcome=%s", category)
+            LOG.info("probe-channel.001", outcome=category)
         if self._peer is not None:
             self._peer.close()
             self._peer = None
@@ -291,7 +291,7 @@ class ProbeChannel:
                     else:
                         if (not stat.S_ISSOCK(info.st_mode) or
                                 _identity(info) != self._socket_identity):
-                            LOG.info("execution probe channel cleanup=path-replaced")
+                            LOG.info("probe-channel.002")
                             return False
                         os.unlink("channel", dir_fd=self._directory)
                     self._socket_identity = None
@@ -300,7 +300,7 @@ class ProbeChannel:
                 self._directory = None
             return True
         except OSError:
-            LOG.info("execution probe channel cleanup=retry-needed")
+            LOG.info("probe-channel.003")
             return False
         finally:
             self._lock.release()

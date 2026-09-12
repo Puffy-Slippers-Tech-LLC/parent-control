@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Run one fresh Codex CLI session per documented implementation slice."""
+"""Run documented implementation slices with a separate Astra xHigh progress review."""
 from __future__ import annotations
 
 import argparse
@@ -29,8 +29,10 @@ import uuid
 
 try:
     from rich.console import Console
+    from rich.live import Live
     from rich.markdown import Markdown
     from rich.syntax import Syntax
+    from rich.text import Text
 except ImportError:
     Console = Markdown = Syntax = None
 
@@ -40,6 +42,7 @@ BACKLOG = Path('docs/TestAutomation/Test-Automation.md')
 HANDOFF = Path('docs/TestAutomation/Continuation.md')
 PROMPT = Path('docs/TestAutomation/Unattended-Prompt.md')
 SUMMARY = Path('docs/Test-Automation-Slice-Summary.md')
+REVIEW_PROMPT = Path('docs/TestAutomation/Progress-Review-Prompt.md')
 STORAGE = Path('output/codex-slices')
 MODELS = frozenset(('gpt-5.6-sol', 'gpt-6-astra', 'gpt-5.6-terra', 'gpt-5.6-luna'))
 EFFORTS = frozenset(('low', 'medium', 'high', 'xhigh', 'max'))
@@ -88,6 +91,76 @@ SCHEMA = {
     'required': ['status', 'cleanup_complete', 'made_progress', 'blocker', 'summary'],
     'additionalProperties': False,
 }
+REVIEW_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'decision': {'type': 'string', 'enum': ['healthy', 'intervene', 'blocked']},
+        'evaluation': {'type': 'string'},
+        'effort': {'type': 'string', 'enum': ['none', 'xhigh', 'max']},
+        'breakthrough': {'type': 'string'},
+        'task_document': {'type': 'string'},
+    },
+    'required': ['decision', 'evaluation', 'effort', 'breakthrough', 'task_document'],
+    'additionalProperties': False,
+}
+
+
+def latest_summary_sections(root):
+    """Read backwards to extract only the last two level-two session sections."""
+    descriptor = os.open(root / SUMMARY, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise Error('The slice summary log must be a regular file.')
+        position = os.lseek(descriptor, 0, os.SEEK_END)
+        tail = b''
+        while position:
+            size = min(position, 8192)
+            position -= size
+            tail = os.pread(descriptor, size, position) + tail
+            headings = list(re.finditer(rb'(?m)^## ', tail))
+            if len(headings) >= 3:
+                break
+        headings = list(re.finditer(rb'(?m)^## ', tail))
+        if not headings:
+            raise Error('No session summary is available for progress review.')
+        return tail[headings[-2 if len(headings) >= 2 else -1].start():].decode('utf-8')
+    finally:
+        os.close(descriptor)
+
+
+def review_documents(root):
+    """Capture only editable test handoffs, so an intervention must save real edits."""
+    paths = [HANDOFF, *(path.relative_to(root) for path in
+                       sorted((root / 'docs/TestAutomation').glob('Task-*.md')))]
+    return {str(path): hashlib.sha256((root / path).read_bytes()).hexdigest()
+            for path in paths if not (root / path).is_symlink()}
+
+
+def validate_review(path, root, pending):
+    try:
+        value = json.loads(path.read_text())
+    except (ValueError, OSError) as exc:
+        raise Error('Progress review did not return a valid verdict.') from exc
+    if (not isinstance(value, dict) or set(value) != set(REVIEW_SCHEMA['required'])
+            or any(not isinstance(item, str) or len(item) > 2000
+                   or any(not char.isprintable() for char in item) for item in value.values())
+            or value['decision'] not in ('healthy', 'intervene', 'blocked')
+            or not value['evaluation'].strip()):
+        raise Error('Progress review returned an invalid verdict.')
+    if value['decision'] == 'intervene':
+        changed = review_documents(root)
+        task = value['task_document']
+        if (value['effort'] not in ('xhigh', 'max') or not value['breakthrough'].strip()
+                or not re.fullmatch(r'docs/TestAutomation/Task-[A-Za-z0-9-]+\.md', task)
+                or task not in changed or task not in pending['documents']
+                or changed[task] == pending['documents'][task]
+                or str(HANDOFF) not in changed
+                or changed[str(HANDOFF)] == pending['documents'][str(HANDOFF)]):
+            raise Error('Intervention requires revised task and continuation handoffs, effort and a breakthrough.')
+        session_settings(root)  # The one-use override must leave valid ordinary settings.
+    elif any(value[key] for key in ('breakthrough', 'task_document')) or value['effort'] != 'none':
+        raise Error('A non-intervention verdict cannot request a settings override.')
+    return value
 
 
 class Error(Exception):
@@ -228,6 +301,8 @@ def attach_monitor(storage):
         except KeyboardInterrupt:
             live.write('\nMonitor detached; session left unchanged.\n')
             return 0
+        finally:
+            live.finish()
         live.write('\nMonitor connection closed. Use status to inspect the session.\n')
     return 0
 
@@ -298,6 +373,8 @@ class LiveOutput:
         self.lock = threading.Lock()
         self.items = {}
         self.console = None
+        self.progress = None
+        self.progress_rows = {}
         if (Console is not None and stream is not None and stream.isatty()
                 and os.environ.get('TERM') != 'dumb'):
             self.console = Console(file=stream, markup=False, highlight=False)
@@ -318,16 +395,47 @@ class LiveOutput:
     def finish(self):
         """Tell attached monitors that no more launcher output will follow."""
         with self.lock:
+            self.stop_progress()
             if self.monitor is not None:
                 self.monitor.publish({'type': 'launcher.exiting'})
 
-    def display(self, text, *, markdown=False, lexer=None, style=None):
+    def stop_progress(self):
+        if self.progress is not None:
+            progress = self.progress
+            self.progress = None
+            try:
+                progress.stop()
+            except (OSError, ValueError):
+                self.stream = None
+        self.progress_rows.clear()
+
+    @staticmethod
+    def progress_key(text):
+        match = re.fullmatch(
+            r'(?:\[(?:Running|Pending|✓|✗)\] (?P<category>[^\n]+)|(?P<overall>Overall))'
+            r' - (?:\d+|\?)% \(\d+ / (?:\d+ / )?(?:\d+|\?)\)\n?', text)
+        return (match.group('category') or match.group('overall')) if match else None
+
+    def command_output(self, output, previous, *, complete):
+        # Buffer incomplete lines, including split escape sequences, before
+        # sanitizing. Never forward a child's terminal controls to the operator.
+        shown = previous.get('_shown_output', 0)
+        before = previous.get('aggregated_output', '')
+        if not output.startswith(before):
+            shown = 0
+        end = len(output) if complete else output.rfind('\n') + 1
+        for line in self.clean(output[shown:end]).splitlines(keepends=True):
+            self.display(line, progress=self.progress_key(line) is not None)
+        return end
+
+    def display(self, text, *, markdown=False, lexer=None, style=None, progress=False):
         if not text:
             return
         text = self.clean(text)
         with self.lock:
             if self.monitor is not None:
-                self.monitor.publish(dict(text=text, markdown=markdown, lexer=lexer, style=style))
+                self.monitor.publish(dict(text=text, markdown=markdown, lexer=lexer, style=style,
+                                          progress=progress))
             if self.stream is not None:
                 try:
                     if self.console is not None:
@@ -339,6 +447,24 @@ class LiveOutput:
                         except (AttributeError, OSError, ValueError):
                             columns = 0
                         self.console.width = columns if columns > 0 else None
+                    key = self.progress_key(text) if progress else None
+                    if key and self.console is not None:
+                        self.progress_rows[key] = text.rstrip('\n')
+                        rows = [row for name, row in self.progress_rows.items() if name != 'Overall']
+                        if 'Overall' in self.progress_rows:
+                            rows.append(self.progress_rows['Overall'])
+                        rendered = Text('\n'.join(rows))
+                        if self.progress is None:
+                            self.progress = Live(rendered, console=self.console,
+                                                 auto_refresh=False, vertical_overflow='ellipsis',
+                                                 redirect_stdout=False, redirect_stderr=False)
+                            self.progress.start(refresh=True)
+                        else:
+                            self.progress.update(rendered, refresh=True)
+                        return
+                    self.stop_progress()
+                    if self.stream is None:
+                        return
                     if markdown and self.console is not None:
                         # Only the renderer may generate terminal formatting.
                         # Disable OSC links; show destinations as ordinary text.
@@ -409,7 +535,9 @@ class LiveOutput:
                         else:
                             self.write(output)
                 else:
-                    self.write(output[len(before):] if output.startswith(before) else output)
+                    item = dict(item)
+                    item['_shown_output'] = self.command_output(
+                        output, previous, complete=kind == 'item.completed')
             if kind == 'item.completed':
                 self.write(f"\nCommand {item.get('status', 'completed')} (exit {item.get('exit_code', 'unknown')}).\n",
                            style='dim green' if item.get('exit_code') == 0 else 'bold red')
@@ -718,7 +846,21 @@ def invoke(root, attempt, command, lock_fd, update, live):
     """Display both streams live, retaining only allowlisted lifecycle metadata."""
     observed = {'completed': False, 'failed': False, 'transient': False,
                 'tools_seen': False, 'invalid_event': False}
-    prompt = (root / PROMPT).read_text()
+    state = read_state(root / STORAGE)
+    reviewing = state.get('phase') == 'review'
+    prompt = (root / (REVIEW_PROMPT if reviewing else PROMPT)).read_text()
+    if reviewing:
+        prompt += '\nLatest summary sections (the only progress evidence):\n'
+        prompt += latest_summary_sections(root)
+        prompt += '\nSupervisor boundary facts: ' + json.dumps({
+            key: state['pending_review'].get(key) for key in
+            ('outcome', 'blocker', 'made_progress', 'breakthrough')}) + '\n'
+    elif state.get('breakthrough'):
+        prompt += ('\nONE-SLICE INTERVENTION: ' + state['breakthrough']
+                   + '\nRequire this observable breakthrough in this slice. Do not repeat '
+                   'the stalled approach. Report honestly if it is not achieved; never '
+                   'weaken acceptance. The override expires with this slice; write ordinary '
+                   'reassessed next settings in Continuation.md.\n')
     prompt += '\nThe supervisor has selected these exact settings: '
     prompt += f'{command[command.index("--model") + 1]} / '
     prompt += command[command.index('-c') + 1].split('=', 1)[1] + '.\n'
@@ -817,7 +959,7 @@ def invoke(root, attempt, command, lock_fd, update, live):
 
 
 def preflight(root):
-    for document in (BACKLOG, HANDOFF, PROMPT):
+    for document in (BACKLOG, HANDOFF, PROMPT, REVIEW_PROMPT):
         if not (root / document).is_file():
             raise Error('A required continuation document is missing.')
     executable = shutil.which('codex')
@@ -849,7 +991,69 @@ def saved_thread(state):
         raise Error('The killed session has no saved thread ID to resume; reconcile it before using --reconciled.') from exc
 
 
+def progress_review(root, executable, state, lock_fd, update, stopping, stop_requested, args):
+    """Run a separate review conversation, preserving its phase through interruption."""
+    storage = root / STORAGE
+    pending = state['pending_review']
+    thread = state.get('thread_id') if state.get('phase') == 'review' else None
+    retries = 0
+    while True:
+        attempt = storage / ('review-' + uuid.uuid4().hex)
+        private_directory(attempt)
+        write_json(attempt / 'schema.json', REVIEW_SCHEMA)
+        update(status='running', reason='progress-review', phase='review',
+               model='gpt-6-astra', effort='xhigh', settings_source='progress-review',
+               attempt=attempt.name, thread_id=thread, resumable=True, cli_pid=None)
+        command = [executable, 'exec', '--approve-for-me', '--model', 'gpt-6-astra',
+                   '-c', 'model_reasoning_effort="xhigh"', '-c', 'service_tier="default"',
+                   '--cd', str(root), '--json', '--color', 'never',
+                   '--output-schema', str(attempt / 'schema.json'),
+                   '--output-last-message', str(attempt / 'result.json')]
+        command += ['resume', thread, '-'] if thread else ['-']
+        before = review_documents(root)
+        # Review chatter is intentionally quiet; only the validated high-level
+        # verdict is published. Codex retains the conversation for resumption.
+        code, observed = invoke(root, attempt, command, lock_fd, update, LiveOutput(None))
+        update(cli_pid=None)
+        write_json(attempt / 'exit.json', {'exit_code': code, **observed})
+        if observed.get('killed') or kill_requested(storage, state['request_id']) or code < 0:
+            update(status='killed', reason='review-interrupted')
+            return None
+        if (code != 0 and observed['failed'] and observed['transient']
+                and not observed['completed'] and not observed['tools_seen']
+                and not observed['invalid_event'] and review_documents(root) == before
+                and retries < args.max_api_retries):
+            delay = min(60 * 2 ** retries, 3600)
+            retries += 1
+            update(status='retry-wait', reason='review-transient-before-tools')
+            wait_retry(delay, stopping, stop_requested)
+            if stopping():
+                update(status='stopped', reason='review-retry-boundary')
+                return None
+            continue
+        if code != 0 or not observed['completed'] or observed['failed'] or observed['invalid_event']:
+            raise Error('Progress review exited without a clean completed turn; no next slice was started.')
+        verdict = validate_review(attempt / 'result.json', root, pending)
+        if checklist(root) != pending['tasks']:
+            raise Error('Progress review changed the checklist; reconcile before continuing.')
+        if pending['blocker'] in ('approval', 'decision') and verdict['decision'] != 'blocked':
+            raise Error('Progress review cannot waive outside approval or a required operator decision.')
+        if verdict['decision'] == 'healthy' and review_documents(root) != pending['documents']:
+            raise Error('A healthy progress review must not revise test handoffs.')
+        if verdict['decision'] == 'healthy' and (pending['outcome'] == 'blocked' or not pending['made_progress']):
+            raise Error('A blocked or stalled slice needs an intervention or a blocked review verdict.')
+        if verdict['decision'] == 'intervene' and pending['outcome'] == 'complete':
+            raise Error('A completed checklist cannot receive another implementation slice.')
+        override = ({'model': 'gpt-6-astra', 'effort': verdict['effort'],
+                     'breakthrough': verdict['breakthrough']}
+                    if verdict['decision'] == 'intervene' else None)
+        update(phase='slice', pending_review=None, next_slice_override=override,
+               last_review=verdict, thread_id=None, **pending['settings'])
+        return verdict
+
+
 def run(root, args):
+    started = time.monotonic()
     storage = root / STORAGE
     private_directory(storage)
     with exclusive(storage) as lock_fd, live_output(args) as live, MonitorHub(storage, live):
@@ -858,6 +1062,8 @@ def run(root, args):
         own_start = state.get('status') == 'launching' and state.get('request_id') == request_id
         resume_thread = None
         if ((state.get('status') == 'killed' and not args.reconciled)
+                or (state.get('status') == 'stopped' and state.get('phase') == 'review'
+                    and state.get('pending_review') and state.get('thread_id') and not args.reconciled)
                 or (own_start and state.get('thread_id') is not None)):
             resume_thread = saved_thread(state)
         if state.get('status') in ('launching', 'running', 'needs-review', 'killed') and not (args.reconciled or own_start or resume_thread):
@@ -869,6 +1075,10 @@ def run(root, args):
             write_json(storage / 'state.json', state)
 
         def announce(message, *, style=None, final=False):
+            if final:
+                minutes = math.ceil(max(0, time.monotonic() - started) / 60)
+                message += f' Duration: {minutes} minutes.'
+                style = style or 'bold green'
             if live.stream is not sys.stdout:
                 print(message, flush=True)
             live.write(message + '\n', style=style)
@@ -915,7 +1125,34 @@ def run(root, args):
                     update(status='killed', reason='operator-kill', cli_pid=None)
                     announce('Session killed. Launcher exiting.', style='bold red', final=True)
                     return 0
-                if stopping() or (args.max_slices and completed_slices >= args.max_slices):
+                if stopping():
+                    update(status='stopped', reason='slice-boundary', cli_pid=None)
+                    announce('Session stopped at a safe slice boundary. Launcher exiting.',
+                             style='bold red', final=True)
+                    return 0
+                if state.get('pending_review'):
+                    pending = state['pending_review']
+                    announce('Reviewing the latest two slice summaries with gpt-6-astra / xhigh.')
+                    verdict = progress_review(root, executable, state, lock_fd, update,
+                                              stopping, stop_requested, args)
+                    resume_thread = None
+                    if verdict is None:
+                        announce('Review stopped. Launcher exiting; the review remains pending.',
+                                 style='bold red', final=True)
+                        return 0
+                    announce('Progress review: ' + verdict['evaluation'])
+                    if verdict['decision'] == 'blocked':
+                        update(status='blocked', reason='progress-review')
+                        announce('Session stopped: intervention needs outside input.',
+                                 style='bold red', final=True)
+                        return 2
+                    if pending['outcome'] == 'complete':
+                        update(status='complete', reason='checklist-and-review-complete')
+                        announce('All documented tasks are complete.', final=True)
+                        return 0
+                    update(status='between-slices', reason='progress-reviewed')
+                    continue
+                if args.max_slices and completed_slices >= args.max_slices:
                     update(status='stopped', reason='slice-boundary', cli_pid=None)
                     announce('Session stopped at a safe slice boundary. Launcher exiting.',
                              style='bold red', final=True)
@@ -929,15 +1166,19 @@ def run(root, args):
                            cli_pid=None)
                     announce('All documented tasks are complete.', final=True)
                     return 0
-                model, effort = session_settings(root, state if resume_thread else None)
+                override = state.get('next_slice_override') if not resume_thread else None
+                model, effort = session_settings(root, state if resume_thread else override)
+                breakthrough = state.get('breakthrough') if resume_thread else (override or {}).get('breakthrough')
                 before = handoff_digest(root)
                 attempt = storage / ('slice-' + uuid.uuid4().hex)
                 private_directory(attempt)
                 write_json(attempt / 'schema.json', SCHEMA)
                 number = state.get('sessions_started', 0) + 1
                 update(status='running', reason='slice', attempt=attempt.name,
+                       phase='slice', breakthrough=breakthrough, next_slice_override=None,
                        model=model, effort=effort, service_tier='default',
-                       settings_source='saved-session' if resume_thread else 'continuation', tasks=sorted(expected),
+                       settings_source=('saved-session' if resume_thread else
+                                        'one-slice-intervention' if override else 'continuation'), tasks=sorted(expected),
                        cli_pid=None, thread_id=resume_thread, resumable=True, sessions_started=number)
                 command = [executable, 'exec', '--approve-for-me', '--model', model,
                            '-c', f'model_reasoning_effort="{effort}"',
@@ -984,6 +1225,9 @@ def run(root, args):
                     # A resumed conversation still owns its earlier work. A
                     # pre-tool transport retry must not replace it or its settings.
                     resume_thread = attempted_thread
+                    if not attempted_thread and breakthrough:
+                        update(next_slice_override={'model': model, 'effort': effort,
+                                                    'breakthrough': breakthrough})
                     continue
                 if code != 0 or not observed['completed'] or observed['failed'] or observed['invalid_event']:
                     raise Error('Codex exited without a clean completed turn; inspect the current task handoff and owned operations.')
@@ -994,29 +1238,26 @@ def run(root, args):
                 current = checklist(root)
                 if expected - current.keys():
                     raise Error('A slice removed recorded checklist tasks.')
-                if result['status'] == 'blocked':
-                    finish_session(root, session, 'blocked', 'Cleanup confirmed; outside input required.', live, update)
-                    update(status='blocked', reason=result['blocker'])
-                    announce('Session stopped: no ready work can proceed. Read the current task handoff for the blocker.',
-                             style='bold red', final=True)
-                    return 2
                 if result['status'] == 'complete':
                     if not all(current.values()):
                         raise Error('Codex reported completion while checklist tasks remain unfinished.')
                     if handoff_digest(root) == before:
                         raise Error('Codex did not save a final completion handoff in Continuation.md.')
-                    finish_session(root, session, 'complete', 'Checklist, cleanup and final handoff confirmed.', live, update)
-                    update(status='complete', reason='checklist-and-handoff-complete', tasks=sorted(current))
-                    announce('All documented tasks are complete.', final=True)
-                    return 0
-                if not result['made_progress'] or handoff_digest(root) == before:
-                    raise Error('The slice reported no progress or did not update Continuation.md.')
-                if all(current.values()):
+                if handoff_digest(root) == before:
+                    raise Error('The slice did not update Continuation.md.')
+                if all(current.values()) and result['status'] != 'complete':
                     raise Error('The checklist is complete but Codex did not return a completion handoff.')
                 completed_slices += 1
                 retries = 0
-                finish_session(root, session, 'continue', 'Cleanup and handoff confirmed.', live, update)
-                update(status='between-slices', reason='verified-handoff', tasks=sorted(current))
+                finish_session(root, session, result['status'], 'Cleanup and handoff confirmed.', live, update)
+                update(status='between-slices', reason='pending-progress-review', tasks=sorted(current),
+                       thread_id=None, pending_review={
+                           'outcome': result['status'], 'blocker': result['blocker'],
+                           'made_progress': result['made_progress'], 'breakthrough': breakthrough,
+                           'tasks': current, 'documents': review_documents(root),
+                           'settings': {key: state[key] for key in
+                                        ('model', 'effort', 'settings_source')},
+                       })
                 announce(f'Session {number} summary appended to {SUMMARY}.')
         except (Error, OSError) as exc:
             if session is not None and not session['report_attempted']:
@@ -1185,7 +1426,10 @@ def main(argv=None, *, root=ROOT):
             with exclusive(storage):
                 state = read_state(storage)
                 resume_thread = (saved_thread(state)
-                                 if state.get('status') == 'killed' and not args.reconciled else None)
+                                 if not args.reconciled and (state.get('status') == 'killed'
+                                     or (state.get('status') == 'stopped' and state.get('phase') == 'review'
+                                         and state.get('pending_review') and state.get('thread_id')))
+                                 else None)
                 if state.get('status') in ('launching', 'running', 'needs-review') and not args.reconciled:
                     raise Error('Previous work needs reconciliation; read state.json and the task handoff.')
                 preflight(root)

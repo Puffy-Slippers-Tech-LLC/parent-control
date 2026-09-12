@@ -317,8 +317,25 @@ budget through normal shutdown; the [worker contract](#shared-guarded-worker)
 owns its correction and attempt 11's passing worker result. Timing/privacy/failure regressions are in
 [test_e2e_provenance.py](../unit/test_e2e_provenance.py) and
 [test_e2e_vt6_controller.py](../unit/test_e2e_vt6_controller.py).
-Worker wrappers can still collapse the initial error,
-and no differing file/snapshot comparison is exported. This does not close
+Worker wrappers can still collapse the initial error.
+`VerifiedInputs.recheck` now emits `e2e:source-change` with fixed integer counts
+for added/removed files, changed content, root-directory identity, and each
+compared metadata field (device, inode, mode, links, size, mtime, ctime). It
+exports no filenames, contents, hashes or raw metadata and preserves the original
+`provenance:source-changed` latch. The parameterized
+`test_source_change_diagnostic_counts_without_private_data` regression covers
+addition, removal, content, mode and timestamp mutations plus privacy and latching.
+The [2026-09-12 aggregate investigation](../../docs/TestAutomation/Evidence/Test-All-202723-Fixes-20260912.md)
+records a preparation refusal despite no intentional edits reported by the
+operator; the historical comparison cannot be reconstructed from retained
+evidence. Counts improve future diagnosis but do not identify the writer.
+The settled-input rerun in that investigation passes E2E-001 through final
+source preservation, collection and baseline restoration, after the operator
+confirmed the concurrent launcher work had finished. Its earlier package/source
+mismatch and transient launcher unit failures are separate retained results;
+the original run's differing field/writer remain unknown. The new diagnostic
+counts have local refusal/privacy coverage, not an induced live-failure result.
+This does not close
 historical provenance failures or qualify authentication. A historical false
 source-preservation flag alone cannot identify
 the changed input or exclude assets/baseline failure. The [refused reboot-wiring attempt](../../docs/TestAutomation/Evidence/20-Customer-Reboot-Wiring-20260909.md)
@@ -1481,21 +1498,21 @@ establish their session/recovery acceptance.
 
 `ReadOnlyObservations.read('startup-broker')` reuses the fixed guarded observation
 transport and [startup probe module](startup_observations.py). The broker's
-[`Service`](../../broker/oh_no_parent_control/service.py) writes a fixed
-`startup-witness` record through its existing `DailyLogWriter` only after
-successful object registration. Real monotonic nanosecond timestamps bracket
+[`Service`](../../broker/oh_no_parent_control/service.py) exposes the read-only,
+role-checked `GetStartupTimings` method after successful object registration.
+Real monotonic nanosecond timestamps bracket
 registration after completed execution-policy and extension reconciliation and
 attempted best-effort session-cap cleanup. Failed mandatory phases produce no
-witness/object; failed cap cleanup is safely logged and does not prevent
-registration. Diagnostic-write failure also leaves product readiness unchanged
-and causes the observer to reject missing evidence.
+timings/object; failed cap cleanup is safely logged and does not prevent
+registration. Diagnostic-write failure leaves readiness and this direct timing
+observation unchanged. Automatic diagnostics contain only elapsed phase lengths.
 
 The broker is a static D-Bus-activated service, so one normal read-only
 introspection request may activate it after GDM. This tests broker startup
 independently; it neither requires nor establishes broker readiness before GDM.
 The probe then pins the current unique bus owner/PID and systemd invocation,
-requires active/running state without automatic restarts, finds exactly one
-matching record, and introspects that unique owner with autoactivation disabled.
+requires active/running state without automatic restarts, reads the six exact
+timing fields, and introspects that unique owner with autoactivation disabled.
 Boot, owner and unit reads bracket collection. Phase timestamps must be ordered
 inside the current process start/service activation bounds; systemd comparisons
 use microsecond precision. Systemd defines the
@@ -1504,12 +1521,12 @@ as a distinct unit runtime cycle. Invocation/PID/bus identifiers remain in the
 guest; only six timestamps, the canonical boot digest and a success flag leave.
 Failure exports a fixed stage and latches the observer's failure.
 
-The reader inspects at most the last 512 KiB of each of ten retained daily broker
-logs, rejecting symlinks, nonregular/non-root-owned or group/world-writable
-files. Missing, truncated, rotated-away, duplicate or malformed evidence refuses
-instead of inferring ordering from later availability or wall-clock log time.
-This is current-activation evidence, not continuous history or proof against a
-privileged actor altering logs. It cannot replace E2E-028's independent faults.
+The reader uses the current pinned service response without reading log files.
+Missing, failed, extra-field, malformed or out-of-order evidence refuses instead
+of inferring ordering from later availability. This is current-activation
+evidence, not continuous history or proof against a privileged actor replacing
+the service. It cannot replace E2E-028's independent faults. These guest-only
+identity observations remain separate from automatic feedback diagnostics.
 For authenticated installation, `gdm-return` now requires both startup probes
 to match the actual customer reboot and fresh boot reads; pixels remain separate.
 
@@ -1517,12 +1534,12 @@ to match the actual customer reboot and fresh boot reads; pixels remain separate
 registration boundary with successful startup, mandatory phase failure,
 tolerated cap failure, registration failure and logging failure. They replace
 the former source-order assertion. [Guest-program and decoder tests](../unit/test_e2e_broker_startup_observations.py)
-use actual log files and GLib variants; [controller tests](../unit/test_graphical_smoke.py)
+use strict timing replies and GLib variants; [controller tests](../unit/test_graphical_smoke.py)
 exercise stale boot and failed broker proof. These checks are local, with
 [retained slice evidence](../../docs/TestAutomation/Evidence/20-Broker-Startup-Witness-20260909.md);
 live qualification remains pending. Tasks 20, 24A and 26B share this contract
 after that qualification. The requirement remains planned until installed and
-fault evidence pass. No D-Bus interface or service dependency was added.
+fault evidence pass. The timing method is additive; no service dependency was added.
 
 ### Customer reboot observation boundary
 

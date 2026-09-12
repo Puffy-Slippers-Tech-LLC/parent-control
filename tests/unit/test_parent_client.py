@@ -82,7 +82,7 @@ class ParentClientTests(unittest.TestCase):
                 )
                 connection = FakeConnection(error=error)
                 with self.assertLogs(
-                        "parent.oh_no_parent_control_parent.client", level="WARNING") as logs:
+                        "onpc.parent-client", level="WARNING") as logs:
                     with self.assertRaises(GLib.Error) as caught:
                         BrokerClient(connection).get_time_status(1001)
 

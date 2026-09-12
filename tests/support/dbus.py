@@ -216,6 +216,12 @@ class RecordingBroker:
     def authorize_log_component(self, *args):
         return self._invoke("authorize_log_component", None, *args)
 
+    def authorize_diagnostic_export(self, *args):
+        return self._invoke("authorize_diagnostic_export", None, *args)
+
+    def observe_grants(self):
+        return self._invoke("observe_grants", None)
+
 
 def close_connection(connection):
     if not connection.is_closed():

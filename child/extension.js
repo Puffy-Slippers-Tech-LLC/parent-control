@@ -28,7 +28,7 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     _enable() {
-        logInfo('extension enabled');
+        logInfo('child.enabled');
         this._appName = appName(this);
         this._settings = this.getSettings(SETTINGS_SCHEMA);
         this._requestProcess = null;
@@ -54,7 +54,7 @@ export default class OhNoParentControlExtension extends Extension {
         this._indicator?.destroy();
         this._indicator = null;
         this._settings = null;
-        logInfo('extension disabled');
+        logInfo('child.disabled');
     }
 
     _showRequest() {
@@ -65,7 +65,7 @@ export default class OhNoParentControlExtension extends Extension {
         this._indicator?.setRequestActive(true);
         try {
             const argv = this._requestAppArgv();
-            logInfo('request overlay opened');
+            logInfo('child.overlay-opened');
             this._requestProcess = Gio.Subprocess.new(
                 argv, Gio.SubprocessFlags.NONE);
             this._requestProcess.wait_async(null, (process, result) => {
@@ -94,7 +94,7 @@ export default class OhNoParentControlExtension extends Extension {
         try {
             this._requestProcess.force_exit();
         } catch (_error) {
-            logWarning('could not stop owned request overlay');
+            logWarning('child.overlay-stop-failed');
         }
         this._requestProcess = null;
     }

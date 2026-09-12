@@ -23,6 +23,26 @@ review changes no task order or completion status.
 
 ## Existing interfaces to find once
 
+- Feedback system information and collection-on-open use the shared
+  [system-info and collection contract](../SystemDesign/Logging-and-Feedback.md#system-information-and-collection-state).
+  Reuse its field projection and schema-2 validator; never attach raw command
+  output, identity hashes, or an unrelated package inventory. Schema-1 broker
+  compatibility and Parent/Child/Kiosk restrictions remain explicit. Local
+  regressions live in `test_system_info.py`, `test_feedback_collection.py`,
+  `test_parent_feedback.py`, and `test_error_feedback.py`; installed VM collection
+  and remote delivery are not qualified by those checks.
+
+- Grant-source diagnostics use the broker's centralized write/read-back tracking
+  and bounded state observer: [logging contract](../SystemDesign/Logging-and-Feedback.md#logging).
+  Reuse `our-app`/`external`/`unknown` and local observation timestamps; an
+  AccountsService value cannot identify the Ignore button or every intermediate
+  write. `grant.external-rest-of-day` summarizes an observed external increase
+  ending at midnight without claiming a click or authentication audit. Absolute
+  expiry comparison covers fractional seconds and daylight-saving transitions.
+  Privacy, ambiguous writes, cache eviction, and report export are locally
+  covered by `test_diagnostic_privacy.py` and `test_logs.py`; the live login-screen
+  path remains unqualified.
+
 - Parent remaining-time reads use the existing broker `GetTimeStatus` method:
   [screen-time contract](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
   Parent UI/time-status work must reuse this path; direct AccountsService grant
@@ -46,6 +66,10 @@ review changes no task order or completion status.
   Follow the [GDM/serial reuse record](#qualified-gdm-and-serial-helpers) and
   [installation reuse record](#installation-helper-and-open-limits) for their
   distinct qualification limits.
+  Source-change refusals retain privacy-safe content/metadata change counts in
+  the [provenance contract](../../tests/e2e/README.md#controller-owned-provenance);
+  the [aggregate investigation](Evidence/Test-All-202723-Fixes-20260912.md) records
+  the historical diagnosis limit and current rerun evidence.
 - Native/Flatpak process and package assets:
   [artifact contract](../../tests/integration/README.md#package-and-fixture-inputs).
   Snap and real-game delivery remain work; sleeping fixtures cannot prove gameplay.
@@ -324,7 +348,8 @@ correlates the completed canary command, fapolicyd activation and GDM start in
 the customer reboot's boot. Guest-program and acknowledgement regressions pass
 locally; live qualification remains pending. The independent
 [broker startup observer](../../tests/e2e/README.md#broker-startup-observation)
-now correlates a product-generated monotonic phase/registration witness with
+now queries `GetStartupTimings` from the pinned live owner and correlates the
+product-generated monotonic phase/registration timings with
 the current systemd invocation and unique D-Bus owner. Private-bus publication,
 mandatory failure and tolerated-cleanup tests plus fixed guest/decoder/controller
 checks pass locally; installed qualification remains pending. This includes

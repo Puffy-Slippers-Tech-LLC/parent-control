@@ -1,7 +1,7 @@
 # Unattended implementation sessions
 
 The repository launcher runs one fresh `codex exec` per coherent implementation
-slice, then starts the next session after a verified handoff and cleanup. It
+slice, then a separate Astra xHigh progress review after a verified handoff and cleanup. It
 continues until the [master checklist](Test-Automation.md#unfinished-tasks) is
 complete, a blocker needs outside input, or you request a stop.
 
@@ -40,6 +40,42 @@ This launcher does not install a boot service or restart itself after a reboot.
 
 For an initial one-slice run, use `start --max-slices 1`. To watch the launcher
 in the foreground, use `run` instead of `start`.
+The limit counts implementation slices; their reviews run before the limit stops
+the launcher. An explicit `stop` starts no further session: any pending review
+runs first on the next `start`.
+
+## Progress review between slices
+
+Before another implementation slice, a fresh `gpt-6-astra` / `xhigh` session
+compares only the last two sections of the cumulative summary. The launcher
+extracts those sections and supplies the [review prompt](Progress-Review-Prompt.md);
+older history and implementation context are excluded from the judgment. With
+one section, the reviewer acknowledges that no trend is established yet.
+It evaluates useful forward progress versus stalled, blocked or repetitive work
+and displays only a brief high-level verdict. Review chatter is suppressed;
+Codex retains its own conversation for resumption. Reviews do not append summary
+sections or consume the implementation slice count.
+
+When a course correction is warranted, the reviewer revises the selected task's
+active handoff and Continuation.md with a different approach, a required observable
+breakthrough in the next slice and its acceptance/stop condition. It chooses
+`gpt-6-astra` / `xhigh` or `max` for that slice only, with a documented reason.
+The launcher requires both saved handoff changes and a valid structured verdict,
+then applies the override independently of the ordinary Settings line. After
+that slice, normal handoff settings apply again. A retry before tool use or a
+killed conversation's resumption retains its intervention until the slice ends.
+No settings choice guarantees a breakthrough; the following review evaluates
+the result and must not blindly renew the same failed intervention.
+
+Reviews run for clean blocked/no-progress reports and final completion too.
+Outside approval or a required operator decision still stops implementation;
+review cannot waive these boundaries. Invalid output, failed review, missing
+handoff edits or unconfirmed cleanup stops further work. Pending reviews and
+one-use overrides survive safe stops and restarts. A killed reviewer resumes
+its exact review thread before any implementation slice. Explicit stops take
+precedence over starting a review; transport-only retries retain the existing
+bounded retry policy. Uncertain or failed implementation attempts require
+reconciliation before any model review; they never authorize fresh work.
 
 ```sh
 tools/codex_slices.py status
@@ -187,12 +223,12 @@ summaries add Progress above Task. This guidance-only addition still requires
 support in the launcher's structured schema and renderer before automated
 reports can emit the sixth field; restarting alone does not add that support.
 
-The launcher opens the document **write-only, in append mode**. It never reads,
-summarizes, rotates, truncates or rewrites earlier entries. Session numbering is
-kept in control state, without scanning the log. Workers are instructed to
-exclude this file from reads, searches and diffs; only the compact task handoff
-is carried forward. The final response contains the new summary, and the
-supervisor adds measured timing and appends it before launching another session.
+The summary writer opens the document **write-only, in append mode** and never
+rewrites earlier entries. A separate backward reader extracts only the latest
+two sections for the progress reviewer. Session numbering stays in control
+state. Implementation workers exclude this file from reads, searches and diffs;
+their compact task handoff remains their input. Review verdicts stay in launcher
+state and live output, so they cannot displace slices in the next comparison.
 
 Blocked and failed sessions get an end entry too; missing/invalid reports are
 marked unconfirmed in the same layout; use the intervention rating when progress
@@ -244,15 +280,17 @@ Every worker receives explicit model, effort and `service_tier="default"`
 overrides, so a global Astra/max or Fast preference cannot override the handoff.
 The terminal and state record the selected settings and Standard processing.
 An interrupted conversation resumed by `start` keeps its recorded model/effort
-for reconciliation; after its clean handoff, fresh slices use Continuation.md
-again. Settings edits do not switch a running conversation. Missing or invalid
+for reconciliation. Reviews always use Astra xHigh; an intervention overrides
+Continuation.md for exactly one implementation slice. Settings edits do not
+switch a running conversation. Missing or invalid
 saved resume settings require reconciliation rather than guessing a replacement.
 
 **Activation:** these are development-launcher changes (`none`), with no product
 data migration or helper installation. An already-running old supervisor keeps
 its loaded code; use the safe `restart` above to load changes at its next clean
 boundary. A stopped launcher's next `start` loads them directly. There is no
-blanket Astra pin; historical evidence records the settings actually used then.
+blanket Astra pin for implementation; review sessions use the explicit Astra
+xHigh policy. Historical evidence records the settings actually used then.
 Slice budgets remain review points, so an active VM attempt can exceed 30
 minutes while it finishes collection and cleanup.
 
@@ -276,9 +314,9 @@ When [Task 20 recovery](Task-20.md#bounded-recovery--2026-09-11) resumes after
 the prioritized independent work in checklist order, workers
 also maintain cumulative working time/attempts in its existing handoff and check
 the specified milestone thresholds. An unmet stop checkpoint produces the
-existing `blocked` result with blocker `decision` after cleanup, which stops the
-supervisor even if another backlog task is independently ready. This is enforced
-by the task/prompt and existing blocked-result handling; the launcher does not
+existing `blocked` result with blocker `decision` after cleanup. The progress
+review must preserve that required operator decision and stop implementation
+even if another backlog task is independently ready. The launcher does not
 independently calculate an hours budget. A restart does not renew a pending
 decision or reset the ledger. The normal `start` command needs no custom prompt
 or code refresh for these document changes.
@@ -354,6 +392,11 @@ reads wrapped by the CLI's shell. The same single-file reads of source files
 use syntax highlighting for recognized languages, including Python, JavaScript,
 JSON and shell. Command labels and exit statuses are also styled. Other command output streams as it arrives;
 search results, diffs, numbered source and mixed commands stay literal.
+Regression dashboard rows update in place on interactive terminals, including
+attached monitors. The launcher buffers partial command lines and renders
+recognized progress rows locally; child terminal controls remain filtered.
+Redirected output retains plain progress snapshots. Ordinary command output
+and completion messages end the live dashboard and remain visible below it.
 Rendering uses `python3-rich`, included by
 `./setup.sh --dependencies-only`. If it is unavailable, output is redirected, or
 `TERM=dumb`, the launcher uses plain text. `NO_COLOR` disables rendering colors

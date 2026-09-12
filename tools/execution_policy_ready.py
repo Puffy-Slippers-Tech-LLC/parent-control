@@ -48,8 +48,13 @@ def wait_until_enforcing() -> None:
 
 
 def main() -> int:
-    wait_until_enforcing()
-    print("fapolicyd execution enforcement is ready", flush=True)
+    try:
+        wait_until_enforcing()
+    except Exception:
+        # The chained operating-system error may include private paths.
+        print("onpc.execution-policy readiness failed", flush=True)
+        return 1
+    print("onpc.execution-policy enforcement ready", flush=True)
     return 0
 
 

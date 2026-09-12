@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import configure_console, log_version
 import os
 import sys
 import threading
@@ -30,7 +31,7 @@ from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
 from .client import BrokerClient, configure_logging
 
-LOG = logging.getLogger("oh-no-parent-control-parent")
+LOG = get_logger("parent")
 APPLICATION_ICON_NAME = "com.puffyslippers.OhNoParentControl"
 STATES = (
     {
@@ -108,15 +109,14 @@ def _daily_limit_selection(minutes):
         return CUSTOM_DAILY_LIMIT_INDEX, True
 
 
-def _time_status_subtitle(status, daily_limit_minutes):
+def _time_status_subtitle(status):
     grant = format_duration(status["one_time_grant_remaining_seconds"])
-    if daily_limit_minutes == 0:
-        return f"One-time grant remaining: {grant}."
     daily = format_duration(status["daily_allowance_remaining_seconds"])
+    remaining = format_duration(status["calculated_active_extension_seconds"])
     return (
-        f"Daily allowance remaining: {daily}.\n"
-        f"One-time grant remaining: {grant}.\n"
-        "The larger amount applies."
+        f"Daily allowance remaining: <b>{daily}</b>\n"
+        f"One-time grant remaining: <b>{grant}</b>\n"
+        f"<b>Remaining time: {remaining}</b> — the larger of the two amounts."
     )
 
 
@@ -140,8 +140,11 @@ class DailyLimitPopover(Gtk.Popover):
         self._height_limit = max(0, int(max(above, below)) - 8)
         self.set_position(Gtk.PositionType.TOP if above > below else Gtk.PositionType.BOTTOM)
         self.queue_resize()
-        LOG.debug("allowance popup prepared side=%s available_height=%d",
-                  self.get_position().value_nick, self._height_limit)
+        LOG.debug(
+            "parent.001",
+            side=self.get_position().value_nick,
+            available_height=self._height_limit,
+        )
 
     def do_measure(self, orientation, for_size):
         minimum, natural, minimum_baseline, natural_baseline = Gtk.Popover.do_measure(
@@ -193,7 +196,7 @@ class ParentWindow(Adw.ApplicationWindow):
             30, self._refresh_time_status,
         )
         self.connect("close-request", self._close_requested)
-        LOG.info("window initialized app_count=%d", len(self._rows))
+        LOG.info("parent.002", app_count=len(self._rows))
         GLib.idle_add(self._load_users)
 
     def _build(self):
@@ -694,7 +697,7 @@ class ParentWindow(Adw.ApplicationWindow):
         panel.append(heading)
 
         self._time_explanation = Gtk.Label(
-            label="—", xalign=0, wrap=True,
+            label="—", xalign=0, wrap=True, use_markup=True,
             css_classes=["calculation-formula"],
         )
         panel.append(self._time_explanation)
@@ -1067,10 +1070,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._filter(self._search)
         self._update_apps_loading_ui()
         self._set_apps_sensitive(self._preferences is not None)
-        LOG.info(
-            "application table ready target=[Child user] row_count=%d",
-            len(self._rows),
-        )
+        LOG.info("parent.003", row_count=len(self._rows))
         return GLib.SOURCE_REMOVE
 
     def _run(self, operation, success, failure=None):
@@ -1083,7 +1083,7 @@ class ParentWindow(Adw.ApplicationWindow):
                 if failure is not None:
                     failure(caught)
                     return
-                LOG.warning("broker operation failed error_type=%s", type(caught).__name__)
+                LOG.warning("parent.004", error_type=error_code(caught))
                 self._show_error(caught)
                 self._loading = True
                 if self._preferences is not None:
@@ -1106,23 +1106,20 @@ class ParentWindow(Adw.ApplicationWindow):
         threading.Thread(target=worker, daemon=True).start()
 
     def _load_users(self):
-        LOG.info("managed-user discovery started")
+        LOG.info("parent.005")
         self._run(self._client.list_users, self._users_loaded, self._users_failed)
         return GLib.SOURCE_REMOVE
 
     def _users_failed(self, error):
         """Fail closed before exposing a parent-management surface."""
-        LOG.warning(
-            "managed-user discovery failed; closing management window error_type=%s",
-            type(error).__name__,
-        )
+        LOG.warning("parent.006", error_type=error_code(error))
         self.get_content().set_sensitive(False)
         self._show_error(error, "The Parent App could not load. Please try again later.",
                          on_close=self.get_application().quit)
 
     def _users_loaded(self, users):
         self._users = [parse_listed_user(user) for user in users]
-        LOG.info("managed-user discovery completed count=%d", len(self._users))
+        LOG.info("parent.007", count=len(self._users))
         if self._users:
             # Kick off the selected child's catalog before the account picker
             # model is rebuilt so App Limits work does not wait on UI setup.
@@ -1166,7 +1163,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._remaining_time_seconds = None
         self._time_status_value.set_label("Loading…")
         self._time_explanation.set_label("—")
-        LOG.info("preferences load started target=[Child user]")
+        LOG.info("parent.008")
         self._set_apps_sensitive(False)
         # Start the application catalog immediately on a background thread so
         # Screen Limits is not blocked, and App Limits can paint as soon as
@@ -1193,7 +1190,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._pending_catalog_apps = []
         self._clear_catalog_rows()
         self._update_apps_loading_ui()
-        LOG.info("application catalog load started target=[Child user]")
+        LOG.info("parent.009")
         self._run(
             lambda: self._client.list_apps(uid),
             lambda applications: self._apps_loaded(uid, generation, applications),
@@ -1206,10 +1203,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._apps_loading = False
         self._app_catalog = applications
         self._app_catalog_uid = uid
-        LOG.info(
-            "application catalog loaded target=[Child user] app_count=%d",
-            len(applications),
-        )
+        LOG.info("parent.010", app_count=len(applications))
         self._update_apps_loading_ui()
         self._maybe_populate_app_table()
 
@@ -1217,8 +1211,7 @@ class ParentWindow(Adw.ApplicationWindow):
         if generation != self._apps_load_generation or uid != self._selected_uid():
             return
         self._apps_loading = False
-        LOG.warning("application catalog load failed target=[Child user] error_type=%s",
-                    type(error).__name__)
+        LOG.warning("parent.011", error_type=error_code(error))
         self._show_error(error, "Installed apps could not be loaded. Please try again later.")
         self._app_catalog = []
         self._app_catalog_uid = uid
@@ -1292,9 +1285,11 @@ class ParentWindow(Adw.ApplicationWindow):
         self._loading = False
         self._set_apps_sensitive(True)
         self._update_apps_loading_ui()
-        LOG.info("preferences loaded target=[Child user] enabled=%s policy_count=%d",
-                 preferences["parent_control_enabled"],
-                 len(preferences["apps"]))
+        LOG.info(
+            "parent.012",
+            enabled=preferences["parent_control_enabled"],
+            policy_count=len(preferences["apps"]),
+        )
         self._load_time_status()
 
     def _load_time_status(self, *, retry=False):
@@ -1328,15 +1323,13 @@ class ParentWindow(Adw.ApplicationWindow):
         self._time_status_value.set_label(
             format_duration(status["calculated_active_extension_seconds"])
         )
-        self._time_explanation.set_label(_time_status_subtitle(
-            status, self._preferences["daily_time_limit_minutes"],
-        ))
+        self._time_explanation.set_label(_time_status_subtitle(status))
         LOG.info(
-            "remaining time loaded target=[Child user] daily=%d grant=%d additional=%d calculated=%d",
-            status["daily_allowance_remaining_seconds"],
-            status["one_time_grant_remaining_seconds"],
-            status["additional_one_time_grant_seconds"],
-            status["calculated_active_extension_seconds"],
+            "parent.013",
+            daily=status["daily_allowance_remaining_seconds"],
+            grant=status["one_time_grant_remaining_seconds"],
+            additional=status["additional_one_time_grant_seconds"],
+            calculated=status["calculated_active_extension_seconds"],
         )
         self._set_apps_sensitive(True)
         self._load_pending_time_status_refresh()
@@ -1347,8 +1340,7 @@ class ParentWindow(Adw.ApplicationWindow):
             self._time_status_refresh_pending = False
             self._load_time_status()
             return
-        LOG.warning("remaining-time load failed target=[Child user] error_type=%s",
-                    type(error).__name__)
+        LOG.warning("parent.014", error_type=error_code(error))
         if self._time_status_refresh_pending:
             self._time_status_refresh_pending = False
             self._load_time_status()
@@ -1621,10 +1613,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._queue_save("parent-control", uid, enabled, daily_limit_minutes)
 
     def _start_parent_control_save(self, uid, enabled, daily_limit_minutes):
-        LOG.info(
-            "parent-control change started target=[Child user] enabled=%s daily_limit_minutes=%d",
-            enabled, daily_limit_minutes,
-        )
+        LOG.info("parent.015", enabled=enabled, daily_limit_minutes=daily_limit_minutes)
         self._run(
             lambda: self._client.set_parent_control(
                 uid, enabled, daily_limit_minutes,
@@ -1763,8 +1752,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._queue_save("app-policy", uid, value)
 
     def _start_app_policy_save(self, uid, value):
-        LOG.info("app-policy auto-save started target=[Child user] policy_count=%d",
-                 len(value["apps"]))
+        LOG.info("parent.016", policy_count=len(value["apps"]))
         self._run(
             lambda: self._client.set_preferences(uid, value),
             lambda preferences: self._save_succeeded(uid, preferences),
@@ -1798,7 +1786,7 @@ class ParentWindow(Adw.ApplicationWindow):
             # The controls already show this policy. Updating them again makes
             # every row animate, which is perceived as a flash.
             self._preferences = preferences
-        LOG.info("preference auto-save completed target=[Child user]")
+        LOG.info("parent.017")
         if refresh_time_status:
             self._load_time_status()
         self._start_next_save()
@@ -1807,8 +1795,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _save_failed(self, uid, setting, error):
         self._save_in_progress = False
-        LOG.warning("preference auto-save failed target=[Child user] setting=%s error_type=%s",
-                    setting, type(error).__name__)
+        LOG.warning("parent.018", setting=setting, error_type=error_code(error))
         self._show_error(error, f"Could not save {setting}. Please try again later.")
         if uid == self._selected_uid():
             self._restore_preferences_uid = uid
@@ -1915,9 +1902,9 @@ class Application(Adw.Application):
         self._preview_changed_paths = set()
         if any(path.name == "style.css" for path in changed_paths):
             self._load_stylesheet()
-            LOG.info("preview stylesheet reloaded")
+            LOG.info("parent.019")
         if any(path.suffix == ".py" for path in changed_paths):
-            LOG.info("preview source changed; relaunching")
+            LOG.info("parent.020")
             os.execv(sys.executable, sys.orig_argv)
         return GLib.SOURCE_REMOVE
 
@@ -1968,14 +1955,16 @@ def main(argv=None):
     if not args.preview:
         configure_logging()
     else:
-        logging.basicConfig(level=logging.INFO)
+        configure_console()
     startup_errors = []
     if not args.preview and not _can_start(on_error=startup_errors.append):
-        LOG.warning("parent app launch denied or broker unavailable")
-    LOG.info("parent app starting")
+        LOG.warning("parent.021")
+    log_version()
+    LOG.info("parent.022")
     return Application(preview=args.preview,
                        startup_error=startup_errors[0] if startup_errors else None).run([sys.argv[0]])
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from common.oh_no_parent_control_ui.diagnostic_events import run_cli
+    raise SystemExit(run_cli(main))

@@ -137,6 +137,13 @@ remain unavailable until implemented; registering an approval is not test
 coverage. The updated rules replace broad direct pytest/privileged-reader grants
 and restrict relevant old global approvals; use the validated entry points.
 
+The privileged dispatcher disables bytecode writes in its own interpreter and
+its children so test runs cannot leave root-owned checkout caches that break
+`make build`. Tools refresh also returns an old root-owned `tools/__pycache__`
+directory to the owner/group of `tools`, allowing ordinary Debian clean to
+remove the cached files. This repair preserves contents, refuses symlinks, and
+does nothing when the cache is absent or already owned by a non-root user.
+
 Install or refresh with `./setup.sh --test-tools-only`, then restart Codex with
 the project trusted. Use `./setup.sh --codex-rules-only` for rule-only updates.
 Initial installation uses `./setup.sh --bootstrap-tools` and can require

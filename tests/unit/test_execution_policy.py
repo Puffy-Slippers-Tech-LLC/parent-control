@@ -252,7 +252,7 @@ class ExecutionPolicyTests(unittest.TestCase):
                 policy = FapolicydPolicy()
                 with mock.patch("oh_no_parent_control.execution_policy.subprocess.run",
                                 side_effect=error) as run:
-                    with self.assertLogs("oh-no-parent-control.execution-policy", level="ERROR") as logs:
+                    with self.assertLogs("onpc.execution-policy", level="ERROR") as logs:
                         with self.assertRaises(ExecutionPolicyError):
                             policy._reload()
                 self.assertEqual(run.call_args.kwargs["timeout"], 15)

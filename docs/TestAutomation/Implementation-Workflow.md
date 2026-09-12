@@ -112,6 +112,14 @@ Reevaluate model and effort separately for the next slice at every handoff.
 The latest applicable handoff overrides task-header defaults; revise it if
 intervening changes alter the difficulty. Mirror the result in Continuation.md.
 
+The unattended launcher adds a separate [progress review](Unattended-Sessions.md#progress-review-between-slices)
+using Astra xHigh after each clean slice. If that review intervenes, it revises
+the active handoffs and chooses Astra xHigh or max for the next slice only,
+with a required observable breakthrough. Keep ordinary reassessed settings in
+Continuation.md; the launcher consumes this explicit override separately and
+returns to normal settings afterward. This exception does not waive acceptance,
+cleanup, permission boundaries or required operator decisions.
+
 | Next slice | Starting choice and reassessment |
 | --- | --- |
 | Bounded implementation with settled contracts, proven helpers and meaningful acceptance checks | `gpt-5.6-sol` / `high`. This is the general implementation default. |

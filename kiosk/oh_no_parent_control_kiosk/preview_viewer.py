@@ -6,7 +6,7 @@ use the launcher's disposable bus; no host desktop capture or input is allowed.
 """
 
 import json
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, configure_console, run_cli
 import os
 from pathlib import Path
 import signal
@@ -23,7 +23,7 @@ from gi.repository import Gdk, Gio, GLib, GLibUnix, Gst, Gtk
 
 from .preview_screen import SCREEN, Screen
 
-LOG = logging.getLogger(__name__)
+LOG = get_logger("preview")
 VIEWER_FD = "ONPC_PREVIEW_VIEWER_FD"
 CAST = "org.gnome.Mutter.ScreenCast"
 REMOTE = "org.gnome.Mutter.RemoteDesktop"
@@ -120,8 +120,7 @@ class MonitorStream:
             bus.connect("message::error", lambda _bus, message: self.on_error(message.parse_error()[0]))
             if self.pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
                 raise RuntimeError("The preview video stream could not start.")
-            LOG.info("preview capture connected monitor=%s physical=%dx%d",
-                     self.connector, self.screen.width, self.screen.height)
+            LOG.info("preview.connected")
         except Exception as error:
             self.on_error(error)
 
@@ -265,8 +264,7 @@ class Viewer(Gtk.Application):
                 self.control.send(b"video")
         if not self.ready and self.app_mapped and self.window.get_mapped():
             self.ready = True
-            LOG.info("preview viewer received full-resolution frame %dx%d",
-                     self.screen.width, self.screen.height)
+            LOG.info("preview.frame")
             if self.control:
                 self.control.send(b"ready")
             self.picture.grab_focus()
@@ -278,7 +276,7 @@ class Viewer(Gtk.Application):
 
     def _error(self, error):
         # No input values, account data or session environment in diagnostics.
-        LOG.error("preview viewer failed: %s", error)
+        LOG.error("preview.failed")
         self.failed = True
         self.quit()
 
@@ -348,9 +346,9 @@ def run(viewer):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    configure_console()
     return run(Viewer())
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run_cli(main))

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import fnmatch
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import os
 import stat
 import subprocess
@@ -12,7 +12,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-LOG = logging.getLogger("oh-no-parent-control.execution-policy")
+LOG = get_logger("execution-policy")
 
 
 class ExecutionPolicyError(RuntimeError):
@@ -163,7 +163,7 @@ class FapolicydPolicy:
 
     def reconcile(self, filters: dict[int, tuple[str, ...]],
                   patterns: dict[int, tuple[str, ...]] | None = None) -> None:
-        LOG.info("execution policy reconcile stage=compile account_count=%d", len(filters))
+        LOG.info("execution-policy.001", account_count=len(filters))
         contents = self.render(filters, patterns).encode("utf-8")
         with self._lock:
             previous = None
@@ -175,18 +175,17 @@ class FapolicydPolicy:
                 raise ExecutionPolicyError("could not read current execution policy") from error
 
             if previous == contents and self._last_notified_contents == contents:
-                LOG.info("execution policy reconcile outcome=unchanged")
+                LOG.info("execution-policy.002")
                 return
 
             self._last_notified_contents = None
-            LOG.info("execution policy reconcile stage=replace")
+            LOG.info("execution-policy.003")
             self._replace(contents)
             try:
-                LOG.info("execution policy reconcile stage=activate")
+                LOG.info("execution-policy.004")
                 self._reload()
             except Exception as error:
-                LOG.error("execution policy reconcile outcome=activation-failed error_type=%s",
-                          type(error).__name__)
+                LOG.error("execution-policy.005", error_type=error_code(error))
                 try:
                     if previous is None:
                         self._rules_path.unlink(missing_ok=True)
@@ -195,8 +194,7 @@ class FapolicydPolicy:
                     self._reload()
                     self._last_notified_contents = previous
                 except Exception as rollback_error:
-                    LOG.error("execution policy reconcile outcome=rollback-failed error_type=%s",
-                              type(rollback_error).__name__)
+                    LOG.error("execution-policy.006", error_type=error_code(rollback_error))
                     raise ExecutionPolicyError(
                         "execution-policy rollback could not be activated"
                     ) from rollback_error
@@ -204,7 +202,7 @@ class FapolicydPolicy:
                     raise
                 raise ExecutionPolicyError("execution policy could not be activated") from error
             self._last_notified_contents = contents
-            LOG.info("execution policy reconcile outcome=accepted")
+            LOG.info("execution-policy.007")
 
     def remove(self) -> None:
         """Remove the product rule file and activate that absence safely."""
@@ -218,27 +216,20 @@ class FapolicydPolicy:
                     "could not read current execution policy"
                 ) from error
 
-            LOG.info(
-                "execution policy removal stage=activate had_rule_file=%s",
-                previous is not None,
-            )
+            LOG.info("execution-policy.008", had_rule_file=previous is not None)
             self._last_notified_contents = None
             try:
                 self._rules_path.unlink(missing_ok=True)
                 self._reload()
             except Exception as error:
-                LOG.error(
-                    "execution policy removal outcome=activation-failed error_type=%s",
-                    type(error).__name__,
-                )
+                LOG.error("execution-policy.009", error_type=error_code(error))
                 if previous is not None:
                     try:
                         self._replace(previous)
                         self._reload()
                         self._last_notified_contents = previous
                     except Exception as rollback_error:
-                        LOG.error("execution policy removal outcome=rollback-failed error_type=%s",
-                                  type(rollback_error).__name__)
+                        LOG.error("execution-policy.010", error_type=error_code(rollback_error))
                         raise ExecutionPolicyError(
                             "execution-policy removal rollback could not be activated"
                         ) from rollback_error
@@ -247,7 +238,7 @@ class FapolicydPolicy:
                 raise ExecutionPolicyError(
                     "execution policy removal could not be activated"
                 ) from error
-            LOG.info("execution policy removal outcome=accepted")
+            LOG.info("execution-policy.011")
 
     def _replace(self, contents: bytes) -> None:
         try:
@@ -276,7 +267,7 @@ class FapolicydPolicy:
         for stage, command in (
                 ("compile", self._compile_command),
                 ("notify", self._reload_command)):
-            LOG.info("execution policy reload stage=%s", stage)
+            LOG.info("execution-policy.012", stage=stage)
             self._run_reload_command(command, stage)
 
     @staticmethod
@@ -292,10 +283,8 @@ class FapolicydPolicy:
                 text=True,
             )
         except (OSError, subprocess.SubprocessError) as error:
-            LOG.error("execution policy reload stage=%s outcome=failed error_type=%s",
-                      stage, type(error).__name__)
+            LOG.error("execution-policy.013", stage=stage, error_type=error_code(error))
             raise ExecutionPolicyError("could not reload execution policy") from error
         if completed.returncode != 0:
-            LOG.error("execution policy reload stage=%s outcome=failed returncode=%d",
-                      stage, completed.returncode)
+            LOG.error("execution-policy.014", stage=stage, returncode=completed.returncode)
             raise ExecutionPolicyError("could not reload execution policy")

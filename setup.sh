@@ -11,7 +11,7 @@ Usage: ./setup.sh [MODE]
   (no mode)             Set up/refresh the development machine and VM host
   --dependencies-only   Install development, build, UI and VM host dependencies
   --ppa-build-tools     Install clean local PPA build prerequisites
-  --test-tools-only     Refresh test helpers, graphical policies and Codex rules
+  --test-tools-only     Refresh test helpers/policies/rules; repair old bytecode ownership
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --prepare-host        Prepare/reconcile the existing test VM baseline on the host

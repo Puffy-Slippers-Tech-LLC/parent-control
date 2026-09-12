@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import errno
 import fnmatch
-import logging
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import os
 import pwd
 import re
@@ -25,7 +25,7 @@ FLATPAK_TIMEOUT_SECONDS = 5
 PROCESS_EXIT_TIMEOUT_SECONDS = 2
 MAX_NATIVE_TERMINATION_PASSES = 4
 MAX_PROCESS_ENVIRONMENT_BYTES = 1024 * 1024
-LOG = logging.getLogger("oh-no-parent-control.app-termination")
+LOG = get_logger("app-termination")
 FLATPAK_INSTANCE_RE = re.compile(r"^[0-9]+$")
 FLATPAK_ID_RE = re.compile(
     r"^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+$"
@@ -95,11 +95,12 @@ class RunningAppTerminator:
         snap_labels = _snap_security_labels(targets)
         application_ids = self._application_ids(target_uid, targets, patterns)
         LOG.info(
-            "blocked-app termination preflight native_target_count=%d "
-            "flatpak_target_count=%d snap_target_count=%d pattern_count=%d "
-            "application_id_count=%d",
-            len(native_targets), len(_flatpak_targets(targets)),
-            len(snap_labels), len(patterns), len(application_ids),
+            "app-termination.001",
+            native_target_count=len(native_targets),
+            flatpak_target_count=len(_flatpak_targets(targets)),
+            snap_target_count=len(snap_labels),
+            pattern_count=len(patterns),
+            application_id_count=len(application_ids),
         )
         if (native_targets or snap_labels or patterns) and (
                 self._pidfd_open is None or self._pidfd_send_signal is None):
@@ -114,7 +115,7 @@ class RunningAppTerminator:
         """Kill blocked apps for *target_uid* and return the number terminated."""
         self.preflight(target_uid, targets, patterns)
         identity = self._identity(target_uid)
-        LOG.info("blocked-app termination stage=started")
+        LOG.info("app-termination.002")
         terminated = self._terminate_flatpaks(
             identity, _flatpak_targets(targets),
         )
@@ -123,7 +124,7 @@ class RunningAppTerminator:
             _snap_security_labels(targets),
             self._application_ids(target_uid, targets, patterns),
         )
-        LOG.info("blocked-app termination outcome=accepted terminated_count=%d", terminated)
+        LOG.info("app-termination.003", terminated_count=terminated)
         return terminated
 
     def _application_ids(self, target_uid, targets, patterns) -> tuple[str, ...]:
@@ -287,9 +288,11 @@ class RunningAppTerminator:
                 if pid in selected:
                     matches.append((pid, pidfd))
             LOG.info(
-                "blocked-app discovery target=[Child user] verified_process_count=%d "
-                "direct_match_count=%d descendant_match_count=%d appimage_match_count=%d",
-                len(candidates), direct_count, len(selected) - direct_count, appimage_count,
+                "app-termination.004",
+                verified_process_count=len(candidates),
+                direct_match_count=direct_count,
+                descendant_match_count=len(selected) - direct_count,
+                appimage_match_count=appimage_count,
             )
         except Exception:
             for pidfd, *_rest in candidates.values():

@@ -66,7 +66,7 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
         assert result.stdout.count("APT transaction") == 1
         assert "Processing triggers for libc-bin" in result.stdout
         assert arguments.read_text().splitlines() == [
-            "install", str(output / "oh-no-parent-control_1.0_amd64.deb")]
+            "install", "--reinstall", str(output / "oh-no-parent-control_1.0_amd64.deb")]
         assert result.stdout.rstrip().endswith("Processing triggers for libc-bin ...")
         assert "REBOOT REQUIRED" not in result.stdout
         assert "PASS:" not in result.stdout
@@ -89,7 +89,7 @@ class PackageDeploymentTests(unittest.TestCase):
     def test_make_package_targets_delegate_all_product_behavior_to_apt(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
-        self.assertTrue(recipe.rstrip().endswith('exec $(APT) install "$$deb_file"'))
+        self.assertTrue(recipe.rstrip().endswith('exec $(APT) install --reinstall "$$deb_file"'))
         removal = makefile.split("uninstalldeb:\n", 1)[1].split("\n\n", 1)[0]
         self.assertEqual(removal.strip(), '$(APT) remove oh-no-parent-control')
         self.assertIn("@set -e", recipe)

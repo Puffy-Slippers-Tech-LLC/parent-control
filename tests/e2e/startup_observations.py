@@ -139,36 +139,13 @@ def owner():
     assert type(pid) is int and pid > 1
     return value, pid
 def witness():
-    directory = pathlib.Path('/var/log/oh-no-parent-control/broker')
-    paths = [p for p in directory.iterdir() if re.fullmatch(r'\d{4}-\d{2}-\d{2}\.log',p.name)]
-    assert 0 < len(paths) <= 10
-    matches = []
-    for path in paths:
-        timeout()
-        # Bound reads of normal retained daily logs; never follow a replacement
-        # symlink or export unrelated diagnostics. Missing/truncated proof fails.
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-        with os.fdopen(fd, 'rb') as stream:
-            meta = os.fstat(stream.fileno())
-            assert stat.S_ISREG(meta.st_mode) and meta.st_uid == 0
-            assert not meta.st_mode & 0o022
-            offset = max(0, meta.st_size - 524288)
-            stream.seek(offset)
-            lines = stream.read(524288).splitlines()
-            if offset:
-                lines = lines[1:]
-        for line in lines:
-            marker = b' INFO startup-witness '
-            if marker not in line:
-                continue
-            record = json.loads(line.split(marker,1)[1])
-            if record.get('invocation_id') == service['InvocationID']:
-                matches.append(record)
-    assert len(matches) == 1
-    record = matches[0]
-    assert set(record) == set(keys) | {'invocation_id','pid','bus_owner'}
-    assert record['bus_owner'] == identity[0]
-    assert type(record['pid']) is int and record['pid'] == identity[1] == int(service['MainPID'])
+    # Query the already pinned unique owner, then recheck owner, process, unit
+    # invocation and boot continuity below. No retained log can prove which
+    # currently running process supplied these timings.
+    assert identity[1] == int(service['MainPID'])
+    record = call(identity[0], '/com/puffyslippers/OhNoParentControl1',
+        name, 'GetStartupTimings', None, '(a{st})')
+    assert type(record) is dict and set(record) == set(keys)
     assert all(type(record[k]) is int and 0 < record[k] < 10**19 for k in keys)
     return record
 stage = 'boot'

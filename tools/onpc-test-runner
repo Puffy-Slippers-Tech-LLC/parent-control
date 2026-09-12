@@ -1,5 +1,8 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Installed development-only dispatcher; trust the configured test checkout."""
+
+# Disable bytecode in this privileged interpreter as well as its children.
+# Checkout imports must never leave root-owned caches that break package clean.
 
 import argparse
 import os

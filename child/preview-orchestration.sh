@@ -99,6 +99,10 @@ onpc_preview_install_payload() {
     make --no-print-directory -C "$repo_root" install-extension \
         CHILD_DIR="$payload_source_dir" \
         EXTENSION_BASE="$onpc_preview_root/data" >/dev/null
+    local extension_dir="$onpc_preview_root/data/gnome-shell/extensions/$onpc_preview_uuid"
+    install -m 0644 "$payload_source_dir/extension.js" "$extension_dir/productionExtension.js"
+    install -m 0644 "$payload_source_dir/previewMode.js" "$extension_dir/"
+    install -m 0644 "$payload_source_dir/previewExtension.js" "$extension_dir/extension.js"
 }
 
 onpc_preview_prepare_environment() {
@@ -125,6 +129,8 @@ onpc_preview_prepare_environment() {
             [[ -e "$source" ]] || continue
             ln -s "$source" "$extension_dir/${source##*/}"
         done
+        ln -s "$onpc_preview_source_dir/extension.js" "$extension_dir/productionExtension.js"
+        ln -sf "$onpc_preview_source_dir/previewExtension.js" "$extension_dir/extension.js"
         for source in "$repo_root"/data/{app_logo.png,app_logo_gnome_launcher.png,company_logo.png,brand.json,app.json} \
                 "$repo_root"/{LICENSE,COPYRIGHT,NOTICE}; do
             ln -s "$source" "$extension_dir/${source##*/}"

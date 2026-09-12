@@ -282,11 +282,11 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("by exact identity", result.stderr)
 
     def test_preview_mode_uses_fixture_ui_behavior_without_privileged_clients(self):
-        extension = (ROOT / "child" / "extension.js").read_text()
+        extension = (ROOT / "child" / "previewExtension.js").read_text()
         preview_mode = (ROOT / "child" / "previewMode.js").read_text()
 
-        self.assertIn('this._preview = isPreview()', extension)
-        self.assertIn('this._preview ? 45 * 60', extension)
+        self.assertIn("from './productionExtension.js'", extension)
+        self.assertIn('45 * 60, true', extension)
         self.assertIn("OH_NO_PARENT_CONTROL_REQUEST_APP", extension)
         self.assertIn("if (previewStartsWithRequestOpen()) {", extension)
         self.assertIn("'indicator-interaction'", preview_mode)
@@ -304,7 +304,8 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("Gio.Subprocess.new", extension)
         self.assertIn("'/usr/bin/oh-no-parent-control'", extension)
         self.assertIn("'--child-overlay'", extension)
-        self.assertIn("OH_NO_PARENT_CONTROL_REQUEST_APP", extension)
+        self.assertNotIn("OH_NO_PARENT_CONTROL_REQUEST_APP", extension)
+        self.assertNotIn("previewMode.js", extension)
         self.assertNotIn("requestOwnAccess", extension)
         self.assertNotIn("RequestPopover", extension)
         self.assertNotIn("org.freedesktop.Accounts", extension)

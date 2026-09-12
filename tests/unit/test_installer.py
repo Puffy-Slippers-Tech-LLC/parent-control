@@ -149,7 +149,6 @@ class PackageDeploymentTests(unittest.TestCase):
             "common/oh_no_parent_control_ui/rich_editor/quill.snow.css",
             "common/oh_no_parent_control_ui/rich_editor/quill.js.LICENSE.txt",
             "common/oh_no_parent_control_ui/rich_editor/LICENSE",
-            "docs/SystemDesign/Logging-and-Feedback.md",
             "kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png",
             "kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf",
             "data/fapolicyd/99-oh-no-parent-control-allow.rules", "tools/pam_oh_no_parent_control.c",
@@ -217,7 +216,7 @@ class PackageDeploymentTests(unittest.TestCase):
         self.assertIn("PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png", makefile)
         self.assertIn("$(BRANDING_ASSETS) $(PARENT_TITLEBAR_ASSET)", makefile)
         self.assertIn(
-            "EXTENSION_BRANDING_ASSETS := $(BRANDING_ASSETS) data/app_logo_gnome_launcher.png",
+            "EXTENSION_BRANDING_ASSETS := data/brand.json data/app_logo_gnome_launcher.png",
             makefile,
         )
         self.assertIn(

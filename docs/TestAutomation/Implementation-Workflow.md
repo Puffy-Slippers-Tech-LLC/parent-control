@@ -29,6 +29,14 @@ omission of necessary work. This is the single implementation session procedure.
    when checklist order resumes. Blocked entries remain unchecked and block
    dependent acceptance. If nothing is ready, save the concrete blocker. If all
    entries are complete, record completion and stop without rerunning suites.
+   An explicit cumulative recovery budget in the selected task also persists
+   across slices. Update its ledger and check its outcome thresholds before
+   selecting more work. If it requires an operator decision, finish cleanup and
+   return the existing unattended `blocked/decision` result; do not evade the
+   boundary with independent-task fallback, renamed blockers or reset totals.
+   This exception applies to an explicitly recorded recovery scope, not ordinary
+   slice estimates. Task 20's [active recovery](Task-20.md#bounded-recovery--2026-09-11)
+   currently owns such a scope.
 2. State one next observable result, its smallest verification, planned slice
    budget, actual model/effort and the latest handoff's recommendation with its
    reason. The user's continuation request or [launcher invocation](Unattended-Sessions.md)
@@ -345,8 +353,11 @@ deduplicate checks.
 the package manifest's source digest to match the current checkout, including
 documentation. A documentation handoff can therefore require a fresh artifact
 for the next package-bearing VM attempt, even though it needs no product tests
-itself. Do not edit manifests or exclude paths ad hoc. Task 28A's narrower,
-validated build-input closure is planned; it is not an available cache today.
+itself. Do not edit manifests or exclude paths ad hoc. Task 20's
+[recovery R1](Task-20.md#bounded-recovery--2026-09-11) owns the immediate stable
+source-execution prerequisite; Task 28A retains the complete validated build-input
+closure and artifact reuse. Neither planned capability is an available cache
+today. Preserve the current contract until an equivalent replacement is verified.
 
 Register each shared case/assertion once and link its requirements/tasks.
 Applicable current-input evidence may support related implementation acceptance;

@@ -154,21 +154,79 @@ obligations. This protocol is not yet implemented or established sufficient;
 in particular, a product marker cannot certify arbitrary administrator rules.
 
 Reuse the broker's Gio system-bus transport for a narrowly scoped systemd
-transient probe service with explicit startup/runtime/stop deadlines. This is
-the next implementation candidate because `subprocess` timeouts do not bound
-initial process creation, and the boot/terminal helpers cannot supply an owned
-handle while exec is stalled there. Public systemd interfaces exist; their
-installed behavior, lost-create-reply ownership, evidence retention and cleanup
-must be tested before product integration. Do not infer ownership from a unit
-name or interpret generic exec failure as a policy decision.
+transient probe service with explicit startup/runtime/stop deadlines. The
+[bounded transport](#bounded-probe-transport-and-open-limits) now has local
+refusal coverage; installed qualification and complete ambiguous-create recovery
+remain pending. `subprocess` timeouts do not bound initial process creation,
+and the boot/terminal helpers cannot supply an owned handle while exec is
+stalled there. Do not infer ownership from a unit name or interpret generic
+exec failure as a policy decision.
 
 Rollback requires a fresh receipt for restored content. Reversible removal
 needs a witness that survives deletion of the account-policy file; any separate
 witness must ship its `postrm` deletion and baseline/empty-directory handling
 together. See the [removal limitation](Package-Removal.md#execution-policy-baseline).
-No witness files, transient services, persistent schema or activation behavior
+No generated witness files, persistent schema or policy activation behavior
 have been added. Current notifications and their cache remain weaker than
 acknowledgement.
+
+### Bounded probe transport and open limits
+
+`execution_probe.ExecutionProbe.run` reuses `adapters._call` on an existing
+Gio system-bus connection. It is dormant: no broker transaction invokes it.
+It executes only the existing packaged canary, with a fresh random unit name,
+`Type=exec`, finite start/runtime/stop/job limits, no restart and null standard
+streams. Calls target the captured unique systemd bus owner and have finite
+deadlines. The immutable result retains manager, unit, job when returned,
+observed invocation, terminal status and separate reference/cleanup outcomes.
+Broker payload activation is `process-restart`; the boot canary and its gate
+are unchanged, and there is no saved-data migration.
+
+Systemd's `AddRef` retains fast-exit evidence for the sending bus client;
+`UnrefUnit` releases only that client's reference. `CollectMode=inactive-or-failed`
+permits subsequent collection. The adapter never stops, kills, resets or
+restarts a unit. Identity-bracketed reads reject replacement; ordinary state
+transitions are observed again. Success requires terminal evidence followed
+by confirmed collection. Exit 203 is an execution failure, never a deny receipt.
+
+The [transport evidence](../TestAutomation/Evidence/15A-Bounded-Probe-Transport-20260911.md)
+links the public systemd interfaces/source and
+`tests/unit/test_execution_probe_cleanup_safety.py` regression matrix. This is
+**local double coverage, not live qualification or a generation receipt**.
+A lost create reply always fails; when its unit is observed terminal, evidence
+and collection can still be retained. `ExecutionProbe.pending` now retains the
+immutable recovery result before dispatch and through interrupted cleanup.
+Keep one adapter for the connection lifetime: its nonblocking operation lock
+refuses overlapping run/recovery calls, and an unsettled attempt refuses another
+create. `recover()` uses the original manager, name, description and observed
+invocation to collect a late unit without replaying creation. Each recovery has
+separate finite observation/release deadlines. It preserves the original failure;
+recovering a successful execution's failed cleanup returns `recovered-cleanup`,
+never a successful probe receipt. These guarantees are per retained adapter;
+there is no connection-wide registry or broker recovery scheduler yet.
+
+`UnrefUnit` replies `NoSuchUnit`/`NotReferenced` permit checking collection after
+a lost release reply. `reference_released` describes the latest release check,
+not proof that delayed creation cannot add a future reference. Only terminal
+evidence followed by absence clears `pending`. The
+[recovery evidence](../TestAutomation/Evidence/15A-Probe-Recovery-20260911.md)
+records the corrected public error name, delayed dispatch, interrupted release,
+concurrency and non-promotion regressions in the same cleanup-safety module.
+This remains **local double coverage only**.
+
+Absence before terminal observation cannot exclude delayed dispatch. Persistent
+absence, manager loss or a stuck task leaves cleanup uncertain; retain the
+adapter and recovery coordinates rather than automatically retrying creation.
+An indefinitely delayed request on a long-lived connection is still unresolved:
+recovery handles its eventual appearance but cannot guarantee a finite final
+settlement. The linked source audit identifies dedicated-client disconnection
+as the next lifetime candidate, not an implemented or qualified solution. Resolve
+that boundary and bounded connection cleanup before live use.
+The adapter does not yet provide fresh executable paths, decision records,
+compiled-input/daemon binding or forward/rollback/removal acknowledgement.
+External privileged mutation before the first invocation observation is not
+qualified as original-job evidence; downstream receipts must resolve that
+binding too. All 15A/15B, grant/session and removal consumers retain these limits.
 
 ## Session-entry reconciliation
 

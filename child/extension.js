@@ -1,13 +1,7 @@
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
 
 import {appLogoPath, appName} from './branding.js';
-import {
-    isPreview,
-    previewGenerationMarker,
-    previewStartsWithRequestOpen,
-} from './previewMode.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
 import {ChildErrorHandler} from './errorHandler.js';
 import {logInfo, logWarning} from './logger.js';
@@ -16,20 +10,13 @@ import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
 const SETTINGS_SCHEMA = 'com.puffyslippers.oh-no-parent-control.child';
 
-function requestAppArgv() {
-    const override = GLib.getenv('OH_NO_PARENT_CONTROL_REQUEST_APP');
-    if (override) {
-        const [ok, argv] = GLib.shell_parse_argv(override);
-        if (!ok || !argv.length)
-            throw new Error('OH_NO_PARENT_CONTROL_REQUEST_APP is not a command');
-        return argv;
-    }
-    return [INSTALLED_REQUEST_APP, '--child-overlay'];
-}
-
 export default class OhNoParentControlExtension extends Extension {
+    _requestAppArgv() {
+        return [INSTALLED_REQUEST_APP, '--child-overlay'];
+    }
+
     enable() {
-        this._errors = new ChildErrorHandler(requestAppArgv);
+        this._errors = new ChildErrorHandler(() => this._requestAppArgv());
         try {
             this._enable();
         } catch (error) {
@@ -42,26 +29,23 @@ export default class OhNoParentControlExtension extends Extension {
 
     _enable() {
         logInfo('extension enabled');
-        this._preview = isPreview();
         this._appName = appName(this);
         this._settings = this.getSettings(SETTINGS_SCHEMA);
         this._requestProcess = null;
         this._openingRequest = false;
-        this._indicator = new RemainingTimeIndicator(
+        this._indicator = this._createIndicator();
+    }
+
+    _createIndicator() {
+        return new RemainingTimeIndicator(
             () => this._showRequest(),
-            this._preview ? 45 * 60 : 0,
-            this._preview,
+            0,
+            false,
             this._appName,
-            previewGenerationMarker(),
+            '',
             appLogoPath(this),
             this._settings,
             error => this._errors.report(error));
-        if (previewStartsWithRequestOpen()) {
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this._showRequest();
-                return GLib.SOURCE_REMOVE;
-            });
-        }
     }
 
     disable() {
@@ -80,7 +64,7 @@ export default class OhNoParentControlExtension extends Extension {
         this._openingRequest = true;
         this._indicator?.setRequestActive(true);
         try {
-            const argv = requestAppArgv();
+            const argv = this._requestAppArgv();
             logInfo('request overlay opened');
             this._requestProcess = Gio.Subprocess.new(
                 argv, Gio.SubprocessFlags.NONE);

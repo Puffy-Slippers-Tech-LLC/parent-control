@@ -129,9 +129,8 @@ by its band's horizontal and vertical scale. Bottom anchors keep stone bases
 on the floor, and foreground formations retain their outer screen edge.
 Only the original four floating formations move. Lightning sources use the
 same silhouette transform and floating offset; targets, lava and snow
-exclusions follow the central gateway. See [scenery assets and generation
-prompt](../Artwork/Request-Scenery.md) for the source-pixel boundary and package
-activation. No scenery silhouette is stretched to fill unused screen width.
+exclusions follow the central gateway. No scenery silhouette is stretched to
+fill unused screen width.
 The form measures against the gateway opening and reserves space above and
 below for the curved chains. Both request views render the chains on a shared
 coarse pixel grid with nearest-neighbour enlargement. Stepped iron links use

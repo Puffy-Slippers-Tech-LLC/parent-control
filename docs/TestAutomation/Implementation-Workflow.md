@@ -35,8 +35,11 @@ omission of necessary work. This is the single implementation session procedure.
    return the existing unattended `blocked/decision` result; do not evade the
    boundary with independent-task fallback, renamed blockers or reset totals.
    This exception applies to an explicitly recorded recovery scope, not ordinary
-   slice estimates. Task 20's [active recovery](Task-20.md#bounded-recovery--2026-09-11)
-   currently owns such a scope.
+   slice estimates. Task 20's [retained recovery](Task-20.md#bounded-recovery--2026-09-11)
+   owns such a scope when selected again; the operator has prioritized all
+   independent installed-app and infrastructure work before it in the master
+   checklist. Earlier consumers may bring forward bounded shared prerequisites;
+   record R1 recovery work in its ledger, without blocking unrelated tasks.
 2. State one next observable result, its smallest verification, planned slice
    budget, actual model/effort and the latest handoff's recommendation with its
    reason. The user's continuation request or [launcher invocation](Unattended-Sessions.md)

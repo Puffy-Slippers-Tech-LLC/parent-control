@@ -14,6 +14,15 @@ restorable VM snapshots.
 
 ## Implementation slices
 
+**Scheduling — 2026-09-11:** all three tasks precede Task 20. Everyday gameplay,
+requests, expiry and recovery need a verified installed app, not clean-install
+journey acceptance. Task 26C also needs Tasks 18A–C's package assertions and
+qualified customer terminal/reboot helpers for its lifecycle cases. Bring
+forward only missing shared capabilities under the
+[reuse workflow](Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work)
+and publish evidence for Task 20. Complete each real package journey here;
+the reordered schedule does not permit helper setup to replace asserted steps.
+
 Use the [implementation workflow](Implementation-Workflow.md). These are small
 work boundaries within the existing task, not extra acceptance checklists.
 Verification below is task acceptance; edits use the smallest affected selection.
@@ -96,7 +105,9 @@ Verification below is task acceptance; edits use the smallest affected selection
 ## Task 26C
 
 - Title: Complete continuous customer journeys and coverage enumeration.
-- Depends on: Task 26B.
+- Depends on: Task 26B and Tasks 18A–C's installed lifecycle assertions;
+  qualify the shared terminal/reboot capabilities needed by each package case.
+  Full Task 20 acceptance is not required.
 - Complexity: high. Reuse established graphical helpers and installed
   assertions, but independently prove complete customer paths and their
   cross-user, policy, session, and package transitions.
@@ -129,8 +140,9 @@ Verification below is task acceptance; edits use the smallest affected selection
      through real UI operations; no hidden state writes, simulated clock,
      forced expiry/lock, checkpoint, or mid-journey reset is permitted.
   5. Complete E2E-026/E2E-027 through real customer package operations, including
-     guest terminal input where appropriate. Reuse Tasks 18/20's installed
-     assertions while actually performing update/activation, removal/reboot,
+     guest terminal input where appropriate. Reuse Task 18's installed
+     assertions and applicable shared helpers tracked in Task 20; qualify any
+     missing capability here while actually performing update/activation, removal/reboot,
      post-removal login, reinstall with retained choices, and purge. Package
      fixture variants are separately identified and cannot replace the exact
      release artifact in its ordinary customer journeys.

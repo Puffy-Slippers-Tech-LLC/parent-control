@@ -66,11 +66,13 @@ Verification below is task acceptance; edits use the smallest affected selection
 
 **Current handoff — 2026-09-11: late-create recovery implemented and locally
 verified; indefinite-dispatch settlement remains open. 15A stays unchecked.**
-**Scheduling update — 2026-09-11:** the operator selected
-[Task 20 bounded recovery](Task-20.md#bounded-recovery--2026-09-11).
-Its execution-design work is ready despite the remaining live-source condition.
-Preserve the result and next 15A action below for resumption after Task 20;
-do not take another fallback slice or bypass its recovery checkpoints.
+**Scheduling update — 2026-09-11:** the operator prioritized installed-app
+behavior and all independent work before Task 20 in the
+[master checklist](Test-Automation.md#unfinished-tasks).
+Resume the next 15A action below. Tasks 15A/B do not depend on Task 20's
+graphical installation acceptance; installed cases reuse the existing guarded
+runner's verified installation/reboot prerequisites. This supersedes the earlier
+Task 20-first scope; preserve its recovery plan and ledger for later resumption.
 All-task VM clearance persists. The old one-slice intervention stays consumed.
 
 **Result:** `ExecutionProbe.pending/recover()` retains the attempt before

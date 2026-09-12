@@ -272,7 +272,8 @@ malformed or deleted task entries cannot make a running backlog complete.
 The model must still perform the task's acceptance checks: checkbox validation
 alone cannot establish test correctness.
 
-For the active [Task 20 recovery](Task-20.md#bounded-recovery--2026-09-11), workers
+When [Task 20 recovery](Task-20.md#bounded-recovery--2026-09-11) resumes after
+the prioritized independent work in checklist order, workers
 also maintain cumulative working time/attempts in its existing handoff and check
 the specified milestone thresholds. An unmet stop checkpoint produces the
 existing `blocked` result with blocker `decision` after cleanup, which stops the

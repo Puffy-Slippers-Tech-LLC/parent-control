@@ -31,11 +31,17 @@ Share helpers and reference canonical cases, without counting partial journeys.
 ## Task 21A
 
 - Title: Automate Parent discovery, navigation, and validation.
-- Depends on: Task 20.
+- Depends on: Task 19B and Task 14, plus verified installed-package setup
+  through the existing guarded runner. Full Task 20 acceptance is not required.
 - Complexity: medium. Semantic UI cases reuse established account and runner
   fixtures without adding privileged transaction infrastructure.
 - Recommended Codex model: `gpt-5.6-terra`
 - Recommended reasoning effort: `medium`
+- Scheduling: the former Task 20 dependency represented installation setup.
+  Use the [supported prerequisite contract](E2E-Coverage.md#prepare-prerequisites-through-supported-helpers)
+  for that setup; qualify any missing shared helper in the first affected
+  consumer and publish its evidence. Parent's asserted operations remain real
+  graphical actions; setup does not fulfill Task 20's clean-install journey.
 - Work:
   1. Log in as an eligible administrator, launch Parent from the app grid, and
      verify eligible children and exclusion of ineligible accounts.

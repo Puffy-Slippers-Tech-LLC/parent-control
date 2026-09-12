@@ -1,9 +1,15 @@
 ### Task 20 — Automate clean installation, reboot, and startup readiness
 
 The [bounded recovery](#bounded-recovery--2026-09-11) and
-[active handoff](#task-20-continuation--2026-09-08) govern the next launcher work.
-They supersede historical instructions to repeat unchanged VT6 qualification or
-fall back to Task 15A while the execution-design work below remains ready.
+[active handoff](#task-20-continuation--2026-09-08) govern work when this task
+resumes. The operator now prioritizes Tasks 15–18, 21–27 and 28A first under
+the [master checklist](Test-Automation.md#unfinished-tasks), superseding the
+earlier Task 20-first scope. Preserve recovery progress and checkpoints; these
+earlier tasks do not depend on this graphical installation acceptance.
+Their specific shared-helper prerequisites remain mandatory. The first
+affected consumer may qualify a bounded helper and publish its contract,
+regressions and evidence here; reuse accepted results without repeating them
+solely for task order. None completes this task's clean-install/startup cases.
 
 Follow [E2E-Coverage.md](E2E-Coverage.md). Audit the existing E2E-002 and assigned
 E2E-028 variants before implementing gaps; real customer steps
@@ -87,12 +93,13 @@ output stays plain text.
 
 ### Bounded recovery — 2026-09-11
 
-**Operator direction:** update the existing tasks and handoff so the ordinary
-launcher carries out the course correction. This is the active work plan, not
-another review or one-slice override. Retain the current VM, baseline, guarded
+**Operator direction:** retain this course correction for when Task 20 resumes
+after the prioritized independent work in checklist order. The newer
+scheduling instruction supersedes the earlier Task 20-first scope; it does not
+reset this recovery plan or ledger. Retain the current VM, baseline, guarded
 controller, serial observations and VT6 path. Required product coverage, privacy,
-provenance, ownership and cleanup remain mandatory. Resume ordinary checklist
-selection after Task 20 acceptance; preserve Task 15A until then. A concrete
+provenance, ownership and cleanup remain mandatory. Once Task 20 resumes, carry
+its recovery through acceptance before ordinary checklist selection. A concrete
 unresolvable dependency or a failed recovery checkpoint requires a decision,
 rather than automatic fallback that hides Task 20's cost.
 
@@ -178,7 +185,11 @@ complete-case results; do not present the range as measured agent throughput.
 Maintain the recovery ledger in the active handoff. Start its clock at the first
 R1 implementation slice; count that slice and all subsequent Task 20 working
 time, including owned verification/VM waits. Exclude gaps between sessions and
-this documentation review. Record start/end times, slice hours, cumulative hours,
+this documentation review. If an earlier consumer brings forward R1 recovery
+work, record that slice's recovery portion and evidence here and apply its
+checkpoints to further R1 work; do not charge unrelated consumer work or block
+independent tasks under the superseded Task 20-first scope.
+Record start/end times, slice hours, cumulative hours,
 attempt counts and accepted milestones before handing off. Interrupted slices
 retain their start and owned recovery time. Never reset totals on a new chat,
 model, predicate, restart or revised estimate; do not reconstruct old transcripts.
@@ -208,14 +219,16 @@ before ordinary independent-task fallback.
 
 ### Task 20 continuation — 2026-09-08
 
-**Current handoff — 2026-09-11: bounded recovery R1 selected by the operator;
-implementation has not started. Task 20 remains unaccepted.**
+**Current handoff — 2026-09-11: bounded recovery R1 preserved for resumption
+after Tasks 15–18, 21–27 and 28A in checklist order; implementation has not
+started. Task 20 remains unaccepted.**
 
-**Next observable result:** implement and locally verify the smallest safe
+**Next observable result when resumed:** implement and locally verify the smallest safe
 correction to baseline-validation timing and recipient freshness, while resolving
 stable source execution under the [R1 contract](#bounded-recovery--2026-09-11).
 Then qualify the existing VT6 route through final preservation. Do not run the
-unchanged source-stability experiment or switch to 15A while this work is ready.
+unchanged source-stability experiment. The current continuation selects 15A
+under the operator's revised priority.
 The former source deferral still limits live runs until inputs are controlled;
 it does not block local execution-design work or establish current writer activity.
 

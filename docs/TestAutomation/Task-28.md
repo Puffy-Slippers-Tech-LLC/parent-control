@@ -25,15 +25,21 @@ Verification below is task acceptance; edits use the smallest affected selection
 **Earlier prerequisite ownership — 2026-09-11:**
 [Task 20 recovery R1](Task-20.md#bounded-recovery--2026-09-11) now owns the minimum
 source-execution isolation needed to stop unrelated edits invalidating live
-qualification, and the validation-lifetime/timing correction. Reuse its accepted
-contract and evidence here; do not defer that prerequisite until CI or reimplement
-it in another runner. A controlled source window can satisfy R1 without a general
+qualification, and the validation-lifetime/timing correction. Reuse any accepted
+contract and evidence here. Under the revised order, an earlier consumer,
+including 28A, may complete the minimum needed shared capability, publish its
+evidence and record any R1 recovery portion in Task 20's ledger; do not wait for
+full Task 20 acceptance or reimplement it in another runner.
+A controlled source window can satisfy R1 without a general
 cache. The complete package/fixture build-input closure, safe artifact reuse,
 automatic builds, reproducibility and CI below remain 28A work. None is available
 merely because its planning ownership changed.
 
 - Title: Implement the four test commands, CI, and the comprehensive gate.
 - Depends on: Task 27C.
+- Scheduling: implement dispatch and CI before Task 20. Keep its pending
+  scenarios registered and prove incomplete/unimplemented required cases fail
+  closed; a passing release run is not this task's acceptance criterion.
 - Complexity: high. Inventory/selector dispatch, artifact consistency, guarded
   orchestration, and failure propagation must agree locally and in CI. Reuse
   established runners and Task 27 evidence; the semantic audit belongs to 28B.
@@ -128,7 +134,9 @@ merely because its planning ownership changed.
 ## Task 28B
 
 - Title: Audit executable traceability and pass the release gate.
-- Depends on: Task 28A.
+- Depends on: Task 28A and acceptance of all product-coverage tasks, explicitly
+  including Task 20. A complete release pass cannot precede clean-install and
+  startup-failure acceptance.
 - Complexity: high. Semantic coverage and evidence across the whole specification
   require judgment beyond a syntactically valid manifest.
 - Recommended Codex model: `gpt-6-astra`

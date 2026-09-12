@@ -32,13 +32,15 @@ def test_dashboard_colors_counts_and_no_diagnostics():
     stream = io.StringIO()
     regression.Dashboard(categories, stream).draw(force=True)
     value = stream.getvalue()
-    assert '\033[32m[✓] Unit - 100% (4 / 4)' in value
-    assert '\033[97;1m[Running] UI - 30% (3 / 10)' in value
-    assert '\033[90m[Pending] VM - 0% (0 / 2)' in value
-    assert 'Overall - 43% (7 / 16)' in value
+    assert '\033[32m[✓] Unit - 100% \033[0m(\033[32m4\033[0m / 4)' in value
+    assert '\033[97;1m[Running] UI - 30% \033[0m(\033[32m3\033[0m / 10)' in value
+    assert '\033[90m[Pending] VM - 0% \033[0m(\033[32m0\033[0m / 2)' in value
+    assert 'Overall - 43% \033[0m(\033[32m7\033[0m / 16)' in value
     categories[0].state = 'Failed'
+    categories[0].failures = 1
     regression.Dashboard(categories, stream).draw(force=True)
-    assert '\033[31m[✗] Unit' in stream.getvalue()
+    assert ('\033[31m[✗] Unit - 100% \033[0m(\033[32m3\033[0m / '
+            '\033[31m1\033[0m / 4)') in stream.getvalue()
 
 
 def test_partial_failure_is_durable_before_cancellation(report, tmp_path):
@@ -57,6 +59,44 @@ def test_partial_failure_is_durable_before_cancellation(report, tmp_path):
     status, _ = run.execute(item, ['unused'])
     assert status == 130 and item.state == 'Interrupted'
     assert item.done == 0
+
+
+@pytest.mark.parametrize('outcome', ['passed', 'failed', 'error', 'interrupted', 'interrupted-failure'])
+def test_final_investigation_prompt_links_closed_report(tmp_path, monkeypatch, capsys, outcome):
+    (tmp_path / 'docs/TestAutomation/Evidence').mkdir(parents=True)
+    runs = []
+
+    def execute(run):
+        runs.append(run)
+        item = run.categories[0]
+        item.done = 1
+        item.failures = int(outcome in ('failed', 'interrupted-failure'))
+        item.state = 'Failed' if item.failures else 'Passed'
+        run.report.write('\nDetailed failure evidence stays in this report.\n')
+        if outcome.startswith('interrupted'):
+            run.control.stopped.set()
+        if outcome == 'error':
+            raise ValueError('discovery failure detail')
+
+    monkeypatch.setattr(regression.Run, 'run', execute)
+    status = regression.main(tmp_path)
+    output = capsys.readouterr().out
+    run = runs[0]
+    assert run.report.stream.closed
+    assert status == (130 if outcome.startswith('interrupted') else
+                      0 if outcome == 'passed' else 1)
+    marker = 'Copy this prompt into a new Codex session:'
+    if outcome in ('passed', 'interrupted'):
+        assert marker not in output
+    else:
+        prompt = output.split(marker)[1]
+        assert str(tmp_path) in prompt
+        assert str(run.report.directory / 'report.md') in prompt
+        assert 'progress.json' in prompt
+        assert 'rerun the relevant checks' in prompt
+        assert 'Detailed failure evidence' not in prompt
+        assert output.index(marker) > output.rindex('Overall - ')
+        assert '## Final result' in (run.report.directory / 'report.md').read_text()
 
 
 def test_new_fixture_test_is_discovered_without_runner_edit(tmp_path):
@@ -166,6 +206,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(report, tmp_pat
                     event('collection', total=2)
                 if fail_unit and category == 'unit' and not safety:
                     event('failure', nodeid='one', detail='test assertion failed')
+                    event('failure', nodeid='one', detail='test teardown failed')
                 event('finished', nodeid='one')
                 event('finished', nodeid='two')
                 return int(fail_unit and category == 'unit' and not safety)
@@ -179,6 +220,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(report, tmp_pat
     run = regression.Run(tmp_path, report, control)
     run.run()
     assert [item.state for item in run.categories].count('Failed') == int(fail_unit or fail_publish)
+    assert sum(item.failures for item in run.categories) == int(fail_unit or fail_publish)
     assert all(item.done == item.total for item in run.categories)
     e2e = [call for call in control.calls if 'e2e' in call and '--scenario' in call]
     assert len(e2e) == 1 and e2e[0][-1] == 'E2E-999/future'

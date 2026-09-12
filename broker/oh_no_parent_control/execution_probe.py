@@ -35,11 +35,233 @@ NOT_REFERENCED = "org.freedesktop.systemd1.NotReferenced"
 
 
 @dataclass(frozen=True)
+class ProbeCreateReply:
+    """Retained call result, never a process or reference-cleanup receipt."""
+
+    outcome: str
+    job: str = ""
+
+
+class ProbeBusClient:
+    """Single-use, independently owned Gio client with bounded lifecycle waits.
+
+    The trusted caller supplies a bus address, never a shared connection. Keep
+    this object until close() returns True: cancellation is a request, not proof
+    of completion. Late constructor/close callbacks remain on its private main
+    context and are collected by subsequent close() calls. No broker callbacks
+    are dispatched here and no thread or process is spawned by this adapter.
+    ExecutionProbe retains this owner until both unit and client cleanup settle.
+    """
+
+    def __init__(self):
+        self._context = GLib.MainContext.new()
+        self._operation = threading.Lock()
+        self._started = False
+        self._closing = False
+        self._pending = None
+        self._cancel = None
+        self._connection = None
+        self._create_started = False
+        self._create_pending = False
+        self._create_reply = None
+
+    @property
+    def create_reply(self):
+        """None means no collected reply; a transport error remains uncertain."""
+        return self._create_reply
+
+    def _created(self, connection, result, _data):
+        try:
+            job = connection.call_finish(result).unpack()[0]
+            self._create_reply = ProbeCreateReply("replied", job)
+        except GLib.Error as error:
+            outcome = "collision" if _error_name(error) == UNIT_EXISTS else "uncertain"
+            self._create_reply = ProbeCreateReply(outcome)
+            LOG.info("execution probe create reply outcome=%s", outcome)
+        finally:
+            self._create_pending = False
+
+    def start_create(self, owner, unit, description):
+        """Submit one fixed canary; collect its reply separately without replay.
+
+        The caller must retain this client AND its unit-evidence coordinates.
+        No timeout/cancellation discards the eventual job reply. Local polling
+        stays bounded; a permanently missing reply remains an owned resource.
+        """
+        if not isinstance(owner, str) or not owner.startswith(":"):
+            raise ValueError("probe creation requires a unique manager owner")
+        if not self._operation.acquire(blocking=False):
+            raise RuntimeError("execution probe client operation already running")
+        try:
+            if self.connection is None or self._create_started:
+                raise RuntimeError("probe creation unavailable or already submitted")
+            parameters = GLib.Variant("(ssa(sv)a(sa(sv)))", (
+                unit, "fail", _properties(description), []))
+            self._context.push_thread_default()
+            try:
+                self._create_started = True
+                self._create_pending = True
+                try:
+                    self._connection.call(
+                        owner, SYSTEMD_PATH, SYSTEMD_MANAGER_INTERFACE,
+                        "StartTransientUnit", parameters, GLib.VariantType.new("(o)"),
+                        Gio.DBusCallFlags.NONE, GLib.MAXINT, None, self._created, None)
+                except (TypeError, ValueError):
+                    self._create_pending = False
+                    self._create_reply = ProbeCreateReply("uncertain")
+                    raise
+            finally:
+                self._context.pop_thread_default()
+        finally:
+            self._operation.release()
+
+    def poll_create(self):
+        """Collect a late reply within one cleanup deadline; never cancel it."""
+        if not self._operation.acquire(blocking=False):
+            raise RuntimeError("execution probe client operation already running")
+        try:
+            self._context.push_thread_default()
+            try:
+                deadline = time.monotonic() + CLEANUP_SECONDS
+                while self._create_pending and time.monotonic() < deadline:
+                    if not self._context.iteration(False):
+                        time.sleep(min(POLL_SECONDS, max(0, deadline - time.monotonic())))
+                return self._create_reply
+            finally:
+                self._context.pop_thread_default()
+        finally:
+            self._operation.release()
+
+    @property
+    def connection(self):
+        """Usable only after a successful open and before any close request."""
+        if self._closing or self._pending is not None:
+            return None
+        return self._connection
+
+    @property
+    def cleanup_complete(self):
+        return (self._closing and self._pending is None and not self._create_pending and
+                (self._connection is None or self._connection.is_closed()))
+
+    def _opened(self, _source, result, _data):
+        try:
+            # Retain even a success delivered after timeout/cancellation.
+            self._connection = Gio.DBusConnection.new_for_address_finish(result)
+            self._connection.set_exit_on_close(False)
+        except GLib.Error:
+            LOG.info("execution probe client open failed")
+        finally:
+            self._pending = None
+            self._cancel = None
+
+    def _closed(self, connection, result, _data):
+        try:
+            connection.close_finish(result)
+        except GLib.Error:
+            LOG.info("execution probe client close failed")
+        finally:
+            self._pending = None
+            self._cancel = None
+
+    def _start_close(self):
+        self._cancel = Gio.Cancellable()
+        self._pending = "close"
+        try:
+            self._connection.close(self._cancel, self._closed, None)
+        except (TypeError, ValueError):
+            self._pending = None
+            self._cancel = None
+            raise
+
+    def _wait(self, deadline):
+        while self._pending is not None and time.monotonic() < deadline:
+            # One iteration per deadline check: even a busy context is bounded.
+            if not self._context.iteration(False):
+                time.sleep(min(POLL_SECONDS, max(0, deadline - time.monotonic())))
+
+    def open(self, address):
+        """Connect once; False requires close(), including after cancellation."""
+        # This Linux system-bus client must not invoke D-Bus autolaunch or try
+        # remote/fallback transports whose lifetimes we do not own.
+        if not isinstance(address, str) or not address.startswith("unix:") or ";" in address:
+            raise ValueError("execution probe requires one Unix bus address")
+        if not self._operation.acquire(blocking=False):
+            raise RuntimeError("execution probe client operation already running")
+        try:
+            if self._started or self._closing:
+                raise RuntimeError("execution probe client is single-use")
+            self._started = True
+            ready = False
+            self._context.push_thread_default()
+            try:
+                self._cancel = Gio.Cancellable()
+                self._pending = "open"
+                deadline = time.monotonic() + CLEANUP_SECONDS
+                try:
+                    Gio.DBusConnection.new_for_address(
+                        address, Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
+                        Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
+                        None, self._cancel, self._opened, None)
+                except (TypeError, ValueError):
+                    self._pending = None
+                    self._cancel = None
+                    raise
+                self._wait(deadline)
+                ready = (self._pending is None and self._connection is not None
+                         and not self._connection.is_closed())
+                return ready
+            finally:
+                if not ready:
+                    self._closing = True
+                if self._pending is not None:
+                    self._cancel.cancel()
+                self._context.pop_thread_default()
+        finally:
+            self._operation.release()
+
+    def close(self):
+        """Bounded collection/closure; False retains ownership for recovery.
+
+        Connection closure is not a systemd job or process-cleanup receipt.
+        Never flush here: a cancelled attempt need not deliver queued messages.
+        """
+        if not self._operation.acquire(blocking=False):
+            raise RuntimeError("execution probe client operation already running")
+        try:
+            if self._create_pending:
+                # Disconnection would discard the reply and may release AddRef
+                # before terminal evidence is copied. Keep the sender usable.
+                LOG.info("execution probe client retained pending create reply")
+                return False
+            self._closing = True
+            self._context.push_thread_default()
+            try:
+                deadline = time.monotonic() + CLEANUP_SECONDS
+                if self._pending == "open":
+                    self._cancel.cancel()
+                self._wait(deadline)
+                if (self._pending is None and self._connection is not None
+                        and not self._connection.is_closed()
+                        and time.monotonic() < deadline):
+                    self._start_close()
+                    self._wait(deadline)
+                return self.cleanup_complete
+            finally:
+                if self._pending is not None:
+                    self._cancel.cancel()
+                self._context.pop_thread_default()
+        finally:
+            self._operation.release()
+
+
+@dataclass(frozen=True)
 class ProbeResult:
     """Safe evidence/recovery coordinates; no user data or raw D-Bus errors."""
 
     unit: str
     manager: str = ""
+    create_outcome: str = "not-submitted"
     job: str = ""
     invocation: str = ""
     outcome: str = "transport-failed"
@@ -48,10 +270,13 @@ class ProbeResult:
     exit_status: int = 0
     terminal_observed: bool = False
     reference_released: bool = False
+    client_closed: bool = False
     cleanup_complete: bool = False
 
     @property
     def executed(self):
+        # Reserved for original-invocation evidence. Current snapshots can
+        # establish only identity-unproven terminal status, never this outcome.
         return self.outcome == "executed" and self.cleanup_complete
 
 
@@ -88,7 +313,7 @@ def _properties(description):
 
 
 class ExecutionProbe:
-    """One fixed canary per call over an existing system-bus connection.
+    """One fixed canary over an owned sender, with a shared read-only observer.
 
     Retain one adapter for the lifetime of its connection. An unsettled call
     blocks another create; recover() observes that same attempt without replay.
@@ -101,22 +326,59 @@ class ExecutionProbe:
         self._operation = threading.Lock()
         self._pending = None
         self._description = ""
+        self._client = None
+        self._settled = True
 
     @property
     def pending(self):
         """Immutable recovery coordinates, retained until cleanup is proven."""
         return self._pending
 
-    def _request(self, owner, path, interface, method, args, signature, deadline):
+    def _request(self, owner, path, interface, method, args, signature, deadline,
+                 *, connection=None):
         remaining_ms = int((deadline - time.monotonic()) * 1000)
         if remaining_ms <= 0:
             raise TimeoutError("probe observation deadline")
-        return _call(self.connection, owner, path, interface, method, args,
+        return _call(self.connection if connection is None else connection,
+                     owner, path, interface, method, args,
                      signature, timeout=min(CALL_MS, remaining_ms)).unpack()[0]
 
     def _manager(self, owner, method, args, signature, deadline):
         return self._request(owner, SYSTEMD_PATH, SYSTEMD_MANAGER_INTERFACE,
                              method, args, signature, deadline)
+
+    def _sender(self):
+        connection = self._client.connection
+        if connection is None:
+            raise TimeoutError("probe sender unavailable")
+        return connection
+
+    def _finish_client(self, result):
+        # Keep the sender available to release a late dispatch's AddRef while
+        # unit settlement is uncertain. Disconnect is not a qualified substitute.
+        if self._settled:
+            closed = self._client.close()
+            result = replace(result, client_closed=closed, cleanup_complete=closed)
+            if closed:
+                self._client = None
+        self._pending = None if result.cleanup_complete else result
+        LOG.info("execution probe cleanup unit_settled=%s client_closed=%s",
+                 self._settled, result.client_closed)
+        return result
+
+    def _collect_create(self, result, *, preserve_outcome):
+        """Copy one retained creation reply without settling the unit itself."""
+        reply = self._client.poll_create()
+        if reply is None:
+            return result, True
+        result = replace(result, create_outcome=reply.outcome, job=reply.job)
+        if preserve_outcome:
+            return result, reply.outcome != "collision"
+        if reply.outcome == "collision":
+            return replace(result, outcome="collision"), False
+        if reply.outcome == "uncertain":
+            result = replace(result, outcome="create-uncertain")
+        return result, True
 
     def _snapshot(self, result, description, deadline):
         path = self._manager(result.manager, "GetUnit",
@@ -165,13 +427,18 @@ class ExecutionProbe:
         if backend_result not in {"success", "exit-code", "signal", "core-dump",
                                   "timeout", "resources", "protocol", "oom-kill"}:
             backend_result = "other"
-        executed = (code == 1 and status == PROBE_EXECUTED and
-                    backend_result == "exit-code" and
-                    0 < service["ExecMainStartTimestampMonotonic"] <
-                    service["ExecMainExitTimestampMonotonic"])
+        execution_observed = (code == 1 and status == PROBE_EXECUTED and
+                              backend_result == "exit-code" and
+                              0 < service["ExecMainStartTimestampMonotonic"] <
+                              service["ExecMainExitTimestampMonotonic"])
+        # The returned job is not an immutable invocation witness: systemd can
+        # merge a restart and re-run the same job ID. Before our first read,
+        # that can overwrite InvocationID and status without changing metadata.
+        # Retain the observation for diagnostics/reference cleanup, but do not
+        # certify that the originally submitted canary produced this status.
         return replace(result, terminal_observed=True, exit_code=code,
                        exit_status=status, service_result=backend_result,
-                       outcome="executed" if executed else "execution-failed")
+                       outcome="identity-unproven" if execution_observed else "execution-failed")
 
     def run(self):
         if not self._operation.acquire(blocking=False):
@@ -188,10 +455,23 @@ class ExecutionProbe:
         result = ProbeResult(unit=f"onpc-execution-probe-{token}.service")
         description = f"ONPC execution probe {token}"
         self._description = description
-        deadline = time.monotonic() + OBSERVE_SECONDS
         submitted = False
-        create_replied = False
+        self._settled = True
+        self._client = ProbeBusClient()
+        self._pending = result
         try:
+            # SYSTEM resolution uses the public Gio system-bus configuration;
+            # ProbeBusClient still refuses remote/fallback/autolaunch transports.
+            address = Gio.dbus_address_get_for_bus_sync(Gio.BusType.SYSTEM, None)
+            if not self._client.open(address):
+                raise ValueError("probe sender unavailable")
+            deadline = time.monotonic() + OBSERVE_SECONDS
+            bus_ids = [self._request(
+                DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, "GetId",
+                GLib.Variant("()", ()), "(s)", deadline, connection=connection)
+                for connection in (self.connection, self._client.connection)]
+            if not bus_ids[0] or bus_ids[0] != bus_ids[1]:
+                raise ValueError("probe observer and sender buses differ")
             owner = self._request(DBUS_NAME, DBUS_PATH, DBUS_INTERFACE,
                                   "GetNameOwner", GLib.Variant("(s)", (SYSTEMD_NAME,)),
                                   "(s)", deadline)
@@ -199,42 +479,50 @@ class ExecutionProbe:
                 raise ValueError("invalid manager owner")
             result = replace(result, manager=owner)
             submitted = True
+            self._settled = False
             # Retain coordinates before dispatch, including interruption paths.
+            result = replace(result, create_outcome="pending")
             self._pending = result
-            try:
-                job = self._manager(owner, "StartTransientUnit",
-                                    GLib.Variant("(ssa(sv)a(sa(sv)))", (
-                                        result.unit, "fail", _properties(description), [])),
-                                    "(o)", deadline)
-                create_replied = True
-                result = replace(result, job=job)
-            except GLib.Error as error:
-                if _error_name(error) == UNIT_EXISTS:
-                    submitted = False
-                    self._pending = None
-                    return replace(result, outcome="collision", cleanup_complete=True)
-                # Even an error can follow partial creation. Never retry create.
-                result = replace(result, outcome="create-uncertain")
+            self._client.start_create(owner, result.unit, description)
 
-            while time.monotonic() < deadline:
-                result = self._snapshot(result, description, deadline)
+            while submitted and time.monotonic() < deadline:
+                result, submitted = self._collect_create(result, preserve_outcome=False)
+                self._pending = result
+                if not submitted:
+                    break
+                try:
+                    result = self._snapshot(result, description, deadline)
+                except GLib.Error as error:
+                    if _error_name(error) == NO_UNIT:
+                        # One bounded retained-reply poll has already completed.
+                        # Absence cannot settle dispatch, and recovery owns any
+                        # later reply/unit without extending the initial wait.
+                        break
+                    else:
+                        raise
                 if result.terminal_observed:
                     break
                 time.sleep(min(POLL_SECONDS, max(0, deadline - time.monotonic())))
-            if not result.terminal_observed:
-                result = replace(result, outcome="observation-timeout")
-            elif not create_replied:
+            if submitted and not result.terminal_observed:
+                if result.outcome != "create-uncertain":
+                    result = replace(result, outcome="observation-timeout")
+            elif submitted and result.create_outcome == "uncertain":
                 result = replace(result, outcome="create-uncertain")
         except (GLib.Error, TimeoutError, ValueError, KeyError, TypeError, OverflowError):
             if result.outcome != "create-uncertain":
                 result = replace(result, outcome="observation-failed" if submitted else "transport-failed")
         finally:
+            self._pending = result
             if submitted:
-                self._pending = result
                 result = self._release(result)
-                self._pending = None if result.cleanup_complete else result
-        if not submitted:
-            result = replace(result, cleanup_complete=True)
+                self._settled = result.cleanup_complete
+            else:
+                self._settled = True
+            # Retain terminal/unit collection evidence before a close that may
+            # be interrupted or complete only during a later recover().
+            result = replace(result, cleanup_complete=False)
+            self._pending = result
+            result = self._finish_client(result)
         LOG.info("execution probe outcome=%s cleanup_complete=%s",
                  result.outcome, result.cleanup_complete)
         return result
@@ -256,7 +544,14 @@ class ExecutionProbe:
             outcome = "recovered-cleanup" if result.outcome == "executed" else result.outcome
             deadline = time.monotonic() + CLEANUP_SECONDS
             try:
-                while not result.terminal_observed and time.monotonic() < deadline:
+                if result.create_outcome == "pending":
+                    result, unit_may_exist = self._collect_create(
+                        result, preserve_outcome=True)
+                    self._pending = result
+                    if not unit_may_exist:
+                        self._settled = True
+                while (not self._settled and not result.terminal_observed
+                       and time.monotonic() < deadline):
                     try:
                         result = self._snapshot(result, self._description, deadline)
                     except GLib.Error as error:
@@ -269,8 +564,12 @@ class ExecutionProbe:
             finally:
                 result = replace(result, outcome=outcome)
                 self._pending = result
-                result = self._release(result)
-                self._pending = None if result.cleanup_complete else result
+                if not self._settled:
+                    result = self._release(result)
+                    self._settled = result.cleanup_complete
+                result = replace(result, cleanup_complete=False)
+                self._pending = result
+                result = self._finish_client(result)
             LOG.info("execution probe recovery outcome=%s cleanup_complete=%s",
                      result.outcome, result.cleanup_complete)
             return result
@@ -278,11 +577,20 @@ class ExecutionProbe:
             self._operation.release()
 
     def _release(self, result):
+        # Keep AddRef until terminal evidence has been copied. Releasing after
+        # absence can race a late create; releasing a running unit can let GC
+        # discard its eventual exit before recover() observes it. Both lose the
+        # evidence required to settle this attempt, even with the sender open.
+        if result.create_outcome == "pending" or not result.terminal_observed:
+            LOG.info(
+                "execution probe reference retained create_collected=%s terminal_evidence=%s",
+                result.create_outcome != "pending", result.terminal_observed)
+            return result
         deadline = time.monotonic() + CLEANUP_SECONDS
         try:
             # () has no first tuple item; use the shared finite transport directly.
             try:
-                _call(self.connection, result.manager, SYSTEMD_PATH,
+                _call(self._sender(), result.manager, SYSTEMD_PATH,
                       SYSTEMD_MANAGER_INTERFACE, "UnrefUnit",
                       GLib.Variant("(s)", (result.unit,)), "()", timeout=CALL_MS)
             except GLib.Error as error:

@@ -24,7 +24,8 @@ from regression_resources import Admission, vm_demand
 def authorization():
     from dev_privileges import check
     check('/usr/local/libexec/onpc-test-runner')
-    if '--unattended' not in Path('/usr/local/libexec/onpc-test-runner').read_text():
+    installed = Path('/usr/local/libexec/onpc-test-runner').read_text()
+    if any(option not in installed for option in ('--unattended', '--skip-backing-verification')):
         raise ValueError('installed dispatcher needs ./setup.sh --test-tools-only')
 
 
@@ -304,8 +305,11 @@ class Execution:
 
 
 class Run:
-    def __init__(self, root, report, control):
+    def __init__(self, root, report, control, *, verify_backing_bytes=True):
         self.root, self.report, self.control = root, report, control
+        self.verify_backing_bytes = verify_backing_bytes
+        self.verification_mode = ('full' if verify_backing_bytes else 'metadata-only; backing bytes not verified')
+        self.report.write('\nVM backing verification: ' + self.verification_mode + '\n')
         self.categories = [Category('Discovery and prerequisites', 1)]
         self.dashboard = Dashboard(self.categories)
         self.artifacts = []
@@ -320,6 +324,8 @@ class Run:
     def command(self, category, *args):
         if category == 'ui':
             return [str(self.root / 'tools/run-ui-tests'), '--unattended', *args]
+        if category in ('system', 'e2e') and '--list' not in args and not self.verify_backing_bytes:
+            args = (*args, '--skip-backing-verification')
         return [str(self.root / 'tools/run-tests'), category, '--unattended', *args]
 
     def execute(self, item, command, *, collect=False, events=False, units=None):
@@ -488,7 +494,7 @@ class Run:
         self.check_inputs()
 
 
-def main(root=None):
+def main(root=None, *, verify_backing_bytes=True):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -497,7 +503,7 @@ def main(root=None):
     with Control().installed() as control:
         try:
             report = Report(root)
-            run = Run(root, report, control)
+            run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes)
             run.run()
             status = 0 if all(item.state == 'Passed' for item in run.categories) else 1
         except (Exception, KeyboardInterrupt) as error:
@@ -523,6 +529,7 @@ def main(root=None):
                     report.snapshot(run.categories)
                     report.write('\n## Final result\n\n' + ('Passed' if status == 0 else
                                  'Interrupted; owned child cleanup finished' if status == 130 else 'Failed') + '\n')
+                    report.write('\nVM backing verification: ' + run.verification_mode + '\n')
                     summary = '\n'.join(run.dashboard.render(time.monotonic()))
                     report.write('\n<pre>' + html.escape(Dashboard.ANSI.sub('', summary)) + '</pre>\n')
                     run.dashboard.draw(force=True)

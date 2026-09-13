@@ -65,6 +65,13 @@ def test_system_update_pins_both_artifact_directories(checkout):
                            '--previous-artifacts', '/var/tmp/onpc-previous', '--area=session']
 
 
+def test_system_dispatch_preserves_explicit_fast_policy(checkout):
+    args = ['system', '--artifacts', '/tmp/onpc-current']
+    strict = select(checkout, args)
+    fast = select(checkout, [*args, '--skip-backing-verification'])
+    assert fast == [*strict, '--skip-backing-verification']
+
+
 @pytest.mark.parametrize('path', ['relative', '/etc', '/tmp/unrelated',
                                   '/tmp/onpc-previous/../other'])
 def test_system_update_rejects_unconfined_prior_payload(checkout, path):

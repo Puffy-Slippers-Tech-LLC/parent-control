@@ -47,7 +47,7 @@ def test_capture_creates_named_internal_snapshot_without_copy(rig):
     assert rig.source.off
     assert rig.source.shutdown_calls == 1
     assert len(rig.source.creations) == 1
-    assert state(rig)["proof"]["name"] == "oh-no-parent-control-baseline"
+    assert state(rig)["proof"]["name"] == host.SNAPSHOT
     assert state(rig)["proof"]["storage"] == "internal"
     assert host.digest(rig.anchor) == before
     assert {path.name for path in rig.directory.iterdir()} == {".lock", "phase.json"}
@@ -55,6 +55,118 @@ def test_capture_creates_named_internal_snapshot_without_copy(rig):
     assert not hasattr(host.Commands, "convert")
     assert "machine_id" not in json.dumps(state(rig))
     assert "password" not in json.dumps(state(rig))
+
+
+@pytest.mark.parametrize('mismatch', [False, True])
+def test_retained_previous_snapshot_name_preserves_verified_baseline(rig, monkeypatch, mismatch):
+    # Simulate a baseline captured by the previous release, including its journal.
+    with monkeypatch.context() as previous:
+        previous.setattr(host, 'SNAPSHOT', host.PREVIOUS_SNAPSHOT)
+        rig.capture().run()
+    saved = (rig.directory / 'phase.json').read_bytes()
+    disk = rig.top.read_bytes()
+    if mismatch:
+        rig.commands.snapshots[0]['name'] = host.SNAPSHOT
+        with pytest.raises(host.CaptureError, match='snapshot:missing-or-invalid-disk-record'):
+            rig.capture().run()
+    else:
+        rig.capture().run()
+    assert (rig.directory / 'phase.json').read_bytes() == saved
+    assert rig.top.read_bytes() == disk
+    assert len(rig.source.creations) == 1
+
+
+def test_finalized_baseline_missing_metadata_preserves_state_and_disk(rig):
+    rig.capture().run()
+    saved = (rig.directory / 'phase.json').read_bytes()
+    disk = rig.top.read_bytes()
+    records = copy.deepcopy(rig.commands.snapshots)
+    rig.source.baseline_xml = None
+    with pytest.raises(host.CaptureError, match='snapshot:metadata-missing'):
+        rig.capture().run()
+    assert (rig.directory / 'phase.json').read_bytes() == saved
+    assert rig.top.read_bytes() == disk
+    assert rig.commands.snapshots == records
+    assert len(rig.source.creations) == 1
+    assert rig.source.shutdown_calls == 1
+
+
+def deleted_baseline(rig):
+    rig.capture().run()
+    saved = (rig.directory / 'phase.json').read_bytes()
+    rig.source.baseline_xml = None
+    rig.commands.snapshots = []
+    return saved
+
+
+def test_explicit_replacement_archives_deleted_baseline_and_repeats_safely(rig):
+    saved = deleted_baseline(rig)
+    rig.capture().run(replace_missing=True)
+    replacement = (rig.directory / 'phase.json').read_bytes()
+    assert state(rig)['phase'] == 'finalized'
+    assert state(rig)['operation'] != json.loads(saved)['operation']
+    archive = rig.directory / f"retired-{json.loads(saved)['operation']}.json"
+    assert archive.read_bytes() == saved
+    rig.capture().run(replace_missing=True)
+    assert (rig.directory / 'phase.json').read_bytes() == replacement
+    assert len(rig.source.creations) == 2
+
+
+@pytest.mark.parametrize('condition,category', [
+    ('running', 'guard:source-running'),
+    ('disk-record', 'snapshot:already-exists'),
+    ('active-attempt', 'state:interrupted-run'),
+    ('changed-source', 'guard:source-changed'),
+])
+def test_replacement_refuses_unsafe_retirement(rig, condition, category):
+    saved = deleted_baseline(rig)
+    if condition == 'running':
+        rig.source.off = False
+    elif condition == 'disk-record':
+        rig.commands.snapshots = [{'name': host.SNAPSHOT}]
+    elif condition == 'active-attempt':
+        path = rig.directory / 'system-run.json'
+        path.write_text('{"phase": "running"}')
+        path.chmod(0o600)
+    else:
+        rig.source.layout['target'] = 'vdb'
+    with pytest.raises(host.CaptureError, match=category):
+        rig.capture().run(replace_missing=True)
+    assert (rig.directory / 'phase.json').read_bytes() == saved
+    assert not list(rig.directory.glob('retired-*.json'))
+    assert len(rig.source.creations) == 1
+
+
+def test_replacement_inspection_failure_can_resume(rig):
+    saved = deleted_baseline(rig)
+    rig.inspect.side_effect = host.CaptureError('guest:not-prepared')
+    with pytest.raises(host.CaptureError, match='guest:not-prepared'):
+        rig.capture().run(replace_missing=True)
+    assert len(rig.source.creations) == 1
+    operation = state(rig)['operation']
+    rig.inspect.side_effect = None
+    rig.capture().run(replace_missing=True)
+    assert state(rig)['operation'] == operation
+    assert state(rig)['phase'] == 'finalized'
+    assert (rig.directory / f"retired-{json.loads(saved)['operation']}.json").read_bytes() == saved
+
+
+def test_replacement_interruption_after_archive_reuses_retained_record(rig):
+    saved = deleted_baseline(rig)
+    capture = rig.capture()
+    capture.save = Mock(side_effect=KeyboardInterrupt)
+    with pytest.raises(KeyboardInterrupt):
+        capture.run(replace_missing=True)
+    assert (rig.directory / 'phase.json').read_bytes() == saved
+    archive = rig.directory / f"retired-{json.loads(saved)['operation']}.json"
+    assert archive.read_bytes() == saved
+    attempt = rig.directory / 'system-run.json'
+    attempt.write_text('{"phase": "complete"}')
+    attempt.chmod(0o600)
+    rig.capture().run(replace_missing=True)
+    assert state(rig)['phase'] == 'finalized'
+    assert archive.read_bytes() == saved
+    assert attempt.read_text() == '{"phase": "complete"}'
 
 
 def test_verification_counts_actual_backing_reads_and_failures(rig, capsys):
@@ -300,6 +412,9 @@ def guest_fixture():
                                    accounts, SCRIPT_DIGEST)
     files = {str(guest.MARKER): host.encode(marker), "/etc/hostname": b"ubuntu26.04\n",
              "/etc/machine-id": b"a" * 32, "/var/lib/dpkg/status": b"Package: bash\nStatus: install ok installed\n"}
+    files['/var/lib/dpkg/status'] += ('\n' + '\n\n'.join(
+        f'Package: {name}\nVersion: {version}\nStatus: install ok installed\n'
+        for name, version in guest.guest_tools.VERSIONS.items())).encode()
     files["/etc/passwd"] = "\n".join(
         f"{item.username}:x:{1000+i}:{1000+i}:{item.display_name}:/home/{item.username}:/bin/bash"
         for i, item in enumerate(guest.IDENTITIES)).encode()
@@ -326,6 +441,22 @@ def test_offline_inspection_is_explicitly_readonly_and_preserves_only_safe_field
     assert fixture.g.mount_ro.call_count == 2
     fixture.g.close.assert_called_once()
     assert set(result) == {"preparation_record_sha256", "preparation_script_sha256", "ubuntu_version", "accounts"}
+
+
+@pytest.mark.parametrize('fault', ['missing-tools', 'old-marker', 'configured-directory'])
+def test_offline_inspection_refuses_unprepared_dependency_baseline(fault):
+    fixture = guest_fixture()
+    if fault == 'missing-tools':
+        fixture.files['/var/lib/dpkg/status'] = b''
+    elif fault == 'old-marker':
+        fixture.marker['schema_version'] = 1
+        fixture.marker.pop('test_dependencies')
+        fixture.files[str(guest.MARKER)] = host.encode(fixture.marker)
+    else:
+        fixture.files['/etc/sssd/sssd.conf'] = b'prior-test-configuration'
+    with pytest.raises((host.CaptureError, guest.PreparationError, ValueError)):
+        host.inspect_guest(fixture.module, Path('/tmp/top.qcow2'), SCRIPT_DIGEST)
+    fixture.g.close.assert_called_once()
 
 
 @pytest.mark.parametrize("category,path", [(category, path) for category, paths in guest.RESIDUE_PATHS.items()
@@ -397,6 +528,20 @@ def libvirt_fixture(rig):
     return api, domain
 
 
+@pytest.mark.parametrize('name', host.SNAPSHOT_NAMES)
+def test_libvirt_finds_retained_snapshot_and_refuses_ambiguous_names(rig, name):
+    api, domain = libvirt_fixture(rig)
+    existing = domain.listAllSnapshots.return_value[0]
+    existing.getName.return_value = name
+    source = host.LibvirtSource(api)
+    assert source.baseline() == existing.getXMLDesc.return_value
+    other = Mock()
+    other.getName.return_value = next(item for item in host.SNAPSHOT_NAMES if item != name)
+    domain.listAllSnapshots.return_value.append(other)
+    with pytest.raises(host.CaptureError, match='snapshot:ambiguous-baseline'):
+        source.baseline()
+
+
 def test_libvirt_creates_offline_internal_snapshot_with_metadata(rig):
     api, domain = libvirt_fixture(rig)
     domain.state.return_value = (5, 0)
@@ -433,7 +578,7 @@ def test_libvirt_refuses_unsafe_snapshot_creation(rig, condition):
     lambda doc: doc.replace('<memory snapshot="no"', '<memory snapshot="internal"'),
     lambda doc: doc.replace('<creationTime>100', '<creationTime>invalid'),
     lambda doc: doc.replace(UUID, "00000000-0000-0000-0000-000000000000"),
-    lambda doc: doc.replace('<name>oh-no-parent-control-baseline', '<name>unrelated'),
+    lambda doc: doc.replace(f'<name>{host.SNAPSHOT}', '<name>unrelated'),
 ])
 def test_snapshot_proof_rejects_wrong_type_or_identity(rig, change):
     with pytest.raises(host.CaptureError):

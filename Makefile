@@ -134,10 +134,10 @@ uninstalldeb:
 	$(APT) remove oh-no-parent-control
 
 # Convenience aliases contain no setup logic; setup.sh is the integration point.
-prep-host:
+prepare-host:
 	@./setup.sh --prepare-host
 
-.PHONY: prep-host
+.PHONY: prepare-host
 
 # Host controller only. The package is installed and checked with pytest inside the
 # fixed snapshot-backed VM. Run from a root shell on the development/VM host.
@@ -167,7 +167,8 @@ check-e2e:
 .PHONY: check-e2e
 
 # Guest-only preparation also goes through the master with explicit selection.
-prep-vm:
+.PHONY: prepare-vm prep-vm
+prepare-vm prep-vm:
 	@./setup.sh --prepare-vm
 
 TEST_ENV = PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$${PYTHONPATH:-}
@@ -230,10 +231,13 @@ check-static: check-shell check-gjs
 test-all:
 	@tools/run-tests all
 
+test-all-verify:
+	@tools/run-tests all-verify
+
 test-publish:
 	@tools/run-tests publish
 
-.PHONY: test-all test-publish check-source
+.PHONY: test-all test-all-verify test-publish check-source
 
 check-source:
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -Wall -Wextra -Werror -fsyntax-only tools/pam_oh_no_parent_control.c

@@ -10,11 +10,8 @@ import pwd
 import time
 
 import system_guest as guest
+from guest_test_dependencies import REMOTE_PACKAGES as PACKAGES, verify_packages
 
-PACKAGES = (
-    'slapd=2.6.10+dfsg-1ubuntu5', 'ldap-utils=2.6.10+dfsg-1ubuntu5',
-    'sssd-ldap=2.12.0-1ubuntu5.4', 'libnss-sss=2.12.0-1ubuntu5.4',
-)
 IDENTITIES = {'child': ('onpc-remote-child', 24001),
               'administrator': ('onpc-remote-admin', 24002)}
 BASE = 'dc=onpc,dc=invalid'
@@ -44,7 +41,7 @@ def ldap_input(tool, value):
 def provision():
     guest.guard()  # Must precede even fixture/precondition filesystem access.
     guest.enable_diagnostics()
-    for path in ('/etc/ldap/slapd.d', '/etc/sssd/sssd.conf'):
+    for path in ('/etc/ldap/slapd.d', '/etc/ldap/slapd.conf', '/etc/sssd/sssd.conf'):
         guest.require(not Path(path).exists(), 'remote:configuration-collision')
     for name, uid in IDENTITIES.values():
         for lookup, value in ((pwd.getpwnam, name), (pwd.getpwuid, uid), (grp.getgrgid, uid)):
@@ -53,19 +50,17 @@ def provision():
             except KeyError:
                 continue
             raise guest.GuestError('remote:identity-collision')
-    print('onpc-system: stage=remote-packages outcome=starting', flush=True)
-    guest.run(['apt-cache', 'policy', *[package.split('=')[0] for package in PACKAGES]])
-    # APT metadata was refreshed by the guarded package-install phase. LDAP
-    # administration uses root peer credentials; no password is configured.
+    verify_packages(Path('/var/lib/dpkg/status').read_text(), PACKAGES)
+    print('onpc-system: stage=remote-packages outcome=prepared', flush=True)
+    # Reconfigure the already installed package through its public interface.
+    # LDAP administration uses root peer credentials; no password is configured.
     guest.commands.run(['debconf-set-selections'], input=(
         'slapd slapd/domain string onpc.invalid\n'
         'slapd shared/organization string ONPC test directory\n'
         'slapd slapd/no_configuration boolean false\n').encode(), merge_stderr=False)
-    guest.run(['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get',
-               '-o', 'DPkg::Lock::Timeout=120', 'install', '--no-install-recommends',
-               '-y', *PACKAGES], timeout=600)
     # Use the packaged service/configuration API; confine anonymous identity
-    # queries to loopback. There is no LDAP authentication or PAM modification.
+    # queries to loopback before reconfiguration can start the service.
+    # There is no LDAP authentication or PAM modification.
     defaults = Path('/etc/default/slapd')
     lines = defaults.read_text().splitlines()
     guest.require(sum(line.startswith('SLAPD_SERVICES=') for line in lines) == 1,
@@ -73,6 +68,7 @@ def provision():
     defaults.write_text('\n'.join(
         'SLAPD_SERVICES="ldap://127.0.0.1/ ldapi:///"'
         if line.startswith('SLAPD_SERVICES=') else line for line in lines) + '\n')
+    guest.run(['dpkg-reconfigure', '--frontend=noninteractive', 'slapd'], timeout=120)
     guest.run(['systemctl', 'restart', 'slapd.service'])
     database = guest.run(['ldapsearch', '-LLL', '-Q', '-Y', 'EXTERNAL', '-H', 'ldapi:///',
                           '-b', 'cn=config', f'(olcSuffix={BASE})', 'dn'])

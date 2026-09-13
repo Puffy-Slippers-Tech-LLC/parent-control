@@ -9,10 +9,11 @@ import xml.etree.ElementTree as ET
 
 import pytest
 from tests.support.vm_baseline import rig, local_preparation_source
-from tests.support.vm_runner import UUID, RUN, INVENTORIES, xml, write_junit_results, lease_rig
+from tests.support.vm_runner import UUID, RUN, INVENTORIES, xml, write_junit_results, lease_rig, bootstrap_guest
 
 import system_runner as runner
 import system_guest as guest
+from guest_test_dependencies import ubuntu_archive_sources
 
 
 
@@ -67,13 +68,13 @@ Signed-By:
         'URIs: http://us.archive.ubuntu.com/ubuntu/ https://vendor.example/repo',
         'URIs: https://archive.ubuntu.com/ubuntu/ https://vendor.example/repo').replace(
             ' http://security.ubuntu.com/ubuntu\n', ' https://archive.ubuntu.com/ubuntu/\n')
-    assert runner.ubuntu_archive_sources(sources) == expected
-    assert runner.ubuntu_archive_sources(expected) == expected
+    assert ubuntu_archive_sources(sources) == expected
+    assert ubuntu_archive_sources(expected) == expected
 
 
-@pytest.mark.parametrize('failure', [False, True])
+@pytest.mark.parametrize('failure', [None, 'write', 'readback', 'missing-tools', 'symlink'])
 @pytest.mark.parametrize('observation_only', [False, True])
-def test_bootstrap_closes_guest_edits_before_install_and_pins_host_key(tmp_path, failure, observation_only):
+def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_path, failure, observation_only):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
                            'guest': {'preparation_record_sha256': 'e' * 64}}
@@ -83,46 +84,42 @@ def test_bootstrap_closes_guest_edits_before_install_and_pins_host_key(tmp_path,
     if not observation_only:
         (tmp_path / 'input/package.deb').write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
-    edit, read = Mock(), Mock()
-    guestfs.GuestFS.side_effect = [edit, read]
-    for g in (edit, read):
-        g.inspect_os.return_value = ['/dev/sda2']
-        g.inspect_get_mountpoints.return_value = {'/': '/dev/sda2'}
-    files = {
-        '/etc/apt/sources.list.d/ubuntu.sources': b'URIs: http://us.archive.ubuntu.com/ubuntu/\n',
-        '/etc/fstab': b'/dev/sda2 / ext4 defaults 0 1\nData /Data virtiofs defaults 0 0\n',
-        '/etc/machine-id': b'b' * 32,
-    }
-    edit.read_file.side_effect = files.__getitem__
-    read.read_file.return_value = b'ssh-ed25519 test-public-key comment'
-
-    def command(args, **kwargs):
-        if args[0] == 'virt-customize':
-            edit.close.assert_called_once()
-            edit.write.assert_any_call('/etc/apt/sources.list.d/ubuntu.sources',
-                                       b'URIs: https://archive.ubuntu.com/ubuntu/\n')
-            expected = 'openssh-server=1:10.2p1-2ubuntu3.6'
-            if not observation_only:
-                expected += ',python3-pytest=9.0.2-4'
-            assert args[args.index('--install') + 1] == expected
-            marker = next(json.loads(c.args[1]) for c in edit.write.call_args_list
-                          if c.args[0] == '/etc/onpc-system-test.json')
-            assert ('package_sha256' in marker) != observation_only
-            if observation_only:
-                assert marker['scope'] == 'graphical-observation-only'
-            if failure:
-                raise runner.CommandError('bootstrap-install-failed')
-    commands.run.side_effect = command
+    g, files = bootstrap_guest()
+    guestfs.GuestFS.return_value = g
+    authorized = '/root/.ssh/authorized_keys'
+    prior = b'ssh-ed25519 QkJC prior-key\n'
+    files[authorized] = prior
+    if failure == 'missing-tools':
+        files['/var/lib/dpkg/status'] = b''
+    if failure == 'symlink':
+        g.is_symlink.side_effect = lambda path: path == authorized
+    def write(path, data):
+        if path == authorized and failure == 'write':
+            raise runner.CommandError('bootstrap-write-failed')
+        files[path] = data
+    g.write.side_effect = write
+    def close():
+        if failure == 'readback':
+            files[authorized] = b'wrong-key'
+    g.close.side_effect = close
+    (tmp_path / 'ssh-key.pub').write_bytes(b'ssh-ed25519 QUFB onpc-system-test\n')
     if failure:
-        with pytest.raises(runner.CommandError, match='bootstrap-install-failed'):
+        with pytest.raises((runner.CommandError, runner.Error, ValueError)):
             runner.bootstrap(commands, lease, tmp_path, guestfs, observation_only=observation_only)
-        assert guestfs.GuestFS.call_count == 1
+        assert g.close.call_count == (2 if failure == 'readback' else 1)
     else:
         assert runner.bootstrap(commands, lease, tmp_path, guestfs,
-                                observation_only=observation_only) == 'ssh-ed25519 test-public-key'
-        read.add_drive_opts.assert_called_once_with('/guarded-image', format='qcow2', readonly=True)
-        read.mount_ro.assert_called_once_with('/dev/sda2', '/')
-        read.close.assert_called_once()
+                                observation_only=observation_only) == 'ssh-ed25519 public-test-key'
+        assert files[authorized] == prior + (tmp_path / 'ssh-key.pub').read_bytes()
+        marker = json.loads(files['/etc/onpc-system-test.json'])
+        assert ('package_sha256' in marker) != observation_only
+        if observation_only:
+            assert marker['scope'] == 'graphical-observation-only'
+        g.add_drive_opts.assert_any_call('/guarded-image', format='qcow2', readonly=True)
+        g.mount_ro.assert_called_once_with('/dev/sda2', '/')
+        assert g.close.call_count == guestfs.GuestFS.call_count == 2
+        g.sync.assert_called_once()
+    assert [call.args[0][0] for call in commands.run.call_args_list] == ['ssh-keygen']
 
 
 
@@ -328,6 +325,7 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
     assert set(identity['files']) == {
         'system_guest.py', 'owned_commands.py', 'guest/redact.py', 'pytest.ini',
         'test_install_smoke.py', 'system_progress.py',
+        'guest_test_dependencies.py',
     }
 
 
@@ -809,14 +807,17 @@ def test_unsafe_guest_evidence_fails_collection_without_replacing_product_catego
     assert not (tmp_path / 'evidence/guest').exists()
 
 
-def test_restore_never_requests_boot_or_deletes_snapshot(local_preparation_source):
+@pytest.mark.parametrize('name', runner.baseline.SNAPSHOT_NAMES)
+def test_restore_never_requests_boot_or_deletes_snapshot(local_preparation_source, name):
     lease = runner.Lease(Mock(), Mock(), Mock())
+    lease.capture.state = {'proof': {'name': name}}
     lease.capture.revalidate = Mock()
     lease.snapshot_xml = 'snapshot'
     lease.source.baseline.return_value = 'snapshot'
     snapshot = lease.source.domain.snapshotLookupByName.return_value
     snapshot.getXMLDesc.return_value = 'snapshot'
     lease.restore()
+    lease.source.domain.snapshotLookupByName.assert_called_once_with(name, 0)
     lease.source.domain.revertToSnapshot.assert_called_once_with(snapshot, 0)
     snapshot.delete.assert_not_called()
     lease.source.domain.create.assert_not_called()

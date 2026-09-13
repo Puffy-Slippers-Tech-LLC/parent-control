@@ -39,7 +39,11 @@ URI = "qemu:///system"
 DOMAIN = "ubuntu26.04"
 ANCHOR = Path("/Data/virt-manager/ubuntu26.04.qcow2")
 BASELINES = Path("/Data/virt-manager/oh-no-parent-control-baseline-state")
-SNAPSHOT = "oh-no-parent-control-baseline"
+# Shared by snapshot creation, validation, VM runners and test fixtures.
+SNAPSHOT = "onpc-baseline"
+# Retained baselines keep their original internal QCOW2 snapshot identity.
+PREVIOUS_SNAPSHOT = "oh-no-parent-control-baseline"
+SNAPSHOT_NAMES = (SNAPSHOT, PREVIOUS_SNAPSHOT)
 PHASES = ("validation", "shutdown-requested", "source-off", "snapshot-requested", "finalized")
 
 
@@ -53,7 +57,7 @@ def require(condition, category):
 
 
 def log(stage):
-    print(f"prep-host: [{stage}]", file=sys.stderr, flush=True)
+    print(f"prepare-host: [{stage}]", file=sys.stderr, flush=True)
 
 
 def canonical(path):
@@ -270,10 +274,10 @@ class LibvirtSource:
         self.connection.close()
 
     def baseline(self):
-        for snapshot in self.domain.listAllSnapshots(0):
-            if snapshot.getName() == SNAPSHOT:
-                return snapshot.getXMLDesc(0)
-        return None
+        matches = [snapshot for snapshot in self.domain.listAllSnapshots(0)
+                   if snapshot.getName() in SNAPSHOT_NAMES]
+        require(len(matches) <= 1, "snapshot:ambiguous-baseline")
+        return matches[0].getXMLDesc(0) if matches else None
 
     def create_baseline(self, layout, description):
         current, off = self.snapshot()
@@ -292,9 +296,10 @@ class LibvirtSource:
 
 
 def snapshot_proof(xml, layout, description):
+    require(xml is not None, "snapshot:metadata-missing")
     require(isinstance(xml, str) and "<!" not in xml, "snapshot:missing-or-invalid")
     root = ET.fromstring(xml)
-    require(root.tag == "domainsnapshot" and root.findtext("name") == SNAPSHOT and
+    require(root.tag == "domainsnapshot" and root.findtext("name") in SNAPSHOT_NAMES and
             root.findtext("description") == description and root.findtext("state") == "shutoff",
             "snapshot:identity")
     memory = root.find("memory")
@@ -308,7 +313,7 @@ def snapshot_proof(xml, layout, description):
             and len(selected[0]) == 0, "snapshot:disk")
     created = root.findtext("creationTime", "")
     require(created.isdigit() and int(created) > 0, "snapshot:creation-time")
-    return {"name": SNAPSHOT, "creation_time": int(created), "storage": "internal", "state": "shutoff"}
+    return {"name": root.findtext("name"), "creation_time": int(created), "storage": "internal", "state": "shutoff"}
 
 
 def inspect_guest(guestfs, disk, script_digest):
@@ -336,6 +341,10 @@ def inspect_guest(guestfs, disk, script_digest):
         marker = parse_json(raw)
         require(isinstance(marker, dict) and type(marker.get("schema_version")) is int, "guest:marker-schema")
         guest_contract.validate_marker(marker)
+        guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
+        require(not any(g.exists(path) or g.is_symlink(path)
+                        for path in guest_contract.guest_tools.DORMANT_PATHS),
+                'guest:directory-fixture-not-clean')
         require(marker["preparation_script_sha256"] == script_digest, "guest:script-digest")
         require(g.read_file("/etc/hostname").decode().strip() == DOMAIN and
                 g.read_file("/etc/machine-id").decode().strip() == marker["guest"]["machine_id"],
@@ -385,14 +394,17 @@ def inspect_guest(guestfs, disk, script_digest):
 
 class Capture:
     def __init__(self, source, commands, inspect, *, anchor=ANCHOR, directory=BASELINES,
-                 script_digest=None):
+                 script_digest=None, verify_backing_bytes=True):
+        require(type(verify_backing_bytes) is bool, 'guard:invalid-verification-policy')
+        self.verify_backing_bytes = verify_backing_bytes
         self.source, self.commands, self.inspect = source, commands, inspect
         self.anchor, self.directory = anchor, directory
         self.script_digest = script_digest or guest_contract.preparation_digest()
         self.state = None
         self.directory_identity = None
         self.verification_totals = {"calls": 0, "failures": 0, "bytes_read": 0,
-                                    "duration_seconds": 0.0}
+                                    "duration_seconds": 0.0,
+                                    "policy": "full" if verify_backing_bytes else "metadata-only"}
         self.backing_verification = None
         self.verification_failure = None
 
@@ -537,14 +549,50 @@ class Capture:
         records = self.commands.info(Path(layout["disk"]), active=not off).get("snapshots", [])
         require(isinstance(records, list) and all(isinstance(item, dict) for item in records),
                 "snapshot:disk-metadata")
-        matches = [item for item in records if item.get("name") == SNAPSHOT]
+        matches = [item for item in records if item.get("name") in SNAPSHOT_NAMES]
         require(len(matches) <= 1, "snapshot:duplicate-disk-record")
         return matches[0] if matches else None
 
     def refuse_existing_snapshot(self):
         require(self.source.baseline() is None and self.disk_snapshot() is None, "snapshot:already-exists")
 
-    def run(self):
+    def replace_missing_baseline(self):
+        """Retire only an explicitly deleted baseline under the shared lock.
+
+        Keep the old journal durably before publishing the new operation. A
+        retry after publication resumes that operation; a finalized replacement
+        is verified normally, never recaptured.
+        """
+        self.revalidate(off=True)
+        self.refuse_existing_snapshot()
+        attempt = self.directory / 'system-run.json'
+        if os.path.lexists(attempt):
+            identity(attempt, private=True, mode=0o600)
+            previous = parse_json(attempt.read_bytes())
+            require(isinstance(previous, dict) and previous.get('phase') == 'complete',
+                    'state:interrupted-run; preserve state for recovery')
+        archive = self.directory / f"retired-{self.state['operation']}.json"
+        raw = (self.directory / 'phase.json').read_bytes()
+        if os.path.lexists(archive):
+            identity(archive, private=True, mode=0o600)
+            require(archive.read_bytes() == raw, 'state:retired-record-mismatch')
+        else:
+            fd, temporary = tempfile.mkstemp(prefix='.retired-', dir=self.directory)
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write(raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, archive)
+        sync_directory(self.directory)
+        self.revalidate(off=True)
+        self.refuse_existing_snapshot()
+        self.state = {**self.state, 'operation': uuid.uuid4().hex,
+                      'source_digests': None, 'guest': None, 'proof': None,
+                      'script_digest': self.script_digest}
+        self.save('validation')
+        log('replacement:retired-record-preserved')
+
+    def run(self, *, replace_missing=False):
         # Resolve the existing disk and chain before filesystem writes/shutdown.
         inventory, _off = self.inventory()
         self.directory_identity = self.prepare_private_directory()
@@ -565,6 +613,9 @@ class Capture:
                               "operation": uuid.uuid4().hex, "proof": None, "script_digest": self.script_digest}
                 self.save("validation")
             self.revalidate()
+            if (replace_missing and self.state['phase'] == 'finalized'
+                    and self.source.baseline() is None):
+                self.replace_missing_baseline()
             self.execute()
         finally:
             self.commands.lock_fd = None
@@ -578,6 +629,8 @@ class Capture:
         mode = ('leased-proof' if protected and not protected.closed
                 and protected.enabled and protected.verified
                 and not force_bytes else 'full')
+        if not self.verify_backing_bytes:
+            mode = 'metadata-only'
         event = {"call": self.verification_totals["calls"] + 1,
                  "bytes_read": 0, "outcome": "failed", "mode": mode, "boundary": boundary}
         self.verification_totals["calls"] += 1
@@ -611,6 +664,7 @@ class Capture:
         proof = snapshot_proof(self.source.baseline(), self.state["source"]["layout"], self.description())
         record = self.disk_snapshot()
         require(record is not None and isinstance(record.get("id"), str) and
+                record.get("name") == proof["name"] and
                 type(record.get("date-sec")) is int and record.get("vm-state-size") == 0,
                 "snapshot:missing-or-invalid-disk-record")
         # These fields identify the saved disk state and remain stable while
@@ -624,7 +678,10 @@ class Capture:
             protected.check_owner()
             if protected.failure is not None:
                 raise protected.failure
-        if (protected is None or protected.closed or
+        # Fast development runs retain snapshot, chain, ownership and lease
+        # checks, but never claim or cache an immutable-byte proof. force_bytes
+        # forces a fresh read only within the full-verification policy.
+        if self.verify_backing_bytes and (protected is None or protected.closed or
                 not protected.verify(self, count_bytes, force_bytes=force_bytes)):
             require([digest(item["path"], count_bytes=count_bytes)
                      for item in self.state["source"]["chain"][1:]] == digests[1:],
@@ -686,6 +743,8 @@ class Capture:
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check-tools", action="store_true", help="check dependencies only; no VM connection or writes")
+    parser.add_argument("--replace-missing", action="store_true",
+                        help="explicitly retire a deleted baseline and capture the prepared, powered-off guest")
     args = parser.parse_args(argv)
     source = None
     capture = None
@@ -718,13 +777,21 @@ def main(argv=None):
         threading.Thread(target=dispatch_events, name="libvirt-events", daemon=True).start()
         source = LibvirtSource(modules["libvirt"])
         capture = Capture(source, Commands(), lambda disk, sha: inspect_guest(modules["guestfs"], disk, sha))
-        capture.run()
+        if args.replace_missing:
+            capture.run(replace_missing=True)
+        else:
+            capture.run()
         return 0
     except (Exception, KeyboardInterrupt) as error:
         category = str(error) if isinstance(error, CaptureError) else "operation:failed-or-interrupted"
         phase = capture.state["phase"] if capture and capture.state else "before-validation"
         log(f"{category}; recovery-phase:{phase}")
-        print("prep-host: resolve the reported condition, then rerun ./setup.sh --prepare-host; retain snapshot and controller state",
+        if category == "snapshot:metadata-missing":
+            print("prepare-host: the recorded baseline has no matching libvirt snapshot metadata; "
+                  "rerunning preparation cannot recover it. Retain the disk and controller state; "
+                  "recover the original baseline metadata from a verified backup or separately "
+                  "authorize baseline replacement", file=sys.stderr)
+        print("prepare-host: resolve the reported condition, then rerun ./setup.sh --prepare-host; retain snapshot and controller state",
               file=sys.stderr)
         return 1
     finally:

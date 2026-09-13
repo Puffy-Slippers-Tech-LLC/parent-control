@@ -26,6 +26,19 @@ def report(tmp_path):
     result.stream.close()
 
 
+@pytest.mark.parametrize('installed', ['--unattended', '--skip-backing-verification',
+                                     '--unattended --skip-backing-verification'])
+def test_old_dispatcher_is_refused_before_expensive_suites(monkeypatch, installed):
+    import dev_privileges
+    monkeypatch.setattr(dev_privileges, 'check', lambda _: None)
+    monkeypatch.setattr(regression.Path, 'read_text', lambda _: installed)
+    if '--unattended' in installed and '--skip-backing-verification' in installed:
+        regression.authorization()
+    else:
+        with pytest.raises(ValueError, match='setup.sh --test-tools-only'):
+            regression.authorization()
+
+
 def test_dashboard_colors_counts_and_no_diagnostics():
     categories = [regression.Category('Unit', 4, 4, 'Passed'),
                   regression.Category('UI', 10, 3, 'Running'),
@@ -286,7 +299,9 @@ def test_generated_reports_are_ignored_by_source_provenance(tmp_path):
 
 
 @pytest.mark.parametrize('fail_unit,fail_publish', [(False, False), (True, False), (False, True)])
-def test_entire_plan_discovers_ready_cases_and_preserves_failure(report, tmp_path, monkeypatch, fail_unit, fail_publish):
+@pytest.mark.parametrize('verify_backing_bytes', [True, False])
+def test_entire_plan_discovers_ready_cases_and_preserves_failure(
+        report, tmp_path, monkeypatch, fail_unit, fail_publish, verify_backing_bytes):
     monkeypatch.setattr(regression, 'authorization', lambda: None)
     monkeypatch.setattr(regression, 'source_identity', lambda _: 'current-inputs')
     monkeypatch.setattr(regression, 'Admission', lambda **_: SimpleNamespace(
@@ -328,13 +343,13 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(report, tmp_pat
                 return int(fail_publish)
             return 0
     control = Commands()
-    run = regression.Run(tmp_path, report, control)
+    run = regression.Run(tmp_path, report, control, verify_backing_bytes=verify_backing_bytes)
     run.run()
     assert [item.state for item in run.categories].count('Failed') == int(fail_unit or fail_publish)
     assert sum(item.failures for item in run.categories) == int(fail_unit or fail_publish)
     assert all(item.done == item.total for item in run.categories)
     e2e = [call for call in control.calls if 'e2e' in call and '--scenario' in call]
-    assert len(e2e) == 1 and e2e[0][-1] == 'E2E-999/future'
+    assert len(e2e) == 1 and e2e[0][e2e[0].index('--scenario') + 1] == 'E2E-999/future'
     assert not any('E2E-998/wait' in call for call in control.calls)
     assert len([call for call in control.calls if 'compare' in call]) == 1
     assert len([call for call in control.calls if 'publish' in call]) == 1
@@ -342,5 +357,10 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(report, tmp_pat
     # invocation per area or per collected functional test.
     system = [call for call in control.calls if 'system' in call and '--list' not in call]
     assert len(system) == 1 and '--area' not in system[0] and '--test' not in system[0]
+    for call in control.calls:
+        expected_skip = (not verify_backing_bytes and call[1] in ('system', 'e2e')
+                         and '--list' not in call)
+        assert ('--skip-backing-verification' in call) == expected_skip
+    assert ('VM backing verification: ' + run.verification_mode) in (report.directory / 'report.md').read_text()
     if fail_unit:
         assert 'test assertion failed' in (report.directory / 'report.md').read_text()

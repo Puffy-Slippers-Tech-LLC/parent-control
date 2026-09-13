@@ -95,7 +95,10 @@ Reference: [test commands and artifacts](tests/README.md).
 
 ## Run VM and graphical E2E tests
 
-Follow [VM setup](tests/integration/Environment.md). Run `./setup.sh --prepare-vm` inside the source guest, then `./setup.sh --prepare-host` on the host. Reuse the accepted baseline.
+Follow [VM setup](tests/integration/Environment.md). Run `make prepare-vm` (`./setup.sh --prepare-vm`) inside the source guest to prepare accounts and reusable test tools before initial baseline capture with `./setup.sh --prepare-host` on the host. Reuse the accepted baseline; these commands do not silently replace an older accepted baseline.
+For an explicitly authorized replacement after manual baseline deletion, prepare
+and shut down the guest, then run `./setup.sh --replace-missing-baseline`. This
+retains the old controller record and validates the new guest before capture.
 
 List available cases and build fresh package/fixture inputs:
 
@@ -117,8 +120,11 @@ tools/run-tests e2e --artifacts "$ARTIFACT_DIR" --scenario E2E-001
 
 Keep the checkout unchanged during artifact builds and test attempts. Stop VM maintenance before starting tests. Use `tools/test-vm status` to inspect the pinned VM.
 
-Run `make test-all` for all established regression suites, a colored progress
-dashboard, and continuously saved detailed reports under
+`make test-all` runs all established tests for fast development feedback, skipping roughly five minutes of VM backing-file verification.
+
+`make test-all-verify` runs all established tests with full VM backing-file verification before publishing.
+
+Both commands show a colored progress dashboard and continuously save detailed reports under
 `docs/TestAutomation/Evidence/test-all-runs/`. Ctrl+C cancels the active test
 and waits for owned cleanup. New tests in established suites and E2E variants
 marked ready are discovered automatically; unfinished roadmap scenarios are
@@ -134,11 +140,11 @@ Commit application changes on `main`, add the newest release entry to
 `docs/VersionHistory.md`, then run:
 
 ```sh
-make test-all
+make test-all-verify
 make publish
 ```
 
-`make test-all` includes the reusable publishing test module: source checks,
+Both test commands include the reusable publishing test module: source checks,
 clean Ubuntu sbuild with declared tests, and Lintian. Run `make test-publish`
 to execute only that module. `make publish` validates the history, bumps the
 version, signs and uploads source, and waits for the package to become

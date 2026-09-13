@@ -29,7 +29,7 @@ attempt preserves guest state and must produce a new boot identity.
 
 The host and guest tooling sources are `setup.sh`,
 [../test-tools-ubuntu-26.04.txt](../test-tools-ubuntu-26.04.txt),
-and the runner's pinned guest bootstrap configuration. Record actual runtime
+and the [prepared guest tool inventory](guest_test_dependencies.py). Record actual runtime
 versions in each result; do not use a dated development-workstation package
 table as evidence of the installed guest's environment.
 
@@ -387,24 +387,30 @@ The future E2E runner must obey the
   private values. Keep phase expectations aligned with actual collection;
   fixed historical pass counts are not coverage definitions.
 
-Current bootstrap operates only in the reset guest. Its offline repository
-normalization preserves signing, suites/components and unrelated repositories;
-it does not disable APT authentication. Libguestfs handles close before another
-guest tool opens the image. The pinned SSH key comes from read-only inspection.
-Keep changing implementation details and exact package pins in the controller,
-not duplicated as dated facts in this guide.
+Current bootstrap requires the [prepared schema-2 baseline](Environment.md).
+Its two sequential libguestfs appliances replace the previous three: a guarded
+offline edit adds the attempt's public key to OpenSSH's `authorized_keys` file
+and writes the private run marker; after sync/close, an independent read-only
+open verifies the marker, key contents, ownership/modes and server public key.
+Symlinked or unsafe key destinations are refused. OpenSSH/pytest installation
+and archive normalization now belong to guest preparation, so bootstrap has no
+`virt-customize` or package-manager transaction. Per-attempt share removal and
+input/identity validation remain. Host key pinning and all disk-proof gates
+remain required. Host-safe regressions cover failures and both system/E2E
+composition; real transport qualification awaits a newly prepared baseline.
 
 `test_remote_accounts_are_excluded` provisions real RFC2307 LDAP users through
 `system_remote_accounts.py` only after the guest guard and package/reboot
 prerequisites. It refuses existing directory configuration and UID/name
-collisions, installs pinned OpenLDAP/SSSD packages, uses LDAP's public
+collisions, verifies prepared OpenLDAP/SSSD packages, configures the dormant
+OpenLDAP package through `dpkg-reconfigure --frontend=noninteractive`, uses LDAP's public
 `cn=config` interface with root peer credentials, and enables NSS enumeration.
 The LDAP server runs on guest loopback; credentials and remote login are not
 needed for this identity/authorization test. No local passwd records or private
 AccountsService files are created for these identities. Public `CacheUser` and
 property reads establish nonlocal, interactive, unlocked standard/admin roles
-before exclusion assertions. The retained baseline removes fixture services,
-configuration and accounts after the attempt. No host tool installation is
+before exclusion assertions. The retained baseline restores dormant services
+and removes fixture configuration and accounts after the attempt. No host tool installation is
 required. This test integration activates on the next invocation (`none`);
 the broker's local-administrator enforcement is `process-restart`, with no
 saved-data migration. Package versions and predicate/denial observations are

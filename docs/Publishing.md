@@ -3,7 +3,7 @@
 Run all local tests from the development checkout before publishing:
 
 ```sh
-make test-all
+make test-all-verify
 ```
 
 Its publishing module can also run independently with `make test-publish`.

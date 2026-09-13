@@ -17,6 +17,7 @@ from tests.support.e2e_evidence import attempt as evidence_attempt
 
 from tests.support.paths import ROOT
 from tests.support.vm_baseline import local_preparation_source
+from tests.support.vm_runner import bootstrap_guest
 import evidence
 import execution
 import e2e_worker
@@ -77,8 +78,9 @@ def harness(evidence_attempt, tmp_path, monkeypatch, local_preparation_source):
     monkeypatch.setattr(execution.system, 'bootstrap', Mock(return_value='private-canary-key'))
     events, leases = [], []
     real_lease = execution.system.Lease
-    def lease_factory(source, commands, inspect, *, ledger, graphics_type):
-        lease = real_lease(source, commands, inspect, ledger=ledger, graphics_type=graphics_type)
+    def lease_factory(source, commands, inspect, *, ledger, graphics_type, verify_backing_bytes):
+        lease = real_lease(source, commands, inspect, ledger=ledger, graphics_type=graphics_type,
+                           verify_backing_bytes=verify_backing_bytes)
         lease.state = {'phase': 'isolated', 'domain_id': None, 'run': 'a' * 32,
                        'domain_uuid': 'fixed-domain'}
         lease.prepare = Mock()
@@ -137,7 +139,12 @@ def documents(harness):
             for path in sorted(collector.path.glob('*.json'))]
 
 
-def test_public_ready_plan_executes_real_callback_and_finalizes_after_lease_exit(harness):
+@pytest.mark.parametrize('verify_backing_bytes', [True, False])
+def test_public_ready_plan_executes_real_callback_and_finalizes_after_lease_exit(harness, verify_backing_bytes):
+    args = ['--artifacts=' + harness.plan['artifacts']]
+    if not verify_backing_bytes:
+        args.append('--skip-backing-verification')
+    harness.plan = harness.runner['preflight'](args, root=harness.root)
     result = run(harness)
     assert result['outcome'] == 'passed', result
     assert result['acceptance_candidate']['case_ids'] == [harness.case['case_id']]
@@ -147,6 +154,9 @@ def test_public_ready_plan_executes_real_callback_and_finalizes_after_lease_exit
     harness.source.close.assert_called_once()
     assert all(c._fd is None for c in harness.collectors)
     assert 'private-canary' not in json.dumps(documents(harness))
+    assert harness.leases[0].capture.verify_backing_bytes is verify_backing_bytes
+    policy = 'full' if verify_backing_bytes else 'metadata-only'
+    assert result['baseline_verification']['policy'] == policy
 
 
 @pytest.mark.parametrize('preparation_fails', [False, True])
@@ -204,14 +214,10 @@ def test_public_preparation_satisfies_real_bootstrap_input_contract(harness, mon
                                    'guest': {'preparation_record_sha256': 'c' * 64}})
         return lease
     monkeypatch.setattr(execution.system, 'Lease', prepared)
-    guest = Mock()
-    files = {'/etc/apt/sources.list.d/ubuntu.sources': b'URIs: https://archive.ubuntu.com/ubuntu/\n',
-             '/etc/fstab': b'/dev/sda2 / ext4 defaults 0 1\n',
-             '/etc/machine-id': b'private-guest-identity',
-             '/etc/ssh/ssh_host_ed25519_key.pub': b'ssh-ed25519 public-test-key'}
-    guest.read_file.side_effect = files.__getitem__
+    guest, files = bootstrap_guest()
     @contextmanager
     def mounted(*args, **kwargs):
+        (Path(args[1].commands.directory).parent / 'ssh-key.pub').write_bytes(b'ssh-ed25519 QUFB fixture\n')
         yield guest
     monkeypatch.setattr(execution.system, 'mounted_guest', mounted)
     result = run(harness)

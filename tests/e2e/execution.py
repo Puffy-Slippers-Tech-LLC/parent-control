@@ -188,7 +188,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
             source, guestfs = open_source()
             lease = system.Lease(source, commands,
                 lambda disk, digest: system.baseline.inspect_guest(guestfs, disk, digest),
-                ledger=ledger, graphics_type='vnc')
+                ledger=ledger, graphics_type='vnc',
+                verify_backing_bytes=plan.get('verify_backing_bytes', True))
         with lease:
             try:
                 with ledger.measure('preparation'):

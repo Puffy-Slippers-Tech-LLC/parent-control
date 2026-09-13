@@ -15,10 +15,11 @@ helper = runpy.run_path(str(ROOT / 'tools/onpc-setup'))
     ('test-tools', 'tools/install_test_runner.py', []),
     ('graphical-policy', 'tools/install_graphical_test_policy.py', []),
     ('prepare-host', 'tests/integration/prepare_host.py', []),
+    ('replace-missing-baseline', 'tests/integration/prepare_host.py', ['--replace-missing']),
 ])
 def test_only_fixed_modules_and_arguments_are_selected(operation, relative, options):
     selected = helper['command'](ROOT, [operation])
-    assert selected == ['/usr/bin/python3', '-B' if operation == 'prepare-host' else '-IB',
+    assert selected == ['/usr/bin/python3', '-B' if operation in ('prepare-host', 'replace-missing-baseline') else '-IB',
                         str(ROOT / relative), *options]
 
 

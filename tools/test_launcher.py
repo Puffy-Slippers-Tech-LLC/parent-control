@@ -8,6 +8,8 @@ import re
 import subprocess
 import sys
 
+import test_activity
+
 
 class ArgumentParser(argparse.ArgumentParser):
     def error(self, message):
@@ -120,6 +122,13 @@ def environment(root):
     result = {key: os.environ[key] for key in allowed if key in os.environ}
     result.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', PYTHONDONTWRITEBYTECODE='1',
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')
+    result.update(test_activity.environment())
+    return result
+
+
+def test_environment(root):
+    result = environment(root)
+    result.pop(test_activity.VARIABLE, None)
     return result
 
 
@@ -141,7 +150,8 @@ def prerequisites(root):
     print('run-tests: isolated cleanup prerequisites starting', file=sys.stderr, flush=True)
     status = subprocess.run(['/usr/bin/python3', '-B', '-m', 'pytest',
                              '-p', 'no:cacheprovider', '-q', '--', *targets],
-                            cwd=root, env=environment(root), check=False).returncode
+                            cwd=root, env=test_environment(root), check=False,
+                            pass_fds=test_activity.descriptors()).returncode
     if status:
         raise ValueError('cleanup prerequisites failed; selected operation refused')
 
@@ -178,7 +188,7 @@ def pytest_command(root, argv, category):
         if not os.access(python, os.X_OK):
             raise ValueError('UI test environment missing; run ./setup.sh')
         prefix = ['/usr/bin/timeout', '--foreground', timeout]
-    return [*prefix, python, '-B', '-m', 'pytest', *options, '--', *targets]
+    return [*prefix, python, '-B', '-m', 'pytest', '-p', 'no:cacheprovider', *options, '--', *targets]
 
 
 def run_host(root, category, argv):
@@ -189,7 +199,7 @@ def run_host(root, category, argv):
     count = len(command) - command.index('--') - 1
     print(f'run-{category}-tests: starting pytest with {count} validated selection(s)',
           file=sys.stderr, flush=True)
-    os.execve(command[0], command, environment(root))
+    os.execve(command[0], command, test_environment(root))
 
 
 def main(argv=None, *, category='unit'):
@@ -198,10 +208,13 @@ def main(argv=None, *, category='unit'):
             raise ValueError('run host tests as an unprivileged user')
         root = Path(__file__).resolve().parents[1]
         argv = list(sys.argv[1:] if argv is None else argv)
-        if argv[:1] == ['--unattended']:
-            from regression_process import host_run
-            return host_run(root, category, argv[1:])
-        run_host(root, category, argv)
+        # Validate before creating ownership files or running prerequisites.
+        pytest_command(root, argv[1:] if argv[:1] == ['--unattended'] else argv, category)
+        with test_activity.activity(root):
+            if argv[:1] == ['--unattended']:
+                from regression_process import host_run
+                return host_run(root, category, argv[1:])
+            run_host(root, category, argv)
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'filesystem or execution failure'
         print(f'run-tests: {detail}', file=sys.stderr)

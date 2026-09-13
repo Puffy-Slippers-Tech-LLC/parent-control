@@ -105,7 +105,7 @@ def test_category_option_injection_rejected(checkout, category, argv):
 
 def test_child_future_files_are_literal_and_need_no_policy_change(checkout):
     node, safety = commands.plan(checkout, 'child-node', ['tests/child/*.test.mjs'])
-    assert node == [['/usr/bin/node', '--test', str(checkout / 'tests/child/future.test.mjs')]]
+    assert node == [['/usr/bin/node', '--test', '--test-concurrency=2', str(checkout / 'tests/child/future.test.mjs')]]
     assert safety is False
     gjs, _ = commands.plan(checkout, 'child-gjs', [])
     assert gjs == [['/usr/bin/gjs', '-m', str(checkout / 'tests/child/future_test.js')]]

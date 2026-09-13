@@ -37,18 +37,36 @@ class Control:
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
 
-    def run(self, command, *, cwd, env, output=None, cooperative=False, **kwargs):
+    def run(self, command, *, cwd, env, output=None, cooperative=False, tick=None, **kwargs):
+        # The installed dispatcher loads this file before adding the validated
+        # checkout tools directory for its deferred imports.
+        import test_activity
         if self.stopped.is_set():
             return 130
         if output is None:
             def output(data):
                 sys.stdout.buffer.write(data)
                 sys.stdout.buffer.flush()
+        kwargs.setdefault('pass_fds', test_activity.descriptors())
         child = subprocess.Popen(command, cwd=cwd, env=env,
                                  stdin=subprocess.PIPE if cooperative else subprocess.DEVNULL,
                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                  start_new_session=True, **kwargs)
-        descriptor = os.pidfd_open(child.pid)
+        try:
+            descriptor = os.pidfd_open(child.pid)
+        except BaseException:
+            # Popen still owns this unreaped child. Do not abandon it if the
+            # kernel refuses another descriptor (for example under FD pressure).
+            if cooperative:
+                try:
+                    child.stdin.write(b'STOP\n')
+                    child.stdin.flush()
+                except BrokenPipeError:
+                    pass
+            else:
+                child.send_signal(signal.SIGINT)
+            child.communicate()
+            raise
         sent = False
         output_error = None
         try:
@@ -78,6 +96,12 @@ class Control:
                             except BaseException as error:
                                 output_error = error
                                 self.stop()
+                    if tick is not None and output_error is None:
+                        try:
+                            tick()
+                        except BaseException as error:
+                            output_error = error
+                            self.stop()
                 status = child.wait()
             if output_error is not None:
                 raise output_error
@@ -100,10 +124,10 @@ def host_run(root, category, argv):
     import test_launcher as host
     with Control().installed(pipe=True) as control:
         command = host.pytest_command(root, argv, category)
-        env = host.environment(root)
+        env = host.test_environment(root)
         env.update(ONPC_REGRESSION_EVENTS='1', PYTHONUNBUFFERED='1')
         if category != 'unit' and '--collect-only' not in command:
-            status = control.run(safety_command(root), cwd=root, env=host.environment(root))
+            status = control.run(safety_command(root), cwd=root, env=host.test_environment(root))
             if status:
                 return status
         return control.run(command, cwd=root, env=env)
@@ -117,6 +141,7 @@ def category_run(root, category, argv):
     env = host.environment(root)
     env['PYTHONUNBUFFERED'] = '1'
     if category == 'fixture-runtime':
+        env = host.test_environment(root)
         env['ONPC_REGRESSION_EVENTS'] = '1'
     if category in ('fixtures', 'artifacts') and (not argv or argv == ['build']):
         directory = tempfile.mkdtemp(prefix=f'onpc-test-{category}-', dir='/tmp')
@@ -129,7 +154,7 @@ def category_run(root, category, argv):
                            '--coverage-output=' + directory]
     with Control().installed(pipe=True) as control:
         if safety:
-            status = control.run(safety_command(root), cwd=root, env=host.environment(root))
+            status = control.run(safety_command(root), cwd=root, env=host.test_environment(root))
             if status:
                 return status
         for command in commands:

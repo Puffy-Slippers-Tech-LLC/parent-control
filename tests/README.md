@@ -17,11 +17,57 @@ problem. A fresh chat does not require rerunning unaffected tests.
 ## All established regressions
 
 Run `make test-all` from the checkout. `tools/run-tests all` is the equivalent
-validated launcher. Neither accepts suite selectors. The terminal shows only
-colored category progress and overall progress; full output is continuously
+validated launcher. Neither accepts suite selectors. The terminal shows
+colored category progress with branches for the two host workers, a join before
+the serial build/VM stages, and overall wall time. Branch assignment reflects
+actual launches; work waiting for capacity or headroom stays unassigned. Both
+branches refresh together, including elapsed times while children are quiet.
+Completed categories remain under the branch that ran them, in launch order.
+Long rows are clipped to terminal width to keep cursor redraws aligned; the
+saved final summary retains their full text. Full output is continuously
 appended and flushed to `docs/TestAutomation/Evidence/test-all-runs/<run>/report.md`.
-The accompanying `progress.json` records the latest category counts and states.
+The accompanying `progress.json` records the latest category counts, states,
+branch assignments and launch order. The final report includes the same branch
+summary. Percentages describe completed checks, not estimated time remaining.
 Each run gets a new private directory; previous results are never overwritten.
+
+Host categories run through a maximum of two owned workers. The long UI suite
+starts first, with unit/components/fixtures and small checks filling the other
+slot sequentially when CPU, memory and I/O headroom permit. Sampling requires
+20 seconds of low pressure before overlap. Missing measurements fall back to
+serial execution; memory shortage defers even a single known host category.
+Any new swap write or swap reads of at least 1 MiB/s defer admission. Small reads
+of pages evicted earlier do not alone imply current memory pressure; the memory
+reserve and pressure checks still apply, and sampled swap rates are retained.
+Conservative reservations are added to observed host use, including a 20% RAM
+reserve (minimum 2 GiB) and a 25% CPU headroom target for overlapping jobs.
+Already-running tests finish normally when load increases. Publishing, the two
+fresh reproducibility builds, and all VM attempts remain serial after host work.
+Node file concurrency and package build parallelism are capped at two.
+High pressure defers serial launches too. VM admission reads the pinned
+configuration through `tools/test-vm xml` and reserves guest RAM plus overhead.
+Private `resources.jsonl` samples and the report's host scheduling summary record
+the observed load, wall time and maximum active category count.
+
+The maintained launchers hold one checkout activity lock for the full command,
+including cleanup. Aggregate children join through an inherited locked file
+descriptor; another terminal's launcher refuses while the checkout is owned.
+The VM's existing cross-controller lease remains independently authoritative.
+Ordinary pytest caches are disabled. The report labels every output fragment
+with its category and links separate private raw streams; one coordinator writes
+all progress. Category `waiting` records time queued separately from execution.
+Source contents and modes are compared at category boundaries and final
+acceptance; detected edits invalidate the run. These checks do not freeze the
+checkout or prove immunity to an edit-and-revert between boundaries.
+
+Installed-system functional areas already share one package installation and
+one outer VM attempt, including the reboots their assertions require. Keep that
+full selection together. E2E retains independent attempts: the current sole
+ready case requires a product-free boot. Pending customer journeys are not
+made runnable or silently combined. Future explicit shared-setup groups must
+declare compatible starting states, boundary checks, individual evidence and
+group cleanup before reducing those attempts. See the
+[scheduling design and implementation scope](../docs/TestAutomation/Test-All-Parallelism-Design.md).
 
 The command collects current unit/contract, private-D-Bus, UI and fixture runtime
 cases; runs cleanup prerequisites in isolation before protected operations;
@@ -50,7 +96,7 @@ attempt blocks its dependent operations. Skipped or expected-failure cases are
 reported as incomplete coverage and prevent a green aggregate result.
 
 Ctrl+C latches cancellation, prevents further tests from starting, and waits
-for the active child’s cleanup, including guarded VM restoration. Repeated
+for every active child's cleanup, including guarded VM restoration. Repeated
 Ctrl+C does not interrupt cleanup. No process-name scans or unrelated process
 signals are used. A controller losing its parent’s pipe also cancels. Cleanup
 can take several minutes; do not use SIGKILL if you want normal restoration.
@@ -274,8 +320,9 @@ developer's desktop, extension settings or live source. Preview launchers are
 development tools, not customer E2E commands.
 
 Node and GJS checks are available as `make check-child-node` and
-`make check-child-gjs`. The latter writes
-`artifacts/coverage/gjs-child/coverage.lcov`. Nested-Shell logs and screenshots
+`make check-child-gjs`. The latter prints its private
+`/tmp/onpc-gjs-coverage-<run>/` directory containing `coverage.lcov`.
+Nested-Shell logs and screenshots
 are under `artifacts/ui/child-shell/`; `latest/` is only a convenience copy,
 never evidence for a different source revision or test attempt.
 

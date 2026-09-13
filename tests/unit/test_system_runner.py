@@ -559,6 +559,12 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update
     write_junit_results(tmp_path, selection)
     ledger = runner.RunLedger()
     result = runner.installed_run(vm, lease, tmp_path, selection, ledger)
+    # All functional phases consume this one package installation. Reboots
+    # required by the assertions do not introduce a fresh install or restore.
+    install_command = runner.guest_command(RUN, 'upgrade' if update else 'install')
+    assert sum(call.args[0] == install_command for call in vm.call.call_args_list) == 1
+    lease.prepare.assert_not_called()
+    lease.restore.assert_not_called()
     assert result['authorization'] == (
         ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]'),
         ('authorization', 'test_real_selected_parent_authentication[child1]'),

@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import time
 from types import SimpleNamespace
 from urllib.error import HTTPError, URLError
 
@@ -16,6 +17,14 @@ import pytest
 
 from tools import publish
 from tests.support.paths import ROOT
+
+
+@pytest.fixture(autouse=True)
+def isolated_polling_clock(monkeypatch):
+    # Patching the shared time module also changes subprocess.wait's backoff,
+    # which can consume a polling fixture's clock or publication transition.
+    monkeypatch.setattr(publish, 'time', SimpleNamespace(
+        monotonic=publish.time.monotonic, sleep=publish.time.sleep))
 
 
 NOTES = ('## v1.1 — 2026-09-11\n### Bug Fixes\n'
@@ -523,6 +532,7 @@ def test_status_resumes_polling_without_updating_journal(repository, launchpad, 
         source['status'] = 'Published'
 
     monkeypatch.setattr(publish.time, 'sleep', sleep)
+    assert time.sleep is not sleep  # Subprocess timeout/backoff must keep its real clock.
     publish.publication_status(repository)
     assert sleeps == [publish.POLL_SECONDS]
     assert path.read_bytes() == before

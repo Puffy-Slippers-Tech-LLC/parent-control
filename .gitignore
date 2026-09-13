@@ -8,6 +8,7 @@ __pycache__/
 .coverage
 .hypothesis/
 .pytest_cache/
+artifacts/test-activity/
 artifacts/coverage/
 .venv/
 artifacts/ui/

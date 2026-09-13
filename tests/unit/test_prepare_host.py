@@ -57,6 +57,28 @@ def test_capture_creates_named_internal_snapshot_without_copy(rig):
     assert "password" not in json.dumps(state(rig))
 
 
+def test_verification_counts_actual_backing_reads_and_failures(rig, capsys):
+    rig.capture().run()
+    capture = rig.capture()
+    capture.run()
+    size = rig.anchor.stat().st_size
+    assert capture.verification_totals['calls'] == 1
+    assert capture.verification_totals['bytes_read'] == size
+    rig.anchor.write_bytes(b'x' * size)
+    with pytest.raises(host.CaptureError, match='backing-digest-changed'):
+        capture.verify_snapshot()
+    assert capture.verification_totals['calls'] == 2
+    assert capture.verification_totals['bytes_read'] == 2 * size
+    assert capture.verification_totals['failures'] == 1
+    events = [json.loads(line.removeprefix('baseline:verification '))
+              for line in capsys.readouterr().err.splitlines()
+              if line.startswith('baseline:verification ')]
+    assert events[-1]['outcome'] == 'failed'
+    assert events[-1]['bytes_read'] == size
+    assert events[-1]['duration_seconds'] >= 0
+    assert set(events[-1]) == {'call', 'bytes_read', 'duration_seconds', 'outcome', 'mode', 'boundary'}
+
+
 def test_capture_repairs_an_empty_misowned_or_moded_state_directory(rig):
     rig.directory.mkdir(mode=0o700)
     rig.directory.chmod(0o2700)

@@ -31,7 +31,7 @@ def test_run_ledger_accumulates_monotonic_stage_time_and_preserves_first_failure
     data = ledger.data()
     assert data['stage_durations_seconds'] == {
         'preparation': 0.0, 'bootstrap': 0.0, 'install': 0.0, 'reboot': 0.0,
-        'test': 1.0, 'collection': 0.0, 'cleanup': 0.0,
+        'test': 1.0, 'collection': 0.0, 'cleanup': 0.0, 'finalization': 0.0,
     }
     assert data['outcomes']['product'] == {
         'outcome': 'failed', 'category': 'pytest:failed:installed'}
@@ -750,6 +750,8 @@ def test_public_evidence_records_stage_timings_and_separate_outcomes(tmp_path):
     }
     lease = Mock()
     lease.state = {'baseline_sha256': 'c' * 64, 'phase': 'complete'}
+    lease.capture.verification_totals = {'calls': 2, 'bytes_read': 8192, 'failures': 0,
+                                        'duration_seconds': 0.5}
     ledger = runner.RunLedger()
     ledger.durations['preparation'] = 1.25
     ledger.pass_outcome('product')
@@ -764,6 +766,7 @@ def test_public_evidence_records_stage_timings_and_separate_outcomes(tmp_path):
     assert result['category'] == 'collection:missing'
     assert result['selected_inputs_sha256'] == 'd' * 64
     assert result['stage_durations_seconds']['preparation'] == 1.25
+    assert result['baseline_verification'] == lease.capture.verification_totals
     assert result['outcomes'] == {
         'product': {'outcome': 'passed', 'category': None},
         'infrastructure': {'outcome': 'passed', 'category': None},
@@ -784,6 +787,7 @@ def test_unsafe_guest_evidence_fails_collection_without_replacing_product_catego
     }
     lease = Mock()
     lease.state = {'baseline_sha256': 'c' * 64, 'phase': 'complete'}
+    lease.capture.verification_totals = {}
     collected = tmp_path / 'guest-results'
     collected.mkdir()
     (collected / 'unsafe').symlink_to(tmp_path)
@@ -809,6 +813,7 @@ def test_restore_never_requests_boot_or_deletes_snapshot(local_preparation_sourc
     lease = runner.Lease(Mock(), Mock(), Mock())
     lease.capture.revalidate = Mock()
     lease.snapshot_xml = 'snapshot'
+    lease.source.baseline.return_value = 'snapshot'
     snapshot = lease.source.domain.snapshotLookupByName.return_value
     snapshot.getXMLDesc.return_value = 'snapshot'
     lease.restore()
@@ -903,6 +908,8 @@ def test_busy_lease_refuses_without_vm_mutation(lease_rig):
                                directory=lease.directory, anchor=lease.capture.anchor)
         with pytest.raises(runner.Error, match='busy-controller'):
             another.__enter__()
+        assert lease.commands.lock_fd == lease.fd
+        lease.capture.verify_snapshot()
         lease.source.domain.create.assert_not_called()
         lease.source.domain.revertToSnapshot.assert_not_called()
 

@@ -269,6 +269,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                 except BaseException:
                     fail('cleanup', 'execution:connection-close-failed')
         report['lease_phase'] = lease.state['phase'] if lease and lease.state else None
+        if lease is not None:
+            report['baseline_verification'] = dict(lease.capture.verification_totals)
         if any(v['outcome'] == 'failed' for v in ledger.outcomes.values()):
             report['outcome'] = 'failed'
         if collector is not None:

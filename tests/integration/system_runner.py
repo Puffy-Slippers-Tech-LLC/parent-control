@@ -96,7 +96,7 @@ def log(stage):
 
 
 STAGE_NAMES = ('preparation', 'bootstrap', 'install', 'reboot', 'test',
-               'collection', 'cleanup')
+               'collection', 'cleanup', 'finalization')
 OUTCOME_NAMES = ('product', 'infrastructure', 'collection', 'cleanup')
 HOST_EXECUTABLES = ('ssh', 'qemu-img', 'ssh-keygen', 'virt-customize',
                     'dpkg-deb', 'dpkg-query')
@@ -402,8 +402,11 @@ class Lease:
         # Trusted read/report callback, after the sole cleanup attempt and while
         # the lease is held. It must never restore or release this lease itself.
         self.finalize = finalize
+        self.backing_run = None
 
     def save(self, phase):
+        if self.capture.backing_verification is not None:
+            self.capture.backing_verification.check_owner()
         self.state['phase'] = phase
         require(self.capture.private_directory() == self.capture.directory_identity, 'guard:directory-changed')
         fd, path = tempfile.mkstemp(prefix='.system-run-', dir=self.directory)
@@ -428,10 +431,14 @@ class Lease:
             self.capture.state = self.capture.read_state()
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
             log('stage:baseline-verification')
+            run = uuid.uuid4().hex
+            self.backing_run = run
             # Proof validation can dominate preparation. Include it on refusal
             # and interruption too, before any VM mutation is permitted.
             with self.ledger.measure('preparation') if self.ledger else nullcontext():
-                require(self.capture.verify_snapshot() == self.capture.state['proof'], 'baseline:changed')
+                self.capture.begin_backing_verification(self)
+                require(self.capture.verify_snapshot(boundary='acquisition') ==
+                        self.capture.state['proof'], 'baseline:changed')
             if self.journal.exists():
                 baseline.identity(self.journal, private=True, mode=0o600)
                 previous = baseline.parse_json(self.journal.read_bytes())
@@ -439,7 +446,6 @@ class Lease:
             self.original_xml = self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE)
             self.original_id = self.source.domain.ID()
             require(not self.source.domain.autostart(), 'guard:autostart')
-            run = uuid.uuid4().hex
             # Validate isolation before creating state or shutting down a VM.
             self.test_xml = isolated_xml(self.original_xml, self.source.uuid, run,
                                          graphics_type=self.view.graphics_type)
@@ -450,10 +456,17 @@ class Lease:
             self.save('validated')
             return self
         except BaseException:
-            self.release()
+            try:
+                self.release()
+            except BaseException:
+                if self.ledger:
+                    self.ledger.fail_outcome('cleanup', 'cleanup:lease-release-failed')
+                log('cleanup:lease-release-failed')
             raise
 
     def guard(self, *, off=False):
+        if self.capture.backing_verification is not None:
+            self.capture.backing_verification.check_owner()
         self.capture.revalidate(off=off)
         require(self.source.baseline() == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
 
@@ -461,7 +474,7 @@ class Lease:
         self.snapshot_xml = self.source.baseline()
         # The initial shutdown is explicitly authorized for this fixed source VM.
         self.save('shutdown-requested')
-        self.source.shutdown(self.capture.revalidate, requested=False)
+        self.source.shutdown(self.guard, requested=False)
         self.guard(off=True)
         self.save('restore-requested')
         self.mutated = True
@@ -476,26 +489,42 @@ class Lease:
 
     def restore(self):
         # snapshot revert defaults to its saved shutoff state; never pass RUNNING.
-        self.capture.revalidate(off=True)
+        self.guard(off=True)
         snap = self.source.domain.snapshotLookupByName(baseline.SNAPSHOT, 0)
         require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
         self.source.domain.revertToSnapshot(snap, 0)
         self.view.run = None
         self.view.domain_id = None
-        self.capture.revalidate(off=True)
+        self.guard(off=True)
 
     def start(self):
         self.guard(off=True)
+        # QEMU can open backing storage writable while constructing its normal
+        # auto-read-only block graph. Never carry an immutable-byte proof across
+        # that transition. The next existing verification gate must perform a
+        # full hash under the new lease. Do not add disk reads to this callback:
+        # the controller must attach the serial stream promptly after create.
+        self.capture.retire_backing_verification()
         self.save('start-requested')
         self.source.domain.create()
         self.view.domain_id = self.source.domain.ID()
         require(self.view.domain_id >= 0, 'start:identity-unavailable')
         self.state['domain_id'] = self.view.domain_id
         self.guard()
+        if self.backing_run is not None:
+            self.capture.begin_backing_verification(self)
         self.save('running')
 
     def stop(self):
         """Stop the recorded instance without restoring between backend callbacks."""
+        self.guard()
+        try:
+            self.capture.retire_backing_verification()
+        except BaseException:
+            # Byte-proof failure remains latched for final acceptance. Still
+            # stop/restore our recorded guest if ownership is intact; a lost
+            # VM lock instead makes the next guard refuse before any mutation.
+            log('cleanup:backing-proof-failed')
         self.guard()
         if not self.view.snapshot()[1]:
             # Only the domain instance started and identity-recorded by this run.
@@ -517,7 +546,10 @@ class Lease:
         self.stop()
         self.restore()
         log('stage:restored-baseline-verification')
-        require(self.capture.verify_snapshot() == self.capture.state['proof'], 'cleanup:baseline-changed')
+        if self.backing_run is not None:
+            self.capture.begin_backing_verification(self)
+        require(self.capture.verify_snapshot(force_bytes=True, boundary='restoration') ==
+                self.capture.state['proof'], 'cleanup:baseline-changed')
         require(self.inspect(Path(self.capture.state['source']['layout']['disk']),
                              self.capture.state['script_digest']) == self.capture.state['guest'], 'cleanup:guest-changed')
         # Revert restores the snapshot's XML; restore the validated pre-run config.
@@ -526,22 +558,37 @@ class Lease:
         self.save('complete')
 
     def release(self):
-        self.commands.lock_fd = None
+        pending = None
+        if self.capture.backing_verification is not None:
+            try:
+                self.capture.backing_verification.close()
+            except BaseException as error:
+                pending = error
+        # A refused concurrent lease may share this command adapter. It must
+        # not clear the active owner's inherited-lock reference.
+        if self.fd is not None and self.commands.lock_fd == self.fd:
+            self.commands.lock_fd = None
         if self.fd is not None:
-            os.close(self.fd)
-            self.fd = None
+            try:
+                os.close(self.fd)
+            except BaseException as error:
+                pending = pending if pending is not None else error
+            finally:
+                self.fd = None
+        if pending is not None:
+            raise pending
 
     def recover_graphical_cleanup(self):
-        """Resume only a recorded, still-running VNC cleanup after connection loss.
+        """Resume a recorded VNC cleanup, or verify an already restored off guest.
 
         No start, preparation, new baseline or journal replacement is allowed.
-        Replaced/off domains and other incomplete phases require separate review.
+        An off guest must exactly match the recorded original inactive XML.
         """
         require(self.fd is None and self.view.graphics_type == 'vnc', 'recovery:invalid-lease')
         self._recover_recorded_cleanup()
 
     def recover_system_cleanup(self):
-        """Resume only the recorded, still-running installed-system cleanup."""
+        """Resume recorded installed-system cleanup or verify its restored state."""
         require(self.fd is None and self.view.graphics_type == 'spice', 'recovery:invalid-lease')
         self._recover_recorded_cleanup()
 
@@ -569,11 +616,17 @@ class Lease:
                 state['domain_uuid'] == self.source.uuid and
                 state['baseline_sha256'] == hashlib.sha256(baseline.encode(self.capture.state)).hexdigest(),
                 'recovery:journal-identity')
+            off = self.source.domain.ID() == -1
             require(not self.source.domain.autostart() and
-                    self.source.domain.ID() == state['domain_id'], 'recovery:domain-replaced-or-off')
-            displays = ET.fromstring(self.source.domain.XMLDesc(0)).findall('devices/graphics')
-            require(len(displays) == 1 and displays[0].get('type') == self.view.graphics_type,
-                    'recovery:graphics-changed')
+                    (off or self.source.domain.ID() == state['domain_id']),
+                    'recovery:domain-replaced-or-off')
+            if off:
+                require(self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) ==
+                        state['original_xml'], 'recovery:off-configuration-changed')
+            else:
+                displays = ET.fromstring(self.source.domain.XMLDesc(0)).findall('devices/graphics')
+                require(len(displays) == 1 and displays[0].get('type') == self.view.graphics_type,
+                        'recovery:graphics-changed')
             self.original_xml = state['original_xml']
             require(baseline.domain_layout(self.original_xml, self.source.uuid) ==
                     self.capture.state['source']['layout'], 'recovery:original-layout')
@@ -581,11 +634,26 @@ class Lease:
                          graphics_type=self.view.graphics_type)
             self.state = state
             self.view.original_shares = self.capture.state['source']['layout']['source_shares']
-            self.view.run = state['run']
-            self.view.domain_id = state['domain_id']
+            self.view.run = None if off else state['run']
+            self.view.domain_id = None if off else state['domain_id']
             self.snapshot_xml = self.source.baseline()
             self.guard()
-            require(self.capture.verify_snapshot() == self.capture.state['proof'], 'recovery:baseline-changed')
+            require(self.capture.verify_snapshot(force_bytes=True, boundary='recovery') ==
+                    self.capture.state['proof'], 'recovery:baseline-changed')
+            if off:
+                # No domain mutation is authorized by the off-state branch.
+                # Independently audit the restored guest and reconcile the
+                # exact inactive configuration again before completing cleanup.
+                require(self.inspect(Path(self.capture.state['source']['layout']['disk']),
+                                     self.capture.state['script_digest']) ==
+                        self.capture.state['guest'], 'recovery:guest-changed')
+                self.guard(off=True)
+                require(self.source.domain.ID() == -1 and
+                        self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) ==
+                        self.original_xml, 'recovery:off-configuration-changed')
+                self.save('complete')
+                log('recovery:verified-restored-off')
+                return
             self.mutated = True
             log('recovery:recorded-cleanup')
             self.finish()
@@ -614,7 +682,8 @@ class Lease:
             # retry restoration, skip release, or replace an earlier failure.
             if self.finalize is not None:
                 try:
-                    self.finalize(self)
+                    with self.ledger.measure('finalization') if self.ledger else nullcontext():
+                        self.finalize(self)
                 except BaseException as error:
                     if self.ledger:
                         record_caught_failure(self.ledger, error)
@@ -1179,6 +1248,7 @@ def evidence(directory, manifest, lease, passed, category, selection,
             'source': manifest['source'], 'cleanup_phase': lease.state['phase'],
             'previous_package': manifest.get('previous_package'),
             'transport': 'guarded-ssh-pytest', 'virtualization': 'libvirt-qemu-snapshot',
+            'baseline_verification': dict(lease.capture.verification_totals),
             'selection': selection_evidence(directory, selection), **ledger.data()}
     (output / 'result.json').write_bytes(baseline.encode(data))
     suite = ET.Element('testsuite', name='onpc-system', tests='1', failures='0' if passed else '1')

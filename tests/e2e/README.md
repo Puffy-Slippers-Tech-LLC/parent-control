@@ -282,6 +282,72 @@ later successful worker result cannot clear it. The controller persists
 failure with its other attempt outcomes. Checks detect changes at these
 boundaries; they are not a filesystem monitor.
 
+### Backing-file verification within an attempt
+
+The normal installed/graphical `Lease` now uses
+[BackingVerification](../integration/backing_verification.py) for `chain[1:]`.
+The writable top image remains outside this byte proof: guest writes are expected,
+while its retained internal-snapshot metadata is checked at every existing gate.
+No validation calls, source/asset checks, durable-state reads, authorization
+boundaries or checks around acceptance-report writes have been removed.
+
+Before the first full SHA-256 read, the controller opens each backing file through
+pinned parents without following symlinks and acquires a Linux read lease.
+Only ext4 and tmpfs are admitted; other filesystems, unavailable leases and a
+SIGURG handler already in use retain full byte verification at every gate.
+These are kernel file leases, separate from the advisory VM controller lock.
+[F_GETLEASE](https://man7.org/linux/man-pages/man2/F_GETLEASE.2const.html)
+reports a breaking read lease as unlocked before a conflicting open or truncate
+can write. Existing writable descriptors and mappings prevent acquisition.
+The controller checks that kernel state at every gate and never renews a lease.
+It selects normally ignored SIGURG notifications without installing a signal
+handler; correctness depends on the synchronous kernel query, not signal timing
+or the lease-break timeout.
+
+The first hash is reusable only while every file lease remains valid, the same
+controller owns the exact VM-lock descriptor, the attempt and baseline state
+match, and pinned file/path identities still agree. Size and timestamps supplement
+the kernel proof; they never substitute for it. Replacements, symlinks, hardlinks,
+metadata changes and lost ownership refuse. A failed check stays failed even if
+bytes are subsequently restored. A healthy proof is retired before VM startup
+or shutdown: QEMU's normal auto-read-only block graph can transiently request a
+writable backing handle. Startup acquires a new, unverified lease; the first
+existing post-startup verification gate must read all bytes before that new
+proof becomes reusable. Disk reads never delay serial attachment inside the
+power callback. Existing writable handles instead retain full reads.
+Any checks between retirement and reacquisition also read all bytes. No cached
+digest crosses a disk transition, and a broken proof cannot be retired and retried.
+The full backing-byte audit establishes another new proof after outer restoration,
+before finalization. Release checks and closes every retained
+descriptor before releasing the VM lock, including on interruption or cleanup
+failure. Descriptors are never passed to workers, and no proof is serialized or
+reused by recovery or a reopened maintenance operation.
+
+Recorded `cleanup-requested` recovery can also audit a powered-off domain whose
+inactive XML exactly matches the saved original configuration. It independently
+checks the accepted baseline bytes, snapshot, guest contents and configuration
+again before completing the journal. This branch never starts, stops, restores
+or redefines a domain, and leaves the original attempt failed. Other off-state
+configurations still refuse recovery.
+
+This relies on the supported mounted filesystem's kernel enforcement and the
+existing trusted-controller boundary; it does not authorize raw block-device
+mutation or changes to the kernel or host security configuration. Guest code has
+no host share during an attempt. Backing owners and host administrators can
+request writes, but those requests invalidate the kernel proof. The accepted
+baseline, snapshot and persisted schemas are unchanged. Update activation is
+`none`: this test-only behavior takes effect on the next controller invocation.
+
+`baseline:verification` emits fixed fields for boundary, call count, mode, bytes
+actually read, elapsed seconds and outcome. Totals are retained in installed and
+public E2E results; the ledger now measures finalization separately from cleanup.
+The [kernel/refusal regressions](../unit/test_backing_verification_cleanup_safety.py)
+also join the automatic isolated safety prerequisites. Measured qualification and
+remaining runtime limits belong to the
+[runtime handoff](../../docs/TestAutomation/Test-All-Runtime-Optimization-Handoff.md#implementation-results).
+
+### Earlier provenance qualifications
+
 `Qualification._recheck_final_inputs` now preserves the first fixed
 `final_provenance_refusal` in both early and late finalization failure reports.
 `provenance.refusal_code` admits only explicit source, asset, metadata and baseline
@@ -308,8 +374,9 @@ components. The [third VT6 attempt](../../docs/TestAutomation/Evidence/20-VT6-Re
 isolated 69.027 seconds in baseline verification and 0.091 seconds in source
 capture during the password-stage recheck. Guest `login` had a configured
 60-second lifetime and the selected executable changed from `login` to `agetty`
-across this wait. Full checks remain mandatory; neither caching nor skipping a
-check is qualified. Finite fixture login preparation and password readiness are
+across this wait. At that point full backing reads remained mandatory. The
+attempt-local kernel proof above changes the backing-read implementation while
+retaining these checks. Finite fixture login preparation and password readiness are
 now live-qualified in attempt 6 under the VT6 contract below. Subsequent
 [attempt 10](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
 completes authentication/command stages but demonstrates insufficient worker

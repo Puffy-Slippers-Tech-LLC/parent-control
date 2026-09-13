@@ -200,7 +200,7 @@ def test_public_preparation_satisfies_real_bootstrap_input_contract(harness, mon
     def prepared(*args, **kwargs):
         lease = factory(*args, **kwargs)
         lease.state['baseline_sha256'] = 'b' * 64
-        lease.capture = Mock(state={'source': {'layout': {'disk': '/guarded-image'}},
+        lease.capture = Mock(verification_totals={}, state={'source': {'layout': {'disk': '/guarded-image'}},
                                    'guest': {'preparation_record_sha256': 'c' * 64}})
         return lease
     monkeypatch.setattr(execution.system, 'Lease', prepared)

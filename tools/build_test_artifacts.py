@@ -138,7 +138,7 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
     return {
         "source": {"revision": revision, "digest_sha256": source_digest, "file_count": len(source_paths)},
         "build_inputs": {"source_date_epoch": int(epoch), "architecture": architecture,
-                         "deb_build_options": "nocheck",
+                         "deb_build_options": "nocheck parallel=2",
                          "package_command": ["dpkg-buildpackage", "--build=binary", "--no-sign", f"-a{architecture}"]},
         "tools": {"dpkg-architecture": _command_version(["dpkg-architecture", "--version"]),
                   "dpkg-buildpackage": _command_version(["dpkg-buildpackage", "--version"]),

@@ -325,16 +325,11 @@ exports no filenames, contents, hashes or raw metadata and preserves the origina
 `provenance:source-changed` latch. The parameterized
 `test_source_change_diagnostic_counts_without_private_data` regression covers
 addition, removal, content, mode and timestamp mutations plus privacy and latching.
-The [2026-09-12 aggregate investigation](../../docs/TestAutomation/Evidence/Test-All-202723-Fixes-20260912.md)
-records a preparation refusal despite no intentional edits reported by the
-operator; the historical comparison cannot be reconstructed from retained
-evidence. Counts improve future diagnosis but do not identify the writer.
-The settled-input rerun in that investigation passes E2E-001 through final
-source preservation, collection and baseline restoration, after the operator
-confirmed the concurrent launcher work had finished. Its earlier package/source
-mismatch and transient launcher unit failures are separate retained results;
-the original run's differing field/writer remain unknown. The new diagnostic
-counts have local refusal/privacy coverage, not an induced live-failure result.
+Counts improve future diagnosis but do not identify the writer. Historical
+source-change refusals whose comparisons were not retained remain unattributed;
+a successful settled-input rerun cannot establish their cause or exclude
+intermittency. The diagnostic counts have local refusal/privacy coverage, not
+an induced live-failure result.
 This does not close
 historical provenance failures or qualify authentication. A historical false
 source-preservation flag alone cannot identify

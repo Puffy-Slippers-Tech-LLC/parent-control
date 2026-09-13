@@ -9,6 +9,7 @@ import sys
 import tempfile
 
 import test_launcher as host
+import test_activity
 
 
 CATEGORIES = {
@@ -79,7 +80,7 @@ def plan(root, category, argv):
         if not paths:
             raise ValueError('fixture runtime suite is empty')
         targets = [host.confined_file(root, path.relative_to(root)) for path in paths]
-        return [['/usr/bin/python3', '-B', '-m', 'pytest', *options, '--', *targets]], '--collect-only' not in options
+        return [['/usr/bin/python3', '-B', '-m', 'pytest', '-p', 'no:cacheprovider', *options, '--', *targets]], '--collect-only' not in options
     if category == 'backend':
         if argv:
             raise ValueError('backend readiness accepts no arguments')
@@ -110,7 +111,7 @@ def plan(root, category, argv):
                 raise ValueError('child test filename belongs to a different runner')
             files.append(str(root / item))
         if category == 'child-node':
-            return [['/usr/bin/node', '--test', *files]], False
+            return [['/usr/bin/node', '--test', '--test-concurrency=2', *files]], False
         return [['/usr/bin/gjs', '-m', path] for path in files], False
     if category in ('static', 'traceability'):
         choice = argv[0] if argv else ('all' if category == 'static' else 'stage')
@@ -166,7 +167,7 @@ def plan(root, category, argv):
     raise ValueError('unknown test category; use --list')
 
 
-def main(argv=None):
+def _main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv in (['--help'], ['-h'], ['--list']):
         print(json.dumps(CATEGORIES, indent=2))
@@ -203,6 +204,8 @@ def main(argv=None):
         if safety:
             host.prerequisites(root)
         env = host.environment(root)
+        if category in ('fixture-runtime', 'coverage'):
+            env = host.test_environment(root)
         if category in ('fixtures', 'artifacts') and (not args or args == ['build']):
             directory = tempfile.mkdtemp(prefix=f'onpc-test-{category}-', dir='/tmp')
             commands[0] += ['--output', directory]
@@ -231,5 +234,34 @@ def main(argv=None):
         os.execve(commands[-1][0], commands[-1], env)
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'filesystem or execution failure'
+        print('run-tests: ' + detail, file=sys.stderr)
+        return 2
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv or argv in (['--help'], ['-h'], ['--list']) or os.geteuid() == 0:
+        return _main(argv)
+    # Listing declarations does not compete for a running test's resources.
+    if argv[0] in ('system', 'e2e') and '--list' in argv:
+        return _main(argv)
+    try:
+        root = Path(__file__).resolve().parents[1]
+        category, args = argv[0], argv[1:]
+        if args[:1] == ['--unattended']:
+            args = args[1:]
+        # Preserve pending/invalid selection refusal before even acquiring a
+        # lock. Test suites can inspect refusals while another run owns it.
+        if category in ('unit', 'component', 'ui'):
+            host.pytest_command(root, args, category)
+        elif category == 'all':
+            if args:
+                raise ValueError('all accepts no arguments')
+        else:
+            plan(root, category, args)
+        with test_activity.activity(root):
+            return _main(argv)
+    except (ValueError, OSError) as error:
+        detail = str(error) if isinstance(error, ValueError) else 'test activity ownership unavailable'
         print('run-tests: ' + detail, file=sys.stderr)
         return 2

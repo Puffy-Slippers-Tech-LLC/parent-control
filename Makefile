@@ -175,10 +175,10 @@ PYTEST = $(TEST_ENV) $(PYTHON) -m pytest
 UI_TEST_PYTHON ?= $(CURDIR)/.venv/onpc-ui-tests/bin/python
 
 check-unit:
-	@$(PYTEST) tests/unit -m "unit or contract"
+	@tools/run-unit-tests tests/unit -m "unit or contract"
 
 check-component:
-	@$(PYTEST) tests/component -m component
+	@tools/run-tests component tests/component -m component
 	@$(MAKE) --no-print-directory check-child-node
 	@$(MAKE) --no-print-directory check-child-gjs
 	@$(MAKE) --no-print-directory check-child-shell
@@ -246,7 +246,7 @@ check-source:
 
 check: check-source
 	@$(MAKE) --no-print-directory check-unit
-	@$(PYTEST) tests/component -m component
+	@tools/run-tests component tests/component -m component
 
 preview-kiosk:
 	# The preview watches kiosk assets and source files; no manual relaunch is needed.
@@ -363,9 +363,7 @@ _generate-package-activation-manifest:
 	$(PYTHON) debian/package_activation.py generate --root "$(if $(strip $(DESTDIR)),$(DESTDIR),/)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json" $(foreach path,$(ACTIVATION_MANIFEST_PATHS),--include "$(patsubst /%,%,$(path))")
 
 check-child-node:
-	@node --test tests/child/indicator_logic.test.mjs tests/child/error_handler.test.mjs
+	@tools/run-tests child-node
 
 check-child-gjs:
-	@rm -rf artifacts/coverage/gjs-child
-	@mkdir -p artifacts/coverage/gjs-child
-	@gjs --coverage-prefix="$(CURDIR)/child" --coverage-output="$(CURDIR)/artifacts/coverage/gjs-child" -m tests/child/gjs_adapters_test.js
+	@tools/run-tests child-gjs

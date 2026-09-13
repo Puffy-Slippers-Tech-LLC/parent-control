@@ -6,6 +6,29 @@ precedence.** Reject savings that weaken correctness, security, coverage,
 evidence, diagnosis or cleanup. Reading/time targets trigger review, never
 omission of necessary work. This is the single implementation session procedure.
 
+## Retain useful evidence without one-off reports
+
+Do not create standalone investigation, fix-attempt or verification documents
+for routine test/build failures, including `make test-all`. This applies under
+`Evidence/` and elsewhere: moving or renaming a report does not make it useful.
+Report the cause, correction and verification in the conversation or PR. Update
+the existing owning contract only for reusable behavior or regression guidance.
+If work remains, update its existing active handoff with the blocker, next action
+and necessary artifact references instead of adding an attempt diary.
+
+Keep runner-generated reports, original failures, logs, screenshots and private
+artifacts. Keep useful qualification evidence supporting automation in progress.
+A new standalone evidence document needs an explicit user request or a concrete
+ongoing acceptance/recovery need that existing artifacts and the active handoff
+cannot satisfy. A failed check, completed fix, list of passing tests or desire
+to record session activity alone does not justify one. Do not copy machine
+reports into prose or create a document recording documentation cleanup.
+
+This policy supersedes older per-attempt evidence-writing instructions. Required
+verification and artifact retention still apply; they do not require a new
+Markdown report. Routine user-directed fixes do not require roadmap handoffs or
+continuation updates unless they change the ongoing task's state.
+
 ## Start with one bounded result
 
 1. Use the applicable `AGENTS.md` instructions already supplied in context;
@@ -424,8 +447,9 @@ and the handoff link. Say **“You can end this session”** and give the same p
 On roadmap completion, mark the continuation complete and say no further
 implementation session is needed.
 
-Record experiments/results, preparation/test/cleanup time and already-exposed
-usage in one evidence row; no telemetry service or log archaeology. Forecast
+When needed for ongoing work, record experiments/results, preparation/test/cleanup
+time and already-exposed usage briefly in the existing active handoff; do not
+create a standalone report or per-attempt ledger. No telemetry service or log archaeology. Forecast
 from measured cases, helper gaps and real waits after the first stable batch.
 Optimize the dominant measured cost before adding caches/frameworks. Tokens,
 model price and VM wall time differ; faster boots do not prove token savings.

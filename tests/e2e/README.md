@@ -107,6 +107,13 @@ marker to that document's digest. This preparation input is required even for
 a product-free case; `VerifiedInputs` still independently verifies the full
 source/package/baseline contract under the lease.
 
+The shared bootstrap now requires the
+[schema-2 prepared guest tools](../integration/Environment.md), with an
+independent read-only key/marker verification after the offline edit. It no
+longer installs OpenSSH at each attempt. This preparation change has host-safe
+coverage; live SSH/graphical qualification on the new baseline remains pending.
+Older runtime evidence retains its original baseline and source identity.
+
 Schema version 1 has common family declarations inherited by each explicit
 variant. Every variant has a stable ID and one canonical owner from the
 family's related tasks. There is no runtime Cartesian expansion or duplicate
@@ -283,6 +290,12 @@ failure with its other attempt outcomes. Checks detect changes at these
 boundaries; they are not a filesystem monitor.
 
 ### Backing-file verification within an attempt
+
+`make test-all` selects development mode: backing-byte scans are skipped, while
+ownership, read leases, snapshot metadata, source/assets and cleanup checks stay
+active. It records `metadata-only` in verification evidence and never creates a
+verified-byte proof. `make test-all-verify` and default direct system/E2E runs
+retain the full verification behavior described below.
 
 The normal installed/graphical `Lease` now uses
 [BackingVerification](../integration/backing_verification.py) for `chain[1:]`.

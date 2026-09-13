@@ -16,8 +16,14 @@ problem. A fresh chat does not require rerunning unaffected tests.
 
 ## All established regressions
 
-Run `make test-all` from the checkout. `tools/run-tests all` is the equivalent
-validated launcher. Neither accepts suite selectors. The terminal shows
+Run `make test-all` (`tools/run-tests all`) for development without backing-file
+byte scans, or `make test-all-verify` (`tools/run-tests all-verify`) for the
+existing full verification at each VM attempt boundary. Both retain ownership
+locks, backing read leases, snapshot/chain checks, guest inspection and cleanup;
+reports explicitly record the verification policy. Direct system/E2E runs still
+verify backing bytes unless `--skip-backing-verification` is explicitly selected.
+Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
+using the new fast mode. Neither aggregate accepts suite selectors. The terminal shows
 colored category progress with branches for the two host workers, a join before
 the serial build/VM stages, and overall wall time. Branch assignment reflects
 actual launches; work waiting for capacity or headroom stays unassigned. Both

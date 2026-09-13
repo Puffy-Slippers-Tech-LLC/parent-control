@@ -33,7 +33,8 @@ CATEGORIES = {
     'system': 'guarded installed runner; --artifacts, --previous-artifacts, --area, --test, --list',
     'e2e': 'host-safe graphical inventory --list; invalid/pending execution refused before privilege',
     'fast': 'reserved for the Task 28 make test-fast target',
-    'all': 'all established regression suites; live report and no narrowing selectors',
+    'all': 'all established regression suites without backing-file byte scans',
+    'all-verify': 'all established regression suites with full backing-file verification',
 }
 
 
@@ -122,7 +123,7 @@ def plan(root, category, argv):
             return [python_file(root, 'tools/verify_test_traceability.py', '--mode', choice)], False
         names = ('shell', 'gjs') if choice == 'all' else (choice,)
         return [python_file(root, f'tools/check_{name}.py') for name in names], False
-    if category in ('check', 'component-all', 'fast', 'all'):
+    if category in ('check', 'component-all', 'fast', 'all', 'all-verify'):
         assignments = []
         if category == 'fast':
             parser = host.ArgumentParser(allow_abbrev=False)
@@ -142,7 +143,7 @@ def plan(root, category, argv):
         elif argv:
             raise ValueError('this aggregate accepts no arguments')
         target = {'check': 'check', 'component-all': 'check-component',
-                  'fast': 'test-fast', 'all': 'test-all'}[category]
+                  'fast': 'test-fast', 'all': 'test-all', 'all-verify': 'test-all-verify'}[category]
         return [make_command(root, target, assignments)], 'LIST=1' not in assignments
     if category == 'coverage':
         if argv:
@@ -177,11 +178,11 @@ def _main(argv=None):
             raise ValueError('use this launcher as an unprivileged user')
         root = Path(__file__).resolve().parents[1]
         category, args = argv[0], argv[1:]
-        if category == 'all':
+        if category in ('all', 'all-verify'):
             if args:
-                raise ValueError('all accepts no arguments')
+                raise ValueError('all aggregates accept no arguments')
             from regression import main as regression_main
-            return regression_main(root)
+            return regression_main(root, verify_backing_bytes=category == 'all-verify')
         if args[:1] == ['--unattended']:
             from regression_process import host_run, category_run
             if category in ('unit', 'component', 'ui'):
@@ -254,9 +255,9 @@ def main(argv=None):
         # lock. Test suites can inspect refusals while another run owns it.
         if category in ('unit', 'component', 'ui'):
             host.pytest_command(root, args, category)
-        elif category == 'all':
+        elif category in ('all', 'all-verify'):
             if args:
-                raise ValueError('all accepts no arguments')
+                raise ValueError('all aggregates accept no arguments')
         else:
             plan(root, category, args)
         with test_activity.activity(root):

@@ -106,6 +106,7 @@ def test_main_sets_hostname_before_recording_baseline(monkeypatch, hostname_fail
                         prepare.GuestIdentity("original-test-guest", "a" * 32, "26.04", "kvm"))
     monkeypatch.setattr(prepare, "preflight_accounts", lambda: {})
     monkeypatch.setattr(prepare, "preparation_digest", lambda: "digest")
+    monkeypatch.setattr(prepare, "prepare_test_dependencies", lambda **kwargs: None)
     monkeypatch.setattr(prepare.getpass, "getpass", lambda prompt: "test-password")
     monkeypatch.setattr(prepare, "reconcile_accounts", lambda *args, **kwargs: [])
     monkeypatch.setattr(prepare, "marker_document", lambda guest, *args: guest)
@@ -321,15 +322,83 @@ def valid_marker():
     return prepare.marker_document(guest, accounts, "c" * 64)
 
 
+def test_account_reconciliation_repeats_after_creation_without_duplicate_users_or_group_removal(tmp_path):
+    root = guest_root(tmp_path)
+    entries = {}
+    groups = {}
+
+    class StatefulRunner(AccountRunner):
+        def run(self, command, **kwargs):
+            if command[0] == 'useradd':
+                username = command[-1]
+                assert username not in entries
+                entries[username] = account_entry(username, 1200 + len(entries))
+                # Exercise cleanup of inherited administrative memberships.
+                groups[username] = {username, 'adm', 'sudo'}
+            if command[0] == 'id':
+                self.commands.append(command)
+                return subprocess.CompletedProcess(command, 0, ' '.join(groups[command[-1]]), '')
+            if command[0] == 'gpasswd':
+                self.commands.append(command)
+                assert kwargs.get('check', True)
+                groups[command[2]].remove(command[3])
+                return subprocess.CompletedProcess(command, 0, '', '')
+            return super().run(command, **kwargs)
+
+    runner = StatefulRunner(entries)
+    documents = []
+    for attempt in range(2):
+        existing = prepare.preflight_accounts(
+            root=root, lookup_user=entries.__getitem__, list_users=lambda: list(entries.values()),
+        )
+        runner.commands.clear()
+        verified = prepare.reconcile_accounts(
+            existing, 'shared test password', runner=runner,
+            lookup_user=entries.__getitem__, list_users=lambda: list(entries.values()),
+        )
+        documents.append(prepare.marker_document(
+            prepare.GuestIdentity('ubuntu26.04', 'a' * 32, '26.04', 'kvm'), verified, 'b' * 64,
+        ))
+        assert sum(command[0] == 'useradd' for command in runner.commands) == (4 if attempt == 0 else 0)
+        assert sum(command[0] == 'gpasswd' for command in runner.commands) == (4 if attempt == 0 else 0)
+    assert documents[0] == documents[1]
+
+
+@pytest.mark.parametrize('failed_command', ['id', 'gpasswd'])
+def test_account_group_probe_and_removal_failures_stop_before_password_changes(failed_command):
+    entries = {
+        item.username: account_entry(item.username, 1200 + index)
+        for index, item in enumerate(prepare.IDENTITIES)
+    }
+    existing = {
+        name: prepare.ExistingAccount(name, entry.pw_uid, entry.pw_gid, Path(entry.pw_dir))
+        for name, entry in entries.items()
+    }
+
+    class FailingRunner(AccountRunner):
+        def run(self, command, **kwargs):
+            if command[0] == failed_command:
+                assert kwargs.get('check', True)
+                raise subprocess.CalledProcessError(3, command)
+            return super().run(command, **kwargs)
+
+    runner = FailingRunner(entries, bad_child=True)
+    with pytest.raises(subprocess.CalledProcessError):
+        prepare.reconcile_accounts(existing, 'shared test password', runner=runner,
+                                   lookup_user=entries.__getitem__, list_users=lambda: list(entries.values()))
+    assert not runner.inputs
+
+
 def test_marker_schema_is_exact_versioned_and_secret_free():
     document = valid_marker()
     assert set(document) == {
-        "schema_version", "purpose", "guest", "preparation_script_sha256", "accounts"
+        "schema_version", "purpose", "guest", "preparation_script_sha256", "accounts", "test_dependencies"
     }
-    assert document["schema_version"] == 1
+    assert document["schema_version"] == 2
+    assert document['test_dependencies'] == prepare.guest_tools.VERSIONS
     assert set(document["accounts"]) == {item.username for item in prepare.IDENTITIES}
     serialized = repr(document).lower()
-    for forbidden in ("password", "passwd", "secret", "token", "ssh"):
+    for forbidden in ("password", "passwd", "secret", "token", "PRIVATE KEY"):
         assert forbidden not in serialized
     with pytest.raises(prepare.PreparationError, match="marker:schema"):
         prepare.validate_marker({**document, "extra": True})
@@ -352,3 +421,106 @@ def test_marker_permission_contract_requires_root_owned_0600_regular_file():
         value = os.stat_result((mode, 0, 0, 1, uid, gid, 0, 0, 0, 0))
         with pytest.raises(prepare.PreparationError, match="marker:permissions"):
             prepare.verify_marker_permissions(value)
+
+
+def package_status():
+    return '\n\n'.join(f'Package: {name}\nStatus: install ok installed\nVersion: {version}\n'
+                       for name, version in prepare.guest_tools.VERSIONS.items())
+
+
+@pytest.mark.parametrize('failure', [None, 'update', 'install', 'verify', 'active'])
+def test_dependencies_install_once_retry_without_network_and_stop_on_failure(tmp_path, failure):
+    status = tmp_path / 'var/lib/dpkg/status'
+    status.parent.mkdir(parents=True)
+    status.write_text('Package: bash\nStatus: install ok installed\nVersion: 1\n')
+    sources = tmp_path / 'etc/apt/sources.list.d/ubuntu.sources'
+    sources.parent.mkdir(parents=True)
+    sources.write_text('URIs: http://us.archive.ubuntu.com/ubuntu/\n')
+    commands = []
+
+    class DependencyRunner:
+        def run(self, command, *, input_text=None, check=True, timeout=120):
+            commands.append(command)
+            if command[0] == 'debconf-set-selections':
+                assert input_text == 'slapd slapd/no_configuration boolean true\n'
+            if command[-1] == 'update' and failure == 'update':
+                raise subprocess.CalledProcessError(1, command)
+            if command[0] == 'env':
+                if failure == 'install':
+                    raise subprocess.CalledProcessError(1, command)
+                if failure != 'verify':
+                    status.write_text(package_status())
+            if command[:2] == ['systemctl', 'is-active']:
+                return subprocess.CompletedProcess(command, 0 if failure == 'active' else 3,
+                                                   'active' if failure == 'active' else 'inactive')
+            if command[:2] == ['/usr/sbin/sshd', '-T']:
+                return subprocess.CompletedProcess(command, 0, 'pubkeyauthentication yes\n'
+                    'permitrootlogin prohibit-password\nauthenticationmethods any\n'
+                    'authorizedkeysfile .ssh/authorized_keys .ssh/authorized_keys2\n')
+            return subprocess.CompletedProcess(command, 0, '')
+
+    runner = DependencyRunner()
+    if failure:
+        with pytest.raises((prepare.PreparationError, subprocess.CalledProcessError)):
+            prepare.prepare_test_dependencies(runner=runner, root=tmp_path)
+        assert ['systemctl', 'enable', 'ssh.service'] not in commands
+        if failure == 'update':
+            assert not any(command[0] == 'env' for command in commands)
+    else:
+        prepare.prepare_test_dependencies(runner=runner, root=tmp_path)
+        assert sum(command[0] == 'env' for command in commands) == 1
+        assert commands[-1][:2] == ['/usr/sbin/sshd', '-T']
+        assert sources.read_text() == 'URIs: https://archive.ubuntu.com/ubuntu/\n'
+        commands.clear()
+        prepare.prepare_test_dependencies(runner=runner, root=tmp_path)
+        assert not any(command[0] in {'apt-get', 'env', 'debconf-set-selections'} for command in commands)
+
+
+@pytest.mark.parametrize('path', prepare.guest_tools.DORMANT_PATHS)
+def test_dependency_preparation_preserves_existing_directory_configuration(tmp_path, path):
+    from unittest.mock import Mock
+    configuration = tmp_path / path.lstrip('/')
+    configuration.parent.mkdir(parents=True)
+    configuration.write_text('unrelated configuration')
+    runner = Mock()
+    with pytest.raises(prepare.PreparationError, match='configuration-collision'):
+        prepare.prepare_test_dependencies(runner=runner, root=tmp_path)
+    runner.run.assert_not_called()
+    assert configuration.read_text() == 'unrelated configuration'
+
+
+def test_dependency_failure_prevents_account_changes_and_success_record(monkeypatch):
+    from unittest.mock import Mock
+    monkeypatch.setattr(prepare, 'validate_environment', Mock())
+    monkeypatch.setattr(prepare, 'preflight_accounts', Mock())
+    monkeypatch.setattr(prepare, 'preparation_digest', Mock())
+    monkeypatch.setattr(prepare, 'prepare_test_dependencies', Mock(side_effect=
+                        prepare.PreparationError('guest-tools:failure', 'test failure')))
+    accounts, marker, password = Mock(), Mock(), Mock()
+    monkeypatch.setattr(prepare, 'reconcile_accounts', accounts)
+    monkeypatch.setattr(prepare, 'write_marker', marker)
+    monkeypatch.setattr(prepare.getpass, 'getpass', password)
+    assert prepare.main() == 1
+    accounts.assert_not_called()
+    marker.assert_not_called()
+    password.assert_not_called()
+
+
+@pytest.mark.parametrize('change', ['missing', 'wrong-version', 'unconfigured', 'duplicate'])
+def test_dependency_inventory_refuses_incomplete_or_ambiguous_status(change):
+    status = package_status()
+    if change == 'missing':
+        status = status.split('\n\n', 1)[1]
+    elif change == 'wrong-version':
+        status = status.replace(next(iter(prepare.guest_tools.VERSIONS.values())), '0')
+    elif change == 'unconfigured':
+        status = status.replace('install ok installed', 'install ok unpacked', 1)
+    else:
+        status += '\n\n' + status.split('\n\n')[0]
+    with pytest.raises(ValueError, match='guest-tools:'):
+        prepare.guest_tools.verify_packages(status)
+
+
+def test_dependency_inventory_ignores_description_continuations():
+    status = package_status() + '\n\nPackage: unrelated\nDescription: Other package\n Package: openssh-server\n'
+    assert prepare.guest_tools.verify_packages(status) == prepare.guest_tools.VERSIONS

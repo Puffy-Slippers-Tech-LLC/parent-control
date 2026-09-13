@@ -1,4 +1,5 @@
 import subprocess
+import pytest
 
 
 from tests.support.paths import ROOT
@@ -45,7 +46,8 @@ def test_launcher_refuses_this_development_context_without_prompting():
     assert "Shared test-account password" not in result.stderr
 
 
-def test_make_prep_vm_needs_neither_compiler_nor_executable_launcher(tmp_path):
+@pytest.mark.parametrize('target', ['prep-vm', 'prepare-vm'])
+def test_make_prep_vm_needs_neither_compiler_nor_executable_launcher(tmp_path, target):
     (tmp_path / "Makefile").write_bytes((ROOT / "Makefile").read_bytes())
     master = tmp_path / 'setup.sh'
     master.write_bytes((ROOT / 'setup.sh').read_bytes())
@@ -57,7 +59,7 @@ def test_make_prep_vm_needs_neither_compiler_nor_executable_launcher(tmp_path):
     launcher.write_text("printf 'preparation launcher reached\\n'\n", encoding="utf-8")
     launcher.chmod(0o644)
     result = subprocess.run(
-        ["make", "--no-print-directory", "prep-vm", "CC=/nonexistent/onpc-compiler"],
+        ["make", "--no-print-directory", target, "CC=/nonexistent/onpc-compiler"],
         cwd=tmp_path,
         check=False,
         capture_output=True,

@@ -97,7 +97,8 @@ def test_pipeline_runs_source_and_binary_checks_and_retains_failure(tmp_path, mo
     assert names.count('sbuild') == (0 if failure == 'source' else 1)
 
 
-@pytest.mark.parametrize('target,category', [('test-publish', 'publish'), ('test-all', 'all')])
+@pytest.mark.parametrize('target,category', [('test-publish', 'publish'), ('test-all', 'all'),
+                                            ('test-all-verify', 'all-verify')])
 @pytest.mark.parametrize('status', [0, 7])
 def test_make_entrypoints_dispatch_and_propagate_failure(tmp_path, target, category, status):
     (tmp_path / 'tools').mkdir()

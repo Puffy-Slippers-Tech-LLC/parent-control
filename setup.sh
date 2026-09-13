@@ -15,7 +15,8 @@ Usage: ./setup.sh [MODE]
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --prepare-host        Prepare/reconcile the existing test VM baseline on the host
-  --prepare-vm          Prepare test accounts INSIDE the source VM only
+  --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
+  --prepare-vm          Prepare test accounts and reusable tools INSIDE the source VM
   --install-extension   Install the development extension for the current user
   -h, --help            Show this help
 
@@ -30,7 +31,7 @@ if (( $# > 1 )); then
 fi
 readonly mode="${1-}"
 case "$mode" in
-    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--codex-rules-only|--bootstrap-tools|--prepare-host|--prepare-vm|--install-extension) ;;
+    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--codex-rules-only|--bootstrap-tools|--prepare-host|--replace-missing-baseline|--prepare-vm|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -98,11 +99,15 @@ case "$mode" in
         # dependency/policy installation or baseline capture in this mode.
         /bin/bash "$script_dir/tests/integration/prepare-vm"
         ;;
-    --prepare-host)
+    --prepare-host|--replace-missing-baseline)
         # The controller owns provenance and resumability, preserving accepted
         # baselines and rejecting concurrent or replaced resources.
         echo 'setup: [stage:prepare-host]'
-        run_root prepare-host /usr/bin/python3 -B "$script_dir/tests/integration/prepare_host.py"
+        if [[ "$mode" == --replace-missing-baseline ]]; then
+            run_root replace-missing-baseline /usr/bin/python3 -B "$script_dir/tests/integration/prepare_host.py" --replace-missing
+        else
+            run_root prepare-host /usr/bin/python3 -B "$script_dir/tests/integration/prepare_host.py"
+        fi
         # Pin the accepted UUID only after successful baseline reconciliation.
         install_test_tools
         ;;

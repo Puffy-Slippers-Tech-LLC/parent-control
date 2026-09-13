@@ -4,6 +4,7 @@ All VM operations are mocks. The baseline fixture uses only temporary files.
 """
 
 from unittest.mock import Mock
+import stat
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -13,6 +14,39 @@ from tests.support.vm_baseline import xml as baseline_xml
 
 UUID = 'f95890e1-88e7-4779-8ae3-53fdcc34330a'
 RUN = 'a' * 32
+
+
+def bootstrap_guest():
+    """Offline guest file behavior shared by bootstrap and controller tests."""
+    from guest_test_dependencies import VERSIONS
+    files = {
+        '/var/lib/dpkg/status': '\n\n'.join(
+            f'Package: {name}\nVersion: {version}\nStatus: install ok installed\n'
+            for name, version in VERSIONS.items()).encode(),
+        '/etc/apt/sources.list.d/ubuntu.sources': b'URIs: https://archive.ubuntu.com/ubuntu/\n',
+        '/etc/fstab': b'/dev/sda2 / ext4 defaults 0 1\nData /Data virtiofs defaults 0 0\n',
+        '/etc/passwd': b'root:x:0:0:root:/root:/bin/bash\n',
+        '/etc/machine-id': b'private-guest-identity',
+        '/etc/ssh/ssh_host_ed25519_key.pub': b'ssh-ed25519 public-test-key',
+    }
+    directories = {'/root'}
+    modes = {}
+    g = Mock()
+    g.inspect_os.return_value = ['/dev/sda2']
+    g.inspect_get_mountpoints.return_value = {'/': '/dev/sda2'}
+    g.read_file.side_effect = files.__getitem__
+    g.write.side_effect = files.__setitem__
+    g.mkdir.side_effect = directories.add
+    g.exists.side_effect = lambda path: path in files or path in directories
+    g.is_symlink.return_value = False
+    g.realpath.side_effect = lambda path: path
+    g.chmod.side_effect = modes.__setitem__
+    g.lstatns.side_effect = lambda path: {
+        'st_mode': (stat.S_IFDIR if path in directories else stat.S_IFREG) | modes.get(path, 0o600),
+        'st_uid': 0, 'st_gid': 0, 'st_nlink': 1,
+    }
+    g.filesize.side_effect = lambda path: len(files[path])
+    return g, files
 
 
 def xml():
@@ -68,7 +102,7 @@ def write_junit_results(directory, selection, fault=None):
 
 
 @pytest.fixture
-def lease_rig(rig):
+def lease_rig(rig, request):
     rig.capture().run()
     source = rig.source
     original = baseline_xml(rig.top)
@@ -99,4 +133,5 @@ def lease_rig(rig):
         define(original)
     source.domain.revertToSnapshot.side_effect = restore
     source.domain.destroyFlags.side_effect = restore
-    return runner.Lease(source, rig.commands, rig.inspect, directory=rig.directory, anchor=rig.anchor), current
+    return runner.Lease(source, rig.commands, rig.inspect, directory=rig.directory, anchor=rig.anchor,
+                         verify_backing_bytes=getattr(request, 'param', True)), current

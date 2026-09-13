@@ -89,6 +89,7 @@ DEPS = [('setup_dependencies.sh.py', []), ('setup_checkout.sh.py', [])]
     (['--test-tools-only'], TOOLS),
     (['--codex-rules-only'], RULES),
     (['--prepare-host'], [('prepare_host.py', []), *TOOLS]),
+    (['--replace-missing-baseline'], [('prepare_host.py', ['--replace-missing']), *TOOLS]),
     (['--bootstrap-tools'], [('install_test_runner.py', []), *RULES]),
     (['--prepare-vm'], [('prepare-vm.py', [])]),
     (['--install-extension'], [('make', ['--no-print-directory', '_install-development-extension'])]),
@@ -103,6 +104,7 @@ def test_modes_repeat_complete_scope_from_any_working_directory(checkout, mode, 
 
 @pytest.mark.parametrize('mode,failure,expected', [
     (['--prepare-host'], 'prepare_host.py', [('prepare_host.py', [])]),
+    (['--replace-missing-baseline'], 'prepare_host.py', [('prepare_host.py', ['--replace-missing'])]),
     ([], 'setup_dependencies.sh.py', DEPS[:1]),
     ([], 'setup_checkout.sh.py', DEPS),
     (['--dependencies-only'], 'setup_dependencies.sh.py', DEPS[:1]),
@@ -131,7 +133,7 @@ def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, c
 
 @pytest.mark.skipif(os.geteuid() == 0, reason='authorization gate applies to unprivileged callers')
 @pytest.mark.parametrize('mode', ['', '--test-tools-only', '--codex-rules-only', '--prepare-host',
-                                  '--dependencies-only', '--ppa-build-tools', '--bootstrap-tools'])
+                                  '--replace-missing-baseline', '--dependencies-only', '--ppa-build-tools', '--bootstrap-tools'])
 def test_denied_routine_setup_never_falls_back_to_authentication(checkout, mode):
     result, events = run_setup(checkout, mode, denied=True)
     assert result.returncode == 23
@@ -175,7 +177,8 @@ def test_unsafe_existing_installation_never_requests_authentication(checkout, mo
 
 
 @pytest.mark.parametrize('target,mode', [
-    ('prep-host', '--prepare-host'), ('prep-vm', '--prepare-vm'),
+    ('prepare-host', '--prepare-host'), ('prep-vm', '--prepare-vm'),
+    ('prepare-vm', '--prepare-vm'),
     ('install-extension', '--install-extension'),
 ])
 def test_make_setup_aliases_only_delegate_to_master(checkout, target, mode):

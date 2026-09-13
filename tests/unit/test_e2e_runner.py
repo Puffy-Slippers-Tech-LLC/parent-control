@@ -56,6 +56,8 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
         for extra in ('--list', '--scenario=E2E-001', '--scenario='):
             with pytest.raises(ValueError, match='qualification-cannot-select-scenarios'):
                 runner['preflight']([*options, extra])
+        with pytest.raises(ValueError, match='qualification-requires-backing-verification'):
+            dispatcher['selection'](ROOT, ['e2e', *options, '--skip-backing-verification'])
     with pytest.raises(ValueError, match='missing-artifact-directory'):
         runner['preflight'](options)
 
@@ -65,6 +67,19 @@ def test_selected_listing_uses_exact_inventory_scope(selector, count):
     plan = runner['preflight'](['--list', '--scenario=' + selector])
     assert plan['scope'] == 'partial'
     assert len(plan['cases']) == count
+
+
+@pytest.mark.parametrize('skip', [True, False])
+def test_dispatcher_preserves_execution_verification_policy(skip):
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix='onpc-verification-test-') as directory:
+        options = ['--scenario=E2E-001', '--artifacts=' + directory]
+        if skip:
+            options.append('--skip-backing-verification')
+        command = dispatcher['selection'](ROOT, ['e2e', *options])
+        plan = runner['preflight'](command[3:])
+        assert plan['verify_backing_bytes'] is not skip
+        assert ('--skip-backing-verification' in command) == skip
 
 
 @pytest.mark.parametrize('options,code', [

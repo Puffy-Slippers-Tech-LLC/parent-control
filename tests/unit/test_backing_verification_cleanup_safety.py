@@ -24,6 +24,64 @@ def require_leases(lease):
         pytest.skip('kernel read leases unavailable; full verification remains enabled')
 
 
+@pytest.mark.parametrize('lease_rig', [False], indirect=True)
+@pytest.mark.parametrize('fallback', [False, True])
+def test_fast_attempt_skips_every_byte_scan_but_restores_and_reports_policy(
+        lease_rig, monkeypatch, capsys, fallback):
+    lease, current = lease_rig
+    if fallback:
+        monkeypatch.setattr(backing, 'supported_filesystem', lambda _: False)
+    # A pre-existing same-size content change is deliberately outside fast
+    # mode's assurance. Neither the leased nor fallback route may hash it.
+    lease.capture.anchor.write_bytes(b'x' * lease.capture.anchor.stat().st_size)
+    monkeypatch.setattr(baseline, 'digest', Mock(side_effect=AssertionError('unexpected full scan')))
+    monkeypatch.setattr(backing.os, 'read', Mock(side_effect=AssertionError('unexpected leased scan')))
+    with lease:
+        lease.prepare()
+        assert lease.capture.verify_snapshot() == lease.capture.state['proof']
+        lease.start()
+        assert lease.capture.verify_snapshot(force_bytes=True) == lease.capture.state['proof']
+        assert not lease.capture.backing_verification.verified
+    assert lease.state['phase'] == 'complete' and lease.fd is None
+    assert lease.source.off and current['id'] == -1
+    assert lease.source.domain.revertToSnapshot.call_count == 2
+    assert lease.capture.verification_totals['bytes_read'] == 0
+    assert lease.capture.verification_totals['policy'] == 'metadata-only'
+    events = [json.loads(line.removeprefix('baseline:verification '))
+              for line in capsys.readouterr().err.splitlines()
+              if line.startswith('baseline:verification ')]
+    assert events and all(event['mode'] == 'metadata-only' for event in events)
+    assert events[0]['boundary'] == 'acquisition' and events[-1]['boundary'] == 'restoration'
+
+
+@pytest.mark.parametrize('lease_rig', [True, False], indirect=True)
+@pytest.mark.parametrize('fault', ['snapshot', 'guest', 'test-failure'])
+def test_both_policies_preserve_refusals_and_owned_cleanup(lease_rig, fault):
+    lease, current = lease_rig
+    if fault == 'snapshot':
+        lease.source.baseline_xml = lease.source.baseline_xml.replace(
+            '<creationTime>100', '<creationTime>200')
+        with pytest.raises(baseline.CaptureError):
+            lease.__enter__()
+        lease.source.domain.create.assert_not_called()
+        lease.source.domain.revertToSnapshot.assert_not_called()
+    elif fault == 'guest':
+        with pytest.raises(Exception, match='cleanup:guest-changed'), lease:
+            lease.prepare()
+            lease.start()
+            lease.inspect = Mock(return_value={'changed': True})
+        assert lease.state['phase'] == 'cleanup-requested'
+        assert lease.source.domain.revertToSnapshot.call_count == 2
+    else:
+        with pytest.raises(RuntimeError, match='test-failed'), lease:
+            lease.prepare()
+            lease.start()
+            raise RuntimeError('test-failed')
+        assert lease.state['phase'] == 'complete'
+        assert lease.source.domain.revertToSnapshot.call_count == 2
+    assert lease.fd is None and lease.source.off and current['id'] == -1
+
+
 def test_backing_open_refuses_symlinked_parent_without_following_it(tmp_path):
     directory = tmp_path / 'actual'
     directory.mkdir()
@@ -449,6 +507,7 @@ def test_byte_proof_failure_still_stops_and_restores_only_the_owned_guest(lease_
     assert lease.state['phase'] == 'cleanup-requested'
 
 
+@pytest.mark.parametrize('lease_rig', [True, False], indirect=True)
 def test_ownership_refusal_stays_latched_after_the_lock_is_reacquired(lease_rig):
     lease, _ = lease_rig
     with pytest.raises(baseline.CaptureError, match='backing-owner-changed'), lease:
@@ -462,6 +521,7 @@ def test_ownership_refusal_stays_latched_after_the_lock_is_reacquired(lease_rig)
         lease.source.domain.create.assert_not_called()
 
 
+@pytest.mark.parametrize('lease_rig', [True, False], indirect=True)
 def test_retirement_cannot_clear_a_broken_proof_or_allow_startup(lease_rig):
     lease, _ = lease_rig
     with pytest.raises(baseline.CaptureError, match='backing-lease-broken'), lease:

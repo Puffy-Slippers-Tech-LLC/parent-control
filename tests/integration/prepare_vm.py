@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Guard and prepare the four fixed accounts in the Ubuntu 26.04 source VM."""
+"""Prepare fixed accounts and reusable tools in the product-free source VM."""
 
 from __future__ import annotations
 
@@ -28,17 +28,19 @@ if str(CHECKOUT) not in sys.path:
     sys.path.insert(0, str(CHECKOUT))
 
 from common.oh_no_parent_control_ui.test_identities import TEST_IDENTITIES
+import guest_test_dependencies as guest_tools
 MARKER = Path("/etc/oh-no-parent-control-test-baseline.json")
 HOSTNAME = "ubuntu26.04"
 UBUNTU_VERSION = "26.04"
 MARKER_PURPOSE = "oh-no-parent-control-test-baseline"
-MARKER_VERSION = 1
+MARKER_VERSION = 2
 INTERACTIVE_SHELL = "/bin/bash"
 FORBIDDEN_CHILD_GROUPS = frozenset({"adm", "sudo"})
 KIOSK_USER = "oh-no-parent-control"
 SCRIPT_FILES = (
     "tests/integration/prepare-vm",
     "tests/integration/prepare_vm.py",
+    "tests/integration/guest_test_dependencies.py",
 )
 
 
@@ -52,6 +54,7 @@ REQUIRED_CHECKOUT_ENTRIES = (
     "docs/System-Design.md",
     "tests/integration/prepare-vm",
     "tests/integration/prepare_vm.py",
+    "tests/integration/guest_test_dependencies.py",
 )
 
 # Each installed-state category has its own fail-closed probes so a partial or
@@ -149,6 +152,7 @@ class Runner:
         *,
         input_text: str | None = None,
         check: bool = True,
+        timeout: int = 120,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             list(command),
@@ -157,6 +161,7 @@ class Runner:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            timeout=timeout,
         )
 
 
@@ -442,12 +447,13 @@ def reconcile_accounts(
         raise PreparationError("password:format", "the shared password contains an unsupported character")
 
     for command in account_commands(existing):
-        # Deleting a group membership that is already absent is the expected
-        # repeat-run state; all other reconciliation commands are strict.
-        optional = command[0] == "gpasswd"
-        result = runner.run(command, check=not optional)
-        if optional and result.returncode not in {0, 3}:
-            raise PreparationError("account:groups", "a standard test account group could not be reconciled")
+        # An absent membership is already reconciled. Probe it explicitly so
+        # repeats do not depend on gpasswd's error codes or suppress failures.
+        if command[0] == "gpasswd":
+            groups = runner.run(["id", "-nG", command[2]]).stdout.split()
+            if command[3] not in groups:
+                continue
+        runner.run(command)
 
     # The complete preflight has already rejected an existing path with unsafe
     # type or ownership. Numeric ownership avoids putting account data in logs.
@@ -542,16 +548,19 @@ def marker_document(
         },
         "preparation_script_sha256": digest,
         "accounts": accounts,
+        "test_dependencies": dict(guest_tools.VERSIONS),
     }
     validate_marker(document)
     return document
 
 
 def validate_marker(document: dict[str, object]) -> None:
-    if set(document) != {"schema_version", "purpose", "guest", "preparation_script_sha256", "accounts"}:
+    if set(document) != {"schema_version", "purpose", "guest", "preparation_script_sha256", "accounts", "test_dependencies"}:
         raise PreparationError("marker:schema", "preparation record has unexpected fields")
-    if document["schema_version"] != MARKER_VERSION or document["purpose"] != MARKER_PURPOSE:
+    if type(document['schema_version']) is not int or document["schema_version"] != MARKER_VERSION or document["purpose"] != MARKER_PURPOSE:
         raise PreparationError("marker:schema", "preparation record identity is invalid")
+    if document['test_dependencies'] != guest_tools.VERSIONS:
+        raise PreparationError('marker:dependencies', 'prepared guest tool inventory is incompatible')
     guest = document["guest"]
     if not isinstance(guest, dict) or set(guest) != {"hostname", "machine_id", "ubuntu_version", "virtualization"}:
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
@@ -609,6 +618,68 @@ def verify_marker_permissions(info: os.stat_result) -> None:
         raise PreparationError("marker:permissions", "preparation record ownership or mode verification failed")
 
 
+def prepare_test_dependencies(*, runner, root=Path('/')):
+    """Install once; repeats verify without network or package transactions.
+
+    Keep directory services unconfigured. Their supported package reconfiguration
+    and identities belong to the selected runtime fixture, after product install.
+    """
+    for path in guest_tools.DORMANT_PATHS:
+        candidate = _rooted(root, path)
+        if candidate.exists() or candidate.is_symlink():
+            raise PreparationError('guest-tools:configuration-collision',
+                                   'LDAP/SSSD must be unconfigured before preparation')
+    status = _rooted(root, '/var/lib/dpkg/status')
+    sources = _rooted(root, '/etc/apt/sources.list.d/ubuntu.sources')
+    original = sources.read_text()
+    normalized = guest_tools.ubuntu_archive_sources(original)
+    if normalized != original:
+        sources.write_text(normalized)
+    try:
+        guest_tools.verify_packages(status.read_text())
+    except ValueError as error:
+        if str(error) == 'guest-tools:ambiguous-package-status':
+            raise PreparationError('guest-tools:package-status', 'package database is ambiguous') from error
+        print('prep-vm: [stage:dependencies] installing pinned guest test tools', file=sys.stderr)
+        runner.run(['debconf-set-selections'], input_text=
+                   'slapd slapd/no_configuration boolean true\n')
+        runner.run(['apt-get', '-o', 'APT::Update::Error-Mode=any', 'update'], timeout=600)
+        runner.run(['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get',
+                    '-o', 'DPkg::Lock::Timeout=120', '--no-remove', 'install',
+                    '--no-install-recommends', '-y', *guest_tools.PACKAGES], timeout=1800)
+    try:
+        guest_tools.verify_packages(status.read_text())
+    except ValueError as error:
+        raise PreparationError('guest-tools:verification', 'pinned test packages are not configured') from error
+    for path in guest_tools.DORMANT_PATHS:
+        candidate = _rooted(root, path)
+        if candidate.exists() or candidate.is_symlink():
+            raise PreparationError('guest-tools:configuration-collision',
+                                   'package installation unexpectedly configured LDAP/SSSD')
+    # Disable automatic directory-service startup without terminating processes.
+    # A configured/running directory is refused, never adopted or erased.
+    for unit in ('slapd.service', 'sssd.service'):
+        result = runner.run(['systemctl', 'is-active', unit], check=False)
+        if result.returncode != 3 or result.stdout.strip() not in {'inactive', 'failed'}:
+            raise PreparationError('guest-tools:directory-active', 'directory services must be inactive')
+        runner.run(['systemctl', 'disable', unit])
+    runner.run(['ssh-keygen', '-A'])
+    runner.run(['systemctl', 'enable', 'ssh.service'])
+    # The packaged service creates its runtime directory before sshd -t. Socket
+    # activation alone need not have created that directory on a fresh guest.
+    runner.run(['systemctl', 'start', 'ssh.service'])
+    runner.run(['/usr/sbin/sshd', '-t'])
+    ssh = runner.run(['/usr/sbin/sshd', '-T', '-C', 'user=root,host=localhost,addr=127.0.0.1'])
+    settings = dict(line.split(' ', 1) for line in ssh.stdout.splitlines() if ' ' in line)
+    if (settings.get('pubkeyauthentication') != 'yes'
+            or settings.get('permitrootlogin') not in {'yes', 'prohibit-password', 'without-password'}
+            or settings.get('authenticationmethods') != 'any'
+            or '.ssh/authorized_keys' not in settings.get('authorizedkeysfile', '').split()):
+        raise PreparationError('guest-tools:ssh-configuration',
+                               'OpenSSH must permit root public-key authentication using .ssh/authorized_keys')
+    print('prep-vm: [stage:dependencies] reusable test tools verified', file=sys.stderr)
+
+
 def main() -> int:
     try:
         print("prep-vm: [stage:guard] validating fixed source guest", file=sys.stderr)
@@ -616,6 +687,7 @@ def main() -> int:
         guest = validate_environment(runner=runner)
         existing = preflight_accounts()
         digest = preparation_digest()
+        prepare_test_dependencies(runner=runner)
         print("prep-vm: [stage:hostname] setting test guest hostname to ubuntu26.04", file=sys.stderr)
         runner.run(["hostnamectl", "set-hostname", HOSTNAME])
         guest = dataclasses.replace(guest, hostname=HOSTNAME)
@@ -643,7 +715,7 @@ def main() -> int:
     finally:
         if "password" in locals():
             password = ""
-    print("prep-vm: [outcome:success] accounts-only baseline preparation is verified", file=sys.stderr)
+    print("prep-vm: [outcome:success] product-free accounts and test tools are verified", file=sys.stderr)
     return 0
 
 

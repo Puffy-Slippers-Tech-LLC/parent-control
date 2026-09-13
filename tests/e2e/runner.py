@@ -36,12 +36,15 @@ def preflight(argv, *, root=ROOT):
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--scenario')
     parser.add_argument('--artifacts', type=Path)
+    parser.add_argument('--skip-backing-verification', action='store_true')
     qualification = parser.add_mutually_exclusive_group()
     qualification.add_argument('--qualify-transfer', action='store_true')
     qualification.add_argument('--qualify-install', action='store_true')
     qualification.add_argument('--qualify-install-refusal', action='store_true')
     args = parser.parse_args(argv)
     if args.qualify_transfer or args.qualify_install or args.qualify_install_refusal:
+        if args.skip_backing_verification:
+            raise ValueError('e2e:qualification-requires-backing-verification')
         if args.list or args.scenario is not None:
             raise ValueError('e2e:qualification-cannot-select-scenarios')
         validate_artifact_path(args.artifacts)
@@ -59,6 +62,7 @@ def preflight(argv, *, root=ROOT):
                                     require_runnable=not args.list, root=root)
     plan['inventory_sha256'] = digest
     plan['mode'] = 'list-only' if args.list else 'execution-preflight'
+    plan['verify_backing_bytes'] = not args.skip_backing_verification
     if args.list:
         return plan
     validate_artifact_path(args.artifacts)

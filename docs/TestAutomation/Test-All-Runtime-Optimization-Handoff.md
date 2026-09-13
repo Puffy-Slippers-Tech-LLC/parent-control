@@ -1,10 +1,19 @@
 # Handoff: reduce `make test-all` VM verification overhead
 
-Status: implementation and qualification complete. The final `make test-all`
+Status: the earlier read-lease implementation and qualification are complete.
+The new [guest-preparation change](#guest-preparation-implementation) is awaiting
+live qualification on a newly prepared baseline. The earlier final `make test-all`
 passed all 15 categories in 36.3 minutes. This is approximately 35% below the
 historical 55.5-minute run; the half-time target was not reached. The original
 request and acceptance scope follow the current results below. This handoff does
 not replace another session's roadmap continuation.
+
+The user subsequently authorized two aggregate modes: `make test-all` skips
+backing-byte scans for development; `make test-all-verify` retains the fully
+verified behavior measured below. Both keep ownership, read leases, snapshot and
+guest checks, restoration, and cleanup. Reports record the policy; fast results
+are not retrospectively upgraded by a later audit. See [the current command
+contract](../../tests/README.md#all-established-regressions).
 
 ## Implementation results
 
@@ -189,6 +198,138 @@ unchanged 20.39 GB VM admission threshold. On resumption its process was no
 longer present and it had no final result. Because the maintained runner has no
 checkpoint-resume option, the final qualification above reran the entire
 aggregate; earlier category results were not combined into that pass.
+
+## Guest preparation implementation
+
+`make prepare-vm` and the retained `make prep-vm` alias delegate to
+`setup.sh --prepare-vm`, inside the product-free guest. Preparation installs
+the single pinned inventory in `tests/integration/guest_test_dependencies.py`,
+including OpenSSH/pytest and OpenLDAP/SSSD tools. Repeats verify configured
+versions without APT transactions. Archive normalization also moves here.
+LDAP/SSSD remain unconfigured and disabled for automatic startup; unrelated
+directory configuration is refused. The test later uses public
+`dpkg-reconfigure` and LDAP/NSS interfaces to create fresh remote identities.
+Per-attempt credentials and actual product installation remain runtime work.
+
+Shared bootstrap now uses two sequential libguestfs appliances instead of three,
+eliminating its package-install/`virt-customize` invocation. It writes the
+attempt's public key with OpenSSH's documented `authorized_keys` interface,
+preserves existing keys, rejects unsafe paths, then syncs/closes and independently
+reopens read-only to verify key/marker bytes, ownership/modes and the server key.
+All backing audits, snapshot guards, reboots and acceptance checks remain.
+This removes repeated work; elapsed savings have not yet been measured.
+
+The [owning contract](../../tests/integration/Environment.md) documents schema 2
+and its exact dependency inventory. Offline inspection verifies actual package
+status, not only the marker. Earlier account-only snapshots are intentionally
+incompatible. Lease acquisition rejects a changed preparation digest before
+backing audits, journal writes or VM mutations. Existing `--prepare-host`
+preserves the accepted snapshot; no
+controller state, snapshot, VM or host service was changed in this implementation.
+A new prepared baseline requires deliberate maintenance/acceptance, not removal
+of the old journal or bypass of its guards. Do not run guest preparation on this
+development host. No owned VM attempt or background command remains afterward.
+
+Focused verification covers first/repeat preparation, failed prerequisites,
+configuration preservation, malformed/missing packages, old markers, bootstrap
+readback failures, unsafe key paths, selected-input provenance, remote fixture
+composition, both Make aliases and E2E cleanup composition. Before live
+acceptance, qualify guest preparation/repeat, real SSH and LDAP, complete
+installed-system selection and ready E2E on the new baseline; retain first
+failures and compare stage timings. Historical results below qualify only their
+recorded inputs. The next work is baseline activation and live qualification;
+keep Astra for the unresolved ownership/activation boundary.
+
+The final focused selection passed 537 tests. Isolated cleanup/ownership
+prerequisites passed 853 tests and three subtests, including the new stale
+preparation refusal. Final `make check` passed 8,193 unit tests, its isolated
+853 safety tests/three subtests and 134 private-D-Bus component tests, plus
+source/traceability checks. Document links and `git diff --check` passed.
+No live VM qualification or new end-to-end timing is claimed.
+
+## Follow-up investigation: manual VM operations versus runner time
+
+Read-only review of the final aggregate above, its category streams and retained
+guest JUnit confirms that the remaining long category times are not long reboot
+sleeps. No new VM attempt or runtime change was made for this investigation.
+The inspected pinned domain uses KVM, host-passthrough CPU, six vCPUs and virtio
+disk/network devices; `isolated_xml` retains those settings.
+
+| Installed-system work in the final run | Seconds |
+| --- | ---: |
+| Initial backing audit | 74.018 |
+| Remaining preparation | 2.375 |
+| Offline bootstrap, startup, readiness and input transfer | 66.119 |
+| Product package installation | 50.603 |
+| Installation reboot to guarded SSH readiness | 13.508 |
+| Second reboot for the GDM expiry fixture | 38.024 |
+| Tests and graphical fixture preparation | 398.079 |
+| Collection | 4.164 |
+| Cleanup, including the 73.020-second final backing audit | 107.664 |
+
+These stage values exclude some launcher/controller overhead; the category's
+complete duration remains 767.695 seconds. Installation plus its first reboot
+took 64.111 seconds. The next installed-package assertion took 31.951 seconds,
+including any remaining systemd startup wait and package/service checks; do not
+attribute that whole assertion to boot without finer measurements.
+
+`Transport._probe_ready` and DHCP discovery use 500 ms libvirt timer events;
+shutdown observes lifecycle events. Their 180/300/330-second limits are failure
+ceilings, not mandatory delays. `system_guest.wait_for_boot` waits for systemd
+startup completion and then checks product dependencies. Shorter ceilings do not
+speed successful readiness. The second reboot establishes the real GDM/PAM
+expiry scenario and cannot be removed while claiming the same coverage.
+
+Guest JUnit identifies substantive work inside the test total: remote-account
+qualification took 46.279 seconds, four native enforcement cases 11.790–16.068 seconds
+each, installed expiry 24.162 seconds, and graphical expiry 64.756 seconds.
+The requester-disconnect/recovery case took 18.217 seconds and deliberately lets
+the real request interval elapse. Do not replace real time or skip assertions to
+make these cases faster. The 240 installed executions already share one attempt;
+the separate ready E2E requires a product-free starting state.
+
+The remaining opportunities, in order of implementation risk:
+
+1. **Prepare stable test dependencies once.** `system_runner.bootstrap` installs
+   pinned OpenSSH/pytest on each restored guest; remote-account provisioning
+   installs its LDAP/SSSD packages during the test. A deliberately revised
+   product-free baseline could contain these test tools or verified package
+   payloads. Preserve per-attempt credentials, run markers, fixture setup, exact
+   version checks and the real product install/reboot. Put preparation behind
+   `setup.sh`, with explicit baseline acceptance and offline/network-failure
+   coverage. Installing LDAP/SSSD earlier can affect NSS and services, so package
+   availability alone is not equivalent fixture state. The measured bootstrap
+   and remote-case totals include other work and are upper bounds, not promised
+   savings. Do not recapture the current accepted baseline during an ordinary run.
+2. **Consolidate compatible offline operations.** Bootstrap opens a libguestfs
+   appliance to edit configuration, invokes `virt-customize`, then opens another
+   appliance to read the host key. Upstream recommends
+   [minimizing appliance launches](https://libguestfs.org/guestfs-performance.1.html#REDUCING-THE-NUMBER-OF-TIMES-THE-APPLIANCE-IS-LAUNCHED);
+   [virt-customize](https://libguestfs.org/virt-customize.1.html) supports ordered
+   customization commands. Measure these substeps before changing them, retain
+   independent post-write validation, and close every disk handle before boot
+   or restoration. Savings belong to the existing bootstrap budget, not an
+   additional budget to add to item 1.
+3. **Treat further backing-audit reduction as a separate design.** Four full
+   41,054,961,664-byte reads across the two categories cost approximately 298
+   seconds. Linux
+   [fs-verity](https://cdn.kernel.org/doc/html/latest/filesystems/fsverity.html)
+   provides immutable files, constant-time digest retrieval and verified reads.
+   It is a supported research candidate, not a qualified replacement: its
+   digest differs from ordinary SHA-256, unread corruption is detected on later
+   access rather than by an eager whole-file audit, and QEMU startup's transient
+   writable backing opens need compatibility verification. Preserve full audits
+   unless an accepted replacement proves the required integrity and recovery
+   guarantees. Never apply it to the writable top image.
+
+Even eliminating all four full-audit durations would save only about five of
+the current 17.1 VM-category minutes, or 14% of the 36.3-minute aggregate.
+Another tenfold reduction of those categories is not supported by these
+measurements. The historical order-scale repeated-read bottleneck was already
+addressed by the implementation above. Resource admission is separate: the
+earlier incomplete run waited for memory headroom, while the final run spent
+only 8.098 seconds waiting for serial-category admission. Preserve its resource
+reserve rather than labeling queued time as slow guest boot.
 
 ## Objective and constraints
 

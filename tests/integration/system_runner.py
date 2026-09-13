@@ -51,6 +51,7 @@ AREA_SOURCES = {
 }
 COMMON_SELECTED_INPUTS = (
     ('tests/integration/system_guest.py', 'system_guest.py'),
+    ('tests/integration/guest_test_dependencies.py', 'guest_test_dependencies.py'),
     ('tests/integration/owned_commands.py', 'owned_commands.py'),
     ('tests/integration/guest/redact.py', 'guest/redact.py'),
     ('tests/system/pytest.ini', 'pytest.ini'),
@@ -383,14 +384,16 @@ class SourceView:
 
 
 class Lease:
-    """Serializes prep-host/system runners; durable state refuses interrupted ownership."""
+    """Serializes prepare-host/system runners; durable state refuses interrupted ownership."""
 
     def __init__(self, source, commands, inspect, *, directory=baseline.BASELINES,
-                 anchor=baseline.ANCHOR, ledger=None, graphics_type='spice', finalize=None):
+                 anchor=baseline.ANCHOR, ledger=None, graphics_type='spice', finalize=None,
+                 verify_backing_bytes=True):
         self.source, self.commands, self.inspect = source, commands, inspect
         self.view = SourceView(source)
         self.view.graphics_type = graphics_type
-        self.capture = baseline.Capture(self.view, commands, inspect, directory=directory, anchor=anchor)
+        self.capture = baseline.Capture(self.view, commands, inspect, directory=directory, anchor=anchor,
+                                        verify_backing_bytes=verify_backing_bytes)
         self.directory = directory
         self.journal = directory / 'system-run.json'
         self.fd = None
@@ -430,6 +433,11 @@ class Lease:
             self.commands.lock_fd = self.fd
             self.capture.state = self.capture.read_state()
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
+            # A new preparation contract needs a deliberately accepted baseline.
+            # Refuse before hashing, journal writes or snapshot mutation; cleanup
+            # must not discover the incompatible marker only after restoration.
+            require(self.capture.state['script_digest'] == self.capture.script_digest,
+                    'baseline:preparation-outdated')
             log('stage:baseline-verification')
             run = uuid.uuid4().hex
             self.backing_run = run
@@ -490,7 +498,7 @@ class Lease:
     def restore(self):
         # snapshot revert defaults to its saved shutoff state; never pass RUNNING.
         self.guard(off=True)
-        snap = self.source.domain.snapshotLookupByName(baseline.SNAPSHOT, 0)
+        snap = self.source.domain.snapshotLookupByName(self.capture.state['proof']['name'], 0)
         require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
         self.source.domain.revertToSnapshot(snap, 0)
         self.view.run = None
@@ -810,28 +818,6 @@ def stage_selected_inputs(selection, destination):
     return digest
 
 
-def ubuntu_archive_sources(contents):
-    """Normalize only official Ubuntu URIs in Deb822 URIs fields.
-
-    Preserve all other fields and bytes, including embedded signing keys and
-    unrelated repositories. The fixed prepared Ubuntu guest uses Deb822.
-    """
-    lines = []
-    uri_field = False
-    for line in contents.splitlines(keepends=True):
-        if line.strip() and not line.lstrip().startswith('#'):
-            if not line[0].isspace():
-                uri_field = line.lower().startswith('uris:')
-            if uri_field:
-                line = re.sub(
-                    r'(?<!\S)https?://(?:(?:[a-z]{2}\.)?archive|security)\.ubuntu\.com/ubuntu/?(?=\s|$)',
-                    'https://archive.ubuntu.com/ubuntu/', line)
-        elif not line.strip():
-            uri_field = False
-        lines.append(line)
-    return ''.join(lines)
-
-
 @contextmanager
 def mounted_guest(guestfs, lease, *, readonly=False):
     """Open the guarded offline disk; always close it before another writer."""
@@ -859,16 +845,15 @@ def mounted_guest(guestfs, lease, *, readonly=False):
 def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
     """Prepare SSH only on the reset, powered-off active disk via libguestfs."""
     lease.guard(off=True)
-    disk = Path(lease.capture.state['source']['layout']['disk'])
     key = directory / 'ssh-key'
     commands.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'onpc-system-test', '-f', str(key)])
     lease.save('ssh-bootstrap')
     with mounted_guest(guestfs, lease) as g:
+        baseline.guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
         sources_path = '/etc/apt/sources.list.d/ubuntu.sources'
         sources = g.read_file(sources_path).decode()
-        normalized = ubuntu_archive_sources(sources)
-        if normalized != sources:
-            g.write(sources_path, normalized.encode())
+        require(baseline.guest_contract.guest_tools.ubuntu_archive_sources(sources) == sources,
+                'bootstrap:archive-not-prepared')
         log('bootstrap:ubuntu-archive-https-ready')
         # The removed preparation-only share must not prevent boot via fstab.
         fstab = g.read_file('/etc/fstab').decode()
@@ -896,13 +881,47 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
         g.write('/etc/onpc-system-test.json', baseline.encode(marker))
         g.chown(0, 0, '/etc/onpc-system-test.json')
         g.chmod(0o600, '/etc/onpc-system-test.json')
-    lease.guard(off=True)
-    commands.run(['virt-customize', '--format', 'qcow2', '-a', str(disk),
-                  '--install', ('openssh-server=1:10.2p1-2ubuntu3.6' if observation_only else
-                                'openssh-server=1:10.2p1-2ubuntu3.6,python3-pytest=9.0.2-4'),
-                  '--ssh-inject', f'root:file:{key}.pub',
-                  '--run-command', 'systemctl enable ssh.service'], timeout=1800)
+        # OpenSSH is prepared in the clean baseline. Only this attempt's public
+        # key is added, using the documented authorized_keys file interface.
+        public_key = key.with_suffix('.pub').read_bytes()
+        require(re.fullmatch(rb'ssh-ed25519 [A-Za-z0-9+/=]+(?: [^\r\n]*)?\n?', public_key),
+                'bootstrap:public-key')
+        root_accounts = [row.split(':') for row in g.read_file('/etc/passwd').decode().splitlines()
+                         if row.startswith('root:')]
+        require(len(root_accounts) == 1 and len(root_accounts[0]) == 7 and
+                root_accounts[0][2:4] == ['0', '0'] and root_accounts[0][5] == '/root',
+                'bootstrap:root-home')
+        require(g.realpath('/root') == '/root', 'bootstrap:root-home')
+        ssh_directory = '/root/.ssh'
+        authorized = ssh_directory + '/authorized_keys'
+        require(not g.is_symlink(ssh_directory) and not g.is_symlink(authorized),
+                'bootstrap:ssh-path')
+        if not g.exists(ssh_directory):
+            g.mkdir(ssh_directory)
+        ssh_info = g.lstatns(ssh_directory)
+        require(stat.S_ISDIR(ssh_info['st_mode']) and ssh_info['st_uid'] == ssh_info['st_gid'] == 0,
+                'bootstrap:ssh-directory')
+        prior = b''
+        if g.exists(authorized):
+            info = g.lstatns(authorized)
+            require(stat.S_ISREG(info['st_mode']) and info['st_uid'] == info['st_gid'] == 0
+                    and info['st_nlink'] == 1 and g.filesize(authorized) <= 1024 * 1024,
+                    'bootstrap:authorized-keys')
+            prior = g.read_file(authorized)
+        authorized_contents = prior.rstrip(b'\n') + (b'\n' if prior else b'') + public_key.rstrip(b'\n') + b'\n'
+        g.chmod(0o700, ssh_directory)
+        g.write(authorized, authorized_contents)
+        g.chown(0, 0, authorized)
+        g.chmod(0o600, authorized)
+    # Keep independent readback after sync/close; eliminate only the intervening
+    # package-install appliance, not the post-write or host-key verification.
     with mounted_guest(guestfs, lease, readonly=True) as g:
+        require(g.read_file('/etc/onpc-system-test.json') == baseline.encode(marker)
+                and g.read_file(authorized) == authorized_contents, 'bootstrap:write-readback')
+        for path, mode in ((authorized, 0o600), ('/etc/onpc-system-test.json', 0o600)):
+            info = g.lstatns(path)
+            require(stat.S_ISREG(info['st_mode']) and stat.S_IMODE(info['st_mode']) == mode
+                    and info['st_uid'] == info['st_gid'] == 0, 'bootstrap:write-permissions')
         host_key = g.read_file('/etc/ssh/ssh_host_ed25519_key.pub').decode().split()
         require(len(host_key) >= 2 and host_key[0] == 'ssh-ed25519', 'bootstrap:ssh-host-key')
     return ' '.join(host_key[:2])
@@ -1273,6 +1292,8 @@ def main(argv=None):
     parser.add_argument('--area')
     parser.add_argument('--test')
     parser.add_argument('--list', action='store_true')
+    parser.add_argument('--skip-backing-verification', action='store_true',
+                        help='skip backing-file byte scans for development; retain VM safety checks')
     parser.add_argument('--qualification-failure', action='store_true',
                         help='inject the fixed harness fault after the allowlisted case succeeds')
     parser.add_argument('--check-tools', action='store_true')
@@ -1342,7 +1363,7 @@ def main(argv=None):
         threading.Thread(target=events, daemon=True, name='libvirt-events').start()
         source = baseline.LibvirtSource(api)
         lease = Lease(source, commands, lambda disk, digest: baseline.inspect_guest(guestfs, disk, digest),
-                      ledger=ledger)
+                      ledger=ledger, verify_backing_bytes=not args.skip_backing_verification)
         # SIGTERM follows the same finally/lease cleanup as an interactive interruption.
         def interrupted(*_):
             raise KeyboardInterrupt

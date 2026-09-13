@@ -439,6 +439,14 @@ installation prerequisites follow the [installation contract and limits](#instal
 
 ## Resolve before the affected batch
 
+- **Prepared guest tools:** system, E2E and graphical smoke controllers now
+  require the [schema-2 guest baseline](../../tests/integration/Environment.md).
+  Preparation installs pinned test dependencies; shared bootstrap performs two
+  offline opens with independent key/marker readback. Directory fixtures still
+  configure fresh identities at runtime. See the
+  [implementation and qualification boundary](Test-All-Runtime-Optimization-Handoff.md#guest-preparation-implementation).
+  Host-safe checks do not qualify live SSH/LDAP/graphical behavior on the new
+  baseline, and the old accepted baseline must not be silently replaced.
 - **Scope/layer reconciliation:** pending customer/fault declarations are not
   executed coverage. Task 21A must replace E2E-003's OS-UI account creation with
   a recorded supported fixture event and live Parent discovery. Before changing

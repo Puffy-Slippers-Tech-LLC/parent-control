@@ -150,7 +150,7 @@ prefix_rule(
                ["build", "check", "check-release-version", "check-unit",
                 "check-component", "check-test-fixtures", "check-child-node",
                 "check-child-gjs", "check-child-shell", "check-shell",
-                "check-gjs", "check-static", "test-all", "test-publish"]],
+                "check-gjs", "check-static", "test-all", "test-all-verify", "test-publish"]],
     decision = "allow",
     justification = "Run the trusted checkout's routine build and check targets without repeated approval.",
     match = ["make check", "/usr/bin/make check", "make build", "make check-component"],
@@ -158,10 +158,10 @@ prefix_rule(
 )
 prefix_rule(
     pattern = [["make", "/usr/bin/make"],
-               ["check-system", "installdeb", "uninstalldeb", "prep-host", "prep-vm"]],
+               ["check-system", "installdeb", "uninstalldeb", "prepare-host", "prep-vm", "prepare-vm"]],
     decision = "prompt",
     justification = "Use tools/run-tests system or setup.sh for validated system tests and setup; package installation/removal needs separate authorization.",
-    match = ["make check-system LIST=1", "make installdeb"],
+    match = ["make check-system LIST=1", "make installdeb", "make prepare-vm"],
     not_match = ["make check", "make build"],
 )
 prefix_rule(

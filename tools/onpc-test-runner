@@ -47,10 +47,12 @@ def selection(root, argv):
     system.add_argument('--test')
     system.add_argument('--list', action='store_true')
     system.add_argument('--qualification-failure', action='store_true')
+    system.add_argument('--skip-backing-verification', action='store_true')
     e2e = categories.add_parser('e2e', allow_abbrev=False)
     e2e.add_argument('--artifacts', type=Path)
     e2e.add_argument('--scenario')
     e2e.add_argument('--list', action='store_true')
+    e2e.add_argument('--skip-backing-verification', action='store_true')
     qualification = e2e.add_mutually_exclusive_group()
     qualification.add_argument('--qualify-transfer', action='store_true')
     qualification.add_argument('--qualify-install', action='store_true')
@@ -78,6 +80,8 @@ def selection(root, argv):
     if args.category == 'e2e':
         target = confined_file(root, 'tests/e2e/runner.py')
         options = ['--list'] if args.list else []
+        if args.skip_backing_verification:
+            options.append('--skip-backing-verification')
         if args.qualify_transfer:
             options.append('--qualify-transfer')
         if args.qualify_install:
@@ -120,6 +124,8 @@ def selection(root, argv):
         command.append('--list')
     if getattr(args, 'qualification_failure', False):
         command.append('--qualification-failure')
+    if args.skip_backing_verification:
+        command.append('--skip-backing-verification')
     return command
 
 

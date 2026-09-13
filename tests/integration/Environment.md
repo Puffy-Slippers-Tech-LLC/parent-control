@@ -12,7 +12,7 @@ another baseline, download a new image, or create a replacement domain.
 | Libvirt connection and domain | `qemu:///system`, `ubuntu26.04` |
 | Host/guest preparation checkout | `/Data/Code/PST/parent-control` |
 | Disk-chain anchor | `/Data/virt-manager/ubuntu26.04.qcow2`; resolve and validate the actual active chain. |
-| Retained product-free baseline | Internal `oh-no-parent-control-baseline` snapshot, captured while off, without VM memory. |
+| Retained product-free baseline | Internal `onpc-baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_host.py](prepare_host.py). Previously captured baselines retain the name defined by `PREVIOUS_SNAPSHOT`; preparation and restoration validate their saved proof and preserve them. |
 | Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/` |
 | Provenance and active attempt | Immutable finalized `phase.json`; separate mutable `system-run.json`. |
 | Guest preparation record | Root-owned mode-0600 `/etc/oh-no-parent-control-test-baseline.json` |
@@ -28,16 +28,56 @@ Host setup is orchestrated only by `setup.sh`; its scoped dependency module is
 [../test-tools-ubuntu-26.04.txt](../test-tools-ubuntu-26.04.txt), and
 [../ui/requirements.txt](../ui/requirements.txt). Missing tooling is a
 prerequisite failure, not permission for a test to install host packages.
-Current guest bootstrap installs its required tools inside the guarded guest;
-those per-attempt guest writes are distinct from one-time host setup.
+The shared [guest tool inventory](guest_test_dependencies.py) is installed by
+`make prepare-vm` (also `make prep-vm` or `./setup.sh --prepare-vm`) **inside the
+source guest, before baseline capture**. The Make aliases only delegate to
+`setup.sh`. Dependencies are pinned OpenSSH server, pytest, OpenLDAP server/client
+and SSSD LDAP/NSS packages, including their package-manager-resolved dependencies.
+Preparation normalizes official Ubuntu archive URLs to HTTPS, verifies installed
+versions, generates missing SSH host keys, enables SSH and checks public-key
+authentication configuration. Repeats with matching packages skip APT refresh
+and installation. Failed prerequisites prevent a new success record.
+Account preparation is repeatable: existing test accounts retain their UIDs and
+homes, and absent administrator-group memberships need no removal. Each run
+reconciles and verifies the fixed roles and prompts for the shared test password
+to set on all four accounts. Failed runs can be retried after resolving the
+reported prerequisite; the product-free guest guards still apply.
+
+LDAP/SSSD remain unconfigured: preparation refuses existing configuration,
+requests OpenLDAP's supported no-configuration installation and disables
+automatic directory-service startup. Existing configuration is never deleted.
+Remote identities are created only by the selected test through
+`dpkg-reconfigure` and LDAP's public APIs. Installed NSS libraries alone do not
+create remote users. Product installation and its dependencies, temporary
+credentials, run markers, policy mutations, assertions and real installation/
+expiry reboots remain runtime work.
+
+The preparation record is schema **2**, including the expected tool inventory;
+its source digest includes the shared inventory module. Offline inspection
+independently verifies dpkg's installed status and refuses existing LDAP/SSSD
+fixture configuration. Missing/wrong-version tools and schema-1 account-only
+baselines are refused; lease acquisition checks the preparation source digest
+before disk audits, journal writes or VM mutation. Tests no longer repair them
+by installing tools. This
+test-environment change needs a prepared and accepted product-free baseline;
+there is no product-data migration or package activation (`none`).
+
+**Existing accepted baseline:** ordinary `--prepare-host` preserves it; rerunning
+that command is not a replacement operation. Do not delete controller state or
+recreate its named snapshot to bypass a mismatch. Replacing an accepted baseline
+requires a separately authorized, ownership-checked maintenance operation. This
+change does not automatically replace the current baseline. Local preparation,
+bootstrap and refusal tests cover the new contract; live qualification and
+wall-time comparison remain pending a prepared baseline. See the
+[active follow-up](../../docs/TestAutomation/Test-All-Runtime-Optimization-Handoff.md#guest-preparation-implementation).
 
 For an explicitly requested replacement environment, consult the maintained
 `prepare_vm.py` and `prepare_host.py` guards before provisioning. Existing
-`./setup.sh --prepare-vm` is guest-only account preparation;
+`./setup.sh --prepare-vm` is guest-only account and test-tool preparation;
 `./setup.sh --prepare-host` is host-only baseline creation/reconciliation, followed
 by refreshing helpers with the finalized VM identity. Run ordinary `./setup.sh`
 on a replacement host first to install its dependencies and policies. The
-Makefile's `prep-vm` and `prep-host` targets only delegate to these modes.
+Makefile's `prepare-vm` (also `prep-vm`) and `prepare-host` targets only delegate to these modes.
 They remain tooling, not daily `test-*`
 targets, and are never called automatically to repair a missing accepted
 baseline. Guest preparation suppresses Ubuntu's optional welcome/opt-in wizard
@@ -81,6 +121,25 @@ source logs. Read the stage/category and recorded identities before considering
 recovery. Do not delete a journal, force-stop a guessed process, or recreate a
 snapshot to make a refusal disappear. The active-attempt record is not the
 baseline record and must not overwrite it.
+
+`snapshot:metadata-missing` means libvirt has no snapshot matching either
+supported baseline name. A finalized journal does not recreate that metadata,
+and rerunning preparation cannot repair its absence. Retain the disk and journal;
+recovery needs the original metadata from a verified backup and reconciliation
+with the saved disk proof, or separately authorized baseline replacement. An
+unrelated snapshot is not a substitute for the recorded baseline.
+
+After explicitly authorizing replacement and manually deleting the old baseline,
+run guest preparation and shut down the guest, then use
+`./setup.sh --replace-missing-baseline`. Refresh an older installed setup dispatcher
+first with `./setup.sh --test-tools-only`. The replacement mode requires unchanged
+source identities, no remaining baseline metadata or internal disk record, and no
+incomplete test attempt. Under the shared controller lock it retains the original
+journal as `retired-<operation>.json` before beginning a new capture. Guest
+validation and disk verification still apply. Retries resume the new operation
+or preserve its finalized snapshot. Ordinary `--prepare-host` never retires a
+baseline. Development activation is on the next invocation after helper refresh;
+no product service or saved-data change is involved.
 
 An incomplete prior system run prevents a new run. Use only a supported,
 identity-verified recovery path for that recorded attempt; if recovery is not

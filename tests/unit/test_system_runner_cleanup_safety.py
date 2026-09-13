@@ -7,7 +7,29 @@ from unittest.mock import Mock, patch
 import pytest
 
 import system_runner as runner
-from tests.support.vm_baseline import local_preparation_source
+from tests.support.vm_baseline import local_preparation_source, rig
+from tests.support.vm_runner import lease_rig
+
+
+def test_outdated_preparation_refuses_before_disk_audit_or_vm_mutation(lease_rig):
+    lease, current = lease_rig
+    original = dict(current)
+    state_path = lease.directory / 'phase.json'
+    state = state_path.read_bytes()
+    shutdowns = lease.source.shutdown_calls
+    lease.capture.script_digest = '0' * 64
+    lease.capture.verify_snapshot = Mock()
+    lease.save = Mock()
+    with pytest.raises(runner.Error, match='baseline:preparation-outdated'):
+        lease.__enter__()
+    lease.capture.verify_snapshot.assert_not_called()
+    lease.save.assert_not_called()
+    assert current == original and state_path.read_bytes() == state
+    assert lease.source.shutdown_calls == shutdowns
+    assert not lease.journal.exists()
+    lease.source.domain.revertToSnapshot.assert_not_called()
+    lease.source.domain.create.assert_not_called()
+    assert lease.fd is None and lease.commands.lock_fd is None
 
 
 def test_unprivileged_controller_refuses_before_any_host_or_guest_action():

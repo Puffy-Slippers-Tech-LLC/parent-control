@@ -147,3 +147,16 @@ def test_backend_readiness_is_a_fixed_host_safe_command():
     assert safety is False
     with pytest.raises(ValueError):
         commands.plan(ROOT, 'backend', ['--command=id'])
+
+
+@pytest.mark.parametrize('category,verify', [('all', False), ('all-verify', True)])
+def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, category, verify):
+    import regression
+    execute = Mock(return_value=7)
+    monkeypatch.setattr(regression, 'main', execute)
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    assert commands._main([category]) == 7
+    execute.assert_called_once_with(ROOT, verify_backing_bytes=verify)
+    execute.reset_mock()
+    assert commands._main([category, '--skip-backing-verification']) == 2
+    execute.assert_not_called()

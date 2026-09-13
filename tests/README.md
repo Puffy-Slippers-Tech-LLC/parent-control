@@ -16,6 +16,12 @@ problem. A fresh chat does not require rerunning unaffected tests.
 
 ## All established regressions
 
+Run `tools/run-tests host` to execute discovery, isolated cleanup prerequisites
+and all host jobs, stopping at **Join host branches**. This uses the same host
+plan as both complete aggregates. It does not inspect or authorize the VM, run
+publishing checks, or build packages. Its report is explicitly marked host-only;
+a passing host run is not a complete regression pass. It accepts no selectors.
+
 Run `make test-all` (`tools/run-tests all`) for development without backing-file
 byte scans, or `make test-all-verify` (`tools/run-tests all-verify`) for the
 existing full verification at each VM attempt boundary. Both retain ownership
@@ -37,9 +43,12 @@ branch assignments and launch order. The final report includes the same branch
 summary. Percentages describe completed checks, not estimated time remaining.
 Each run gets a new private directory; previous results are never overwritten.
 
-Host categories run through a maximum of two owned workers. The long UI suite
-starts first, with unit/components/fixtures and small checks filling the other
-slot sequentially when CPU, memory and I/O headroom permit. Sampling requires
+Host categories run through a maximum of two owned workers. UI discovery is
+partitioned into request behavior, layout/overflow, feedback, preview/About,
+screen fidelity and nested-Shell buckets. Each keeps entire modules together
+in one serial pytest process with private graphical fixtures. Both workers pull
+from the shared queue, longest estimated job first, alongside units, components,
+fixtures and small checks when CPU, memory and I/O headroom permit. Sampling requires
 20 seconds of low pressure before overlap. Missing measurements fall back to
 serial execution; memory shortage defers even a single known host category.
 Any new swap write or swap reads of at least 1 MiB/s defer admission. Small reads
@@ -54,6 +63,32 @@ High pressure defers serial launches too. VM admission reads the pinned
 configuration through `tools/test-vm xml` and reserves guest RAM plus overhead.
 Private `resources.jsonl` samples and the report's host scheduling summary record
 the observed load, wall time and maximum active category count.
+
+UI bucket collection and completion must match the original discovered test IDs
+exactly; count-only matches cannot pass. New UI modules run exclusively until
+their isolation is reviewed in `tools/regression_ui.py`. Nested Shell stays in
+one bucket so its stable latest-evidence paths have one writer. The
+private compositor fixture is explicitly required by the nested-Shell module,
+so its outer Devkit viewer never depends on a prior module's display setup. The
+checkout `dogtail_config.ini` disables Dogtail's shared `/tmp` debug file through
+supported configuration; captured console output and existing per-test
+diagnostics remain available. Nested-Shell overview transitions use the public
+`OverviewActive` property on the explicitly owned bus and wait for its observed
+state. Keyboard opening remains covered; repeated activation uses pointer input
+at the indicator's observed AT-SPI allocation inside overview, so a newly mapped
+app cannot receive those presses on its Cancel button. The launcher-count and
+single-overlay assertions remain.
+UI fixture setup/teardown failures stop further host scheduling and cancel owned
+companions through normal cleanup. Assertions, deadlines and launcher safety
+prerequisites are unchanged; no automatic retries are used. Each UI raw stream
+includes pytest phase durations for tuning estimates, including setup and
+teardown; estimates are ordering hints, never timeout or resource permissions.
+
+Ctrl+C displays a red notice throughout shutdown: “Tests interrupted. Shutting
+down safely; please wait for cleanup to finish.” Repeated interrupts keep the
+same cooperative cleanup behavior. After owned commands exit, the notice changes
+to “Tests interrupted. Shutdown finished; see cleanup results above.” This applies
+to host-only runs and every stage of both complete aggregates.
 
 The maintained launchers hold one checkout activity lock for the full command,
 including cleanup. Aggregate children join through an inherited locked file

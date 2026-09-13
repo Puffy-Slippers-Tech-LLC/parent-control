@@ -5,7 +5,48 @@ target; the following scope describes the code now present. Generated aggregate
 reports own per-run qualification and timing evidence; this document does not
 claim a standing release pass.
 
-## Implemented first scope
+## UI bucket extension
+
+The host queue now partitions the discovered UI inventory into six groups:
+request behavior, layout/overflow, feedback, preview/About, screen fidelity and
+nested Shell. Entire modules run sequentially inside a private pytest process;
+the two existing workers can each admit a UI bucket using the unchanged full UI
+reservation. No additional worker or inner pytest parallelism is introduced.
+New modules are discovered automatically and default to exclusive execution
+until reviewed. Every bucket must recollect exactly its assigned IDs; missing,
+duplicate or changed IDs cannot yield a pass. Fixture setup/teardown failures
+stop further scheduling and drain owned companions through cooperative cleanup.
+
+The isolation audit covers private Mutter, D-Bus, AT-SPI and XDG state,
+per-test temporary evidence, and owned preview process handles. Nested Shell
+remains one job because it publishes stable latest artifacts. Its
+outer display comes from an explicitly requested private compositor fixture,
+including when the nested-Shell module runs on its own. Dogtail's default
+shared truncating debug file is disabled through its supported checkout config;
+pytest console and per-test diagnostic evidence remain captured. Existing
+deadlines, assertions and each launcher's safety prerequisite process remain.
+Nested-Shell interaction sets and observes the public `OverviewActive` property
+on its owned bus instead of relying on timed Super/Escape toggles. It retains
+keyboard-opening coverage, while repeated pointer activations target the real
+indicator's observed AT-SPI allocation inside overview so focus transfer to the
+new app cannot activate Cancel. St.Button does not expose AT-SPI Action.
+No automatic retries are added. Initial duration estimates include a startup
+allowance and case counts; per-phase pytest durations are retained for calibration.
+
+`tools/run-tests host` qualifies this same host plan through the join boundary
+without VM inventory/authorization, publishing or artifact construction. Its
+report labels the limited scope. Generated reports own actual qualification
+and timings; the presence of this implementation is not itself a stability claim.
+Use unchanged-input runs to assess interference and variance, preserve every
+failure, and fix its cause before accepting overlap. All full-run build/VM
+ordering remains as documented below.
+
+The coordinator displays a persistent red interruption warning during owned
+shutdown at every stage. Signal handlers only latch cancellation; repeated
+interrupts cannot bypass cleanup. Final output distinguishes shutdown completion
+from the cleanup outcome recorded in the report.
+
+## Original implementation scope
 
 The existing aggregate now schedules at most two host categories through
 `regression_schedule.py`, with one coordinator for category state, tagged output,
@@ -80,7 +121,7 @@ the affected overlap qualification.
 | Work | Initial concurrency policy |
 | --- | --- |
 | Discovery and initial cleanup-safety gate | Serial, before protected work. |
-| Complete UI/nested-Shell suite | One UI process; may overlap one qualified nongraphical host category. No UI sharding. |
+| UI/nested-Shell buckets | One serial UI process per admitted bucket; at most two host jobs, private graphical sessions, unchanged full UI reservations. New modules stay exclusive pending isolation review. |
 | Unit/contracts, private-D-Bus components, fixture runtime | Eligible companions after isolation audit and qualification; execute in separate processes. |
 | Source/traceability, static, child Node/GJS, backend readiness | Eligible companions; their short durations do not justify additional slots. |
 | Publishing, artifact build A, artifact build B, comparison | One build operation at a time, in private directories. UI overlap requires separate qualification and resource admission. |
@@ -263,6 +304,6 @@ passing tests or replace required cleanup checks.
    unexplained failures or new timing instability, and preserved desktop
    headroom. A passing retry never overwrites a failed attempt.
 
-Do not add UI sharding, simultaneous reproducibility builds, a third slot, or
-host/VM overlap to this first implementation. Reconsider only when measurements
-show the remaining critical path warrants a separately scoped qualification.
+The UI bucket extension above addresses the remaining host critical path.
+Simultaneous reproducibility builds, a third slot, and host/VM overlap remain
+outside scope and require separate qualification.

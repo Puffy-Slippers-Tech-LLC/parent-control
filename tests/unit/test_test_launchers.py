@@ -160,3 +160,16 @@ def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, ca
     execute.reset_mock()
     assert commands._main([category, '--skip-backing-verification']) == 2
     execute.assert_not_called()
+
+
+def test_host_aggregate_dispatch_and_invalid_arguments(monkeypatch):
+    import regression
+    execute = Mock(return_value=7)
+    monkeypatch.setattr(regression, 'main', execute)
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    assert commands._main(['host']) == 7
+    execute.assert_called_once_with(ROOT, host_only=True)
+    execute.reset_mock()
+    for args in (['--skip-backing-verification'], ['--component=ui'], ['--unattended']):
+        assert commands.main(['host', *args]) == 2
+    execute.assert_not_called()

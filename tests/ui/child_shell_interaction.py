@@ -19,6 +19,7 @@ from dogtail.hermetic.mutter import MutterInputBackend
 
 from child_shell_screenshot import capture_screenshot
 from mutter_input import click_at, press_key as _press_key
+from shell_overview import set_overview
 
 
 EVENTS = (
@@ -33,9 +34,7 @@ EVENTS = (
 TIMEOUT_SECONDS = float(os.environ.get("ONPC_CHILD_INTERACTION_TIMEOUT_SECONDS", "15"))
 EVENTS_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_EVENTS_PATH"])
 SNAPSHOT_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_A11Y_PATH"])
-X_KEYCODE_ESCAPE = 9
 X_KEYCODE_SPACE = 65
-X_KEYCODE_SUPER_L = 133
 COUNTDOWN_ANIMATION_LABEL = "One minute count down animation"
 COUNTDOWN_ANIMATION_SCHEMA = "com.puffyslippers.oh-no-parent-control.child"
 COUNTDOWN_ANIMATION_KEY = "one-minute-countdown-animation"
@@ -311,13 +310,10 @@ def _wait(predicate, description):
     return result["value"]
 
 
-def _prepare_indicator_input(input_backend):
-    # Super transfers input to Shell's overview even while the child overlay
-    # is active. AT-SPI then puts keyboard focus on the real indicator, and
-    # virtual Space presses exercise its supported keyboard activation path
-    # without relying on screen coordinates.
-    _press_key(input_backend, X_KEYCODE_SUPER_L)
-    time.sleep(0.75)
+def _prepare_indicator_input():
+    # Set an explicit state on the owned bus. Super toggles and Escape can
+    # reach the request form when overview/focus transitions are delayed.
+    set_overview(True, _wait)
     button = _wait(_find_request_button, "the indicator in Shell's overview")
     if not button.grab_focus():
         raise AssertionError("The Shell request indicator did not accept key focus")
@@ -325,19 +321,18 @@ def _prepare_indicator_input(input_backend):
         lambda: _state(_find_request_button(), Atspi.StateType.FOCUSED),
         "keyboard focus on the Shell request indicator",
     )
-    time.sleep(0.25)
     return button
 
 
 def _activate_repeatedly(count, input_backend):
+    # Shell's St.Button does not expose an AT-SPI Action interface. Target its
+    # observed pointer allocation in the explicitly open overview instead.
+    # Opening GTK can transfer keyboard focus during this burst; later Spaces
+    # must not activate Cancel and turn a valid reopen into a duplicate launch.
     for _index in range(count):
-        _press_key(input_backend, X_KEYCODE_SPACE)
-        time.sleep(0.05)
-
-
-def _leave_overview(input_backend):
-    _press_key(input_backend, X_KEYCODE_ESCAPE)
-    time.sleep(0.5)
+        button = _wait(_find_request_button, 'the real Shell request action')
+        _wait(lambda: _state(button, Atspi.StateType.SHOWING), 'the visible Shell indicator')
+        _click(button, 1, input_backend)
 
 
 def _one_overlay(expected_launches):
@@ -392,9 +387,12 @@ def main():
         # These actions arrive after the first spawn but before its GTK window
         # is exposed. They exercise the production single-flight guard while
         # the request surface is still opening.
-        _prepare_indicator_input(input_backend)
-        _activate_repeatedly(6, input_backend)
-        _leave_overview(input_backend)
+        _prepare_indicator_input()
+        # Retain real keyboard-opening coverage before a request app can own
+        # focus, then exercise the same action directly during startup.
+        _press_key(input_backend, X_KEYCODE_SPACE)
+        _activate_repeatedly(5, input_backend)
+        set_overview(False, _wait)
         _wait(lambda: len(_launch_records()) == 1, "one opening request process")
         print("interaction stage=opening-single-flight", flush=True)
         overlay = _wait(lambda: _one_overlay(1), "one visible child request overlay")
@@ -402,9 +400,9 @@ def main():
         print("interaction stage=overlay-visible", flush=True)
 
         # Exercise the same guard after the shared request form is fully mapped.
-        _prepare_indicator_input(input_backend)
+        set_overview(True, _wait)
         _activate_repeatedly(5, input_backend)
-        _leave_overview(input_backend)
+        set_overview(False, _wait)
         if len(_launch_records()) != 1 or len(_overlay_surfaces()) != 1:
             raise AssertionError("Repeated activation created a duplicate request overlay")
         print("interaction stage=running-single-flight", flush=True)
@@ -420,9 +418,9 @@ def main():
         )
 
         request_button = _wait(_find_request_button, "the reusable Shell request action")
-        _prepare_indicator_input(input_backend)
-        _activate_repeatedly(1, input_backend)
-        _leave_overview(input_backend)
+        _prepare_indicator_input()
+        _press_key(input_backend, X_KEYCODE_SPACE)
+        set_overview(False, _wait)
         second_overlay = _wait(lambda: _one_overlay(2), "one reopened child request overlay")
         print("interaction stage=overlay-reopened", flush=True)
         records = _launch_records()

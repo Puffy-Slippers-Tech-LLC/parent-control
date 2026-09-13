@@ -35,6 +35,7 @@ CATEGORIES = {
     'fast': 'reserved for the Task 28 make test-fast target',
     'all': 'all established regression suites without backing-file byte scans',
     'all-verify': 'all established regression suites with full backing-file verification',
+    'host': 'discovery, cleanup prerequisites and host jobs; stop after joining host branches',
 }
 
 
@@ -178,10 +179,12 @@ def _main(argv=None):
             raise ValueError('use this launcher as an unprivileged user')
         root = Path(__file__).resolve().parents[1]
         category, args = argv[0], argv[1:]
-        if category in ('all', 'all-verify'):
+        if category in ('all', 'all-verify', 'host'):
             if args:
                 raise ValueError('all aggregates accept no arguments')
             from regression import main as regression_main
+            if category == 'host':
+                return regression_main(root, host_only=True)
             return regression_main(root, verify_backing_bytes=category == 'all-verify')
         if args[:1] == ['--unattended']:
             from regression_process import host_run, category_run
@@ -255,7 +258,7 @@ def main(argv=None):
         # lock. Test suites can inspect refusals while another run owns it.
         if category in ('unit', 'component', 'ui'):
             host.pytest_command(root, args, category)
-        elif category in ('all', 'all-verify'):
+        elif category in ('all', 'all-verify', 'host'):
             if args:
                 raise ValueError('all aggregates accept no arguments')
         else:

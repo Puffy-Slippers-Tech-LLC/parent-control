@@ -75,6 +75,20 @@ def test_unknown_categories_are_exclusive_and_missing_metrics_fall_back_to_seria
     assert admission.allows('unit', [])
 
 
+def test_two_ui_buckets_need_combined_budgets_and_unreviewed_modules_stay_exclusive():
+    state, admission = gate()
+    assert not admission.allows('ui', ['ui'])
+    warm(state, admission)
+    assert admission.allows('ui', ['ui'])
+    assert not admission.allows('ui-exclusive', ['ui'])
+    assert not admission.allows('ui', ['ui-exclusive'])
+    assert admission.allows('ui-exclusive', [])
+    state.now += 2
+    state.sample = replace(healthy(), available_memory=14 * GIB)
+    assert not admission.allows('ui', ['ui'])
+    assert admission.allows('ui', [])
+
+
 def test_busy_host_defers_even_serial_vm_or_build_before_acquiring_resources():
     state, admission = gate()
     admission.demands['system'] = Demand(7, 13 * GIB)

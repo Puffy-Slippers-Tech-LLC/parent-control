@@ -15,7 +15,10 @@ from pathlib import Path
 import pytest
 
 
-pytestmark = pytest.mark.ui
+# The Devkit viewer needs an outer display. Request our private compositor
+# explicitly instead of depending on another module having booted it first.
+# This also keeps focused and bucket runs off the developer's desktop.
+pytestmark = [pytest.mark.ui, pytest.mark.usefixtures('hermetic_ui_session')]
 ROOT = Path(__file__).resolve().parents[2]
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
 ARTIFACTS = ROOT / "artifacts" / "ui" / "child-shell"

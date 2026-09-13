@@ -5,11 +5,54 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import io
 
 import pytest
 
 from regression_process import Control
 from regression_schedule import Job, run_jobs
+
+
+@pytest.mark.parametrize('stage', ['Discovery', 'Cleanup prerequisites', 'Host UI',
+                                  'Publishing', 'Package builds', 'Installed-system', 'E2E'])
+def test_aggregate_signal_warning_precedes_cleanup_and_survives_redraw(tmp_path, monkeypatch, stage):
+    import regression
+    (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').mkdir(parents=True)
+    script = tmp_path / 'owned.py'
+    script.write_text("import sys\nprint('ready', flush=True)\n"
+                      "assert sys.stdin.readline() == 'STOP\\n'\n"
+                      "print('cleanup complete', flush=True)\n")
+    stream = io.StringIO()
+    observed = bytearray()
+    notices = []
+
+    def execute(run):
+        run.dashboard.stream = stream
+        item = regression.Category(stage, 1, state='Running')
+        run.categories.append(item)
+
+        def output(data):
+            observed.extend(data)
+            if b'ready' in data:
+                signal.raise_signal(signal.SIGINT)
+                signal.raise_signal(signal.SIGINT)
+
+        def tick():
+            run.dashboard.draw(force=True)
+            if run.control.interrupted:
+                notice = run.dashboard.render(0)[-1]
+                assert notice.startswith('\033[31;1mTests interrupted.')
+                assert 'please wait for cleanup to finish' in notice
+                notices.append(b'cleanup complete' not in observed)
+
+        status = run.control.run([sys.executable, str(script)], cwd=tmp_path,
+                                 env=os.environ.copy(), output=output, cooperative=True, tick=tick)
+        assert status == 130 and b'cleanup complete' in observed
+
+    monkeypatch.setattr(regression.Run, 'run', execute)
+    assert regression.main(tmp_path) == 130
+    assert any(notices), 'warning must be visible before cleanup finishes'
+    assert 'Shutdown finished; see cleanup results above.' in stream.getvalue()
 
 
 def test_interrupt_waits_for_owned_cleanup_and_preserves_unrelated_process(tmp_path):

@@ -18,13 +18,21 @@ class Control:
 
     def __init__(self):
         self.stopped = threading.Event()
+        self.interrupted = False
 
     def stop(self, *_):
         self.stopped.set()
 
+    def interrupt(self, *_):
+        # Signal handlers only latch state. The coordinator renders the notice;
+        # repeated Ctrl+C never interrupts a child's cleanup or terminal write.
+        if not self.interrupted:
+            self.interrupted = True
+            self.stop()
+
     @contextmanager
     def installed(self, *, pipe=False):
-        previous = {sig: signal.signal(sig, self.stop)
+        previous = {sig: signal.signal(sig, self.interrupt)
                     for sig in (signal.SIGINT, signal.SIGTERM)}
         if pipe:
             def listen():
@@ -126,6 +134,8 @@ def host_run(root, category, argv):
         command = host.pytest_command(root, argv, category)
         env = host.test_environment(root)
         env.update(ONPC_REGRESSION_EVENTS='1', PYTHONUNBUFFERED='1')
+        if category == 'ui':
+            env['ONPC_REGRESSION_UI_INVENTORY'] = '1'
         if category != 'unit' and '--collect-only' not in command:
             status = control.run(safety_command(root), cwd=root, env=host.test_environment(root))
             if status:

@@ -36,6 +36,7 @@ DEMANDS = {
     'backend': Demand(1, GIB),
 }
 PARALLEL = frozenset(DEMANDS)
+DEMANDS.update({'ui-exclusive': Demand(4, 4 * GIB)})
 DEMANDS.update(publish=Demand(2, 6 * GIB), artifacts=Demand(2, 4 * GIB),
                system=Demand(0, 0), e2e=Demand(0, 0))
 

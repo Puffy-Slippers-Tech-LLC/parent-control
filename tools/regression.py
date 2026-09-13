@@ -19,6 +19,7 @@ import test_launcher as host
 from regression_schedule import Job, run_jobs
 from regression_inputs import identity as source_identity
 from regression_resources import Admission, vm_demand
+from regression_ui import buckets as ui_buckets
 
 
 def authorization():
@@ -43,6 +44,7 @@ class Category:
     host: bool = False
     branch: int | None = None
     launch_order: int = 0
+    nodeids: tuple[str, ...] | None = None
 
     def duration(self, now):
         seconds = self.elapsed + (now - self.started if self.started is not None else 0)
@@ -65,6 +67,8 @@ class Dashboard:
         self.started = time.monotonic()
         self.host_started = None
         self.host_elapsed = None
+        self.control = None
+        self.cleanup_finished = False
 
     @staticmethod
     def counts(done, failures, total):
@@ -133,6 +137,11 @@ class Dashboard:
         lines.append(f'\033[{color}mOverall - {percent}% '
                      + self.counts(done, failures, total if known else '?')
                      + f' - {(now - self.started) / 60:.1f}m\033[0m')
+        if self.control is not None and self.control.interrupted:
+            notice = ('Tests interrupted. Shutdown finished; see cleanup results above.'
+                      if self.cleanup_finished else
+                      'Tests interrupted. Shutting down safely; please wait for cleanup to finish.')
+            lines.append('\033[31;1m' + notice + '\033[0m')
         return lines
 
     @classmethod
@@ -218,6 +227,8 @@ class Execution:
         self.pending = b''
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
         self.captured, self.finished, self.failed = [], set(), set()
+        self.inventory_seen = False
+        self.fixture_failed = False
         run.sequence += 1
         filename = f'category-{run.sequence:03d}.log'
         self.raw = (run.report.directory / filename).open('xb')
@@ -242,17 +253,33 @@ class Execution:
             event = json.loads(line[len(PREFIX):])
             item = self.item
             if event['kind'] == 'collection':
+                if self.inventory_seen:
+                    raise ValueError('duplicate test inventory event')
+                self.inventory_seen = True
                 if item.total is not None and item.total != event['total']:
                     raise ValueError('test inventory changed after collection')
                 item.total = event['total']
+                if 'nodeids' in event:
+                    ids = tuple(event['nodeids'])
+                    if len(ids) != item.total or len(set(ids)) != len(ids):
+                        raise ValueError('invalid test inventory IDs')
+                    if item.nodeids is not None and set(ids) != set(item.nodeids):
+                        raise ValueError('test inventory IDs changed after collection')
+                    item.nodeids = ids
+                elif item.nodeids is not None:
+                    raise ValueError('missing UI inventory IDs')
             elif event['kind'] == 'finished' and not self.collect:
                 if event['nodeid'] in self.finished:
                     raise ValueError('duplicate test completion')
+                if item.nodeids is not None and event['nodeid'] not in item.nodeids:
+                    raise ValueError('uncollected UI test completion')
                 self.finished.add(event['nodeid'])
                 item.done = len(self.finished)
             elif event['kind'] == 'failure':
                 self.failed.add(event['nodeid'])
                 item.failures = len(self.failed)
+                if item.nodeids is not None and event.get('when') in ('setup', 'teardown'):
+                    self.fixture_failed = True
             self.run.report.snapshot(self.run.categories)
             self.run.dashboard.draw()
 
@@ -281,6 +308,8 @@ class Execution:
             if self.collect:
                 item.state = 'Pending' if status == 0 else 'Failed'
             else:
+                if item.nodeids is not None and not self.inventory_seen and not run.control.stopped.is_set():
+                    raise ValueError('missing UI execution inventory')
                 if not self.events and not run.control.stopped.is_set():
                     before = item.done
                     item.done = (min(item.total or 1, item.done + self.units)
@@ -295,6 +324,8 @@ class Execution:
             run.report.snapshot(run.categories)
             run.dashboard.draw(force=True)
             run.check_inputs()
+            if self.fixture_failed:
+                raise ValueError('UI fixture setup or cleanup failed; further host work refused')
             return status, '\n'.join(self.captured)
         finally:
             self.close()
@@ -305,13 +336,17 @@ class Execution:
 
 
 class Run:
-    def __init__(self, root, report, control, *, verify_backing_bytes=True):
+    def __init__(self, root, report, control, *, verify_backing_bytes=True, host_only=False):
         self.root, self.report, self.control = root, report, control
         self.verify_backing_bytes = verify_backing_bytes
-        self.verification_mode = ('full' if verify_backing_bytes else 'metadata-only; backing bytes not verified')
+        self.host_only = host_only
+        self.verification_mode = ('not applicable; host-only run' if host_only else
+                                  'full' if verify_backing_bytes else 'metadata-only; backing bytes not verified')
+        self.report.write('\nScope: ' + ('host branches only' if host_only else 'complete regression') + '\n')
         self.report.write('\nVM backing verification: ' + self.verification_mode + '\n')
         self.categories = [Category('Discovery and prerequisites', 1)]
         self.dashboard = Dashboard(self.categories)
+        self.dashboard.control = control
         self.artifacts = []
         self.sequence = 0
         self.inputs = None
@@ -409,7 +444,7 @@ class Run:
         discovery = self.categories[0]
         suites = [('Unit and contracts', 'unit', []),
                   ('Private D-Bus components', 'component', []),
-                  ('UI and nested Shell', 'ui', ['--timeout', '1800s']),
+                  ('UI inventory', 'ui', ['--timeout', '1800s']),
                   ('Fixture runtime', 'fixture-runtime', [])]
         suite_items = [Category(name) for name, _, _ in suites]
         fixed = [('Source and traceability', 'source'), ('Static checks', 'static'),
@@ -420,7 +455,9 @@ class Run:
         system = Category('Installed-system tests')
         graphical = Category('Ready E2E scenarios')
         safety = Category('Cleanup safety prerequisites')
-        self.categories.extend([safety, *suite_items, *fixed_items, builds, system, graphical])
+        self.categories.extend([safety, *suite_items, *fixed_items[:-1]])
+        if not self.host_only:
+            self.categories.extend([fixed_items[-1], builds, system, graphical])
         discovery.state = 'Running'
         discovery.started = time.monotonic()
         self.dashboard.draw(force=True)
@@ -431,16 +468,61 @@ class Run:
                                 'tests/unit/test_graphical_lease.py'], safety)]
         selections.extend((kind, args, item) for (_, kind, args), item in zip(suites, suite_items))
         for kind, args, item in selections:
+            if self.control.stopped.is_set():
+                return
             status, _ = self.execute(item, self.command(kind, *args, '--collect-only', '-q'),
                                      collect=True, events=True)
             if status or not item.total:
+                if self.control.stopped.is_set():
+                    return
                 raise ValueError('pytest collection failed or collected no tests')
+        ui_inventory = suite_items[2]
+        buckets = ui_buckets(ui_inventory.nodeids)
+        bucket_items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids)
+                        for bucket in buckets]
+        position = self.categories.index(ui_inventory)
+        self.categories[position:position + 1] = bucket_items
+        if not self.host_only:
+            ready = self.discover_vm(system, graphical)
+            if self.control.stopped.is_set():
+                return
+            authorization()
+        discovery.done, discovery.state = 1, 'Passed'
+        discovery.stop_timer()
+
+        status, _ = self.execute(safety, self.command('unit', *selections[0][1], '-q'), events=True)
+        if self.control.stopped.is_set():
+            return
+        if status or safety.state != 'Passed':
+            raise ValueError('cleanup safety prerequisites failed; protected suites refused')
+        estimates = {'unit': 150, 'component': 20, 'fixture-runtime': 12}
+        jobs = [Job(kind, item, self.command(kind, *args, '-q'), events=True,
+                    estimate=estimates[kind]) for (_, kind, args), item in zip(suites, suite_items)
+                if kind != 'ui']
+        jobs.extend(Job(bucket.kind, item, self.command('ui', '--timeout', '1800s',
+                        *bucket.paths, '-q', '--durations=0'), events=True, estimate=bucket.estimate)
+                    for bucket, item in zip(buckets, bucket_items))
+        jobs.extend(Job(kind, item, self.command(kind), estimate=1)
+                    for (_, kind), item in zip(fixed, fixed_items) if kind != 'publish')
+        self.host_jobs(jobs)
+        if self.control.stopped.is_set():
+            return
+        if self.host_only:
+            self.check_inputs()
+            return
+        self.package_and_vm(fixed_items[-1], builds, system, graphical, ready)
+
+    def discover_vm(self, system, graphical):
         status, listing = self.execute(system, self.command('system', '--list'), collect=True)
+        if self.control.stopped.is_set():
+            return []
         match = re.search(r'expected-executions: (\d+)', listing)
         if status or match is None:
             raise ValueError('installed-system inventory failed')
         system.total = int(match[1])
         status, listing = self.execute(graphical, self.command('e2e', '--list'), collect=True)
+        if self.control.stopped.is_set():
+            return []
         if status:
             raise ValueError('E2E inventory failed')
         inventory = json.loads(listing[listing.index('{'):])
@@ -448,41 +530,33 @@ class Run:
         graphical.total = len(ready)
         self.report.write('\nReady E2E variants: ' + ', '.join(ready) + '\n'
                           'Pending variants excluded: ' + str(len(inventory['pending_cases'])) + '\n')
-        authorization()
-        discovery.done, discovery.state = 1, 'Passed'
-        discovery.stop_timer()
+        return ready
 
-        status, _ = self.execute(safety, self.command('unit', *selections[0][1], '-q'), events=True)
-        if status or safety.state != 'Passed':
-            raise ValueError('cleanup safety prerequisites failed; protected suites refused')
-        estimates = {'ui': 840, 'unit': 150, 'component': 20, 'fixture-runtime': 12}
-        jobs = [Job(kind, item, self.command(kind, *args, '-q'), events=True,
-                    estimate=estimates[kind]) for (_, kind, args), item in zip(suites, suite_items)]
-        jobs.extend(Job(kind, item, self.command(kind), estimate=1)
-                    for (_, kind), item in zip(fixed, fixed_items) if kind != 'publish')
-        self.host_jobs(jobs)
-        if self.control.stopped.is_set():
-            return
+    def package_and_vm(self, publishing, builds, system, graphical, ready):
         # The costly builder is deliberately outside the qualified host overlap.
         # It already uses two internal jobs and competes with UI for disk/memory.
-        self.execute(fixed_items[-1], self.command('publish'))
+        self.execute(publishing, self.command('publish'))
         if self.control.stopped.is_set():
             return
         for index in range(2):
             status, output = self.execute(builds, self.command('artifacts', 'build'), units=1)
+            if self.control.stopped.is_set():
+                return
             match = re.search(r'^run-tests: output=(/tmp/onpc-test-artifacts-[A-Za-z0-9_-]+)$', output, re.M)
             if status or match is None:
                 builds.state = 'Failed'
                 raise ValueError('package build failed; package-bearing suites refused')
             self.artifacts.append(match[1])
         status, _ = self.execute(builds, self.command('artifacts', 'compare', *self.artifacts), units=1)
+        if self.control.stopped.is_set():
+            return
         if status:
             raise ValueError('reproducibility failed; package-bearing suites refused')
         status, _ = self.execute(system, self.command('system', '--artifacts', self.artifacts[0]), events=True)
-        if status:
-            raise ValueError('installed-system attempt failed; subsequent VM attempts refused')
         if self.control.stopped.is_set():
             return
+        if status:
+            raise ValueError('installed-system attempt failed; subsequent VM attempts refused')
         for case in ready:
             status, _ = self.execute(graphical, self.command('e2e', '--artifacts', self.artifacts[0],
                                                            '--scenario', case), units=1)
@@ -494,7 +568,7 @@ class Run:
         self.check_inputs()
 
 
-def main(root=None, *, verify_backing_bytes=True):
+def main(root=None, *, verify_backing_bytes=True, host_only=False):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -503,7 +577,7 @@ def main(root=None, *, verify_backing_bytes=True):
     with Control().installed() as control:
         try:
             report = Report(root)
-            run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes)
+            run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes, host_only=host_only)
             run.run()
             status = 0 if all(item.state == 'Passed' for item in run.categories) else 1
         except (Exception, KeyboardInterrupt) as error:
@@ -522,6 +596,7 @@ def main(root=None, *, verify_backing_bytes=True):
                 status = 130
             try:
                 if run is not None:
+                    run.dashboard.cleanup_finished = True
                     for item in run.categories:
                         item.stop_timer()
                         if item.state in ('Running', 'Pending'):

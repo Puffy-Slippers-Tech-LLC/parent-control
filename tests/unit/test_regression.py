@@ -300,9 +300,12 @@ def test_generated_reports_are_ignored_by_source_provenance(tmp_path):
 
 @pytest.mark.parametrize('fail_unit,fail_publish', [(False, False), (True, False), (False, True)])
 @pytest.mark.parametrize('verify_backing_bytes', [True, False])
+@pytest.mark.parametrize('host_only', [False, True])
 def test_entire_plan_discovers_ready_cases_and_preserves_failure(
-        report, tmp_path, monkeypatch, fail_unit, fail_publish, verify_backing_bytes):
-    monkeypatch.setattr(regression, 'authorization', lambda: None)
+        report, tmp_path, monkeypatch, fail_unit, fail_publish, verify_backing_bytes, host_only):
+    def authorize():
+        assert not host_only, 'host-only execution must not require privileged tooling'
+    monkeypatch.setattr(regression, 'authorization', authorize)
     monkeypatch.setattr(regression, 'source_identity', lambda _: 'current-inputs')
     monkeypatch.setattr(regression, 'Admission', lambda **_: SimpleNamespace(
         reason='two categories active', allows=lambda kind, active: len(active) < 2, demands={}))
@@ -315,6 +318,10 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         def run(self, command, *, output, **kwargs):
             self.calls.append(command)
             category = 'ui' if command[0].endswith('run-ui-tests') else command[1]
+            ui_ids = ['tests/ui/test_preview_smoke.py::test_one',
+                      'tests/ui/test_request_form_component.py::test_two']
+            if category == 'ui' and '--collect-only' not in command:
+                ui_ids = [node for node in ui_ids if node.partition('::')[0] in command]
             def event(kind, **fields):
                 output((regression_events.PREFIX + json.dumps(dict(kind=kind, **fields)) + '\n').encode())
             if '--list' in command:
@@ -325,16 +332,17 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                                                   dict(case_id='E2E-998/wait', status='pending')],
                                            pending_cases=['E2E-998/wait'])).encode() + b'\n')
             elif '--collect-only' in command:
-                event('collection', total=2)
+                event('collection', total=2, **({'nodeids': ui_ids} if category == 'ui' else {}))
             elif category in ('unit', 'component', 'ui', 'fixture-runtime', 'system'):
                 safety = any('cleanup_safety' in item for item in command)
                 if category != 'system':
-                    event('collection', total=2)
+                    event('collection', total=len(ui_ids) if category == 'ui' else 2,
+                          **({'nodeids': ui_ids} if category == 'ui' else {}))
                 if fail_unit and category == 'unit' and not safety:
                     event('failure', nodeid='one', detail='test assertion failed')
                     event('failure', nodeid='one', detail='test teardown failed')
-                event('finished', nodeid='one')
-                event('finished', nodeid='two')
+                for node in ui_ids if category == 'ui' else ('one', 'two'):
+                    event('finished', nodeid=node)
                 return int(fail_unit and category == 'unit' and not safety)
             elif category == 'artifacts' and 'build' in command:
                 self.builds += 1
@@ -343,11 +351,22 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                 return int(fail_publish)
             return 0
     control = Commands()
-    run = regression.Run(tmp_path, report, control, verify_backing_bytes=verify_backing_bytes)
+    run = regression.Run(tmp_path, report, control, verify_backing_bytes=verify_backing_bytes,
+                         host_only=host_only)
     run.run()
-    assert [item.state for item in run.categories].count('Failed') == int(fail_unit or fail_publish)
-    assert sum(item.failures for item in run.categories) == int(fail_unit or fail_publish)
+    expected_failure = int(fail_unit or (fail_publish and not host_only))
+    assert [item.state for item in run.categories].count('Failed') == expected_failure
+    assert sum(item.failures for item in run.categories) == expected_failure
     assert all(item.done == item.total for item in run.categories)
+    ui = [item for item in run.categories if item.nodeids is not None]
+    assert len(ui) == 2 and sum(item.done for item in ui) == 2
+    if host_only:
+        assert not any(call[1] in ('system', 'e2e', 'publish', 'artifacts') for call in control.calls)
+        if not fail_unit:
+            assert 'Join host branches — passed' in run.dashboard.ANSI.sub('', '\n'.join(
+                run.dashboard.render(0)))
+        assert 'Scope: host branches only' in (report.directory / 'report.md').read_text()
+        return
     e2e = [call for call in control.calls if 'e2e' in call and '--scenario' in call]
     assert len(e2e) == 1 and e2e[0][e2e[0].index('--scenario') + 1] == 'E2E-999/future'
     assert not any('E2E-998/wait' in call for call in control.calls)

@@ -15,7 +15,10 @@ def emit(kind, **fields):
 
 def pytest_collection_finish(session):
     if os.environ.get('ONPC_REGRESSION_EVENTS') == '1':
-        emit('collection', total=len(session.items), collection_only=session.config.option.collectonly)
+        inventory = ({'nodeids': [item.nodeid for item in session.items]}
+                     if os.environ.get('ONPC_REGRESSION_UI_INVENTORY') == '1' else {})
+        emit('collection', total=len(session.items), collection_only=session.config.option.collectonly,
+             **inventory)
 
 
 def pytest_runtest_logreport(report):

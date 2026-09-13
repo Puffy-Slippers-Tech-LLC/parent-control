@@ -99,7 +99,8 @@ def test_authentication_attempts_survive_failed_pytest_and_public_export(monkeyp
     ledger.pass_outcome('collection')
     manifest = {'artifacts': {'package': {'sha256': 'b' * 64},
                               'fixtures': {'sha256': 'e' * 64}}, 'source': {}}
-    lease = SimpleNamespace(state={'baseline_sha256': 'c' * 64, 'phase': 'complete'})
+    lease = SimpleNamespace(state={'baseline_sha256': 'c' * 64, 'phase': 'complete'},
+                            capture=SimpleNamespace(verification_totals={}))
     assert runner.evidence(tmp_path, manifest, lease, False, 'pytest:failed:authorization',
                            selection, 'd' * 64, ledger) == (False, 'pytest:failed:authorization')
 

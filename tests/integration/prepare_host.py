@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -66,7 +67,7 @@ def canonical(path):
 def identity(path, *, private=False, mode=None):
     path = canonical(path)
     info = path.lstat()
-    require(stat.S_ISREG(info.st_mode), "guard:file-type")
+    require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1, "guard:file-type")
     if private:
         require(info.st_uid == os.geteuid() and info.st_gid == os.getegid(), "guard:owner")
     if mode is not None:
@@ -74,12 +75,19 @@ def identity(path, *, private=False, mode=None):
     return {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
 
 
-def digest(path):
+def digest(path, *, count_bytes=None):
     before = identity(path)
     with open(path, "rb") as stream:
         info = os.fstat(stream.fileno())
         require((info.st_dev, info.st_ino) == (before["device"], before["inode"]), "guard:file-changed")
-        result = hashlib.file_digest(stream, "sha256").hexdigest()
+        if count_bytes is None:
+            result = hashlib.file_digest(stream, "sha256").hexdigest()
+        else:
+            content = hashlib.sha256()
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                count_bytes(len(block))
+                content.update(block)
+            result = content.hexdigest()
         after = os.fstat(stream.fileno())
     require((info.st_size, info.st_mtime_ns, info.st_ctime_ns) ==
             (after.st_size, after.st_mtime_ns, after.st_ctime_ns), "guard:file-changed")
@@ -383,6 +391,40 @@ class Capture:
         self.script_digest = script_digest or guest_contract.preparation_digest()
         self.state = None
         self.directory_identity = None
+        self.verification_totals = {"calls": 0, "failures": 0, "bytes_read": 0,
+                                    "duration_seconds": 0.0}
+        self.backing_verification = None
+        self.verification_failure = None
+
+    def begin_backing_verification(self, owner):
+        from backing_verification import BackingVerification
+        if self.verification_failure is not None:
+            raise self.verification_failure
+        previous = self.backing_verification
+        if previous is not None:
+            require(previous.closed, 'guard:backing-proof-reused')
+            if previous.failure is not None:
+                raise previous.failure
+            previous.check_owner()
+        self.backing_verification = BackingVerification(self, owner)
+        self.backing_verification.acquire()
+        mode = ('leased' if self.backing_verification.enabled else
+                'full-' + self.backing_verification.fallback)
+        log('backing-verification:' + mode)
+
+    def retire_backing_verification(self):
+        """End a healthy interval before a supported VM disk transition.
+
+        Keep ownership attestation, but no byte proof crosses this boundary.
+        A broken proof is a permanent refusal, never grounds for reacquisition.
+        """
+        if self.backing_verification is not None:
+            try:
+                self.backing_verification.close()
+            except BaseException as error:
+                if self.verification_failure is None:
+                    self.verification_failure = error
+                raise
 
     def inventory(self):
         layout, off = self.source.snapshot()
@@ -528,7 +570,43 @@ class Capture:
             self.commands.lock_fd = None
             os.close(fd)
 
-    def verify_snapshot(self):
+    def verify_snapshot(self, *, force_bytes=False, boundary='checkpoint'):
+        started = time.monotonic()
+        require(boundary in ('checkpoint', 'acquisition', 'restoration', 'recovery'),
+                'guard:verification-boundary')
+        protected = self.backing_verification
+        mode = ('leased-proof' if protected and not protected.closed
+                and protected.enabled and protected.verified
+                and not force_bytes else 'full')
+        event = {"call": self.verification_totals["calls"] + 1,
+                 "bytes_read": 0, "outcome": "failed", "mode": mode, "boundary": boundary}
+        self.verification_totals["calls"] += 1
+
+        def count_bytes(size):
+            event["bytes_read"] += size
+
+        try:
+            if self.verification_failure is not None:
+                raise self.verification_failure
+            proof = self._verify_snapshot(count_bytes, force_bytes=force_bytes)
+            event["outcome"] = "passed"
+            return proof
+        except BaseException as error:
+            if self.verification_failure is None:
+                self.verification_failure = error
+            raise
+        finally:
+            duration = max(0.0, time.monotonic() - started)
+            self.verification_totals["duration_seconds"] += duration
+            self.verification_totals["bytes_read"] += event["bytes_read"]
+            self.verification_totals["failures"] += event["outcome"] != "passed"
+            event["duration_seconds"] = round(duration, 6)
+            # Fixed fields only. The caller's private runner log retains every
+            # call, including preparation, finalization and interrupted reads.
+            print("baseline:verification " + json.dumps(event, sort_keys=True),
+                  file=sys.stderr, flush=True)
+
+    def _verify_snapshot(self, count_bytes, *, force_bytes=False):
         self.revalidate()
         proof = snapshot_proof(self.source.baseline(), self.state["source"]["layout"], self.description())
         record = self.disk_snapshot()
@@ -541,8 +619,26 @@ class Capture:
         digests = self.state["source_digests"]
         require(isinstance(digests, list) and len(digests) == len(self.state["source"]["chain"]),
                 "state:source-digests")
-        require([digest(item["path"]) for item in self.state["source"]["chain"][1:]] == digests[1:],
-                "guard:backing-digest-changed")
+        protected = self.backing_verification
+        if protected is not None:
+            protected.check_owner()
+            if protected.failure is not None:
+                raise protected.failure
+        if (protected is None or protected.closed or
+                not protected.verify(self, count_bytes, force_bytes=force_bytes)):
+            require([digest(item["path"], count_bytes=count_bytes)
+                     for item in self.state["source"]["chain"][1:]] == digests[1:],
+                    "guard:backing-digest-changed")
+        # Keep the metadata/chain reconciliation around both full reads and
+        # leased proofs. Normal writes to the top image remain permitted.
+        self.revalidate()
+        if protected is not None:
+            if protected.closed:
+                protected.check_owner()
+            else:
+                protected.check()
+        if self.state['phase'] == 'finalized':
+            require(proof == self.state['proof'], 'snapshot:changed')
         return proof
 
     def execute(self):

@@ -467,10 +467,16 @@ installation prerequisites follow the [installation contract and limits](#instal
   does not authorize sending feedback or preparing a replacement baseline.
 - **Provenance and timing:** document-only handoffs currently change the source
   identity used by package verification; follow the [reuse decision](Implementation-Workflow.md#decide-what-invalidates-earlier-verification).
-  The accepted public 19A invocation took 1,520 seconds with a 49-second worker;
-  roughly 372 seconds of finalization is outside its stage timing buckets.
-  Carry this measured lead into 27C/28A; do not weaken preservation
-  checks, cache a baseline proof or redesign the runner simply to shorten a wait.
+  Normal VM attempts now share the
+  [kernel-backed backing-file proof](../../tests/e2e/README.md#backing-file-verification-within-an-attempt),
+  retaining every gate and full hashes at acquisition, the first existing check
+  after startup and after restoration. Healthy proofs are retired before VM
+  disk transitions; failed proofs remain failed.
+  Unsupported environments keep full reads. No proof survives release or failure.
+  Finalization has its own timing bucket; verification calls and bytes are
+  retained in runner results. Follow the [runtime qualification](Test-All-Runtime-Optimization-Handoff.md#implementation-results)
+  before reusing performance claims. Source/package identities still require
+  fresh artifacts after input changes; this is not an artifact cache.
 
 Maintain decisions in their task/contract when implemented, then remove the
 resolved warning here. Keep evidence in its original record. Update this map

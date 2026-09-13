@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Resume only identity-verified cleanup of a still-running graphical attempt."""
+"""Resume recorded cleanup, or audit an exactly restored powered-off guest."""
 
 import importlib
 import json

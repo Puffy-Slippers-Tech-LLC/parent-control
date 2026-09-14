@@ -61,7 +61,7 @@ def test_execution_refuses_missing_changed_or_duplicate_inventory(execution, ids
 def test_execution_refuses_uncollected_test_and_missing_inventory(execution):
     with pytest.raises(ValueError, match='uncollected'):
         event(execution, 'finished', nodeid='tests/ui/test_a.py::test_other')
-    with pytest.raises(ValueError, match='missing UI execution inventory'):
+    with pytest.raises(ValueError, match='missing test execution inventory'):
         execution.finish(0)
 
 

@@ -54,6 +54,7 @@ DEMANDS = {
 DEMANDS.update({kind: DEMANDS['ui'] for kind in UI_KINDS})
 PARALLEL = frozenset(DEMANDS)
 DEMANDS.update({'ui-exclusive': Demand(4, 4 * GIB)})
+DEMANDS.update({kind: DEMANDS['unit'] for kind in ('cleanup', 'cleanup-exclusive')})
 DEMANDS.update(publish=Demand(2, 6 * GIB), artifacts=Demand(2, 4 * GIB),
                system=Demand(0, 0), e2e=Demand(0, 0))
 
@@ -70,6 +71,8 @@ ARTIFACT_COMPANIONS = PARALLEL | BUILD_KINDS
 
 
 def compatible(first, second):
+    if first.startswith('cleanup') or second.startswith('cleanup'):
+        return first == second == 'cleanup'
     if 'artifacts' in (first, second):
         return (second if first == 'artifacts' else first) in ARTIFACT_COMPANIONS
     if first in BUILD_KINDS:
@@ -210,6 +213,11 @@ class Admission:
         # Keep the full active budget until a sample taken after startup can
         # reflect the new worker. Same-kind launches extend the reservation.
         self.startup_until[kind] = self.clock() + RESOURCE_STARTUP_SECONDS
+
+    def overlap_ready(self):
+        """Allow a bounded phase warm-up; missing metrics retain serial fallback."""
+        self.update()
+        return self.sample is None or self.open
 
     def update(self):
         now = self.clock()

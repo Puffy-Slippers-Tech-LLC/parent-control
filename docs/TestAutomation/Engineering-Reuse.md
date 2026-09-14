@@ -201,7 +201,7 @@ review changes no task order or completion status.
   and [test_regression.py](../../tests/unit/test_regression.py); publication guards
   remain in [test_publish.py](../../tests/unit/test_publish.py).
 - Aggregate execution: reuse the [bounded host scheduler contract](../../tests/README.md#all-established-regressions)
-  and [implementation scope](Test-All-Parallelism-Design.md#implemented-first-scope).
+  and [scheduling policy](Test-All-Parallelism-Design.md#schedule-and-selection).
   `regression_schedule.py` owns bounded host dispatch and coordinated output;
   `regression_resources.py` supplies conservative load admission;
   `test_activity.py` coordinates launcher ownership. Resource, scheduling,
@@ -212,7 +212,7 @@ review changes no task order or completion status.
   Reuse the [host storage and fixture-failure contract](../../tests/README.md):
   pytest capture/fixtures and retained UI images use `/var/tmp`; durable fixture
   failure events cancel scheduling before category exit while owned cleanup drains.
-  Publishing uses the scheduler's explicit companion list; artifact builds and
+  Publishing and artifact operations use the scheduler's explicit companion list;
   VM attempts stay exclusive. Installed-system phases already
   share one installation; pending E2E journeys remain independent and pending.
   Live performance qualification must accompany any claim of complete-run savings.

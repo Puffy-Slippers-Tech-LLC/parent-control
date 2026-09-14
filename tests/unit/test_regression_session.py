@@ -141,7 +141,7 @@ def test_legacy_activity_refuses_duplicate_without_starting_worker(tmp_path, wor
 
 
 @pytest.mark.parametrize('change', ['none', 'passed-gate', 'started-suite', 'missing-progress',
-                                  'extra-allocation', 'schedule', 'no-activity'])
+                                  'extra-allocation', 'schedule', 'no-activity', 'parallel-cleanup'])
 def test_initial_check_recovery_requires_proven_pre_suite_stop(tmp_path, monkeypatch, change):
     monkeypatch.delenv(test_activity.VARIABLE, raising=False)
     monkeypatch.setattr(test_activity, '_descriptor', None)
@@ -155,6 +155,8 @@ def test_initial_check_recovery_requires_proven_pre_suite_stop(tmp_path, monkeyp
         progress[1]['state'] = 'Passed'
     if change == 'started-suite':
         progress[2]['state'] = 'Running'
+    if change == 'parallel-cleanup':
+        progress[1].update(name='Cleanup — fixture_cleanup_safety', phase='cleanup')
     if change != 'missing-progress':
         (report / 'progress.json').write_text(json.dumps(progress))
     if change == 'schedule':

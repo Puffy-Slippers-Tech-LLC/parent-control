@@ -74,76 +74,25 @@ closure force synchronization; fixture failures are durable before cancellation.
 This avoids report traffic repeatedly closing the runner's own I/O pressure gate.
 An abrupt machine failure can lose the latest routine checkpoint interval.
 
-Host categories run through a maximum of four owned workers. UI discovery is
-partitioned into request behavior, layout/overflow, feedback, preview/About,
-screen fidelity and nested-Shell buckets. Each keeps entire modules together
-in one serial pytest process with private graphical fixtures. Workers pull
-from the shared queue, longest estimated dependency path first, alongside units, components,
-fixtures and small checks when CPU, memory and I/O headroom permit. Admission uses
-CPU, memory and I/O stall percentages from PSI counter changes since the previous
-sample, and requires four seconds of consecutive low-pressure observations before
-overlap (normally three samples at the two-second cadence). Kernel `avg10` values
-remain in the resource evidence; their trailing history does not add a second
-recovery delay. New pressure closes the gate on observation. Cached readings do
-not advance recovery. Missing or invalid measurements fall back to
-serial execution; memory shortage defers even a single known host category.
-Any new swap write or swap reads of at least 1 MiB/s defer admission. Small reads
-of pages evicted earlier do not alone imply current memory pressure; the memory
-reserve and pressure checks still apply, and sampled swap rates are retained.
-Host admission adds the candidate's full memory budget to a fixed 2 GiB desktop
-reserve. Established categories contribute up to 1 GiB each (capped at their full
-budgets) to a shared growth allowance capped at 2 GiB across all active jobs.
-An active category retains its full budget until a sample taken at least 20 seconds
-after its launch; these startup reservations are added outside the growth pool.
-After startup, adding units alongside UI or publishing needs 5 GiB available, a
-second UI bucket needs 7 GiB, and components alongside publishing need 4 GiB.
-A fourth UI worker alongside three established UI jobs needs 8 GiB.
-The pool is an engineering allowance, not a hard memory limit.
-Launching publishing itself still reserves its full 6 GiB plus desktop and companion
-allowances. Resident active work is already reflected in available memory.
-Memory wait messages show observed and required available RAM. VM launches use
-the same 2 GiB desktop reserve in addition to full configured guest RAM and
-QEMU/controller overhead; the threshold does not grow with total host RAM.
-Overlapping jobs retain a 25% CPU headroom target. CPU admission adds the
-candidate's full estimate and one core of possible growth per established job
-(capped at its estimate) to measured host usage, which already includes running
-tests. Active jobs retain their full CPU reservation until a fresh sample taken
-at least 20 seconds after launch. CPU wait messages distinguish pressure recovery
-from insufficient CPU budget and show the required spare cores and usage limit.
-Already-running tests finish normally when load increases. Publishing, build A
-and build B are independent jobs. Comparison waits for both successful builders
-and their validated, distinct output paths, kept by build identity regardless of
-completion order. A failed build blocks comparison; publishing failure does not
-block either build. Any package qualification failure blocks VM execution.
-Independent host assertions still report their own results.
-The aggregate runs the complete cleanup-safety suite in isolation before host
-work. Its UI, component and fixture-runtime workers reuse that passing result
-through the inherited checkout activity lock after checking the source digest.
-Each independent invocation clears the lock's temporary success record; missing
-records run the safety suite, and changed/invalid records refuse execution.
-This avoids running the same disk-intensive prerequisite suite again in every
-host worker. Standalone, publishing, artifact and VM safety gates still run.
-Publishing may overlap units, private-D-Bus components or screen fidelity.
-Screen fidelity's private compositor, bus, PipeWire, settings and evidence are
-separate from publishing's private source/build directories. This lets the free
-worker take screen fidelity when units and components finish before publishing;
-adding it alongside established publishing requires 7 GiB available. Units and
-components have live overlap evidence; generated reports own current qualification.
-Other UI/publishing pairings remain disabled. Artifact operations use private
-source copies, package outputs and Flatpak fixture roots and may overlap each
-other, publishing and the known parallel host categories when resource budgets
-permit. Unknown/exclusive UI work remains incompatible. Every VM attempt remains
-exclusive after all host work exits.
-Node file concurrency and package build parallelism are capped at two.
-High pressure defers serial launches too. VM admission reads the pinned
-configuration through `tools/test-vm xml` and reserves guest RAM plus overhead.
-Private `resources.jsonl` samples and the report's host scheduling summary record
-the observed load, wall time and maximum active category count.
-Sampling continues during serial publishing and VM execution; observations name
-the running categories and include unrelated host load.
-Private `schedule.jsonl` records dependency keys, admitted companions, duration
-estimates, actual completion times and per-job waiting reasons. Estimates only
-order jobs; they cannot authorize a pairing or relax resource/timeout limits.
+The aggregate uses at most four host workers, subject to compatibility and CPU,
+memory, I/O and swap admission. Reviewed cleanup modules run in balanced buckets
+with their fixtures kept together. **Join cleanup prerequisites** requires every
+bucket to pass and exit before downstream execution. UI, component and
+fixture-runtime workers validate the shared passing gate; standalone, publishing,
+artifact and VM launchers retain their own safety gates.
+
+Host work and independent publishing/build jobs share the branches; comparison
+joins both successful builders and their validated distinct outputs. Publishing
+may overlap units, components, request behavior, screen fidelity and artifacts.
+Artifact operations may overlap known parallel host categories and each other.
+Every VM attempt remains exclusive after the host/build join. Resource shortages
+defer launches, and already-running tests finish normally when load rises.
+
+The [scheduling contract](../docs/TestAutomation/Test-All-Parallelism-Design.md)
+owns companion isolation, cleanup barriers, admission budgets and recovery,
+queue ordering and qualification requirements. Private `resources.jsonl` and
+`schedule.jsonl` retain sampled host load, dependencies, admitted companions and
+wait reasons. Estimates guide ordering without relaxing resource or test limits.
 
 UI bucket collection and completion must match the original discovered test IDs
 exactly; count-only matches cannot pass. New UI modules run exclusively until
@@ -265,11 +214,12 @@ No `/tmp/onpc-*` or `/var/tmp/onpc-*` prefix sweep is used. An unfinished retent
 journal after abrupt termination stops another run before allocating more output;
 preserve it and reconcile the owner/recovery condition. The aggregate can recover
 automatically when its checkout and storage locks are free, its sole allocation
-is the report, and saved progress proves it stopped in the initial safety checks
+is the report, and saved progress proves it stopped in the legacy serial initial safety checks
 before any protected suite started. It archives the unfinished journal as
 `artifacts/test-retention/interrupted-<run>.json`, preserving all referenced
 evidence outside normal rotation, and starts a fresh run. A `recovery-required`
-marker or ambiguous/later progress still refuses automatic recovery. Ordinary test failures
+marker, parallel cleanup phase, or ambiguous/later progress still refuses automatic recovery.
+Partial bucket results cannot prove that every child exited. Ordinary test failures
 and cooperative Ctrl+C finish their storage ownership and permit the next run.
 Fixture setup/teardown or pytest infrastructure failures pin host evidence with
 `recovery-required` instead of assuming every fixture exited successfully.
@@ -513,6 +463,14 @@ away the first failure's diagnostics. These directories are disk-backed on the
 development host; logs and existing failure evidence are never removed by tests.
 
 Host pytest launchers fix `TMPDIR=/var/tmp` for capture and temporary fixtures.
+The three 100-run retention repetition tests explicitly use private `/tmp`
+trees and check their peak footprint each iteration: fewer than 64 entries and
+256 KiB of file contents per case. Their fixture removes only its own tree on
+exit. All iterations and real filesystem calls remain; memory-backed `/tmp`
+avoids repeated disk flush latency. Separate ordinary `tmp_path` tests verify
+disk-backed journal sync ordering, write-failure propagation and preservation
+of existing evidence. This narrow exception does not move runner journals,
+capture, screenshots or other test fixtures to `/tmp`.
 `tests.support.preview.boot_preview_session` scopes tempfile's default to `/tmp`
 only while Dogtail boots its private graphical runtime. WebKit creates
 `/var/tmp` as a symlink inside its sandbox, so placing `XDG_RUNTIME_DIR` beneath

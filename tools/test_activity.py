@@ -23,6 +23,38 @@ def environment():
     return {} if _descriptor is None else {VARIABLE: str(_descriptor)}
 
 
+def record_cleanup(source):
+    """Publish a passed aggregate cleanup gate to this lock's own children.
+
+    This is an ephemeral coordination record, not durable evidence or a
+    privileged-run authorization. A new independent activity clears it.
+    """
+    if _descriptor is None:
+        return
+    if len(source) != 64 or any(char not in '0123456789abcdef' for char in source):
+        raise ValueError('invalid cleanup source identity')
+    payload = source.encode('ascii')
+    if os.pwrite(_descriptor, payload, 0) != len(payload):
+        raise OSError('incomplete cleanup coordination record')
+    os.ftruncate(_descriptor, len(payload))
+
+
+def cleanup_verified(root):
+    """Reuse only a gate from the current inherited activity and same inputs."""
+    if _descriptor is None:
+        return False
+    payload = os.pread(_descriptor, 65, 0)
+    if not payload:
+        return False
+    # Ordinary and privileged launcher startup only needs activity ownership;
+    # load aggregate provenance support when a reusable host gate exists.
+    from regression_inputs import identity as source_identity
+    if (len(payload) != 64 or any(char not in b'0123456789abcdef' for char in payload)
+            or payload.decode('ascii') != source_identity(root)):
+        raise ValueError('aggregate cleanup prerequisites no longer match source inputs')
+    return True
+
+
 @contextmanager
 def activity(root):
     global _descriptor
@@ -56,10 +88,13 @@ def activity(root):
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise ValueError('another test launcher owns this checkout; wait for its cleanup') from error
+        if inherited is None:
+            # Never reuse a previous invocation's passing gate, including after
+            # an interrupted/crashed aggregate that left its lock file behind.
+            os.ftruncate(descriptor, 0)
         _descriptor = descriptor
         os.set_inheritable(descriptor, True)
         yield
     finally:
         _descriptor = previous
         os.close(opened)
-

@@ -4,7 +4,9 @@ import os
 import json
 import subprocess
 import sys
-from types import ModuleType
+import tempfile
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -12,6 +14,29 @@ from tests.support.configuration import valid_config
 from tests.support.events import read_events
 from tests.support.modules import load_module
 from tests.support.terminal import capture
+from tests.support.preview import boot_preview_session
+
+
+@pytest.mark.parametrize('previous', [None, '/var/tmp'])
+@pytest.mark.parametrize('failure', [None, RuntimeError, KeyboardInterrupt])
+def test_graphical_boot_restores_pytest_storage_default(monkeypatch, previous, failure):
+    monkeypatch.setattr(tempfile, 'tempdir', previous)
+    monkeypatch.setenv('TMPDIR', '/var/tmp')
+
+    def boot():
+        with tempfile.TemporaryDirectory(prefix='onpc-runtime-probe-') as directory:
+            assert Path(directory).parent == Path('/tmp')
+            if failure:
+                raise failure('boot failed')
+
+    session = SimpleNamespace(boot=boot)
+    if failure:
+        with pytest.raises(failure):
+            boot_preview_session(session)
+    else:
+        boot_preview_session(session)
+    assert tempfile.tempdir == previous
+    assert os.environ['TMPDIR'] == '/var/tmp'
 
 
 def test_configuration_factory_returns_independent_documents():

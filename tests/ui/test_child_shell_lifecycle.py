@@ -9,7 +9,6 @@ import hashlib
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -61,12 +60,12 @@ def _run_child_shell(environment, timeout=90):
     return subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
 
 
-def _new_artifact_root(scenario: str) -> Path:
+def _new_artifact_root(scenario: str, render_artifacts) -> Path:
     # Unix sockets are not supported by every workspace filesystem. The Shell
     # runtime needs one for its private D-Bus, while reviewable evidence is
     # copied to ARTIFACTS below after every completed attempt.
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    return Path(tempfile.mkdtemp(prefix=f"onpc-child-{scenario}-", dir="/tmp"))
+    return render_artifacts(f"onpc-child-{scenario}-", parent="/tmp", shader_cache=True)
 
 
 def _tree_fingerprint(root: Path) -> str | None:
@@ -150,10 +149,10 @@ def _extension_error_context(log: str) -> list[str]:
     return failures
 
 
-def test_child_extension_lifecycle_in_isolated_shell():
+def test_child_extension_lifecycle_in_isolated_shell(render_artifacts):
     # Keep XDG_RUNTIME_DIR comfortably below sockaddr_un.sun_path's limit.
     # Pytest's nested tmp_path can exceed it before AT-SPI adds its suffix.
-    artifact_root = _new_artifact_root("lifecycle")
+    artifact_root = _new_artifact_root("lifecycle", render_artifacts)
     environment = {
         **os.environ,
         "ONPC_CHILD_SHELL_ARTIFACT_DIR": str(artifact_root),
@@ -189,8 +188,8 @@ def test_child_extension_lifecycle_in_isolated_shell():
     _publish_success_artifacts(artifact_root, "lifecycle")
 
 
-def test_child_indicator_opens_one_shared_overlay_and_can_reopen():
-    artifact_root = _new_artifact_root("interaction")
+def test_child_indicator_opens_one_shared_overlay_and_can_reopen(render_artifacts):
+    artifact_root = _new_artifact_root("interaction", render_artifacts)
     environment = {
         **os.environ,
         "ONPC_CHILD_SHELL_ARTIFACT_DIR": str(artifact_root),
@@ -244,8 +243,8 @@ def test_child_indicator_opens_one_shared_overlay_and_can_reopen():
     _publish_success_artifacts(artifact_root, "interaction")
 
 
-def test_child_extension_reload_uses_only_a_controlled_copy():
-    artifact_root = _new_artifact_root("reload")
+def test_child_extension_reload_uses_only_a_controlled_copy(render_artifacts):
+    artifact_root = _new_artifact_root("reload", render_artifacts)
     repository_before = _tree_fingerprint(ROOT / "child")
     developer_extension = Path.home() / ".local/share/gnome-shell/extensions" / UUID
     developer_before = _tree_fingerprint(developer_extension)

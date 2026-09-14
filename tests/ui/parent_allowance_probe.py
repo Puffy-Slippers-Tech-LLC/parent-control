@@ -1,6 +1,7 @@
 """Record real popup placement and pixels on the private test compositor."""
 
 import json
+import time
 from itertools import count
 from pathlib import Path
 
@@ -10,6 +11,39 @@ from gi.repository import GLib, Graphene, Gtk
 def attach(application, directory):
     window = application.get_active_window()
     popover = window._daily_limit.get_popover()
+    directory = Path(directory)
+
+    def observe(event, x=None, y=None, button=None):
+        record = {"event": event, "monotonic": time.monotonic(),
+                  "mapped": popover.get_mapped()}
+        if x is not None:
+            valid, bounds = window._daily_limit.compute_bounds(window)
+            record.update(x=x, y=y, button=button)
+            if valid:
+                record["target"] = [bounds.get_x(), bounds.get_y(),
+                                    bounds.get_width(), bounds.get_height()]
+            picked = window.pick(x, y, Gtk.PickFlags.DEFAULT)
+            while picked is not None and picked is not window._daily_limit:
+                picked = picked.get_parent()
+            record["target_picked"] = picked is window._daily_limit
+        with (directory / "input.jsonl").open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(record) + "\n")
+
+    # Observe delivery without claiming a gesture or activating a control.
+    motion = Gtk.EventControllerMotion.new()
+    motion.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+    motion.connect("motion", lambda _controller, x, y: observe("motion", x, y))
+    window.add_controller(motion)
+    clicks = Gtk.GestureClick.new()
+    clicks.set_button(0)
+    clicks.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+    clicks.connect("pressed", lambda gesture, _count, x, y:
+                   observe("pressed", x, y, gesture.get_current_button()))
+    clicks.connect("released", lambda gesture, _count, x, y:
+                   observe("released", x, y, gesture.get_current_button()))
+    window.add_controller(clicks)
+    popover.connect("map", lambda *_: observe("map"))
+    popover.connect("unmap", lambda *_: observe("unmap"))
     captures = count()
     popover.connect("map", lambda *_: GLib.timeout_add(
         250, capture, window, popover, Path(directory), next(captures),

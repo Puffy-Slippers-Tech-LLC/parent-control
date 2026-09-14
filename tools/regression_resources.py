@@ -1,8 +1,9 @@
-"""Conservative read-only admission for two host test categories.
+"""Read-only resource admission for bounded host test categories.
 
-CPU and memory reservations intentionally count active jobs' full budgets again
-on top of observed host use. That pessimism protects against their future peaks
-without attributing host processes or assuming instantaneous usage is a ceiling.
+Memory admission budgets new allocations against observed available memory,
+with a startup reservation and a growth allowance for active jobs. CPU admission
+likewise reserves new work and growth above measured usage; no host process
+attribution or ownership inference is used.
 """
 
 from dataclasses import asdict, dataclass
@@ -13,7 +14,16 @@ import subprocess
 import time
 from xml.etree import ElementTree
 
+from regression_ui import KINDS as UI_KINDS
+
 GIB = 1024 ** 3
+HOST_WORKERS = 4
+HOST_MEMORY_RESERVE = 2 * GIB
+ACTIVE_MEMORY_GROWTH = GIB
+ACTIVE_MEMORY_GROWTH_POOL = 2 * GIB
+ACTIVE_CPU_GROWTH = 1
+RESOURCE_STARTUP_SECONDS = 20
+PRESSURE_RECOVERY_SECONDS = 4
 SWAP_IN_LIMIT = 1024 ** 2  # Bytes/second; cold page reads below this are tolerated.
 
 
@@ -35,10 +45,29 @@ DEMANDS = {
     'child-gjs': Demand(1, GIB),
     'backend': Demand(1, GIB),
 }
+DEMANDS.update({kind: DEMANDS['ui'] for kind in UI_KINDS})
 PARALLEL = frozenset(DEMANDS)
 DEMANDS.update({'ui-exclusive': Demand(4, 4 * GIB)})
 DEMANDS.update(publish=Demand(2, 6 * GIB), artifacts=Demand(2, 4 * GIB),
                system=Demand(0, 0), e2e=Demand(0, 0))
+
+# Publishing companions with reviewed isolation. Units/components have live
+# overlap evidence; screen fidelity uses private compositor/bus/PipeWire/XDG
+# state and per-test evidence, separate from publishing's private sbuild tree.
+# Keep the screen identity explicit: this does not authorize other UI buckets.
+# Keep these symmetric: launch order must not change isolation requirements.
+BUILD_KINDS = frozenset(('publish', 'artifacts'))
+BUILD_COMPANIONS = frozenset(('unit', 'component', 'ui-screen'))
+
+
+def compatible(first, second):
+    if 'artifacts' in (first, second):
+        return False
+    if first in BUILD_KINDS:
+        return second in BUILD_COMPANIONS
+    if second in BUILD_KINDS:
+        return first in BUILD_COMPANIONS
+    return first in PARALLEL and second in PARALLEL
 
 
 def vm_demand(root):
@@ -72,6 +101,9 @@ class Sample:
     swapping: bool
     swap_in_bytes_per_second: float = 0
     swap_out_bytes_per_second: float = 0
+    cpu_pressure_avg10: float | None = None
+    memory_pressure_avg10: float | None = None
+    io_pressure_avg10: float | None = None
 
 
 class Monitor:
@@ -84,7 +116,11 @@ class Monitor:
         def pressure(name, line):
             rows = dict(row.split(' ', 1) for row in
                         (self.proc / 'pressure' / name).read_text().splitlines())
-            return float(dict(field.split('=') for field in rows[line].split())['avg10'])
+            fields = dict(field.split('=') for field in rows[line].split())
+            average, total = float(fields['avg10']), int(fields['total'])
+            if not math.isfinite(average) or average < 0 or total < 0:
+                raise ValueError('invalid pressure measurement')
+            return average, total
 
         ticks = list(map(int, (self.proc / 'stat').read_text().splitlines()[0].split()[1:9]))
         total, idle = sum(ticks), ticks[3] + ticks[4]
@@ -116,14 +152,22 @@ class Monitor:
             if current == self.cgroups:
                 break
             current = current.parent
+        pressures = [pressure('cpu', 'some'), pressure('memory', 'some'), pressure('io', 'full')]
+        pressure_totals = [value for _, value in pressures]
         now = self.clock()
-        previous, self.previous = self.previous, (total, idle, swap, now)
+        previous, self.previous = self.previous, (total, idle, swap, now, pressure_totals)
         if previous is None or total <= previous[0] or now <= previous[3]:
             raise ValueError('resource monitor warming up')
         interval = now - previous[3]
         page_size = os.sysconf('SC_PAGE_SIZE')
         swap_in, swap_out = ((current - before) * page_size / interval
                             for current, before in zip(swap, previous[2]))
+        # PSI totals are microseconds stalled. Use the same observation interval
+        # as CPU/swap, so a completed I/O burst does not keep admission closed
+        # while avg10 decays and then incur another recovery window. Retain the
+        # kernel averages in evidence to distinguish current stalls from history.
+        current_pressure = [(current - before) / (interval * 10_000)
+                            for current, before in zip(pressure_totals, previous[4])]
         # Reading a few pages evicted earlier does not imply current reclaim.
         # Any new swap write still closes admission, as does >= 1 MiB/s of
         # swap reads. Memory reserves and PSI remain independent mandatory gates.
@@ -131,8 +175,8 @@ class Monitor:
         # Aggregate /proc/stat spans all host CPUs, not only our affinity set.
         busy = (1 - (idle - previous[1]) / (total - previous[0])) * (os.cpu_count() or 1)
         result = Sample(capacity, max(0, busy), total_memory, available,
-                        pressure('cpu', 'some'), pressure('memory', 'some'),
-                        pressure('io', 'full'), swapping, swap_in, swap_out)
+                        *current_pressure, swapping, swap_in, swap_out,
+                        *(average for average, _ in pressures))
         if not all(math.isfinite(value) and value >= 0 for value in (
                 result.capacity, result.busy, result.cpu_pressure,
                 result.memory_pressure, result.io_pressure, swap_in, swap_out)):
@@ -151,6 +195,12 @@ class Admission:
         self.reason = 'resource monitor warming up'
         self.demands = dict(DEMANDS)
         self.observe = observe
+        self.startup_until = {}
+
+    def started(self, kind):
+        # Keep the full active budget until a sample taken after startup can
+        # reflect the new worker. Same-kind launches extend the reservation.
+        self.startup_until[kind] = self.clock() + RESOURCE_STARTUP_SECONDS
 
     def update(self):
         now = self.clock()
@@ -177,21 +227,25 @@ class Admission:
         elif low:
             if self.healthy_since is None:
                 self.healthy_since = now
-            if now - self.healthy_since >= 20:
+            if now - self.healthy_since >= PRESSURE_RECOVERY_SECONDS:
                 self.open = True
         else:
             self.healthy_since = None
         self.reason = 'waiting for sustained resource headroom' if not self.open else 'resource headroom available'
         self.observe({'monotonic': now, 'available': True, 'overlap_gate': self.open,
+                      'pressure_basis': 'sample interval',
+                      'pressure_healthy_seconds': (0 if self.healthy_since is None
+                                                   else now - self.healthy_since),
+                      'pressure_recovery_seconds': PRESSURE_RECOVERY_SECONDS,
                       **asdict(sample)})
 
     def allows(self, candidate, active):
         self.update()
-        if len(active) >= 2:
-            self.reason = 'two host categories already running'
+        if len(active) >= HOST_WORKERS:
+            self.reason = f'{HOST_WORKERS} host categories already running'
             return False
-        if active and (candidate not in PARALLEL or any(name not in PARALLEL for name in active)):
-            self.reason = 'exclusive category requires an idle runner'
+        if any(not compatible(candidate, name) for name in active):
+            self.reason = 'unqualified pairing requires an idle runner'
             return False
         if candidate not in DEMANDS:
             return not active
@@ -201,17 +255,44 @@ class Admission:
         demands = [self.demands[name] for name in [candidate, *active]]
         if any(d.cpu <= 0 or d.memory <= 0 for d in demands):
             raise ValueError('missing category resource reservation')
-        reserve = max(2 * GIB, sample.total_memory * .2)
-        if sample.available_memory < reserve + sum(d.memory for d in demands):
-            self.reason = 'waiting for memory headroom'
+        # MemAvailable already reflects resident active work. Reserve the full
+        # candidate, plus a shared growth pool for established workers. Adding
+        # 1 GiB per branch without a cap stranded the sixth worker despite low
+        # pressure. Startup budgets stay outside that pool: they may not yet
+        # be reflected in the available-memory sample.
+        reserve = (max(HOST_MEMORY_RESERVE, sample.total_memory * .2)
+                   if candidate in ('system', 'e2e') else HOST_MEMORY_RESERVE)
+        starting = [self.last < self.startup_until.get(name, math.inf) for name in active]
+        startup_memory = sum(demand.memory for demand, startup in zip(demands[1:], starting)
+                             if startup)
+        growth_memory = min(ACTIVE_MEMORY_GROWTH_POOL, sum(
+            min(demand.memory, ACTIVE_MEMORY_GROWTH)
+            for demand, startup in zip(demands[1:], starting) if not startup))
+        required = reserve + demands[0].memory + startup_memory + growth_memory
+        if sample.available_memory < required:
+            self.reason = f'waiting for memory headroom (requires {required / GIB:.1f} GiB available)'
             return False
-        if (sample.cpu_pressure >= 10 or sample.memory_pressure >= 1
-                or sample.io_pressure >= 2 or sample.swapping
-                or sample.busy > sample.capacity * .75):
-            self.reason = 'waiting for busy host to recover'
+        for limited, resource in ((sample.swapping, 'swap activity'),
+                                  (sample.memory_pressure >= 1, 'memory pressure'),
+                                  (sample.io_pressure >= 2, 'I/O pressure'),
+                                  (sample.cpu_pressure >= 10, 'CPU pressure'),
+                                  (sample.busy > sample.capacity * .75, 'CPU utilization')):
+            if limited:
+                self.reason = f'waiting for {resource} to recover'
+                return False
+        if active and not self.open:
+            self.reason = 'waiting for sustained resource headroom'
             return False
-        if active and (not self.open or sample.busy + sum(d.cpu for d in demands) > sample.capacity * .75):
-            self.reason = 'waiting for CPU/pressure headroom'
+        # Measured busy CPU already includes established workers. Budget their
+        # possible growth instead of adding their entire demand a second time.
+        # Newly launched workers still need full reservations until a fresh
+        # post-startup sample, including launches within the same scheduler pass.
+        additional_cpu = demands[0].cpu + sum(
+            demand.cpu if startup else min(demand.cpu, ACTIVE_CPU_GROWTH)
+            for demand, startup in zip(demands[1:], starting))
+        if active and sample.busy + additional_cpu > sample.capacity * .75:
+            self.reason = (f'waiting for CPU headroom (needs {additional_cpu:.1f} free cores '
+                           f'below {sample.capacity * .75:.1f}-core limit)')
             return False
         # A single job may exceed our conservative CPU estimate on small hosts;
         # serialize it rather than deadlocking forever on an impossible budget.

@@ -81,7 +81,9 @@ class Probe(Viewer):
         state = self.capture.call("org.gnome.Mutter.DisplayConfig",
                                   "/org/gnome/Mutter/DisplayConfig",
                                   "org.gnome.Mutter.DisplayConfig", "GetCurrentState")
-        output.write_text(json.dumps({
+        # Existence signals readiness to pytest; expose only complete evidence.
+        temporary = output.with_suffix(".tmp")
+        temporary.write_text(json.dumps({
             "source": [self.capture.paintable.get_intrinsic_width(),
                        self.capture.paintable.get_intrinsic_height()],
             "pixel_view": self.pixel_size, "host_scale": self.host_scale,
@@ -90,6 +92,7 @@ class Probe(Viewer):
             "monitors": len(state[1]), "logical_monitors": len(state[2]),
             "mapped": self.window.get_mapped(),
         }))
+        temporary.replace(output)
         return False
 
 

@@ -130,6 +130,7 @@ def safety_command(root):
 
 def host_run(root, category, argv):
     import test_launcher as host
+    import test_activity
     with Control().installed(pipe=True) as control:
         command = host.pytest_command(root, argv, category)
         env = host.test_environment(root)
@@ -137,9 +138,13 @@ def host_run(root, category, argv):
         if category == 'ui':
             env['ONPC_REGRESSION_UI_INVENTORY'] = '1'
         if category != 'unit' and '--collect-only' not in command:
-            status = control.run(safety_command(root), cwd=root, env=host.test_environment(root))
-            if status:
-                return status
+            if test_activity.cleanup_verified(root):
+                print('run-tests: reusing passed aggregate cleanup prerequisites; source verified',
+                      flush=True)
+            else:
+                status = control.run(safety_command(root), cwd=root, env=host.test_environment(root))
+                if status:
+                    return status
         return control.run(command, cwd=root, env=env)
 
 
@@ -147,6 +152,7 @@ def category_run(root, category, argv):
     import tempfile
     import test_commands
     import test_launcher as host
+    import test_activity
     commands, safety = test_commands.plan(root, category, argv)
     env = host.environment(root)
     env['PYTHONUNBUFFERED'] = '1'
@@ -164,9 +170,13 @@ def category_run(root, category, argv):
                            '--coverage-output=' + directory]
     with Control().installed(pipe=True) as control:
         if safety:
-            status = control.run(safety_command(root), cwd=root, env=host.test_environment(root))
-            if status:
-                return status
+            if category == 'fixture-runtime' and test_activity.cleanup_verified(root):
+                print('run-tests: reusing passed aggregate cleanup prerequisites; source verified',
+                      flush=True)
+            else:
+                status = control.run(safety_command(root), cwd=root, env=host.test_environment(root))
+                if status:
+                    return status
         for command in commands:
             privileged = command[0] == '/usr/bin/pkexec'
             if privileged:

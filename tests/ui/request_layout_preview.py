@@ -39,6 +39,8 @@ def inspect_layout(window):
         records = []
         for width, height in sizes:
             for expanded, custom in ((False, False), (False, True), (True, True)):
+                print(f"Layout probe: {width}x{height} expanded={expanded} custom={custom}",
+                      flush=True)
                 form._approvers._set_expanded(expanded)
                 form._custom_row.set_visible(custom)
                 content.allocate(width, height, -1, None)
@@ -106,6 +108,7 @@ def inspect_layout(window):
                 texture = window.get_renderer().render_texture(
                     node, Graphene.Rect().init(0, 0, width, height),
                 )
+                print("Layout probe: rendered; saving image", flush=True)
                 state = "expanded" if expanded else "custom" if custom else "normal"
                 name = f"request-{width}x{height}-{state}.png"
                 assert texture.save_to_png(str(directory / name))
@@ -147,6 +150,7 @@ def inspect_layout(window):
 
 
 def window_factory(application, **kwargs):
+    print("Layout probe: constructing window", flush=True)
     window = RequestWindow(application, **kwargs)
     window.connect("map", lambda *_: GLib.timeout_add(500, inspect_layout, window))
     return window

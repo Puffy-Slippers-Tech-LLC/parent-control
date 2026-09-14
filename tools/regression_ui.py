@@ -18,6 +18,10 @@ GROUPS = (
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
 )
 
+# Keep pairing identities separate even when buckets have the same reservation.
+# A qualified build companion must never implicitly authorize other UI fixtures.
+KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell')
+
 
 @dataclass(frozen=True)
 class Bucket:
@@ -40,11 +44,11 @@ def buckets(nodeids):
             raise ValueError('UI inventory contains an invalid test path')
         files.setdefault(filename, []).append(nodeid)
     result = []
-    for name, names, seconds in GROUPS:
+    for (name, names, seconds), kind in zip(GROUPS, KINDS, strict=True):
         paths = tuple('tests/ui/' + name for name in names if 'tests/ui/' + name in files)
         if paths:
             ids = tuple(node for path in paths for node in files.pop(path))
-            result.append(Bucket('UI — ' + name, paths, ids, 'ui', 20 + seconds * len(ids)))
+            result.append(Bucket('UI — ' + name, paths, ids, kind, 20 + seconds * len(ids)))
     for path, ids in sorted(files.items()):
         result.append(Bucket('UI — ' + path.removeprefix('tests/ui/'), (path,), tuple(ids),
                              'ui-exclusive', 20 + 6 * len(ids)))

@@ -129,6 +129,11 @@ def environment(root):
 def test_environment(root):
     result = environment(root)
     result.pop(test_activity.VARIABLE, None)
+    # Pytest capture and temporary fixtures must not compete with retained
+    # screenshots for the per-user quota of a RAM-backed /tmp. tempfile and
+    # pytest still create/lock their own private names for concurrent workers.
+    # This fixed value cannot be replaced by a caller's TMPDIR/TEMP/TMP.
+    result['TMPDIR'] = '/var/tmp'
     return result
 
 

@@ -1,97 +1,70 @@
-# Task 25 — Graphical application policy and multi-user isolation
+# Task 25 — Customer application use and user isolation
 
-Execute 25A and 25B separately. Reuse Task 15's native, Snap, and Flatpak
-fixtures, launch assertions, and ownership-recorded process helpers.
-
-Follow [E2E-Coverage.md](E2E-Coverage.md). Expand assigned route, policy, and
-multi-user families into explicit variants. Use customer UIs for the policy
-edits and session transitions the journey asserts; declare unrelated starting
-configuration under the [prerequisite contract](E2E-Coverage.md#prepare-prerequisites-through-supported-helpers).
-Launch through the actual route under test, including real terminal input for
-a command route. No injected filter, grant, session state or VM checkpoint
-replaces an asserted operation. Process
-fixtures exercise real OS enforcement but do not prove gameplay; Task 26C
-additionally requires a real installed game and continuous customer journeys.
+Follow [E2E-Coverage.md](E2E-Coverage.md). Configure through Parent, launch
+through the supported customer route and observe the resulting window, denial
+or terminal output. Use normal user switching to observe other users.
+Task 15's internal matrix and policy acknowledgement are not dependencies.
 
 ## Implementation slices
 
-Use the [implementation workflow](Implementation-Workflow.md). These are small
-work boundaries within the existing task, not extra acceptance checklists.
-Verification below is task acceptance; edits use the smallest affected selection.
+First complete one native allow/block journey, then extend only for distinct
+supported routes and behavior. Reuse prepared real apps and graphical input.
+A missing native/Snap/Flatpak asset is a concrete setup need for its consumer,
+not a reason to build an execution-witness framework.
 
-| Task | First proof, then expansion |
-| --- | --- |
-| 25A | One graphical native allow/deny route; then adapt the proven route helper for each required platform/identity. |
-| 25B | One two-user process-isolation transaction; then retained sessions and the declared partial-failure variants. |
-
-Before expanding E2E-019's current 48 variants, record the app interaction each
-route/policy/control combination exercises. Reuse Task 15's fixture setup and
-backend assertions. Keep every supported route and interacting security case;
-avoid multiplying unrelated account creation, password values or presentation
-choices. Equivalent validation belongs in local tests under the
-[matrix rules](E2E-Coverage.md#bound-the-matrix-before-expanding-it), with explicit
-inventory/requirement reconciliation rather than silently omitted executions.
+Before expanding legacy E2E-019's cross-product, identify each distinct
+customer behavior. Retain supported routes, meaningful matching cases and both
+screen-time settings where behavior differs; do not multiply unrelated choices.
+Record deduplication and scope transfers separately from passing scenarios.
 
 ## Task 25A
 
-- Title: Automate graphical launch-route and matching matrices.
-- Depends on: Task 24B.
-- Complexity: high. The route matrix is broad, but backend enforcement and
-  graphical runner contracts are already established.
-- Recommended Codex model: `gpt-5.6-terra`
-- Recommended reasoning effort: `high`
+- Title: Application launch routes and matching.
+- Depends on: installed app assets and the selected Parent/login interactions.
+- Default settings: `gpt-5.6-sol` / `high`.
+- Customer scope: E2E-019/020 and canonical launch portions of E2E-006.
 - Work:
-  1. Configure distinct policies for two children and verify allowed, hard, and
-     soft states with screen time enabled and disabled.
-  2. Launch native targets from app grid, desktop launcher, file manager, and
-     command; exercise Snap and Flatpak by supported application identity.
-     Record visible outcomes as well as backend allow/deny evidence.
-  3. Cover precise and version-tolerant AppImage matching, same-directory
-     nonmatches, supported copied/renamed limitations, update between display
-     and save, and missing-launcher retention.
-  4. Verify a matching target remains usable by unrelated users and update
-     launch-route and matching mappings.
-- Verification:
-  - Run cleanup-safety regressions in isolation before fixture execution.
-  - Run complete route/matching attempts on the guarded VM with screenshots,
-    kernel process identity, filters, rules, and launch results.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: every specified native/Snap/Flatpak route and matching
-  behavior has visible acceptance evidence.
+  1. Set allowed, hard and soft choices in Parent, including control enabled
+     and disabled where specified. Use a real request for a soft-app exception.
+  2. Launch native applications through app grid/desktop entry, file manager
+     and guest terminal where supported. Launch Snap/Flatpak through their
+     public user interfaces. Observe usable apps or the documented denial.
+     Do not inspect fapolicyd, launch probes, kernel identities or rules.
+  3. Exercise exact/version-tolerant matching, spaces, unrelated files and
+     documented copied/renamed limitations by ordinary file/app operations.
+     Observe the resulting launch behavior. Do not certify future filenames
+     by reading generated policy.
+  4. Perform a supported app update or removal and revisit Parent/launch.
+     Observe displayed selection and retained matching behavior. Unrelated
+     package assets may be fixture setup; a tested update uses the real
+     customer operation. Mechanical package assertions belong to Task 18.
+  5. Switch to another user and launch/use the same app for the assigned
+     isolation case.
+- Verification/completion: complete the finite assigned customer variants,
+  retain visible evidence and existing setup/cleanup safeguards, and run
+  affected regressions/common checks at stable task acceptance.
+  A generic failed launch without the expected observable behavior is not a pass.
 
 ## Task 25B
 
-- Title: Prove multi-session termination and grant isolation.
-- Depends on: Task 25A.
-- Complexity: very high. Multiple retained graphical sessions and irreversible
-  partial failure must remain independently observable.
-- Recommended Codex model: `gpt-6-astra`
-- Recommended reasoning effort: `high`
+- Title: App-window effects and other-user continued use.
+- Depends on: only the real launch, request and user-switching steps used.
+- Default settings: `gpt-5.6-sol` / `high`.
+- Customer scope: E2E-007/021; reuse one canonical journey per behavior.
 - Work:
-  1. Create simultaneous sessions for two children, an administrator, and an
-     unrelated user; open matching fixtures in multiple sessions of the selected
-     child. Use explicit recorded fixture identities.
-  2. Apply restrictive saves, approve with and without soft apps, and revoke
-     while targets are open. Prove every required selected-child app closes and
-     all other users' processes and foreground sessions survive.
-  3. Exercise partial termination failure: strict blocks remain, prior grant
-     time is preserved where required, and no partial success is displayed.
-     Declare the real OS intervention and classify it as fault/recovery;
-     ordinary save/approve/revoke variants remain independently required.
-  4. Prove hard blocks never relax. Verify soft exceptions only for explicit
-     grants, complete policy after revocation/screen-time reapplication, and
-     expired-grant reconciliation at next session entry. Expiry itself must not
-     close retained apps; an active replacement grant must retain its chosen
-     policy and open processes.
-  5. Update revocation, transaction, and multi-user mappings.
-- Verification:
-  - Run cleanup-safety regressions in isolation before live termination cases.
-  - Run ordinary and partial-failure cases as separate complete attempts.
-    Reset only outside attempts. Capture
-    per-session screens, kernel UIDs, Snap labels, Flatpak instance IDs, filters,
-    rules, grants, and redacted logs.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: every required termination/isolation outcome is visible
-  and supported by authoritative state.
+  1. Log in and open apps as the selected child and another user. Establish
+     supported retained sessions through real login/Switch User operations.
+  2. Save a restrictive policy, approve each soft-app choice, or revoke through
+     real interfaces in separately declared paths. Observe required app windows
+     close/remain and subsequent launches permit/deny access.
+  3. Switch to the other user's desktop and continue interacting with their app.
+     Observe that the selected-child action did not interrupt their use.
+  4. For expiry/replacement behavior, reuse Task 22/26's customer sequence:
+     natural lock, real replacement approval, normal unlock and observed app
+     windows. Do not inspect processes while locked or infer internal ordering.
+- Verification/completion: every assigned window/access/isolation result passes
+  by customer operation and observation with safe cleanup. No PID, cgroup,
+  Snap-label, Flatpak-instance, filter or grant assertion is required.
+- Separate work: partial-termination injection, confinement internals and
+  rollback proofs remain in [Task 15B](Task-15.md#task-15b); existing regressions
+  are unchanged. A visible failure remains a separate product blocker.

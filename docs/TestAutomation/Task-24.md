@@ -1,85 +1,52 @@
-# Task 24 — Dedicated kiosk request scenarios
+# Task 24 — Kiosk customer journeys
 
-Execute 24A and 24B separately. Reuse Task 23's shared request-form helpers;
-retain kiosk-specific account selection, request method, mute, and logout.
-
-Follow [E2E-Coverage.md](E2E-Coverage.md). Enumerate the kiosk variants and
-execute actual GDM entry, customer requests, system password prompts, and
-return-to-GDM behavior. Never launch a preview or inject request results. No
-VM checkpoint may replace entry, approval, exit, or a cross-surface round trip.
+Follow [E2E-Coverage.md](E2E-Coverage.md). Enter the real kiosk from GDM, operate
+the installed request form and observe the return to GDM. Reuse shared form and
+secret-safe input helpers. No fake agent, direct approval or backend assertions.
 
 ## Implementation slices
 
-Use the [implementation workflow](Implementation-Workflow.md). These are small
-work boundaries within the existing task, not extra acceptance checklists.
-Verification below is task acceptance; edits use the smallest affected selection.
-
-| Task | First proof, then expansion |
-| --- | --- |
-| 24A | Reuse the basic kiosk entry/approval helper; prove restriction and one agent recovery before expanding cases. |
-| 24B | Adapt the shared case table by surface, preserving kiosk exits and targets; then prove the cross-surface round trip. |
+Complete kiosk entry/request/exit before expanding the form cases. A minimal
+kiosk helper may be completed by Task 22 or another first consumer; acceptance
+of all Task 23 cases is not a prerequisite.
 
 ## Task 24A
 
-- Title: Prove restricted kiosk startup and authentication-agent recovery.
-- Depends on: Task 23B.
-- Complexity: high. Dedicated-session composition, containment, and service
-  recovery require integration reasoning beyond routine form interactions.
-- Recommended Codex model: `gpt-5.6-sol`
-- Recommended reasoning effort: `high`
+- Title: Kiosk entry and request-only interaction.
+- Depends on: accepted graphical runner, installed package and account fixtures.
+- Default settings: `gpt-5.6-sol` / `high`.
+- Customer scope: E2E-016.
 - Work:
-  1. Select the dedicated session at GDM and verify fullscreen kiosk startup,
-     maintained Polkit agent readiness, and absence of a general desktop.
-  2. Attempt Parent, terminal, settings, user management, and arbitrary desktop
-     launches through relevant supported session paths. Prove request-only
-     restrictions after success and failure.
-  3. Stop the authentication-agent service during a request using public guest
-     service controls; verify safe denial, restart its maintained user service,
-     and complete a later request.
-     Classify this declared real-service intervention as fault/recovery; keep
-     the uninterrupted normal kiosk approval journey separately required.
-  4. Publish kiosk entry/exit and agent-recovery helpers; update session
-     restriction and recovery mappings.
-- Verification:
-  - Run cleanup-safety regressions in isolation before integrated controls.
-  - Run each complete kiosk restriction/recovery variant once; reset the baseline
-    only outside attempts, never between the failure and recovery steps.
-    Correlate screens, user units, sessions, broker calls, grants, and logs.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: the kiosk starts and recovers as a request-only session.
+  1. Select the kiosk at GDM and observe the fullscreen request surface.
+  2. Try normal available navigation and shortcuts for desktop, Parent, terminal,
+     settings and other app access. Observe that the session remains request-only.
+     Do not inspect service lists, policies or containment internals.
+  3. Complete/cancel a real request and observe the same restriction and normal
+     exit. Keep password entry in the real authentication prompt.
+- Verification/completion: the finite entry/restriction/exit variants pass through
+  customer actions with visible evidence and existing safeguards.
+- Separate work: agent-stop/restart qualification and
+  `E2E-028/kiosk-auth-agent` are outside customer E2E. Existing tests remain;
+  do not add that internal intervention to this task.
 
 ## Task 24B
 
-- Title: Complete kiosk form, approval, persistence, and logout cases.
-- Depends on: Task 24A.
-- Complexity: medium. This adapts the tested shared form matrix to a now-proven
-  kiosk session.
-- Recommended Codex model: `gpt-5.6-terra`
-- Recommended reasoning effort: `medium`
+- Title: Kiosk requests, remembered choices and return to login.
+- Depends on: the kiosk interaction and shared form steps needed by the case.
+- Default settings: `gpt-5.6-sol` / `high`.
+- Customer scope: E2E-017/018 and kiosk portions of E2E-013/014/015.
 - Work:
-  1. Verify eligible children/parents, child switching, loading gates, no-child
-     and no-approver states, and the explanation when control is disabled.
-     Prepare real account/role fixtures with supported guest helpers; account
-     creation interfaces and third-party account administration are outside scope.
-  2. Reuse Task 23 cases for invalid input, auth cancel, rejected password,
-     both approval choices, and duplicate submission. Verify kiosk broker
-     targeting and selected-parent restriction with authoritative state. Keep
-     exhaustive equivalent input values in the shared local tests; execute the
-     distinct kiosk workflows and relevant boundaries graphically. Denial/cancel
-     must preserve app state and permit retry; generic password rejection alone
-     is not the assertion. Retain both surfaces' required integration cases.
-  3. Verify explicit cancel and Escape return to GDM; approval returns after its
-     brief confirmation. Keep these expectations distinct from overlay close.
-  4. Round-trip remembered choices between kiosk and child overlay for each
-     child; verify kiosk and child mute remain independent.
-  5. Run shared-form regressions in both modes and update kiosk/form mappings.
-- Verification:
-  - Run focused local UI checks through `tools/run-ui-tests --timeout <duration>
-    <pytest-selectors>`; run cleanup-safety regressions first where needed.
-  - Run each complete kiosk form variant once on the guarded VM and correlate
-    screenshots with sessions, broker calls, grants, preferences, and logs.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: kiosk selection, approval, shared choices, and every exit
-  path have graphical and backend evidence.
+  1. Select children and approvers, switch children and observe loading,
+     disabled control, no-child/no-approver and ineligible states. Establish
+     unrelated account fixtures through accepted setup.
+  2. Exercise representative duration validation, cancelled/rejected approval,
+     retry and both soft-app choices through the real prompt. Observe messages,
+     retained selections, later child login and app use; no broker/grant reads.
+  3. Use cancel/Escape and successful approval. Observe the required confirmation
+     and return to GDM, distinct from the overlay's return to the desktop.
+  4. Change choices in kiosk, visit the child overlay and return. Observe per-child
+     remembered choices and independently remembered mute settings.
+- Verification: execute complete variants, retain visible evidence and normal
+  cleanup, and run affected shared-form regressions in both modes.
+- Completion criteria: selection, request outcomes, cross-surface persistence
+  and every declared exit path are proven by customer use.

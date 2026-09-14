@@ -271,6 +271,9 @@ def main(argv=None):
             aggregate_arguments(category, args)
         else:
             plan(root, category, args)
+        if category in ('all', 'all-verify'):
+            from regression_session import main as session_main
+            return session_main(root, category)
         with test_activity.activity(root):
             return _main(argv)
     except (ValueError, OSError) as error:

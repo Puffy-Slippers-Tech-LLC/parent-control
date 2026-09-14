@@ -1,12 +1,13 @@
 #!/usr/bin/python3 -IB
-"""Shared local publishing checks for make test-publish and make test-all."""
+"""Shared local publishing checks for make test-all and make test-all-verify."""
 from __future__ import annotations
 
 import argparse
 from contextlib import redirect_stderr, redirect_stdout
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -14,36 +15,17 @@ import tarfile
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools import publish
+from tools import publish, package_inputs
+from tools import test_retention
 from tools.publishing import build, source
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def snapshot(root, checkout, log):
-    """Freeze current tracked and unignored files, including uncommitted edits."""
-    names = publish.command('git', 'ls-files', '-z', '--cached', '--others',
-                            '--exclude-standard', cwd=root).split('\0')
-    publish.command('git', 'diff', '--check', cwd=root, log=log)
-    publish.command('git', 'diff', '--cached', '--check', cwd=root, log=log)
+    """Freeze only declared product/build files, including uncommitted edits."""
     checkout.mkdir()
-    for name in sorted(set(names) - {''}):
-        relative = PurePosixPath(name)
-        if relative.is_absolute() or '..' in relative.parts or '.git' in relative.parts:
-            raise ValueError('invalid publishing test source path')
-        original = root / name
-        if not original.exists() and not original.is_symlink():
-            continue  # Unstaged deletion of an indexed file.
-        if any(parent.is_symlink() for parent in original.parents if parent != root):
-            raise ValueError('publishing test source has a symlink parent')
-        target = checkout / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if original.is_symlink():
-            target.symlink_to(os.readlink(original))
-        elif original.is_file():
-            shutil.copy2(original, target)
-        else:
-            raise ValueError('publishing test source must be a regular file or symlink')
+    package_inputs.copy(root, checkout)
     publish.command('git', 'init', '-q', cwd=checkout, log=log)
     publish.command('git', 'add', '--all', cwd=checkout, log=log)
     commit = ('git', '-c', 'user.name=Publishing tests', '-c',
@@ -53,8 +35,16 @@ def snapshot(root, checkout, log):
     # Build the upcoming release metadata when history announces a new version.
     # Ordinary regression runs also work after a release, with current metadata.
     current = json.loads((checkout / 'data/app.json').read_text())['version']
-    history = (checkout / publish.HISTORY).read_text()
-    if not history.startswith(f'## v{current} '):
+    # Release notes are consumed to generate metadata, never shipped as docs.
+    history = ((root / publish.HISTORY).read_text() if (root / publish.HISTORY).exists()
+               else f'## v{current} ')
+    draft = re.fullmatch(r'## v([0-9]+\.[0-9]+)', history.partition('\n')[0].strip())
+    if draft and publish.parse_product_version(draft[1]) > publish.parse_product_version(current):
+        # Local regression builds can run while the next release notes are a
+        # draft. Keep the real package metadata; only actual publishing requires
+        # the new entry's date and promotes it to a release.
+        print(f'test-publish: undated release draft; testing current version {current}', flush=True)
+    elif not history.startswith(f'## v{current} '):
         product, notes = publish.history_entry(history, current)
         old = publish.command('dpkg-parsechangelog', '-S', 'Version', cwd=checkout)
         version = source.next_version(product, [old])
@@ -73,7 +63,7 @@ def run(root=ROOT):
     for tool in ('git', 'dpkg-buildpackage', 'dpkg-checkbuilddeps', 'lintian', 'unshare', 'make'):
         if shutil.which(tool, path='/usr/sbin:/usr/bin:/sbin:/bin') is None:
             raise ValueError('missing publishing test tools; use ./setup.sh --dependencies-only')
-    directory = Path(tempfile.mkdtemp(prefix='onpc-test-publish-', dir='/tmp'))
+    directory = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-publish-', dir='/tmp'))
     checkout, log = directory / 'source', directory / 'test.log'
     report = dict(status='running', directory=str(directory))
     print(f'test-publish: evidence: {directory}', flush=True)
@@ -92,12 +82,16 @@ def run(root=ROOT):
             source.inspect_archive(checkout, version)
         report['source'] = json.loads((directory / 'source-review.json').read_text())
         changes = directory / f'{source.PACKAGE}_{version}_source.changes'
-        publish.command('lintian', '--no-cfg', '--fail-on', 'error', str(changes), cwd=checkout, log=log)
-        print('test-publish: clean resolute/amd64 build and declared tests', flush=True)
+        # Lintian normally removes its pool, but interruption can leave it
+        # behind. Keep that scratch inside this run's registered evidence.
+        publish.command('lintian', '--no-cfg', '--fail-on', 'error', str(changes),
+                        cwd=checkout, log=log, temporary_directory=directory)
+        print('test-publish: clean resolute/amd64 build and package checks', flush=True)
         result = build.check_build(checkout)
         report['local_build'] = result
         binary_changes = Path(result['directory']) / 'output' / f'{source.PACKAGE}_{version}_amd64.changes'
-        publish.command('lintian', '--no-cfg', '--fail-on', 'error', str(binary_changes), cwd=checkout, log=log)
+        publish.command('lintian', '--no-cfg', '--fail-on', 'error', str(binary_changes),
+                        cwd=checkout, log=log, temporary_directory=directory)
         report['status'] = 'passed'
     except BaseException:
         report['status'] = 'failed'
@@ -114,6 +108,7 @@ def main(argv=None):
     original_env = dict(os.environ)
     try:
         safe_env = publish.environment()
+        safe_env.update(test_retention.environment())
         os.environ.clear()
         os.environ.update(safe_env)
         run()

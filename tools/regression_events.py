@@ -9,8 +9,11 @@ PREFIX = 'ONPC-TEST-EVENT '
 
 
 def emit(kind, **fields):
-    print('\n' + PREFIX + json.dumps(dict(kind=kind, **fields), ensure_ascii=True),
-          file=sys.__stdout__, flush=True)
+    # Keep both delimiters in the record write. print() writes its trailing
+    # newline separately, allowing background diagnostics to join the JSON.
+    record = '\n' + PREFIX + json.dumps(dict(kind=kind, **fields), ensure_ascii=True) + '\n'
+    sys.__stdout__.write(record)
+    sys.__stdout__.flush()
 
 
 def pytest_collection_finish(session):

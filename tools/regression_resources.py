@@ -24,6 +24,12 @@ ACTIVE_MEMORY_GROWTH_POOL = 2 * GIB
 ACTIVE_CPU_GROWTH = 1
 RESOURCE_STARTUP_SECONDS = 20
 PRESSURE_RECOVERY_SECONDS = 4
+# Modest report/build I/O must not repeatedly reset the recovery window.
+# These interval-stall thresholds are admission policy, not hard I/O limits.
+IO_PRESSURE_HIGH = 10
+IO_PRESSURE_LOW = 5
+# Artifact and VM launches keep the original conservative I/O admission limit.
+EXCLUSIVE_IO_PRESSURE_HIGH = 2
 SWAP_IN_LIMIT = 1024 ** 2  # Bytes/second; cold page reads below this are tolerated.
 
 
@@ -52,17 +58,20 @@ DEMANDS.update(publish=Demand(2, 6 * GIB), artifacts=Demand(2, 4 * GIB),
                system=Demand(0, 0), e2e=Demand(0, 0))
 
 # Publishing companions with reviewed isolation. Units/components have live
-# overlap evidence; screen fidelity uses private compositor/bus/PipeWire/XDG
-# state and per-test evidence, separate from publishing's private sbuild tree.
-# Keep the screen identity explicit: this does not authorize other UI buckets.
+# overlap evidence; screen fidelity and request behavior use private compositor/
+# bus/PipeWire/XDG state and per-test evidence, separate from publishing's private
+# sbuild tree. Keep these identities explicit; other UI buckets stay excluded.
 # Keep these symmetric: launch order must not change isolation requirements.
 BUILD_KINDS = frozenset(('publish', 'artifacts'))
-BUILD_COMPANIONS = frozenset(('unit', 'component', 'ui-screen'))
+BUILD_COMPANIONS = frozenset(('unit', 'component', 'ui-screen', 'ui-request'))
+# Artifact construction reads the checkout and writes only private source,
+# package and fixture directories. It neither installs nor launches the product.
+ARTIFACT_COMPANIONS = PARALLEL | BUILD_KINDS
 
 
 def compatible(first, second):
     if 'artifacts' in (first, second):
-        return False
+        return (second if first == 'artifacts' else first) in ARTIFACT_COMPANIONS
     if first in BUILD_KINDS:
         return second in BUILD_COMPANIONS
     if second in BUILD_KINDS:
@@ -218,9 +227,9 @@ class Admission:
             return
         sample = self.sample
         high = (sample.cpu_pressure >= 10 or sample.memory_pressure >= 1
-                or sample.io_pressure >= 2 or sample.swapping)
+                or sample.io_pressure >= IO_PRESSURE_HIGH or sample.swapping)
         low = (sample.cpu_pressure < 5 and sample.memory_pressure < .5
-               and sample.io_pressure < 1 and not sample.swapping)
+               and sample.io_pressure < IO_PRESSURE_LOW and not sample.swapping)
         if high:
             self.open = False
             self.healthy_since = None
@@ -237,6 +246,9 @@ class Admission:
                       'pressure_healthy_seconds': (0 if self.healthy_since is None
                                                    else now - self.healthy_since),
                       'pressure_recovery_seconds': PRESSURE_RECOVERY_SECONDS,
+                      'io_pressure_high': IO_PRESSURE_HIGH,
+                      'io_pressure_low': IO_PRESSURE_LOW,
+                      'exclusive_io_pressure_high': EXCLUSIVE_IO_PRESSURE_HIGH,
                       **asdict(sample)})
 
     def allows(self, candidate, active):
@@ -260,8 +272,10 @@ class Admission:
         # 1 GiB per branch without a cap stranded the sixth worker despite low
         # pressure. Startup budgets stay outside that pool: they may not yet
         # be reflected in the available-memory sample.
-        reserve = (max(HOST_MEMORY_RESERVE, sample.total_memory * .2)
-                   if candidate in ('system', 'e2e') else HOST_MEMORY_RESERVE)
+        # VM demand already includes all configured guest RAM plus controller/
+        # QEMU overhead. Keep the same fixed desktop reserve as host work;
+        # a percentage of installed RAM needlessly blocks larger machines.
+        reserve = HOST_MEMORY_RESERVE
         starting = [self.last < self.startup_until.get(name, math.inf) for name in active]
         startup_memory = sum(demand.memory for demand, startup in zip(demands[1:], starting)
                              if startup)
@@ -270,11 +284,14 @@ class Admission:
             for demand, startup in zip(demands[1:], starting) if not startup))
         required = reserve + demands[0].memory + startup_memory + growth_memory
         if sample.available_memory < required:
-            self.reason = f'waiting for memory headroom (requires {required / GIB:.1f} GiB available)'
+            self.reason = (f'waiting for memory headroom ({sample.available_memory / GIB:.1f} GiB '
+                           f'available; requires {required / GIB:.1f} GiB)')
             return False
+        io_limit = (EXCLUSIVE_IO_PRESSURE_HIGH if candidate in ('artifacts', 'system', 'e2e')
+                    else IO_PRESSURE_HIGH)
         for limited, resource in ((sample.swapping, 'swap activity'),
                                   (sample.memory_pressure >= 1, 'memory pressure'),
-                                  (sample.io_pressure >= 2, 'I/O pressure'),
+                                  (sample.io_pressure >= io_limit, 'I/O pressure'),
                                   (sample.cpu_pressure >= 10, 'CPU pressure'),
                                   (sample.busy > sample.capacity * .75, 'CPU utilization')):
             if limited:

@@ -2,9 +2,9 @@
 
 This is the maintained approval contract for current tests and the remaining
 [test roadmap](../Test-Automation.md). It changes development tooling, not the
-product's authorization or the roadmap's acceptance criteria. The task-session
-model confirmation procedure applies when continuing a roadmap task, not to
-routine approved commands.
+product's authorization or the roadmap's acceptance criteria. For roadmap continuation, use the authorized
+[model policy](Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff);
+routine approved commands need no model-selection pause.
 
 ## One-time setup
 
@@ -72,7 +72,7 @@ the source and tags, uploads to Launchpad, and verifies binary publication.
 Its supporting modules are under `tools/publishing/`; they are not separate
 release commands.
 
-Local publishing checks run through `make test-publish` / `tools/run-tests publish`
+Local publishing checks run through the aggregate's `tools/run-tests publish` category
 and the same module in `make test-all`. They create a private unsigned source
 snapshot, run source integrity and Lintian checks, and build/test it in clean
 sbuild. They require no publisher credentials and never push or upload.
@@ -91,64 +91,52 @@ installed services or saved data. The Debian activation helper moved to
 
 ## Launcher inspection and workspace edits
 
-Use the executable checkout entry point for slice-launcher inspection:
+Inspect the slice launcher directly:
 
 ```sh
 tools/codex_slices.py --help
 tools/codex_slices.py status
 ```
 
-The maintained rule covers `--help`, `-h` and `status`, with `tools/`, `./tools/`
-and the rendered absolute checkout path. Python runs in isolated mode without
-bytecode writes. Help exits during argument parsing; status reads the fixed
-saved state without starting a worker or changing it. Starting, stopping or
-reconciling unattended work still needs authorization for that work. These
-development-only changes activate on invocation (`none`); rules load after
-`./setup.sh --codex-rules-only` and a Codex restart.
+Maintained rules cover `--help`, `-h` and `status` through `tools/`,
+`./tools/` and the rendered absolute checkout path. Isolated Python writes no
+bytecode; help exits during argument parsing and status only reads fixed saved
+state. Starting/stopping/reconciling work still requires its authorization.
+Activation is `none`; changed rules need `./setup.sh --codex-rules-only` and
+Codex restart.
 
-`python3 tools/codex_slices.py --help` matches the general interpreter prompt.
-Adding a longer allow cannot override that prompt. Nor does `--help` make an
-arbitrary script safe to execute. Keep the interpreter restriction and use the
-reviewed executable route. Additional inspected tools need their own reviewed
-argument boundary before joining maintained allowances.
+Do not substitute `python3 tools/codex_slices.py --help`: it matches the
+general interpreter prompt, which a longer allow cannot override. Arbitrary
+scripts are not safe merely because they accept `--help`; new tools need a
+reviewed argument boundary.
 
-For authorized workspace text edits, use Codex's native `apply_patch` tool with
-explicit paths and enough context to identify the intended replacement. This
-covers changing filenames, headings, dates and replacement text in task handoffs
-and evidence documents without executing an inline Python program. It stays
-subject to workspace write permissions and needs no shell-prefix allowance.
-The reported `python3 -` heredoc rewrote a document, but an allowance for that
-prefix would also accept arbitrary imports, process execution and writes outside
-the intended document. Prefix rules cannot inspect Python semantics. Do not add
-a Python, shell or generic shell-patch allowance for this operation.
+For authorized workspace text edits, use native `apply_patch` with explicit
+paths/context, subject to workspace write permissions. No shell-prefix grant is
+needed. The reported `python3 -` heredoc edited a document, but allowing that
+prefix also permits arbitrary imports, execution and writes; rules cannot
+inspect Python semantics. Never add interpreter, shell or generic shell-patch
+grants for document edits.
 
-The existing `tools/read-only` allowance also covers local document checks:
+Use the existing document-check allowance, without per-file rules or refresh:
 
 ```sh
-tools/read-only links docs/TestAutomation/Continuation.md docs/TestAutomation/Task-19.md docs/TestAutomation/Evidence/19B-Ordered-Recorder-20260908.md tests/e2e/README.md
-tools/read-only words --after '### Task 19B continuation — 2026-09-08' docs/TestAutomation/Task-19.md
+tools/read-only links 'docs/TestAutomation/Continuation.md' 'docs/TestAutomation/Task-19.md' 'tests/e2e/README.md'
+tools/read-only words --after '### Task 19B continuation — 2026-09-08' 'docs/TestAutomation/Task-19.md'
 ```
 
-`links` checks inline Markdown link/image destination files relative to each
-document, ignoring code spans/fences, URLs and fragment-only links. It accepts
-plain, angle-wrapped and balanced/escaped-parenthesis destinations and optional
-titles. It does not fetch URLs or validate anchors, reference-style links or
-HTML links. Exit status is 0 for no missing targets, 1 for missing targets and
-2 for an invalid request/read failure. Failures report the document's argument
-number and line, without copying source prose or destinations into diagnostics.
+| Check | Contract |
+| --- | --- |
+| `links` | Checks inline Markdown link/image destination files relative to each document. Handles plain, angle-wrapped, balanced/escaped parentheses and optional titles. Ignores code spans/fences, URLs and fragment-only links; does not fetch or validate anchors, reference-style or HTML links. |
+| `words` | Counts whitespace-separated source words in one UTF-8 file, optionally between exact `--after`/`--before` markers. Each marker must occur once in the selected text; missing/ambiguous markers fail. Without `--before`, counts to EOF. |
 
-`words` counts whitespace-separated source words in one UTF-8 file, optionally
-after/before exact text markers. Each marker must appear exactly once in the
-selected text; absent or ambiguous markers fail. Without `--before`, counting
-continues to the end of the file, as in the reported Python handoff check. Both
-checks accept regular files up to 8 MiB, refuse final symlinks and special files,
-and expose no code, command, output-file or interpreter options. Filenames and
-markers can vary under the same existing helper rule; no per-document approval
-or rule refresh is needed for these added operations.
+Both accept regular files up to 8 MiB, refuse final symlinks/special files, and
+expose no code, command, output-file or interpreter options. Link-check exits:
+0 success, 1 missing targets, 2 invalid request/read failure. Failure diagnostics
+give document argument number/line without copying prose or destinations.
 
-These boundaries follow the [official rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/rules#understand-rule-fields):
-patterns match literal argument prefixes, the strictest matching decision wins,
-and `match`/`not_match` examples test a rule rather than validate runtime arguments.
+The [rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/rules#understand-rule-fields)
+matches literal argument prefixes; the strictest decision wins.
+`match`/`not_match` examples test rules, not runtime arguments.
 
 ## Category coverage and future additions
 
@@ -196,7 +184,7 @@ argument; the launcher expands file patterns without a shell.
 | Established regressions | `make test-all` / `tools/run-tests all` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors |
 | Host regression branches | `tools/run-tests host` | Same discovery, cleanup gate and host queue; stops after joining branches, without VM discovery/authorization, publishing or package builds; no arguments |
 | Host and build qualification | `tools/run-tests host-builds [--serial-builds]` | Same host tests plus publishing, two fresh builds and comparison; no VM discovery/authorization or execution; the sole optional flag retains builds after the host join for a serial comparison |
-| Local publishing checks | `make test-publish` / `tools/run-tests publish` | Shared source/sbuild/Lintian module also included in `test-all`; no selectors or publication |
+| Local publishing checks | `tools/run-tests publish` | Shared source/sbuild/Lintian module included in `test-all` and `test-all-verify`; no selectors or publication |
 | Future fast suite (Task 28A) | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
 
 Routine `make check`, `make build`, `make check-release-version`, `make check-unit`,
@@ -290,9 +278,9 @@ diagnostics use `tools/diagnose`:
 tools/diagnose journal --unit 'oh-no-parent-control*' --since '1 hour ago' --lines 500
 tools/diagnose journal --kernel --boot=-1
 tools/diagnose systemctl show 'oh-no-parent-control*' --property=ActiveState
-tools/diagnose systemctl status libvirtd.service
-tools/diagnose read /etc/polkit-1/rules.d/50-onpc-test-runner.rules
-tools/diagnose tail /var/log/oh-no-parent-control/daemon/2026-09-07.log
+tools/diagnose systemctl status 'libvirtd.service'
+tools/diagnose read '/etc/polkit-1/rules.d/50-onpc-test-runner.rules'
+tools/diagnose tail '/var/log/oh-no-parent-control/daemon/2026-09-07.log'
 tools/diagnose processes
 ```
 
@@ -316,13 +304,13 @@ For common tools whose unrestricted options can write or execute commands, use
 the unprivileged `tools/read-only` launcher:
 
 ```sh
-tools/read-only search --fixed-strings 'cleanup' tests tools
-tools/read-only search --path-glob 'tests/integration/fixture*' 'password|credential|parent2|child2' tests/fixtures
-tools/read-only files tests tools
-tools/read-only slice 10 80 tests/README.md
-tools/read-only sort input.txt
-tools/read-only unique input.txt
-tools/read-only gzip archive.log.gz
+tools/read-only search --fixed-strings 'cleanup' 'tests' 'tools'
+tools/read-only search --path-glob 'tests/integration/fixture*' 'password|credential|parent2|child2' 'tests/fixtures'
+tools/read-only files 'tests' 'tools'
+tools/read-only slice 10 80 'tests/README.md'
+tools/read-only sort 'input.txt'
+tools/read-only unique 'input.txt'
+tools/read-only gzip 'archive.log.gz'
 tools/read-only fetch 'https://example.com/path?query=value'
 ```
 
@@ -352,86 +340,60 @@ generic shell to solve that parsing limitation.
 
 ### Ripgrep searches without shell expansion
 
-Default to `tools/read-only search --path-glob 'path/prefix*' 'regex' literal/path`
-when path operands need filename expansion. `search` and `files` accept repeated
-`--path-glob` options and expand them inside the unprivileged helper, keeping
-the command visible to the existing approval prefix. Patterns use ordinary
-filename globbing (`*`, `?`, brackets), without shell evaluation, variable/tilde
-expansion, or recursive `**` expansion. A matched directory is passed to the
-search tool for its normal traversal. An unmatched pattern fails the whole
-request before execution; it never falls back to searching the current directory.
-Literal paths remain literal. Keep every pattern quoted. No setup refresh or
-Codex restart is needed for this checkout helper change.
-
-For the reported graphical/E2E unit-test search, use this direct command from
-the checkout:
+Preflight **every** path operand. If any needs filename expansion, use the
+helper with a quoted `--path-glob` per pattern and quoted literal paths:
 
 ```sh
-rg -n 'perl|subprocess.run|Test::More' --glob '/tests/unit/test_graphical*' --glob '/tests/unit/test_e2e*' .
+tools/read-only search --path-glob 'tools/*baseline*' --path-glob 'tests/integration/baseline*' '^(def|class) |environment|provenance|accepted'
+tools/read-only files --path-glob 'tests/unit/test_graphical*'
 ```
 
-The unquoted paths `tests/unit/test_graphical* tests/unit/test_e2e*` caused the
-shell-level approval request. These quoted filters select matching files
-directly under `tests/unit`; the literal `.` keeps their anchors relative to
-the checkout. Pass the command directly to the execution tool without adding
-`bash -lc`. The installed allowance already covers it; no refresh is required.
+The helper expands ordinary `*`, `?` and brackets internally, without shell,
+variable/tilde or recursive `**` expansion. Matched directories get normal
+search traversal; literal paths stay literal. Any unmatched pattern fails the
+whole request before execution, never falling back to the current directory.
 
-The installed `rg -n` prefix already allows every direct line-numbered search,
-independent of regex and paths. A command such as
-`rg -n '^(def|class) |environment|provenance|accepted' tools/*baseline* tests/integration/baseline*`
-contains shell filename expansion. Codex therefore checks the enclosing
-`/bin/bash -lc <script>` against the shell prompt rule, rather than checking
-`rg -n`. Another ripgrep allow or a rules refresh cannot change that decision.
-Prefix rules match literal argument tokens; they cannot express an exception
-for arbitrary shell scripts whose text starts with `rg -n`.
-
-Generate the search using quoted ripgrep globs and a literal root instead:
+Direct `rg -n` supports quoted regexes and literal paths, plus quoted
+ripgrep-owned `--glob` filters anchored to the literal search root:
 
 ```sh
-rg -n '^(def|class) |environment|provenance|accepted' --glob '/tools/*baseline*' --glob '/tools/*baseline*/**' --glob '/tests/integration/baseline*' --glob '/tests/integration/baseline*/**' .
+rg -n 'perl|subprocess.run|Test::More' --glob '/tests/unit/test_graphical*' --glob '/tests/unit/test_e2e*' '.'
+rg -n '^(def|class) |environment|provenance|accepted' --glob '/tools/*baseline*' --glob '/tools/*baseline*/**' --glob '/tests/integration/baseline*' --glob '/tests/integration/baseline*/**' '.'
 ```
 
-Run this from the checkout using the command tool's working directory. The
-leading slashes anchor filters to that search root; the `/**` filters include
-contents of matching directories. This keeps unrelated nested baseline files
-and other directories out of the search. Ripgrep's normal hidden-file, ignore
-and symlink handling still applies when walking `.`. If explicitly selected
-files need different traversal behavior, discover them with `rg --files` using
-the appropriate options and pass literal filenames instead. Quoting a wildcard
-path alone does not expand it: ripgrep treats `'tools/*baseline*'` as a literal
-filename.
+Here leading slashes anchor to the checkout root; `/**` includes matching
+directories' contents. Normal hidden-file, ignore and symlink handling applies.
+For different traversal needs, discover with `rg --files` and appropriate
+options, then pass literal filenames.
 
-Correct this command form before requesting execution. Keep regexes and glob
-values quoted, avoid shell substitutions/assignments/redirections, and do not
-request a generic Bash grant. No policy change or restart is needed to use this
-form with the already-installed direct search allowance.
+Never pass filename patterns as `rg` path operands: unquoted patterns invoke
+shell expansion; quoting makes them literal filenames, not glob filters.
+The reported graphical/E2E and baseline searches triggered shell approval this
+way. The direct `rg -n` allowance already covers regex/path variations; another
+allow or rule refresh cannot authorize the enclosing arbitrary shell script.
 
-Quote every literal file/directory operand for ordinary reads, including paths
-without spaces. Package build filenames can contain `~` in their version; leaving
-such paths unquoted can cause conservative shell classification. Submit the
-read directly, without adding a Bash wrapper, and keep each full filename on
-one command line. For example:
+Quote every read path, even without spaces or with package-version `~`:
 
 ```sh
 tail -100 '/tmp/onpc-build/output/package_1.2+ppa1~ubuntu26.04.1_amd64.build'
 rg -n -B 8 -A 18 'Fatal Python|Segmentation|Current thread|test_feedback' '/tmp/onpc-build/output/package_1.2+ppa1~ubuntu26.04.1_amd64.build'
 ```
 
-If the general-shell approval reason appears for an ordinary read, correct
-quoting and command shape before retrying the same read. Reuse existing reader
-allowances; do not add a Bash allowance or duplicate rules. Honor actual denials
-and any remaining sandbox restriction. Quoted `tail` and `rg` reads of the
-reported `onpc-ppa-check-hmbj287y` build log succeeded through the command tool
-without approval on 2026-09-12; this verifies the corrected form in that session,
-not every parser version or execution context.
+Submit reads/searches directly using the command tool's working directory,
+keeping each full filename on one line. No explicit Bash wrapper, substitution,
+assignment, redirection or unquoted filename wildcard. Correct malformed requests
+before execution. If an ordinary read gets the general-shell approval reason,
+fix quoting/shape and retry the same operation under its existing grant.
+Never add shell/duplicate rules or refresh unchanged rules; honor actual denials
+and remaining sandbox restrictions.
 
-`codex execpolicy check` tests the supplied argument vector; it does not exercise
-the command tool's shell splitting. Passing a raw Bash wrapper to that checker
-will match the shell rule even when a command tool could split its script.
-Rule-prefix tests alone must not be reported as proof of shell parsing or of
-automatic approval for unquoted wildcards. See the
-[official rules documentation](https://learn.chatgpt.com/docs/agent-configuration/rules#shell-wrappers-and-compound-commands)
-for the parser boundary.
+Quoted `tail`/`rg` reads of the `onpc-ppa-check-hmbj287y` build log succeeded
+without approval on 2026-09-12. That qualifies this form in that session, not all
+parser versions/contexts. `codex execpolicy check` tests an argument vector,
+not command-tool shell splitting: a raw Bash wrapper matches its shell rule
+even when the tool could split it. Prefix tests prove neither parser behavior
+nor automatic approval for unquoted wildcards. See the
+[parser boundary](https://learn.chatgpt.com/docs/agent-configuration/rules#shell-wrappers-and-compound-commands).
 
 ## Approval limits and review findings
 

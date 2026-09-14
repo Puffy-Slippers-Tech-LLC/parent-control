@@ -9,6 +9,11 @@ import sys
 import threading
 
 
+# Only the detached aggregate owner installs this event. Its nested storage and
+# command controllers must observe the same terminal-independent cancellation.
+session_stop = None
+
+
 class Control:
     """Latch cancellation and signal only a directly spawned child's pidfd.
 
@@ -17,7 +22,7 @@ class Control:
     """
 
     def __init__(self):
-        self.stopped = threading.Event()
+        self.stopped = session_stop if session_stop is not None else threading.Event()
         self.interrupted = False
 
     def stop(self, *_):
@@ -137,6 +142,8 @@ def host_run(root, category, argv):
         env.update(ONPC_REGRESSION_EVENTS='1', PYTHONUNBUFFERED='1')
         if category == 'ui':
             env['ONPC_REGRESSION_UI_INVENTORY'] = '1'
+            import test_retention
+            env.update(test_retention.environment())
         if category != 'unit' and '--collect-only' not in command:
             if test_activity.cleanup_verified(root):
                 print('run-tests: reusing passed aggregate cleanup prerequisites; source verified',
@@ -150,6 +157,7 @@ def host_run(root, category, argv):
 
 def category_run(root, category, argv):
     import tempfile
+    import test_retention
     import test_commands
     import test_launcher as host
     import test_activity
@@ -160,11 +168,11 @@ def category_run(root, category, argv):
         env = host.test_environment(root)
         env['ONPC_REGRESSION_EVENTS'] = '1'
     if category in ('fixtures', 'artifacts') and (not argv or argv == ['build']):
-        directory = tempfile.mkdtemp(prefix=f'onpc-test-{category}-', dir='/tmp')
+        directory = test_retention.allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-', dir='/tmp')
         commands[0] += ['--output', directory]
         print('run-tests: output=' + directory, flush=True)
     if category == 'child-gjs':
-        directory = tempfile.mkdtemp(prefix='onpc-gjs-coverage-', dir='/tmp')
+        directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-gjs-coverage-', dir='/tmp')
         for command in commands:
             command[1:1] = ['--coverage-prefix=' + str(root / 'child'),
                            '--coverage-output=' + directory]
@@ -184,6 +192,8 @@ def category_run(root, category, argv):
                 check(command[1])
                 command = [command[0], '--disable-internal-agent', command[1],
                            '--unattended', *command[2:]]
+                if test_retention.token() is not None:
+                    command.insert(3, '--retention-run=' + test_retention.token())
             status = control.run(command, cwd=root, env=env, cooperative=privileged)
             if status:
                 return status

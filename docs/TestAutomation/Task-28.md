@@ -1,214 +1,76 @@
-# Task 28 — CI, release acceptance, and operator handoff
+# Task 28 — Coverage acceptance and operator handoff
 
-Execute 28A, 28B, and 28C separately. Gate implementation, acceptance judgment,
-and documentation use different model budgets.
-
-Use the four-command contract in the [daily guide](../Test-Automation.md#daily-commands)
-and the mandatory [real E2E coverage contract](E2E-Coverage.md). This is final
-acceptance of all enumerated journeys and required variants, not just the
-example journey or a collection of separately passing component screens.
+The [master checklist](Test-Automation.md#unfinished-tasks) prioritizes customer
+journeys, then mechanical package qualification. Existing regression suites
+remain intact. Completion must describe those scopes separately and preserve
+unresolved product-design blockers.
 
 ## Implementation slices
 
-Use the [implementation workflow](Implementation-Workflow.md). These are small
-work boundaries within the existing task, not extra acceptance checklists.
-Verification below is task acceptance; edits use the smallest affected selection.
-
-| Task | First proof, then expansion |
-| --- | --- |
-| 28A | Wrap existing selectors and inventories first; then artifact coordination, final reconciliation and CI. |
-| 28B | Audit inventory gaps from existing evidence before one complete gate run; diagnose failures with focused selectors. |
-| 28C | Document measured, verified behavior and check links; no runtime test reruns for this documentation work. |
+Use actual existing commands and recorded runtime evidence. No new general CI,
+cache, scheduler or evidence framework is a prerequisite for customer coverage.
+The [daily guide](../Test-Automation.md#daily-commands) distinguishes current
+commands from planned interfaces.
 
 ## Task 28A
 
-**Earlier prerequisite ownership — 2026-09-11:**
-[Task 20 recovery R1](Task-20.md#bounded-recovery--2026-09-11) now owns the minimum
-source-execution isolation needed to stop unrelated edits invalidating live
-qualification, and the validation-lifetime/timing correction. Reuse any accepted
-contract and evidence here. Under the revised order, an earlier consumer,
-including 28A, may complete the minimum needed shared capability, publish its
-evidence and record any R1 recovery portion in Task 20's ledger; do not wait for
-full Task 20 acceptance or reimplement it in another runner.
-A controlled source window can satisfy R1 without a general
-cache. The complete package/fixture build-input closure, safe artifact reuse,
-automatic builds, reproducibility and CI below remain 28A work. None is available
-merely because its planning ownership changed.
-
-- Title: Implement the four test commands, CI, and the comprehensive gate.
-- Depends on: Task 27C.
-- Scheduling: implement dispatch and CI before Task 20. Keep its pending
-  scenarios registered and prove incomplete/unimplemented required cases fail
-  closed; a passing release run is not this task's acceptance criterion.
-- Complexity: high. Inventory/selector dispatch, artifact consistency, guarded
-  orchestration, and failure propagation must agree locally and in CI. Reuse
-  established runners and Task 27 evidence; the semantic audit belongs to 28B.
-- Recommended Codex model: `gpt-5.6-sol`
-- Recommended reasoning effort: `high`
-- Work:
-  1. Implement `make test-fast`, `make test-system`, `make test-e2e`, and
-     `make test-all` over one authoritative suite inventory and shared runner
-     dispatch. Extend F1's installed selection/expected-case contract and 19A's
-     graphical inventory; do not implement a second selector or replace working
-     diagnostics. Combine static, unit/property/contracts, private-D-Bus, GTK,
-     child JS/GJS, and nested-Shell checks in `test-fast`. Route non-VM UI
-     through `tools/run-ui-tests`; run safety prerequisites in isolation.
-     Reuse the [validated approval entry points](Approval-Tools.md):
-     `tools/run-tests fast` and `all` already reserve the fixed aggregate targets;
-     system/E2E dispatch must use the installed category helper, with its VM
-     lease and argument validation. Do not add broad Make, shell, pytest or
-     libvirt approval rules. New tests and registered scenarios use these
-     existing category-wide rules.
-  2. Provide documented `COMPONENT`/`TYPE` local selectors, `AREA` system
-     selectors (retaining F1's focused `TEST` option), and `SCENARIO` E2E
-     selection, including variants and both request surfaces where shared code is involved. `LIST=1` lists scope,
-     prerequisites, VM use, and available choices without executing tests.
-     Unknown or unexpectedly empty selections fail. `test-all` refuses
-     narrowing selectors; selected runs are reported as partial coverage.
-  3. Make `test-system` and `test-e2e` build/verify their inputs when invoked
-     without operator-supplied artifacts. Make `test-all` validate prepared
-     tooling/credentials/baseline, capture one set of source inputs including
-     uncommitted changes, run host checks against those inputs, build/compare
-     reproducible package/fixture outputs, and use one verified release artifact
-     throughout ordinary installed and customer scenarios. Detect or prevent
-     source changes mixing results; identify supplemental fixture packages.
-     No intermediate operator command is needed after one-time preparation.
-     Record separate package/fixture build-input and test/harness identities
-     inside the complete run identity. Permit verified artifact reuse only by
-     the actual build-input closure, including packaging, assets, toolchain and
-     local edits; unknown applicability requires rebuilding. Documentation-only
-     handoffs and test selectors need not rebuild identical package payloads.
-     Cached artifacts never imply cached passing tests. `test-all` still makes
-     its required two isolated reproducibility builds from the captured inputs.
-  4. Reuse existing VM serialization across layers and invocations, including
-     `make -j`. Reuse its validated lease, retained product-free baseline,
-     share-detachment and restoration guards. Reset only outside whole
-     attempts; never create a new VM/overlay/snapshot or restore between
-     customer steps. Run all enumerated scenarios and required variants,
-     including real gameplay, lifecycle, fault/recovery, and environment cases
-     in their declared layers. Deduplicate overlapping suite selections.
-     Run each required case/variant once per ordinary attempt. Exclude completed
-     setup/capture tasks and historical three-run/ten-run qualification loops
-     from daily dispatch; retain their underlying regression/safety cases.
-  5. Aggregate Task 27 evidence and final-mode requirement/actual-execution
-     validation. Preserve and export safe partial evidence on failure or
-     interruption. Missing tests/steps/evidence, required skip/xfail, stale
-     artifacts, first-fail/second-pass, and cleanup failure prevent success.
-     Show separate product, infrastructure, collection, and cleanup outcomes;
-     unavailable required evidence never becomes a passing absence reason.
-  6. Add pre-commit/local, pull-request, nightly, updates-canary, and release
-     jobs using the same dispatch and acceptance contracts. Use focused local
-     selections for immediate feedback; run the complete local, build, and
-     installed suites on pull requests, and full graphical/all runs nightly
-     and for releases. A focused CI job cannot claim a complete release pass.
-  7. Use the pinned supported matrix for default `test-all`. Run a separately
-     labeled current-security-updates canary with recorded actual dependency
-     versions; it cannot silently change the release matrix or its baseline.
-     Always upload validated available evidence, including failure results.
-  8. Keep current focused `check-*` interfaces and staged `make check` usable.
-     If `check-release` remains, make it an alias of the same `test-all` gate,
-     without `VM_IMAGE`. Record exact commands, selectors, prerequisites,
-     source-input handling, and orchestration results for 28B.
-     Measure preparation, execution, collection and cleanup separately. Compare
-     focused iteration cost with the F1 baseline before adding optimization
-     machinery; no cache or runner rewrite is justified solely by task size.
-- Verification:
-  - Validate CI configuration and test orchestration with pass, fail, missing
-    evidence, skip/xfail, first-fail/second-pass, and interrupted runner results.
-  - Verify every selector and shared dependency, `LIST=1` performs no test/VM
-    operation, unknown/empty selections fail, and narrowing `test-all` fails.
-  - Verify omitted suites/variants/steps, stale source/package evidence,
-    source edits during a run, invalid prerequisite state, cleanup failure,
-    and component evidence substituted for E2E cannot produce success.
-  - Verify worker serialization under concurrent/parallel Make invocation,
-    refusal of intermediate checkpoints, and evidence upload on failure.
-  - Verify daily commands never install host tooling, prepare accounts, capture
-    a baseline or repeat completed qualification loops. Invalid prerequisites
-    fail with a diagnostic instead of triggering one-time setup implicitly.
-  - Run `make check` and `git diff --check`. Full release acceptance is 28B.
-- Completion criteria: the four documented commands dispatch complete or
-  explicitly selected scopes through existing runners and enforce execution
-  and evidence contracts. CI uses the same implementation; no release
-  acceptance is claimed until 28B runs and audits the full workflow.
+- Title: Deferred broad command, CI and artifact-reuse expansion.
+- Status: outside the automatic queue; no standalone implementation now.
+- Retained work: four-command dispatch, broad CI integration, complete build-input
+  closure, reproducibility coordination and safe caching remain unaccepted where
+  not already implemented. Preserve existing code/tests and published interfaces.
+- A named consumer may require a minimal adapter over the current validated
+  runner; implement only that need with its consumer. Do not widen approvals,
+  replace working selectors or add another execution framework.
+- Task 20's [R1 recovery](Task-20.md#bounded-recovery--2026-09-11) still owns
+  demonstrated input-stability/validation-timing repairs and their cumulative
+  checkpoints. This separation does not bypass or reset those safeguards.
 
 ## Task 28B
 
-- Title: Audit executable traceability and pass the release gate.
-- Depends on: Task 28A and acceptance of all product-coverage tasks, explicitly
-  including Task 20. A complete release pass cannot precede clean-install and
-  startup-failure acceptance.
-- Complexity: high. Semantic coverage and evidence across the whole specification
-  require judgment beyond a syntactically valid manifest.
-- Recommended Codex model: `gpt-6-astra`
-- Recommended reasoning effort: `high`
-- Model rationale: reserve Astra for the broad final correctness audit; use
-  lower settings only for subsequent bounded fixes with settled expectations.
+- Title: Review executed customer and mechanical package coverage.
+- Depends on: active customer tasks and Tasks 18/20, with blocked cases explicit.
+  Deferred engineering is not silently treated as completed.
+- Default settings: `gpt-6-astra` / `high` for the scoped acceptance review.
 - Work:
-  1. Audit every specification ID against executed behavior and collected
-     evidence. Remove source-only acceptance claims; retain useful contracts.
-     Close actual coverage gaps rather than declaring unsupported coverage.
-     Audit all customer scenario families and their variant matrix against
-     architecture and lifecycle contracts too. Check actual ordered graphical
-     operations, real authentication/gameplay/elapsed time/reboots, continuity,
-     other-user isolation, and declared fault categories. Check that each costly
-     case protects app behavior, app-owned OS integration or necessary harness
-     safety; unrelated Ubuntu/provider behavior belongs outside the product
-     matrix. Verify prerequisite writes were recorded separately and did not
-     produce an asserted outcome. Audit layer assignments and reasons for
-     combined/reassigned cases; source strings and test counts are not execution
-     evidence. No mock, outcome-producing shortcut, VM checkpoint or separately
-     passing fragment proves a required continuous journey.
-  2. Run final-mode validation rejecting planned, missing, nonexistent, skipped,
-     and expected-failing release mappings. Ensure flaky or failed evidence
-     also prevents release even when a later attempt passes.
-  3. Run `make test-all` from the prepared development/VM host with no manual
-     intermediate commands. Use the retained product-free baseline only
-     outside independent attempts. Preserve the complete evidence set for the
-     exact source inputs/release artifact; supplemental migration/activation
-     packages cannot replace it. Verify expected-versus-executed inventories,
-     not only file existence or a `covered` label in requirements.json.
-  4. Record digests, source revision, supported matrix, resource measurements,
-     commands, and final results for 28C's runbook. Diagnose failures and fix
-     their root causes before accepting the release.
-- Verification:
-  - Run cleanup-safety regressions in isolation before integrated release tests.
-  - Run `tools/run-tests traceability final`.
-  - Run the full release command and confirm zero skipped, expected-failing,
-    missing, flaky, or failed required tests, scenarios, variants, and
-    requirements, with complete cleanup and valid current-run evidence.
-  - Review intentionally failed orchestration evidence proving unavailable
-    VM/prerequisites, omitted tests, stale artifacts, interrupted journeys,
-    intermediate restore requests, and cleanup failure cannot produce green.
-  - Run `make check` and `git diff --check`.
-- Completion criteria: every applicable requirement and enumerated required
-  journey/variant has passing evidence from a complete real run. Harness and
-  static regressions also pass; the gate rejects incomplete or simulated
-  acceptance. Record any documented scope limits without promising that
-  automation proves the absence of every possible regression.
+  1. Compare the frozen customer inventory with actual complete executions and
+     visible evidence. Cover every app surface and distinct customer behavior,
+     including both request forms, real gameplay and continuous family journeys.
+     Do not limit the audit to the timeout/login example.
+  2. Confirm every customer action/assertion could be performed/observed by a
+     real user. Remove no passing existing lower-level test; instead correct
+     wrong E2E claims and classify internal qualification separately.
+  3. Verify that scope transfers, duplicate removal and helper passes were not
+     counted as completed customer variants. Preserve missing, blocked, failed,
+     skipped and partial results; no simulated/internal substitute can pass.
+  4. Review mechanical Tasks 18/20 independently for their required internal
+     installation, migration, removal and recovery evidence. Surface-only
+     customer success does not waive mechanical failures.
+  5. Use the currently implemented validated suite/selector commands for the
+     required current-input checks, retaining all established regression and
+     safety suites. If a comprehensive command is unavailable, report the
+     actual selected scope; do not claim an unexecuted full-suite/release pass
+     or launch a general infrastructure project from this review.
+  6. Record completed customer scope, mechanical scope and separate unresolved
+     engineering/product blockers. An applicable demonstrated release blocker
+     requires a product decision; it is not erased by green customer scenarios.
+- Verification/completion: the active scope has truthful executed coverage and
+  current-run evidence, with existing cleanup and required regressions passing.
+  Mark complete only when that stated acceptance is met. This is not a claim
+  that every deferred internal guarantee or the entire specification is proven.
 
 ## Task 28C
 
-- Title: Finish the operator runbook and evidence index.
-- Depends on: Task 28B.
-- Complexity: low. This documents verified commands and recorded results without
-  changing execution, requirements, coverage decisions, or release policy.
-- Recommended Codex model: `gpt-5.6-luna`
-- Recommended reasoning effort: `low`
+- Title: Document the verified workflow and remaining limits.
+- Depends on: Task 28B's accepted result or explicit blocked handoff for the
+  operator; a blocked acceptance must remain labeled blocked.
+- Default settings: `gpt-5.6-luna` / `low` for settled documentation.
 - Work:
-  1. Document operator prerequisites, exact suite commands, measured resource
-     use, recovery steps, canary interpretation, and artifact inspection using
-     28A/28B's verified outputs.
-     Lead with the four daily commands and focused selector examples. Measure
-     the full `test-fast` runtime including GTK/nested-Shell tests; describe
-     it as local feedback, not a guarantee of seconds. Explain one-time setup,
-     actual VM mutations, real-duration waits, and outer-only baseline resets.
-  2. Link the release evidence index, source/package/baseline digests, and final
-     traceability result without copying secrets or private guest state.
-  3. Check links, paths, command-help examples, and consistency between entry
-     point, integration README, and release instructions.
-- Verification:
-  - Validate local links and documented command help without VM mutation.
-  - Run link/reference checks and `git diff --check`; do not rerun product,
-    component, VM or full release tests for documentation-only changes.
-- Completion criteria: an operator can reproduce and interpret the accepted
-  release workflow from the documented commands and preserved evidence.
+  1. Document the actual supported commands/selectors, preparation, safe artifact
+     inspection, visible scenario coverage and mechanical package coverage.
+  2. Link existing run evidence, pending cases and separate engineering blockers.
+     Distinguish completed scenarios from harness qualification and scope moves.
+  3. Check links, references and whitespace. Do not rerun runtime suites for
+     documentation-only work or claim that planned commands are implemented.
+- Completion criteria: the operator can run and interpret the verified scope,
+  and can see what remains unaccepted without reading session histories.

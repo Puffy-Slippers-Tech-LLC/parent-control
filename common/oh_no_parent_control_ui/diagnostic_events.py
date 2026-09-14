@@ -254,6 +254,8 @@ FAULT_SOURCES = {
     "common.oh_no_parent_control_ui.rich_text_editor": "rich-text-editor",
     "oh_no_parent_control.execution_probe": "execution-probe",
     "broker.oh_no_parent_control.execution_probe": "execution-probe",
+    "oh_no_parent_control.probe_generation": "execution-probe",
+    "broker.oh_no_parent_control.probe_generation": "execution-probe",
     "oh_no_parent_control.extension_manager": "extension-manager",
     "broker.oh_no_parent_control.extension_manager": "extension-manager",
     "oh_no_parent_control.core": "core",

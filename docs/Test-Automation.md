@@ -1,53 +1,54 @@
 # Test automation
 
-This is the entry point for continuing implementation and for running tests.
-For the remaining implementation, repeat this exact prompt in each new session:
+Entry point for implementation and daily tests. To continue implementation:
 
 > Continue the next unfinished task in docs/Test-Automation.md. This is the dev and host machine.
 
-To automate that loop until the checklist is complete, run
-`tools/codex_slices.py start`. Each slice gets a fresh Codex session.
-See [unattended sessions](TestAutomation/Unattended-Sessions.md) for progress,
-safe stopping, permissions and interruption recovery. The launcher displays
-session output live and appends only end-of-session reports to
-[the slice summary log](Test-Automation-Slice-Summary.md). That log is for the
-operator; implementation sessions must not read or edit its accumulated history.
+For an authorized unattended loop, run `tools/codex_slices.py start`.
+[Unattended sessions](TestAutomation/Unattended-Sessions.md) covers live progress,
+safe stopping, permissions and interruption recovery. The supervisor appends
+reports to the [operator summary](Test-Automation-Slice-Summary.md);
+implementation workers must exclude that log from reads, searches, diffs and edits.
 
 ## Continue implementation in fresh sessions
 
-1. Select the earliest ready unchecked task in the
-   [master checklist's order](TestAutomation/Test-Automation.md#unfinished-tasks),
-   reconciling [Continuation.md](TestAutomation/Continuation.md) with that order.
-   The [workflow](TestAutomation/Implementation-Workflow.md#start-with-one-bounded-result)
-   owns task selection, blocker rechecks, execution, verification and handoff rules.
-2. Implement and verify one coherent slice, normally planned for 15–30 minutes.
-   Finish the current operation and safe cleanup before handing off. The agent
-   saves the next action, reusable evidence and reassessed settings, then tells
-   you that you can end the session. Start a new session with the same prompt.
+**Current scope — 2026-09-14:** prioritize customer E2E across all app surfaces,
+operating and observing exactly as real users under
+[E2E-Coverage.md](TestAutomation/E2E-Coverage.md). Timeout/login rejection is
+only an example. Completed unit/component/system tests stay intact. Mechanical
+installation, upgrade, migration and removal in Tasks 18/20 retain necessary
+internal checks and follow the customer queue. The
+[policy-acknowledgement design](TestAutomation/Policy-Acknowledgement.md) and
+other unfinished internal matrices are separate, not automatic prerequisites.
 
-**Quality takes absolute precedence; conserving weekly usage allowance is the
-secondary objective.** Follow the
-[model policy](TestAutomation/Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff):
-Sol high for settled implementation, Astra high for unresolved hard boundaries,
-and lower settings only with adequate contracts and checks. Use Standard
-processing and reassess each slice; no blanket Astra/high or max-effort default.
-Reduce repeated context and rediscovery. Budgets trigger review, never weaker checks.
-The [reuse map](TestAutomation/Reuse-Map.md) identifies opportunities across all
-remaining tasks; consult only the relevant row during implementation.
+Follow the [workflow](TestAutomation/Implementation-Workflow.md) for selection,
+execution, verification and handoff. At each safe boundary reconcile
+[Continuation.md](TestAutomation/Continuation.md) with the
+[master checklist](TestAutomation/Test-Automation.md#unfinished-tasks), selecting
+the earliest ready unchecked entry. Read only the selected
+[reuse-map row](TestAutomation/Reuse-Map.md) and relevant contracts/source.
 
-Apply the [output rules](TestAutomation/Implementation-Workflow.md#reduce-unnecessary-model-output)
-to avoid repeated scripts, command transcripts and irrelevant tool reads.
-Model-written commands use output tokens; tool results sent back to the model
-use input tokens. Local terminal rendering and retained artifacts add no model
-tokens unless their contents are sent to a model. Keep full diagnostic evidence.
+Implement one coherent slice, normally planned for 15–30 minutes. Finish owned
+operations and cleanup, save next action/evidence/reassessed settings, then end
+the session and reuse the prompt. Existing development/host and guarded-VM
+authorization persists; a new chat does not require machine selection, old
+transcripts, repeated investigations or unchanged tests.
 
-The prompt establishes development/host scope and the existing guarded test VM.
-Preserve that authorization and the compact handoff across sessions; no machine
-selection, old transcript, completed investigation or repeated test is needed
-merely because the chat is new.
+**Quality first, weekly allowance second.** The
+[model policy](TestAutomation/Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff)
+uses Sol high for settled implementation, Astra high for unresolved hard
+boundaries, and lower settings only with adequate contracts/checks. Use Standard
+processing and reassess each slice; no blanket Astra/high or max-effort pin.
+Budgets trigger review, never weaker checks.
 
-An explicit request to run tests uses the commands below. A documentation
-review edits the relevant guides.
+Apply the workflow's [context/output rules](TestAutomation/Implementation-Workflow.md#reduce-unnecessary-model-output):
+avoid repeated context, rediscovery and scripts/transcripts. Model-written
+commands cost output tokens; returned tool content costs input. Local rendering
+and retained artifacts cost no additional model tokens unless sent to a model.
+Preserve full diagnostic evidence.
+
+An explicit test-run request uses the commands below; a documentation review
+edits the relevant guides.
 
 ## Daily commands
 
@@ -60,10 +61,12 @@ refuse until their runners exist; approval coverage is not suite implementation.
 The same guide covers read-only system diagnostics and maintenance of only the
 pinned test VM, with no recurring per-file or per-operation authorization.
 
-[IMPORTANT] **Try your best to use commands that does not need user approve or show PoliKit prompt.**
+Prefer the approved commands that avoid recurring approval or Polkit prompts.
 
 The intended interface is four commands. **These targets and their selectors
-are not implemented yet**; Task 28A owns their complete dispatch and CI. The
+are not implemented yet**; deferred Task 28A retains their complete dispatch
+and CI design. They are not prerequisites for the prioritized customer queue;
+use the current validated selectors. The
 smaller [F1 task](TestAutomation/Task-F1.md) brings guarded installed selectors
 and diagnostic timing forward into `check-system`. F1 is complete: its
 host-safe `LIST=1` inventory, guarded case forwarding, stage timing, split
@@ -75,7 +78,7 @@ commands below for runs.
 | --- | --- | --- |
 | `make test-fast` | Static checks, unit/property/contracts, private-D-Bus components, GTK, child JavaScript/GJS and nested-Shell tests, plus local coverage evidence. | No |
 | `make test-system` | All installed-package and OS integration tests: identity, authorization, enforcement, time, activation, migration, removal, reinstall, and runner guards. | Yes |
-| `make test-e2e` | All required graphical customer journeys and declared graphical fault/recovery cases. | Yes |
+| `make test-e2e` | All declared customer journeys using real actions and visible assertions; internal fault/package qualification is separately classified. | Yes |
 | `make test-all` | All required suites and supported environments, build reproducibility, and final execution/evidence/requirement validation. | Yes |
 
 `test-fast` combines unit and component work. Full GTK/nested-Shell coverage may
@@ -138,86 +141,80 @@ currently no implemented comprehensive graphical E2E or `test-all` pass.
 
 ## What a complete run must establish
 
-After the documented environment is prepared, one `make test-all` invocation
-must validate prerequisites, capture current source inputs including
-uncommitted changes, run host tests against those inputs, build/verify the
-package and fixtures, run all required VM scenarios, collect redacted evidence,
-restore the documented VM state, and validate the complete result. No manual
-commands are required between stages. Source edits during a run cannot mix
-host results and VM artifacts from different inputs.
+After environment preparation, one `make test-all` must validate prerequisites,
+capture current source (including uncommitted changes), test those host inputs,
+build/verify package and fixtures, execute all required VM scenarios, collect
+redacted evidence, restore the documented VM state and validate the result.
+No manual inter-stage commands or source edits may mix input identities.
 
-Use one suite inventory and runner dispatch for local commands and CI. Include
-non-pytest JavaScript, graphical, static, fixture/build, and cleanup-safety
-checks even when they have no product requirement ID. Avoid duplicate ordinary
-suite execution; safety prerequisites still run in isolation before the
-operations they protect.
+Local commands and CI use one inventory/dispatch, including non-pytest JS,
+graphical, static, fixture/build and cleanup regressions without product
+requirement IDs. Execute ordinary suites once; safety prerequisites still run
+in isolation before protected operations.
 
-Every expensive test must protect an app behavior, an app-owned OS integration,
-or a necessary harness safety guarantee. Use the cheapest reliable supported
-helper to establish unrelated prerequisites, such as real user accounts,
-fixture applications and attachment files. Ubuntu's account-management UI and
-general password behavior are not product acceptance targets. Follow the
-[scope and prerequisite rules](TestAutomation/E2E-Coverage.md#scope-tests-around-the-app).
+Every expensive case must protect app behavior, app-owned OS integration or a
+necessary harness guarantee. Use reliable supported helpers for unrelated
+accounts, fixture apps and attachments; Ubuntu account-management UI/general
+password behavior are not product targets. Follow
+[app scope/prerequisite rules](TestAutomation/E2E-Coverage.md#scope-tests-around-the-app).
 
-Customer E2E uses real keyboard/mouse input for the product operations and OS
-transitions the journey asserts, including real authentication, application use,
-reboot/package lifecycle and natural expiry where those are under test. Required
-causal steps cannot be replaced by mocks, hidden state writes, fake clocks,
-checkpoint restore or saved-state resume. Declared prerequisite setup is separate
-from those steps. Read-only backend evidence corroborates visible behavior and
-other-user isolation.
-Follow the [E2E operations and coverage contract](TestAutomation/E2E-Coverage.md)
-and enumerate the complete applicable scenario/variant matrix. The supplied
-parent → child denial → kiosk → gameplay → expiry example is one required
-journey, not the coverage limit.
+Customer E2E uses real keyboard/mouse input for asserted product operations/OS
+transitions, including authentication, app use, reboot/package lifecycle and
+natural expiry when under test. No mocks, hidden writes, fake clocks, checkpoint
+restore or saved-state resume may replace causal steps. Declared setup is
+separate. Customer acceptance uses visible behavior only; observe another user's
+continued app use through their desktop. Do not collect backend product evidence
+for customer assertions. Internal installation/package qualification remains
+required separately under Tasks 18/20. Enumerate the complete applicable
+[E2E scenario/variant matrix](TestAutomation/E2E-Coverage.md); the supplied
+parent → child denial → kiosk → gameplay → expiry journey is required, not exhaustive.
 
-Only the already-prepared product-free baseline may be restored outside
-complete independent attempts. Never create a new VM/overlay/snapshot or
-restore between steps. Serialize the existing VM even under concurrent commands
-or `make -j`; detach writable host shares before test boots.
+Legacy runtime declarations still contain backend/fault requirements. Reconcile
+the first affected scenario and only its necessary common validator adaptation;
+this documentation change itself implements no runtime capability. Track completed
+customer variants and frozen remaining scope in the active handoff. Scope moves
+and helper passes earn no customer completion credit.
 
-Success requires all expected tests, scenarios, variants, assertions and
-evidence from this run, for the recorded source/package/environment identities.
+Restore only the prepared product-free baseline outside complete independent
+attempts, never between steps. No new VM/overlay/snapshot. Serialize the existing
+VM even across concurrent commands/`make -j`; detach writable host shares before boot.
+
+A pass requires every expected test, scenario, variant, assertion and safe
+evidence from this run under recorded source/package/environment identities.
 Missing, skipped, expected-failing, stale, interrupted, flaky or failed required
-results prevent success, as do unsafe/missing evidence and cleanup failure.
-Preserve the original failure on a diagnostic rerun. Report product,
-infrastructure, collection and cleanup outcomes separately.
+results and failed cleanup prevent success. Keep original failures on diagnostic
+reruns; report product, infrastructure, collection and cleanup outcomes separately.
 
-The release environment matrix is pinned and recorded. A separately labeled
-security-updates canary checks newer dependencies; it cannot silently change
-the supported matrix or replace release evidence. A pass establishes the
-defined regression coverage, not the absence of every possible bug.
+Pin/record the release environment matrix. A separately labeled security-updates
+canary checks newer dependencies without replacing release evidence or silently
+changing supported environments. A pass proves defined coverage, not zero bugs.
 
 ## Keep one-time work out of daily runs
 
-Account preparation, baseline capture/acceptance, host tool installation, historical
-implementation acceptance, repeated smoke qualification, and model selection
-are not test suites and must not run from `test-*`. The prepared machine is a
-prerequisite; an invalid/missing baseline is reported, never rebuilt silently.
+`test-*` must not perform account preparation, baseline capture/acceptance, host
+tool installation, historical implementation acceptance, repeated smoke
+qualification or model selection. Preparation is a prerequisite: report invalid/
+missing baselines rather than silently rebuilding them.
 
-Run each registered regression and required variant once per ordinary attempt.
-Repeated qualification and diagnostic reruns need a stated stability question,
-selected scope, count and stop condition under the
-[implementation workflow](TestAutomation/Implementation-Workflow.md#verify-at-the-right-scope).
-They preserve each attempt and do not multiply the daily suite. A real-duration
-wait or second package build
-needed for a reproducibility assertion remains part of that test's behavior.
+Run each regression/required variant once per ordinary attempt. Repeated
+qualification/diagnosis needs a stability question, scope, count and stop
+condition under the [workflow](TestAutomation/Implementation-Workflow.md#verify-at-the-right-scope).
+Preserve each attempt without multiplying the daily suite. Real-duration waits
+and second builds required by reproducibility assertions remain test behavior.
 
-Removing completed setup instructions does not remove regression tests of
-setup/cleanup safety, package behavior, or build reproducibility. Those can
-regress when code changes. See [environment prerequisites and recovery](../tests/integration/Environment.md)
-when preparing a replacement environment; do not repeat preparation on the
-existing accepted baseline.
+Removing completed setup instructions preserves regressions for setup/cleanup,
+packaging and build reproducibility. Use
+[environment preparation/recovery](../tests/integration/Environment.md) for
+replacement environments; do not repeat preparation of the accepted baseline.
 
 ## Maintaining tests
 
-The [test contributor guide](../tests/README.md) covers layer selection,
-dependency isolation, cleanup prerequisites and requirement maintenance.
-The [shared support guide](../tests/support/README.md) routes reusable fixtures,
-script imports, process capture, private buses, VM doubles and guest assertions.
-Pytest import paths and layer classification are maintained centrally; tests
-must not import collected cases or repeat module-level path manipulation.
-The [remaining implementation plan](TestAutomation/Test-Automation.md) contains
-only work not yet accepted. Completed setup task descriptions, dated pass
-counts, temporary acceptance paths and model-price comparisons are not daily
-instructions.
+The [contributor guide](../tests/README.md) owns layers, isolation, cleanup
+prerequisites and requirements. [Shared support](../tests/support/README.md)
+routes fixtures, script imports, process capture, private buses, VM doubles and
+guest assertions. Central import paths/layer classification replace imports
+from collected tests and per-module path manipulation.
+
+The [implementation plan](TestAutomation/Test-Automation.md) holds unaccepted
+work. Completed setup descriptions, dated pass counts, temporary acceptance
+paths and model-price comparisons are not daily instructions.

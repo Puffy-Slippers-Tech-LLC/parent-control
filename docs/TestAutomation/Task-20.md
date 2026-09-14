@@ -1,11 +1,26 @@
 ### Task 20 — Automate clean installation, reboot, and startup readiness
 
+**Operator scope — 2026-09-14:** this remains mechanically thorough package
+qualification. Preserve internal startup, service ordering, installed layout,
+ownership, recovery, provenance and cleanup assertions and the R1 ledger below.
+Customer E2E is prioritized generally; this task follows the customer queue.
+It is not a prerequisite for feature journeys that use accepted installation
+setup. References below to old Task 15A or backend-helper priorities are
+historical scheduling, superseded by the [master checklist](Test-Automation.md#unfinished-tasks).
+
+Label internal startup/layout and induced-failure evidence as package/system
+qualification, separate from the visible install/reboot/login path. E2E-002's
+customer assertions use normal terminal/UI actions and visible output only.
+Retain E2E-028/startup-enforcement and startup-broker as required mechanical
+cases, reclassifying their declarations with the affected implementation.
+The surface-only rule does not remove or weaken these installation checks.
+
 The [bounded recovery](#bounded-recovery--2026-09-11) and
 [active handoff](#task-20-continuation--2026-09-08) govern work when this task
-resumes. The operator now prioritizes Tasks 15–18, 21–27 and 28A first under
+resumes. The operator now prioritizes the customer queue and Task 18 under
 the [master checklist](Test-Automation.md#unfinished-tasks), superseding the
-earlier Task 20-first scope. Preserve recovery progress and checkpoints; these
-earlier tasks do not depend on this graphical installation acceptance.
+earlier Task 20-first scope. Preserve recovery progress and checkpoints;
+ordinary feature journeys do not depend on this full installation acceptance.
 Their specific shared-helper prerequisites remain mandatory. The first
 affected consumer may qualify a bounded helper and publish its contract,
 regressions and evidence here; reuse accepted results without repeating them
@@ -50,8 +65,10 @@ Verification below is task acceptance; edits use the smallest affected selection
   3. Request an actual reboot through the customer-visible guest interface.
      Verify the boot identity changes and that GDM returns; do not reload VM
      state. Forced-power recovery belongs to a separately declared fault case.
-  4. Assert visually that GDM becomes usable only after fapolicyd readiness.
-     Independently prove the broker publishes its D-Bus object only after its
+  4. In separate mechanical qualification, verify GDM startup follows fapolicyd
+     readiness. The customer path observes usable GDM and actual login; screens
+     alone do not certify internal ordering. Independently prove the broker
+     publishes its D-Bus object only after its
      startup reconciliation completes, as specified in the
      [startup design](../SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle).
   5. Assert through serial that installed files, ownership, services, D-Bus,
@@ -219,16 +236,16 @@ before ordinary independent-task fallback.
 
 ### Task 20 continuation — 2026-09-08
 
-**Current handoff — 2026-09-11: bounded recovery R1 preserved for resumption
-after Tasks 15–18, 21–27 and 28A in checklist order; implementation has not
-started. Task 20 remains unaccepted.**
+**Current handoff — 2026-09-14: bounded recovery R1 preserved for mechanical
+installation qualification after the customer queue and Task 18. Its recorded
+implementation has not started. Task 20 remains unaccepted.**
 
 **Next observable result when resumed:** implement and locally verify the smallest safe
 correction to baseline-validation timing and recipient freshness, while resolving
 stable source execution under the [R1 contract](#bounded-recovery--2026-09-11).
 Then qualify the existing VT6 route through final preservation. Do not run the
-unchanged source-stability experiment. The current continuation selects 15A
-under the operator's revised priority.
+unchanged source-stability experiment. The current continuation selects customer
+work under the operator's revised priority; policy-acknowledgement design is separate.
 The former source deferral still limits live runs until inputs are controlled;
 it does not block local execution-design work or establish current writer activity.
 
@@ -248,7 +265,7 @@ completed all authentication/command receipts and normal shutdown; source
 preservation failed. [Attempt 12](Evidence/20-VT6-Fresh-Input-Refusal-20260911.md)
 refused new source additions before worker startup. Sudo/notice pixels,
 `E2E-002/clean` and both startup faults remain unaccepted. Preserve these results
-and [15A's dormant probe progress](Task-15.md#task-15a-continuation--2026-09-08).
+and the [deferred policy-design evidence](Policy-Acknowledgement.md).
 
 **Recovery ledger:** start pending; implementation slices **0**; charged hours
 **0**; new live attempts **0**; R1–R4 pending; next checkpoint **4 hours**;
@@ -261,7 +278,8 @@ qualification, package build, VM/worker/lease or launcher operation was started.
 There is no newly owned recovery. All-task VM clearance persists; unrelated
 edits are preserved. Previous one-slice overrides stay consumed. Ordinary
 launcher startup reads this handoff without a custom prompt.
-The nine changed guides passed 319 local-link checks and `git diff --check`.
+The earlier 2026-09-11 documentation update passed 319 local-link checks and
+`git diff --check`; that historical result is not validation of later edits.
 
 **Next-session settings:** `gpt-6-astra` / `high`, Standard; model: keep;
 effort: keep. **Reason:** R1 changes validation lifetime, source ownership and

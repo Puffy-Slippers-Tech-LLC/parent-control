@@ -186,7 +186,8 @@ def launch_ui(hermetic_ui_session):
     """Expose the shared owned-process launcher on this private compositor."""
     # Later aggregate categories rotate pytest's temporary roots. Keep these
     # diagnostic logs on disk so a failure remains inspectable after teardown.
-    directory = Path(tempfile.mkdtemp(prefix="onpc-ui-preview-", dir="/var/tmp"))
+    from tools.test_retention import allocate
+    directory = Path(allocate(tempfile.mkdtemp, prefix="onpc-ui-preview-", dir="/var/tmp"))
     print(f"UI preview logs: {directory}", flush=True)
     with preview_applications(hermetic_ui_session, directory) as launch:
         yield launch

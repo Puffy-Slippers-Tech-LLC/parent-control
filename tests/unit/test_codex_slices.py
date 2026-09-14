@@ -537,8 +537,8 @@ def test_each_fresh_session_uses_reassessed_model_and_effort(rig, model, effort)
         assert '--ephemeral' not in call['argv']
         assert '--ignore-rules' not in call['argv']
         assert 'sensitive-placeholder' not in call['prompt']
-        assert 'Keep progress and the final report concise:' in call['prompt']
-        assert 'Preserve necessary implementation, reasoning, tests, diagnostics, evidence' in call['prompt']
+        # Verify delivery of the entire maintained prompt, independent of prose edits.
+        assert call['prompt'].startswith((root / loop.PROMPT).read_text())
         assert call['schema'] == loop.SCHEMA
         description = call['schema']['properties']['summary']['description']
         assert 'Expand when necessary for a correct handoff.' in description
@@ -695,7 +695,7 @@ def test_kill_interrupts_and_start_reuses_exact_thread_then_returns_to_fresh_sli
     assert len(launched) == 3
     assert launched[1]['argv'][-3:] == ['resume', thread, '-']
     assert 'reconcile' in launched[1]['prompt']
-    assert 'Keep progress and the final report concise:' in launched[1]['prompt']
+    assert launched[1]['prompt'].startswith((root / loop.PROMPT).read_text())
     assert launched[1]['schema'] == loop.SCHEMA
     assert 'resume' not in launched[2]['argv']
     assert launched[1]['argv'][launched[1]['argv'].index('--model') + 1] == 'gpt-5.6-sol'
@@ -1156,7 +1156,7 @@ def test_summaries_append_without_reading_history_across_restarts(rig, monkeypat
     for call in calls(root):
         assert 'previous-context-must-not-be-loaded' not in call['prompt']
         assert 'Completed slice result' not in call['prompt']
-        assert 'Never read, search, diff, edit or include docs/Test-Automation-Slice-Summary.md' in call['prompt']
+        assert call['prompt'].startswith((root / loop.PROMPT).read_text())
 
 
 def test_completion_timestamp_and_elapsed_duration_are_measured_in_minutes(rig, monkeypatch):

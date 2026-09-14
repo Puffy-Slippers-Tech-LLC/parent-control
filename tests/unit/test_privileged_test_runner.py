@@ -114,7 +114,8 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
     root = Path(__file__).resolve().parents[2]
     tools = checkout / 'tools'
     tools.mkdir()
-    for name in ('onpc-test-runner', 'regression_process.py', 'test_launcher.py', 'test_activity.py'):
+    for name in ('onpc-test-runner', 'regression_process.py', 'test_launcher.py', 'test_activity.py',
+                 'test_retention.py'):
         shutil.copy2(root / 'tools' / name, tools / name)
     installer = runpy.run_path(str(root / 'tools/install_test_runner.py'))
     rendered = installer['render_helper'](checkout, 'onpc-test-runner', None)

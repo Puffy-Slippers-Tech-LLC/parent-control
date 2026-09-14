@@ -702,6 +702,15 @@ def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
     request = host.threading.Event()
     answered = host.threading.Event()
     finished = host.threading.Event()
+    threads = []
+    thread_type = host.threading.Thread
+
+    def owned_thread(*args, **kwargs):
+        thread = thread_type(*args, **kwargs)
+        threads.append(thread)
+        return thread
+
+    monkeypatch.setattr(host.threading, "Thread", owned_thread)
     def dispatch():
         if not request.wait(5):
             raise RuntimeError("test deadline")
@@ -724,6 +733,9 @@ def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
         assert host.main([]) == 0
     finally:
         finished.set()
+        for thread in threads:
+            thread.join(timeout=5)
+            assert not thread.is_alive(), "test event dispatcher did not finish"
 
 
 def test_resource_arguments_are_not_operator_overrides():

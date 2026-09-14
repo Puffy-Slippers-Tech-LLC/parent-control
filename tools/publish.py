@@ -57,10 +57,13 @@ def environment():
     return env
 
 
-def command(*args, cwd=ROOT, log=None, timeout=300):
+def command(*args, cwd=ROOT, log=None, timeout=300, temporary_directory=None):
     """No shell or stdin, sanitized environment, and redacted command failures."""
+    env = environment()
+    if temporary_directory is not None:
+        env['TMPDIR'] = str(temporary_directory)
     try:
-        result = subprocess.run(args, cwd=cwd, env=environment(), stdin=subprocess.DEVNULL,
+        result = subprocess.run(args, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 text=True, timeout=timeout, check=False)
     except subprocess.TimeoutExpired as error:
@@ -520,7 +523,7 @@ def execute(root, state, state_path):
     verify_frozen(state)
     if state['phase'] == 'prepared':
         say(f'building and signing source {state["version"]}; evidence: {directory}')
-        command('dpkg-buildpackage', '--build=source', '--no-sign', '-d', '-sa', cwd=checkout, log=log, timeout=3600)
+        release.build_archive(checkout, command, log)
         command('debsign', '--no-conf', '--re-sign', '-k' + release.KEY,
                 '-p' + str(root / 'tools/publishing/signing.py'), str(changes), cwd=checkout, log=log)
         inspect_source(checkout, log)

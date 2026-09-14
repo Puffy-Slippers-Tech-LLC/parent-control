@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+PACKAGE_STAGING_ROOT ?= $(CURDIR)/debian/oh-no-parent-control
 
 %:
 	dh $@
@@ -13,13 +14,18 @@ override_dh_clean:
 
 override_dh_auto_test:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	$(MAKE) check
+	/usr/bin/python3 -B debian/check_package.py
 else
 	@:
 endif
 
 override_dh_auto_install:
-	$(MAKE) _install-product-files DESTDIR=$(CURDIR)/debian/oh-no-parent-control PREFIX=/usr SYSCONFDIR=/etc
+	$(MAKE) _install-product-files DESTDIR=$(PACKAGE_STAGING_ROOT) PREFIX=/usr SYSCONFDIR=/etc
+
+# Hash the final shipped bytes, after shebang rewriting and ELF stripping but
+# before dpkg records its own checksums. The install-stage manifest is provisional.
+execute_before_dh_md5sums:
+	$(MAKE) _generate-package-activation-manifest DESTDIR=$(PACKAGE_STAGING_ROOT) PREFIX=/usr SYSCONFDIR=/etc
 
 override_dh_installsystemd:
 	# Maintainer scripts own the migration stop and manifest-selected activation.

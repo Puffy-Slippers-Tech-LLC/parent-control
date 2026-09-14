@@ -26,6 +26,7 @@ def checkout(tmp_path):
     (root / 'tools').mkdir()
     shutil.copy2(LAUNCHER, root / 'tools/run-unit-tests')
     shutil.copy2(LAUNCHER.with_name('test_launcher.py'), root / 'tools/test_launcher.py')
+    shutil.copy2(LAUNCHER.with_name('test_retention.py'), root / 'tools/test_retention.py')
     shutil.copy2(LAUNCHER.with_name('test_activity.py'), root / 'tools/test_activity.py')
     return root
 

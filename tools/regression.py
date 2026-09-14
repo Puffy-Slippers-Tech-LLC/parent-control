@@ -26,7 +26,8 @@ def authorization():
     from dev_privileges import check
     check('/usr/local/libexec/onpc-test-runner')
     installed = Path('/usr/local/libexec/onpc-test-runner').read_text()
-    if any(option not in installed for option in ('--unattended', '--skip-backing-verification')):
+    if any(option not in installed for option in ('--unattended', '--skip-backing-verification',
+                                                  '--retention-run=')):
         raise ValueError('installed dispatcher needs ./setup.sh --test-tools-only')
 
 
@@ -57,13 +58,15 @@ class Category:
 
 
 class Dashboard:
-    ANSI = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
+    ANSI = re.compile(r'\x1b\[[?0-9;]*[A-Za-z]')
 
     def __init__(self, categories, stream=None):
         self.categories = categories
         self.stream = stream or sys.stdout
         self.lines = 0
         self.terminal_size = None
+        self.alternate_screen = False
+        self.finished = False
         self.last = 0.0
         self.started = time.monotonic()
         self.host_started = None
@@ -81,6 +84,10 @@ class Dashboard:
 
     def category(self, item, now):
         total = '?' if item.total is None else str(item.total)
+        if item.state == 'Pending':
+            if item.wait_reason:
+                return f'\033[33m[Waiting] {item.name}: {item.wait_reason}\033[0m'
+            return f'\033[90m[Pending] {item.name} ({total})\033[0m'
         percent = '?' if item.total is None else str(int(100 * item.done / max(item.total, 1)))
         label = {'Passed': '✓', 'Failed': '✗', 'Interrupted': '✗',
                  'Blocked': '✗'}.get(item.state, item.state)
@@ -94,12 +101,14 @@ class Dashboard:
     def branches(self, items, now):
         lines = []
         for branch in range(1, HOST_WORKERS + 1):
+            if lines:
+                lines.append('│')
             assigned = sorted((item for item in items if item.branch == branch),
                               key=lambda item: item.launch_order)
             active = any(item.state == 'Running' for item in assigned)
             state = 'running' if active else 'idle' if self.host_elapsed is None else 'finished'
             style = {'running': '\033[1m', 'idle': '\033[90m', 'finished': ''}[state]
-            lines.append(f'{style}├─ Host branch {branch} — {state}; one category at a time\033[0m')
+            lines.append(f'{style}├─ Host branch {branch} — {state}\033[0m')
             if not assigned:
                 lines.append('│  └─ No categories assigned')
             for index, item in enumerate(assigned):
@@ -107,6 +116,7 @@ class Dashboard:
                 lines.append('│  ' + connector + self.category(item, now))
         unassigned = [item for item in items if item.branch is None]
         if unassigned:
+            lines.append('│')
             lines.append('│  Unassigned host work — waiting for a branch and headroom')
             lines.extend('│    ' + self.category(item, now) for item in unassigned)
         if self.host_elapsed is None:
@@ -126,6 +136,8 @@ class Dashboard:
         for item in self.categories:
             if item.host:
                 if item is hosts[0]:
+                    if lines:
+                        lines.append('│')
                     lines.extend(self.branches(hosts, now))
             else:
                 lines.append(('│  ' if hosts else '') + self.category(item, now))
@@ -139,7 +151,8 @@ class Dashboard:
         lines.append(f'\033[{color}mOverall - {percent}% '
                      + self.counts(done, failures, total if known else '?')
                      + f' - {(now - self.started) / 60:.1f}m\033[0m')
-        if self.control is not None and self.control.interrupted:
+        if self.control is not None and (self.control.interrupted or
+                                        self.control.stopped.is_set()):
             notice = ('Tests interrupted. Shutdown finished; see cleanup results above.'
                       if self.cleanup_finished else
                       'Tests interrupted. Shutting down safely; please wait for cleanup to finish.')
@@ -173,10 +186,12 @@ class Dashboard:
             plain = cls.ANSI.sub('', lines[index])
             if plain.startswith(('Overall - ', 'Tests interrupted.')):
                 return 0
-            if '[Running]' in plain or '[✗]' in plain:
+            if '[Running]' in plain or '[Waiting]' in plain or '[✗]' in plain:
                 return 1
             if plain.startswith(('├─ Host branch ', '└─ Join host branches')):
                 return 2
+            if plain == '│':
+                return 4
             return 3
 
         # Preserve the tree's order after choosing which rows fit. The complete
@@ -189,16 +204,31 @@ class Dashboard:
         return visible
 
     def draw(self, *, force=False):
+        if self.finished:
+            return
         now = time.monotonic()
         if not force and now - self.last < 1:
             return
         self.last = now
         lines = self.render(now)
+        if hasattr(self.stream, 'frame'):
+            self.stream.frame(lines)
+            return
+        self.draw_lines(lines)
+
+    def draw_lines(self, lines):
+        """Render a local or reconnected frame using this terminal's size."""
         tty = self.stream.isatty()
         prefix = f'\033[{self.lines}F' if self.lines and tty else ''
         ending = '\n'
         if tty:
-            size = shutil.get_terminal_size()
+            # Query the terminal we actually draw into. shutil prefers LINES
+            # and COLUMNS from the environment, which can outlive a resize and
+            # let frames scroll beyond the reach of the next cursor-up.
+            try:
+                size = os.get_terminal_size(self.stream.fileno())
+            except (OSError, ValueError):
+                size = shutil.get_terminal_size()
             width = max(1, size.columns - 1)
             # Reserve a row for the trailing newline: cursor-up cannot reach
             # rows that have already scrolled out of the terminal viewport.
@@ -211,10 +241,31 @@ class Dashboard:
             if size.lines <= 1:
                 prefix = '\r\033[2K'
                 ending = ''
+            if not self.alternate_screen:
+                # Keep live frames out of scrollback, including rows pushed
+                # beyond the viewport by terminal resize/reflow.
+                self.alternate_screen = True
+                prefix = '\033[?1049h\033[H\033[2J' + prefix
         self.stream.write(prefix + '\n'.join('\033[2K' + line for line in lines)
                           + ending + ('\033[J' if tty else ''))
         self.stream.flush()
         self.lines = len(lines)
+
+    def restore_terminal(self):
+        if self.alternate_screen:
+            self.stream.write('\033[?1049l')
+            self.stream.flush()
+            self.alternate_screen = False
+            self.lines = 0
+            self.terminal_size = None
+
+    def finish(self):
+        """Leave one complete summary in the normal terminal history."""
+        self.restore_terminal()
+        if not self.finished:
+            self.finished = True
+            self.stream.write('\n'.join(self.render(time.monotonic())) + '\n')
+            self.stream.flush()
 
 
 class Report:
@@ -227,6 +278,8 @@ class Report:
         name = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex[:8]
         self.directory = parent / name
         self.directory.mkdir(mode=0o700)
+        from test_retention import retain
+        retain(self.directory)
         self.stream = (self.directory / 'report.md').open('x', encoding='utf-8')
         os.chmod(self.directory / 'report.md', 0o600)
         self.dirty = set()
@@ -362,6 +415,8 @@ class Execution:
                 item.failures = len(self.failed)
                 if event.get('when') in ('setup', 'teardown'):
                     self.fixture_failed = True
+                    from test_retention import preserve_for_recovery
+                    preserve_for_recovery()
             self.run.report.snapshot(self.run.categories, force=event['kind'] == 'failure')
             if event['kind'] == 'failure':
                 self.run.report.checkpoint(force=True)
@@ -417,6 +472,8 @@ class Execution:
             if self.fixture_failed:
                 raise ValueError('test fixture setup or cleanup failed; further host work refused')
             if not self.collect and self.events and status not in (0, 1) and not run.control.stopped.is_set():
+                from test_retention import preserve_for_recovery
+                preserve_for_recovery()
                 raise ValueError('test infrastructure failed; further host work refused')
             return status, '\n'.join(self.captured)
         finally:
@@ -449,7 +506,7 @@ class Run:
         self.categories = [Category('Discovery and prerequisites', 1)]
         self.dashboard = Dashboard(self.categories)
         self.dashboard.control = control
-        self.artifacts = []
+        self.artifacts = {}
         self.sequence = 0
         self.inputs = None
         self.admission = Admission(observe=self.observe_resources)
@@ -575,13 +632,13 @@ class Run:
         status, output = result
         if job.key in ('build-a', 'build-b') and status == 0:
             matches = re.findall(r'^run-tests: output=(/tmp/onpc-test-artifacts-[A-Za-z0-9_-]+)$', output, re.M)
-            expected = 0 if job.key == 'build-a' else 1
-            if len(matches) != 1 or len(self.artifacts) != expected or matches[0] in self.artifacts:
+            if (len(matches) != 1 or job.key in self.artifacts
+                    or matches[0] in self.artifacts.values()):
                 job.item.state = 'Failed'
                 job.item.failures = max(1, job.item.failures)
                 self.report.snapshot(self.categories)
                 raise ValueError('package build output invalid; package-bearing suites refused')
-            self.artifacts.append(matches[0])
+            self.artifacts[job.key] = matches[0]
         self.report.schedule({'event': 'finish', 'job': job.key or job.item.name,
                               'kind': job.kind, 'state': job.item.state,
                               'elapsed_seconds': job.item.elapsed, 'waiting_seconds': job.item.waiting})
@@ -592,11 +649,12 @@ class Run:
         # both successful builders have supplied distinct artifact directories.
         return [Job('publish', publishing, self.command('publish'), estimate=360, key='publish'),
                 Job('artifacts', builds[0], self.command('artifacts', 'build'),
-                    estimate=7, key='build-a', requires=('publish',)),
+                    estimate=7, key='build-a'),
                 Job('artifacts', builds[1], self.command('artifacts', 'build'),
-                    estimate=7, key='build-b', requires=('build-a',)),
-                Job('artifacts', builds[2], lambda: self.command('artifacts', 'compare', *self.artifacts),
-                    estimate=1, key='compare', requires=('build-b',))]
+                    estimate=7, key='build-b'),
+                Job('artifacts', builds[2], lambda: self.command('artifacts', 'compare',
+                    self.artifacts['build-a'], self.artifacts['build-b']),
+                    estimate=1, key='compare', requires=('build-a', 'build-b'))]
 
     def run(self):
         self.inputs = source_identity(self.root)
@@ -680,7 +738,13 @@ class Run:
         if self.control.stopped.is_set():
             return
         if self.serial_builds:
+            outcomes = {}
             for job in package_jobs:
+                if not all(outcomes.get(key) for key in job.requires):
+                    job.item.state = 'Blocked'
+                    job.item.wait_reason = 'required host job failed'
+                    self.report.snapshot(self.categories)
+                    continue
                 self.report.schedule({'event': 'start', 'job': job.key, 'kind': job.kind,
                                       'branch': None, 'companions': [], 'requires': job.requires,
                                       'estimate_seconds': job.estimate})
@@ -688,8 +752,7 @@ class Run:
                 if self.control.stopped.is_set():
                     return
                 self.complete_host(job, result)
-                if job.item.state != 'Passed':
-                    break
+                outcomes[job.key] = job.item.state == 'Passed'
         if not self.includes_vm:
             self.check_inputs()
             return
@@ -721,13 +784,13 @@ class Run:
         return ready
 
     def vm_tests(self, system, graphical, ready):
-        status, _ = self.execute(system, self.command('system', '--artifacts', self.artifacts[0]), events=True)
+        status, _ = self.execute(system, self.command('system', '--artifacts', self.artifacts['build-a']), events=True)
         if self.control.stopped.is_set():
             return
         if status:
             raise ValueError('installed-system attempt failed; subsequent VM attempts refused')
         for case in ready:
-            status, _ = self.execute(graphical, self.command('e2e', '--artifacts', self.artifacts[0],
+            status, _ = self.execute(graphical, self.command('e2e', '--artifacts', self.artifacts['build-a'],
                                                            '--scenario', case), units=1)
             if status:
                 # Never start another VM attempt after an unproven cleanup.
@@ -737,7 +800,60 @@ class Run:
         self.check_inputs()
 
 
+def recover_initial_checks(root, state):
+    """Accept only a dead owner stopped before the protected-suite gate passed."""
+    import test_activity
+    import test_retention
+    if not test_activity.descriptors() or len(state['paths']) != 1:
+        return False
+    record = state['paths'][0]
+    report = Path(record['path'])
+    if report.parent != root / 'docs/TestAutomation/Evidence/test-all-runs':
+        return False
+    try:
+        # Verify the registered identity without removing anything. Missing or
+        # unreadable progress is uncertainty, not permission to restart suites.
+        test_retention.remove(record, validate_only=True)
+        progress = json.loads((report / 'progress.json').read_text())
+        by_name = {item['name']: item for item in progress}
+        if len(by_name) != len(progress):
+            return False
+        if by_name['Discovery and prerequisites']['state'] != 'Passed':
+            return False
+        if by_name['Cleanup safety prerequisites']['state'] != 'Running':
+            return False
+        for name, item in by_name.items():
+            if name in ('Discovery and prerequisites', 'Cleanup safety prerequisites'):
+                continue
+            if (item['state'] != 'Pending' or item['done'] != 0
+                    or item['failures'] != 0 or item['started'] is not None):
+                return False
+        if len(by_name) < 3 or (report / 'schedule.jsonl').exists():
+            return False
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    print('Recovering interrupted initial checks; preserving the previous journal '
+          'and all registered evidence.', flush=True)
+    return True
+
+
 def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False):
+    import test_retention
+    root = root or Path(__file__).resolve().parents[1]
+    # Keep repeated interrupts cooperative through storage rotation/finalization,
+    # including after the inner command controller has restored its handlers.
+    with Control().installed() as storage_control:
+        with test_retention.Store(root / 'artifacts/test-retention').session(
+                recover=lambda state: recover_initial_checks(root, state)):
+            if storage_control.stopped.is_set():
+                return 130
+            status = retained_main(root, verify_backing_bytes=verify_backing_bytes,
+                                   host_only=host_only, host_builds=host_builds,
+                                   serial_builds=serial_builds)
+        return 130 if storage_control.stopped.is_set() else status
+
+
+def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -756,6 +872,8 @@ def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=F
                 try:
                     report.write('\nRunner failure: ' + html.escape(str(error)) + '\n')
                 except OSError:
+                    if run is not None:
+                        run.dashboard.restore_terminal()
                     print('Regression evidence storage failed; owned cleanup has finished.', file=sys.stderr)
             if run is not None:
                 for item in run.categories:
@@ -777,13 +895,16 @@ def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=F
                     report.write('\nVM backing verification: ' + run.verification_mode + '\n')
                     summary = '\n'.join(run.dashboard.render(time.monotonic()))
                     report.write('\n<pre>' + html.escape(Dashboard.ANSI.sub('', summary)) + '</pre>\n')
-                    run.dashboard.draw(force=True)
                 elif report is None:
                     print('\033[31m[✗] Report initialization - 0% (0/1)\033[0m')
             except OSError:
                 status = 1
+                if run is not None:
+                    run.dashboard.restore_terminal()
                 print('Regression final evidence could not be saved; result is failed.', file=sys.stderr)
             finally:
+                if run is not None:
+                    run.dashboard.finish()
                 if report is not None:
                     try:
                         report.close()

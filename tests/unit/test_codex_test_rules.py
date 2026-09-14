@@ -217,7 +217,7 @@ def test_saved_curl_prefix_does_not_validate_trailing_arguments():
     'build', 'check', 'check-release-version', 'check-unit', 'check-component',
     'check-test-fixtures', 'check-child-node', 'check-child-gjs',
     'check-child-shell', 'check-shell', 'check-gjs', 'check-static',
-    'test-all', 'test-all-verify', 'test-publish',
+    'test-all', 'test-all-verify',
 ])
 def test_routine_make_targets_are_allowed_without_saved_user_rules(executable, target):
     # Evaluate every maintained rule: any broad prompt recreates the reported

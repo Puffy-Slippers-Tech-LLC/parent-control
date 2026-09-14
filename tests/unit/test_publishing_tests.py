@@ -12,14 +12,20 @@ from tools import publish
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_snapshot_includes_working_changes_and_prepares_history_without_mutating_checkout(tmp_path):
+@pytest.mark.parametrize('release_date,expected_version', [(' — 2026-09-11', '1.1'), ('', '1.0')])
+def test_snapshot_includes_working_changes_and_prepares_history_without_mutating_checkout(
+        tmp_path, release_date, expected_version):
     root, copied = tmp_path / 'working', tmp_path / 'copy'
     root.mkdir()
     for name, content in {
         'data/app.json': '{"version": "1.0"}\n',
-        'docs/VersionHistory.md': '## v1.1 — 2026-09-11\n- Next release.\n\n## v1.0 — 2026-09-10\n- Initial.\n',
+        'docs/VersionHistory.md': f'## v1.1{release_date}\n- Next release.\n\n## v1.0 — 2026-09-10\n- Initial.\n',
         'debian/changelog': publish.changelog_entry('1.0+ppa1~ubuntu26.04.1', '- Initial.'),
+        'Makefile': ('package-source-files:\n'
+                     '\t@printf "%s\\n" Makefile data/app.json debian/changelog tool new-file\n'),
         '.gitignore': '.envrc\n', 'tool': 'original\n', 'deleted': 'remove\n',
+        'docs/internal.md': 'initial\n', 'tests/test_unused.py': 'initial\n',
+        'tools/internal.py': 'initial\n',
     }.items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -33,13 +39,22 @@ def test_snapshot_includes_working_changes_and_prepares_history_without_mutating
     (root / 'deleted').unlink()
     (root / 'new-file').write_text('untracked\n')
     (root / '.envrc').write_text('PRIVATE_TEST_VALUE=not-for-package\n')
+    for name in ('docs/internal.md', 'tests/test_unused.py', 'tools/internal.py'):
+        (root / name).write_text('unrelated editing with whitespace errors\n\n')
     before = publish.command('git', 'status', '--porcelain', cwd=root)
     checks.snapshot(root, copied, tmp_path / 'test.log')
     assert (copied / 'tool').read_text() == 'working edit\n'
     assert os.access(copied / 'tool', os.X_OK)
     assert (copied / 'new-file').read_text() == 'untracked\n'
     assert not (copied / '.envrc').exists() and not (copied / 'deleted').exists()
-    assert json.loads((copied / 'data/app.json').read_text())['version'] == '1.1'
+    assert not (copied / 'docs').exists()
+    assert not (copied / 'tests').exists()
+    assert not (copied / 'tools').exists()
+    assert json.loads((copied / 'data/app.json').read_text())['version'] == expected_version
+    if not release_date:
+        assert (copied / 'debian/changelog').read_bytes() == (root / 'debian/changelog').read_bytes()
+        with pytest.raises(ValueError, match='invalid VersionHistory.md heading'):
+            publish.history_entry((root / 'docs/VersionHistory.md').read_text(), '1.0')
     assert json.loads((root / 'data/app.json').read_text())['version'] == '1.0'
     assert publish.command('git', 'status', '--porcelain', cwd=root) == before
     assert publish.command('git', 'status', '--porcelain', cwd=copied) == ''
@@ -65,6 +80,7 @@ def test_pipeline_runs_source_and_binary_checks_and_retains_failure(tmp_path, mo
         if args[0] == 'dpkg-parsechangelog':
             return version
         if args[0] == 'lintian':
+            assert kwargs['temporary_directory'] == directory
             stage = 'source' if args[-1].endswith('_source.changes') else 'binary'
             if stage == failure:
                 raise ValueError(stage + ' failed')
@@ -97,7 +113,15 @@ def test_pipeline_runs_source_and_binary_checks_and_retains_failure(tmp_path, mo
     assert names.count('sbuild') == (0 if failure == 'source' else 1)
 
 
-@pytest.mark.parametrize('target,category', [('test-publish', 'publish'), ('test-all', 'all'),
+def test_command_keeps_external_tool_scratch_inside_the_owned_attempt(tmp_path, monkeypatch):
+    monkeypatch.setenv('TMPDIR', '/untrusted-caller-location')
+    result = publish.command('/usr/bin/mktemp', '-d', temporary_directory=tmp_path)
+    assert Path(result).is_dir()
+    assert Path(result).parent == tmp_path
+    assert 'TMPDIR' not in publish.environment()
+
+
+@pytest.mark.parametrize('target,category', [('test-all', 'all'),
                                             ('test-all-verify', 'all-verify')])
 @pytest.mark.parametrize('status', [0, 7])
 def test_make_entrypoints_dispatch_and_propagate_failure(tmp_path, target, category, status):

@@ -1,5 +1,13 @@
 # Task 17 — Expired-grant reconciliation at session entry
 
+**Scope — 2026-09-14:** this is retained, unfinished internal system
+qualification outside the active customer queue. Existing tests and product
+contracts remain intact. Tasks 22/25/26 observe actual login, app use and
+replacement-time outcomes without calling preparation methods or inspecting
+transactions. The internal work/dependencies below are deferred and cannot
+become automatic E2E prerequisites. Resume only as separate engineering under
+the [master separation](Test-Automation.md#separate-engineering--not-automatic-fallback).
+
 The current specification (`ONPC-CORE-APPS-011`,
 `ONPC-COMP-CHILD-005`, and `ONPC-COMP-BROKER-009`) and
 [session-entry design](../SystemDesign/Applications.md#session-entry-reconciliation)

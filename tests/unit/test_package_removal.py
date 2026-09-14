@@ -84,6 +84,21 @@ def test_remove_retains_preferences_until_later_purge(machine):
     assert machine.run("postrm", "purge").returncode == 0
 
 
+@pytest.mark.parametrize("action", ["remove", "purge", "abort-install"])
+def test_removal_preserves_unsettled_probe_generations(machine, action):
+    witness = machine.write("run/oh-no-parent-control/probes/" + "1" * 32 + "/witness",
+                            "retained generation")
+    witness.chmod(0o500)
+    before = witness.stat()
+    result = machine.run("postrm", action)
+    assert result.returncode == 0, result.stderr
+    assert witness.read_text() == "retained generation"
+    after = witness.stat()
+    assert (after.st_dev, after.st_ino, after.st_mode) == (
+        before.st_dev, before.st_ino, before.st_mode)
+    assert "systemctl clean" not in machine.commands
+
+
 def test_restores_preexisting_compiled_policy_and_service(machine):
     machine.baseline(active=True, enabled=True, rules="administrator policy\n")
     result = machine.run("postrm", "remove")

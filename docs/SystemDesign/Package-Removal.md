@@ -21,6 +21,17 @@ desktop entries, session descriptors, D-Bus activation files, systemd units,
 and drop-ins are dpkg-owned payload. dpkg removes them; debhelper cleans Python
 bytecode and reloads systemd.
 
+The native probe gate/witness and Python adapters are also dpkg-owned payload.
+The prefix timeout drop-in under `onpc-execution-probe-.service.d/` is likewise
+dpkg-owned; no maintainer-script deletion or runtime-generation cleanup is added.
+The broker's mode-0700 probe runtime directory uses
+`RuntimeDirectoryPreserve=yes`: broker stop, remove and purge do not recursively
+delete separately owned pending generations. A retained generation owner removes
+only its settled attempt; unowned residue remains until reboot. No removal path
+adopts or signals a probe by pathname. See the
+[probe packaging and runtime contract](Applications.md#pre-exec-admission-for-a-causal-witness)
+for local regression scope and pending real-systemd/restart qualification.
+
 Debian package removal temporarily masks and stops the broker before changing
 enforcement, preventing D-Bus clients from restarting it during removal. While the
 packaged code and dependencies are still available, the removal helper finds

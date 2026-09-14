@@ -1,116 +1,93 @@
-# Task 21 — Parent App management journeys
+# Task 21 — Parent customer journeys
 
-Execute 21A and 21B separately. Use Task 19's public graphical helpers and
-versioned guest assertions from the installed-system tasks.
-
-Follow [E2E-Coverage.md](E2E-Coverage.md), expanding the assigned scenario
-families only after auditing existing entries and dimensions. Saves and other
-asserted product transitions use Parent's real UI. Unrelated account, application
-and input-file setup follows the [prerequisite contract](E2E-Coverage.md#prepare-prerequisites-through-supported-helpers).
-Never inject tested grant/authentication outcomes. Each scenario is a continuous
-attempt on the existing VM, without intermediate resets.
+Follow [E2E-Coverage.md](E2E-Coverage.md). All acceptance uses real customer
+actions and visible results. Existing lower-level regressions stay unchanged;
+backend account/catalog, D-Bus, grant, rule and private-state assertions are
+not part of these journeys.
 
 ## Implementation slices
 
-Use the [implementation workflow](Implementation-Workflow.md). These are small
-work boundaries within the existing task, not extra acceptance checklists.
-Verification below is task acceptance; edits use the smallest affected selection.
-
-| Task | First proof, then expansion |
-| --- | --- |
-| 21A | One real Parent discovery/access journey; then batch compatible navigation and validation steps. |
-| 21B | First prove one real kiosk approval and one Parent save with other-user evidence; then extend the shared helpers to transaction variants. |
-
-Before 21A acceptance, resolve the [E2E-005 ownership split](Reuse-Map.md#resolve-before-the-affected-batch):
-its pending variants currently belong to 21A but require 21B's complete
-transaction journey. Preserve all actions/assertions and stable IDs when
-correcting the declarations. Complete E2E-030/031's normative requirement links
-within 21A; E2E-032/033 delivery and transport-retry acceptance belongs to 26C.
-Share helpers and reference canonical cases, without counting partial journeys.
+Complete one named variant before expanding. Use accepted installation/account
+setup, graphical input and cleanup. A helper from another task may be used or
+minimally completed with this consumer; that task's full matrix is not a dependency.
+Use [the workflow](Implementation-Workflow.md) for bounded work and progress.
 
 ## Task 21A
 
-- Title: Automate Parent discovery, navigation, and validation.
-- Depends on: Task 19B and Task 14, plus verified installed-package setup
-  through the existing guarded runner. Full Task 20 acceptance is not required.
-- Complexity: medium. Semantic UI cases reuse established account and runner
-  fixtures without adding privileged transaction infrastructure.
-- Recommended Codex model: `gpt-5.6-terra`
-- Recommended reasoning effort: `medium`
-- Scheduling: the former Task 20 dependency represented installation setup.
-  Use the [supported prerequisite contract](E2E-Coverage.md#prepare-prerequisites-through-supported-helpers)
-  for that setup; qualify any missing shared helper in the first affected
-  consumer and publish its evidence. Parent's asserted operations remain real
-  graphical actions; setup does not fulfill Task 20's clean-install journey.
+- Title: Parent discovery, navigation, access and feedback drafting.
+- Depends on: accepted graphical runner and verified installed-package setup.
+- Default settings: `gpt-5.6-sol` / `high`; reassess ordinary expansion.
+- Customer scope: E2E-003/004/030/031. E2E-005 saves belong to 21B.
 - Work:
-  1. Log in as an eligible administrator, launch Parent from the app grid, and
-     verify eligible children and exclusion of ineligible accounts.
-  2. Keep Parent running and create a real eligible child through a supported
-     guest account CLI or public AccountsService fixture helper. Verify the
-     account exists and is eligible, then prove Parent discovers it without
-     restarting. Select each child and check independent preferences, status,
-     catalog and loading gates. Ubuntu's account-creation UI is outside scope.
-     Record creation as a normal fixture event, with bounded readiness and owned
-     cleanup. Reconcile E2E-003's pending `step-2` OS-UI declaration with this
-     setup/observation boundary before implementation; preserve its discovery
-     assertions and IDs. Do not hide the write in a read-only probe.
-  3. Cover daily allowance boundaries from zero to 1440 minutes, application
-     search/filter, all three displayed rules, and precise/version-tolerant
-     matching controls using existing backend fixtures.
-     Inventory installed Parent surfaces beyond those controls, including
-     About/license access and feedback drafting, validation, attachment review,
-     cancel and retry behavior. Use local component/property tests for exhaustive
-     independent validation values and representative installed journeys for
-     real integration, each meaningful control/flow and access restriction.
-     Generate synthetic attachments and test inputs through fixture helpers;
-     editing them in unrelated desktop apps is not a prerequisite. About/license
-     access needs a focused check, not an additional OS lifecycle matrix.
-     Passing local fake-transport feedback tests is not external-delivery
-     acceptance. Reconcile layer/case mappings under the coverage contract.
-  4. Test standard-user launcher access and direct broker management denial,
-     reusing Task 14's real-UID assertions. Record direct broker attacks as
-     supplemental installed-system cases, not substitutes for launcher denial.
-  5. Update only discovery, access, and control-validation mappings proven here;
-     leave transaction outcomes to 21B.
-- Verification:
-  - Run all assigned scenario variants as complete independent attempts;
-    reset the retained baseline only outside attempts. Correlate UI screenshots
-    with account/catalog and real-caller evidence.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: Parent discovery, navigation, validation, and access
-  restrictions have installed graphical evidence.
+  1. Log in as a parent, launch Parent from the app grid, discover and select
+     eligible children. Observe loading, selection and independent displayed
+     settings. For dynamic discovery, use the supported account fixture while
+     Parent stays open and observe the new child appear.
+  2. Use allowance controls, app search/filter, displayed rules and matching
+     choices. Cover representative valid/invalid boundaries and visible
+     explanations. Do not expand already-tested local validation matrices.
+  3. Log in as a standard user and try the normal Parent launcher. Observe
+     management is unavailable. Direct broker attacks remain separate tests.
+  4. Open About/license, compose feedback, review synthetic attachments and
+     cancel. Check visible validation and retained/cleared drafts as specified.
+     No external message is sent in this task.
+- Verification: run the assigned complete variants through the guarded E2E
+  selector, inspect safe screens/step results, and run affected regressions
+  plus existing safety prerequisites. Use `make check` and scoped whitespace
+  checks once at stable task acceptance, not after every UI step.
+- Completion criteria: the listed visible flows pass on the installed app.
+  Correct the pending E2E-003 fixture-event declaration with its first consumer.
+  E2E-005 ownership now matches 21B; registration or reclassification earns no
+  scenario credit.
+
+## Current handoff — 2026-09-14
+
+First customer result: complete `E2E-003/existing-and-new`. Log in as the
+parent, open Parent, observe/select existing eligible children, provision the
+declared new account through accepted fixture setup, and observe its discovery
+without restarting Parent. Do not inspect the catalog or broker to assert the
+result. This starts the broad customer queue; timeout/login is only another
+family, not a privileged priority.
+
+Reconcile this pending declaration and only the minimum common evidence-gate
+adaptation needed to accept visible assertions without backend product
+witnesses. Preserve existing VM, provenance, secret-input and cleanup guards.
+No new collector or general framework is required by the plan. The adapter
+alone earns no completed customer variant; its consumer is this same journey.
+
+Baseline: 0 completed customer variants; selected finish line 1 complete
+discovery journey; consecutive implementation slices without a completed
+customer variant since this scope rewrite 0. No implementation or runtime
+acceptance occurred in this documentation session. Record executed steps,
+remaining frozen scope, actual blockers and evidence here at the next handoff.
+Use the workflow's two-slice intervention rule for stalled completion.
+
+Next settings: `gpt-5.6-sol` / `high`, Standard, for a bounded visible journey.
+Reconcile actual runner/lease ownership before execution; historical cleanup
+is not current machine-state evidence.
 
 ## Task 21B
 
-- Title: Automate Parent saves, live policy, and revocation.
-- Depends on: Task 21A and the Task 15B/16B failure and ownership helpers.
-- Complexity: high. UI ordering must be correlated with several privileged
-  transactions, using already-tested backend assertions.
-- Recommended Codex model: `gpt-5.6-terra`
-- Recommended reasoning effort: `high`
+- Title: Parent saves, control changes and revocation.
+- Depends on: only the Parent/login/approval interactions needed by its selected
+  variant; no Task 15B, 16B or policy-acknowledgement prerequisite.
+- Default settings: `gpt-5.6-sol` / `high`.
+- Customer scope: E2E-005/006/007; share canonical app-use cases with Task 25.
 - Work:
-  1. Enable and disable screen time and change an enabled allowance. Verify
-     extension activation, saved preferences, live policy, and grant semantics.
-     Introduce the minimal real kiosk-entry/request/password approval helper
-     needed to establish existing grants here. Tasks 22/23/24 reuse and extend
-     it; their later full matrices are not a reason to inject a grant now.
-  2. Change app rules and match choices; verify immediate auto-save in interaction
-     order, disabled conflicting controls, selected-child process effects, and
-     independence of the other child's state.
-  3. Exercise failed save and revocation confirmation, including cancel and
-     confirmed revocation. Verify restored controls, actionable rollback copy,
-     grant/filter results, and unrelated-process survival.
-  4. Reuse failure and ownership helpers from Tasks 15B/16B rather than adding a
-     UI-only approximation of transaction state. Label intentional OS failures
-     as fault/recovery variants; customer save and revocation actions remain
-     graphical and real, and observation helpers cannot apply the outcome.
-  5. Update Parent transaction and account-isolation mappings.
-- Verification:
-  - Run cleanup-safety regressions in isolation before process fixtures.
-  - Run complete transaction attempts on the guarded VM, correlating screens
-    with broker, AccountsService, fapolicyd, and private-state guest assertions.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: management saves and revocation have visible,
-  authoritative, and other-user isolation evidence.
+  1. Set zero/positive allowance and enable/disable control in Parent. Observe
+     saving, reopen the settings, and attempt child login/use to see the result.
+  2. Change allowed/hard/soft app choices and supported matching options.
+     Attempt actual child launches; observe the intended window or denial.
+     Switch to another user and use their app where isolation is claimed.
+  3. Establish time through a real request/authentication when needed. Cancel
+     revocation, then confirm it in a separate declared path. Observe displayed
+     time, child access and app-window effects required by the product.
+  4. Check visible loading/disabled controls and ordinary cancellation/retry.
+     Do not induce service/reload/termination faults or inspect transaction state.
+     A real failed save remains a failed scenario with a separate product blocker.
+- Verification: complete each selected UI-to-child-use journey, retain visible
+  evidence and existing cleanup results, then affected regressions and stable
+  task acceptance checks.
+- Completion criteria: saved choices and revocation have the documented visible
+  effect for the selected child, with customer-observed isolation where assigned.
+  No internal atomicity, activation receipt or rollback-readback claim is made.

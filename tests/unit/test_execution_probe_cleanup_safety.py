@@ -2,11 +2,13 @@
 
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 
 from gi.repository import Gio, GLib
 import pytest
 
 from oh_no_parent_control import execution_probe as probe
+from oh_no_parent_control import probe_generation as generation
 
 
 def dbus_error(name):
@@ -40,6 +42,9 @@ class Manager:
         self.hook = lambda method, interface: None
         self.clients = []
         self.sender_calls = []
+        self.owner = ":1.50"
+        self.peer_path = "/org/freedesktop/systemd1/unit/probe"
+        self.sender_present = True
 
     def dispatch_create(self, args=None):
         name, mode, properties, aux = args or self.pending_create
@@ -51,6 +56,7 @@ class Manager:
             "Id": name, "Description": properties["Description"],
             "Transient": True, "InvocationID": [1] * 16,
             "ActiveState": "failed", "Job": (0, "/"),
+            "JobTimeoutUSec": 4_000_000,
         }
         self.service = {
             "MainPID": 0, "ControlPID": 0, "ExecMainCode": 1,
@@ -59,6 +65,14 @@ class Manager:
             "ExecMainExitTimestampMonotonic": 20,
             "ExecStart": [(probe.PROBE, [probe.PROBE], False, 0, 0, 0, 0, 0, 0, 0)],
         }
+        if properties["ExecStart"][0][0] == probe.PROBE_GATE:
+            self.unit["ActiveState"] = "active"
+            self.service.update({
+                "MainPID": 1234, "Type": "exec", "Restart": "no", "User": "0", "Group": "0",
+                "Environment": [], "EnvironmentFiles": [], "PassEnvironment": [], "UnsetEnvironment": [],
+                "ExecCondition": [], "ExecStartPre": [], "ExecStartPost": [],
+                "ExecStart": [tuple(properties["ExecStart"][0]) + (10, 10, 0, 0, 1234, 0, 0)],
+            })
 
     def call_sync(self, destination, path, interface, method, parameters,
                   reply_type, flags, timeout, cancellable):
@@ -76,7 +90,12 @@ class Manager:
         if method == "GetId":
             return GLib.Variant("(s)", ("test-bus",))
         if method == "GetNameOwner":
-            return GLib.Variant("(s)", (":1.50",))
+            self.hook(method, "")
+            return GLib.Variant("(s)", (self.owner,))
+        if method == "NameHasOwner":
+            assert args == (":1.60",)
+            self.hook(method, "")
+            return GLib.Variant("(b)", (self.sender_present,))
         assert destination == ":1.50"  # Never retarget a replacement manager.
         self.hook(method, args[0] if args else "")
         if method == "StartTransientUnit":
@@ -93,13 +112,19 @@ class Manager:
             if self.unit is None:
                 raise dbus_error(probe.NO_UNIT)
             return GLib.Variant("(o)", ("/org/freedesktop/systemd1/unit/probe",))
+        if method == "GetUnitByPID":
+            return GLib.Variant("(o)", (self.peer_path,))
         if method == "GetAll":
             assert self.reference, "terminal evidence must remain pinned"
             data = self.unit if args[0] == probe.UNIT_INTERFACE else self.service
             types = {"Transient": "b", "InvocationID": "ay", "Job": "(uo)",
                      "MainPID": "u", "ControlPID": "u", "ExecMainCode": "i",
                      "ExecMainStatus": "i", "ExecMainStartTimestampMonotonic": "t",
-                     "ExecMainExitTimestampMonotonic": "t", "ExecStart": "a(sasbttttuii)"}
+                     "ExecMainExitTimestampMonotonic": "t", "ExecStart": "a(sasbttttuii)",
+                     "Environment": "as", "EnvironmentFiles": "a(sb)",
+                     "PassEnvironment": "as", "UnsetEnvironment": "as",
+                     "ExecCondition": "a(sasbttttuii)", "ExecStartPre": "a(sasbttttuii)",
+                     "ExecStartPost": "a(sasbttttuii)", "JobTimeoutUSec": "t"}
             return GLib.Variant("(a{sv})", ({
                 key: GLib.Variant(types.get(key, "s"), value)
                 for key, value in deepcopy(data).items()},))
@@ -134,7 +159,21 @@ class Client:
         self.deferred_reply = None
         self.hold_reply = False
         self.poll_hook = lambda: None
+        self.disconnected = False
         manager.clients.append(self)
+
+    def is_closed(self):
+        return self.disconnected
+
+    def get_unique_name(self):
+        return ":1.60"
+
+    def lose_transport(self):
+        self.disconnected = True
+        self.manager.sender_present = False
+        self.manager.reference = False
+        if self.manager.collect:
+            self.manager.unit = None
 
     def open(self, address):
         assert address == "unix:path=/test-bus"
@@ -154,17 +193,19 @@ class Client:
     def call_sync(self, destination, path, interface, method, parameters,
                   reply_type, flags, timeout, cancellable):
         assert self.connection is self
+        if self.disconnected:
+            raise dbus_error("org.freedesktop.DBus.Error.Disconnected")
         assert method in {"GetId", "UnrefUnit"}
         self.manager.sender_calls.append(method)
         return self.manager.dispatch(destination, path, interface, method, parameters,
                                      reply_type, flags, timeout, cancellable)
 
-    def start_create(self, owner, unit, description):
+    def start_create(self, owner, unit, description, *, token=None):
         assert self.connection is self and owner == ":1.50" and not self.create_started
         self.create_started = True
         self.manager.sender_calls.append("StartTransientUnit")
         parameters = GLib.Variant("(ssa(sv)a(sa(sv)))", (
-            unit, "fail", probe._properties(description), []))
+            unit, "fail", probe._properties(description, token=token), []))
         try:
             reply = self.manager.dispatch(
                 owner, probe.SYSTEMD_PATH, probe.SYSTEMD_MANAGER_INTERFACE,
@@ -179,7 +220,7 @@ class Client:
         else:
             self.create_reply = retained
 
-    def poll_create(self):
+    def poll_create(self, *, deadline=None):
         self.poll_hook()
         return self.create_reply
 
@@ -217,9 +258,553 @@ def test_fast_exit_evidence_is_retained_before_collection(environment):
     assert properties["ExecStart"] == [(probe.PROBE, [probe.PROBE], False)]
     assert properties["Type"] == "exec" and properties["Restart"] == "no"
     assert properties["CollectMode"] == "inactive-or-failed"
-    for name in ("TimeoutStartUSec", "RuntimeMaxUSec", "TimeoutStopUSec", "JobTimeoutUSec"):
+    assert "JobTimeoutUSec" not in properties  # Supplied by the packaged drop-in.
+    assert result.job_timeout_usec == 4_000_000
+    for name in ("TimeoutStartUSec", "RuntimeMaxUSec", "TimeoutStopUSec"):
         assert 0 < properties[name] <= 4_000_000
     assert properties["KillMode"] == "control-group" and properties["SendSIGKILL"]
+
+
+@pytest.fixture
+def native_lifecycle(environment, tmp_path, monkeypatch):
+    """Real generation filesystem owner; synthetic channel and manager."""
+    manager, clock = environment
+    root = tmp_path / "probes"
+    root.mkdir(mode=0o700)
+    source = tmp_path / "witness-source"
+    source.write_bytes(b"fixed test witness")
+    source.chmod(0o755)
+    monkeypatch.setattr(generation, "RUNTIME_ROOT", str(root))
+    monkeypatch.setattr(generation, "WITNESS_SOURCE", str(source))
+    adapter = probe.ExecutionProbe(manager)
+
+    class Channel:
+        sends = 0
+        selections = 0
+        collections = 0
+        closed = False
+        close_result = True
+        result = None
+        hook = staticmethod(lambda phase: None)
+
+        def open(self, directory):
+            assert adapter._generation.identity.directory == directory
+            self.hook("open")
+
+        def select(self, *, deadline):
+            self.selections += 1
+            self.deadline = deadline
+            self.hook("select")
+            if clock.now >= deadline:
+                raise probe.ChannelRefused("deadline")
+            return probe.PeerHello(1234, 0, 0, "01" * 16)
+
+        def admit(self, binding):
+            assert adapter.pending.admission == binding
+            assert adapter.pending.invocation == binding.peer.invocation
+            assert adapter._generation.verify() == adapter.pending.generation
+            if clock.now >= self.deadline:
+                raise probe.ChannelRefused("deadline")
+            self.sends += 1
+            self.hook("admit")
+
+        def terminal(self):
+            if manager.unit is not None:
+                manager.unit["ActiveState"] = "failed"
+                manager.service["MainPID"] = 0
+
+        def collect(self):
+            self.collections += 1
+            self.terminal()
+            self.result = "executed"
+            self.hook("collect")
+            return self.result
+
+        def close(self):
+            self.hook("close")
+            self.closed = self.close_result
+            # Closing a real channel permits its gate to exit; a later recovery
+            # must still observe that terminal state through the manager.
+            self.terminal()
+            return self.close_result
+
+    channel = Channel()
+    monkeypatch.setattr(probe, "ProbeChannel", lambda: channel)
+    return adapter, manager, clock, channel, root
+
+
+def test_native_lifecycle_retains_binding_frame_and_terminal_before_cleanup(native_lifecycle):
+    adapter, manager, _, channel, root = native_lifecycle
+    result = adapter.run_native()
+    assert result.native_verified and result.cleanup_complete and not result.executed
+    assert result.outcome == "identity-unproven" and result.channel_result == "executed"
+    assert result.admission.peer.invocation == result.invocation
+    assert result.generation.token in result.unit
+    assert result.terminal_observed and result.reference_released and result.client_closed
+    assert (channel.selections, channel.sends, channel.collections) == (1, 1, 1)
+    assert channel.closed and list(root.iterdir()) == []
+    assert adapter.pending is None and adapter._generation is None
+    assert manager.sender_calls == ["GetId", "StartTransientUnit", "UnrefUnit"]
+
+
+@pytest.mark.parametrize("blocker", [None, "sender-present", "manager-replaced", "unit-retained",
+                                    "read-failed", "reply-uncertain"])
+def test_native_closed_sender_settles_only_with_retained_evidence(
+        native_lifecycle, monkeypatch, blocker):
+    adapter, manager, _, channel, root = native_lifecycle
+    release = adapter._release
+    captured = []
+
+    def lose_once(result):
+        if not captured:
+            assert result.terminal_observed and result.admission is not None
+            assert result.create_outcome == "replied" and result.channel_result == "executed"
+            captured.append(result)
+            manager.collect = blocker != "unit-retained"
+            manager.clients[0].lose_transport()
+            if blocker == "sender-present":
+                manager.sender_present = True
+            if blocker == "manager-replaced":
+                manager.owner = ":1.99"
+            if blocker == "read-failed":
+                def fail(method, _):
+                    if method == "NameHasOwner":
+                        raise dbus_error("org.freedesktop.DBus.Error.NoReply")
+                manager.hook = fail
+        if blocker == "reply-uncertain":
+            result = replace(result, create_outcome="uncertain")
+        return release(result)
+
+    monkeypatch.setattr(adapter, "_release", lose_once)
+    initial = adapter.run_native()
+    recovered = adapter.recover() if adapter.pending is not None else initial
+    assert recovered.cleanup_complete == (blocker is None)
+    assert not recovered.executed and recovered.outcome == initial.outcome
+    assert manager.sender_calls == ["GetId", "StartTransientUnit"]
+    assert channel.sends == 1 and channel.closed
+    if blocker is not None:
+        assert adapter.pending is recovered and not recovered.reference_released
+        assert adapter._generation.verify() == captured[0].generation
+        assert list(root.iterdir())
+        # Restore only the synthetic observation fault for owned test cleanup.
+        manager.sender_present, manager.owner, manager.unit = False, ":1.50", None
+        manager.hook = lambda *args: None
+        blocker = None
+        adapter._pending = replace(recovered, create_outcome="replied")
+        recovered = adapter.recover()
+    assert recovered.cleanup_complete and recovered.client_closed and recovered.reference_released
+    assert list(root.iterdir()) == [] and adapter.pending is None
+
+
+def test_native_sender_loss_before_terminal_retains_uncertainty(native_lifecycle):
+    adapter, manager, _, channel, root = native_lifecycle
+    def lose(phase):
+        if phase == "collect":
+            manager.clients[0].lose_transport()
+    channel.hook = lose
+    initial = adapter.run_native()
+    recovered = adapter.recover()
+    assert initial.admission is not None and initial.channel_result == "executed"
+    assert not recovered.terminal_observed and not recovered.cleanup_complete
+    assert not recovered.executed and recovered.outcome == initial.outcome
+    assert adapter.pending is recovered and adapter._generation.verify() == initial.generation
+    assert manager.sender_calls == ["GetId", "StartTransientUnit"]
+    assert channel.closed and list(root.iterdir())
+    # No live process/unit exists in this double. Release the real filesystem
+    # owner explicitly for teardown, without claiming adapter settlement.
+    assert adapter._generation.close(settled=True)
+
+
+@pytest.mark.parametrize("phase", ["open", "select", "admit", "collect", "close"])
+def test_native_interruption_retains_owners_and_never_replays(native_lifecycle, phase):
+    adapter, manager, _, channel, root = native_lifecycle
+
+    def interrupt(current):
+        if current == phase:
+            raise KeyboardInterrupt
+
+    channel.hook = interrupt
+    with pytest.raises(KeyboardInterrupt):
+        adapter.run_native()
+    before = (channel.selections, channel.sends, channel.collections)
+    if phase in {"admit", "collect"}:
+        assert adapter.pending.admission is not None
+    if phase == "collect":
+        assert adapter.pending.channel_result == "executed"
+        assert not adapter.pending.native_verified
+    channel.hook = lambda phase: None
+    # The close-interrupted channel has not let the synthetic gate exit yet.
+    channel.terminal()
+    recovered = adapter.recover()
+    if recovered is not None:
+        assert recovered.cleanup_complete and not recovered.executed
+    assert adapter.pending is None and adapter._generation is None
+    assert channel.closed and list(root.iterdir()) == []
+    assert (channel.selections, channel.sends, channel.collections) == before
+    assert manager.sender_calls.count("StartTransientUnit") <= 1
+
+
+@pytest.mark.parametrize("timeout", [None, 0, 1_000_000, 5_000_000, 2**64 - 1])
+@pytest.mark.parametrize("phase", ["select", "collect"])
+def test_native_effective_queue_timeout_refusal_keeps_owned_cleanup(
+        native_lifecycle, timeout, phase):
+    adapter, manager, _, channel, root = native_lifecycle
+
+    def override(current):
+        if current != phase:
+            return
+        if timeout is None:
+            manager.unit.pop("JobTimeoutUSec")
+        else:
+            manager.unit["JobTimeoutUSec"] = timeout
+
+    channel.hook = override
+    result = adapter.run_native()
+    assert not result.native_verified and not result.executed
+    assert channel.sends == (0 if phase == "select" else 1)
+    if not result.cleanup_complete:
+        result = adapter.recover()
+    assert result.cleanup_complete and result.terminal_observed
+    assert not manager.reference and adapter.pending is None and list(root.iterdir()) == []
+    assert manager.sender_calls.count("StartTransientUnit") == 1
+
+
+@pytest.mark.parametrize("read", [1, 2])
+def test_admission_rejects_timeout_changed_across_bracket(waiting_gate, read):
+    adapter, manager, result, token, peer, clock = waiting_gate
+    count = 0
+
+    def change(method, interface):
+        nonlocal count
+        if method == "GetAll" and interface == probe.UNIT_INTERFACE:
+            count += 1
+            manager.unit["JobTimeoutUSec"] = 5_000_000 if count == read else 4_000_000
+
+    manager.hook = change
+    with pytest.raises(ValueError, match="queue timeout"):
+        adapter._admission_binding(result, token, peer, clock.now + 1)
+    assert manager.reference and not manager.sender_calls
+
+
+def test_native_prepare_interruption_cleans_retained_partial_generation(
+        native_lifecycle, monkeypatch):
+    adapter, manager, _, channel, root = native_lifecycle
+    prepare = generation.ProbeGeneration.prepare
+
+    def interrupt(owner):
+        prepare(owner)
+        assert adapter._generation is owner
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(generation.ProbeGeneration, "prepare", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        adapter.run_native()
+    assert adapter.pending is None and adapter._generation is None
+    assert not manager.sender_calls and not list(root.iterdir())
+    assert channel.sends == 0 and manager.clients[0].close_calls == 1
+
+
+def test_native_generation_close_interruption_keeps_client_settlement_for_retry(
+        native_lifecycle, monkeypatch):
+    adapter, manager, _, channel, root = native_lifecycle
+    original_close = generation.ProbeGeneration.close
+
+    def interrupt(owner, *, settled):
+        assert settled and adapter.pending.client_closed
+        assert adapter._client is None and adapter._channel is None
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(generation.ProbeGeneration, "close", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        adapter.run_native()
+    assert adapter.pending.client_closed and adapter.pending.native_verified
+    assert not adapter.pending.cleanup_complete and list(root.iterdir())
+    monkeypatch.setattr(generation.ProbeGeneration, "close", original_close)
+    result = adapter.recover()
+    assert result.cleanup_complete and not result.executed and not list(root.iterdir())
+    assert channel.sends == 1 and manager.clients[0].close_calls == 1
+
+
+@pytest.mark.parametrize("failure", ["frame", "exit", "invocation", "manager", "witness"])
+def test_native_positive_frame_requires_matching_terminal_and_generation(native_lifecycle, failure):
+    adapter, manager, _, channel, root = native_lifecycle
+
+    def change(phase):
+        if phase != "collect":
+            return
+        if failure == "frame":
+            channel.result = "exec-failed"
+        elif failure == "exit":
+            manager.service["ExecMainStatus"] = 1
+        elif failure == "invocation":
+            manager.unit["InvocationID"] = [2] * 16
+        elif failure == "manager":
+            manager.owner = ":1.60"
+        else:
+            witness = root / adapter.pending.generation.token / "witness"
+            witness.chmod(0o700)
+            witness.write_bytes(b"replacement content")
+
+    channel.hook = change
+    result = adapter.run_native()
+    assert not result.native_verified and not result.executed
+    assert result.outcome in {"execution-failed", "observation-failed"}
+    if failure == "invocation":
+        assert not result.cleanup_complete and manager.reference
+        # Explicitly reconcile the synthetic original; never authorize adoption.
+        manager.unit["InvocationID"] = [1] * 16
+        recovered = adapter.recover()
+        assert recovered.cleanup_complete and not recovered.native_verified
+        assert recovered.outcome == result.outcome
+    else:
+        assert result.cleanup_complete
+    assert list(root.iterdir()) == [] and channel.sends == 1
+
+
+@pytest.mark.parametrize("owner", ["channel", "client", "generation"])
+def test_native_cleanup_failure_retains_generation_until_every_owner_settles(
+        native_lifecycle, monkeypatch, owner):
+    adapter, manager, _, channel, root = native_lifecycle
+    original_close = generation.ProbeGeneration.close
+    if owner == "channel":
+        channel.close_result = False
+    elif owner == "client":
+        def delay(phase):
+            if phase == "collect":
+                manager.clients[0].close_result = False
+        channel.hook = delay
+    else:
+        monkeypatch.setattr(generation.ProbeGeneration, "close", lambda self, **kwargs: False)
+    result = adapter.run_native()
+    assert result.native_verified and not result.cleanup_complete and not result.executed
+    assert adapter._generation is not None and list(root.iterdir())
+    assert adapter.pending == result
+    with pytest.raises(RuntimeError, match="must be recovered"):
+        adapter.run_native()
+    channel.close_result = True
+    manager.clients[0].close_result = True
+    monkeypatch.setattr(generation.ProbeGeneration, "close", original_close)
+    recovered = adapter.recover()
+    assert recovered.cleanup_complete and not recovered.executed
+    assert list(root.iterdir()) == [] and channel.sends == 1
+
+
+@pytest.mark.parametrize("boundary", ["reply", "select", "manager"])
+def test_native_admission_shares_dispatch_deadline(native_lifecycle, monkeypatch, boundary):
+    adapter, manager, clock, channel, root = native_lifecycle
+    original_poll = Client.poll_create
+
+    def delayed_reply(self, *, deadline=None):
+        if deadline is not None:
+            assert deadline == probe.TIMEOUT
+            clock.now += 1.5 if boundary != "reply" else 2.01
+        return original_poll(self, deadline=deadline)
+
+    monkeypatch.setattr(Client, "poll_create", delayed_reply)
+    if boundary == "select":
+        channel.hook = lambda phase: clock.sleep(0.51) if phase == "select" else None
+    elif boundary == "manager":
+        # Four GetAll calls plus other reads must exceed what is left.
+        manager.hook = lambda method, interface: clock.sleep(0.2) if method == "GetAll" else None
+    result = adapter.run_native()
+    assert not result.native_verified and channel.sends == 0
+    if not result.cleanup_complete:
+        manager.hook = lambda method, interface: None
+        assert adapter.recover().cleanup_complete
+    assert list(root.iterdir()) == []
+
+
+def test_native_lost_reply_retains_generation_without_admission(native_lifecycle, monkeypatch):
+    adapter, manager, _, channel, root = native_lifecycle
+    client = Client(manager)
+    client.hold_reply = True
+    monkeypatch.setattr(probe, "ProbeBusClient", lambda: client)
+    result = adapter.run_native()
+    assert not result.cleanup_complete and list(root.iterdir())
+    assert channel.sends == channel.selections == 0
+    client.deliver_create_reply()
+    recovered = adapter.recover()
+    assert recovered.cleanup_complete and not recovered.native_verified and not recovered.executed
+    assert recovered.outcome == result.outcome
+    assert list(root.iterdir()) == [] and manager.sender_calls.count("StartTransientUnit") == 1
+
+
+@pytest.fixture
+def waiting_gate(environment):
+    """Synthetic manager only: no native exec or installed qualification."""
+    manager, clock = environment
+    adapter = probe.ExecutionProbe(manager)
+    token = "1" * 32
+    result = probe.ProbeResult(
+        unit=f"onpc-execution-probe-{token}.service", manager=manager.owner,
+        create_outcome="replied", job="/org/freedesktop/systemd1/job/42")
+    adapter._description = f"ONPC execution probe {token}"
+    adapter._client = Client(manager)
+    adapter._client.open("unix:path=/test-bus")
+    adapter._client.start_create(result.manager, result.unit, adapter._description)
+    adapter._pending = result
+    adapter._settled = False
+    peer = probe.PeerHello(1234, 0, 0, "01" * 16)
+    manager.unit["ActiveState"] = "active"
+    manager.service.update({
+        "MainPID": peer.pid, "Type": "exec", "Restart": "no", "User": "0", "Group": "0",
+        "Environment": [], "EnvironmentFiles": [], "PassEnvironment": [], "UnsetEnvironment": [],
+        "ExecCondition": [], "ExecStartPre": [], "ExecStartPost": [],
+        "ExecStart": [(probe.PROBE_GATE, [probe.PROBE_GATE, token], False, 10, 10, 0, 0, peer.pid, 0, 0)],
+    })
+    manager.calls.clear()
+    manager.sender_calls.clear()
+    return adapter, manager, result, token, peer, clock
+
+
+@pytest.mark.parametrize("job_pending", [False, True])
+def test_admission_binds_waiting_peer_with_retained_completed_or_live_job(waiting_gate, job_pending):
+    adapter, manager, result, token, peer, clock = waiting_gate
+    if job_pending:
+        manager.unit["Job"] = (42, result.job)
+    binding = adapter._admission_binding(result, token, peer, clock.now + 1)
+    assert binding == probe.AdmissionBinding(peer, result.manager, result.unit, result.job)
+    assert adapter.pending is result and not result.executed
+    assert manager.reference and adapter._client.connection is not None
+    assert not manager.sender_calls  # No create, unref, close or admission send.
+    assert [call[1] for call in manager.calls] == [
+        "GetNameOwner", "GetUnit", "GetAll", "GetAll", "GetUnitByPID",
+        "GetAll", "GetAll", "GetNameOwner"]
+    assert next(call[2] for call in manager.calls if call[1] == "GetUnitByPID") == (peer.pid,)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("pid", 0), ("pid", True), ("pid", 2**32), ("pid", 4321),
+    ("uid", 1), ("gid", 1), ("invocation", "0" * 32),
+    ("invocation", "02" * 16), ("invocation", "G" * 32),
+])
+def test_admission_refuses_foreign_or_stale_peer(waiting_gate, field, value):
+    adapter, manager, result, token, peer, clock = waiting_gate
+    with pytest.raises(ValueError):
+        adapter._admission_binding(result, token, replace(peer, **{field: value}), clock.now + 1)
+    assert adapter.pending is result and manager.reference and not manager.sender_calls
+
+
+@pytest.mark.parametrize("case", ["pending", "uncertain", "collision", "wrong-reply", "no-client",
+                                 "closed-client", "wrong-job", "wrong-unit", "wrong-description",
+                                 "terminal", "released", "stale-invocation", "not-retained"])
+def test_admission_requires_owned_create_evidence(waiting_gate, case):
+    adapter, manager, result, token, peer, clock = waiting_gate
+    if case in {"pending", "uncertain", "collision"}:
+        result = replace(result, create_outcome=case)
+    elif case == "wrong-reply":
+        adapter._client.create_reply = probe.ProbeCreateReply("replied", "/job/999")
+    elif case == "no-client":
+        adapter._client = None
+    elif case == "closed-client":
+        adapter._client.connection = None
+    elif case == "wrong-job":
+        result = replace(result, job="/job/42")
+        adapter._client.create_reply = probe.ProbeCreateReply("replied", result.job)
+    elif case == "wrong-unit":
+        result = replace(result, unit="foreign.service")
+    elif case == "wrong-description":
+        adapter._description = "foreign"
+    elif case == "terminal":
+        result = replace(result, terminal_observed=True)
+    elif case == "released":
+        result = replace(result, reference_released=True)
+    elif case == "stale-invocation":
+        result = replace(result, invocation="02" * 16)
+    adapter._pending = None if case == "not-retained" else result
+    with pytest.raises(ValueError):
+        adapter._admission_binding(result, token, peer, clock.now + 1)
+    assert not manager.calls and manager.reference and not manager.sender_calls
+
+
+@pytest.mark.parametrize("interface,field,value", [
+    ("unit", "Id", "foreign.service"), ("unit", "Description", "foreign"),
+    ("unit", "Transient", False), ("unit", "InvocationID", [0] * 16),
+    ("unit", "InvocationID", [1] * 15), ("unit", "ActiveState", "failed"),
+    ("unit", "Job", (43, "/org/freedesktop/systemd1/job/43")),
+    ("unit", "Job", (0, "/org/freedesktop/systemd1/job/42")),
+    ("service", "MainPID", 999), ("service", "ControlPID", 999),
+    ("service", "Type", "simple"), ("service", "Restart", "always"),
+    ("service", "User", "1"), ("service", "Group", "1"),
+    ("service", "Environment", ["INVOCATION_ID=" + "01" * 16]),
+    ("service", "EnvironmentFiles", [("/foreign", False)]),
+    ("service", "PassEnvironment", ["INVOCATION_ID"]),
+    ("service", "UnsetEnvironment", ["INVOCATION_ID"]),
+])
+def test_admission_refuses_mismatched_manager_metadata(waiting_gate, interface, field, value):
+    adapter, manager, result, token, peer, clock = waiting_gate
+    getattr(manager, interface)[field] = value
+    with pytest.raises(ValueError):
+        adapter._admission_binding(result, token, peer, clock.now + 1)
+    assert manager.reference and not manager.sender_calls
+
+
+@pytest.mark.parametrize("change", ["path", "argv", "ignore-failure", "extra-command",
+                                    "ExecCondition", "ExecStartPre", "ExecStartPost"])
+def test_admission_refuses_changed_or_additional_commands(waiting_gate, change):
+    adapter, manager, result, token, peer, clock = waiting_gate
+    command = list(manager.service["ExecStart"][0])
+    if change == "path":
+        command[0] = probe.PROBE
+    elif change == "argv":
+        command[1] = [probe.PROBE_GATE, "2" * 32]
+    elif change == "ignore-failure":
+        command[2] = True
+    manager.service["ExecStart"] = [tuple(command)]
+    if change == "extra-command":
+        manager.service["ExecStart"].append(tuple(command))
+    elif change in {"ExecCondition", "ExecStartPre", "ExecStartPost"}:
+        manager.service[change] = [tuple(command)]
+    with pytest.raises(ValueError):
+        adapter._admission_binding(result, token, peer, clock.now + 1)
+    assert manager.reference and not manager.sender_calls
+
+
+@pytest.mark.parametrize("replacement", ["manager-before", "manager-after", "pid-unit",
+                                       "same-job-rerun", "pid", "command", "job"])
+def test_admission_refuses_replacement_during_collection(waiting_gate, replacement):
+    adapter, manager, result, token, peer, clock = waiting_gate
+    if replacement == "manager-before":
+        manager.owner = ":1.51"
+    def hook(method, interface):
+        if method != "GetUnitByPID":
+            return
+        if replacement == "manager-after":
+            manager.owner = ":1.51"
+        elif replacement == "pid-unit":
+            manager.peer_path = "/org/freedesktop/systemd1/unit/foreign"
+        elif replacement == "same-job-rerun":
+            manager.unit["InvocationID"] = [2] * 16
+        elif replacement == "pid":
+            manager.service["MainPID"] = 4321
+        elif replacement == "command":
+            manager.service["ExecStart"] = []
+        elif replacement == "job":
+            manager.unit["Job"] = (43, "/org/freedesktop/systemd1/job/43")
+    manager.hook = hook
+    with pytest.raises(ValueError):
+        adapter._admission_binding(result, token, peer, clock.now + 1)
+    assert manager.reference and not manager.sender_calls
+    assert all(call[0] in {probe.DBUS_NAME, result.manager} for call in manager.calls)
+
+
+@pytest.mark.parametrize("failure", ["deadline", "missing-property", "manager-loss"])
+def test_admission_failure_preserves_pending_unit_and_client(waiting_gate, failure):
+    adapter, manager, result, token, peer, clock = waiting_gate
+    def hook(method, interface):
+        if method != "GetUnitByPID":
+            return
+        if failure == "deadline":
+            clock.now += 2
+        elif failure == "missing-property":
+            del manager.service["MainPID"]
+        else:
+            raise dbus_error("org.freedesktop.DBus.Error.NameHasNoOwner")
+    manager.hook = hook
+    with pytest.raises((TimeoutError, KeyError, GLib.Error)):
+        adapter._admission_binding(result, token, peer, clock.now + 1)
+    assert adapter.pending is result and manager.reference
+    assert adapter._client.connection is not None and not manager.sender_calls
 
 
 @pytest.mark.parametrize("replacement", ["before-first-read", "same-job-rerun"])

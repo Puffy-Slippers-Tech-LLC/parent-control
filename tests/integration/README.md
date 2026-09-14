@@ -1,5 +1,14 @@
 # Installed-system runner
 
+**Scope — 2026-09-14:** preserve established installed, unit/component and
+runner regressions. Mechanical installation, upgrade, migration, removal and
+startup recovery still require their internal checks under Tasks 18/20.
+Customer E2E instead follows the
+[surface-only contract](../../docs/TestAutomation/E2E-Coverage.md) and is
+prioritized in the [active plan](../../docs/TestAutomation/Test-Automation.md).
+Accepted installed setup can provision its prerequisites; internal product
+assertions and the deferred policy probe are not customer dependencies.
+
 Use the [daily guide](../../docs/Test-Automation.md) for command scope and the
 [test contributor guide](../README.md) for local layers and safety prerequisites.
 This document retains the implemented runner and artifact contracts. Initial
@@ -63,6 +72,31 @@ Choose a different empty directory for another build. Output contains
 deterministic native/Flatpak fixture assets in `fixtures/`. The manifest records
 source revision/content digest, source date epoch, architecture, build inputs,
 tool versions, and package/stable-fixture digests.
+
+**Source selection (2026-09-13):** `build_test_artifacts._source_paths` and
+`e2e.provenance.source_paths` exclude only the repository-relative path named by
+`build_test_artifacts.OPERATOR_LOG_PATH`, the supervisor-owned operator output.
+Both Git commands use an exact top-level literal exclusion, with a second filter
+before filesystem inspection. All other tracked/nonignored inputs, including
+documentation and similarly named files, remain bound to current bytes/modes.
+Both readers use NUL-delimited paths and the same Path ordering.
+
+`tests/unit/test_e2e_provenance.py` qualifies no-open/no-copy behavior for tracked
+and untracked operator output, matching builder/controller digests, and preserved
+refusal of other source additions/edits/removals. Its
+`test_operator_output_is_never_read_copied_or_bound_to_inputs`,
+`test_operator_output_exception_does_not_hide_other_source_changes` and
+`test_source_filename_bytes_match_between_collectors` run against synthetic Git
+fixtures, never the actual operator log. Together with the artifact-builder
+suite, **78 focused tests passed**. Fresh artifact build/verification and the
+guarded installed lifecycle subsequently passed at
+`/tmp/onpc-system-jq_9bl4m/evidence/result.json`; all five selected executions,
+source validation, collection and restored-baseline verification passed.
+This qualifies use by that installed consumer, not a graphical controller run.
+No retained manifest was changed. Ordinary documentation still invalidates old
+artifacts; this exception supplies neither a stable source window nor Task 20 R1
+ownership/validation-timing qualification. See the
+[active 15A handoff](../../docs/TestAutomation/Task-15.md#task-15a-continuation--2026-09-08).
 
 `tests/fixtures/build_test_applications.py` supplies real long-running native
 executables, path/space/version-pattern variants, desktop entries and a minimal
@@ -137,8 +171,9 @@ installed executable digest before policy access, using
 `system_enforcement.record_execution_backend`. The
 [interface audit](../../docs/TestAutomation/Evidence/15A-Activation-Interface-Audit-20260911.md)
 owns the missing historical dependency identity and local verification. This
-new evidence capture awaits live qualification; it does not witness daemon
-activation. In particular, the upstream ruleset journal digest is emitted before
+capture now has live evidence from the retained native-probe compositions described
+in the [admission contract](../../docs/SystemDesign/Applications.md#pre-exec-admission-for-a-causal-witness);
+it does not witness daemon activation. In particular, the upstream ruleset journal digest is emitted before
 parsing and must not replace the runtime launch assertions below.
 It requires the four package/reboot executions, then tests native command allow,
 hard denial, restored allow, soft denial, and restored allow again with screen-time

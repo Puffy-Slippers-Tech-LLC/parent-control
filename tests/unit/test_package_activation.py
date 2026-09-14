@@ -61,11 +61,47 @@ class PackageActivationTests(unittest.TestCase):
             "process-restart",
         )
 
+    def test_native_probe_payload_changes_restart_broker_without_reboot(self):
+        for kind in ("gate", "witness"):
+            path = f"usr/libexec/oh-no-parent-control-execution-probe-{kind}"
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                before = self._manifest(root, "old.json")
+                payload = root / path
+                payload.parent.mkdir(parents=True)
+                payload.write_bytes(b"first")
+                added = self._manifest(root, "added.json")
+                self.assertEqual(changed_impacts(before, added), ["process-restart"])
+                payload.write_bytes(b"second")
+                changed = self._manifest(root, "changed.json")
+                self.assertEqual(changed_impacts(added, changed), ["process-restart"])
+                payload.unlink()
+                removed = self._manifest(root, "removed.json")
+                self.assertEqual(changed_impacts(changed, removed), ["process-restart"])
+
     def test_migration_runner_activates_during_postinst(self):
         self.assertEqual(
             activation_for("usr/libexec/oh-no-parent-control-migrate-state"),
             "none",
         )
+
+    def test_probe_queue_timeout_add_change_remove_uses_boot_boundary(self):
+        path = ("usr/lib/systemd/system/onpc-execution-probe-.service.d/"
+                "oh-no-parent-control-timeout.conf")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            before = self._manifest(root, "old.json")
+            payload = root / path
+            payload.parent.mkdir(parents=True)
+            payload.write_text("[Unit]\nJobTimeoutSec=4s\n")
+            added = self._manifest(root, "added.json")
+            self.assertEqual(changed_impacts(before, added), ["reboot"])
+            payload.write_text("[Unit]\nJobTimeoutSec=3s\n")
+            changed = self._manifest(root, "changed.json")
+            self.assertEqual(changed_impacts(added, changed), ["reboot"])
+            payload.unlink()
+            removed = self._manifest(root, "removed.json")
+            self.assertEqual(changed_impacts(changed, removed), ["reboot"])
 
     def test_uninstall_only_code_needs_no_installed_update_activation(self):
         for path in (

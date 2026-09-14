@@ -6,7 +6,6 @@ Run all local tests from the development checkout before publishing:
 make test-all-verify
 ```
 
-Its publishing module can also run independently with `make test-publish`.
 When the release is ready, publish directly:
 
 ```sh
@@ -95,26 +94,44 @@ Setup/account provisioning is separate from routine publishing.
 
 ## Local publishing tests
 
-`make test-publish` and the publishing category in `make test-all` invoke the
+`make test-all` and `make test-all-verify` invoke the
 same [`tools/publishing_checks.py`](../tools/publishing_checks.py) utility through
 `tools/run-tests publish`. It takes no selectors and performs no signing,
 pushes, uploads or Launchpad requests. It needs no publisher credentials.
 
-The utility checks host build prerequisites and version consistency, freezes
-tracked and unignored working-tree files into a private `/tmp/onpc-test-publish-*`
-snapshot, and checks whitespace and generated release version consistency.
-Uncommitted edits are included; ignored credentials and build output are excluded.
-When the history announces a newer version, the snapshot receives the generated
-app version and changelog. After a release it tests current metadata instead.
+The utility checks host build prerequisites and version consistency, then freezes
+the `PACKAGE_SOURCE_FILES` allowlist in the Makefile into a private
+`/tmp/onpc-test-publish-*` snapshot. This includes product code, runtime assets,
+licenses, Debian metadata and required build helpers. It excludes development
+docs, `tests/`, previews, agent configuration and internal tools. Uncommitted
+product edits are included; unrelated edits and their whitespace do not block
+packaging. Copying rejects changes to the selected inputs during the snapshot.
+When the history announces a newer, dated version, the snapshot receives the
+generated app version and changelog. An undated next-version heading is a draft:
+local tests retain the current package metadata and print that choice. Actual
+publishing still requires the dated release history. After a release, local
+tests also use current metadata.
 The real checkout is unchanged. The PPA revision is a local candidate; publication
 still allocates the unused revision from remote history.
 
 It builds unsigned source, verifies upload manifests and archive contents against
 the snapshot, runs source Lintian, builds that DSC in clean resolute/amd64 `sbuild`
-with declared tests enabled and build network disabled, then runs binary Lintian.
+with package checks enabled and build network disabled, then runs binary Lintian.
+`debian/check_package.py` validates the selected source formats and release
+metadata without requiring development files. The full unit/component suite
+runs separately through `make check` and `make test-all`.
+The package-input regression builds real source and binary archives with internal
+canary files alongside product inputs, including a similarly named user service.
+It checks that those files are excluded and customer licenses and manuals remain
+installed. Product service installation uses an explicit list even for direct
+local builds from the development checkout.
 The builder uses unprivileged user namespaces. Failures return nonzero to either
 entry point. Source, logs and `result.json` are retained in the printed test/build
 directories, and aggregate output appears in the normal `test-all` report.
+When invoked by an aggregate, these directories follow its
+[last-three-runs retention](../tests/README.md#aggregate-output-retention),
+including failed builds. Standalone publishing checks and actual release
+operations keep their existing evidence policy.
 
 `make publish` does not invoke this utility, Lintian, version-test targets or
 local binary builds, and does not require a saved test result. Run the tests
@@ -129,8 +146,9 @@ changelog, and signs the release commit and both version tags. It then:
 
 1. Builds and signs the source upload, verifies the publisher signatures and
    SHA-256 manifests, and checks archived bytes, symlinks and executable modes
-   against the signed Git tree. Only tracked `.codex/` and `.agents/` development
-   configuration may be excluded from the source archive.
+   against the signed Git tree. Source uploads use the same product/build
+   allowlist as local packaging tests. Integrity verification rejects omitted
+   package inputs and any archived files outside that allowlist.
 2. Atomically pushes the release commit and signed tags,
    verifies public access to the tagged source, and uploads only source artifacts.
 3. Waits for the exact source, successful amd64 build, binary publication, and
@@ -142,18 +160,21 @@ changelog, and signs the release commit and both version tags. It then:
 
 The PPA must enable only amd64, matching the test module's clean builder. Source
 integrity evidence, artifact hashes and `release.json` remain in the reported
-release directory. Local publishing tests catch packaging and declared
-test failures but cannot guarantee Launchpad availability, account acceptance,
+release directory. Local publishing tests catch packaging and package-check
+failures but cannot guarantee Launchpad availability, account acceptance,
 or all installed-app behavior. They do not certify graphical/VM acceptance,
 privacy-page content, or human asset/license review; complete applicable release
 review before publishing.
 
 The clean builder's `build.log` captures launcher output; detailed package/test
 output is retained in its `output/` directory as an sbuild `.build` log. Build
-failures report both locations. Declared tests must run from an unpacked source
-archive without `.git`; tests of Git behavior create their own temporary repository
-using the packaged inputs (including `.gitignore`). The report-provenance case in
-[`test_regression.py`](../tests/unit/test_regression.py) covers this boundary.
+failures report both locations. Package checks run from the reduced unpacked
+source archive without `.git`, docs or the development test suite.
+
+Build A/B artifact source fingerprints cover the same package allowlist. Their
+fixture payload is a separate test artifact with its own verified digest, never
+part of the product package. E2E package preflight compares the package inputs
+while retaining a separate full test-input identity for acceptance evidence.
 
 ## Retry and recovery
 
@@ -215,7 +236,7 @@ packaging correction, needs a newer product entry in `VersionHistory.md`.
 The publisher chooses an unused PPA revision and creates both signed tags.
 Published tags and accepted upload versions are never reused or replaced.
 
-Run `make test-publish` (or `make test-all`) for each new source candidate to
+Run `make test-all` or `make test-all-verify` for each new source candidate to
 perform source verification and a complete clean binary build. Previously
 compiled application output is not reused by the tests. The builder
 supports Ubuntu 26.04/resolute on amd64; other Ubuntu releases or architectures
@@ -376,6 +397,17 @@ Existing-user upgrades follow the activation contract below.
 
 Each Debian package contains `/usr/share/oh-no-parent-control/package-activation.json`. The file lists each activation-relevant installed file, its SHA-256 digest, and the action needed when that file changes. It is generated from the staged package by `debian/package_activation.py`; it must never be edited by hand.
 
+The install-stage manifest is provisional: `debian/rules` regenerates it through
+the [debhelper hook](https://manpages.debian.org/unstable/debhelper/dh.1.en.html#OVERRIDE_AND_HOOK_TARGETS)
+`execute_before_dh_md5sums`, after shebang rewriting and ELF stripping. Hashing
+only at install time produced digests for unstripped native probe binaries,
+not the shipped bytes. `test_final_package_hook_refreshes_stripped_binary_digests`
+exercises real stripping, the final hook and its declared debhelper ordering.
+Qualification also compares every activation digest against files extracted
+from the final Debian package; the [15A handoff](TestAutomation/Task-15.md#task-15a-continuation--2026-09-08)
+retains the corrected build identity and original mismatch. This package
+activation manifest is separate from test-artifact source provenance.
+
 During an APT install or upgrade, `debian/preinst` records that an activation comparison is pending and, for upgrades, saves the manifest from the currently installed package. After unpacking, `debian/postinst` compares that saved manifest with the new one. Added, changed, and removed files all count. The pending marker prevents a later `dpkg --configure` retry from inventing a reboot requirement. A package without a prior manifest is treated as a first installation and requires a reboot, which is conservative for migrations from releases that predate this mechanism.
 
 ### Activation levels
@@ -511,6 +543,21 @@ The GDM hook template at `usr/share/oh-no-parent-control/gdm-presession` remains
 notice activate in the package lifecycle (`none`). They do not change any saved
 preference schema and need no data migration. These packaging changes target
 clean installations; they do not adopt untracked installations or accounts.
+
+The native admission gate and witness (`oh-no-parent-control-execution-probe-gate`
+and `oh-no-parent-control-execution-probe-witness` under `/usr/libexec`) are
+`process-restart`, together with the probe Python adapters and broker runtime
+directory declaration. They do not change the boot canary or display-manager
+ordering. Their [qualification limits](SystemDesign/Applications.md#pre-exec-admission-for-a-causal-witness)
+remain separate from this activation classification.
+
+The `onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf` system
+drop-in supplies the four-second queued-job timeout shared by native probes and
+the fixed boot canary. It is `reboot`, because it changes that boot probe's
+execution bounds. The production install map includes its final-byte digest;
+`test_packaged_probe_dropin_bounds_queued_jobs` and
+`test_probe_queue_timeout_add_change_remove_uses_boot_boundary` cover delivery
+and activation changes, including removal.
 
 `activation_for()` in `debian/package_activation.py` is the complete, reviewed mapping from installed path to activation level. `ACTIVATION_MANIFEST_PATHS` in the `Makefile` selects the corresponding installed files for hashing. When adding, moving, or removing a packaged integration file, update both and add a focused unit test in `tests/unit/test_package_activation.py`. Classify by the installed path, not its source directory.
 

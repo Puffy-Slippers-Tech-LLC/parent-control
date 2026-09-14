@@ -1,457 +1,471 @@
 # Efficient implementation and continuation
 
 The [master backlog](Test-Automation.md) owns task order/completion; the
-[daily guide](../Test-Automation.md) owns commands. **Quality takes absolute
-precedence.** Reject savings that weaken correctness, security, coverage,
-evidence, diagnosis or cleanup. Reading/time targets trigger review, never
-omission of necessary work. This is the single implementation session procedure.
+[daily guide](../Test-Automation.md) owns commands. This document owns the
+implementation session procedure. **Quality takes absolute precedence over
+usage savings:** preserve correctness, security, coverage, evidence, diagnosis
+and cleanup. Time, context and word targets trigger review, never weaker work.
+
+**Operator scope — 2026-09-14:** prioritize the full customer E2E queue and
+follow its [surface-only contract](E2E-Coverage.md). The timeout/login example
+illustrates the rule; it is not the sole or preferred scenario. Preserve all
+completed lower-level tests. Mechanical installation/upgrade/removal work
+retains necessary internal inspection under Tasks 18/20. Deferred product
+design, internal fault matrices and general infrastructure expansion are not
+automatic fallback work or implicit customer dependencies.
 
 ## Retain useful evidence without one-off reports
 
-Do not create standalone investigation, fix-attempt or verification documents
-for routine test/build failures, including `make test-all`. This applies under
-`Evidence/` and elsewhere: moving or renaming a report does not make it useful.
-Report the cause, correction and verification in the conversation or PR. Update
-the existing owning contract only for reusable behavior or regression guidance.
-If work remains, update its existing active handoff with the blocker, next action
-and necessary artifact references instead of adding an attempt diary.
+For routine test/build failures, including `make test-all`, report the cause,
+fix and verification in the conversation/PR. Update the owning contract for
+reusable behavior/regression guidance and the existing active handoff when
+continuation needs a blocker, next action or artifact reference.
 
-Keep runner-generated reports, original failures, logs, screenshots and private
-artifacts. Keep useful qualification evidence supporting automation in progress.
-A new standalone evidence document needs an explicit user request or a concrete
-ongoing acceptance/recovery need that existing artifacts and the active handoff
-cannot satisfy. A failed check, completed fix, list of passing tests or desire
-to record session activity alone does not justify one. Do not copy machine
-reports into prose or create a document recording documentation cleanup.
+Preserve runner reports, original failures, logs, screenshots, private artifacts
+and useful qualification evidence for automation in progress. A new standalone
+evidence document requires an explicit user request or a concrete ongoing
+acceptance/recovery need that existing artifacts and the active handoff cannot
+satisfy. A failed check, completed fix, passing-test list or session diary does
+not qualify. This applies everywhere, not just `Evidence/`; do not copy machine
+reports into prose or document documentation cleanup.
 
-This policy supersedes older per-attempt evidence-writing instructions. Required
-verification and artifact retention still apply; they do not require a new
-Markdown report. Routine user-directed fixes do not require roadmap handoffs or
-continuation updates unless they change the ongoing task's state.
+The same rule applies to additions inside existing documents: do not append
+one-time run reports, incident timelines, qualification summaries, before/after
+timings or superseded implementation histories to design and instruction docs.
+Revise the current contract in place, retaining reusable rationale, limitations
+and regression requirements. Per-run history belongs in generated runner
+artifacts; an active handoff may link only the evidence needed for continuation.
+
+This supersedes older per-attempt reporting instructions without changing
+verification or retention requirements. Routine user-directed fixes need roadmap
+handoff/continuation updates only if they change the ongoing task's state.
 
 ## Start with one bounded result
 
-1. Use the applicable `AGENTS.md` instructions already supplied in context;
-   read any missing or changed instructions. Read [Continuation.md](Continuation.md),
-   the [master checklist](Test-Automation.md#unfinished-tasks), and relevant task
-   sections/active handoffs. At every safe slice boundary, select the earliest
-   unchecked task in checklist order whose dependencies are accepted and which
-   has no current evidenced blocker. Finish or reconcile any already-owned
-   operation and cleanup before switching tasks. The continuation records this
-   selection; it cannot give later work priority merely because it was started.
-   Correct a stale pointer before beginning another implementation slice.
+1. Use applicable `AGENTS.md` instructions already in context; read missing or
+   changed instructions. Read [Continuation.md](Continuation.md), the
+   [checklist](Test-Automation.md#unfinished-tasks) and relevant task sections/
+   active handoffs. At every safe boundary, select the earliest unchecked entry
+   in the customer queue whose concrete prerequisites are available and which
+   has no current evidenced blocker. Whole internal test matrices and another
+   task's full UI acceptance are not dependencies merely because it owns a helper.
+   Finish or reconcile owned operations and cleanup before switching tasks.
+   Correct stale continuation pointers; previously started work has no priority.
+2. Before bypassing an earlier entry, record its dependency/blocker, evidence
+   and return condition in its handoff and link it from the continuation.
+   Recheck deferrals at each selection without repeating unchanged failures.
+   Return when ready, preserving later work in its own handoff. Explicit user
+   selection takes precedence; record its scope and when checklist order resumes.
+   Blocked entries stay unchecked and block dependent acceptance. If none is
+   ready, move to the authorized mechanical package queue with blockers recorded;
+   if no active work is ready, save the blocker. If the active checklist is
+   complete, report its scope and separate deferred work, then stop
+   without rerunning suites.
+3. Carry explicit cumulative recovery ledgers across slices and check their
+   outcome thresholds before selecting more work. A required operator decision
+   means finish cleanup and return unattended `blocked/decision`; no fallback,
+   renamed blocker or reset totals may evade it. This applies to the recorded
+   recovery scope, not ordinary slice estimates. Task 20's
+   [retained R1 recovery](Task-20.md#bounded-recovery--2026-09-11) resumes in
+   checklist order after prioritized customer journeys. Earlier consumers may
+   repair a demonstrated shared prerequisite needed by their named scenario:
+   charge their R1 recovery portion and apply its checkpoints to further recovery,
+   without blocking unrelated work.
+4. State the next observable result, smallest verification, planned budget,
+   actual model/effort and latest handoff recommendation/reason. A continuation
+   request or [launcher invocation](Unattended-Sessions.md) authorizes this
+   work and model-policy choices; no separate “Go ahead”, settings or machine
+   selection is due. Disclose model mismatch and arrange the next session if
+   capability is insufficient; never claim to switch the running model.
+   Execution and acceptance boundaries still apply.
+5. Inspect status and relevant changes; preserve concurrent work. For customer
+   E2E, read the selected visible behavior and existing graphical interfaces;
+   do not audit product internals to invent acceptance prerequisites. Architecture
+   reads for authorized mechanical/product work start at
+   [System-Design.md](../System-Design.md). Before adding necessary infrastructure, read the
+   selected [reuse-map row](Reuse-Map.md) and relevant contract/limitation links.
+   Compare implementation, regressions and qualification to the needed boundary.
+   Link the reused contract and identify only the missing capability or changed
+   assumption; reopening a solution requires new evidence or an invalidating
+   change. Do not load all tasks, evidence, old transcripts or the entire diff.
+6. Implement and verify one coherent slice, update reusable contracts and save
+   the handoff below. Check off a task only after all deliverables and acceptance
+   checks pass; do not delete checklist entries during unattended work.
+   Do not recreate accepted setup or start an unrelated next problem.
 
-   Before bypassing an earlier unchecked entry, record its unmet dependency or
-   concrete blocker, supporting evidence and return condition in that task's
-   handoff; link the deferral from the continuation. Reassess those conditions
-   at each selection using current handoffs and operator instructions, without
-   repeating unchanged failed attempts. Once an earlier task becomes ready,
-   return to it at the next safe boundary and preserve the later task's progress
-   in its own handoff. A resolved hold cannot justify another fallback slice.
-   Explicit user-directed task selection takes precedence; record its scope and
-   when checklist order resumes. Blocked entries remain unchecked and block
-   dependent acceptance. If nothing is ready, save the concrete blocker. If all
-   entries are complete, record completion and stop without rerunning suites.
-   An explicit cumulative recovery budget in the selected task also persists
-   across slices. Update its ledger and check its outcome thresholds before
-   selecting more work. If it requires an operator decision, finish cleanup and
-   return the existing unattended `blocked/decision` result; do not evade the
-   boundary with independent-task fallback, renamed blockers or reset totals.
-   This exception applies to an explicitly recorded recovery scope, not ordinary
-   slice estimates. Task 20's [retained recovery](Task-20.md#bounded-recovery--2026-09-11)
-   owns such a scope when selected again; the operator has prioritized all
-   independent installed-app and infrastructure work before it in the master
-   checklist. Earlier consumers may bring forward bounded shared prerequisites;
-   record R1 recovery work in its ledger, without blocking unrelated tasks.
-2. State one next observable result, its smallest verification, planned slice
-   budget, actual model/effort and the latest handoff's recommendation with its
-   reason. The user's continuation request or [launcher invocation](Unattended-Sessions.md)
-   authorizes the bounded work and choices under the model policy below; do not
-   add a separate “Go ahead” or model-selection pause. An interactive agent
-   cannot change its own running model: disclose a mismatch and arrange the
-   appropriate next session if the current capability is insufficient. Never
-   claim to switch models. Existing execution and acceptance boundaries apply;
-   do not repeat the machine-selection question.
-3. Inspect working-tree status and relevant changes. For
-   architecture read [System-Design.md](../System-Design.md), then the owning
-   module and applicable specification IDs. Read the selected task's
-   [reuse-map row](Reuse-Map.md) and follow its relevant shared-contract and
-   limitation links before diagnosing or adding a helper. Compare the existing
-   implementation, regression coverage and recorded qualification with the
-   boundary needed now. In the handoff, link the reused contract and identify
-   only the missing capability or changed assumption. If reopening a solved
-   boundary, state the new evidence or invalidating change first; a new task or
-   chat alone is not a reason. Do not load every task, all evidence or the entire diff.
-4. Implement and verify the slice; preserve concurrent changes. Mark the task's
-   one checklist entry complete only after all its deliverables and acceptance
-   checks pass. Update reusable contracts and write the handoff below before
-   ending. Do not start an unrelated next problem or recreate accepted setup.
-
-A slice is one unresolved boundary, a fix plus verification, or several cases
-using a proven helper. Plan one or two meaningful experiments, usually 15–30
-minutes; this is an estimate, not a completion deadline.
+A customer slice targets one complete variant, or a small batch using a proven
+interaction. A minimal adapter must serve that same named consumer. Freeze its
+customer actions and visible finish line before coding. Mechanical package
+slices target their declared qualification milestone. Plan usually 15–30 minutes;
+this is an estimate, not a deadline or a reason to split every step into a chat.
 
 ## VM availability for all tasks
 
-**Operator instruction — 2026-09-08:** the user confirmed there are no
-concurrent VM operations and cleared the VM/writer-pause hold for **every
-task**. This supersedes pending coordination requests and local-only fallback
-instructions in earlier handoffs and evidence. Carry this clearance into future
-handoffs; do not require another writer-pause confirmation, a clean Git status,
-or a new session approval merely to use the already-authorized test VM.
+**Operator clearance — 2026-09-08:** no concurrent VM operations remain; the
+VM/writer-pause hold is cleared for **every task**. This supersedes earlier
+coordination requests and local-only fallback instructions. Preserve it in
+handoffs. At the next safe boundary, proceed with dependency-ready guarded
+installed/E2E work; do not require another coordination/session approval,
+clean Git status or local-only slice because of the resolved hold.
 
-At the next safe slice boundary, select dependency-ready installed/E2E work
-using the checklist and current handoff. Finish an active owned operation and
-cleanup before starting the next. Do not add local-only slices because of the
-resolved hold. Task dependencies, implementation readiness and acceptance
-requirements still apply.
+The approved runner checks the shared VM lease; an off VM does not prove
+availability. Reconcile actual busy owners or unfinished operations under
+ownership rules. Never delete locks or take over a VM. Dependencies,
+implementation readiness and acceptance still apply.
 
-Use the approved guarded runner, which acquires the shared VM lease. An off VM
-status alone does not prove lease availability; let the runner check it. If it
-reports an actual busy owner or unfinished operation, reconcile that operation
-under the existing ownership rules. Never delete locks or take over a VM.
-
-Source provenance is checked separately from VM availability. Finish edits
-before running checks that snapshot the real checkout, including `make check`;
-documentation writes can correctly fail those checks too. Build fresh artifacts
-when required, and make no checkout edits during the attempt through terminal
-collection and cleanup. Existing uncommitted changes
-are valid captured inputs. A new provenance refusal requires diagnosis of its
-recorded cause under the attempt limits; it does not restore a blanket VM hold
-across the backlog. Report any new blocker with current evidence, affected
-scope and the concrete next action. Historical failed results remain failed;
-their old scheduling instructions do not override this clearance.
+Source provenance is separate: finish edits before checkout-snapshot checks,
+including `make check`, and build fresh artifacts when required. Documentation
+writes can invalidate a snapshot too. Make no checkout edits during an attempt
+through terminal collection and cleanup; existing uncommitted changes are valid
+captured inputs. Diagnose new refusals under attempt limits and record their
+current evidence, affected scope and next action. Historical failures remain
+failed, but neither they nor a new scoped refusal restore the blanket hold.
 
 ## Reassess model and effort at every handoff
 
-**Operator policy — 2026-09-08:** quality is mandatory; conserving the weekly
-subscription usage allowance is the secondary objective. This replaces every
-blanket Astra/high pin and max-effort default, including instructions in older
-handoffs and evidence. Historical settings still describe those past runs.
-Selection under this policy is authorized for already-authorized work without
-another settings confirmation.
+**Operator policy — 2026-09-08:** quality first, weekly subscription allowance
+second. This replaces blanket Astra/high pins and max-effort defaults; historical
+settings remain execution records. Settings choices for authorized work need
+no further confirmation.
 
-Reevaluate model and effort separately for the next slice at every handoff.
-The latest applicable handoff overrides task-header defaults; revise it if
-intervening changes alter the difficulty. Mirror the result in Continuation.md.
+Reassess model and effort separately at every handoff from what is now proven
+and what remains. The latest applicable handoff overrides task-header defaults;
+revise it for intervening changes and mirror the choice in Continuation.md.
 
-The unattended launcher adds a separate [progress review](Unattended-Sessions.md#progress-review-between-slices)
-using Astra xHigh after each clean slice. If that review intervenes, it revises
-the active handoffs and chooses Astra xHigh or max for the next slice only,
-with a required observable breakthrough. Keep ordinary reassessed settings in
-Continuation.md; the launcher consumes this explicit override separately and
-returns to normal settings afterward. This exception does not waive acceptance,
-cleanup, permission boundaries or required operator decisions.
-
-| Next slice | Starting choice and reassessment |
+| Next slice | Starting choice |
 | --- | --- |
-| Bounded implementation with settled contracts, proven helpers and meaningful acceptance checks | `gpt-5.6-sol` / `high`. This is the general implementation default. |
-| Unresolved architecture, authorization, concurrency, process ownership, difficult diagnosis across services, or broad semantic correctness review | `gpt-6-astra` / `high`. Select it upfront when needed; do not spend repeated weaker-model attempts discovering a known capability gap. |
-| Routine case expansion, adapters or UI work with established interfaces and expected results | Consider `gpt-5.6-terra` / `medium` or `high` only after confirming that the contract and checks are adequate. |
-| Mechanical documentation or mappings over verified decisions | Consider `gpt-5.6-luna` / `low` or `medium`; a change to privacy, evidence, acceptance or ownership policy is not mechanical. |
+| Bounded implementation; settled contracts, proven helpers, meaningful checks | `gpt-5.6-sol` / `high` (default). |
+| Unresolved architecture, authorization, concurrency, process ownership, difficult cross-service diagnosis or broad semantic correctness review | `gpt-6-astra` / `high`, chosen upfront rather than after repeated weaker attempts. |
+| Routine case expansion, adapters or UI with established interfaces/results | Consider `gpt-5.6-terra` / `medium` or `high` after confirming adequate contracts/checks. |
+| Mechanical documentation/mappings over verified decisions | Consider `gpt-5.6-luna` / `low` or `medium`. Privacy, evidence, acceptance and ownership policy changes are not mechanical. |
 
-- Initially retain `high` for substantive implementation while choosing the
-  model. Lower effort separately when the remaining reasoning is routine.
-  Use `xhigh` or `max` only for an identified reasoning need recorded in the
-  handoff, never because they were used before. A failed test or long VM wait
-  alone does not justify stronger settings.
-- Keep the same required tests, review, evidence and cleanup with every model.
-  No model choice guarantees correctness. Retain stronger capability when the
-  adequacy of a cheaper choice is uncertain, then reassess after the boundary
-  is proven. Repeated corrections require reconsidering that class of work.
-- Use **Standard processing**. Fast mode spends additional allowance for speed,
-  without increasing model intelligence. The launcher explicitly sets
-  `service_tier="default"`; a general user configuration must not silently
-  enable Fast mode for its workers.
-- Optimize allowance consumed per verified result, including context, reasoning,
-  corrections and retries. Raw token counts, credit rates and the weekly meter
-  are distinct: a stronger model can generate fewer tokens, and published
-  credit ratios do not establish an exact weekly-limit multiplier. Use only
-  already-exposed usage and real completed work; do not duplicate implementations
-  to benchmark models, read old transcripts or add a model call just to route a
-  slice. See [official usage guidance](https://learn.chatgpt.com/docs/pricing)
-  and [Standard/Fast processing](https://learn.chatgpt.com/docs/agent-configuration/speed).
+- Start substantive implementation at `high`; lower effort separately when
+  reasoning becomes routine. Use `xhigh`/`max` only for a documented need,
+  not past usage, a failed test or a long VM wait.
+- Keep required tests, review, evidence and cleanup with every model. When a
+  cheaper model's adequacy is uncertain, retain stronger capability until the
+  boundary is proven. Repeated corrections warrant reassessing that work class;
+  no model guarantees correctness.
+- Use **Standard processing**. The launcher sets `service_tier="default"`
+  explicitly so user configuration cannot silently enable Fast. Fast spends
+  more allowance for speed without increasing intelligence.
+- Optimize allowance per verified result, including context, reasoning,
+  corrections and retries. Tokens, credit rates and the weekly meter differ;
+  fewer generated tokens or published credit ratios do not establish a weekly
+  multiplier. Use already-exposed usage and completed work, without duplicate
+  implementations, transcript archaeology or an extra routing model call.
+  See [usage guidance](https://learn.chatgpt.com/docs/pricing) and
+  [processing modes](https://learn.chatgpt.com/docs/agent-configuration/speed).
 
-Record exact settings and a fresh reason even when keeping both:
+Record actual settings separately from this next-session recommendation, with
+a fresh reason even when retaining both:
 
 > **Next-session settings:** `<model>` / `<effort>`; model: lower/raise/keep;
-> effort: lower/raise/keep. **Reason:** `<what is now proven and what remains>`.
+> effort: lower/raise/keep. **Reason:** `<what is proven and what remains>`.
 
 The [launcher settings contract](Unattended-Sessions.md#model-and-effort-selection)
-defines the single machine-readable line in Continuation.md. The supervisor
-reads it before each fresh slice; it does not use the task header or global
-configuration as a silent fallback. A running worker records its actual settings
-separately from its next recommendation. If new evidence requires a stronger
-model, finish owned operations and save a precise handoff before the next
-session. Do not start a nested model process or weaken verification to stay on
-the current model. Machine/VM authorization persists.
+requires one machine-readable line in Continuation.md; task headers and global
+configuration are not fallbacks. If stronger capability becomes necessary,
+finish owned work and save a precise handoff; never launch a nested model or
+weaken verification. Machine/VM authorization persists.
+
+After each clean unattended slice, a separate
+[progress review](Unattended-Sessions.md#progress-review-between-slices) uses
+Astra xHigh. It may revise handoffs and require an observable breakthrough with
+Astra xHigh or max for one slice only. The launcher consumes that override
+separately; keep ordinary reassessed settings in Continuation.md. Report whether
+the breakthrough occurred. The override expires without waiving acceptance,
+cleanup, permissions or required operator decisions.
 
 ## Keep context small and reset at problem boundaries
 
-- Save a handoff and end at the agreed slice boundary. Batch adjacent cases
-  sharing a proven helper; do not split every parameter into its own chat or
-  expand a finished slice into an unrelated investigation.
-- Review progress at ten minutes. Review context at roughly 50,000 current-context
-  tokens if exposed, otherwise at 30 minutes. These are project heuristics;
-  cumulative input/cached tokens are not current context. Do not inspect old
-  session logs to estimate usage. At the threshold, stop broad reads, finish the
-  bounded operation and cleanup, then hand off before another experiment.
-  Explain overruns; a quiet VM wait alone is not new reasoning work.
-- Search first, then read relevant ranges; start near 2,000 output tokens and
-  widen when needed. Batch independent reads and inspect every result; keep
-  dependent operations/edits sequential. Request counts, selected IDs and failure
-  summaries before full JSON/JUnit/logs. Narrow truncated queries rather than
-  repeating them. Preserve full private evidence and directly inspect relevant
-  screenshots for visual assertions; summaries do not replace necessary review.
-- Await running commands in bounded intervals and report stage changes. Retain
-  their full result, session ID and exit status; poll yielded commands to exit.
-  Do not repeatedly reinterpret unchanged evidence or load an unrelated problem
-  while waiting. Missing `result.json`, a busy lease or an off VM does not prove
-  interruption. Reconcile the original operation/evidence before recovery or a
-  new run, including when its handle is lost.
-- Finish owned commands, collection and guarded cleanup before handing off.
-  If interrupted, record exact owned identities, command/session and recovery
-  state; reconnect instead of duplicating the run. Never tear down a useful
-  attempt for a timer or leave a live VM to reuse in the next chat.
+- End at the agreed slice boundary. Batch adjacent cases using a proven helper;
+  neither split each parameter into a chat nor expand into unrelated work.
+- Review progress at ten minutes; review context near 50,000 current-context
+  tokens if exposed, otherwise at 30 minutes. Cumulative input/cached tokens
+  are not current context; do not read old session logs to estimate it. At the
+  threshold stop broad reads, finish the operation/cleanup and hand off before
+  another experiment. Explain overruns; quiet VM waits are not reasoning work.
+- Search first and read relevant ranges, starting near 2,000 output tokens.
+  Batch independent reads and inspect each result; keep dependent operations
+  and edits sequential. Request counts, selected IDs and failure summaries
+  before full JSON/JUnit/logs. Narrow truncated queries or expand relevant ranges
+  as needed. Preserve private evidence and inspect screenshots directly for
+  visual assertions.
+- Await commands in bounded intervals, report stage changes and poll to exit.
+  Retain full results, session IDs and exit status. Do not reinterpret unchanged
+  evidence or investigate unrelated work while waiting. Missing `result.json`,
+  a busy lease or an off VM does not prove interruption: reconcile the original
+  operation/evidence before recovery or rerun, even if its handle is lost.
+- Finish commands, collection and guarded cleanup before handoff. On interruption,
+  record owned identities, command/session and recovery state; reconnect rather
+  than duplicate. Never kill a useful attempt for a timer or leave a live VM
+  for the next chat.
 
-After saving the handoff, use a fresh chat. Codex CLI `/new` resets chat context;
-`/compact` summarizes the existing chat and is an alternative when the user
-requests same-chat continuation. `/resume` reloads and `/fork` copies history.
-These are user controls, not shell commands for the agent to execute.
-[Official command documentation](https://learn.chatgpt.com/docs/developer-commands).
-Automatic compaction does not extend the agreed slice.
+After handoff use a fresh chat. CLI `/new` resets context; user-requested
+`/compact` summarizes the same chat, `/resume` reloads history and `/fork`
+copies it. These are user controls, not agent shell commands; automatic
+compaction does not extend the slice.
+[Command documentation](https://learn.chatgpt.com/docs/developer-commands).
 
 ## Reduce unnecessary model output
 
-Optimize what enters or leaves the model. The launcher forwards CLI events to
-the terminal without feeding that display back to its worker. Hiding or
-restyling those events cannot reduce that worker's token usage.
-
-| Content or operation | Token effect and handling |
+| Content/operation | Token effect |
 | --- | --- |
-| Model-written prose, scripts, patches and tool-call arguments | Output tokens. Generate necessary implementation once; avoid repeating it in reports. |
-| Tool results sent back to the model, including file/log excerpts and screenshots | Input/context tokens. Select relevant evidence and expand when needed. |
-| Local terminal rendering, saving existing output, or artifacts never sent to a model | No additional model tokens from those operations. Preserve useful detail. |
+| Model-written prose, scripts, patches, tool arguments | Output tokens: generate necessary content once. |
+| Tool results sent to a model, including excerpts/screenshots | Input/context tokens: select relevant evidence and expand as needed. |
+| Local terminal rendering, saving existing output, artifacts never sent to a model | No additional model tokens: preserve useful detail. |
 
-This distinction follows the official [tool-calling flow](https://developers.openai.com/api/docs/guides/function-calling#how-it-works)
-and the CLI's [event stream](https://learn.chatgpt.com/docs/non-interactive-mode#make-output-machine-readable).
-Capturing launcher output in another assistant's tool result makes that captured
-text input to that assistant; ordinary operator terminal display does not.
-Saving model-written prose in a file still requires generating it, and reading
-it later adds context. File storage alone is not a token-saving technique.
+The launcher forwards CLI events to the terminal without feeding that display
+back to its worker; hiding or restyling it cannot save worker tokens. Capturing
+it in another assistant's tool result does add input to that assistant.
+Writing new prose to a file still costs generation, and reading it adds context.
+See the [tool-calling flow](https://developers.openai.com/api/docs/guides/function-calling#how-it-works)
+and [CLI events](https://learn.chatgpt.com/docs/non-interactive-mode#make-output-machine-readable).
 
-- Keep regular progress updates brief and useful: findings, stage changes and
-  the next check. Do not narrate every tool call, print a script before executing
-  it, or repeat patches, commands and results already available from tools.
-- Write necessary code through the approved editing tools and reuse maintained
-  helpers for recurring operations. Keep code readable, logging sufficient and
-  tests complete; do not minify scripts or bypass approval boundaries for brevity.
-- Use focused reads and supported quiet/summary options through the approved
-  launchers. Retain exit status, failure/skip/missing-case information and evidence
-  paths. Full diagnostics stay in the existing artifacts; inspect relevant failure
-  context before deciding. Expand an output limit or read the omitted range when
-  truncation hides needed information. Do not hide errors, pipe tests through
-  filters that conceal their status, or rerun tests merely to recover output.
-- Report changed behavior, verification scope/results, material failures, cleanup
-  and next action. Link evidence and use test IDs instead of copying code, full
-  logs or passing-case lists. Preserve exact reproduction commands/selectors,
-  input/run identities and recovery details once in the active handoff or evidence
-  where needed. Keep summaries self-contained about the result and its limits.
+Keep updates to findings, stage changes and next checks; do not repeat scripts,
+patches, commands or results. Use approved editors, maintained helpers and
+supported quiet/summary options. Preserve readable code, sufficient logging,
+complete tests, exit status, failure/skip/missing-case details and evidence paths.
+Inspect relevant failures and omitted context before deciding. Never minify
+for brevity, hide errors/status through filters, or rerun tests just for output.
 
-These are defaults for removing repetition, not hard response/tool-output caps.
-Expand whenever correctness, diagnosis or recovery requires it. Select model
-and effort under the policy above; never skip required checks, delete evidence
-or weaken cleanup to shorten a transcript. Compare already-exposed usage for comparable
-verified work; fewer terminal lines or artifact bytes do not establish savings.
+Reports must state changed behavior, verification scope/results, material
+failures, cleanup, next action and limits. Link evidence/test IDs instead of
+copying logs or passing-case lists. Keep exact reproduction selectors/commands,
+input/run identities and recovery details once in the active handoff or evidence.
+These are repetition-reduction defaults, not hard output caps. Expand for
+correctness, diagnosis or recovery; never delete evidence or weaken checks.
+Compare already-exposed usage for comparable verified work; terminal lines and
+artifact bytes do not establish savings.
 
 ## Reuse established tools and bound harness work
 
-When a shared problem is resolved or its qualification/diagnosis changes, update
-its owning contract with the established cause (or explicitly unknown cause),
-supported fix, canonical helper/symbol, regression file or case IDs, qualified
-scope and remaining limitations. Link retained live evidence where applicable;
-local checks alone do not establish live qualification. Update the affected
-[reuse-map rows](Reuse-Map.md) with that contract and its downstream consumers
-before ending the slice, even if the overall task remains unfinished. Keep
-attempt counts and the next experiment in the active task handoff; link them
-from the contract when an unresolved shared failure affects reuse. A passing
-attempt does not close an intermittent failure whose cause remains unknown.
+For customer work, use the [customer reuse route](Reuse-Map.md#customer-scenario-work)
+and accepted graphical input/setup/cleanup. Do not follow the historical probe,
+policy or backend-fault chains as E2E dependencies. A helper change must name
+the customer action that cannot run safely, the smallest missing capability,
+the consumer acceptance signal and its stop condition. No standalone platform,
+schema, collector, caching or upstream-internals project is authorized by a
+customer test. Mechanical installation may retain its deeper qualification.
 
-Before handing off, compare the owning contract, affected reuse-map links and
-active handoff against the newest retained evidence. Correct stale qualification
-claims in that same slice; keep historical evidence unchanged. Distinguish
-locally tested, live-qualified, unresolved and unimplemented boundaries. Store
-the durable problem/solution/regression record in the owning contract so it
-survives replacement of the active handoff; the operator summary is not a worker
-input. Link it rather than copying the investigation into downstream tasks.
+Before investigating a shared boundary, use its reuse-map row and owning
+contract. Reopen a solution only for a changed input/interface, contradictory
+evidence or uncovered case; otherwise apply the
+[verification reuse rules](#decide-what-invalidates-earlier-verification).
+Reconcile stale references against current code, contract and retained evidence,
+then repair them without rerunning experiments merely to reconstruct history.
 
-Before reopening a recorded solution, identify the changed input/interface,
-contradictory evidence or uncovered case. With none, continue using the existing
-helper and applicable evidence under the [verification reuse rules](#decide-what-invalidates-earlier-verification).
-If a reference is stale, reconcile it against the owning contract, current code
-and retained evidence; repair the link or status without rerunning an experiment
-merely to reconstruct the record. The map routes readers to these records; it
-must not duplicate changing inventory counts or become another result ledger.
+When a shared diagnosis, fix or qualification changes, update its owning
+contract with cause (explicitly unknown if unresolved), supported fix, canonical
+helper/symbol, regressions, qualified scope, limitations and retained live
+evidence. Update affected [reuse-map rows](Reuse-Map.md) and downstream links
+before handoff, even for unfinished tasks. Keep attempt counts/next experiment
+in the active handoff, linked from the contract if the unresolved failure
+affects reuse. A pass does not close an unexplained intermittent defect.
 
-Keep the existing pytest/Hypothesis/coverage.py and Node/GJS foundations,
-python-dbusmock private buses, Dogtail/AT-SPI components, and os-autoinst with
-QEMU/libvirt for OS journeys. Use their maintained public interfaces and the
-versions in `tests/test-tools-ubuntu-26.04.txt` and `tests/ui/requirements.txt`.
-Qualify affected UI/backend behavior when those versions or interfaces change;
-established tool names alone do not establish that our adapter works.
+Compare contract, map and handoff with the newest evidence in the same slice.
+Correct stale claims while preserving historical evidence. Distinguish local
+tests, live qualification, unresolved and unimplemented work. The contract
+retains reusable findings after handoff replacement; the map routes readers
+without duplicating inventories or result ledgers. Link downstream tasks to
+that record rather than copying investigations. Operator summaries are not
+worker inputs.
 
-Before adding custom orchestration, identify the concrete missing capability
-in the current app scenario or required safety boundary. Prefer an existing
-fixture/API and a small adapter. Finish the bounded runner result and move to
-product coverage; do not create a general framework, duplicate scheduler,
-collector or selector for hypothetical future uses. Preserve owned cleanup,
-secret protection, provenance and failure reporting with focused regressions.
+Keep pytest/Hypothesis/coverage.py, Node/GJS, python-dbusmock private buses,
+Dogtail/AT-SPI and os-autoinst with QEMU/libvirt. Use maintained public interfaces
+and versions in `tests/test-tools-ubuntu-26.04.txt` and
+`tests/ui/requirements.txt`; qualify affected UI/backend behavior when they
+change. A tool's established name does not qualify our adapter.
 
-Source/configuration checks may protect an actual interface or packaging rule.
-Prefer executable behavior over source-string or call-order assertions for
-runtime guarantees; retire redundant brittle checks when behavior is covered.
-Keep source contracts and harness qualification out of product coverage claims.
+Before custom orchestration, identify the current scenario's missing capability
+or safety boundary. Prefer an existing fixture/API plus a small adapter.
+Finish the bounded runner result and move to product coverage; no hypothetical
+frameworks or duplicate schedulers, collectors or selectors. Cover owned cleanup,
+secrets, provenance and failure reporting with focused regressions. Source/config
+checks may protect real interfaces/packaging; prefer executable runtime behavior
+to source-string/call-order assertions and retire redundant brittle checks.
+Source contracts and harness qualification do not count as product coverage.
 
 ## Make every expensive attempt answer a question
 
-Before a live attempt, apply the [scope and prerequisite rules](E2E-Coverage.md#scope-tests-around-the-app):
-name the app regression or harness guarantee, choose the lowest effective layer,
-and separate supported fixture setup from the actions under test. Reuse bounded
-provisioning helpers for unrelated OS work. Do not automate an upstream GUI or
-multiply equivalent full journeys without an app-specific reason.
+For customer E2E the question is whether the declared real customer action
+produces its visible result. Observe screens and normal interaction only.
+An actual product failure stays failed with reproduction/evidence and a separate
+repair blocker; do not investigate its internals in the E2E slice. Continue an
+independent customer case or stop for a repair decision. The diagnosis procedure
+below applies to necessary runner-safety failures and mechanical package work;
+it does not authorize backend product probing in customer scenarios.
 
-1. Identify the first failing boundary, one hypothesis and its discriminating
-   observation. Separate helper, product, environment, collection and cleanup.
-2. Validate parsers/selectors/collectors and failure paths locally first. Collect
-   sufficient safe diagnostics for success and failure in the same boot; never
-   export credentials or raw authentication terminal data.
-3. Run the smallest guarded selection and its prerequisite closure through the
+Apply [app scope/prerequisite rules](E2E-Coverage.md#scope-tests-around-the-app):
+name the app regression or harness guarantee, choose the lowest effective layer,
+separate fixture setup from actions under test, and use bounded provisioning
+helpers for unrelated OS work. Upstream GUIs or duplicate full journeys require
+an app-specific reason.
+
+1. Name the first failing boundary, one hypothesis and a discriminating
+   observation; distinguish helper, product, environment, collection and cleanup.
+2. Validate parsers/selectors/collectors and failure paths locally. Collect safe
+   success/failure diagnostics in the same boot; never export credentials or raw
+   authentication terminal data.
+3. Run the smallest guarded selection and prerequisite closure through
    [approved categories](Approval-Tools.md#category-coverage-and-future-additions).
-   F1's installed selectors are implemented; register new areas there. Graphical
-   execution uses the accepted 19A controller for ready declarations; pending
-   selections still refuse before VM access. Never invoke
-   guest pytest on the host, invent a selector, or bypass VM guards.
-4. Fix the demonstrated cause. Prove a real success, deliberate denial/failure
-   and one interaction before expanding cases. A shared prerequisite failure
-   proves nothing about later assertions; keep those cases registered.
+   Extend F1's installed selectors for new areas; use the accepted 19A controller
+   for ready graphical declarations. Pending selections refuse before VM access.
+   Never run guest pytest on the host, invent selectors or bypass guards.
+4. Fix the demonstrated cause; prove real success, deliberate denial/failure
+   and one interaction before expansion. A failed shared prerequisite proves
+   nothing about later assertions; keep those cases registered.
 5. After two expensive attempts on one blocker, require new discriminating
-   evidence or locally validated observability before a third. A narrower
-   failure label alone does not reset that count. Before another diagnostic-only
-   attempt, audit the supported operation and relevant OS implementation together,
-   and consolidate observations that distinguish the remaining explanations in
-   one run. State how each outcome changes the next action. Once an actionable
-   interface defect is identified, prioritize its correction and qualification;
-   do not spend another full journey collecting an incremental label. Carry counts,
-   rejected hypotheses and next observation across chats. Record concrete
-   design/external blockers and move only to authorized independent work;
-   never weaken the boundary to obtain a pass.
+   evidence or locally validated observability before a third. A narrower label
+   does not reset the count. Before another diagnostic-only run, audit the
+   supported operation and relevant OS implementation together; combine remaining
+   discriminating observations in one run and state each outcome's next action.
+   Once an interface defect is actionable, correct and qualify it instead of
+   buying another incremental label with a full journey. Carry counts, rejected
+   hypotheses and next observations across chats. Record design/external blockers;
+   move only to authorized independent work without weakening boundaries.
 
 An expensive attempt is a full guarded VM/system/E2E run or comparable build,
-not a fast parser/unit check. Preserve the original failure. A corrected-code
-run is a new attempt with its own identity; an unchanged diagnostic rerun must
-not turn a failed release run green.
+not a fast parser/unit check. Preserve original failures. Corrected code needs
+a new attempt identity; an unchanged diagnostic rerun cannot turn a failed
+release run green.
 
 ## Verify at the right scope
 
 | Work stage | Required verification |
 | --- | --- |
-| Local edit/diagnosis | Relevant meaningful unit/component checks; prerequisite safety tests before any protected operation. |
-| New OS or graphical helper | Host-safe refusal/cleanup checks, then its smallest real success and denial/failure case. |
-| Stable batch of variants | Each changed/affected registered case and shared dependency once; both form surfaces where applicable. |
-| Lettered task acceptance | All assigned cases/variants plus affected regressions, `make check`, and `git diff --check`; record exact input identities and scope. |
-| Documentation-only change | Links, references, consistency, and `git diff --check`; no product/VM tests. |
-| Full release acceptance | One current-input `test-all` including all required suites and variants; no historical or selected results substituted. |
+| Local edit/diagnosis | Meaningful relevant unit/component checks; prerequisite safety tests before protected operations. |
+| Necessary OS/graphical helper | Focused refusal/cleanup checks, then qualify with its named real consumer; no product-internal proof for customer acceptance. |
+| Stable variants | Every affected registered case/shared dependency once; both form surfaces where applicable. |
+| Lettered task acceptance | All assigned cases/variants, affected regressions, `make check`, `git diff --check`; exact input identities/scope. |
+| Documentation only | Links, references, consistency, `git diff --check`; no product/VM tests. |
+| Customer/package acceptance | Current-input complete declared journeys and mechanical checks, separately labeled, plus existing required regressions; report unavailable comprehensive commands truthfully. |
 
-Task verification lists are acceptance scope. Run common checks, including
-`make check` and `git diff --check`, once after the final code change in a stable
-batch; repeat only for subsequent changes, failures or unresolved concerns.
-Label focused results with their scope. Safety prerequisites always run in
+Task verification lists define acceptance scope. Run common checks once after
+the stable batch's final code change; repeat only for new changes, failures or
+unresolved concerns. Label focused results. Safety prerequisites always run in
 isolation before protected operations.
 
 ### Decide what invalidates earlier verification
 
 | Change since the recorded result | Next verification |
 | --- | --- |
-| New chat; relevant inputs and environment unchanged | Check the retained result, scope and identities; continue at the next action. |
-| Documentation only | Check changed links, commands and consistency plus `git diff --check`. Preserve runtime evidence with its original input identity. |
-| Case, assertion, helper, product or configuration changed | Run affected cases and shared consumers. Broaden when the dependency closure is uncertain; do not guess that a change is harmless. |
-| Tool, baseline, OS, transport, ownership or capture behavior changed | Revalidate affected compatibility/safety and real success/failure behavior; repeat applicable qualification. |
-| Task acceptance or final release | Apply the full required scope above. Selected or historical evidence cannot replace a complete current-input release run. |
+| New chat, unchanged relevant inputs/environment | Check retained result, scope and identities; continue. |
+| Documentation only | Links, commands, consistency and whitespace; preserve runtime evidence's original identity. |
+| Case, assertion, helper, product or configuration | Affected cases/shared consumers; broaden if dependency closure is uncertain. |
+| Tool, baseline, OS, transport, ownership or capture | Affected compatibility/safety, real success/failure and applicable qualification. |
+| Task acceptance/final release | Full required scope above. |
 
-Use the handoff's command/scope, input identities, evidence and subsequent edits
-to decide applicability. A Git commit misses uncommitted inputs; missing
-provenance does not permit pass reuse. Never disable launcher safety tests to
-deduplicate checks.
+Use recorded command/scope, input identities, evidence and subsequent edits.
+A commit omits uncommitted inputs; missing provenance prevents pass reuse.
+Never disable launcher safety tests to deduplicate checks.
 
-**Artifact reuse is a separate decision.** Today's `VerifiedInputs` requires
-the package manifest's source digest to match the current checkout, including
-documentation. A documentation handoff can therefore require a fresh artifact
-for the next package-bearing VM attempt, even though it needs no product tests
-itself. Do not edit manifests or exclude paths ad hoc. Task 20's
-[recovery R1](Task-20.md#bounded-recovery--2026-09-11) owns the immediate stable
-source-execution prerequisite; Task 28A retains the complete validated build-input
-closure and artifact reuse. Neither planned capability is an available cache
-today. Preserve the current contract until an equivalent replacement is verified.
+**Artifact reuse is separate.** Today's `VerifiedInputs` requires the manifest's
+source digest to match the checkout, including documentation. A documentation
+handoff may require a fresh artifact for the next package-bearing VM attempt
+despite needing no product tests itself. Do not alter manifests or exclude
+paths ad hoc. Task 20 [R1](Task-20.md#bounded-recovery--2026-09-11) owns the
+immediate stable source-execution prerequisite; deferred Task 28A retains broad
+build-input closure/artifact reuse work. Neither is an available cache today;
+preserve the contract until an equivalent replacement is verified.
 
-Register each shared case/assertion once and link its requirements/tasks.
-Applicable current-input evidence may support related implementation acceptance;
-the final release still executes every required case. Group independent values
-in a declared continuous scenario only where initial state/interactions allow;
-follow [coverage selection](E2E-Coverage.md#bound-the-matrix-before-expanding-it).
+Register each shared case/assertion once and link requirements/tasks. Applicable
+current-input evidence can support related implementation acceptance; final
+release still executes every required case. Group independent values only where
+a declared continuous scenario's state/interactions allow, under
+[coverage selection](E2E-Coverage.md#bound-the-matrix-before-expanding-it).
 
-Execute each required case once in ordinary acceptance. Repetition needs a
-stability question, selection, count and stop condition. New graphical/cleanup
-transport requires three complete qualification smokes, reusable until relevant
-behavior/environment changes. No default repeated whole matrices or ten-run
-loops. For intermittent defects, justify the independent attempt count; a
-finite count cannot prove zero flakiness.
+Ordinary acceptance executes each required case once. Repetition needs a stability
+question, selection, count and stop condition. New graphical/cleanup transport
+needs three complete qualification smokes, reusable until relevant behavior or
+environment changes. No default repeated matrices or ten-run loops; justify
+independent attempts for intermittent defects without claiming zero flakiness.
 
 ## Handoff format and cost review
 
-Update one active handoff in the task document, normally 200–400 words. Use less
-when sufficient and more when material evidence or recovery requires it; do not
-pad to a target. Link long evidence without copying it or removing logs/artifacts.
-Include:
+### Measure completed customer outcomes
 
-- Task/slice, next observable result, and authorized machine/VM scope.
-- [Next-session settings](#reassess-model-and-effort-at-every-handoff): exact
-  model/effort, lower/raise/keep for each, and reason.
-- Proven facts/interfaces and the next read list: files/symbols/contract sections,
-  not copied code or a retold investigation.
-- For shared fixes, links to the updated owning contract and affected reuse-map
-  rows, including regression coverage, qualification limits and downstream users.
-- Unresolved hypothesis, attempts spent, rejected explanations and next observation.
-- Tested inputs, command/selector, evidence paths/digests and later changes;
-  identify host-only edits and what invalidates prior verification. Give the
-  exact next host check when known; label unresolved artifacts, never reuse a
-  remembered acceptance path without verification.
+The implementation agent must finish each scenario's
+[runtime registration](E2E-Coverage.md#register-each-runnable-scenario-within-its-implementation-task)
+within that task. Verify its ready inventory entry for automatic `make test-all`
+selection before claiming completion. Routine registration is the agent's work
+and requires no manual operator action or separate launcher task.
+
+Carry one cumulative progress record in the active handoff and mirror its compact
+values in Continuation.md and the existing structured summary fields. Do not
+read the operator log or create another report/telemetry system. Record:
+
+- Completed customer variant IDs, passing-run evidence and confirmed ready
+  inventory entries, cumulative completed count, remaining frozen customer scope
+  and newly completed variants this slice.
+- Actual executed visible steps toward the selected finish line; distinguish
+  partial execution, local adapter checks and unexecuted plans.
+- Scope additions, deduplication and transfers to engineering separately.
+  A reduced denominator is not a completed scenario. Do not expand the finish
+  line when a new internal question appears.
+- Demonstrated product failures and exact affected cases, infrastructure
+  blockers, and the return condition for each deferred case.
+- Consecutive implementation slices without a completed customer variant.
+  Carry it across chats, model changes and task switches; reset only when a
+  complete customer variant passes. The documentation scope reset establishes
+  the starting baseline and earns no runtime credit.
+
+After **two customer implementation slices without a completed variant**, require
+an intervention before another prerequisite slice: freeze additions and choose
+a different concrete route to a visible finish line or a ready independent
+customer case. The next slice must deliver that complete case or record a
+specific blocker. Do not automatically renew a failed breakthrough or continue
+the same dependency chain under a new name. Preserve blocked cases and proceed
+only with independent ready work; if none exists, request a repair/scope decision.
+
+A one-off necessary helper can reduce a frozen remaining step, but unit-test
+counts, documentation updates, new probes and rewritten plans do not establish
+healthy customer progress. Mechanical Tasks 18/20 instead measure completed
+qualification milestones and remaining defects under their existing budgets;
+installation internals do not become customer-scenario requirements.
+
+### Save a compact continuation
+
+Update one active task handoff, normally 200–400 words, shorter or longer as
+needed. Link long evidence; preserve logs/artifacts. Include:
+
+- Task/slice, next observable result and authorized machine/VM scope.
+- Actual settings and [next settings](#reassess-model-and-effort-at-every-handoff):
+  exact model/effort, lower/raise/keep for each and fresh reason.
+- Completed customer outcomes, frozen remaining steps and relevant graphical
+  interfaces; mechanical work may record internal facts and scoped read lists.
+- Updated shared contracts/map links, regressions, qualification limits and consumers.
+- Unresolved hypothesis, attempts, rejected explanations and next observation.
+- Tested input identities, commands/selectors, evidence paths/digests and later
+  edits (including host-only changes); invalidation conditions and exact next
+  host check when known. Label unresolved artifacts; verify acceptance paths.
 - Remaining acceptance, exact next action and owned process/VM/cleanup state.
-  Record outstanding operation identities. Historical “VM off” is not current
-  state; never duplicate another session's work or overwrite its active handoff.
+  Record outstanding identities; historical “VM off” is not current state.
+  Never duplicate another session's work or overwrite its active handoff.
 
-Reapply [task selection](#start-with-one-bounded-result), then update
-[Continuation.md](Continuation.md) for the selected next task: task/status,
-handoff link, next slice, and that task's settings/reason. Do not automatically
-carry forward the task just worked on. Link any earlier deferred entries' blocker
-records and return conditions; keep the completed slice's evidence in its task
-handoff. Aim near 100 words; no copied logs or second checklist.
-Check both records against current changes/evidence, preserving
-unrelated edits; no commit is required. An interrupted handoff is reconciled
-from files/evidence, never reconstructed by rerunning an experiment.
+Reapply [task selection](#start-with-one-bounded-result) and update
+[Continuation.md](Continuation.md) for the next eligible task, which may differ:
+task/status, handoff link, next slice, settings/reason, and earlier deferrals'
+blocker/return links. Aim near 100 words without a second checklist or copied
+logs. Keep completed-slice evidence in its task handoff. Check both records
+against current edits/evidence, preserving unrelated work; no commit is required.
+Reconcile interrupted handoffs from files/evidence, not rerun experiments.
 
-End each slice with its result, verification scope, any unfinished blocker,
-and the handoff link. Say **“You can end this session”** and give the same prompt:
+End interactive slices with result, verification scope, unfinished blocker,
+handoff link, **“You can end this session”**, and:
 
 > Continue the next unfinished task in docs/Test-Automation.md. This is the dev and host machine.
 
-On roadmap completion, mark the continuation complete and say no further
-implementation session is needed.
+Unattended slices instead use the [supplied structured report](Unattended-Prompt.md)
+and end the turn. On completion, mark the continuation complete and state that
+no further implementation session is needed.
 
-When needed for ongoing work, record experiments/results, preparation/test/cleanup
-time and already-exposed usage briefly in the existing active handoff; do not
-create a standalone report or per-attempt ledger. No telemetry service or log archaeology. Forecast
-from measured cases, helper gaps and real waits after the first stable batch.
-Optimize the dominant measured cost before adding caches/frameworks. Tokens,
-model price and VM wall time differ; faster boots do not prove token savings.
-Official [usage guidance](https://learn.chatgpt.com/docs/pricing) identifies
-context, reasoning, tools and caching as factors, not savings for this checkout.
+When ongoing work needs it, record experiments/results, preparation/test/cleanup
+time and already-exposed usage in the active handoff, not a new report or
+per-attempt ledger. No telemetry service or log archaeology. Forecast after the
+first stable batch from measured cases, helper gaps and real waits; optimize the
+dominant cost before adding caches/frameworks. Tokens, model price and VM time
+differ: faster boots do not prove token savings.
+[Usage guidance](https://learn.chatgpt.com/docs/pricing) lists context, reasoning,
+tools and caching as factors, not measured savings for this checkout.

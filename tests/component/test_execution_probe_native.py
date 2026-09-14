@@ -13,7 +13,7 @@ import tempfile
 
 import pytest
 
-from oh_no_parent_control import probe_channel
+from oh_no_parent_control import probe_channel, probe_generation
 from tests.support.paths import ROOT
 from tests.support.terminal import capture
 
@@ -52,6 +52,8 @@ def native_probe():
                 "-o", str(root / kind),
             ], os.environ, None, timeout=30)
             assert result.returncode == 0, output
+            # Match installed payload permissions, independent of host umask.
+            (root / kind).chmod(0o755)
         yield root, runtime
 
 
@@ -68,6 +70,36 @@ def broker_channel(directory):
 def binding(hello):
     # Synthetic manager coordinates: these tests qualify only the local channel.
     return probe_channel.AdmissionBinding(hello, ":1.50", "probe.service", "/job/1")
+
+
+def test_generation_owner_retains_native_witness_through_channel_settlement(native_probe, monkeypatch):
+    root, runtime = native_probe
+    monkeypatch.setattr(probe_generation, "RUNTIME_ROOT", str(runtime))
+    monkeypatch.setattr(probe_generation, "WITNESS_SOURCE", str(root / "witness"))
+    owner = probe_generation.ProbeGeneration()
+    try:
+        identity = owner.prepare()
+        with broker_channel(identity.directory) as adapter:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                process = executor.submit(capture, [str(root / "gate"), identity.token],
+                                          {"INVOCATION_ID": INVOCATION}, None, timeout=5)
+                try:
+                    hello = adapter.select()
+                    assert owner.verify() == identity
+                    adapter.admit(binding(hello))
+                    assert adapter.collect() == "executed"
+                    assert process.result(timeout=5)[0].returncode == 23
+                    assert owner.verify() == identity
+                    assert not owner.close(settled=False)
+                finally:
+                    adapter.close()
+                    process.result(timeout=6)
+        assert Path(identity.witness).exists()
+        assert not Path(identity.directory, "channel").exists()
+        assert owner.verify() == identity
+    finally:
+        assert owner.close(settled=True)
+    assert owner.cleanup_complete and not Path(identity.directory).exists()
 
 
 @pytest.mark.parametrize("denied", [False, True], ids=["exec", "denied-exec"])

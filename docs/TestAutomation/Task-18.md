@@ -1,5 +1,13 @@
 # Task 18 — Package activation and saved-data migration
 
+**Operator scope — 2026-09-14:** retain the mechanical depth of installation,
+upgrade, migration, removal and recovery qualification below. Existing tests
+are unchanged. This package work follows the prioritized customer queue and
+does not gate unrelated feature scenarios. Internal assertions are labeled
+package/system evidence; the customer portions of E2E-026/027 use only actions
+and observations available to real users. Those continuous customer package
+journeys are owned here, with Task 26C linking their canonical evidence.
+
 Execute 18A, 18B, and 18C separately; each package fixture is built reproducibly
 and installed only into the guarded existing test VM. Reset the retained
 product-free baseline only outside complete scenario attempts. Never create
@@ -9,7 +17,8 @@ every package transition; host mocks are supporting tests only.
 
 ## Implementation slices
 
-**Scheduling — 2026-09-11:** these installed package tests precede Task 20.
+**Scheduling — 2026-09-14:** these installed package tests follow the customer
+queue and precede Task 20 under the current master checklist.
 Use the existing guarded runner's package/reboot setup. Reuse applicable
 [package and terminal helpers](Reuse-Map.md#installation-helper-and-open-limits),
 qualifying a missing capability in its first affected consumer and publishing
@@ -30,7 +39,8 @@ Verification below is task acceptance; edits use the smallest affected selection
 ## Task 18A
 
 - Title: Test all package activation classes.
-- Depends on: Task 17B.
+- Depends on: verified installed-package setup and real versioned package
+  fixtures. Deferred Task 17B and policy-acknowledgement design are not prerequisites.
 - Complexity: high. The reviewed classification map and artifact builder make
   this a bounded package-lifecycle matrix.
 - Recommended Codex model: `gpt-5.6-terra`
@@ -48,13 +58,21 @@ Verification below is task acceptance; edits use the smallest affected selection
      extension publication and saved-policy enforcement.
   5. Record old/new package digests, boot IDs, broker PIDs, session IDs, and
      markers; update activation, startup, and restart mappings.
+  6. Own the continuous customer E2E-026 path: configure through Parent, perform
+     a real supported package update, follow the requested restart/logout/reboot
+     through customer interfaces, reopen the app and observe retained choices
+     and actual child use. Keep the internal assertions above separately labeled;
+     a customer pass neither requires nor claims their proof.
 - Verification:
   - Run every activation fixture from a fresh testbed.
+  - Execute the complete E2E-026 customer update/resumed-use path through its
+    guarded graphical selector; label visible and mechanical results separately.
   - Register and run this task's installed area with F1 and its prerequisite
     closure, then `make check` and `git diff --check` once for acceptance.
     Focused iterations select the affected case; no direct host guest-pytest.
 - Completion criteria: all four activation classes follow the real package
-  lifecycle with observable process, session, and boot results.
+  lifecycle with observable process, session, and boot results, and the complete
+  customer update path has passing visible evidence.
 
 ## Task 18B
 
@@ -114,19 +132,27 @@ Verification below is task acceptance; edits use the smallest affected selection
   4. Exercise documented refusal/retry cases against real guest state, including
      an active kiosk session and changed ownership/integration files. Keep
      adversarial fixtures separately identified and retain failure evidence.
-  5. Publish installed assertions for Task 26C's graphical lifecycle journey,
+  5. Retain installed assertions separately from the customer lifecycle journey,
      register these required system cases under the package area, and retain
      package/boot/process/ownership evidence with no PII export.
+  6. Own E2E-027's continuous customer path through real terminal/UI operations:
+     install/reboot/configure/use, remove/reboot, ordinary login, reinstall and
+     observe retained choices, then purge and observe the documented fresh
+     behavior on subsequent use where applicable. No helper or internal-state
+     check substitutes for a claimed customer action. Reuse the same attempt
+     when it can provide separately labeled mechanical and visible evidence.
 - Verification:
   - Run cleanup-safety regressions in isolation before integrated controls.
   - Run the complete lifecycle and separate refusal/retry cases with the
     existing guarded system runner and a digest-identified artifact.
+  - Execute the complete E2E-027 customer lifecycle through its guarded
+    graphical selector; retain real post-removal login and reopened settings.
   - Verify host/baseline preservation and the documented final VM state.
   - Run `make check`, `git diff --check`, and the focused installed selectors
     provided by F1; record them for the later `test-system AREA=package` alias.
 - Completion criteria: real installed lifecycle and retry evidence complements
-  existing mocked regressions; Task 26C still owns the continuous graphical
-  customer lifecycle, including actual post-removal login.
+  existing mocked regressions; the separately labeled continuous customer
+  lifecycle includes actual post-removal login and visible saved-choice behavior.
 
 ### Supporting validation and acceptance boundary
 

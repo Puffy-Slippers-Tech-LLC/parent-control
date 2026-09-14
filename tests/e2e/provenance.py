@@ -86,7 +86,8 @@ def source_paths(root):
             # developer-owned checkout. Scope trust to this invocation/path;
             # never change global Git configuration or allow every directory.
             ['git', '-c', 'safe.directory=' + str(root),
-             'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+             'ls-files', '--cached', '--others', '--exclude-standard', '-z',
+             '--', '.', f':(top,exclude,literal){build_test_artifacts.OPERATOR_LOG_PATH}'],
             cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
         # The artifact builder sorts Path components, not whole path strings.
         # E.g. .codex/rules precedes .codex-staged with Path ordering; reversing
@@ -98,6 +99,8 @@ def source_paths(root):
                           for p in paths), 'provenance:source-path')
     present = []
     for relative in paths:
+        if relative == build_test_artifacts.OPERATOR_LOG_PATH:
+            continue
         try:
             # Match the artifact builder's current working-tree inputs. lstat
             # keeps dangling links and special files visible to safety checks.
@@ -198,7 +201,7 @@ def preflight_source(assets, *, root=ROOT):
     try:
         captured = snapshot(root, source=True)
         manifest = build_test_artifacts.verify(assets)
-        require(manifest['source']['digest_sha256'] == captured['sha256'],
+        require(package_source_matches(root, manifest, captured),
                 'provenance:package-source-mismatch')
         require(snapshot(root, source=True) == captured, 'provenance:source-changed')
     except Exception as error:
@@ -207,6 +210,15 @@ def preflight_source(assets, *, root=ROOT):
         raise EvidenceError(code) from None
     print('e2e:source-preflight-verified', file=sys.stderr, flush=True)
     return {'source_sha256': captured['sha256'], 'scope': 'before-lease-diagnostic'}
+
+
+def package_source_matches(root, manifest, captured):
+    if manifest['source'].get('scope') == 'package':
+        inputs = build_test_artifacts.package_inputs
+        current = inputs.digest(root, inputs.paths(root))
+    else:
+        current = captured['sha256']
+    return manifest['source']['digest_sha256'] == current
 
 
 class VerifiedInputs:
@@ -232,7 +244,7 @@ class VerifiedInputs:
                 require(info.st_uid == os.geteuid() and stat.S_IMODE(info.st_mode) == 0o700,
                         'provenance:assets-not-private')
                 manifest = build_test_artifacts.verify(self.assets)
-                require(manifest['source']['digest_sha256'] == self._source['sha256'],
+                require(package_source_matches(self.root, manifest, self._source),
                         'provenance:package-source-mismatch')
                 fixtures = self.assets / manifest['artifacts']['fixtures']['path']
                 build_test_applications.verify(fixtures)

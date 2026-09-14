@@ -145,8 +145,7 @@ make publish
 ```
 
 Both test commands include the reusable publishing test module: source checks,
-clean Ubuntu sbuild with declared tests, and Lintian. Run `make test-publish`
-to execute only that module. `make publish` validates the history, bumps the
+clean Ubuntu sbuild with declared tests, and Lintian. `make publish` validates the history, bumps the
 version, signs and uploads source, and waits for the package to become
 downloadable. It does not rerun the local publishing tests.
 See [Publishing](docs/Publishing.md) for one-time credentials, release review,

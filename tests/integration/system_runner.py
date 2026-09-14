@@ -66,6 +66,7 @@ AREA_SELECTED_HELPERS = {
     'enforcement': (('tests/integration/system_caller.py', 'system_caller.py'),
                     ('tests/integration/system_assertions.py', 'system_assertions.py'),
                     ('tests/integration/system_session_expiry.py', 'system_session_expiry.py'),
+                    ('tests/integration/system_probe_sandbox.py', 'system_probe_sandbox.py'),
                     ('tests/integration/system_enforcement.py', 'system_enforcement.py')),
     'session': (('tests/integration/system_caller.py', 'system_caller.py'),
                 ('tests/integration/system_assertions.py', 'system_assertions.py'),
@@ -1333,7 +1334,8 @@ def main(argv=None):
             assets = artifact_source(args.artifacts)
             previous_assets = artifact_source(args.previous_artifacts) if args.previous_artifacts else None
         os.umask(0o077)
-        directory = Path(tempfile.mkdtemp(prefix='onpc-system-'))
+        from tools.test_retention import allocate
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-system-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
         commands = Commands()

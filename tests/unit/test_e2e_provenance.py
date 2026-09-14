@@ -57,6 +57,117 @@ def test_git_fixture_provenance_matches_artifact_builder(source, monkeypatch):
     assert captured['sha256'] == builder._source_digest(paths)
 
 
+def test_package_preflight_ignores_development_edits_but_rejects_product_edits(source, assets):
+    (source / 'Makefile').write_text('package-source-files:\n\t@printf "%s\\n" Makefile local-change.py\n')
+    inputs = provenance.build_test_artifacts.package_inputs
+    manifest_path = assets / 'artifact-manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    manifest['source'] = {'scope': 'package', 'digest_sha256': inputs.digest(source, inputs.paths(source))}
+    manifest_path.write_text(json.dumps(manifest))
+    for name in ('docs/new.md', 'tests/new.py', 'tools/internal.py'):
+        path = source / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text('unrelated development change\n\n')
+    provenance.preflight_source(assets, root=source)
+    (source / 'local-change.py').write_text('changed product')
+    with pytest.raises(provenance.EvidenceError, match='package-source-mismatch'):
+        provenance.preflight_source(assets, root=source)
+
+
+
+
+@pytest.mark.parametrize('tracked', [False, True])
+@pytest.mark.parametrize('mutation', ['edit', 'remove', 'replace'])
+def test_operator_output_is_never_read_copied_or_bound_to_inputs(
+        source, lease, monkeypatch, tmp_path, tracked, mutation):
+    builder = provenance.build_test_artifacts
+    monkeypatch.setattr(builder, 'REPOSITORY', source)
+    excluded = source / builder.OPERATOR_LOG_PATH
+    excluded.write_text('synthetic operator output')
+    if tracked:
+        git(source, 'add', builder.OPERATOR_LOG_PATH)
+
+    # Refuse metadata inspection as well as both Python file-opening routes.
+    # This covers hashing, copying and descriptor-based controller capture.
+    original_lstat, original_open, original_os_open = Path.lstat, Path.open, os.open
+
+    def guarded_lstat(path, *args, **kwargs):
+        assert path != excluded
+        return original_lstat(path, *args, **kwargs)
+
+    def guarded_open(path, *args, **kwargs):
+        assert path != excluded
+        return original_open(path, *args, **kwargs)
+
+    def guarded_os_open(path, *args, **kwargs):
+        assert os.fspath(path) not in (str(excluded), excluded.name)
+        return original_os_open(path, *args, **kwargs)
+
+    with monkeypatch.context() as guard:
+        guard.setattr(Path, 'lstat', guarded_lstat)
+        guard.setattr(Path, 'open', guarded_open)
+        guard.setattr(os, 'open', guarded_os_open)
+        paths = builder._source_paths()
+        captured = provenance.VerifiedInputs(root=source, lease=lease)
+        assert builder.OPERATOR_LOG_PATH not in captured.source_files
+        assert captured.inputs['source_sha256'] == builder._source_digest(paths)
+        destination = tmp_path / 'source-copy'
+        builder._copy_source(paths, destination)
+        assert not (destination / builder.OPERATOR_LOG_PATH).exists()
+        assert sorted(p.relative_to(destination) for p in destination.rglob('*')
+                      if p.is_file()) == paths
+
+    if mutation == 'edit':
+        excluded.write_text('changed synthetic output')
+    elif mutation == 'remove':
+        excluded.unlink()
+    else:
+        excluded.unlink()
+        excluded.write_text('replacement synthetic output')
+    with monkeypatch.context() as guard:
+        guard.setattr(Path, 'lstat', guarded_lstat)
+        guard.setattr(Path, 'open', guarded_open)
+        guard.setattr(os, 'open', guarded_os_open)
+        captured.recheck()
+        assert builder._source_paths() == paths
+        assert builder._source_digest(paths) == captured.inputs['source_sha256']
+
+
+@pytest.mark.parametrize('name', [
+    'docs/Test-Automation.md', 'docs/Test-Automation-Slice-Summary.md.extra',
+    'nested/docs/Test-Automation-Slice-Summary.md',
+])
+@pytest.mark.parametrize('mutation', ['add', 'edit', 'remove'])
+def test_operator_output_exception_does_not_hide_other_source_changes(
+        source, lease, monkeypatch, name, mutation):
+    builder = provenance.build_test_artifacts
+    monkeypatch.setattr(builder, 'REPOSITORY', source)
+    target = source / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if mutation != 'add':
+        target.write_text('source input')
+        git(source, 'add', name)
+    captured = provenance.VerifiedInputs(root=source, lease=lease)
+    before = builder._source_digest(builder._source_paths())
+    if mutation == 'remove':
+        target.unlink()
+    else:
+        target.write_text('changed source input')
+    current = provenance.snapshot(source, source=True)
+    assert current['sha256'] == builder._source_digest(builder._source_paths())
+    assert current['sha256'] != before
+    with pytest.raises(provenance.EvidenceError, match='source-changed'):
+        captured.recheck()
+
+
+def test_source_filename_bytes_match_between_collectors(source, monkeypatch):
+    builder = provenance.build_test_artifacts
+    monkeypatch.setattr(builder, 'REPOSITORY', source)
+    (source / 'quoted"name\ninput').write_text('source input')
+    captured = provenance.snapshot(source, source=True)
+    paths = builder._source_paths()
+    assert list(captured['files']) == [p.as_posix() for p in paths]
+    assert captured['sha256'] == builder._source_digest(paths)
 
 
 def test_captures_current_source_compatible_with_builder_and_returns_copies(source, lease, monkeypatch):

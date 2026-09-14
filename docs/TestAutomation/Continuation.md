@@ -1,41 +1,36 @@
 # Current implementation continuation
 
-Updated: 2026-09-11. The [master checklist](Test-Automation.md#unfinished-tasks)
-owns task order and completion.
+Updated: 2026-09-14. The [master checklist](Test-Automation.md#unfinished-tasks)
+prioritizes customer E2E generally, followed by mechanical package qualification.
+This document supersedes the former Task 15A probe continuation.
 
-- Next: [Task 15A](Task-15.md#task-15a-continuation--2026-09-08).
-  Integrate the locally tested broker channel under the
-  [pre-exec admission contract](../SystemDesign/Applications.md#pre-exec-admission-for-a-causal-witness):
-  authenticate captured manager, returned job, exact unit/command, MainPID and
-  stable invocation before supplying the channel binding; retain generation
-  directory/witness ownership and compare terminal evidence with the admitted
-  invocation. Reuse [ProbeChannel and its safety/native checks](Evidence/15A-Probe-Broker-Channel-20260911.md)
-  plus `ExecutionProbe`'s retained lifecycle. Test replacement and terminal
-  failure without replay or lost unit/client ownership, then qualify the guarded
-  guest. Keep the boot canary and `identity-unproven` refusal; local channel
-  outcomes are not installed or generation-receipt acceptance.
-  Task 15A remains the earliest ready unchecked entry; none was bypassed.
-- The operator prioritized Tasks 15–18, 21–27 and 28A before Task 20, especially
-  installed-app behavior and families' everyday journeys. Select in
-  master-checklist order with actual dependencies; 28B/C remain after Task 20.
-  Verified installation is prerequisite setup. Qualify any missing shared
-  helper with the first affected consumer and publish evidence for reuse;
-  this does not require full Task 20 acceptance or waive its coverage.
-  This supersedes the Task 20-first scope.
-- Preserve [Task 20 recovery R1](Task-20.md#task-20-continuation--2026-09-08)
-  for resumption in checklist order. Its ledger remains 0 charged hours and
-  0 new attempts, next checkpoint 4 hours, decision hold none. Its recovery
-  checkpoints apply when Task 20 resumes or an earlier consumer brings forward
-  R1 recovery; charge only that recovery portion, not unrelated consumer work.
-- All-task VM clearance persists. Stable live inputs remain required; historical
-  one-slice overrides stay consumed. Final native checks passed 66 tests after
-  isolated safety prerequisites; `make check` passed 7589 unit and 134 component
-  tests plus source validation. Native children joined, sockets/pipes/directory
-  descriptors closed and temporary fixtures reconciled/removed; all commands
-  exited. No VM/systemd
-  attempt or Task 20 recovery work ran. No cleanup or denial remains outstanding.
-- Settings: **`gpt-6-astra` / `high`**.
-  Reason: the channel's single-use admission, native exec/refusal and socket
-  cleanup are proven locally; manager/invocation authentication, replacement
-  races and retained lifecycle ownership still require Astra before settled
-  implementation is appropriate.
+- Next: [Task 21A](Task-21.md#current-handoff--2026-09-14), first complete
+  `E2E-003/existing-and-new`: parent logs in, opens Parent, selects an existing
+  child and observes discovery of a new eligible fixture account without
+  restarting Parent. Observe the UI; no catalog/broker product probes.
+- Reuse verified package/account setup and accepted graphical input. Reconcile
+  this pending declaration and the minimum shared evidence validator so customer
+  assertions require no backend product witnesses. Keep VM, provenance, secret
+  input and cleanup safeguards. Do not qualify all internals or other task matrices.
+- The implementation agent must wire this scenario's executable, mark its
+  inventory entry `ready` when runnable, verify `tools/run-tests e2e --list`
+  discovers it, and obtain a complete passing run before claiming completion.
+  `make test-all` includes ready entries automatically; registration requires
+  no manual operator step and must not wait for a later task.
+- Customer progress baseline: 0 completed; one harness smoke ready; 156 legacy
+  variants pending before explicit scope reconciliation. Current selected finish
+  line: one complete Parent discovery journey. Consecutive implementation slices without
+  a completed customer variant since this scope reset: 0. No implementation or
+  runtime acceptance occurred in this documentation session.
+- Preserve demonstrated failures and separate product blockers. The
+  [policy-acknowledgement work](Policy-Acknowledgement.md) is deferred, not a
+  scenario dependency or automatic fallback.
+- Task 20's [R1 ledger](Task-20.md#task-20-continuation--2026-09-08) remains
+  0 charged hours / 0 new attempts, next checkpoint 4 hours, no decision hold.
+  Charge only actual R1 recovery; mechanical installation checks remain required.
+- No implementation, runtime tests or VM operations ran in this documentation session.
+  Reconcile actual runner/lease ownership before execution; historical cleanup
+  is not current VM-state evidence. All-task guarded VM authorization persists.
+- Settings: **`gpt-5.6-sol` / `high`**.
+  Reason: implement one bounded visible Parent journey using accepted tools;
+  internal policy design is outside this slice.

@@ -35,6 +35,16 @@ existing full verification at each VM attempt boundary. Both retain ownership
 locks, backing read leases, snapshot/chain checks, guest inspection and cleanup;
 reports explicitly record the verification policy. Direct system/E2E runs still
 verify backing bytes unless `--skip-backing-verification` is explicitly selected.
+Both aggregate targets run independently of their terminal. Closing the terminal
+detaches the display; tests continue. Ctrl+C still requests cancellation and waits
+for owned cleanup. Rerun the same target in
+a new terminal to reconnect to the existing progress and usual final summary,
+including its exit status. The two targets use different verification policies,
+so a different target refuses while an existing run awaits completion or delivery.
+A result completed while detached is replayed on the next matching invocation;
+after delivery, the next invocation starts a fresh run. Session output and ownership
+records live under `artifacts/test-sessions/`. Runs started before reconnect support
+cannot be adopted; their existing checkout lock still prevents duplicate launches.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
 using the new fast mode. Neither aggregate accepts suite selectors. The terminal shows
 colored category progress with branches for the four host workers, a join before
@@ -43,14 +53,20 @@ comparison appear individually under the host branch that runs them. Branch assi
 actual launches; work waiting for capacity or headroom stays unassigned. All
 branches refresh together, including elapsed times while children are quiet.
 Idle branch headings are gray; running branch headings are bold.
+Queued categories with a known reason display `[Waiting]` and that reason,
+including observed and required RAM for memory admission. These rows remain
+visible ahead of completed work when the terminal is short.
 Completed categories remain under the branch that ran them, in launch order.
 Long rows are clipped to terminal width to keep cursor redraws aligned; the
-saved final summary retains their full text. Full output is continuously
+live frame also fits the terminal height, using the output terminal's actual
+dimensions instead of potentially stale `LINES`/`COLUMNS` environment values.
+The saved final summary retains the full text of all rows. Full output is continuously
 appended and flushed to `docs/TestAutomation/Evidence/test-all-runs/<run>/report.md`.
 The accompanying `progress.json` records the latest category counts, states,
 branch assignments and launch order. The final report includes the same branch
 summary. Percentages describe completed checks, not estimated time remaining.
-Each run gets a new private directory; previous results are never overwritten.
+Each run gets a new private directory. Aggregate retention keeps the last three runs;
+registered output older than that window is removed when the next run starts.
 Output is flushed for live readers on every fragment. Routine progress snapshots
 are coalesced to one per second and disk synchronization is batched every five
 seconds while the coordinator runs. Failure events, category closure and final
@@ -85,17 +101,21 @@ A fourth UI worker alongside three established UI jobs needs 8 GiB.
 The pool is an engineering allowance, not a hard memory limit.
 Launching publishing itself still reserves its full 6 GiB plus desktop and companion
 allowances. Resident active work is already reflected in available memory.
-Memory wait messages show the required available RAM; `resources.jsonl` retains
-the observed availability. VM launches retain a 20% RAM reserve (minimum 2 GiB).
+Memory wait messages show observed and required available RAM. VM launches use
+the same 2 GiB desktop reserve in addition to full configured guest RAM and
+QEMU/controller overhead; the threshold does not grow with total host RAM.
 Overlapping jobs retain a 25% CPU headroom target. CPU admission adds the
 candidate's full estimate and one core of possible growth per established job
 (capped at its estimate) to measured host usage, which already includes running
 tests. Active jobs retain their full CPU reservation until a fresh sample taken
 at least 20 seconds after launch. CPU wait messages distinguish pressure recovery
 from insufficient CPU budget and show the required spare cores and usage limit.
-Already-running tests finish normally when load increases. Publishing, build A,
-build B and comparison form a dependent chain: a failed step blocks its descendants
-and all VM execution. Independent host assertions still report their own results.
+Already-running tests finish normally when load increases. Publishing, build A
+and build B are independent jobs. Comparison waits for both successful builders
+and their validated, distinct output paths, kept by build identity regardless of
+completion order. A failed build blocks comparison; publishing failure does not
+block either build. Any package qualification failure blocks VM execution.
+Independent host assertions still report their own results.
 The aggregate runs the complete cleanup-safety suite in isolation before host
 work. Its UI, component and fixture-runtime workers reuse that passing result
 through the inherited checkout activity lock after checking the source digest.
@@ -108,10 +128,12 @@ Screen fidelity's private compositor, bus, PipeWire, settings and evidence are
 separate from publishing's private source/build directories. This lets the free
 worker take screen fidelity when units and components finish before publishing;
 adding it alongside established publishing requires 7 GiB available. Units and
-components have live overlap evidence; screen/publishing overlap still needs
-live validation. Other UI/build pairings remain disabled. Artifact operations run exclusively;
-builds cannot overlap each other. Every VM attempt remains exclusive after all
-host work exits.
+components have live overlap evidence; generated reports own current qualification.
+Other UI/publishing pairings remain disabled. Artifact operations use private
+source copies, package outputs and Flatpak fixture roots and may overlap each
+other, publishing and the known parallel host categories when resource budgets
+permit. Unknown/exclusive UI work remains incompatible. Every VM attempt remains
+exclusive after all host work exits.
 Node file concurrency and package build parallelism are capped at two.
 High pressure defers serial launches too. VM admission reads the pinned
 configuration through `tools/test-vm xml` and reserves guest RAM plus overhead.
@@ -181,7 +203,7 @@ variants and deliberate failure/recovery qualification routes are excluded.
 Register new system areas through the existing system selection contract;
 the aggregate always requests its full selection.
 
-`make test-publish` runs that same publishing module independently through
+Both aggregate targets run the same publishing module through
 `tools/run-tests publish` and [`tools/publishing_checks.py`](../tools/publishing_checks.py).
 It includes current uncommitted source edits and requires no release credentials.
 It never publishes. `make publish` delivers a release without rerunning local
@@ -215,6 +237,58 @@ Direct terminal use has no Codex approval layer. The equivalent already-approved
 `tools/run-tests all` route remains available in an existing Codex session.
 This is development/test tooling only; package update activation is **none**.
 
+### Aggregate output retention
+
+`make test-all`, `make test-all-verify`, `tools/run-tests host` and
+`tools/run-tests host-builds` share **last-three-runs** retention. The runner
+records each newly allocated report, publishing snapshot (including Lintian scratch), sbuild output,
+package artifact directory, sbuild scratch parent, GJS coverage directory, persistent
+UI log/render directory and nested Shell review copy in `artifacts/ui/child-shell/`.
+Each new aggregate keeps the two preceding completed runs alongside
+the current run, removing older registered directories, including logs and
+failed-test evidence. Failed or cooperatively interrupted runs count toward the
+same three-run limit. Copy any evidence needed for longer work before it expires.
+
+The host journal lives in `artifacts/test-retention/`. Privileged system/E2E
+outputs have a separate root-owned journal under
+`/var/tmp/onpc-test-retention-root-<uid>-<checkout-id>/`; all VM categories in
+one aggregate share its run token. Privileged outputs older than its three-run
+window rotate at the next aggregate's first privileged category, after cleanup prerequisites
+pass and the shared VM lease/journal show no unfinished recovery. A host-only
+run or a failure before VM execution does not discard the last VM diagnostics.
+Refresh the installed dispatcher with `./setup.sh --test-tools-only` after this
+change. Test tooling has package update activation **none**.
+
+Storage leases exclude active owners; deletion uses recorded directory identities
+and pinned descriptors, refusing replacements, symlink ancestors and mounts.
+No `/tmp/onpc-*` or `/var/tmp/onpc-*` prefix sweep is used. An unfinished retention
+journal after abrupt termination stops another run before allocating more output;
+preserve it and reconcile the owner/recovery condition. The aggregate can recover
+automatically when its checkout and storage locks are free, its sole allocation
+is the report, and saved progress proves it stopped in the initial safety checks
+before any protected suite started. It archives the unfinished journal as
+`artifacts/test-retention/interrupted-<run>.json`, preserving all referenced
+evidence outside normal rotation, and starts a fresh run. A `recovery-required`
+marker or ambiguous/later progress still refuses automatic recovery. Ordinary test failures
+and cooperative Ctrl+C finish their storage ownership and permit the next run.
+Fixture setup/teardown or pytest infrastructure failures pin host evidence with
+`recovery-required` instead of assuming every fixture exited successfully.
+Deletion failures also stop the next run instead of silently accumulating output.
+Sbuild scratch uses its supported `unshare_tmpdir_template` inside a registered
+`/var/tmp/onpc-sbuild-scratch-*` parent with mode 0711 (traversable by the
+subordinate build user, not publicly listable). Sbuild still owns chroot cleanup;
+inaccessible leftovers from failed namespace cleanup stop rotation and further
+builds instead of creating another untracked `/tmp/tmp.sbuild.*` tree.
+
+Historical directories created before registration, standalone command outputs,
+curated evidence, logs outside registered test directories and operator exports
+are not automatically adopted or deleted; their names alone are not proof of
+ownership. Pytest temporary roots retain pytest's bounded rotation;
+ordinary pytest caches and the Hypothesis example database are disabled. Build
+scratch directories use scoped cleanup; VM guest changes use baseline restoration.
+This bounds repeated aggregate-generated output for unchanged test scope; it is
+not a byte quota on the retained runs or on unrelated applications/system logs.
+
 Generated `test-all-runs/` reports are Git-ignored so streaming them cannot
 invalidate package or E2E source provenance. Curated evidence elsewhere in this
 directory remains tracked and continues to participate in source validation.
@@ -222,6 +296,14 @@ This command covers established regressions, not completion of the unfinished
 release-acceptance roadmap.
 
 ## Test layers
+
+The [2026-09-14 customer scope](../docs/TestAutomation/E2E-Coverage.md) changes
+unfinished E2E plans, not completed lower-level tests. Keep all established
+regressions and applicable safety execution intact. Customer E2E uses real
+actions and visible results; mechanical installation/upgrade/removal retains
+its internal checks. Pending legacy E2E declarations require scoped adaptation
+with their first consumer, not deletion or weakening of existing unit/component
+or system coverage.
 
 | Location | Purpose | Real dependencies and isolation |
 | --- | --- | --- |
@@ -449,31 +531,36 @@ Shell logs and reviewable screenshots. Synthetic E2E preflight assets have an
 explicit temporary-directory fixture lifetime, including setup failure.
 `test_ui_artifacts_cleanup_safety.py` covers successful/failed teardown,
 concurrent attempts, directory replacement and symlink/hardlink refusal.
-The failed
-[parallel host run](../docs/TestAutomation/Evidence/test-all-runs/20260914T012317Z-8f6f46ae/report.md)
+An earlier parallel host run
 exhausted the user quota on RAM-backed `/tmp`: retained layout cases used about
 102 MiB each, and shared filesystem exhaustion broke capture writes and package
 fixtures in other workers. Private filenames do not isolate storage capacity.
 Pytest continues to own its numbered-directory locks and capture files; no
-worker deletes another worker's evidence. Existing evidence is preserved.
+worker deletes another worker's evidence. Completed aggregate evidence follows
+the [three-run retention policy](#aggregate-output-retention).
 Maintainer-script fixtures use `tests.support.shell.relocate_system_paths` to
 rewrite only original source matches in one pass. Sequential replacements
 corrupt inserted roots containing `/var/` or `/home/`; `test_support_shell.py`
 covers those roots and the real package configuration/removal suites exercise
 the resulting scripts under `/var/tmp`.
 The layout probe logs each render/save boundary and reports its evidence path
-before waiting, including on timeout. Its 60-second deadline remains in force;
-the original empty probe log cannot establish where that timeout occurred.
+before waiting, including on timeout. The batch has a bounded 180-second budget
+for 45 layouts and three additional scaled PNGs under concurrent host execution.
+A later host failure
+reached the 42nd render/save boundary before the former 60-second deadline;
+its retained images show ongoing batch output rather than an empty startup log.
+All geometry, picking, scale and complete-record assertions remain required.
 Launcher storage and immediate fixture-failure cancellation have regressions in
 `test_test_launchers.py` and `test_regression.py`. The coordinator latches
 cancellation after persisting the first setup/teardown failure, before category
 exit, and continues draining owned cleanup output.
-The [corrected host qualification](../docs/TestAutomation/Evidence/test-all-runs/20260914T015529Z-45374919/report.md)
+A corrected host qualification
 completed every host category, with five concurrent categories recorded in its
 resource samples. Isolated and concurrent layout cases passed with the original
 deadline. The precise cause of the original layout timeout remains unknown;
 its empty probe log and kernel journal did not identify a rendering stall.
-Keep that limitation and the original failed evidence when assessing stability.
+Keep that limitation when assessing stability; the historical runner artifacts
+were removed by the requested one-time cleanup.
 
 Node and GJS checks are available as `make check-child-node` and
 `make check-child-gjs`. The latter prints its private

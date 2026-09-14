@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import time
 from pathlib import Path
 
 import pytest
-from tests.support.preview import preview_applications
+from tests.support.preview import boot_preview_session, preview_applications
 
 UI_TIMEOUT_SECONDS = 20
 HOST_DESKTOP_ENVIRONMENT_OVERRIDES = (
@@ -29,6 +30,7 @@ TEST_ENVIRONMENT_OVERRIDES = (
     "GTK_THEME",
     "GSK_RENDERER",
     "XDG_SESSION_TYPE",
+    "MUTTER_DEBUG_DISABLE_ANIMATIONS",
 )
 ACCESSIBILITY_EVENTS = (
     "object:children-changed",
@@ -56,6 +58,12 @@ os.environ.update({
     "NO_AT_BRIDGE": "1",
     "GTK_THEME": "Adwaita:dark",
     "GSK_RENDERER": "cairo",
+    # Bare Mutter's default plugin scales a newly mapped window from 0.5 to
+    # 1.0 independently of GTK's animation setting. AT-SPI already exposes
+    # the final allocation, so a pointer click can be transformed off-target.
+    # Use the compositor's own test switch before booting the private session;
+    # application animations (including spinner coverage) remain separate.
+    "MUTTER_DEBUG_DISABLE_ANIMATIONS": "1",
 })
 
 from dogtail.hermetic.session import HermeticSession, dump_tree
@@ -74,7 +82,7 @@ def hermetic_ui_session(ui_monitor_size):
     """Boot one deterministic private Wayland session for this pytest process."""
 
     session = HermeticSession(virtual_monitor=ui_monitor_size)
-    session.boot()
+    boot_preview_session(session)
     # Install Dogtail's bare-Mutter input backend before dogtail.tree imports
     # rawinput.  Importing the backend otherwise eagerly probes the optional
     # GNOME Shell Ponytail service, which a bare-Mutter session intentionally
@@ -174,9 +182,13 @@ def request_display_scale(hermetic_ui_session, dpi_scale):
 
 
 @pytest.fixture
-def launch_ui(hermetic_ui_session, tmp_path):
+def launch_ui(hermetic_ui_session):
     """Expose the shared owned-process launcher on this private compositor."""
-    with preview_applications(hermetic_ui_session, tmp_path) as launch:
+    # Later aggregate categories rotate pytest's temporary roots. Keep these
+    # diagnostic logs on disk so a failure remains inspectable after teardown.
+    directory = Path(tempfile.mkdtemp(prefix="onpc-ui-preview-", dir="/var/tmp"))
+    print(f"UI preview logs: {directory}", flush=True)
+    with preview_applications(hermetic_ui_session, directory) as launch:
         yield launch
 
 

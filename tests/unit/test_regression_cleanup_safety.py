@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import io
+from types import SimpleNamespace
 
 import pytest
 
@@ -166,7 +167,8 @@ def test_failed_pidfd_acquisition_reaps_the_spawned_child(tmp_path, monkeypatch)
     assert len(children) == 1 and children[0].returncode is not None
 
 
-def test_parallel_interrupt_collects_both_cleanups_without_touching_sentinel(tmp_path):
+@pytest.mark.parametrize('slots', [2, 3, 4])
+def test_parallel_interrupt_collects_all_cleanups_without_touching_sentinel(tmp_path, slots):
     script = tmp_path / 'owned.py'
     script.write_text('''import signal,time
 def stop(*_):
@@ -184,10 +186,10 @@ finally:
     sentinel_fd = os.pidfd_open(sentinel.pid)
 
     class Capacity:
-        reason = 'two jobs active'
+        reason = 'worker capacity reached'
 
         def allows(self, candidate, active):
-            return len(active) < 2
+            return len(active) < slots
 
     class Execution:
         def __init__(self, job):
@@ -200,7 +202,7 @@ finally:
                 ready.add(self.name)
             if b'cleaned' in self.data:
                 cleaned.add(self.name)
-            if len(ready) == 2:
+            if len(ready) == slots:
                 control.stop()
 
         def finish(self, status):
@@ -214,9 +216,9 @@ finally:
         return control.run(argv, cwd=tmp_path, env=os.environ.copy(), output=output)
 
     try:
-        run_jobs([Job(str(i), None, [sys.executable, str(script)]) for i in range(3)],
+        run_jobs([Job(str(i), None, [sys.executable, str(script)]) for i in range(slots + 1)],
                  control=control, begin=Execution, run_command=command, admission=Capacity())
-        assert ready == cleaned == ended == {'0', '1'}
+        assert ready == cleaned == ended == {str(i) for i in range(slots)}
         assert sentinel.poll() is None
     finally:
         signal.pidfd_send_signal(sentinel_fd, signal.SIGTERM)
@@ -248,3 +250,47 @@ finally:
     assert marker.read_text() == 'cleaned'
     assert (tmp_path / 'command-0001.txt').read_bytes().startswith(b'immediate event\n')
     assert calls == [b'immediate event\n']
+
+
+@pytest.mark.parametrize('boundary', ['publish', 'build-a', 'build-b', 'compare'])
+def test_build_chain_cancellation_drains_companion_and_never_starts_successor(tmp_path, boundary):
+    script = tmp_path / 'owned-build.py'
+    script.write_text("import sys\n"
+                      "print('ready', flush=True)\n"
+                      "if sys.argv[1] == sys.argv[2] or sys.argv[1] == 'companion':\n"
+                      "    assert sys.stdin.readline() == 'STOP\\n'\n"
+                      "print('cleaned', flush=True)\n")
+    keys = ['publish', 'build-a', 'build-b', 'compare']
+    control = Control()
+    ready, cleaned, started = set(), set(), []
+
+    class Execution:
+        def __init__(self, job):
+            self.key, self.data = job.key, b''
+            started.append(self.key)
+
+        def output(self, data):
+            self.data += data
+            if b'ready' in self.data:
+                ready.add(self.key)
+            if b'cleaned' in self.data:
+                cleaned.add(self.key)
+            if {boundary, 'companion'} <= ready:
+                control.stop()
+
+        def finish(self, status):
+            assert self.key in cleaned
+            assert status == (130 if self.key in (boundary, 'companion') else 0)
+
+        def close(self):
+            pass
+
+    jobs = [Job(key, None, [sys.executable, str(script), key, boundary], key=key,
+                requires=(keys[index - 1],) if index else ()) for index, key in enumerate(keys)]
+    jobs.append(Job('companion', None, [sys.executable, str(script), 'companion', boundary],
+                    key='companion', estimate=100))
+    run_jobs(jobs, control=control, begin=Execution,
+             admission=SimpleNamespace(reason='capacity', allows=lambda _, active: len(active) < 2),
+             run_command=lambda argv, output: control.run(argv, cwd=tmp_path, env=os.environ.copy(),
+                                                         output=output, cooperative=True))
+    assert set(started) == cleaned == {'companion', *keys[:keys.index(boundary) + 1]}

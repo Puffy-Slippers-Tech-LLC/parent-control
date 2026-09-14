@@ -68,7 +68,10 @@ def window_factory(application, **kwargs):
         valid, point = widget.compute_point(window, main.Graphene.Point().init(
             widget.get_width() / 2, widget.get_height() / 2))
         assert valid
-        output.write_text(json.dumps({
+        # The viewer reads while this timer refreshes the evidence. Publish a
+        # complete replacement so it cannot observe a truncated JSON document.
+        temporary = output.with_suffix(".tmp")
+        temporary.write_text(json.dumps({
             "width": window.get_width(), "height": window.get_height(),
             "scale": window.get_surface().get_scale(),
             "duration_target": [point.x, point.y],
@@ -77,6 +80,7 @@ def window_factory(application, **kwargs):
             "active": window.is_active(),
             "focus": type(window.get_focus()).__name__,
         }))
+        temporary.replace(output)
         return True
 
     window.connect("map", lambda *_: main.GLib.timeout_add(200, record))

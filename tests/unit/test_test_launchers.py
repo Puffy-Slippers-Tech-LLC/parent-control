@@ -1,6 +1,8 @@
 """Boundary and execution tests for all approved test category routes."""
 import os
 import runpy
+import subprocess
+import sys
 from unittest.mock import Mock
 
 import pytest
@@ -62,6 +64,27 @@ def test_untrusted_environment_is_removed(checkout, monkeypatch):
     env = host.environment(checkout)
     assert '/tmp/untrusted' not in env.values()
     assert env['PATH'] == '/usr/sbin:/usr/bin:/sbin:/bin'
+
+
+def test_pytest_storage_does_not_inherit_ramdisk_or_caller_override(checkout, monkeypatch):
+    for key in ('TMPDIR', 'TMP', 'TEMP'):
+        monkeypatch.setenv(key, '/tmp/untrusted')
+    env = host.test_environment(checkout)
+    assert env['TMPDIR'] == '/var/tmp'
+    assert 'TMP' not in env and 'TEMP' not in env
+    probe = checkout / 'storage_probe.py'
+    probe.write_text('''import os, pathlib, tempfile
+with tempfile.TemporaryDirectory(prefix='onpc-storage-probe-') as directory:
+    assert pathlib.Path(directory).parent == pathlib.Path('/var/tmp')
+    with tempfile.TemporaryFile() as capture:
+        assert os.readlink('/proc/self/fd/' + str(capture.fileno())).startswith('/var/tmp/')
+        capture.write(b'captured output')
+        capture.seek(0)
+        assert capture.read() == b'captured output'
+''')
+    subprocess.run([sys.executable, '-B', str(probe)], env=env, check=True, timeout=10)
+    # Keep build/controller environments separate from the host pytest policy.
+    assert 'TMPDIR' not in host.environment(checkout)
 
 
 def test_failed_cleanup_gates_component(checkout, monkeypatch):
@@ -172,4 +195,20 @@ def test_host_aggregate_dispatch_and_invalid_arguments(monkeypatch):
     execute.reset_mock()
     for args in (['--skip-backing-verification'], ['--component=ui'], ['--unattended']):
         assert commands.main(['host', *args]) == 2
+    execute.assert_not_called()
+
+
+@pytest.mark.parametrize('serial', [False, True])
+def test_host_build_qualification_is_fixed_and_never_dispatches_vm(monkeypatch, serial):
+    import regression
+    execute = Mock(return_value=7)
+    monkeypatch.setattr(regression, 'main', execute)
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    args = ['--serial-builds'] if serial else []
+    assert commands._main(['host-builds', *args]) == 7
+    execute.assert_called_once_with(ROOT, host_builds=True, serial_builds=serial)
+    execute.reset_mock()
+    for extra in (['--serial'], ['--serial-builds', '--serial-builds'], ['--area', 'session'],
+                  ['--skip-backing-verification'], ['--command=id']):
+        assert commands.main(['host-builds', *extra]) == 2
     execute.assert_not_called()

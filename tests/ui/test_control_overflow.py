@@ -1,8 +1,6 @@
 """Pointer and overflow coverage for menus and shared auxiliary windows."""
 
 import json
-from pathlib import Path
-import tempfile
 
 import pytest
 from tests.support.events import read_events
@@ -21,7 +19,10 @@ def click_control(hermetic_ui_session, request_display_scale):
         def click(control):
             x, y, width, height = control.extents
             assert width > 0 and height > 0
+            print(f"Pointer target bounds: {(x, y, width, height)}; "
+                  f"click: {(x + width / 2, y + height / 2)}", flush=True)
             click_at(backend, 1, x + width / 2, y + height / 2)
+            return x + width / 2, y + height / 2
         yield click
     finally:
         backend.disconnect()
@@ -36,8 +37,9 @@ def _inside(control, width, height):
                          ids=("normal", "fractional", "fractional-scrolled"))
 def test_parent_allowance_popup_stays_attached(
         launch_ui, request_display_scale, dpi_scale, scroll_page, click_control,
-        wait_for_accessible_node, wait_for_accessible_state):
-    directory = Path(tempfile.mkdtemp(prefix="onpc-parent-allowance-"))
+        wait_for_accessible_node, wait_for_accessible_state, render_artifacts):
+    directory = render_artifacts("onpc-parent-allowance-")
+    print(f"Allowance input and layout evidence: {directory}", flush=True)
     application, log = launch_ui("parent_component_preview", environment_overrides={
         "ONPC_PARENT_ALLOWANCE_LAYOUT_DIRECTORY": str(directory),
         "ONPC_PARENT_COMPONENT_EVENTS_PATH": str(directory / "events.jsonl"),
@@ -59,9 +61,18 @@ def test_parent_allowance_popup_stays_attached(
         wait_for_accessible_state(
             lambda: allowance.extents[1] < original_y, "page scroll moves the allowance button",
         )
-    click_control(allowance)
+    pointer_target = click_control(allowance)
     custom = wait_for_accessible_node(application, "Custom amount", "button")
     wait_for_accessible_state(lambda: custom.showing, "allowance menu opens")
+    # A compositor map animation can transform input after accessibility has
+    # already exposed the final allocation. Verify actual delivery, including
+    # cases where that distorted click happens to remain inside the button.
+    transitions = [event for event in read_events(directory / "input.jsonl")
+                   if event["event"] in {"pressed", "released"}]
+    assert [event["event"] for event in transitions] == ["pressed", "released"]
+    for event in transitions:
+        assert event["target_picked"], event
+        assert (event["x"], event["y"]) == pytest.approx(pointer_target, abs=1), event
 
     def assert_attached(index):
         path = directory / f"layout-{index}.json"
@@ -123,8 +134,8 @@ def test_parent_allowance_popup_stays_attached(
 @pytest.mark.parametrize("dpi_scale", (1, 1.25))
 def test_parent_expanded_legend_follows_content_height(
         launch_ui, request_display_scale, dpi_scale,
-        wait_for_accessible_node, wait_for_accessible_state):
-    directory = Path(tempfile.mkdtemp(prefix="onpc-parent-legend-"))
+        wait_for_accessible_node, wait_for_accessible_state, render_artifacts):
+    directory = render_artifacts("onpc-parent-legend-")
     application, log = launch_ui("parent_component_preview", environment_overrides={
         "ONPC_PARENT_LEGEND_LAYOUT_DIRECTORY": str(directory),
         "GSK_RENDERER": "gl",

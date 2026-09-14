@@ -2,8 +2,7 @@
 
 import json
 import math
-from pathlib import Path
-import tempfile
+import subprocess
 
 import pytest
 
@@ -15,9 +14,9 @@ pytestmark = pytest.mark.ui
                          ((False, 1), (True, 1), (False, 1.25), (True, 1.25)),
                          ids=("kiosk", "child-overlay", "kiosk-fractional", "child-fractional"))
 def test_request_layout_keeps_text_readable_and_controls_reachable(
-        launch_ui, request_display_scale, overlay, dpi_scale):
-    # Retain rendered evidence independently of pytest's rotating temp roots.
-    directory = Path(tempfile.mkdtemp(prefix="onpc-request-layout-"))
+        launch_ui, request_display_scale, overlay, dpi_scale, render_artifacts):
+    directory = render_artifacts("onpc-request-layout-")
+    print(f"Request layout evidence: {directory}", flush=True)
     process, log = launch_ui(
         "request_layout_preview", wait_for_application=False,
         environment_overrides={
@@ -26,8 +25,11 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
             "GSK_RENDERER": "gl",
         },
     )
-    assert process.wait(timeout=60) == 0, log.read_text()
-    print(f"Request layout evidence: {directory}")
+    try:
+        status = process.wait(timeout=60)
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"Request layout probe timed out; evidence: {directory}\n{log.read_text()}")
+    assert status == 0, log.read_text()
     assert "Gtk-CRITICAL" not in log.read_text()
     records = json.loads((directory / "layout.json").read_text())
     assert len(records) == 45

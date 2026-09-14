@@ -3,8 +3,25 @@
 from contextlib import contextmanager
 import subprocess
 import sys
+import tempfile
 
 from tests.support.paths import ROOT
+
+
+def boot_preview_session(session):
+    """Keep graphical runtime sockets outside WebKit's /var/tmp symlink.
+
+    Dogtail uses tempfile's public default for its private runtime root and
+    exposes no directory argument. Scope the default to this synchronous boot;
+    pytest workers run in separate processes, with no concurrent tests inside
+    a worker. Capture and subsequent test fixtures keep their disk-backed default.
+    """
+    previous = tempfile.tempdir
+    try:
+        tempfile.tempdir = '/tmp'
+        session.boot()
+    finally:
+        tempfile.tempdir = previous
 
 
 @contextmanager

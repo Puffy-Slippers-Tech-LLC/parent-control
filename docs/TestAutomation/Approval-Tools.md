@@ -195,6 +195,7 @@ argument; the launcher expands file patterns without a shell.
 | Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
 | Established regressions | `make test-all` / `tools/run-tests all` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors |
 | Host regression branches | `tools/run-tests host` | Same discovery, cleanup gate and host queue; stops after joining branches, without VM discovery/authorization, publishing or package builds; no arguments |
+| Host and build qualification | `tools/run-tests host-builds [--serial-builds]` | Same host tests plus publishing, two fresh builds and comparison; no VM discovery/authorization or execution; the sole optional flag retains builds after the host join for a serial comparison |
 | Local publishing checks | `make test-publish` / `tools/run-tests publish` | Shared source/sbuild/Lintian module also included in `test-all`; no selectors or publication |
 | Future fast suite (Task 28A) | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
 
@@ -236,6 +237,11 @@ artifacts under the [shared storage roots](../../tests/README.md#prompt-free-tes
 
 Host-integrated categories run all `test_*cleanup_safety.py` and
 `test_graphical_lease.py` in isolation before the protected operation. The
+aggregate's UI, component and fixture-runtime workers may reuse its passing
+gate only through the inherited checkout activity lock and an unchanged source
+digest. Fresh invocations clear this temporary record; standalone commands still
+run prerequisites, and stale/invalid records refuse. Publishing, artifact and VM
+gates do not use this host optimization. The
 privileged dispatcher runs these as the caller, then starts the selected
 controller as root. A failed prerequisite prevents the operation. Tests that
 introduce another cleanup implementation must add its corresponding regression.

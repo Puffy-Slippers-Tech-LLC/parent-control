@@ -18,7 +18,7 @@ from regression_process import Control
 import test_launcher as host
 from regression_schedule import Job, run_jobs
 from regression_inputs import identity as source_identity
-from regression_resources import Admission, vm_demand
+from regression_resources import Admission, HOST_WORKERS, vm_demand
 from regression_ui import buckets as ui_buckets
 
 
@@ -63,6 +63,7 @@ class Dashboard:
         self.categories = categories
         self.stream = stream or sys.stdout
         self.lines = 0
+        self.terminal_size = None
         self.last = 0.0
         self.started = time.monotonic()
         self.host_started = None
@@ -92,12 +93,13 @@ class Dashboard:
 
     def branches(self, items, now):
         lines = []
-        for branch in (1, 2):
+        for branch in range(1, HOST_WORKERS + 1):
             assigned = sorted((item for item in items if item.branch == branch),
                               key=lambda item: item.launch_order)
             active = any(item.state == 'Running' for item in assigned)
             state = 'running' if active else 'idle' if self.host_elapsed is None else 'finished'
-            lines.append(f'├─ Host branch {branch} — {state}; one category at a time')
+            style = {'running': '\033[1m', 'idle': '\033[90m', 'finished': ''}[state]
+            lines.append(f'{style}├─ Host branch {branch} — {state}; one category at a time\033[0m')
             if not assigned:
                 lines.append('│  └─ No categories assigned')
             for index, item in enumerate(assigned):
@@ -161,6 +163,31 @@ class Dashboard:
                 break
         return ''.join(parts) + '…\033[0m'
 
+    @classmethod
+    def fit_height(cls, lines, height):
+        """Keep live rows reachable by cursor-up, with urgent status visible."""
+        if len(lines) <= height:
+            return lines
+
+        def priority(index):
+            plain = cls.ANSI.sub('', lines[index])
+            if plain.startswith(('Overall - ', 'Tests interrupted.')):
+                return 0
+            if '[Running]' in plain or '[✗]' in plain:
+                return 1
+            if plain.startswith(('├─ Host branch ', '└─ Join host branches')):
+                return 2
+            return 3
+
+        # Preserve the tree's order after choosing which rows fit. The complete
+        # category inventory remains in the report and non-terminal output.
+        count = max(1, height - 1)
+        selected = sorted(sorted(range(len(lines)), key=priority)[:count])
+        visible = [lines[index] for index in selected]
+        if height > 1:
+            visible.insert(0, f'… {len(lines) - count} rows hidden; full details in run report')
+        return visible
+
     def draw(self, *, force=False):
         now = time.monotonic()
         if not force and now - self.last < 1:
@@ -169,11 +196,23 @@ class Dashboard:
         lines = self.render(now)
         tty = self.stream.isatty()
         prefix = f'\033[{self.lines}F' if self.lines and tty else ''
+        ending = '\n'
         if tty:
-            width = max(1, shutil.get_terminal_size().columns - 1)
+            size = shutil.get_terminal_size()
+            width = max(1, size.columns - 1)
+            # Reserve a row for the trailing newline: cursor-up cannot reach
+            # rows that have already scrolled out of the terminal viewport.
+            lines = self.fit_height(lines, max(1, size.lines - 1))
             lines = [self.fit(line, width) for line in lines]
+            if self.terminal_size is not None and size != self.terminal_size:
+                # Resizing can reflow old rows, invalidating our cursor offset.
+                prefix = '\033[H\033[2J'
+            self.terminal_size = size
+            if size.lines <= 1:
+                prefix = '\r\033[2K'
+                ending = ''
         self.stream.write(prefix + '\n'.join('\033[2K' + line for line in lines)
-                          + '\n' + ('\033[J' if tty else ''))
+                          + ending + ('\033[J' if tty else ''))
         self.stream.flush()
         self.lines = len(lines)
 
@@ -190,6 +229,10 @@ class Report:
         self.directory.mkdir(mode=0o700)
         self.stream = (self.directory / 'report.md').open('x', encoding='utf-8')
         os.chmod(self.directory / 'report.md', 0o600)
+        self.dirty = set()
+        self.last_sync = time.monotonic()
+        self.last_snapshot = -float('inf')
+        self.pending_categories = None
         self.write('# Established regression run\n\nStarted: ' + name +
                    '\n\nLive output follows. A missing final result means an incomplete run.\n'
                    'Counts are pytest cases, registered VM executions/E2E variants, and '
@@ -198,16 +241,22 @@ class Report:
     def write(self, value):
         self.stream.write(value)
         self.stream.flush()
-        os.fsync(self.stream.fileno())
+        self.dirty.add(Path(self.stream.name))
 
-    def snapshot(self, categories):
+    def snapshot(self, categories, *, force=True):
+        now = time.monotonic()
+        if not force and now - self.last_snapshot < 1:
+            self.pending_categories = categories
+            return
         path = self.directory / 'progress.json'
         temporary = self.directory / 'progress.tmp'
         with temporary.open('w', encoding='utf-8') as stream:
             json.dump([asdict(item) for item in categories], stream, indent=2)
             stream.flush()
-            os.fsync(stream.fileno())
         os.replace(temporary, path)
+        self.dirty.add(path)
+        self.last_snapshot = now
+        self.pending_categories = None
 
     def resources(self, sample):
         path = self.directory / 'resources.jsonl'
@@ -215,7 +264,40 @@ class Report:
             os.chmod(path, 0o600)
             stream.write(json.dumps(sample, sort_keys=True) + '\n')
             stream.flush()
-            os.fsync(stream.fileno())
+        self.dirty.add(path)
+
+    def schedule(self, event):
+        with (self.directory / 'schedule.jsonl').open('a', encoding='utf-8') as stream:
+            os.chmod(stream.name, 0o600)
+            stream.write(json.dumps({'monotonic': time.monotonic(), **event}, sort_keys=True) + '\n')
+            stream.flush()
+        self.dirty.add(self.directory / 'schedule.jsonl')
+
+    def checkpoint(self, *, force=False):
+        # Keep output immediately readable, but do not turn thousands of test
+        # events into synchronous disk barriers that close our own I/O gate.
+        if self.pending_categories is not None:
+            self.snapshot(self.pending_categories, force=force)
+        now = time.monotonic()
+        if not force and now - self.last_sync < 5:
+            return
+        for path in sorted(self.dirty):
+            with path.open('rb') as stream:
+                os.fsync(stream.fileno())
+        if self.dirty:
+            descriptor = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        self.dirty.clear()
+        self.last_sync = time.monotonic()
+
+    def close(self):
+        try:
+            self.checkpoint(force=True)
+        finally:
+            self.stream.close()
 
 
 class Execution:
@@ -278,17 +360,24 @@ class Execution:
             elif event['kind'] == 'failure':
                 self.failed.add(event['nodeid'])
                 item.failures = len(self.failed)
-                if item.nodeids is not None and event.get('when') in ('setup', 'teardown'):
+                if event.get('when') in ('setup', 'teardown'):
                     self.fixture_failed = True
-            self.run.report.snapshot(self.run.categories)
+            self.run.report.snapshot(self.run.categories, force=event['kind'] == 'failure')
+            if event['kind'] == 'failure':
+                self.run.report.checkpoint(force=True)
             self.run.dashboard.draw()
+            if self.fixture_failed:
+                # Refuse new branches as soon as the durable event arrives.
+                # Waiting for pytest to exit permits unrelated work to start
+                # while a fixture has already lost storage or cleanup safety.
+                self.run.control.stop()
 
     def output(self, data):
         # Each fragment has a category label. UTF-8 and partial lines remain
-        # independent even when two children stream their failures together.
+        # independent even when several children stream their failures together.
         self.raw.write(data)
         self.raw.flush()
-        os.fsync(self.raw.fileno())
+        self.run.report.dirty.add(Path(self.raw.name))
         self.run.report.write('\n<p><b>' + html.escape(self.item.name) + '</b></p>\n<pre>'
                               + html.escape(self.decoder.decode(data)) + '</pre>\n')
         self.pending += data
@@ -316,7 +405,8 @@ class Execution:
                                  if self.units is not None else item.total or 1)
                     if status:
                         item.failures += item.done - before
-                item.state = ('Interrupted' if run.control.stopped.is_set() else
+                item.state = ('Failed' if self.fixture_failed else
+                              'Interrupted' if run.control.stopped.is_set() else
                               'Failed' if status or item.failures else
                               'Passed' if item.done == item.total else
                               'Running' if self.units else 'Failed')
@@ -325,24 +415,36 @@ class Execution:
             run.dashboard.draw(force=True)
             run.check_inputs()
             if self.fixture_failed:
-                raise ValueError('UI fixture setup or cleanup failed; further host work refused')
+                raise ValueError('test fixture setup or cleanup failed; further host work refused')
+            if not self.collect and self.events and status not in (0, 1) and not run.control.stopped.is_set():
+                raise ValueError('test infrastructure failed; further host work refused')
             return status, '\n'.join(self.captured)
         finally:
             self.close()
 
     def close(self):
         self.item.stop_timer()
-        self.raw.close()
+        if not self.raw.closed:
+            try:
+                self.run.report.checkpoint(force=True)
+            finally:
+                self.raw.close()
 
 
 class Run:
-    def __init__(self, root, report, control, *, verify_backing_bytes=True, host_only=False):
+    def __init__(self, root, report, control, *, verify_backing_bytes=True, host_only=False,
+                 host_builds=False, serial_builds=False):
         self.root, self.report, self.control = root, report, control
         self.verify_backing_bytes = verify_backing_bytes
         self.host_only = host_only
-        self.verification_mode = ('not applicable; host-only run' if host_only else
+        self.host_builds, self.serial_builds = host_builds, serial_builds
+        self.includes_vm = not (host_only or host_builds)
+        self.verification_mode = ('not applicable; host-only run' if not self.includes_vm else
                                   'full' if verify_backing_bytes else 'metadata-only; backing bytes not verified')
-        self.report.write('\nScope: ' + ('host branches only' if host_only else 'complete regression') + '\n')
+        self.report.write('\nScope: ' + ('host branches only' if host_only else
+                          'host branches and package qualification' if host_builds else 'complete regression') + '\n')
+        self.report.write('\nBuild scheduling: ' + ('after host join (serial comparison)' if serial_builds else
+                          'qualified host companions') + '\n')
         self.report.write('\nVM backing verification: ' + self.verification_mode + '\n')
         self.categories = [Category('Discovery and prerequisites', 1)]
         self.dashboard = Dashboard(self.categories)
@@ -350,7 +452,11 @@ class Run:
         self.artifacts = []
         self.sequence = 0
         self.inputs = None
-        self.admission = Admission(observe=self.report.resources)
+        self.admission = Admission(observe=self.observe_resources)
+
+    def observe_resources(self, sample):
+        self.report.resources({**sample, 'running_categories': [item.name for item in self.categories
+                                                             if item.state == 'Running']})
 
     def check_inputs(self):
         if self.inputs is not None and source_identity(self.root) != self.inputs:
@@ -374,10 +480,19 @@ class Run:
                 item.state = 'Interrupted'
                 return 130, ''
         execution = Execution(self, item, collect=collect, events=events, units=units)
+
+        def tick():
+            # Serial builders and VM controllers also need observations during
+            # execution, not just the sample that admitted their launch. Report
+            # writes remain on the coordinator and retain normal cancellation.
+            self.admission.update()
+            self.report.checkpoint()
+            self.dashboard.draw()
+
         try:
             status = self.control.run(command, cwd=self.root, env=host.environment(self.root),
                                       output=execution.output, cooperative=True,
-                                      tick=self.dashboard.draw)
+                                      tick=tick)
             return execution.finish(status)
         finally:
             execution.close()
@@ -393,6 +508,7 @@ class Run:
                 self.report.write('\nScheduler: ' + item.wait_reason + '\n')
                 self.report.snapshot(self.categories)
                 previous = item.wait_reason
+            self.report.checkpoint()
             self.dashboard.draw()
             self.control.stopped.wait(2)
         item.waiting += time.monotonic() - started
@@ -408,28 +524,45 @@ class Run:
         def begin(job):
             self.check_inputs()
             occupied = {other.item.branch for other in jobs if other.item.state == 'Running'}
-            job.item.branch = next(branch for branch in (1, 2) if branch not in occupied)
+            job.item.branch = next(branch for branch in range(1, HOST_WORKERS + 1)
+                                   if branch not in occupied)
             job.item.launch_order = self.sequence + 1
             job.item.waiting += time.monotonic() - queued
             job.item.wait_reason = ''
+            self.report.schedule({'event': 'start', 'job': job.key or job.item.name,
+                                  'kind': job.kind, 'branch': job.item.branch,
+                                  'companions': [other.kind for other in jobs
+                                                 if other.item.state == 'Running'],
+                                  'estimate_seconds': job.estimate,
+                                  'requires': job.requires})
             return Execution(self, job.item, events=job.events)
 
         def command(argv, output):
             return self.control.run(argv, cwd=self.root, env=host.environment(self.root),
                                     output=output, cooperative=True)
 
-        def waiting(reason):
-            for job in jobs:
-                if job.item.state == 'Pending':
-                    job.item.wait_reason = reason
-            self.report.write('\nScheduler: ' + reason + '\n')
+        def waiting(job, reason):
+            job.item.wait_reason = reason
+            self.report.schedule({'event': 'waiting', 'job': job.key or job.item.name, 'reason': reason})
+            self.report.write('\nScheduler: ' + job.item.name + ': ' + reason + '\n')
             self.report.snapshot(self.categories)
             self.dashboard.draw(force=True)
+
+        def blocked(job, reason):
+            job.item.state, job.item.wait_reason = 'Blocked', reason
+            job.item.waiting = time.monotonic() - queued
+            self.report.schedule({'event': 'blocked', 'job': job.key or job.item.name,
+                                  'reason': reason, 'requires': job.requires})
+            self.report.snapshot(self.categories)
+
+        def tick():
+            self.report.checkpoint()
+            self.dashboard.draw()
 
         try:
             maximum = run_jobs(jobs, control=self.control, begin=begin, run_command=command,
                                admission=self.admission, waiting=waiting,
-                               tick=self.dashboard.draw)
+                               tick=tick, complete=self.complete_host, blocked=blocked)
         finally:
             self.dashboard.host_elapsed = time.monotonic() - queued
             self.dashboard.draw(force=True)
@@ -437,6 +570,33 @@ class Run:
         executed = sum(job.item.elapsed for job in jobs) - before
         self.report.write(f'\nHost scheduling: wall={elapsed:.3f}s '
                           f'category-execution={executed:.3f}s maximum-active={maximum}\n')
+
+    def complete_host(self, job, result):
+        status, output = result
+        if job.key in ('build-a', 'build-b') and status == 0:
+            matches = re.findall(r'^run-tests: output=(/tmp/onpc-test-artifacts-[A-Za-z0-9_-]+)$', output, re.M)
+            expected = 0 if job.key == 'build-a' else 1
+            if len(matches) != 1 or len(self.artifacts) != expected or matches[0] in self.artifacts:
+                job.item.state = 'Failed'
+                job.item.failures = max(1, job.item.failures)
+                self.report.snapshot(self.categories)
+                raise ValueError('package build output invalid; package-bearing suites refused')
+            self.artifacts.append(matches[0])
+        self.report.schedule({'event': 'finish', 'job': job.key or job.item.name,
+                              'kind': job.kind, 'state': job.item.state,
+                              'elapsed_seconds': job.item.elapsed, 'waiting_seconds': job.item.waiting})
+
+    def build_jobs(self, publishing, builds):
+        # Estimates come from retained complete runs; they only order work.
+        # Deferred comparison arguments are resolved on the coordinator after
+        # both successful builders have supplied distinct artifact directories.
+        return [Job('publish', publishing, self.command('publish'), estimate=360, key='publish'),
+                Job('artifacts', builds[0], self.command('artifacts', 'build'),
+                    estimate=7, key='build-a', requires=('publish',)),
+                Job('artifacts', builds[1], self.command('artifacts', 'build'),
+                    estimate=7, key='build-b', requires=('build-a',)),
+                Job('artifacts', builds[2], lambda: self.command('artifacts', 'compare', *self.artifacts),
+                    estimate=1, key='compare', requires=('build-b',))]
 
     def run(self):
         self.inputs = source_identity(self.root)
@@ -451,13 +611,16 @@ class Run:
                  ('Child Node', 'child-node'), ('Child GJS', 'child-gjs'),
                  ('Backend prerequisites', 'backend'), ('Publishing tests', 'publish')]
         fixed_items = [Category(name, 1) for name, _ in fixed]
-        builds = Category('Package builds and reproducibility', 3)
+        builds = [Category(name, 1) for name in ('Package build A', 'Package build B',
+                                               'Package reproducibility')]
         system = Category('Installed-system tests')
         graphical = Category('Ready E2E scenarios')
         safety = Category('Cleanup safety prerequisites')
         self.categories.extend([safety, *suite_items, *fixed_items[:-1]])
         if not self.host_only:
-            self.categories.extend([fixed_items[-1], builds, system, graphical])
+            self.categories.extend([fixed_items[-1], *builds])
+        if self.includes_vm:
+            self.categories.extend([system, graphical])
         discovery.state = 'Running'
         discovery.started = time.monotonic()
         self.dashboard.draw(force=True)
@@ -482,7 +645,7 @@ class Run:
                         for bucket in buckets]
         position = self.categories.index(ui_inventory)
         self.categories[position:position + 1] = bucket_items
-        if not self.host_only:
+        if self.includes_vm:
             ready = self.discover_vm(system, graphical)
             if self.control.stopped.is_set():
                 return
@@ -495,6 +658,12 @@ class Run:
             return
         if status or safety.state != 'Passed':
             raise ValueError('cleanup safety prerequisites failed; protected suites refused')
+        # Execution.finish has persisted the passing gate and checked inputs.
+        # Child launchers recheck the same identity through the inherited lock.
+        import test_activity
+        test_activity.record_cleanup(self.inputs)
+        self.report.write('\nHost cleanup prerequisites: passed; owned host workers reuse '
+                          'this gate after validating unchanged source inputs.\n')
         estimates = {'unit': 150, 'component': 20, 'fixture-runtime': 12}
         jobs = [Job(kind, item, self.command(kind, *args, '-q'), events=True,
                     estimate=estimates[kind]) for (_, kind, args), item in zip(suites, suite_items)
@@ -504,13 +673,32 @@ class Run:
                     for bucket, item in zip(buckets, bucket_items))
         jobs.extend(Job(kind, item, self.command(kind), estimate=1)
                     for (_, kind), item in zip(fixed, fixed_items) if kind != 'publish')
+        package_jobs = self.build_jobs(fixed_items[-1], builds) if not self.host_only else []
+        if not self.serial_builds:
+            jobs.extend(package_jobs)
         self.host_jobs(jobs)
         if self.control.stopped.is_set():
             return
-        if self.host_only:
+        if self.serial_builds:
+            for job in package_jobs:
+                self.report.schedule({'event': 'start', 'job': job.key, 'kind': job.kind,
+                                      'branch': None, 'companions': [], 'requires': job.requires,
+                                      'estimate_seconds': job.estimate})
+                result = self.execute(job.item, job.command() if callable(job.command) else job.command)
+                if self.control.stopped.is_set():
+                    return
+                self.complete_host(job, result)
+                if job.item.state != 'Passed':
+                    break
+        if not self.includes_vm:
             self.check_inputs()
             return
-        self.package_and_vm(fixed_items[-1], builds, system, graphical, ready)
+        if any(job.item.state != 'Passed' for job in package_jobs):
+            system.state = graphical.state = 'Blocked'
+            system.wait_reason = graphical.wait_reason = 'package qualification failed'
+            self.report.snapshot(self.categories)
+            return
+        self.vm_tests(system, graphical, ready)
 
     def discover_vm(self, system, graphical):
         status, listing = self.execute(system, self.command('system', '--list'), collect=True)
@@ -532,26 +720,7 @@ class Run:
                           'Pending variants excluded: ' + str(len(inventory['pending_cases'])) + '\n')
         return ready
 
-    def package_and_vm(self, publishing, builds, system, graphical, ready):
-        # The costly builder is deliberately outside the qualified host overlap.
-        # It already uses two internal jobs and competes with UI for disk/memory.
-        self.execute(publishing, self.command('publish'))
-        if self.control.stopped.is_set():
-            return
-        for index in range(2):
-            status, output = self.execute(builds, self.command('artifacts', 'build'), units=1)
-            if self.control.stopped.is_set():
-                return
-            match = re.search(r'^run-tests: output=(/tmp/onpc-test-artifacts-[A-Za-z0-9_-]+)$', output, re.M)
-            if status or match is None:
-                builds.state = 'Failed'
-                raise ValueError('package build failed; package-bearing suites refused')
-            self.artifacts.append(match[1])
-        status, _ = self.execute(builds, self.command('artifacts', 'compare', *self.artifacts), units=1)
-        if self.control.stopped.is_set():
-            return
-        if status:
-            raise ValueError('reproducibility failed; package-bearing suites refused')
+    def vm_tests(self, system, graphical, ready):
         status, _ = self.execute(system, self.command('system', '--artifacts', self.artifacts[0]), events=True)
         if self.control.stopped.is_set():
             return
@@ -568,7 +737,7 @@ class Run:
         self.check_inputs()
 
 
-def main(root=None, *, verify_backing_bytes=True, host_only=False):
+def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -577,7 +746,8 @@ def main(root=None, *, verify_backing_bytes=True, host_only=False):
     with Control().installed() as control:
         try:
             report = Report(root)
-            run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes, host_only=host_only)
+            run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes, host_only=host_only,
+                      host_builds=host_builds, serial_builds=serial_builds)
             run.run()
             status = 0 if all(item.state == 'Passed' for item in run.categories) else 1
         except (Exception, KeyboardInterrupt) as error:
@@ -615,7 +785,11 @@ def main(root=None, *, verify_backing_bytes=True, host_only=False):
                 print('Regression final evidence could not be saved; result is failed.', file=sys.stderr)
             finally:
                 if report is not None:
-                    report.stream.close()
+                    try:
+                        report.close()
+                    except OSError:
+                        status = 1
+                        print('Regression final evidence could not be synced; result is failed.', file=sys.stderr)
     if report is not None and (status == 1 or (run is not None and any(
             item.failures or item.state == 'Failed' for item in run.categories))):
         print('\nCopy this prompt into a new Codex session:\n')

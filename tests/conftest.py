@@ -1,8 +1,10 @@
 """Shared pytest classification for the host-safe test suite."""
 
 from pathlib import Path
+import warnings
 
 from hypothesis import settings
+import pytest
 
 from tools.regression_events import (pytest_collection_finish, pytest_collectreport,
                                      pytest_runtest_logreport)
@@ -21,6 +23,40 @@ settings.register_profile(
     ),
 )
 settings.load_profile("onpc")
+
+
+@pytest.fixture
+def render_artifacts(request):
+    """Allocate images whose lifetime includes test and fixture teardown."""
+    from tests.support.ui_artifacts import RenderArtifacts
+
+    attempts = []
+    request.node._render_artifacts = attempts
+
+    def allocate(prefix, **options):
+        attempt = RenderArtifacts(prefix, **options)
+        attempts.append(attempt)
+        return attempt.path
+
+    return allocate
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    report = (yield).get_result()
+    if not hasattr(item, '_render_artifacts'):
+        return
+    reports = getattr(item, '_artifact_reports', {})
+    reports[report.when] = report.passed
+    item._artifact_reports = reports
+    if report.when == 'teardown':
+        passed = all(reports.get(phase, False) for phase in ('setup', 'call', 'teardown'))
+        for attempt in item._render_artifacts:
+            try:
+                attempt.finish(passed)
+            except (OSError, ValueError):
+                warnings.warn(f'UI artifact cleanup refused; retained: {attempt.path}',
+                              RuntimeWarning)
 
 
 # These tests protect source/configuration interfaces.  They remain valuable,

@@ -8,22 +8,26 @@ import sys
 import pytest
 
 import test_activity
+import regression_inputs
 
 
-def child(tmp_path, env, pass_fds=()):
+def child(tmp_path, env, pass_fds=(), *, cleanup=False):
     script = tmp_path / 'lock_child.py'
     script.write_text('''import pathlib,sys
 sys.path.insert(0, sys.argv[1])
 import test_activity
+import regression_inputs
+regression_inputs.identity = lambda root: 'a' * 64
 try:
     with test_activity.activity(pathlib.Path(sys.argv[2])):
-        print('owned')
+        print(test_activity.cleanup_verified(pathlib.Path(sys.argv[2])) if sys.argv[3] == 'cleanup' else 'owned')
 except (ValueError, OSError) as error:
     print(type(error).__name__)
     sys.exit(2)
 ''')
     return subprocess.run([sys.executable, '-B', str(script),
-                           str(Path(test_activity.__file__).parent), str(tmp_path / 'checkout')],
+                           str(Path(test_activity.__file__).parent), str(tmp_path / 'checkout'),
+                           'cleanup' if cleanup else 'ownership'],
                           env=env, pass_fds=pass_fds, capture_output=True, text=True, timeout=10)
 
 
@@ -61,3 +65,29 @@ def test_foreign_descriptor_and_symlink_refuse(tmp_path, monkeypatch):
         with test_activity.activity(tmp_path / 'checkout'):
             pytest.fail('must refuse')
     assert other.read_text() == 'preserve'
+
+
+def test_cleanup_gate_requires_inherited_lock_and_expires_with_activity(tmp_path, monkeypatch):
+    monkeypatch.delenv(test_activity.VARIABLE, raising=False)
+    root = tmp_path / 'checkout'
+    assert not test_activity.cleanup_verified(root)
+    with test_activity.activity(root):
+        env = os.environ | test_activity.environment()
+        fds = test_activity.descriptors()
+        assert child(tmp_path, env, fds, cleanup=True).stdout.strip() == 'False'
+        test_activity.record_cleanup('a' * 64)
+        assert child(tmp_path, env, fds, cleanup=True).stdout.strip() == 'True'
+        assert child(tmp_path, env, cleanup=True).returncode == 2
+        assert child(tmp_path, {}, cleanup=True).returncode == 2
+    # A persisted success record cannot bypass a fresh command's safety suite.
+    assert child(tmp_path, {}, cleanup=True).stdout.strip() == 'False'
+
+
+@pytest.mark.parametrize('payload', [b'not-a-digest', b'a' * 65, b'\xff' * 64, b'b' * 64])
+def test_cleanup_gate_refuses_invalid_or_changed_source(tmp_path, monkeypatch, payload):
+    monkeypatch.setattr(regression_inputs, 'identity', lambda root: 'a' * 64)
+    with test_activity.activity(tmp_path / 'checkout'):
+        descriptor, = test_activity.descriptors()
+        os.pwrite(descriptor, payload, 0)
+        with pytest.raises(ValueError, match='no longer match'):
+            test_activity.cleanup_verified(tmp_path / 'checkout')

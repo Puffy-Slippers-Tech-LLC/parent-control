@@ -22,6 +22,13 @@ plan as both complete aggregates. It does not inspect or authorize the VM, run
 publishing checks, or build packages. Its report is explicitly marked host-only;
 a passing host run is not a complete regression pass. It accepts no selectors.
 
+Run `tools/run-tests host-builds` to qualify the host schedule including publishing,
+two fresh package builds and comparison, without VM discovery, authorization or
+execution. `tools/run-tests host-builds --serial-builds` executes the same scope
+with publishing/builds after the host join for an unchanged-input comparison.
+These are partial qualification results, not complete regression passes. No other
+arguments are accepted; both commands hold the same checkout activity lock.
+
 Run `make test-all` (`tools/run-tests all`) for development without backing-file
 byte scans, or `make test-all-verify` (`tools/run-tests all-verify`) for the
 existing full verification at each VM attempt boundary. Both retain ownership
@@ -30,10 +37,12 @@ reports explicitly record the verification policy. Direct system/E2E runs still
 verify backing bytes unless `--skip-backing-verification` is explicitly selected.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
 using the new fast mode. Neither aggregate accepts suite selectors. The terminal shows
-colored category progress with branches for the two host workers, a join before
-the serial build/VM stages, and overall wall time. Branch assignment reflects
-actual launches; work waiting for capacity or headroom stays unassigned. Both
+colored category progress with branches for the four host workers, a join before
+the exclusive VM stages, and overall wall time. Publishing, build A, build B and
+comparison appear individually under the host branch that runs them. Branch assignment reflects
+actual launches; work waiting for capacity or headroom stays unassigned. All
 branches refresh together, including elapsed times while children are quiet.
+Idle branch headings are gray; running branch headings are bold.
 Completed categories remain under the branch that ran them, in launch order.
 Long rows are clipped to terminal width to keep cursor redraws aligned; the
 saved final summary retains their full text. Full output is continuously
@@ -42,27 +51,77 @@ The accompanying `progress.json` records the latest category counts, states,
 branch assignments and launch order. The final report includes the same branch
 summary. Percentages describe completed checks, not estimated time remaining.
 Each run gets a new private directory; previous results are never overwritten.
+Output is flushed for live readers on every fragment. Routine progress snapshots
+are coalesced to one per second and disk synchronization is batched every five
+seconds while the coordinator runs. Failure events, category closure and final
+closure force synchronization; fixture failures are durable before cancellation.
+This avoids report traffic repeatedly closing the runner's own I/O pressure gate.
+An abrupt machine failure can lose the latest routine checkpoint interval.
 
-Host categories run through a maximum of two owned workers. UI discovery is
+Host categories run through a maximum of four owned workers. UI discovery is
 partitioned into request behavior, layout/overflow, feedback, preview/About,
 screen fidelity and nested-Shell buckets. Each keeps entire modules together
-in one serial pytest process with private graphical fixtures. Both workers pull
-from the shared queue, longest estimated job first, alongside units, components,
-fixtures and small checks when CPU, memory and I/O headroom permit. Sampling requires
-20 seconds of low pressure before overlap. Missing measurements fall back to
+in one serial pytest process with private graphical fixtures. Workers pull
+from the shared queue, longest estimated dependency path first, alongside units, components,
+fixtures and small checks when CPU, memory and I/O headroom permit. Admission uses
+CPU, memory and I/O stall percentages from PSI counter changes since the previous
+sample, and requires four seconds of consecutive low-pressure observations before
+overlap (normally three samples at the two-second cadence). Kernel `avg10` values
+remain in the resource evidence; their trailing history does not add a second
+recovery delay. New pressure closes the gate on observation. Cached readings do
+not advance recovery. Missing or invalid measurements fall back to
 serial execution; memory shortage defers even a single known host category.
 Any new swap write or swap reads of at least 1 MiB/s defer admission. Small reads
 of pages evicted earlier do not alone imply current memory pressure; the memory
 reserve and pressure checks still apply, and sampled swap rates are retained.
-Conservative reservations are added to observed host use, including a 20% RAM
-reserve (minimum 2 GiB) and a 25% CPU headroom target for overlapping jobs.
-Already-running tests finish normally when load increases. Publishing, the two
-fresh reproducibility builds, and all VM attempts remain serial after host work.
+Host admission adds the candidate's full memory budget to a fixed 2 GiB desktop
+reserve. Established categories contribute up to 1 GiB each (capped at their full
+budgets) to a shared growth allowance capped at 2 GiB across all active jobs.
+An active category retains its full budget until a sample taken at least 20 seconds
+after its launch; these startup reservations are added outside the growth pool.
+After startup, adding units alongside UI or publishing needs 5 GiB available, a
+second UI bucket needs 7 GiB, and components alongside publishing need 4 GiB.
+A fourth UI worker alongside three established UI jobs needs 8 GiB.
+The pool is an engineering allowance, not a hard memory limit.
+Launching publishing itself still reserves its full 6 GiB plus desktop and companion
+allowances. Resident active work is already reflected in available memory.
+Memory wait messages show the required available RAM; `resources.jsonl` retains
+the observed availability. VM launches retain a 20% RAM reserve (minimum 2 GiB).
+Overlapping jobs retain a 25% CPU headroom target. CPU admission adds the
+candidate's full estimate and one core of possible growth per established job
+(capped at its estimate) to measured host usage, which already includes running
+tests. Active jobs retain their full CPU reservation until a fresh sample taken
+at least 20 seconds after launch. CPU wait messages distinguish pressure recovery
+from insufficient CPU budget and show the required spare cores and usage limit.
+Already-running tests finish normally when load increases. Publishing, build A,
+build B and comparison form a dependent chain: a failed step blocks its descendants
+and all VM execution. Independent host assertions still report their own results.
+The aggregate runs the complete cleanup-safety suite in isolation before host
+work. Its UI, component and fixture-runtime workers reuse that passing result
+through the inherited checkout activity lock after checking the source digest.
+Each independent invocation clears the lock's temporary success record; missing
+records run the safety suite, and changed/invalid records refuse execution.
+This avoids running the same disk-intensive prerequisite suite again in every
+host worker. Standalone, publishing, artifact and VM safety gates still run.
+Publishing may overlap units, private-D-Bus components or screen fidelity.
+Screen fidelity's private compositor, bus, PipeWire, settings and evidence are
+separate from publishing's private source/build directories. This lets the free
+worker take screen fidelity when units and components finish before publishing;
+adding it alongside established publishing requires 7 GiB available. Units and
+components have live overlap evidence; screen/publishing overlap still needs
+live validation. Other UI/build pairings remain disabled. Artifact operations run exclusively;
+builds cannot overlap each other. Every VM attempt remains exclusive after all
+host work exits.
 Node file concurrency and package build parallelism are capped at two.
 High pressure defers serial launches too. VM admission reads the pinned
 configuration through `tools/test-vm xml` and reserves guest RAM plus overhead.
 Private `resources.jsonl` samples and the report's host scheduling summary record
 the observed load, wall time and maximum active category count.
+Sampling continues during serial publishing and VM execution; observations name
+the running categories and include unrelated host load.
+Private `schedule.jsonl` records dependency keys, admitted companions, duration
+estimates, actual completion times and per-job waiting reasons. Estimates only
+order jobs; they cannot authorize a pairing or relax resource/timeout limits.
 
 UI bucket collection and completion must match the original discovered test IDs
 exactly; count-only matches cannot pass. New UI modules run exclusively until
@@ -78,7 +137,7 @@ state. Keyboard opening remains covered; repeated activation uses pointer input
 at the indicator's observed AT-SPI allocation inside overview, so a newly mapped
 app cannot receive those presses on its Cancel button. The launcher-count and
 single-overlay assertions remain.
-UI fixture setup/teardown failures stop further host scheduling and cancel owned
+Test fixture setup/teardown failures and pytest infrastructure failures stop further host scheduling and cancel owned
 companions through normal cleanup. Assertions, deadlines and launcher safety
 prerequisites are unchanged; no automatic retries are used. Each UI raw stream
 includes pytest phase durations for tuning estimates, including setup and
@@ -359,6 +418,62 @@ Nested-Shell tests reuse `child/preview-orchestration.sh`, a controlled copy of
 the packaged extension, and private runtime state. They must not change the
 developer's desktop, extension settings or live source. Preview launchers are
 development tools, not customer E2E commands.
+
+The bare-Mutter fixture disables its opening-window scale effect through
+`MUTTER_DEBUG_DISABLE_ANIMATIONS`, the upstream default plugin's test switch.
+GTK's animation setting alone does not control compositor effects: AT-SPI can
+expose final widget bounds while the compositor still transforms pointer input.
+Allowance coverage records delivered press/release coordinates and requires a
+single undistorted click as well as the existing menu placement/save assertions.
+Preview process logs are retained in private `/var/tmp/onpc-ui-preview-<run>/`
+directories, printed by the fixture, so later pytest categories cannot rotate
+away the first failure's diagnostics. These directories are disk-backed on the
+development host; logs and existing failure evidence are never removed by tests.
+
+Host pytest launchers fix `TMPDIR=/var/tmp` for capture and temporary fixtures.
+`tests.support.preview.boot_preview_session` scopes tempfile's default to `/tmp`
+only while Dogtail boots its private graphical runtime. WebKit creates
+`/var/tmp` as a symlink inside its sandbox, so placing `XDG_RUNTIME_DIR` beneath
+that path causes sandbox startup to abort. The runtime keeps its existing owned
+teardown; no sandbox protection is disabled. Success, failure and interruption
+restore pytest's disk-backed default (`test_support.py`). See the
+[upstream sandbox layout](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/Launcher/glib/BubblewrapLauncher.cpp).
+Request-layout, allowance and legend images use private `/var/tmp/onpc-*`
+directories. After setup, assertions and all fixture teardown have passed,
+the owning test removes its rendered PNGs and layout JSON. Failed, skipped,
+interrupted or teardown-failed attempts keep their images. Input event streams,
+preview logs and other diagnostics are preserved. Cleanup never scans old runs
+or deletes another worker's artifacts. Nested-Shell tests also discard their
+regenerable Mesa/NVIDIA shader caches after successful teardown, retaining
+Shell logs and reviewable screenshots. Synthetic E2E preflight assets have an
+explicit temporary-directory fixture lifetime, including setup failure.
+`test_ui_artifacts_cleanup_safety.py` covers successful/failed teardown,
+concurrent attempts, directory replacement and symlink/hardlink refusal.
+The failed
+[parallel host run](../docs/TestAutomation/Evidence/test-all-runs/20260914T012317Z-8f6f46ae/report.md)
+exhausted the user quota on RAM-backed `/tmp`: retained layout cases used about
+102 MiB each, and shared filesystem exhaustion broke capture writes and package
+fixtures in other workers. Private filenames do not isolate storage capacity.
+Pytest continues to own its numbered-directory locks and capture files; no
+worker deletes another worker's evidence. Existing evidence is preserved.
+Maintainer-script fixtures use `tests.support.shell.relocate_system_paths` to
+rewrite only original source matches in one pass. Sequential replacements
+corrupt inserted roots containing `/var/` or `/home/`; `test_support_shell.py`
+covers those roots and the real package configuration/removal suites exercise
+the resulting scripts under `/var/tmp`.
+The layout probe logs each render/save boundary and reports its evidence path
+before waiting, including on timeout. Its 60-second deadline remains in force;
+the original empty probe log cannot establish where that timeout occurred.
+Launcher storage and immediate fixture-failure cancellation have regressions in
+`test_test_launchers.py` and `test_regression.py`. The coordinator latches
+cancellation after persisting the first setup/teardown failure, before category
+exit, and continues draining owned cleanup output.
+The [corrected host qualification](../docs/TestAutomation/Evidence/test-all-runs/20260914T015529Z-45374919/report.md)
+completed every host category, with five concurrent categories recorded in its
+resource samples. Isolated and concurrent layout cases passed with the original
+deadline. The precise cause of the original layout timeout remains unknown;
+its empty probe log and kernel journal did not identify a rendering stall.
+Keep that limitation and the original failed evidence when assessing stability.
 
 Node and GJS checks are available as `make check-child-node` and
 `make check-child-gjs`. The latter prints its private

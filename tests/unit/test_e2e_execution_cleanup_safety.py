@@ -47,7 +47,7 @@ E2E_CASES = {'synthetic-smoke': execute}
 
 
 @pytest.fixture
-def harness(evidence_attempt, tmp_path, monkeypatch, local_preparation_source):
+def harness(evidence_attempt, tmp_path, monkeypatch, local_preparation_source, request):
     _, _, _, inventory_path, inputs = evidence_attempt
     path = tmp_path / 'tests/e2e/scenarios.json'
     path.write_bytes(inventory_path.read_bytes())
@@ -121,13 +121,16 @@ def harness(evidence_attempt, tmp_path, monkeypatch, local_preparation_source):
                               'callback_closed': True, 'shutdown_verified': True})
     monkeypatch.setattr(e2e_worker, 'run_distribution', worker)
     runner = runpy.run_path(str(tmp_path / 'tests/e2e/runner.py'))
-    # Public preflight uses the same safe /tmp/onpc-* artifact path contract.
-    assets = PrivateCollector(run_id='assets', secrets=[], parent=Path('/tmp'))
+    # Public preflight accepts project artifact roots under /tmp or /var/tmp.
+    # Keep that path shape, with an explicit fixture lifetime.
+    assets_parent = tempfile.TemporaryDirectory(prefix='onpc-e2e-assets-', dir='/var/tmp')
+    request.addfinalizer(assets_parent.cleanup)
+    assets = PrivateCollector(run_id='assets', secrets=[], parent=Path(assets_parent.name))
+    request.addfinalizer(assets.close)
     plan = runner['preflight'](['--artifacts=' + str(assets.path)], root=tmp_path)
     yield SimpleNamespace(root=tmp_path, plan=plan, case=plan['cases'][0], callback=callback,
                           events=events, leases=leases, source=source, collectors=collectors,
                           worker=worker, fingerprint=fingerprint, runner=runner)
-    assets.close()
 
 
 def run(harness, **kwargs):

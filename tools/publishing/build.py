@@ -85,7 +85,12 @@ def check_prerequisites():
 def check_build(root):
     check_prerequisites()
     version, inputs = source_inputs(root)
-    attempt = Path(tempfile.mkdtemp(prefix='onpc-ppa-check-', dir='/tmp'))
+    from tools.test_retention import allocate
+    attempt = Path(allocate(tempfile.mkdtemp, prefix='onpc-ppa-check-', dir='/tmp'))
+    # sbuild can fail before recording its unpack directory for end_session().
+    # Confine those leftovers too. Its subordinate user requires world traversal
+    # of ancestors; keep listing private and leave cleanup to sbuild itself.
+    scratch = Path(allocate(tempfile.mkdtemp, prefix='onpc-sbuild-scratch-', dir='/var/tmp', mode=0o711))
     source = attempt / 'input'
     output = attempt / 'output'
     config_dir = attempt / 'config/sbuild'
@@ -93,10 +98,12 @@ def check_build(root):
     output.mkdir()
     config_dir.mkdir(parents=True)
     config = config_dir / 'config.pl'
-    config.write_text(CONFIG)
+    template = str(scratch / 'root.XXXXXXXXXX').replace('\\', '\\\\').replace("'", "\\'")
+    config.write_text(CONFIG + f"$unshare_tmpdir_template = '{template}';\n1;\n")
     for name, payload in inputs.items():
         (source / name).write_bytes(payload)
-    report = {'directory': str(attempt), 'version': version, 'distribution': 'resolute', 'architecture': 'amd64',
+    report = {'directory': str(attempt), 'scratch_directory': str(scratch),
+              'version': version, 'distribution': 'resolute', 'architecture': 'amd64',
               'backend': 'sbuild-unshare', 'build_network': False, 'status': 'running',
               'input_sha256': {name: hashlib.sha256(payload).hexdigest() for name, payload in inputs.items()}}
     report_path = attempt / 'result.json'

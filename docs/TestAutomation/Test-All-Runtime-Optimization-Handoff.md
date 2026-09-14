@@ -135,15 +135,16 @@ lost-lock regressions verify that refusal precedes any of those mutations.
 
 ## Final aggregate qualification
 
-The [final aggregate report](Evidence/test-all-runs/20260913T033140Z-763bfa9c/report.md)
-and [category results](Evidence/test-all-runs/20260913T033140Z-763bfa9c/progress.json)
-record exit status 0, all 15 categories passed and 9,546/9,546 counted executions
+The final aggregate report and category results from `20260913T033140Z-763bfa9c`
+recorded exit status 0, all 15 categories passed and 9,546/9,546 counted executions
 or checks. These include 852 isolated cleanup-safety prerequisites, 8,166 unit
 tests, 134 private-D-Bus component tests, 142 UI tests, all 240 installed-system
 executions and `E2E-001/gdm-observation`. Both VM attempts passed product,
 infrastructure, collection and cleanup outcomes. Final VM status was off
 (`state=5`, `id=-1`), and both attempt reports record completed lease cleanup.
 All commands ran unattended through the approved launchers.
+Historical runner artifacts referenced in this handoff were removed by the
+requested one-time cleanup; the recorded findings below remain for context.
 
 | Aggregate work | Historical run | Final run |
 | --- | ---: | ---: |
@@ -192,8 +193,8 @@ verification seconds and zero verification failures. Its measured preparation
 was 114.947 seconds, test stage 51.269 seconds, cleanup 76.909 seconds and
 finalization 1.032 seconds. No pending scenario was promoted.
 
-The [earlier aggregate attempt](Evidence/test-all-runs/20260913T024933Z-4137da6e/report.md)
-is preserved as incomplete. It passed 13 categories, then waited below the
+The earlier aggregate attempt `20260913T024933Z-4137da6e`
+was incomplete. It passed 13 categories, then waited below the
 unchanged 20.39 GB VM admission threshold. On resumption its process was no
 longer present and it had no final result. Because the maintained runner has no
 checkpoint-resume option, the final qualification above reran the entire
@@ -352,9 +353,8 @@ concurrency questions. Do not spawn agents by default.
 
 ## Original evidence and implementation
 
-The [completed aggregate report](Evidence/test-all-runs/20260912T234802Z-d0cea2e3/report.md)
-and adjacent [category timings](Evidence/test-all-runs/20260912T234802Z-d0cea2e3/progress.json)
-record all 15 categories passing, including 240 installed-system executions and
+The completed aggregate report and category timings from `20260912T234802Z-d0cea2e3`
+recorded all 15 categories passing, including 240 installed-system executions and
 the sole ready E2E variant, `E2E-001/gdm-observation`.
 
 | Work | Observed duration |

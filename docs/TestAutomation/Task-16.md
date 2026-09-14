@@ -1,5 +1,14 @@
 # Task 16 — Installed time authority, PAM, and sessions
 
+**Scope — 2026-09-14:** this is retained, unfinished internal system
+qualification outside the active customer queue. It is not an E2E prerequisite
+or automatic fallback. Existing unit/component/system tests remain unchanged.
+Tasks 22/26 observe login, expiry and resumed use directly through customer
+interfaces without the backend assertions below. The original work descriptions
+and dependencies below apply only if this separate engineering work is resumed;
+they do not govern current customer task selection. See the
+[master separation](Test-Automation.md#separate-engineering--not-automatic-fallback).
+
 Execute 16A and 16B separately. All clock, account, and session changes are
 confined to the guarded existing VM. Reset the retained baseline only outside
 complete attempts; create no VM copies, overlays, or intermediate checkpoints.

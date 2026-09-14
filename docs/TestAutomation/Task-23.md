@@ -1,93 +1,61 @@
-# Task 23 — Child-overlay request and approval
+# Task 23 — Child-overlay customer requests
 
-Execute 23A and 23B separately. The child and kiosk use one GTK form: shared
-helpers must accept an explicit surface and preserve differences in account
-selection, broker method, mute preference, and exit behavior.
-
-Follow [E2E-Coverage.md](E2E-Coverage.md). Enumerate assigned scenario variants
-and execute complete graphical attempts. Shared helpers send real guest input
-and observe results; they cannot call approval methods, inject grants, fake a
-Polkit agent, or restore VM state between steps. Task 24 implements kiosk
-variants; local shared-form component mocks do not fulfill either E2E surface.
+Follow [E2E-Coverage.md](E2E-Coverage.md). Use the actual child panel, installed
+shared form and real system authentication prompt. Observe choices, messages,
+countdown and app access. No grant/filter/property reads, broker calls,
+correlation IDs or transaction tracing are customer assertions.
 
 ## Implementation slices
 
-Use the [implementation workflow](Implementation-Workflow.md). These are small
-work boundaries within the existing task, not extra acceptance checklists.
-Verification below is task acceptance; edits use the smallest affected selection.
-
-| Task | First proof, then expansion |
-| --- | --- |
-| 23A | One real selected-parent success and deliberate denial/cancel; one policy interaction; then the required approval matrix. |
-| 23B | Use the proven shared form/helper for parameterized validation values; group compatible values in one declared journey. |
+Reuse accepted graphical input and real request interactions from the first
+consumer. Helpers accept the surface explicitly so Task 24 can reuse them.
+Neither a completed internal authorization matrix nor another task's full
+customer matrix is a prerequisite. Complete one approval or rejection/retry
+journey before adding variants.
 
 ## Task 23A
 
-- Title: Automate real authentication and atomic child approval.
-- Depends on: Task 22B.
-- Complexity: high. Real Polkit challenges and policy/time transactions are
-  demanding, but installed authorization and isolation helpers already exist.
-- Recommended Codex model: `gpt-5.6-sol`
-- Recommended reasoning effort: `high`
+- Title: Child-overlay approval, cancellation and retry.
+- Depends on: verified installed setup and a real child session with usable time.
+- Default settings: `gpt-5.6-sol` / `high`.
+- Customer scope: E2E-012 and the overlay part of E2E-013.
 - Work:
-  1. Open the overlay from the child panel; verify the child is fixed and only
-     eligible parents appear. Select each parent and prove the real system
-     prompt is restricted to that identity and shows child/duration/soft choice.
-  2. Use secret-safe password entry. Exercise authentication cancel, rejected
-     password, and successful retry without lost choices or a consumed repeat
-     interval. Assert that denial/cancellation creates no grant or policy
-     relaxation and that retry commits exactly once; an Ubuntu rejection message
-     alone is insufficient. Use representative failures, not an upstream
-     password-policy matrix. Credentials remain confined to the system prompt.
-  3. Approve without soft apps: prove all blocked child apps close across
-     sessions before time becomes active and unrelated apps survive.
-  4. Approve with soft apps: prove no open app closes, hard launches remain
-     blocked, and soft launches work. On expiry, prove lock without immediate
-     termination; verify reconciliation at session entry and replacement-grant
-     precedence using Tasks 17B/22A's contract.
-  5. Exercise rapid duplicate submission and prove exactly one grant. Verify no
-     reusable Polkit authorization or child management access afterward.
-  6. Publish shared surface-aware authentication/approval helpers for 23B/24B
-     and update identity, authorization, and transaction mappings.
-- Verification:
-  - Run cleanup-safety regressions in isolation before process fixtures.
-  - Run denial/cancel and both approval cases as complete independent attempts,
-    resetting the retained baseline only outside attempts.
-    Correlate screens, correlation IDs, processes, AppFilter, grants, and logs.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: real child approval preserves identity, atomicity,
-  isolation, and least authority.
+  1. Open the overlay from the panel. Observe one form, the fixed child, eligible
+     parents, selected duration and soft-app choice. Select each supported parent
+     identity and observe the real prompt naming the intended approver.
+  2. Cancel authentication or enter a rejected password. Observe the message,
+     preserved selections and continued app restriction. Retry through the real
+     prompt and observe successful confirmation and usable time.
+  3. Approve with and without soft apps. Use the desktop and attempt allowed,
+     hard and soft launches to observe the chosen behavior. Where approval
+     should close existing apps, observe their windows after approval.
+  4. Try repeated submission through normal clicks. Observe the documented UI
+     handling, confirmation and displayed time. Do not claim an internally
+     exactly-once commit from screens.
+  5. Reopen a request and observe that real authentication is still needed.
+     Direct authorization attacks remain existing/separate system tests.
+- Verification: run complete declared approval and rejection/retry variants,
+  inspect visible evidence, retain existing safety/cleanup and affected checks.
+- Completion criteria: prompt identity, success, rejection/cancellation, retry
+  and app-use choices have passing customer evidence. No internal atomicity or
+  ordering proof is a completion requirement.
 
 ## Task 23B
 
-- Title: Automate shared form validation, choices, and overlay exit.
-- Depends on: Task 23A.
-- Complexity: medium. This is a bounded UI matrix using the established
-  surface-aware authentication and state assertions.
-- Recommended Codex model: `gpt-5.6-terra`
-- Recommended reasoning effort: `medium`
+- Title: Overlay choices, validation and exit.
+- Depends on: only the working overlay interaction needed by each case.
+- Default settings: `gpt-5.6-sol` / `high`; reassess routine case expansion.
+- Customer scope: overlay portions of E2E-014/015/018.
 - Work:
-  1. Cover predefined, rest-of-day, minimum, maximum, fractional, and invalid
-     custom durations at the lowest effective layer. Keep exhaustive independent
-     values in the shared local form tests for both modes. Graphical cases cover
-     the distinct real duration flows and representative boundaries, including
-     invalid input never invoking Polkit. Reconcile existing declarations before
-     grouping/moving equivalent cases; retain approval and exit interactions.
-  2. Verify at most one overlay, Escape, explicit cancel, success confirmation,
-     automatic close, and post-close countdown refresh.
-  3. Verify remembered duration, custom value, selected parent, and soft-app
-     choice are stored per child in shared preferences; child mute is separate
-     from kiosk mute. Task 24B supplies the cross-surface graphical round trip.
-  4. Parameterize shared form cases for both modes and run the existing local
-     shared-GTK regressions in both modes for any form/helper change.
-  5. Update validation, overlay lifecycle, and choice-persistence mappings;
-     leave kiosk exit/selection evidence pending for 24B.
-- Verification:
-  - Run focused shared-form regressions through
-    `tools/run-ui-tests --timeout <duration> <pytest-selectors>`.
-  - Run all assigned variants with
-    `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: overlay form behavior is proven and shared cases are
-  ready for the dedicated kiosk without duplicating authentication logic.
+  1. Use predefined, custom and rest-of-day choices. Try representative minimum,
+     maximum, fractional and invalid values; observe feedback and disabled
+     submission. Leave existing exhaustive local form tests intact.
+  2. Reopen the panel entry, use Escape/cancel, and complete a successful request.
+     Observe single-overlay behavior, confirmation, close and countdown refresh.
+  3. Reopen the form to verify remembered choices for each child. Observe mute
+     choices through the UI; do not read shared preferences. Task 24B owns the
+     full kiosk/overlay round trip.
+- Verification: complete the selected visible flows, run affected shared-form
+  regressions in both modes if shared code changes, and retain normal cleanup.
+- Completion criteria: declared choices, validation and exit paths pass without
+  inspecting storage or authentication internals.

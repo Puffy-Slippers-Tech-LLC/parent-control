@@ -25,14 +25,38 @@ def finish_close(client):
         assert time.monotonic() < deadline, "private client cleanup did not complete"
 
 
+def test_installed_sender_loss_fault_retains_closed_identity_and_observer(dbusmock_system):
+    from system_enforcement import _lose_probe_sender
+
+    observer = open_bus(dbusmock_system.address)
+    client = ProbeBusClient()
+    try:
+        assert client.open(dbusmock_system.address)
+        sender = client.connection
+        name = sender.get_unique_name()
+        deadline = time.monotonic() + 5
+        while not _lose_probe_sender(client):
+            assert time.monotonic() < deadline
+        assert client.connection is sender and sender.is_closed()
+        assert sender.get_unique_name() == name
+        spin_until(lambda: not has_owner(observer, name))
+        assert has_owner(observer, observer.get_unique_name())
+        assert _lose_probe_sender(client)  # A retry collects; never reopens.
+    finally:
+        finish_close(client)
+        observer.close_sync(None)
+
+
 @pytest.mark.parametrize("reply", ["success", "collision", "error"])
+@pytest.mark.parametrize("native", [False, True], ids=["canary", "native"])
 def test_late_create_reply_is_retained_on_real_owned_connection(
-        dbusmock_system, monkeypatch, caplog, reply):
+        dbusmock_system, monkeypatch, caplog, reply, native):
     # Hold a real method invocation, without launching a unit or another worker.
     server = open_bus(dbusmock_system.address)
     observer = open_bus(dbusmock_system.address)
     client = ProbeBusClient()
     invocations = []
+    requests = []
     info = Gio.DBusNodeInfo.new_for_xml(
         '<node><interface name="org.freedesktop.systemd1.Manager">'
         '<method name="StartTransientUnit"><arg type="s" direction="in"/>'
@@ -41,16 +65,23 @@ def test_late_create_reply_is_retained_on_real_owned_connection(
         '<arg type="o" direction="out"/></method></interface></node>')
     registration = 0
     try:
+        def receive(_c, _s, _p, _i, _m, args, invocation):
+            requests.append(args.unpack())
+            invocations.append(invocation)
+
         registration = server.register_object_with_closures2(
             execution_probe.SYSTEMD_PATH, info.interfaces[0],
-            lambda _c, _s, _p, _i, _m, _a, invocation: invocations.append(invocation),
-            None, None)
+            receive, None, None)
         assert client.open(dbusmock_system.address)
         name = client.connection.get_unique_name()
         monkeypatch.setattr(execution_probe, "CLEANUP_SECONDS", 0.05)
-        client.start_create(server.get_unique_name(), "onpc-test.service", "ONPC test")
+        token = "1" * 32 if native else None
+        client.start_create(server.get_unique_name(), "onpc-test.service", "ONPC test", token=token)
         spin_until(lambda: bool(invocations))
-        assert client.poll_create() is None
+        command = execution_probe.PROBE_GATE if native else execution_probe.PROBE
+        assert dict(requests[0][2])["ExecStart"] == [
+            (command, [command, token] if native else [command], False)]
+        assert client.poll_create(deadline=time.monotonic() + 0.01) is None
         assert not client.close() and has_owner(observer, name)
         assert client.connection is not None and not client.cleanup_complete
         invocation = invocations.pop()

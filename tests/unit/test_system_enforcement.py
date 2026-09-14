@@ -15,6 +15,98 @@ import pytest
 import system_enforcement as enforcement
 
 
+@pytest.mark.parametrize('scenario', ['success', 'refusal', 'bad-witness', 'interrupted', 'unsettled'])
+def test_native_probe_installed_collector_retains_and_recovers_one_attempt(
+        monkeypatch, tmp_path, scenario):
+    from dataclasses import replace
+    from gi.repository import Gio
+    from oh_no_parent_control import execution_probe as probe
+
+    root = tmp_path / 'probes'
+    root.mkdir(mode=0o700)
+    directory = root / 'attempt'
+    identity = SimpleNamespace(directory=str(directory), sha256='a' * 64)
+    binding = SimpleNamespace(peer=SimpleNamespace(invocation='b' * 32))
+    attempts = []
+
+    class Adapter:
+        def __init__(self, connection):
+            self.pending = None
+            self._generation = SimpleNamespace(verify=lambda: identity)
+            self.recoveries = 0
+            attempts.append(self)
+
+        def _admission_binding(self, *args):
+            return binding
+
+        def run_native(self):
+            directory.mkdir()
+            self.pending = probe.ProbeResult(unit='owned.service', generation=identity)
+            if scenario == 'interrupted':
+                raise KeyboardInterrupt
+            try:
+                admitted = self._admission_binding()
+            except probe.ChannelRefused:
+                return self.pending
+            self.pending = replace(self.pending, admission=admitted, invocation='b' * 32,
+                                   outcome='identity-unproven', channel_result='executed',
+                                   terminal_observed=True, native_verified=scenario != 'bad-witness')
+            return self.pending
+
+        def recover(self):
+            self.recoveries += 1
+            if scenario == 'unsettled':
+                return self.pending
+            result = replace(self.pending, cleanup_complete=True, client_closed=True,
+                             reference_released=True, job_timeout_usec=4_000_000)
+            directory.rmdir()
+            self.pending = None
+            return result
+
+    real_path = enforcement.Path
+    monkeypatch.setattr(enforcement, 'Path', lambda path: root if str(path) ==
+                        '/run/oh-no-parent-control/probes' else real_path(path))
+    # The collector requires installed root ownership; synthesize only the uid
+    # on this caller-owned private test directory, preserving its real inode.
+    original_lstat = type(root).lstat
+
+    def metadata(path):
+        value = original_lstat(path)
+        if path == root:
+            return SimpleNamespace(**{field: 0 if field == 'st_uid' else getattr(value, field)
+                                      for field in ('st_mode', 'st_uid', 'st_gid', 'st_dev', 'st_ino')})
+        return value
+
+    monkeypatch.setattr(type(root), 'lstat', metadata)
+    monkeypatch.setattr(enforcement.guest, 'guard', Mock())
+    monkeypatch.setattr(enforcement.guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(enforcement, 'record_execution_backend', Mock())
+    monkeypatch.setattr(enforcement.guest, 'run', Mock(return_value='259-1'))
+    monkeypatch.setattr(enforcement.guest, 'sha', Mock(return_value='a' * 64))
+    monkeypatch.setattr(probe, 'ExecutionProbe', Adapter)
+    monkeypatch.setattr(Gio, 'bus_get_sync', Mock(return_value=object()))
+    clock = iter(range(0, 200, 5))
+    monkeypatch.setattr(enforcement.time, 'monotonic', lambda: next(clock))
+    monkeypatch.setattr(enforcement.time, 'sleep', Mock())
+    records = {}
+    invoke = lambda: enforcement.native_probe_lifecycle(
+        records.__setitem__, refuse_admission=scenario == 'refusal')
+    if scenario == 'interrupted':
+        with pytest.raises(KeyboardInterrupt):
+            invoke()
+    elif scenario in {'bad-witness', 'unsettled'}:
+        with pytest.raises(enforcement.guest.GuestError, match=(
+                'expected-native-witness' if scenario == 'bad-witness' else 'cleanup-incomplete')):
+            invoke()
+    else:
+        invoke()
+    assert len(attempts) == 1 and attempts[0].recoveries >= 1
+    assert records['onpc.probe.cleanup-complete'] == (scenario != 'unsettled')
+    assert directory.exists() == (scenario == 'unsettled')
+    if scenario == 'unsettled':
+        assert records['onpc.probe.pending.unit'] == 'owned.service'
+
+
 @pytest.mark.parametrize('version', ['1.3.3-1build1', '1:1.4.5-2ubuntu1~test+1'])
 def test_execution_backend_records_bounded_validated_dependency_identity(monkeypatch, version):
     run = Mock(return_value=version)

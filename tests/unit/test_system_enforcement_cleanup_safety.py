@@ -1,11 +1,203 @@
 """No native launch before guest/credential checks; reuse owned command cleanup."""
 
 from unittest.mock import Mock
+from types import SimpleNamespace
+import os
+import threading
 
 import pytest
 
 import system_enforcement as enforcement
 from tests.support.installed_catalog import installed_catalog_tree
+
+
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_sender_loss_fault_retains_late_close_for_owned_retry(interrupted):
+    client = SimpleNamespace(_context=Mock(), _pending=None, _connection=Mock())
+    client._connection.is_closed.return_value = False
+    def start():
+        client._pending = 'close'
+    client._start_close = Mock(side_effect=start)
+    client._wait = Mock(side_effect=KeyboardInterrupt if interrupted else None)
+    if interrupted:
+        with pytest.raises(KeyboardInterrupt):
+            enforcement._lose_probe_sender(client)
+    else:
+        assert not enforcement._lose_probe_sender(client)
+    assert client._pending == 'close'
+    client._context.pop_thread_default.assert_called_once()
+    def finish(deadline):
+        client._pending = None
+        client._connection.is_closed.return_value = True
+    client._wait.side_effect = finish
+    assert enforcement._lose_probe_sender(client)
+    client._start_close.assert_called_once()
+    assert enforcement._lose_probe_sender(client)
+    client._start_close.assert_called_once()
+
+
+@pytest.mark.parametrize('entry', ['native_probe_storage_lifecycle', '_in_broker_mount'])
+def test_storage_guest_refusal_precedes_owner_and_namespace_access(monkeypatch, entry):
+    monkeypatch.setattr(enforcement.guest, 'guard', Mock(
+        side_effect=enforcement.guest.GuestError('guard-refused')))
+    opened = Mock()
+    monkeypatch.setattr(enforcement.os, 'open', opened)
+    with pytest.raises(enforcement.guest.GuestError, match='guard-refused'):
+        getattr(enforcement, entry)(Mock())
+    opened.assert_not_called()
+
+
+@pytest.mark.parametrize('field,value', [('MainPID', '0'), ('MainPID', '../12'),
+                                       ('InvocationID', 'invalid'), ('ActiveState', 'inactive'),
+                                       ('ProtectSystem', 'no'), ('RuntimeDirectoryPreserve', 'no')])
+def test_storage_identity_refuses_invalid_or_unprotected_broker(monkeypatch, field, value):
+    fields = dict(MainPID='12', InvocationID='a' * 32, ActiveState='active',
+                  ProtectSystem='strict', RuntimeDirectoryPreserve='yes')
+    fields[field] = value
+    monkeypatch.setattr(enforcement.guest, 'run', Mock(
+        return_value='\n'.join(f'{key}={item}' for key, item in fields.items())))
+    with pytest.raises(enforcement.guest.GuestError, match='broker-storage-identity'):
+        enforcement._broker_storage_identity()
+
+
+@pytest.mark.parametrize('fault', ['none', 'replaced', 'same-mount', 'setns', 'readonly', 'operation'])
+def test_storage_namespace_worker_is_joined_and_descriptors_close(monkeypatch, tmp_path, fault):
+    namespace = tmp_path / 'namespace'
+    namespace.write_bytes(b'namespace')
+    opened, threads, operations = [], [], []
+    main_thread = threading.get_ident()
+    real_open = os.open
+    real_stat = os.stat
+
+    def open_descriptor(path, flags):
+        fd = real_open(namespace if path.endswith('/ns/mnt') else tmp_path, flags)
+        opened.append(fd)
+        return fd
+
+    def stat_namespace(path, *args, **kwargs):
+        if path == '/proc/thread-self/ns/mnt':
+            inode = namespace.stat().st_ino
+            return SimpleNamespace(st_ino=inode if fault == 'same-mount' or
+                                   threading.get_ident() != main_thread else inode + 1)
+        return real_stat(path, *args, **kwargs)
+
+    def enter(*args):
+        threads.append(threading.get_ident())
+        if fault == 'setns':
+            raise PermissionError('namespace-refused')
+
+    def operation():
+        operations.append(threading.get_ident())
+        if fault == 'operation':
+            raise KeyboardInterrupt
+        return 'verified'
+
+    monkeypatch.setattr(enforcement.guest, 'guard', Mock())
+    identities = iter([('12', 'a' * 32),
+                       ('13' if fault == 'replaced' else '12', 'a' * 32), ('12', 'a' * 32)])
+    monkeypatch.setattr(enforcement, '_broker_storage_identity', lambda: next(identities))
+    monkeypatch.setattr(os, 'open', open_descriptor)
+    monkeypatch.setattr(os, 'stat', stat_namespace)
+    monkeypatch.setattr(os, 'unshare', enter)
+    monkeypatch.setattr(os, 'setns', enter)
+    monkeypatch.setattr(os, 'fchdir', enter)
+    monkeypatch.setattr(os, 'chroot', enter)
+    monkeypatch.setattr(os, 'chdir', enter)
+    monkeypatch.setattr(os, 'statvfs', lambda path: SimpleNamespace(
+        f_flag=0 if fault == 'readonly' else os.ST_RDONLY))
+    if fault == 'none':
+        assert enforcement._in_broker_mount(operation) == ('verified', ('12', 'a' * 32))
+    else:
+        error = (KeyboardInterrupt if fault == 'operation' else
+                 PermissionError if fault == 'setns' else enforcement.guest.GuestError)
+        with pytest.raises(error):
+            enforcement._in_broker_mount(operation)
+    assert all(identity != main_thread for identity in threads + operations)
+    assert not any(thread.name == 'onpc-probe-storage' and thread.is_alive()
+                   for thread in threading.enumerate())
+    for fd in opened:
+        with pytest.raises(OSError):
+            os.fstat(fd)
+    if fault not in {'none', 'operation'}:
+        assert not operations
+
+
+@pytest.mark.parametrize('fault', ['none', 'prepare', 'stop', 'start', 'restart', 'replacement', 'fresh'])
+def test_storage_lifecycle_keeps_exact_owner_and_cleans_after_failure(monkeypatch, tmp_path, fault):
+    from oh_no_parent_control import probe_generation as generation
+
+    root = tmp_path / 'probes'
+    root.mkdir(mode=0o700)
+    source = tmp_path / 'witness'
+    source.write_bytes(b'native witness fixture')
+    source.chmod(0o755)
+    monkeypatch.setattr(generation, 'RUNTIME_ROOT', str(root))
+    monkeypatch.setattr(generation, 'WITNESS_SOURCE', str(source))
+    monkeypatch.setattr(enforcement.guest, 'guard', Mock())
+    monkeypatch.setattr(enforcement.guest, 'enable_diagnostics', Mock())
+    incarnation = 1
+    seen = []
+    records = {}
+    current = lambda: ('12', f'{incarnation:032x}')
+    monkeypatch.setattr(enforcement, '_broker_storage_identity', current)
+
+    def within(operation):
+        seen.append(operation.__self__)
+        if fault == 'prepare' or fault == 'fresh' and len(seen) == 4:
+            # Real owner exists before partial preparation fails.
+            operation()
+            raise enforcement.guest.GuestError('prepare-failed')
+        return operation(), current()
+
+    def run(argv, **kwargs):
+        nonlocal incarnation
+        assert argv[0] == 'systemctl' and argv[2] == enforcement.guest.BROKER
+        if argv[1] == fault:
+            raise enforcement.guest.GuestError('service-failed')
+        if argv[1] in {'start', 'restart'}:
+            incarnation += 1
+        if argv[1] == 'stop' and fault == 'replacement':
+            witness = next(root.iterdir()) / 'witness'
+            witness.rename(witness.with_name('saved'))
+            witness.write_bytes(b'foreign replacement')
+        return 'inactive' if argv[1] == 'show' else ''
+
+    monkeypatch.setattr(enforcement, '_in_broker_mount', within)
+    monkeypatch.setattr(enforcement.guest, 'run', run)
+    if fault == 'none':
+        enforcement.native_probe_storage_lifecycle(records.__setitem__)
+        assert seen[0] is seen[1] is seen[2] and seen[3] is not seen[0]
+        assert records['onpc.probe.storage.restart-preserved']
+    else:
+        with pytest.raises((enforcement.guest.GuestError, generation.GenerationRefused)):
+            enforcement.native_probe_storage_lifecycle(records.__setitem__)
+    if fault == 'replacement':
+        assert not records['onpc.probe.storage.cleanup-complete']
+        directory = next(root.iterdir())
+        assert (directory / 'witness').read_bytes() == b'foreign replacement'
+        # Reconcile only the test's own replacement; original owner retries.
+        (directory / 'witness').unlink()
+        (directory / 'saved').rename(directory / 'witness')
+        assert seen[0].close(settled=True)
+    else:
+        assert records['onpc.probe.storage.cleanup-complete']
+    assert not list(root.iterdir())
+
+
+@pytest.mark.parametrize('refuse_admission', [False, True])
+@pytest.mark.parametrize('lose_sender', [False, True])
+def test_native_probe_guest_refusal_precedes_bus_import_and_files(
+        monkeypatch, refuse_admission, lose_sender):
+    guard = Mock(side_effect=enforcement.guest.GuestError('guard-refused'))
+    diagnostics, backend = Mock(), Mock()
+    monkeypatch.setattr(enforcement.guest, 'guard', guard)
+    monkeypatch.setattr(enforcement.guest, 'enable_diagnostics', diagnostics)
+    monkeypatch.setattr(enforcement, 'record_execution_backend', backend)
+    with pytest.raises(enforcement.guest.GuestError, match='guard-refused'):
+        enforcement.native_probe_lifecycle(Mock(), refuse_admission=refuse_admission,
+                                           lose_sender=lose_sender)
+    diagnostics.assert_not_called()
+    backend.assert_not_called()
 
 
 @pytest.mark.parametrize('boundary', ['guard', 'identity'])

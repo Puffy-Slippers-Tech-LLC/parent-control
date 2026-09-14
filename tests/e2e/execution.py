@@ -157,7 +157,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
         with ledger.measure('preparation'):
             # Keep retained worker PNGs inside the existing guarded export
             # scope, including when the caller has configured another TMPDIR.
-            directory = Path(tempfile.mkdtemp(prefix='onpc-graphical-smoke-', dir='/tmp'))
+            from tools.test_retention import allocate
+            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-graphical-smoke-', dir='/tmp'))
             directory.chmod(0o700)
             report['raw_directory'] = str(directory)
             private = directory / 'private'

@@ -9,6 +9,8 @@ import re
 import shutil
 import stat
 import sys
+import threading
+import time
 
 import system_guest as guest
 from system_caller import drop_identity
@@ -341,6 +343,261 @@ def record_execution_backend(record):
     digest = guest.sha(FAPOLICYD)
     record('onpc.enforcement.fapolicyd.package-version', version)
     record('onpc.enforcement.fapolicyd.executable.sha256', digest)
+
+
+def _lose_probe_sender(client):
+    """Test-only transport fault, reusing the retained client's bounded close.
+
+    Do not mark the client logically closing: model external transport loss
+    while retaining its original connection and callbacks for the adapter.
+    An interrupted/late close is collected on the next call to this helper.
+    """
+    client._context.push_thread_default()
+    try:
+        if client._pending is None and not client._connection.is_closed():
+            client._start_close()
+        client._wait(time.monotonic() + 2)
+        return client._pending is None and client._connection.is_closed()
+    finally:
+        client._context.pop_thread_default()
+
+
+def native_probe_lifecycle(record, *, refuse_admission=False, lose_sender=False):
+    """Qualify the installed adapter against systemd; never claim policy receipt.
+
+    The failure case validates the real waiting peer, then withholds admission.
+    Recovery owns that same attempt; no stop/kill, replacement adapter or replay.
+    The outer guarded controller retains diagnostics and restores the testbed if
+    bounded recovery cannot settle it.
+    """
+    guest.guard()
+    guest.enable_diagnostics()
+    record_execution_backend(record)
+    version = guest.run(['dpkg-query', '-W', '-f=${Version}', 'systemd'], timeout=10)
+    guest.require(re.fullmatch(r'[0-9][A-Za-z0-9.+:~\-]{0,127}', version) is not None,
+                  'probe:manager-version')
+    record('onpc.probe.systemd.package-version', version)
+    record('onpc.probe.systemd.executable.sha256', guest.sha(Path('/usr/lib/systemd/systemd')))
+    previous_path = sys.path[:]
+    sys.path[:0] = ['/usr/lib/oh-no-parent-control', '/usr/lib/oh-no-parent-control/broker']
+    try:
+        from oh_no_parent_control import execution_probe as probe
+        from gi.repository import Gio
+    finally:
+        sys.path[:] = previous_path
+
+    root = Path('/run/oh-no-parent-control/probes')
+    metadata = root.lstat()
+    guest.require(stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == 0 and
+                  stat.S_IMODE(metadata.st_mode) == 0o700, 'probe:runtime-provisioning')
+
+    class RefusingProbe(probe.ExecutionProbe):
+        binding_observed = False
+
+        def _admission_binding(self, *args):
+            super()._admission_binding(*args)
+            self.binding_observed = True
+            raise probe.ChannelRefused('installed qualification withholds admission')
+
+    class LostSenderProbe(probe.ExecutionProbe):
+        sender_lost = False
+
+        def _release(self, result):
+            if not self.sender_lost:
+                # Never discard the pin until the complete native observation
+                # is copied. Earlier-loss refusal is qualified locally only.
+                if not (result.create_outcome == 'replied' and result.terminal_observed and
+                        result.native_verified and result.admission is not None):
+                    return super()._release(result)
+                self.sender_lost = _lose_probe_sender(self._client)
+                if not self.sender_lost:
+                    return result
+            return super()._release(result)
+
+    connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    adapter_type = (RefusingProbe if refuse_admission else
+                    LostSenderProbe if lose_sender else probe.ExecutionProbe)
+    adapter = adapter_type(connection)
+    result = None
+    try:
+        result = adapter.run_native()
+        # Publish bounded enums/booleans and adapter-owned coordinates only.
+        record('onpc.probe.initial.outcome', result.outcome)
+        record('onpc.probe.initial.create-error-name', result.create_error_name)
+        record('onpc.probe.initial.cleanup-complete', result.cleanup_complete)
+        record('onpc.probe.initial.native-verified', result.native_verified)
+        record('onpc.probe.initial.terminal-observed', result.terminal_observed)
+        record('onpc.probe.initial.channel-result', result.channel_result)
+        record('onpc.probe.unit', result.unit)
+        record('onpc.probe.manager', result.manager)
+        record('onpc.probe.job', result.job)
+        guest.require(result.generation is not None, 'probe:generation-missing')
+        record('onpc.probe.witness.sha256', result.generation.sha256)
+        guest.require(not result.executed, 'probe:receipt-promoted')
+        if refuse_admission:
+            guest.require(adapter.binding_observed and not result.native_verified and
+                          result.admission is None and result.channel_result == '',
+                          'probe:expected-admission-refusal')
+            guest.require(adapter.pending is not None and not result.cleanup_complete,
+                          'probe:expected-retained-attempt')
+            guest.require(adapter._generation.verify() == result.generation,
+                          'probe:retained-witness')
+        else:
+            guest.require(result.native_verified and result.outcome == 'identity-unproven' and
+                          result.channel_result == 'executed' and result.terminal_observed and
+                          result.admission is not None and
+                          result.admission.peer.invocation == result.invocation,
+                          'probe:expected-native-witness')
+    finally:
+        deadline = time.monotonic() + 20
+        while adapter.pending is not None and time.monotonic() < deadline:
+            recovered = adapter.recover()
+            if recovered is not None:
+                result = recovered
+            if adapter.pending is not None:
+                time.sleep(0.05)
+        record('onpc.probe.cleanup-complete', adapter.pending is None)
+        if adapter.pending is not None:
+            # Keep exact owned coordinates in private JUnit evidence. The outer
+            # controller, not a guessed unit-name operation, owns VM recovery.
+            record('onpc.probe.pending.unit', adapter.pending.unit)
+            record('onpc.probe.pending.job', adapter.pending.job)
+            record('onpc.probe.pending.create-error-name', adapter.pending.create_error_name)
+        guest.require(adapter.pending is None, 'probe:cleanup-incomplete')
+    if lose_sender:
+        record('onpc.probe.sender-lost', adapter.sender_lost)
+        guest.require(adapter.sender_lost and not connection.is_closed(), 'probe:sender-loss-missing')
+    guest.require(result is not None and result.cleanup_complete and result.client_closed and
+                  result.reference_released and not result.executed, 'probe:cleanup-evidence')
+    record('onpc.probe.effective-job-timeout-usec', result.job_timeout_usec)
+    guest.require(result.job_timeout_usec == 4_000_000, 'probe:effective-job-timeout')
+    guest.require(not Path(result.generation.directory).exists(), 'probe:generation-not-collected')
+    current = root.lstat()
+    guest.require((current.st_dev, current.st_ino, current.st_mode, current.st_uid, current.st_gid) ==
+                  (metadata.st_dev, metadata.st_ino, metadata.st_mode, metadata.st_uid, metadata.st_gid),
+                  'probe:runtime-root-changed')
+
+
+def _broker_storage_identity():
+    raw = guest.run(['systemctl', 'show', guest.BROKER,
+                     '--property=MainPID,InvocationID,ActiveState,ProtectSystem,RuntimeDirectoryPreserve'],
+                    timeout=10)
+    fields = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
+    guest.require(fields.get('ActiveState') == 'active' and
+                  fields.get('ProtectSystem') == 'strict' and
+                  fields.get('RuntimeDirectoryPreserve') == 'yes' and
+                  re.fullmatch(r'[1-9][0-9]{0,9}', fields.get('MainPID', '')) is not None and
+                  re.fullmatch(r'[0-9a-f]{32}', fields.get('InvocationID', '')) is not None,
+                  'probe:broker-storage-identity')
+    return fields['MainPID'], fields['InvocationID']
+
+
+def _in_broker_mount(operation):
+    """Read-pin the guarded broker namespace; never signal its discovered PID.
+
+    Unshare filesystem state in a dedicated joined thread before setns/chroot.
+    No caller thread changes namespace/root, even if the operation fails. The
+    retained root FD prevents absolute paths from using the old root mount.
+    This qualifies mount restrictions, not the broker's capabilities/seccomp.
+    """
+    guest.guard()
+    identity = _broker_storage_identity()
+    descriptors = []
+    try:
+        namespace = os.open(f'/proc/{identity[0]}/ns/mnt', os.O_RDONLY | os.O_CLOEXEC)
+        descriptors.append(namespace)
+        root = os.open(f'/proc/{identity[0]}/root', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        descriptors.append(root)
+        guest.require(_broker_storage_identity() == identity, 'probe:broker-replaced')
+        expected = os.fstat(namespace).st_ino
+        guest.require(expected != os.stat('/proc/thread-self/ns/mnt').st_ino,
+                      'probe:broker-mount-not-isolated')
+        results, errors = [], []
+
+        def worker():
+            try:
+                os.unshare(os.CLONE_FS)
+                os.setns(namespace, os.CLONE_NEWNS)
+                os.fchdir(root)
+                os.chroot('.')
+                os.chdir('/')
+                guest.require(os.stat('/proc/thread-self/ns/mnt').st_ino == expected,
+                              'probe:broker-mount-mismatch')
+                guest.require(os.statvfs('/usr').f_flag & os.ST_RDONLY,
+                              'probe:strict-mount-not-readonly')
+                results.append(operation())
+            except BaseException as error:
+                errors.append(error)
+
+        thread = threading.Thread(target=worker, name='onpc-probe-storage')
+        thread.start()
+        try:
+            thread.join()
+        finally:
+            # Do not close descriptors or hand off while the owned worker lives.
+            while thread.is_alive():
+                thread.join()
+        if errors:
+            raise errors[0]
+        guest.require(len(results) == 1, 'probe:storage-worker-result')
+        guest.require(_broker_storage_identity() == identity, 'probe:broker-replaced')
+        return results[0], identity
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def native_probe_storage_lifecycle(record):
+    """Preserve one exact owner across stop/start and restart; never adopt residue."""
+    guest.guard()
+    guest.enable_diagnostics()
+    previous_path = sys.path[:]
+    sys.path[:0] = ['/usr/lib/oh-no-parent-control', '/usr/lib/oh-no-parent-control/broker']
+    try:
+        from oh_no_parent_control.probe_generation import ProbeGeneration
+    finally:
+        sys.path[:] = previous_path
+    # Retain before prepare, including partial creation and worker failure.
+    owner, fresh = ProbeGeneration(), ProbeGeneration()
+    try:
+        identity, broker = _in_broker_mount(owner.prepare)
+        record('onpc.probe.storage.witness.sha256', identity.sha256)
+        record('onpc.probe.storage.generation', identity.token)
+        guest.require(not owner.close(settled=False) and owner.verify() == identity,
+                      'probe:unsettled-storage-not-retained')
+        guest.require(_broker_storage_identity() == broker, 'probe:broker-replaced')
+        guest.run(['systemctl', 'stop', guest.BROKER], timeout=20)
+        guest.require(guest.run(['systemctl', 'show', guest.BROKER,
+                                 '--property=ActiveState', '--value'], timeout=10) == 'inactive',
+                      'probe:broker-not-stopped')
+        guest.require(owner.verify() == identity, 'probe:storage-lost-on-stop')
+        record('onpc.probe.storage.stop-preserved', True)
+        guest.run(['systemctl', 'start', guest.BROKER], timeout=30)
+        preserved, started = _in_broker_mount(owner.verify)
+        guest.require(preserved == identity and started[1] != broker[1],
+                      'probe:storage-start-identity')
+        guest.run(['systemctl', 'restart', guest.BROKER], timeout=30)
+        preserved, restarted = _in_broker_mount(owner.verify)
+        guest.require(preserved == identity and restarted[1] != started[1],
+                      'probe:storage-restart-identity')
+        other, current = _in_broker_mount(fresh.prepare)
+        guest.require(current == restarted and other.token != identity.token and
+                      owner.verify() == identity, 'probe:storage-residue-adopted')
+        record('onpc.probe.storage.restart-preserved', True)
+        record('onpc.probe.storage.fresh-independent', True)
+    finally:
+        # These owners never dispatch a unit or open a channel: settlement is
+        # certain after the worker joins. No recursive cleanup or broker-PID kill.
+        fresh_closed = owner_closed = False
+        try:
+            try:
+                fresh_closed = fresh.close(settled=True)
+            finally:
+                owner_closed = owner.close(settled=True)
+        finally:
+            record('onpc.probe.storage.cleanup-complete', fresh_closed and owner_closed)
+        guest.require(fresh_closed and owner_closed, 'probe:storage-cleanup-incomplete')
+    guest.require(_broker_storage_identity() == restarted, 'probe:broker-replaced')
 
 
 def native_policy_transition(accounts, record, variant='command'):

@@ -25,6 +25,11 @@ ProtectHome=no
 ProtectSystem=strict
 StateDirectory=oh-no-parent-control
 StateDirectoryMode=0700
+# Pending probe generations can outlive this broker. Only their retained owner
+# may settle them; stopping/restarting the broker must not recursively erase them.
+RuntimeDirectory=oh-no-parent-control/probes
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
 LogsDirectory=oh-no-parent-control
 LogsDirectoryMode=0750
 ReadWritePaths=/home

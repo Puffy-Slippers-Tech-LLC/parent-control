@@ -58,6 +58,26 @@ def test_partial_send_continues_offset_and_half_closes_once(monkeypatch):
     assert adapter.close()
 
 
+@pytest.mark.parametrize("remaining", [-1, 0.125, 10])
+def test_selection_never_extends_callers_admission_deadline(monkeypatch, remaining):
+    adapter = channel.ProbeChannel()
+    listener = Mock()
+    adapter._listener = listener
+    monkeypatch.setattr(channel.time, "monotonic", lambda: 10.0)
+    observed = []
+
+    def wait(peer, *, writing, deadline):
+        observed.append(deadline)
+        raise channel.ChannelRefused("deadline")
+
+    monkeypatch.setattr(adapter, "_wait", wait)
+    with pytest.raises(channel.ChannelRefused):
+        adapter.select(deadline=10.0 + remaining)
+    assert observed == [10.0 + min(remaining, channel.TIMEOUT)]
+    listener.accept.assert_not_called()
+    assert adapter.close()
+
+
 @pytest.mark.parametrize("field,value", [("pid", 43), ("uid", 99999),
                                          ("invocation", "3" * 32)])
 def test_wrong_or_stale_identity_closes_candidate_without_sending(monkeypatch, field, value):

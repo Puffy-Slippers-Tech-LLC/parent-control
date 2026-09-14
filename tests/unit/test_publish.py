@@ -186,6 +186,7 @@ def execution(tmp_path, monkeypatch):
         publish.save(state_path, state)
 
     monkeypatch.setattr(publish, 'command', command)
+    monkeypatch.setattr(publish.release.package_inputs, 'copy', lambda *args: [])
     monkeypatch.setattr(publish, 'verify_frozen', lambda state: None)
     monkeypatch.setattr(publish, 'inspect_source', inspect)
     monkeypatch.setattr(publish, 'archive_preflight', lambda: None)
@@ -722,6 +723,10 @@ def test_invalid_history_stops_before_preparation(repository, monkeypatch):
 @pytest.mark.parametrize('phase,replaced', [('signed', True), ('built', True),
                                          ('push-started', False), ('upload-started', False)])
 def test_corrected_source_can_replace_only_attempts_without_public_writes(repository, tmp_path, monkeypatch, phase, replaced):
+    mkdtemp = publish.tempfile.mkdtemp
+    def temporary_release(**options):
+        return mkdtemp(prefix=options['prefix'], dir=tmp_path)
+    monkeypatch.setattr(publish.tempfile, 'mkdtemp', temporary_release)
     directory = tmp_path / 'old-release'
     directory.mkdir()
     state = dict(phase=phase, checkout=str(repository), directory=str(directory),

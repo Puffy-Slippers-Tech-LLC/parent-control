@@ -51,6 +51,7 @@ def activation_for(path: str) -> str:
         "etc/pam.d/",
         "usr/lib/systemd/system/display-manager.service.d/",
         "usr/lib/systemd/system/fapolicyd.service.d/",
+        "usr/lib/systemd/system/onpc-execution-probe-.service.d/",
     )) or path in {
         "usr/libexec/oh-no-parent-control-execution-policy-probe",
         "usr/libexec/oh-no-parent-control-login-check",
@@ -84,6 +85,8 @@ def activation_for(path: str) -> str:
         return "session-renewal"
     if path in {
         "usr/libexec/oh-no-parent-control-broker",
+        "usr/libexec/oh-no-parent-control-execution-probe-gate",
+        "usr/libexec/oh-no-parent-control-execution-probe-witness",
         "usr/lib/systemd/system/oh-no-parent-control-broker.service",
     } or path.startswith((
         "usr/lib/oh-no-parent-control/broker/",

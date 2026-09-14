@@ -43,14 +43,3 @@ The main Debian package bundles Quill 2.0.3, copyright (C) 2017-2024 Slab,
 Its complete license and notices are installed under
 `/usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui/rich_editor/`.
 Upstream source: <https://github.com/slab/quill/tree/v2.0.3>.
-
-## Thunderbird preview icon
-
-The main Debian package includes an unmodified Thunderbird icon from Mozilla
-Foundation to identify Thunderbird in development preview data. The icon and
-its accompanying `THUNDERBIRD-BRANDING-LICENSE` notice are installed under
-`/usr/lib/oh-no-parent-control/parent/oh_no_parent_control_parent/` and are
-covered by MPL-2.0. The complete license is available locally at
-`/usr/share/common-licenses/MPL-2.0` and at <https://www.mozilla.org/MPL/2.0/>.
-The icon is also included in this product's corresponding source repository.
-Mozilla trademark rights are reserved; no affiliation or endorsement is claimed.

@@ -3,7 +3,8 @@
 import pytest
 
 from system_enforcement import (
-    native_policy_transition, observe_catalog, provision_catalog, provision_native,
+    native_policy_transition, native_probe_lifecycle, native_probe_storage_lifecycle,
+    observe_catalog, provision_catalog, provision_native,
 )
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
@@ -16,6 +17,31 @@ def native_accounts():
 
 def test_native_command_policy_is_uid_scoped(native_accounts, record_testsuite_property):
     native_policy_transition(native_accounts, record_testsuite_property)
+
+
+def test_native_probe_systemd_lifecycle(record_testsuite_property):
+    # One continuous scenario also proves a settled refusal permits a fresh
+    # independent generation; retain each stage's distinct evidence.
+    for stage, refuse in (('success', False), ('refusal', True), ('after-refusal', False)):
+        def record(key, value):
+            record_testsuite_property(f'{key}.{stage}', value)
+        native_probe_lifecycle(record, refuse_admission=refuse)
+
+
+def test_native_probe_broker_storage_lifecycle(record_testsuite_property):
+    native_probe_storage_lifecycle(record_testsuite_property)
+
+
+def test_native_probe_broker_service_sandbox(record_testsuite_property):
+    from system_probe_sandbox import native_probe_broker_sandbox
+    native_probe_broker_sandbox(record_testsuite_property)
+
+
+def test_native_probe_permanent_sender_loss(record_testsuite_property):
+    for stage, lose in (('lost-sender', True), ('fresh-after-loss', False)):
+        def record(key, value):
+            record_testsuite_property(f'{key}.{stage}', value)
+        native_probe_lifecycle(record, lose_sender=lose)
 
 
 def test_native_whitespace_policy_is_uid_scoped(record_testsuite_property):

@@ -2,6 +2,7 @@
 
 import io
 from contextlib import nullcontext
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,8 @@ import pytest
 import regression
 import regression_events
 import regression_process
+import regression_schedule
+from regression_resources import Admission, GIB, Sample
 from regression_process import Control
 import test_commands
 from system_progress import Progress
@@ -26,6 +29,47 @@ def report(tmp_path):
     result = regression.Report(tmp_path)
     yield result
     result.close()
+
+
+@pytest.mark.parametrize('kind,fields', [
+    ('collection', {'total': 1}),
+    ('finished', {'nodeid': 'case'}),
+    ('failure', {'nodeid': 'case', 'when': 'call', 'detail': 'first line\nsecond: café'}),
+])
+def test_event_record_stays_complete_when_diagnostics_follow_each_write(
+        report, tmp_path, monkeypatch, kind, fields):
+    run = regression.Run(tmp_path, report, Control(), host_only=True)
+    run.dashboard.stream = io.StringIO()
+    item = regression.Category('Mixed output', 1)
+    run.categories.append(item)
+    execution = regression.Execution(run, item, events=True)
+    diagnostic = b'prepare-host: [connection:event-loop-failed]\n'
+
+    class InterleavedOutput:
+        def write(self, value):
+            # A background writer can run between any two stream writes,
+            # including print's separate record and newline writes.
+            for byte in value.encode():
+                execution.output(bytes([byte]))
+            execution.output(diagnostic)
+            return len(value)
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr(regression_events.sys, '__stdout__', InterleavedOutput())
+    try:
+        regression_events.emit(kind, **fields)
+        assert execution.inventory_seen == (kind == 'collection')
+        assert item.done == (kind == 'finished')
+        assert item.failures == (kind == 'failure')
+        raw = (report.directory / 'category-001.log').read_text()
+        events = [json.loads(line[len(regression.PREFIX):]) for line in raw.splitlines()
+                  if line.startswith(regression.PREFIX)]
+        assert events == [dict(kind=kind, **fields)]
+        assert diagnostic.decode() in raw
+    finally:
+        execution.close()
 
 
 def test_event_burst_keeps_output_live_without_per_case_disk_barriers(report, tmp_path, monkeypatch):
@@ -116,12 +160,13 @@ def test_failed_standalone_cleanup_prevents_host_worker(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('installed', ['--unattended', '--skip-backing-verification',
-                                     '--unattended --skip-backing-verification'])
+                                     '--unattended --skip-backing-verification',
+                                     '--unattended --skip-backing-verification --retention-run='])
 def test_old_dispatcher_is_refused_before_expensive_suites(monkeypatch, installed):
     import dev_privileges
     monkeypatch.setattr(dev_privileges, 'check', lambda _: None)
     monkeypatch.setattr(regression.Path, 'read_text', lambda _: installed)
-    if '--unattended' in installed and '--skip-backing-verification' in installed:
+    if all(value in installed for value in ('--unattended', '--skip-backing-verification', '--retention-run=')):
         regression.authorization()
     else:
         with pytest.raises(ValueError, match='setup.sh --test-tools-only'):
@@ -137,7 +182,7 @@ def test_dashboard_colors_counts_and_no_diagnostics():
     value = stream.getvalue()
     assert '\033[32m[✓] Unit - 100% \033[0m(\033[32m4\033[0m/4)' in value
     assert '\033[97;1m[Running] UI - 30% \033[0m(\033[32m3\033[0m/10)' in value
-    assert '\033[90m[Pending] VM - 0% \033[0m(\033[32m0\033[0m/2)' in value
+    assert '\033[90m[Pending] VM (2)\033[0m\n' in value
     assert 'Overall - 43% \033[0m(\033[32m7\033[0m/16)' in value
     categories[0].state = 'Failed'
     categories[0].failures = 1
@@ -164,12 +209,12 @@ def test_branch_frame_shows_both_running_counts_queue_and_real_wall_time():
     assert '├─ Host branch 4 — idle' in first
     assert first.count('├─ Host branch ') == 4
     styled = '\n'.join(dashboard.render(160))
-    assert '\033[1m├─ Host branch 1 — running; one category at a time\033[0m' in styled
-    assert '\033[90m├─ Host branch 3 — idle; one category at a time\033[0m' in styled
+    assert '\033[1m├─ Host branch 1 — running\033[0m' in styled
+    assert '\033[90m├─ Host branch 3 — idle\033[0m' in styled
     assert '│  └─ [Running] UI - 30% (3/10) - 1.0m' in first
     assert '│  └─ [Running] Unit - 40% (8/20) - 40s' in first
-    assert first.index('Unassigned host work') < first.index('[Pending] Components')
-    assert 'memory headroom' in first
+    assert first.index('Unassigned host work') < first.index('[Waiting] Components')
+    assert '│    [Waiting] Components: memory headroom\n' in first
     assert first.index('Join host branches') < first.index('[Pending] VM')
     assert 'Overall - 29% (11/37) - 1.0m' in first
     ui.done, unit.done = 6, 15
@@ -177,16 +222,16 @@ def test_branch_frame_shows_both_running_counts_queue_and_real_wall_time():
     assert '[Running] UI - 60% (6/10) - 1.5m' in second
     assert '[Running] Unit - 75% (15/20) - 1.2m' in second
     assert 'Overall - 56% (21/37) - 1.5m' in second
-    assert second.count('[Pending] Components') == 1
+    assert second.count('[Waiting] Components') == 1
 
 
-def test_terminal_redraw_clips_long_waits_and_erases_shrinking_queue(monkeypatch):
+def test_terminal_redraw_clips_long_names_and_erases_shrinking_queue(monkeypatch):
     class Terminal(io.StringIO):
         def isatty(self):
             return True
 
     monkeypatch.setattr(regression.shutil, 'get_terminal_size', lambda: os.terminal_size((80, 24)))
-    item = regression.Category('UI', 10, host=True, wait_reason='memory ' * 30)
+    item = regression.Category('UI ' * 30, 10, host=True, wait_reason='memory headroom')
     stream = Terminal()
     dashboard = regression.Dashboard([item], stream)
     dashboard.draw(force=True)
@@ -237,6 +282,40 @@ def test_terminal_frames_stay_reachable_without_scrolling(monkeypatch, height):
         if height == 60:
             assert 'rows hidden' not in plain
             assert 'Completed 0' in plain
+
+
+def test_terminal_dimensions_ignore_stale_environment(monkeypatch):
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+        def fileno(self):
+            return 42
+
+    monkeypatch.setenv('LINES', '60')
+    monkeypatch.setenv('COLUMNS', '160')
+    size = os.terminal_size((80, 12))
+
+    def terminal_size(descriptor):
+        assert descriptor == 42
+        return size
+
+    monkeypatch.setattr(regression.os, 'get_terminal_size', terminal_size)
+    stream = Terminal()
+    dashboard = regression.Dashboard(
+        [regression.Category(f'Category {index}', 1) for index in range(30)], stream)
+    for size in (size, os.terminal_size((40, 8)), os.terminal_size((100, 24))):
+        previous = dashboard.terminal_size
+        stream.seek(0)
+        stream.truncate()
+        dashboard.draw(force=True)
+        output = stream.getvalue()
+        assert dashboard.terminal_size == size
+        assert output.count('\n') < size.lines
+        assert all(len(dashboard.ANSI.sub('', line)) < size.columns
+                   for line in output.splitlines())
+        if previous is not None:
+            assert output.startswith('\033[H\033[2J')
 
 
 def test_terminal_resize_discards_invalid_cursor_offset(monkeypatch):
@@ -492,7 +571,7 @@ def test_private_guest_failure_is_fsynced_before_public_event(tmp_path, monkeypa
     assert 'private failure detail' not in events[0]['detail']
 
 
-def test_generated_reports_are_ignored_by_source_provenance(tmp_path):
+def test_generated_reports_and_retention_are_ignored_by_source_provenance(tmp_path):
     root = Path(__file__).resolve().parents[2]
     # Debian source builds contain the ignore rules, but no checkout metadata.
     (tmp_path / '.gitignore').write_bytes((root / '.gitignore').read_bytes())
@@ -501,14 +580,26 @@ def test_generated_reports_are_ignored_by_source_provenance(tmp_path):
                              'docs/TestAutomation/Evidence/test-all-runs/example/report.md'],
                             cwd=tmp_path, stdout=subprocess.PIPE, check=False)
     assert result.returncode == 0
+    before = regression.source_identity(tmp_path)
+    for relative in ('docs/TestAutomation/Evidence/test-all-runs/example/report.md',
+                     'artifacts/test-retention/current.json', 'artifacts/test-retention/current.tmp',
+                     'artifacts/test-retention/owner.lock', 'artifacts/test-retention/writer.lock',
+                     'artifacts/test-retention/recovery-required'):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('generated state')
+    assert regression.source_identity(tmp_path) == before
+    (tmp_path / 'tools').mkdir()
+    (tmp_path / 'tools/test_retention.py').write_text('changed implementation')
+    assert regression.source_identity(tmp_path) != before
 
 
 @pytest.mark.parametrize('output,previous,key', [
-    ('', [], 'build-a'),
-    ('run-tests: output=/tmp/onpc-test-artifacts-a\n' * 2, [], 'build-a'),
-    ('run-tests: output=/tmp/onpc-test-artifacts-a', ['/tmp/onpc-test-artifacts-a'], 'build-b'),
-    ('run-tests: output=/tmp/onpc-test-artifacts-a', [], 'build-b'),
-    ('run-tests: output=/tmp/foreign', [], 'build-a'),
+    ('', {}, 'build-a'),
+    ('run-tests: output=/tmp/onpc-test-artifacts-a\n' * 2, {}, 'build-a'),
+    ('run-tests: output=/tmp/onpc-test-artifacts-a', {'build-a': '/tmp/onpc-test-artifacts-a'}, 'build-b'),
+    ('run-tests: output=/tmp/onpc-test-artifacts-b', {'build-a': '/tmp/onpc-test-artifacts-a'}, 'build-a'),
+    ('run-tests: output=/tmp/foreign', {}, 'build-a'),
 ])
 def test_invalid_builder_output_cannot_unlock_reproducibility(report, tmp_path, output, previous, key):
     from regression_schedule import Job
@@ -539,6 +630,203 @@ def test_serial_builder_samples_resources_while_running_and_labels_the_observati
     assert len(samples) == 3
     assert all(sample['running_categories'] == ['Publishing tests'] for sample in samples)
     assert item.state == 'Passed'
+
+
+def test_vm_memory_wait_stays_visible_after_host_join_and_in_short_terminal():
+    hosts = [regression.Category(f'Host {i}', 1, 1, 'Passed', host=True, branch=i % 4 + 1)
+             for i in range(20)]
+    vm = regression.Category('Installed-system tests', 244, wait_reason=
+                             'waiting for memory headroom (14.0 GiB available; requires 15.2 GiB)')
+    dashboard = regression.Dashboard([*hosts, vm])
+    dashboard.host_elapsed = 400
+    rows = dashboard.fit_height(dashboard.render(800), 8)
+    text = dashboard.ANSI.sub('', '\n'.join(rows))
+    assert '[Waiting] Installed-system tests: waiting for memory headroom' in text
+    assert '14.0 GiB available; requires 15.2 GiB' in text
+    assert 'Join host branches — passed' in text
+
+
+@pytest.mark.parametrize('failure', [None, 'build-a', 'build-b', 'publish'])
+def test_independent_builds_finish_in_reverse_order_with_host_and_publishing_active(
+        report, tmp_path, failure):
+    entered = threading.Barrier(4)
+    b_validated, a_validated = threading.Event(), threading.Event()
+    completed = []
+
+    class Commands(Control):
+        def stop(self):
+            super().stop()
+            b_validated.set()
+            a_validated.set()
+
+        def run(self, command, *, output, **kwargs):
+            key = command[0]
+            if key != 'compare':
+                entered.wait(5)
+            if key == 'build-a':
+                assert b_validated.wait(5), 'build B could not finish independently'
+            elif key in ('publish', 'host'):
+                assert a_validated.wait(5), 'builds waited for publishing or host work'
+            if key.startswith('build-'):
+                output(f'run-tests: output=/tmp/onpc-test-artifacts-{key}\n'.encode())
+            if key == 'compare':
+                assert command[1:] == ['/tmp/onpc-test-artifacts-build-a',
+                                       '/tmp/onpc-test-artifacts-build-b']
+            return int(key == failure)
+
+    run = regression.Run(tmp_path, report, Commands(), host_builds=True)
+    run.dashboard.stream = io.StringIO()
+    run.admission = SimpleNamespace(allows=lambda *_: True)
+    publishing = regression.Category('Publishing', 1)
+    builds = [regression.Category(name, 1) for name in ('A', 'B', 'Comparison')]
+    jobs = run.build_jobs(publishing, builds)
+    original_complete = run.complete_host
+
+    def complete(job, result):
+        original_complete(job, result)
+        completed.append(job.key)
+        if job.key == 'build-b':
+            b_validated.set()
+        if job.key == 'build-a':
+            a_validated.set()
+
+    run.complete_host = complete
+    # Use short fake commands, retaining the production graph and deferred
+    # comparison lookup. Both real builders normally have identical argv.
+    run.command = lambda kind, *args: ['compare', *args[1:]]
+    for job in jobs[:3]:
+        assert job.requires == ()
+        job.command = [job.key]
+    host_item = regression.Category('Host', 1)
+    jobs.append(regression_schedule.Job('ui-layout', host_item, ['host'], estimate=100))
+    run.categories = [publishing, *builds, host_item]
+    run.host_jobs(jobs)
+    assert completed.index('build-b') < completed.index('build-a')
+    assert completed.index('build-a') < completed.index('publish')
+    assert host_item.state == 'Passed'
+    assert builds[2].state == ('Blocked' if failure in ('build-a', 'build-b') else 'Passed')
+    assert set(run.artifacts) == {'build-a', 'build-b'} - {failure}
+
+
+@pytest.mark.parametrize('io_burst', [False, True])
+def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch, io_burst):
+    # Representative discovery sizes from the reported run. Run.run builds the
+    # actual jobs, estimates and dependencies; do not duplicate its job ordering.
+    inventory = {name: [f'tests/ui/{name}::test_{index}' for index in range(count)]
+                 for name, count in [('test_request_form_component.py', 58),
+                                     ('test_screen_preview.py', 20),
+                                     ('test_preview_smoke.py', 23),
+                                     ('test_request_layout.py', 22),
+                                     ('test_parent_feedback.py', 8),
+                                     ('test_child_shell_lifecycle.py', 3)]}
+    state = SimpleNamespace(now=100.0)
+    monkeypatch.setattr(regression.time, 'monotonic', lambda: state.now)
+    monkeypatch.setattr(regression, 'source_identity', lambda _: 'stable-inputs')
+    import test_activity
+    monkeypatch.setattr(test_activity, 'record_cleanup', lambda _: None)
+    releases, scheduled = {}, []
+    durations = {'Publishing tests': 40, 'Unit and contracts': 12,
+                 'UI — Request behavior': 80, 'UI — Screen fidelity': 100}
+
+    class Workers(ThreadPoolExecutor):
+        def submit(self, function, execution, command):
+            release = releases[id(execution)] = threading.Event()
+            def work():
+                assert release.wait(30), 'simulated child was not released'
+                return function(execution, command)
+            future = super().submit(work)
+            scheduled.append((state.now + durations.get(execution.item.name, 2),
+                              release, future))
+            return future
+
+    class Commands(Control):
+        builds = 0
+
+        def stop(self):
+            super().stop()
+            for release in releases.values():
+                release.set()
+
+        def run(self, command, *, output, **kwargs):
+            category = 'ui' if command[0].endswith('run-ui-tests') else command[1]
+            if category in ('unit', 'component', 'fixture-runtime', 'ui'):
+                nodes = ([node for ids in inventory.values() for node in ids
+                          if node.partition('::')[0] in command] if category == 'ui' else ['case'])
+                events = [dict(kind='collection', total=len(nodes), nodeids=nodes),
+                          *(dict(kind='finished', nodeid=node) for node in nodes)]
+                output(''.join(regression_events.PREFIX + json.dumps(event) + '\n'
+                               for event in events).encode())
+            elif category == 'artifacts' and 'build' in command:
+                self.builds += 1
+                output(f'run-tests: output=/tmp/onpc-test-artifacts-refill{self.builds}\n'.encode())
+            return 0
+
+    run = regression.Run(tmp_path, report, Commands(), host_builds=True)
+    run.dashboard.stream = io.StringIO()
+
+    def discover(item, command, *, collect=False, **kwargs):
+        # Only discovery and the prerequisite gate are simulated here. Host
+        # jobs go through the real run_jobs/Execution/Commands.run path above.
+        assert collect or (command[1] == 'unit' and any('cleanup_safety' in arg for arg in command))
+        item.total = 1
+        if command[0].endswith('run-ui-tests'):
+            item.nodeids = tuple(node for ids in inventory.values() for node in ids)
+            item.total = len(item.nodeids)
+        if not collect:
+            item.done, item.state = item.total, 'Passed'
+        return 0, ''
+
+    def sample():
+        io = 12 if io_burst and 140 <= state.now < 142 else (3 if state.now < 150 else 0)
+        return Sample(20, 2, 32 * GIB, 24 * GIB, 0, 0, io, False)
+
+    run.execute = discover
+    run.admission = Admission(SimpleNamespace(sample=sample), lambda: state.now)
+    scheduler = regression.run_jobs
+
+    def dispatch(jobs, **kwargs):
+        original_tick = kwargs['tick']
+
+        def tick():
+            original_tick()
+            state.now += 2
+            assert state.now < 400, 'scheduler stranded ready work'
+            due = [(release, future) for deadline, release, future in scheduled
+                   if deadline <= state.now and not release.is_set()]
+            for release, _ in due:
+                release.set()
+            # Make completion visible before the next coordinator pass, without
+            # races between simulated time and the real worker threads.
+            for _, future in due:
+                assert future.result(timeout=5) == 0
+
+        try:
+            return scheduler(jobs, **{**kwargs, 'tick': tick})
+        finally:
+            for release in releases.values():
+                release.set()
+
+    monkeypatch.setattr(regression_schedule, 'ThreadPoolExecutor', Workers)
+    monkeypatch.setattr(regression, 'run_jobs', dispatch)
+    run.run()
+    events = [json.loads(line) for line in (report.directory / 'schedule.jsonl').read_text().splitlines()]
+    starts = {event['job']: event for event in events if event['event'] == 'start'}
+    finishes = {event['job']: event for event in events if event['event'] == 'finish'}
+    assert list(starts)[:4] == ['UI — Request behavior', 'publish', 'UI — Screen fidelity',
+                               'Unit and contracts']
+    component, unit = starts['Private D-Bus components'], starts['Unit and contracts']
+    assert component['branch'] == unit['branch'] == 4
+    assert 0 <= component['monotonic'] - finishes['Unit and contracts']['monotonic'] <= 5
+    preview = starts['UI — Preview and About']
+    assert preview['branch'] == starts['publish']['branch']
+    assert 0 <= preview['monotonic'] - finishes['publish']['monotonic'] <= (10 if io_burst else 5)
+    assert 'ui-request' in starts['publish']['companions']
+    assert starts['build-a']['companions']
+    assert starts['build-b']['companions']
+    assert starts['compare']['monotonic'] >= finishes['build-a']['monotonic']
+    assert starts['compare']['monotonic'] >= finishes['build-b']['monotonic']
+    assert set(starts) == set(finishes)
+    assert all(event['state'] == 'Passed' for event in finishes.values())
 
 
 @pytest.mark.parametrize('fail_unit,fail_publish', [(False, False), (True, False), (False, True)])
@@ -616,13 +904,16 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         assert 'Scope: host branches only' in (report.directory / 'report.md').read_text()
         return
     if fail_publish:
-        assert not any('artifacts' in call or ('system' in call and '--list' not in call)
+        assert len([call for call in control.calls if 'artifacts' in call and 'build' in call]) == 2
+        assert len([call for call in control.calls if 'compare' in call]) == 1
+        assert not any(('system' in call and '--list' not in call)
                        or '--scenario' in call for call in control.calls)
         return
     assert len([call for call in control.calls if 'compare' in call]) == 1
     assert len([call for call in control.calls if 'publish' in call]) == 1
     package = [call for call in control.calls if 'artifacts' in call]
-    assert package[-1][-2:] == ['/tmp/onpc-test-artifacts-fake1', '/tmp/onpc-test-artifacts-fake2']
+    assert package[-1][-2:] == [run.artifacts['build-a'], run.artifacts['build-b']]
+    assert set(package[-1][-2:]) == {'/tmp/onpc-test-artifacts-fake1', '/tmp/onpc-test-artifacts-fake2'}
     if host_builds:
         assert not any(call[1] in ('system', 'e2e') for call in control.calls)
         return

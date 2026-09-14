@@ -26,7 +26,10 @@ def test_request_layout_keeps_text_readable_and_controls_reachable(
         },
     )
     try:
-        status = process.wait(timeout=60)
+        # One process renders 45 layouts plus three scaled PNGs, including 4K
+        # images. Budget the complete batch under concurrent host execution;
+        # 60 seconds cut off a progressing probe during its 42nd image save.
+        status = process.wait(timeout=180)
     except subprocess.TimeoutExpired:
         pytest.fail(f"Request layout probe timed out; evidence: {directory}\n{log.read_text()}")
     assert status == 0, log.read_text()

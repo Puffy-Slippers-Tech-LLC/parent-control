@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import secrets
+import re
 import threading
 import time
 
@@ -19,8 +20,11 @@ from .adapters import (
     DBUS_INTERFACE, DBUS_NAME, DBUS_PATH, PROPERTIES_INTERFACE,
     SYSTEMD_MANAGER_INTERFACE, SYSTEMD_NAME, SYSTEMD_PATH, _call,
 )
+from .probe_channel import AdmissionBinding, PeerHello, ProbeChannel, ChannelRefused, TIMEOUT
+from .probe_generation import ProbeGeneration, GenerationIdentity, GenerationRefused
 
 PROBE = "/usr/libexec/oh-no-parent-control-execution-policy-probe"
+PROBE_GATE = "/usr/libexec/oh-no-parent-control-execution-probe-gate"
 PROBE_EXECUTED = 23
 UNIT_INTERFACE = "org.freedesktop.systemd1.Unit"
 SERVICE_INTERFACE = "org.freedesktop.systemd1.Service"
@@ -32,6 +36,20 @@ POLL_SECONDS = 0.05
 NO_UNIT = "org.freedesktop.systemd1.NoSuchUnit"
 UNIT_EXISTS = "org.freedesktop.systemd1.UnitExists"
 NOT_REFERENCED = "org.freedesktop.systemd1.NotReferenced"
+CREATE_ERROR_NAMES = frozenset({
+    UNIT_EXISTS,
+    "org.freedesktop.DBus.Error.AccessDenied",
+    "org.freedesktop.DBus.Error.AuthFailed",
+    "org.freedesktop.DBus.Error.InteractiveAuthorizationRequired",
+    "org.freedesktop.DBus.Error.InvalidArgs",
+    "org.freedesktop.DBus.Error.UnknownProperty",
+    "org.freedesktop.DBus.Error.PropertyReadOnly",
+    "org.freedesktop.DBus.Error.UnknownMethod",
+    "org.freedesktop.DBus.Error.NoReply",
+    "org.freedesktop.DBus.Error.Disconnected",
+    "org.freedesktop.DBus.Error.Timeout",
+    "org.freedesktop.DBus.Error.LimitsExceeded",
+})
 
 
 @dataclass(frozen=True)
@@ -40,6 +58,7 @@ class ProbeCreateReply:
 
     outcome: str
     job: str = ""
+    error_name: str = ""
 
 
 class ProbeBusClient:
@@ -75,14 +94,19 @@ class ProbeBusClient:
             job = connection.call_finish(result).unpack()[0]
             self._create_reply = ProbeCreateReply("replied", job)
         except GLib.Error as error:
-            outcome = "collision" if _error_name(error) == UNIT_EXISTS else "uncertain"
-            self._create_reply = ProbeCreateReply(outcome)
+            name = _error_name(error)
+            outcome = "collision" if name == UNIT_EXISTS else "uncertain"
+            # A name helps diagnose installed API/authorization failures, but
+            # arbitrary remote names and messages can contain private data.
+            # This is diagnostic only: even a known error cannot settle create.
+            self._create_reply = ProbeCreateReply(
+                outcome, error_name=name if name in CREATE_ERROR_NAMES else "other")
             LOG.info("execution-probe.001", outcome=outcome)
         finally:
             self._create_pending = False
 
-    def start_create(self, owner, unit, description):
-        """Submit one fixed canary; collect its reply separately without replay.
+    def start_create(self, owner, unit, description, *, token=None):
+        """Submit the fixed canary or token-bound gate, without replay.
 
         The caller must retain this client AND its unit-evidence coordinates.
         No timeout/cancellation discards the eventual job reply. Local polling
@@ -96,7 +120,7 @@ class ProbeBusClient:
             if self.connection is None or self._create_started:
                 raise RuntimeError("probe creation unavailable or already submitted")
             parameters = GLib.Variant("(ssa(sv)a(sa(sv)))", (
-                unit, "fail", _properties(description), []))
+                unit, "fail", _properties(description, token=token), []))
             self._context.push_thread_default()
             try:
                 self._create_started = True
@@ -115,14 +139,15 @@ class ProbeBusClient:
         finally:
             self._operation.release()
 
-    def poll_create(self):
-        """Collect a late reply within one cleanup deadline; never cancel it."""
+    def poll_create(self, *, deadline=None):
+        """Collect within the caller's deadline or cleanup budget; never cancel."""
         if not self._operation.acquire(blocking=False):
             raise RuntimeError("execution probe client operation already running")
         try:
             self._context.push_thread_default()
             try:
-                deadline = time.monotonic() + CLEANUP_SECONDS
+                deadline = (time.monotonic() + CLEANUP_SECONDS if deadline is None
+                            else min(deadline, time.monotonic() + CLEANUP_SECONDS))
                 while self._create_pending and time.monotonic() < deadline:
                     if not self._context.iteration(False):
                         time.sleep(min(POLL_SECONDS, max(0, deadline - time.monotonic())))
@@ -262,6 +287,7 @@ class ProbeResult:
     unit: str
     manager: str = ""
     create_outcome: str = "not-submitted"
+    create_error_name: str = ""
     job: str = ""
     invocation: str = ""
     outcome: str = "transport-failed"
@@ -272,6 +298,11 @@ class ProbeResult:
     reference_released: bool = False
     client_closed: bool = False
     cleanup_complete: bool = False
+    generation: GenerationIdentity | None = None
+    admission: AdmissionBinding | None = None
+    channel_result: str = ""
+    native_verified: bool = False
+    job_timeout_usec: int = 0
 
     @property
     def executed(self):
@@ -284,9 +315,13 @@ def _error_name(error):
     return Gio.dbus_error_get_remote_error(error)
 
 
-def _properties(description):
+def _properties(description, *, token=None):
     # AddRef pins even fast failures until evidence is copied. UnrefUnit drops
     # only the sending connection's reference; CollectMode then permits GC.
+    if token is not None and (not isinstance(token, str) or
+            re.fullmatch(r"[0-9a-f]{32}", token) is None or token == "0" * 32):
+        raise ValueError("invalid probe generation token")
+    command = (PROBE, [PROBE], False) if token is None else (PROBE_GATE, [PROBE_GATE, token], False)
     values = {
         "Description": ("s", description),
         "AddRef": ("b", True),
@@ -298,7 +333,9 @@ def _properties(description):
         "TimeoutStartUSec": ("t", 2_000_000),
         "RuntimeMaxUSec": ("t", 2_000_000),
         "TimeoutStopUSec": ("t", 2_000_000),
-        "JobTimeoutUSec": ("t", 4_000_000),
+        # The packaged prefix drop-in supplies JobTimeoutSec=4s. The systemd
+        # 259 transient D-Bus setter falls through to PropertyReadOnly.
+        # Read back the effective value before admission and at collection.
         "KillMode": ("s", "control-group"),
         "SendSIGKILL": ("b", True),
         "StandardInput": ("s", "null"),
@@ -306,7 +343,7 @@ def _properties(description):
         "StandardError": ("s", "null"),
         "User": ("s", "0"),
         "Group": ("s", "0"),
-        "ExecStart": ("a(sasb)", [(PROBE, [PROBE], False)]),
+        "ExecStart": ("a(sasb)", [command]),
     }
     return [(name, GLib.Variant(signature, value))
             for name, (signature, value) in values.items()]
@@ -328,6 +365,8 @@ class ExecutionProbe:
         self._description = ""
         self._client = None
         self._settled = True
+        self._generation = None
+        self._channel = None
 
     @property
     def pending(self):
@@ -354,13 +393,28 @@ class ExecutionProbe:
         return connection
 
     def _finish_client(self, result):
+        if self._channel is not None and self._channel.result is not None:
+            # collect() can be interrupted after retaining a valid frame but
+            # before returning it. Preserve that observation without promotion.
+            result = replace(result, channel_result=self._channel.result)
+            self._pending = result
+        # Closing the sole endpoint aborts any unadmitted gate. Never reopen it
+        # in recovery. Its filesystem cleanup can fail independently of the unit.
+        if self._channel is not None and self._channel.close():
+            self._channel = None
         # Keep the sender available to release a late dispatch's AddRef while
         # unit settlement is uncertain. Disconnect is not a qualified substitute.
-        if self._settled:
+        if self._settled and self._client is not None:
             closed = self._client.close()
-            result = replace(result, client_closed=closed, cleanup_complete=closed)
+            result = replace(result, client_closed=closed)
+            self._pending = result
             if closed:
                 self._client = None
+        settled = self._settled and result.client_closed and self._channel is None
+        if settled and self._generation is not None:
+            if self._generation.close(settled=True):
+                self._generation = None
+        result = replace(result, cleanup_complete=settled and self._generation is None)
         self._pending = None if result.cleanup_complete else result
         LOG.info(
             "execution-probe.005",
@@ -369,12 +423,14 @@ class ExecutionProbe:
         )
         return result
 
-    def _collect_create(self, result, *, preserve_outcome):
+    def _collect_create(self, result, *, preserve_outcome, deadline=None):
         """Copy one retained creation reply without settling the unit itself."""
-        reply = self._client.poll_create()
+        reply = (self._client.poll_create() if deadline is None else
+                 self._client.poll_create(deadline=deadline))
         if reply is None:
             return result, True
-        result = replace(result, create_outcome=reply.outcome, job=reply.job)
+        result = replace(result, create_outcome=reply.outcome, job=reply.job,
+                         create_error_name=reply.error_name)
         if preserve_outcome:
             return result, reply.outcome != "collision"
         if reply.outcome == "collision":
@@ -412,7 +468,9 @@ class ExecutionProbe:
         previous_invocation = bytes(before["InvocationID"])
         if previous_invocation != bytes(after["InvocationID"]) and any(previous_invocation):
             raise ValueError("probe invocation changed during collection")
-        result = replace(result, invocation=invocation)
+        timeout = after.get("JobTimeoutUSec", 0)
+        timeout_verified = (before.get("JobTimeoutUSec") == timeout == 4_000_000)
+        result = replace(result, invocation=invocation, job_timeout_usec=timeout)
         if any(before[key] != after[key] for key in ("InvocationID", "ActiveState", "Job")):
             # A normal start/exit can span these reads. Bind the identity but
             # wait for a stable terminal snapshot rather than mix observations.
@@ -423,14 +481,16 @@ class ExecutionProbe:
         if service["MainPID"] != 0 or service["ControlPID"] != 0:
             return result
         commands = service["ExecStart"]
-        if (len(commands) != 1 or tuple(commands[0][:3]) != (PROBE, [PROBE], False)):
+        expected = ((PROBE, [PROBE], False) if result.generation is None else
+                    (PROBE_GATE, [PROBE_GATE, result.generation.token], False))
+        if (len(commands) != 1 or tuple(commands[0][:3]) != expected):
             raise ValueError("probe command changed")
         code, status = service["ExecMainCode"], service["ExecMainStatus"]
         backend_result = service["Result"]
         if backend_result not in {"success", "exit-code", "signal", "core-dump",
                                   "timeout", "resources", "protocol", "oom-kill"}:
             backend_result = "other"
-        execution_observed = (code == 1 and status == PROBE_EXECUTED and
+        execution_observed = (timeout_verified and code == 1 and status == PROBE_EXECUTED and
                               backend_result == "exit-code" and
                               0 < service["ExecMainStartTimestampMonotonic"] <
                               service["ExecMainExitTimestampMonotonic"])
@@ -443,17 +503,118 @@ class ExecutionProbe:
                        exit_status=status, service_result=backend_result,
                        outcome="identity-unproven" if execution_observed else "execution-failed")
 
+    def _admission_binding(self, result, token, peer, deadline):
+        """Authenticate a selected waiting gate; never send or settle anything.
+
+        The native generation run path calls this while holding _operation,
+        after retaining the create reply and selecting exactly one channel peer.
+        It must pin the immutable generation, retain the returned binding BEFORE
+        admit(), and compare terminal evidence with it. This read-only boundary
+        alone cannot enable positive results on the existing fixed-canary path.
+        """
+        if (not isinstance(token, str) or re.fullmatch(r"[0-9a-f]{32}", token) is None
+                or token == "0" * 32):
+            raise ValueError("invalid probe generation token")
+        if (self._pending != result or self._client is None or
+                self._client.connection is None or
+                self._client.create_reply != ProbeCreateReply("replied", result.job) or
+                result.create_outcome != "replied" or
+                re.fullmatch(r"/org/freedesktop/systemd1/job/[1-9][0-9]*", result.job) is None or
+                not result.manager.startswith(":") or
+                result.unit != f"onpc-execution-probe-{token}.service" or
+                self._description != f"ONPC execution probe {token}" or
+                result.terminal_observed or result.reference_released):
+            raise ValueError("probe creation identity unavailable")
+        if (not isinstance(peer, PeerHello) or type(peer.pid) is not int or
+                not 0 < peer.pid <= 0xFFFFFFFF or peer.uid != 0 or peer.gid != 0 or
+                not isinstance(peer.invocation, str) or
+                re.fullmatch(r"[0-9a-f]{32}", peer.invocation) is None or
+                peer.invocation == "0" * 32 or
+                (result.invocation and result.invocation != peer.invocation)):
+            raise ValueError("probe peer identity unavailable")
+
+        def manager_unchanged():
+            owner = self._request(
+                DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, "GetNameOwner",
+                GLib.Variant("(s)", (SYSTEMD_NAME,)), "(s)", deadline)
+            if owner != result.manager:
+                raise ValueError("probe manager replaced")
+
+        manager_unchanged()
+        path = self._manager(result.manager, "GetUnit",
+                             GLib.Variant("(s)", (result.unit,)), "(o)", deadline)
+
+        def properties(interface):
+            return self._request(result.manager, path, PROPERTIES_INTERFACE,
+                                 "GetAll", GLib.Variant("(s)", (interface,)),
+                                 "(a{sv})", deadline)
+
+        # The peer owns the endpoint across exec. These snapshots authenticate
+        # its waiting invocation, not the historical first invocation of a job.
+        # Re-reading both interfaces also rejects observed PID/command changes.
+        before_unit = properties(UNIT_INTERFACE)
+        before_service = properties(SERVICE_INTERFACE)
+        peer_path = self._manager(result.manager, "GetUnitByPID",
+                                  GLib.Variant("(u)", (peer.pid,)), "(o)", deadline)
+        service = properties(SERVICE_INTERFACE)
+        unit = properties(UNIT_INTERFACE)
+        manager_unchanged()
+        unit_keys = ("Id", "Description", "Transient", "InvocationID", "ActiveState", "Job")
+        if (before_unit.get("JobTimeoutUSec") != 4_000_000 or
+                unit.get("JobTimeoutUSec") != 4_000_000):
+            raise ValueError("probe queue timeout unavailable or overridden")
+        service_keys = ("MainPID", "ControlPID", "ExecStart", "Type", "Restart",
+                        "User", "Group", "Environment", "EnvironmentFiles",
+                        "PassEnvironment", "UnsetEnvironment", "ExecCondition",
+                        "ExecStartPre", "ExecStartPost")
+        if (peer_path != path or
+                any(before_unit[key] != unit[key] for key in unit_keys) or
+                any(before_service[key] != service[key] for key in service_keys)):
+            raise ValueError("probe gate changed during admission")
+        invocation = bytes(unit["InvocationID"])
+        if (unit["Id"] != result.unit or unit["Description"] != self._description or
+                unit["Transient"] is not True or
+                unit["ActiveState"] not in {"activating", "active"} or
+                invocation != bytes.fromhex(peer.invocation) or
+                service["MainPID"] != peer.pid or service["ControlPID"] != 0):
+            raise ValueError("probe gate identity mismatch")
+        # A Type=exec start job may already have completed while the gate waits.
+        # A retained reply authenticates creation; a live job, if any, must match.
+        # Never treat that job ID as an immutable invocation identity.
+        job_id = int(result.job.rsplit("/", 1)[1])
+        if tuple(unit["Job"]) not in {(0, "/"), (job_id, result.job)}:
+            raise ValueError("probe job replaced")
+        commands = service["ExecStart"]
+        if (len(commands) != 1 or
+                tuple(commands[0][:3]) != (PROBE_GATE, [PROBE_GATE, token], False) or
+                service["Type"] != "exec" or service["Restart"] != "no" or
+                service["User"] != "0" or service["Group"] != "0" or
+                any(service[key] != [] for key in service_keys[7:])):
+            raise ValueError("probe gate command changed")
+        return AdmissionBinding(peer, result.manager, result.unit, result.job)
+
     def run(self):
+        return self._start(native=False)
+
+    def run_native(self):
+        """Exercise retained native admission; not yet a policy receipt.
+
+        This explicit qualification path needs provisioned fixed payloads/root.
+        Ordinary run() and the boot canary retain their existing behavior.
+        """
+        return self._start(native=True)
+
+    def _start(self, *, native):
         if not self._operation.acquire(blocking=False):
             raise RuntimeError("execution probe operation already running")
         try:
             if self._pending is not None:
                 raise RuntimeError("execution probe cleanup must be recovered")
-            return self._run()
+            return self._run(native=native)
         finally:
             self._operation.release()
 
-    def _run(self):
+    def _run(self, *, native=False):
         token = secrets.token_hex(16)
         result = ProbeResult(unit=f"onpc-execution-probe-{token}.service")
         description = f"ONPC execution probe {token}"
@@ -463,6 +624,19 @@ class ExecutionProbe:
         self._client = ProbeBusClient()
         self._pending = result
         try:
+            if native:
+                # Retain each owner before any operation that can partially
+                # create resources or be interrupted.
+                self._generation = ProbeGeneration()
+                identity = self._generation.prepare()
+                token = identity.token
+                description = f"ONPC execution probe {token}"
+                self._description = description
+                result = replace(result, unit=f"onpc-execution-probe-{token}.service",
+                                 generation=identity)
+                self._pending = result
+                self._channel = ProbeChannel()
+                self._channel.open(identity.directory)
             # SYSTEM resolution uses the public Gio system-bus configuration;
             # ProbeBusClient still refuses remote/fallback/autolaunch transports.
             address = Gio.dbus_address_get_for_bus_sync(Gio.BusType.SYSTEM, None)
@@ -486,7 +660,25 @@ class ExecutionProbe:
             # Retain coordinates before dispatch, including interruption paths.
             result = replace(result, create_outcome="pending")
             self._pending = result
-            self._client.start_create(owner, result.unit, description)
+            if native:
+                # Start before dispatch, so reply polling cannot spend the
+                # gate's entire two-second wait and then start a fresh budget.
+                admission_deadline = time.monotonic() + TIMEOUT
+                self._client.start_create(owner, result.unit, description, token=token)
+                result, submitted = self._collect_create(
+                    result, preserve_outcome=False, deadline=admission_deadline)
+                self._pending = result
+                if submitted and result.create_outcome == "replied":
+                    peer = self._channel.select(deadline=admission_deadline)
+                    binding = self._admission_binding(result, token, peer, admission_deadline)
+                    self._generation.verify()
+                    result = replace(result, admission=binding, invocation=peer.invocation)
+                    self._pending = result
+                    self._channel.admit(binding)
+                    result = replace(result, channel_result=self._channel.collect())
+                    self._pending = result
+            else:
+                self._client.start_create(owner, result.unit, description)
 
             while submitted and time.monotonic() < deadline:
                 result, submitted = self._collect_create(result, preserve_outcome=False)
@@ -504,6 +696,19 @@ class ExecutionProbe:
                     else:
                         raise
                 if result.terminal_observed:
+                    if native:
+                        self._generation.verify()
+                        owner = self._request(
+                            DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, "GetNameOwner",
+                            GLib.Variant("(s)", (SYSTEMD_NAME,)), "(s)", deadline)
+                        if owner != result.manager:
+                            raise ValueError("probe manager replaced after admission")
+                        verified = (result.admission is not None and
+                                    result.channel_result == "executed" and
+                                    result.invocation == result.admission.peer.invocation and
+                                    result.outcome == "identity-unproven")
+                        result = replace(result, native_verified=verified,
+                                         outcome="identity-unproven" if verified else "execution-failed")
                     break
                 time.sleep(min(POLL_SECONDS, max(0, deadline - time.monotonic())))
             if submitted and not result.terminal_observed:
@@ -511,7 +716,8 @@ class ExecutionProbe:
                     result = replace(result, outcome="observation-timeout")
             elif submitted and result.create_outcome == "uncertain":
                 result = replace(result, outcome="create-uncertain")
-        except (GLib.Error, TimeoutError, ValueError, KeyError, TypeError, OverflowError):
+        except (GLib.Error, TimeoutError, ValueError, KeyError, TypeError, OverflowError,
+                OSError, ChannelRefused, GenerationRefused):
             if result.outcome != "create-uncertain":
                 result = replace(result, outcome="observation-failed" if submitted else "transport-failed")
         finally:
@@ -599,9 +805,12 @@ class ExecutionProbe:
             return result
         deadline = time.monotonic() + CLEANUP_SECONDS
         try:
+            sender = self._sender()
+            if sender.is_closed():
+                return self._collect_after_sender_loss(result, sender, deadline)
             # () has no first tuple item; use the shared finite transport directly.
             try:
-                _call(self._sender(), result.manager, SYSTEMD_PATH,
+                _call(sender, result.manager, SYSTEMD_PATH,
                       SYSTEMD_MANAGER_INTERFACE, "UnrefUnit",
                       GLib.Variant("(s)", (result.unit,)), "()", timeout=CALL_MS)
             except GLib.Error as error:
@@ -623,4 +832,34 @@ class ExecutionProbe:
                 time.sleep(min(POLL_SECONDS, max(0, deadline - time.monotonic())))
         except (GLib.Error, TimeoutError):
             pass
+        return result
+
+    def _collect_after_sender_loss(self, result, sender, deadline):
+        """Observe settlement after involuntary loss; never disconnect to force it.
+
+        The caller has already copied terminal evidence. A collected successful
+        create reply is also required: sender loss cannot settle delayed dispatch.
+        Reads use only the surviving observer and the original unique manager.
+        """
+        name = sender.get_unique_name()
+        if result.create_outcome != "replied" or not name or not name.startswith(":"):
+            return result
+        while time.monotonic() < deadline:
+            owner = self._request(
+                DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, "GetNameOwner",
+                GLib.Variant("(s)", (SYSTEMD_NAME,)), "(s)", deadline)
+            if owner != result.manager:
+                return result
+            present = self._request(
+                DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, "NameHasOwner",
+                GLib.Variant("(s)", (name,)), "(b)", deadline)
+            if not present:
+                try:
+                    self._manager(result.manager, "GetUnit",
+                                  GLib.Variant("(s)", (result.unit,)), "(o)", deadline)
+                except GLib.Error as error:
+                    if _error_name(error) != NO_UNIT:
+                        raise
+                    return replace(result, reference_released=True, cleanup_complete=True)
+            time.sleep(min(POLL_SECONDS, max(0, deadline - time.monotonic())))
         return result

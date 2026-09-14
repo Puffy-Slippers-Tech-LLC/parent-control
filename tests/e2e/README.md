@@ -1,5 +1,32 @@
 # E2E inventory and runner contract
 
+## Customer scope and runtime transition — 2026-09-14
+
+The [current customer contract](../../docs/TestAutomation/E2E-Coverage.md)
+requires real customer actions and visible observations only, across all app
+surfaces. Internal product probes, transaction witnesses and induced backend
+faults are outside customer acceptance. Completed unit/component/system and
+harness tests remain unchanged. Mechanical Tasks 18/20 retain necessary
+internal installation, migration, removal and recovery checks as separate
+package/system qualification.
+
+This is a documentation change, not a runtime schema migration. The inventory,
+validators and much of the detailed implementation record below still describe
+the earlier mandatory backend evidence contract. At the first affected customer
+consumer, reconcile its declaration and the minimum common validation required
+for surface-only assertions. Preserve source/package identity, secret protection,
+VM ownership, safe evidence and cleanup. Do not fabricate backend fields or
+add product probes to satisfy the old shape. Do not rewrite unrelated existing
+tests or build a new evidence framework. Until implemented, pending selectors
+remain pending and no customer coverage is claimed.
+
+Keep mechanical startup/fault assertions explicitly separate from the customer
+part of an installation journey. Historical qualification and detailed safety
+interfaces below remain useful at their stated scope; old future backend
+requirements do not override the new customer contract or task order.
+
+## Current implementation inventory
+
 Host-only regressions reuse the [shared support library](../support/README.md)
 for evidence, provenance, recording, credentials and private metadata fixtures.
 Those synthetic fixtures are separate from the live helpers described below.
@@ -269,6 +296,14 @@ are excluded. The capture rejects symlinks,
 hardlinks and special input files, pins parent directory opens and checks file
 identity around each read. Source capture records identities; it does not copy
 the checkout. The worker still stages verified distribution bytes separately.
+
+The [source-selection contract](../integration/README.md#package-and-fixture-inputs)
+defines the shared exact-path exception for supervisor-owned operator output.
+Both collectors exclude it before filesystem inspection; synthetic Git tests
+prove no reads/copies, matching digests and continued source-change refusal.
+Other documentation remains an input. This local qualification does not supply
+an owned stable-input window or change any held-lease recheck or failure latch.
+Existing manifests retain their original identities; fresh artifacts are required.
 
 Staged package bytes and fixture manifests use the existing artifact verifier;
 fixture payload bytes also use the fixture verifier. The package manifest's

@@ -17,6 +17,8 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-login-check \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe \
+	$(LIBEXECDIR)/oh-no-parent-control-execution-probe-gate \
+	$(LIBEXECDIR)/oh-no-parent-control-execution-probe-witness \
 	$(LIBEXECDIR)/oh-no-parent-control-session-limit-check \
 	$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so \
 	$(PRODUCT_LIBDIR)/broker \
@@ -26,6 +28,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-broker.service \
 	$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/oh-no-parent-control-readiness.conf \
 	$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/oh-no-parent-control.conf \
+	$(SYSTEMD_SYSTEM_DIR)/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf \
 	$(SYSTEMD_USER_DIR)/oh-no-parent-control-app.service \
 	$(SYSTEMD_USER_DIR)/oh-no-parent-control-polkit-agent.service \
 	$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/session.conf \
@@ -52,7 +55,8 @@ EXTENSION_SOURCES := branding.js diagnosticEvents.mjs errorHandler.js indicatorL
 COMMON_SOURCES := __init__.py about.py accessibility.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py
 KIOSK_SOURCES := __init__.py chrome.py floating_islands.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
 PARENT_SOURCES := __init__.py client.py main.py
-BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py extension_manager.py grant_diagnostics.py logs.py preferences.py service.py uninstall.py
+BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py execution_probe.py extension_manager.py grant_diagnostics.py logs.py preferences.py probe_channel.py probe_generation.py service.py uninstall.py
+PRODUCT_USER_SERVICES := oh-no-parent-control-app.service oh-no-parent-control-polkit-agent.service
 OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
 EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
@@ -66,6 +70,36 @@ EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 
+# Source uploads and isolated binary builds share this product/build allowlist.
+# Development docs, tests, previews and operator tools are not package inputs.
+PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
+	$(addprefix debian/,changelog control copyright rules preinst postinst prerm postrm package_activation.py check_package.py oh-no-parent-control.1 oh-no-parent-control-parent.1 oh-no-parent-control.manpages oh-no-parent-control.lintian-overrides source/format source/options) \
+	$(addprefix tools/,bump_version.py render_polkit_policy.py package_notice oh-no-parent-control-login-check execution_policy_ready.py execution_policy_probe execution_probe_gate.c execution_probe_witness.c execution_probe_protocol.h session_limit_check.py pam_oh_no_parent_control.c provision.py) \
+	$(addprefix broker/,oh-no-parent-control-broker oh-no-parent-control-migrate-state oh-no-parent-control-uninstall oh-no-parent-control-query-usage) \
+	$(addprefix broker/oh_no_parent_control/,$(BROKER_SOURCES)) \
+	common/__init__.py $(addprefix common/oh_no_parent_control_ui/,$(COMMON_SOURCES) feedback.css rich_editor/quill.js rich_editor/quill.snow.css rich_editor/quill.js.LICENSE.txt rich_editor/LICENSE) \
+	kiosk/oh-no-parent-control $(addprefix kiosk/oh_no_parent_control_kiosk/,$(KIOSK_SOURCES) style.css kiosk-background-still.png kiosk-background-scenery-clear.png fonts/Monocraft.ttf fonts/OFL.txt) \
+	parent/oh-no-parent-control-parent $(addprefix parent/oh_no_parent_control_parent/,$(PARENT_SOURCES) style.css) \
+	$(addprefix child/,metadata.json stylesheet.css extension.js request-options.json $(EXTENSION_SOURCES) $(EXTENSION_SCHEMA)) \
+	config/config.example.json $(BRANDING_ASSETS) $(PARENT_TITLEBAR_ASSET) data/app_logo_gnome_launcher.png data/kiosk_account_icon.png \
+	data/apt/99zz-oh-no-parent-control-reboot-notice \
+	data/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service \
+	data/dbus-1/com.puffyslippers.OhNoParentControl1.xml \
+	data/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf.in \
+	data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy.in \
+	data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in \
+	data/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
+	data/pam-configs/oh-no-parent-control-session-limits data/pam-configs/oh-no-parent-control-kiosk-only \
+	data/gdm3/PreSession/Default data/fapolicyd/99-oh-no-parent-control-allow.rules \
+	data/systemd/oh-no-parent-control-broker.service \
+	data/systemd/fapolicyd.service.d/oh-no-parent-control-readiness.conf \
+	data/systemd/display-manager.service.d/oh-no-parent-control.conf \
+	data/systemd/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf \
+	$(addprefix data/systemd/user/,$(PRODUCT_USER_SERVICES)) \
+	data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf \
+	data/gnome-session/sessions/oh-no-parent-control.session data/wayland-sessions/oh-no-parent-control.desktop \
+	data/applications/com.puffyslippers.OhNoParentControl.desktop data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
+
 .PHONY: publish bump-version build installdeb uninstalldeb prep-vm check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
@@ -73,6 +107,10 @@ DEB_HOST_ARCH ?= amd64
 bump-version:
 	@test -n "$(VERSION)" || (echo 'Usage: make bump-version VERSION=x.y [CHANGE="description"]' >&2; exit 2)
 	@$(PYTHON) tools/bump_version.py "$(VERSION)" $(if $(CHANGE),--change "$(CHANGE)",)
+
+.PHONY: package-source-files
+package-source-files:
+	@printf '%s\n' $(sort $(PACKAGE_SOURCE_FILES))
 
 check-release-version:
 	@$(PYTHON) tools/bump_version.py --check
@@ -234,10 +272,7 @@ test-all:
 test-all-verify:
 	@tools/run-tests all-verify
 
-test-publish:
-	@tools/run-tests publish
-
-.PHONY: test-all test-all-verify test-publish check-source
+.PHONY: test-all test-all-verify check-source
 
 check-source:
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -Wall -Wextra -Werror -fsyntax-only tools/pam_oh_no_parent_control.c
@@ -300,6 +335,12 @@ _install-product-files:
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"
 	install -m 0755 tools/execution_policy_probe "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe"
+	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
+		-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-probe-gate" tools/execution_probe_gate.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
+		-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-probe-witness" tools/execution_probe_witness.c
+	chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-probe-gate" \
+		"$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-probe-witness"
 	install -m 0755 broker/oh-no-parent-control-query-usage "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 tools/session_limit_check.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-session-limit-check"
 	$(CC) $(CPPFLAGS) $(CFLAGS) -Wall -Wextra -Werror -fPIC -shared $(LDFLAGS) -Wl,-z,defs \
@@ -343,8 +384,10 @@ _install-product-files:
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d"
 	install -m 0644 data/systemd/fapolicyd.service.d/oh-no-parent-control-readiness.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/"
 	install -m 0644 data/systemd/display-manager.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/"
+	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/onpc-execution-probe-.service.d"
+	install -m 0644 data/systemd/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/onpc-execution-probe-.service.d/"
 	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d"
-	install -m 0644 data/systemd/user/oh-no-parent-control-*.service "$(DESTDIR)$(SYSTEMD_USER_DIR)/"
+	install -m 0644 $(addprefix data/systemd/user/,$(PRODUCT_USER_SERVICES)) "$(DESTDIR)$(SYSTEMD_USER_DIR)/"
 	install -m 0644 data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/"
 	install -d "$(DESTDIR)$(DATADIR)/gnome-session/sessions" "$(DESTDIR)$(DATADIR)/wayland-sessions" "$(DESTDIR)$(DATADIR)/applications" "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps"
 	install -m 0644 data/gnome-session/sessions/oh-no-parent-control.session "$(DESTDIR)$(DATADIR)/gnome-session/sessions/"

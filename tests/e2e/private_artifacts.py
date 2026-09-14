@@ -101,7 +101,8 @@ class PrivateCollector:
                                  json.dumps(value, ensure_ascii=True)[1:-1].encode(),
                                  value.encode('utf-16-le'), value.encode('utf-16-be')))
         self.check_secrets(run_id.encode())
-        self.path = Path(tempfile.mkdtemp(prefix='onpc-e2e-evidence-', dir=parent))
+        from tools.test_retention import allocate
+        self.path = Path(allocate(tempfile.mkdtemp, prefix='onpc-e2e-evidence-', dir=parent))
         self._fd = _directory(self.path)
         self._records = {}
         self._reports = {}

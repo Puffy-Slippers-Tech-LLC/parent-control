@@ -1,179 +1,115 @@
-# Task 26 — Failure, recovery, and continuous customer journeys
+# Task 26 — Complete customer journeys, recovery and persistence
 
-Execute 26A, 26B, and 26C separately. Reuse existing failure controls; add a new control
-only at a maintained public guest OS boundary. No hidden production injection
-method or authorization bypass is permitted.
-
-Follow [E2E-Coverage.md](E2E-Coverage.md). Enumerate all assigned variants;
-label deliberate real OS interventions and controlled-environment cases
-separately from ordinary customer journeys. No mocked service, state injection
-standing in for a customer action, or intermediate VM checkpoint is allowed.
-Failure → recovery and restart → resumed use are continuous sequences, not
-separate preconstructed states. Read-only state captures are evidence, never
-restorable VM snapshots.
+Follow [E2E-Coverage.md](E2E-Coverage.md). Customer E2E can do only what a
+customer can do and observe. No daemon control, private-state mutation, fault
+injection or backend observation is part of acceptance. Existing lower-level
+and installation fault tests retain their own scope.
 
 ## Implementation slices
 
-**Scheduling — 2026-09-11:** all three tasks precede Task 20. Everyday gameplay,
-requests, expiry and recovery need a verified installed app, not clean-install
-journey acceptance. Task 26C also needs Tasks 18A–C's package assertions and
-qualified customer terminal/reboot helpers for its lifecycle cases. Bring
-forward only missing shared capabilities under the
-[reuse workflow](Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work)
-and publish evidence for Task 20. Complete each real package journey here;
-the reordered schedule does not permit helper setup to replace asserted steps.
-
-Use the [implementation workflow](Implementation-Workflow.md). These are small
-work boundaries within the existing task, not extra acceptance checklists.
-Verification below is task acceptance; edits use the smallest affected selection.
-
-| Task | First proof, then expansion |
-| --- | --- |
-| 26A | Inventory existing canonical fault cases first; implement only missing graphical transitions/interactions, starting with one observable race. |
-| 26B | One real restart/resumed-use boundary; then parameterize each required persistence boundary. |
-| 26C | Prove the real-game E2E-023 path and its fullscreen/windowed variants before filling remaining journey gaps; reuse existing cases. |
+Use accepted graphical input and supported setup. Complete one named journey
+before expanding; do not require all earlier matrices or internal helper
+qualification. A continuous journey must actually run from start to finish;
+separately passing fragments cannot establish it.
 
 ## Task 26A
 
-- Title: Prove adversarial transaction races and failure recovery.
-- Depends on: Task 25B.
-- Complexity: very high. Controlling stale identities, concurrent requests, and
-  irreversible side effects across real services is the hardest remaining
-  cross-component correctness task.
-- Recommended Codex model: `gpt-6-astra`
-- Recommended reasoning effort: `xhigh`
+- Title: Remaining customer cancellation and retry gaps.
+- Depends on: the real form/app interactions required by a selected gap.
+- Default settings: `gpt-5.6-sol` / `high`.
 - Work:
-  1. Inventory existing evidence and complete the matrix for invalid/unauthorized
-     calls, Polkit denial/cancel, requester disconnect, account/role/preference
-     changes during authentication, usage-query failure, broker restart, agent
-     failure, fapolicyd reload failure, and process-termination failure.
-  2. Synchronize at observable public boundaries with bounded deadlines. Prove
-     each intended failure actually occurred, rather than inferring it from a
-     generic error or using a timing sleep.
-  3. Verify reversible failures restore prior state and failed rollback read-back
-     is reported distinctly. After partial process termination, keep strict
-     blocks and required prior time while other users remain untouched.
-  4. Interleave policy saves, approvals, revocations, and session preparation.
-     Prove single-flight serialization, exactly-once grant changes, replacement-
-     grant precedence, and repeat-interval consumption only after success.
-  5. Verify displayed failures are actionable and expose no internal paths,
-     service names, account PII, or backend details on both request surfaces.
-  6. Publish a failure-case/evidence matrix and reusable assertions for 26B.
-     Update failure, concurrency, and rollback mappings.
-- Verification:
-  - Run each new controller's cleanup-safety regressions in isolation first.
-  - Run each complete failure/race attempt separately on the guarded VM; compare
-    read-only before/after state evidence. Reset only outside complete attempts.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: the failure/race matrix is deterministic, fail-closed,
-  and supported by evidence of the actual triggered boundary.
+  1. Review existing customer cancellation, rejected authentication, invalid
+     input, close/reopen and retry cases in Tasks 21/23/24. Reuse their canonical
+     executions instead of building another failure matrix.
+  2. Implement only a missing distinct customer path, such as closing a request
+     before completion, reopening it and submitting normally. Observe choices,
+     messages, access and recovery through the app.
+  3. Reconcile E2E-029 declarations: keep customer-reproducible operations;
+     transfer induced internal faults to the separate engineering list below.
+     No transfer or duplicate removal earns a passing scenario.
+- Verification/completion: every identified customer recovery path has one
+  complete canonical execution and visible outcome. If existing cases cover
+  the entire visible scope, close the mapping with their evidence and report
+  zero newly completed variants; do not invent failures to create work.
+
+## Separate engineering obligations
+
+Preserve all existing tests and historical evidence. The following unfinished
+internal work is outside the customer queue and requires separate engineering
+direction, except Task 20's installation faults:
+
+| Former obligation | Retained owner |
+| --- | --- |
+| Policy reload/rollback, partial termination, exact process confinement | [Task 15](Task-15.md), with [acknowledgement design](Policy-Acknowledgement.md) separate. |
+| Usage-reader faults, forced zero-time desktop exposure, PAM/session internals | [Task 16](Task-16.md). |
+| Stale identity, transaction contention, requester disconnect, precise grant commits | [Task 17](Task-17.md). |
+| Kiosk authentication-agent stop/restart and non-installation service recovery | Deferred system qualification; existing controls/regressions retained. |
+| Injected feedback transport/provider failures | Separate adapter/service integration; existing local tests retained. |
+| Startup enforcement/broker failures | Required mechanical [Task 20](Task-20.md) qualification. |
+
+A demonstrated visible failure blocks its customer case and is recorded with
+actual steps/results. An E2E worker must not follow this table into a design
+investigation. Continue independent customer cases or stop for a repair decision.
 
 ## Task 26B
 
-- Title: Complete restart and persistence scenarios.
-- Depends on: Task 26A.
-- Complexity: medium. Restart boundaries and expected state are specified and
-  reusable failure/guest controls now exist.
-- Recommended Codex model: `gpt-5.6-terra`
-- Recommended reasoning effort: `medium`
+- Title: Reopen, login, reboot and resumed use.
+- Depends on: only the configuration/request interactions needed by the case.
+- Default settings: `gpt-5.6-sol` / `high`.
+- Customer scope: E2E-022.
 - Work:
-  1. Restart Parent, both request surfaces, the broker, affected user sessions,
-     package services, and the VM using the established guest controllers.
-     Customer app/session/reboot operations use the real guest UI. Declare
-     service interventions separately. Configure and approve through the real
-     UI before each sequence; observe continuity across actual restarts rather
-     than restoring saved VM state or reapplying expected preferences.
-     Include real desktop idle, suspend/wake and resumed gameplay where
-     required by the supported session matrix. A suspend/resume keeps its
-     actual session/boot continuity; it is not a VM save-state/load-state test.
-  2. At each boundary verify per-child preferences, shared choices, separate
-     mute values, grants, extension publication, and enforcement. Distinguish
-     durable data from derived state using the [state design](../SystemDesign/State.md).
-  3. Verify recovery from a prior safe denial without retaining authorization or
-     applying an obsolete grant/policy. Reuse 26A's state assertions.
-  4. Update persistence/restart mappings and the boundary/evidence matrix.
-- Verification:
-  - Run cleanup-safety regressions in isolation before restart controllers.
-  - Run complete restart attempts on the guarded VM; correlate visible results with
-    authoritative state and boot/session identities.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: every specified persistence boundary is exercised with
-  independent child state and correct recovery.
+  1. Configure through Parent or request time through a real approval. Close
+     and reopen Parent/request surfaces; observe displayed choices and access.
+  2. Log out/in or use Switch User normally. Observe per-child choices,
+     countdown and actual allowed/blocked app use.
+  3. Reboot through the desktop and resume use. Exercise supported idle and
+     suspend/wake through normal interfaces where required. Observe resumed
+     screens, app interaction and remaining-time behavior.
+  4. Observe separate mute choices on both request surfaces. Verify retained
+     windows by viewing them after legitimate unlock, not through process reads.
+- Verification/completion: each finite customer restart/resume path passes with
+  visible evidence. Do not stop the broker/package services, inspect stored
+  data, extension publication or backend grants, or require internal continuity
+  witnesses beyond the unchanged runner's own safeguards.
 
 ## Task 26C
 
-- Title: Complete continuous customer journeys and coverage enumeration.
-- Depends on: Task 26B and Tasks 18A–C's installed lifecycle assertions;
-  qualify the shared terminal/reboot capabilities needed by each package case.
-  Full Task 20 acceptance is not required.
-- Complexity: high. Reuse established graphical helpers and installed
-  assertions, but independently prove complete customer paths and their
-  cross-user, policy, session, and package transitions.
-- Recommended Codex model: `gpt-5.6-sol`
-- Recommended reasoning effort: `high`
+- Title: Complete everyday journeys and authorized feedback.
+- Depends on: the minimal Parent/login/kiosk/game interactions needed per case.
+  Full Tasks 15–18, 20 or 26A/B acceptance is not a dependency.
+- Default settings: `gpt-5.6-sol` / `high`.
+- Customer scope: E2E-023/024/025/032 and customer-reproducible E2E-033.
 - Work:
-  1. Review the complete scenario inventory against E2E-Coverage.md, the product
-     specification, system design, and package lifecycle contracts. Expand all
-     applicable scenario families into explicit selectable variants and close
-     missing customer transitions. Do not limit coverage to the seed table or
-     the user's sample, or claim that separately passing fragments prove a
-     continuous journey. Preserve earlier completed evidence and add the gaps.
-  2. Supply a real, version-pinned installed game with reproducible offline
-     gameplay and normal desktop launch. Record package/runtime/asset digests
-     and guest requirements. Reuse the artifact contract for verified delivery;
-     changes needed on the development machine belong in `setup.sh`. A sleeping
-     process fixture, preview, menu-only launch, or fake game is insufficient.
-     Install and prepare the game's deterministic offline inputs through
-     supported fixture helpers. Test launching, real interaction and the app's
-     enforcement/expiry effects; game installation wizards, account sign-up,
-     gameplay correctness and unrelated game features are outside scope.
-  3. Implement E2E-023 exactly as a continuous graphical attempt: parent login
-     and zero allowance → Switch User preserving the parent → correct-password
-     child denial → real kiosk request/authentication → child login → gameplay
-     → actual elapsed-time lock → correct-password unlock denial. Run windowed
-     and fullscreen variants; preserve the real child session/game on expiry.
-  4. Complete E2E-024/E2E-025 and any missing cross-surface journeys: additional
-     time while active, both approval choices, expired/replacement grants, and
-     independent children/other foreground users. Establish grants and policy
-     through real UI operations; no hidden state writes, simulated clock,
-     forced expiry/lock, checkpoint, or mid-journey reset is permitted.
-  5. Complete E2E-026/E2E-027 through real customer package operations, including
-     guest terminal input where appropriate. Reuse Task 18's installed
-     assertions and applicable shared helpers tracked in Task 20; qualify any
-     missing capability here while actually performing update/activation, removal/reboot,
-     post-removal login, reinstall with retained choices, and purge. Package
-     fixture variants are separately identified and cannot replace the exact
-     release artifact in its ordinary customer journeys.
-  6. Register all executable cases and variants with ordered steps, visible
-     outcomes, read-only backend corroboration, other-user assertions,
-     package/source identity, session/boot continuity, and evidence locations.
-     Record actual durations and any remaining gap; required gaps must be
-     resolved before this task completes and before final release acceptance.
-  7. Complete the already registered E2E-032/033 real feedback delivery and
-     declared transport-failure/retry cases. Resolve their normative requirement
-     gaps and required service profile before readiness; use the supported
-     service, dedicated test recipient and explicit delivery authorization.
-     Reuse 21A's synthetic attachment/draft helpers. Bound this work to our
-     request format, disclosure, success/error handling and retry behavior;
-     exhaustive status/transport cases belong in local adapter tests. Retain a
-     focused real service success and declared failure/retry integration; do not
-     test the provider's general availability, account setup or delivery engine.
-     Missing authorization or service
-     prerequisites remain a blocker for these cases, not permission to send
-     routine feedback or substitute fake transport evidence.
-- Verification:
-  - Run cleanup-safety regressions in isolation before integrated operations.
-  - Run every newly completed canonical journey/variant once, including both
-    E2E-023 gameplay variants. Repetition follows a stated stability question;
-    any rerun retains its first failure and begins the whole journey again.
-  - Review screen/step traces against customer actions and check that backend
-    witnesses did not produce the outcome. Verify gameplay, natural expiry,
-    expected retained sessions, and other-user isolation.
-  - Use `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`
-    for the enumerated cases, then `make check` and `git diff --check`.
-- Completion criteria: all applicable customer journeys are enumerated and
-  implemented, including the continuous sample and real-game/lifecycle cases.
-  Evidence demonstrates actual operations without mocks or VM state shortcuts;
-  Task 28B still performs the independent final completeness audit.
+  1. Execute [E2E-023](E2E-Coverage.md#required-continuous-example-e2e-023):
+     Parent sets zero → Switch User → correct-password child rejection →
+     kiosk approval → child login → real gameplay → natural expiry → lock
+     and correct-password unlock rejection. Complete windowed and fullscreen
+     variants with a prepared real offline game. Menu-only or sleeping fixtures
+     do not prove gameplay; game correctness itself is outside scope.
+  2. Execute E2E-024: request additional time during real use, authenticate,
+     observe confirmation/countdown, continue playing and eventually expire.
+  3. Execute E2E-025: after expiry, obtain replacement time with each soft-app
+     choice before returning to the desktop; observe access and app behavior.
+     Do not inspect session-entry reconciliation, policy or grants.
+  4. With explicit external-sending authorization and a dedicated test recipient,
+     use Parent to submit feedback and observe its response (E2E-032).
+     Test a distinct customer-reproducible error/retry path if available.
+     Do not send to routine support, probe delivery internals or inject
+     transport faults. Visible success proves the app's reported result, not
+     recipient receipt. Missing authorization blocks only those sending cases.
+  5. Register/reconcile the finite surface-only variants, retain safe screen/step
+     evidence and report actual completions and remaining gaps. No backend
+     proof or general coverage-framework project is part of this task.
+- Verification/completion: each assigned complete customer journey passes.
+  Use existing safety checks and affected regressions. Preserve failed attempts;
+  repeated helper qualification is not a substitute for finished journeys.
+
+## Customer package journeys and mechanical qualification
+
+E2E-026/027 remain required continuous customer journeys, owned with
+[18A/18C](Task-18.md) after the prioritized everyday customer work. They use
+actual customer package operations, reboot/login and visible saved choices.
+Task 18 separately verifies activation, migration, ownership and cleanup
+internals; those checks remain necessary and are not customer assertions.
+Task 20 similarly retains its clean-install surface and mechanical qualification.
+A shared attempt may provide both kinds of evidence with separate acceptance.

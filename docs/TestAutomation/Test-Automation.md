@@ -1,212 +1,172 @@
 # Remaining test automation implementation
 
-This is an implementation backlog, not the daily test runbook. Use
-[docs/Test-Automation.md](../Test-Automation.md) for commands and pass criteria,
-[tests/README.md](../../tests/README.md) for test maintenance, and the
-[installed runner guide](../../tests/integration/README.md) for reusable VM and
-artifact contracts.
+This backlog owns task order and completion. The
+[daily guide](../Test-Automation.md) owns commands and the
+[workflow](Implementation-Workflow.md) owns execution and handoff.
 
-The existing foundation supplies pytest unit/property/contracts, private-D-Bus
-components, hermetic GTK, child Node/GJS/nested-Shell tests, deterministic app
-fixtures, package artifact building, a prepared VM baseline, and the guarded
-installed-system runner. Their regression tests remain required. Completed
-Tasks 01–13 and historical qualification records have been removed from this
-active plan; reuse the implemented interfaces rather than repeating setup.
+## Operator scope — 2026-09-14
 
-Use the [implementation workflow](Implementation-Workflow.md): quality first,
-one bounded problem, focused experiments and a durable handoff. The
-[reuse map](Reuse-Map.md) routes every remaining task to shared work and records
-cross-task gaps found in the documentation review. Read the selected row and its
-relevant contract/limitation links before investigating shared infrastructure.
-Publish shared fixes through the [reuse workflow](Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work)
-so later tasks inherit their implementation, regression coverage and known limits.
+Prioritize customer E2E scenarios generally, across all product surfaces and
+journeys. Timeout/login rejection is an illustration, not a special priority
+or the limit of coverage. Each customer test operates and
+observes the app as a real customer; internal product probes and backend
+corroboration are outside its acceptance. Follow
+[E2E-Coverage.md](E2E-Coverage.md), which supersedes contrary historical task
+instructions and pending inventory assertions.
 
-The [current continuation](Continuation.md) points to the next session's task
-and handoff. The reordered backlog brings [F1](Task-F1.md)'s focused diagnosis
-forward from Tasks 28/27 and [19P](Task-19.md#task-19p)'s feasibility check from
-19A. Neither restarts completed setup. Task 14 is accepted; its
-[completion handoff](Task-14.md#completion-handoff--2026-09-06-accepted) retains
-the final evidence. Task 19A is also accepted; its
-[controller audit](Evidence/19A-Controller-Acceptance-20260907.md) retains the
-live execution and failure evidence. Select the next eligible entry in the
-checklist's order under the [session procedure](Implementation-Workflow.md#start-with-one-bounded-result);
-the continuation must reflect that selection.
-Finish an already-running owned guarded attempt and its cleanup before changing
-implementation tasks. Do not duplicate changing evidence or machine state here.
+Keep completed unit, component, installed and harness tests as they are.
+Existing regression/safety execution remains required where applicable.
+Keep mechanical installation, upgrade, migration, removal and recovery checks
+in Tasks 18/20, including necessary internal inspection. Their depth is not a
+template for customer E2E.
 
-To continue building automation, say:
-
-> Continue the next unfinished task in docs/Test-Automation.md. This is the dev and host machine.
-
-To resume a particular problem, name its task and handoff explicitly. “Run
-docs/Test-Automation.md” requests a test run; it does not advance this backlog.
+The unfinished [policy-acknowledgement design](Policy-Acknowledgement.md) is a
+separate product decision, not an E2E prerequisite. Other deferred internal
+qualification remains explicitly listed below. Deferral does not mean passed,
+unnecessary, or safe to delete.
 
 ## Implementing one task
 
-Follow the [session procedure](Implementation-Workflow.md#start-with-one-bounded-result)
-and its [output](Implementation-Workflow.md#reduce-unnecessary-model-output),
-verification and handoff rules; they are maintained there once. Use the
-checklist below for completion and each task's dependencies, deliverables and
-acceptance criteria for scope. A completed slice alone never checks off a task.
+Start with one complete named customer variant and its visible finish line.
+Reuse accepted graphical input, fixture provisioning, installation setup,
+credentials, evidence and cleanup. Bring forward only a helper needed by that
+specific variant; no whole installed-system or UI-matrix task is a prerequisite
+merely because it previously owned a helper.
 
-An explicit documentation review may inspect and revise every relevant task.
-It requires links/reference/consistency checks and `git diff --check`, with no
-product tests, VM operations or implementation model-selection pause.
-Remove obsolete completed work only after retaining contracts or unresolved
-handoffs still needed by future tasks. Do not delete tests, source logs, saved
-evidence or the VM baseline as documentation cleanup.
+Finish edits before build/run/collection/cleanup. Use the existing validated
+runners and VM guards. Check off a task only after its finite assigned customer
+variants pass; registration and helper qualification are not acceptance.
+
+The implementation agent also owns each scenario's
+[runtime registration and discovery check](E2E-Coverage.md#register-each-runnable-scenario-within-its-implementation-task)
+within that same task. Completed variants must be runnable and registered
+`ready` so `make test-all` automatically includes them. The operator has no
+manual registration step; do not postpone this work to Task 28.
+
+A demonstrated product failure remains a failed case with a reproduction and
+an explicit product-repair blocker. Customer E2E workers do not investigate
+internal mechanisms. Continue independent variants; if none is ready, stop for
+a repair/scope decision instead of resuming deferred engineering automatically.
 
 ## Shared implementation and acceptance rules
 
-- The operator has cleared the historical VM/writer-pause hold for **all
-  tasks**. Apply [VM availability for all tasks](Implementation-Workflow.md#vm-availability-for-all-tasks),
-  including its precedence over earlier evidence and handoffs. Proceed with
-  dependency-ready guarded runs; no repeated coordination confirmation is due.
-- Use maintained public APIs. The broker remains the policy and authorization
-  authority. Preserve real caller validation and other-user isolation.
-- Installed-system tests use actual processes, credentials and OS services.
-  Local unit/component doubles do not fulfill installed or E2E acceptance.
-- Apply the [app scope and prerequisite rules](E2E-Coverage.md#scope-tests-around-the-app)
-  to every remaining task. Use reliable supported helpers for unrelated OS
-  setup; assert the app's response. Test app-owned PAM/Polkit integration, not
-  general Ubuntu password or account-management behavior.
-- Every graphical task follows [E2E-Coverage.md](E2E-Coverage.md). Audit each
-  variant's risk, layer and interacting dimensions before implementation. Keep
-  complete required journeys and visible, authoritative and other-user evidence;
-  place equivalent validation at its lowest effective layer. Fixture setup,
-  fault/recovery and controlled-environment events have distinct evidence and
-  cannot substitute for the product actions a journey claims to prove.
-- Reuse the [established tools and bounded harness](Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work).
-  Add infrastructure only for an identified scenario or safety gap. Source
-  contracts and runner qualification are supporting evidence, not customer
-  behavior or a reason to defer product coverage indefinitely.
-- Use the fixed existing VM and its guarded lease. The retained product-free
-  baseline is an outer preparation/cleanup boundary only; no new snapshots,
-  copies, overlays or in-journey restores. Source shares must be detached before
-  test boot. Graphical backend compatibility with this ownership contract is
-  checked early in Task 19P before committing to its runner or scenarios.
-- Run cleanup-safety regressions in isolation before operations that terminate
-  processes. Signal only explicitly spawned, identity-recorded processes.
-  Non-VM UI pytest uses `tools/run-ui-tests` directly.
-- Bound waits by observable readiness and deadlines. Wait for real product
-  durations when time itself is under test. Preserve first failures; a later
-  passing diagnostic attempt does not rewrite a failed result.
-- Add useful stage/outcome/error-category logging without PII. Read product
-  logs at `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log`; do not
-  modify them. Redact only copied diagnostic artifacts.
-- Update `setup.sh` for required host dependency changes. Classify new packaged
-  integrations under [Package update activation](../Publishing.md#package-update-activation); ship migrations
-  under [Data migration](../SystemDesign/Data-Migration.md) before incompatible readers or
-  writers. Shared form changes cover kiosk and child-overlay modes.
-- Keep product/test inputs tied to one source content identity, including local
-  changes. Exact package and fixture evidence must survive actual reboot,
-  failure and cleanup. Supplemental migration/activation packages are distinct
-  from the release artifact.
-- The four daily commands and selection semantics are defined once in the
-  [daily guide](../Test-Automation.md#daily-commands). One inventory and runner
-  dispatch serves local use and CI. Existing focused `check-*` commands remain
-  usable until the public aliases are implemented.
-- One-time preparation and repeated harness qualification are excluded from
-  ordinary `test-*` runs. Every required regression/variant still runs once;
-  no formerly passing test is permanently exempted.
+- Customer actions and assertions use screens and normal interaction. Other-user
+  checks use that user's desktop; persistence uses reopen/login; app enforcement
+  uses actual launch/use. No PAM, D-Bus, private files, rules, grants, PIDs or
+  transaction witnesses are customer assertions.
+- Existing safeguards for VM ownership, secret input, provenance, bounded waits,
+  artifacts and cleanup remain required. Add infrastructure only for a named
+  customer step that cannot run safely through existing interfaces.
+- Natural expiry uses real elapsed time. No private state writes, forced locks,
+  fake clocks, mocks or mid-journey restores construct customer outcomes.
+- Setup may use supported helpers. Feature tests require verified installation;
+  they do not wait for the entire clean-install qualification.
+- Installation/package qualification may inspect internals and induce its
+  declared failures. Retain Task 20's recovery ledger and checkpoints. Charge
+  actual shared R1 repair to that ledger; it cannot silently become a broad
+  prerequisite for every customer case.
+- A shared visible journey has one canonical executable and may satisfy multiple
+  task mappings. No duplicate execution merely to complete another task number.
+- Existing tests and required safety checks remain intact. Run affected checks
+  for implementation edits; do not expand lower-level matrices as E2E work.
 
 ## Requirement and evidence maintenance
 
-`tests/requirements.json` maps stable `ONPC-...` specification IDs to required
-layers and executable evidence. Preserve IDs when wording is clarified and add
-one for a new normative obligation, including a nested obligation. Existing
-file references are structural checks, not proof that assertions ran.
+The executable inventory and requirement mappings still reflect the earlier
+plan. This documentation session changes no runtime status or schema.
+Reconcile each affected declaration with the surface-only contract when its
+first customer consumer is implemented, including only the minimum shared
+validator adaptation needed. Preserve safety fields; do not invent backend
+evidence to satisfy legacy mandatory assertions.
 
-Use `tools/run-tests traceability stage` after specification
-or mapping changes; ordinary `make check` retains stage mode. Only mark actual
-runtime coverage `covered`. Source contracts support architecture checks but
-cannot replace runtime acceptance.
+Explicitly record moved internal obligations under their separate owner.
+Reclassification, removal of duplicate planned variants and changed denominators
+are scope changes, never completed scenarios. Keep all distinct customer
+behavior and both request surfaces. Missing external sending authorization
+blocks only the applicable feedback case.
 
-F1 establishes selected test identities and diagnostic evidence; Tasks 19/27
-extend the same contracts to graphical steps and all layers. Task 28 joins
-expected and executed inventories and final-mode traceability.
-Include harness, build and static regressions with no product requirement ID.
-Missing/skipped/xfailing/flaky/failed evidence, wrong layers, stale artifacts,
-partial journeys and failed cleanup prevent a complete pass. Review both
-specification and architecture/lifecycle/threat coverage; resolve contradictions
-explicitly instead of silently inventing a new guarantee or discarding a gap.
+Only a complete run of the declared customer actions and visible assertions
+earns E2E credit. Unit/component passes and engineering qualification retain
+their own scope. A customer-suite pass does not certify deferred product
+guarantees or substitute for mechanical package acceptance.
 
 ## Unfinished tasks
 
-This is the single authoritative checklist. Each linked section is one task;
-its initial model/effort recommendation remains there. The active handoff owns
-the reassessed recommendation for its remaining slice under the
-[quality and weekly-allowance policy](Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff).
-The launcher uses that choice from Continuation.md for each fresh session;
-historical pinned settings are not mandates. Task numbers identify coverage
-ownership, not equal effort or numeric execution order. The displayed checklist
-order governs selection: take the earliest ready unchecked entry and record any
-earlier deferral under the [session procedure](Implementation-Workflow.md#start-with-one-bounded-result).
-Recheck deferrals at each safe slice boundary; a later task's active handoff does
-not override an earlier task whose blocker has cleared. No second checklist is
-needed for individual slices.
+Select the earliest ready unchecked entry within the customer queue. If a
+variant is blocked, record its evidence and return condition, then continue
+independent customer work. Cross-task helpers can be introduced with their
+first consumer; the entire owning task need not be accepted first. Reconcile
+[Continuation.md](Continuation.md) at each handoff.
 
-The order delivers focused feedback and resolves graphical feasibility first,
-then prioritizes installed-app behavior and families' everyday graphical
-journeys before the clean-install journey. Later tasks extend these helpers. Required
-coverage remains unchanged; these milestones are partial implementation results,
-not release passes. Use measured slice/attempt times to forecast remaining work.
+### Accepted foundation — retain unchanged
 
-**Current operator scope — 2026-09-11:** prioritize all work that does not need
-Task 20 acceptance before it: Tasks 15–18, 21–27 and 28A, preserving their
-actual dependencies. Installed cases reuse verified installation/reboot setup,
-as Task 14 did; graphical daily-use cases reuse Task 19B's accepted runner.
-Task 21A's former Task 20 dependency was an installation-setup dependency and
-is corrected in its task. Task 17A is unit/component coverage; Tasks 27/28A
-complete evidence and dispatch infrastructure without claiming a release pass.
-Task 20 separately proves clean graphical installation and startup faults;
-28B's complete release gate and 28C's accepted-results runbook remain after it.
+- [x] [Task F1 — Guarded installed selection and diagnosis](Task-F1.md)
+- [x] [Task 19P — Graphical backend compatibility](Task-19.md#task-19p)
+- [x] [Task 14 — Installed broker identity and authorization](Task-14.md)
+- [x] [Task 19A — Guarded graphical worker and console transport](Task-19.md#task-19a)
+- [x] [Task 19B — Stable screen matching and graphical smoke](Task-19.md#task-19b)
 
-Shared terminal, reboot, startup-observation and provenance helpers still need
-their applicable qualification. The first affected consumer may complete that
-bounded prerequisite under the [reuse workflow](Implementation-Workflow.md#reuse-established-tools-and-bound-harness-work)
-and publish evidence for Task 20; helper reuse does not require full Task 20
-acceptance or make unqualified behavior available. Tasks 18C/26C retain their
-own complete package journeys and real customer operations where required.
-Record any concrete helper blocker against its affected task and continue
-independent ready work; do not turn a task number into a blanket dependency.
+These remain engineering coverage, not completed customer journeys.
 
-This supersedes the earlier Task 20-first recovery scope. Preserve its
-[bounded recovery](Task-20.md#bounded-recovery--2026-09-11), cumulative ledger
-and checkpoints for when checklist selection returns to Task 20 or brings
-forward R1 recovery. Its unfinished acceptance alone does not block earlier work.
+### Customer queue — first priority
 
-- [x] [Task F1 — Focused installed diagnosis, moved forward from Tasks 28/27](Task-F1.md)
-- [x] [Task 19P — Prove graphical backend compatibility](Task-19.md#task-19p)
-- [x] [Task 14 — Test installed broker identity and authorization boundaries](Task-14.md)
-- [x] [Task 19A — Add the guarded os-autoinst worker and console transport](Task-19.md#task-19a)
-- [x] [Task 19B — Add stable screen matching and graphical smoke](Task-19.md#task-19b)
-- [ ] [Task 15A — Test installed catalog and application launch enforcement](Task-15.md#task-15a)
-- [ ] [Task 15B — Test process confinement and execution-policy rollback](Task-15.md#task-15b)
-- [ ] [Task 16A — Test real usage, grant arithmetic, midnight, and DST](Task-16.md#task-16a)
-- [ ] [Task 16B — Test PAM login/unlock and managed-session lifetime](Task-16.md#task-16b)
-- [ ] [Task 17A — Complete session-entry transaction and race regressions](Task-17.md#task-17a)
-- [ ] [Task 17B — Prove expired and replacement grants on the installed system](Task-17.md#task-17b)
-- [ ] [Task 18A — Test all package activation classes](Task-18.md#task-18a)
-- [ ] [Task 18B — Test migration interruption, retry, and invalid data](Task-18.md#task-18b)
-- [ ] [Task 18C — Test real package removal, reinstall, and purge](Task-18.md#task-18c)
-- [ ] [Task 21A — Automate Parent discovery, navigation, and validation](Task-21.md#task-21a)
-- [ ] [Task 21B — Automate Parent saves, live policy, and revocation](Task-21.md#task-21b)
-- [ ] [Task 22A — Prove lock, retained-session unlock, and fresh-login enforcement](Task-22.md#task-22a)
-- [ ] [Task 22B — Automate countdown display, visibility, and estimate recovery](Task-22.md#task-22b)
-- [ ] [Task 23A — Automate real authentication and atomic child approval](Task-23.md#task-23a)
-- [ ] [Task 23B — Automate shared form validation, choices, and overlay exit](Task-23.md#task-23b)
-- [ ] [Task 24A — Prove restricted kiosk startup and authentication-agent recovery](Task-24.md#task-24a)
-- [ ] [Task 24B — Complete kiosk form, approval, persistence, and logout cases](Task-24.md#task-24b)
-- [ ] [Task 25A — Automate graphical launch-route and matching matrices](Task-25.md#task-25a)
-- [ ] [Task 25B — Prove multi-session termination and grant isolation](Task-25.md#task-25b)
-- [ ] [Task 26A — Prove adversarial transaction races and failure recovery](Task-26.md#task-26a)
-- [ ] [Task 26B — Complete restart and persistence scenarios](Task-26.md#task-26b)
-- [ ] [Task 26C — Complete continuous customer journeys and coverage enumeration](Task-26.md#task-26c)
-- [ ] [Task 27A — Define and enforce the shared evidence and redaction contract](Task-27.md#task-27a)
-- [ ] [Task 27B — Wire the remaining runners to the evidence contract](Task-27.md#task-27b)
-- [ ] [Task 27C — Finish bounded waits and flake classification](Task-27.md#task-27c)
-- [ ] [Task 28A — Implement the four test commands, CI, and the comprehensive gate](Task-28.md#task-28a)
-- [ ] [Task 20 — Automate clean installation, reboot, and startup readiness](Task-20.md)
-- [ ] [Task 28B — Audit executable traceability and pass the release gate](Task-28.md#task-28b)
-- [ ] [Task 28C — Finish the operator runbook and evidence index](Task-28.md#task-28c)
+- [ ] [Task 21A — Parent discovery, navigation, access and feedback drafting](Task-21.md#task-21a)
+- [ ] [Task 21B — Parent saves, control changes and revocation](Task-21.md#task-21b)
+- [ ] [Task 23A — Child-overlay approval, cancellation and retry](Task-23.md#task-23a)
+- [ ] [Task 23B — Overlay choices, validation and exit](Task-23.md#task-23b)
+- [ ] [Task 24A — Kiosk entry and request-only interaction](Task-24.md#task-24a)
+- [ ] [Task 24B — Kiosk requests, choices and return to login](Task-24.md#task-24b)
+- [ ] [Task 22A — Zero-time rejection, natural expiry and restored access](Task-22.md#task-22a)
+- [ ] [Task 22B — Countdown display and visibility](Task-22.md#task-22b)
+- [ ] [Task 25A — Application launch routes and matching](Task-25.md#task-25a)
+- [ ] [Task 25B — App-window effects and other-user continued use](Task-25.md#task-25b)
+- [ ] [Task 26B — Reopen, login, reboot and resumed use](Task-26.md#task-26b)
+- [ ] [Task 26C — Complete everyday journeys and authorized feedback](Task-26.md#task-26c)
+- [ ] [Task 26A — Remaining customer cancellation and retry gaps](Task-26.md#task-26a)
+
+### Mechanical package qualification — after customer work
+
+These retain their internal checks. Customer package journeys E2E-002/026/027
+also remain required and may share one attempt with distinctly labeled
+mechanical assertions. Their customer assertions still obey E2E-Coverage.md.
+Unavailable or blocked customer cases do not require indefinite idle work;
+record them before selecting ready package work.
+
+- [ ] [Task 18A — Package activation classes and customer update behavior](Task-18.md#task-18a)
+- [ ] [Task 18B — Migration interruption, retry and invalid data](Task-18.md#task-18b)
+- [ ] [Task 18C — Mechanical removal/reinstall/purge and customer lifecycle](Task-18.md#task-18c)
+- [ ] [Task 20 — Clean installation, reboot and startup qualification](Task-20.md)
+
+### Acceptance and handoff
+
+- [ ] [Task 28B — Review executed customer and package coverage](Task-28.md#task-28b)
+- [ ] [Task 28C — Document the verified workflow and remaining limits](Task-28.md#task-28c)
+
+### Separate engineering — not automatic fallback
+
+| Retained work | Status/owner |
+| --- | --- |
+| Policy acknowledgement and probe protocol | [Separate design handoff](Policy-Acknowledgement.md); explicit product decision required. |
+| Installed launch, confinement and rollback expansion | [15A/15B](Task-15.md); existing coverage retained, unfinished internal matrix deferred. |
+| Time-authority, PAM, clock and session internals | [16A/16B](Task-16.md); customer behavior belongs to 22/26. |
+| Session-entry races and reconciliation internals | [17A/17B](Task-17.md); customer behavior belongs to 22/25/26. |
+| Non-installation induced faults and transaction races | [26A separation](Task-26.md#separate-engineering-obligations); preserve tests and explicit gaps. |
+| General evidence/runner expansion | [27A–C](Task-27.md); only a concrete blocked consumer may bring forward a minimal adapter. |
+| Broad four-command/CI/cache expansion | [28A](Task-28.md#task-28a); no standalone implementation before a concrete need or separate direction. |
+
+These are unaccepted/deferred, not checked-off tasks. The launcher finishes the
+active checklist and reports deferred work; it must not claim full-specification
+or unrestricted release acceptance while an applicable product blocker remains.
+
+## Progress baseline and accounting
+
+At this documentation rewrite: **0 completed customer E2E variants**; the runtime
+inventory has one ready harness smoke and 156 pending legacy variants, including
+internal faults. This is a snapshot, not a new acceptance result or the final
+customer denominator. Reconcile scope transparently with the first consumers.
+
+Carry cumulative counts, accepted variant IDs/evidence, remaining frozen scope,
+scope transfers and consecutive slices without a completed customer variant in
+the active handoff/Continuation.md. Planning and helper tests do not advance
+customer completion. The [workflow](Implementation-Workflow.md#handoff-format-and-cost-review)
+defines intervention thresholds and keeps mechanical milestones separate.

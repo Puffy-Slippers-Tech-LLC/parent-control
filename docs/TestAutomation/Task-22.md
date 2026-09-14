@@ -1,95 +1,73 @@
-# Task 22 — Child countdown, expiry, lock, and login
+# Task 22 — Customer time limits, login and countdown
 
-Execute 22A and 22B separately. Reuse Tasks 16B and 17B's backend assertions.
-Expiry and session-entry behavior must follow the current specification:
-expiry locks without closing apps, and a current replacement grant wins over
-an earlier expired grant during session preparation.
-
-Follow [E2E-Coverage.md](E2E-Coverage.md). Enumerate daily-only, grant-only,
-combined, expired/replacement, new/retained-session, and other-foreground-user
-variants. Customer setup and replacement grants use the real Parent/request
-UIs and authentication. No usage writes, fake clocks, injected grants, forced
-locks, or intermediate VM restores may manufacture natural expiry evidence.
-Reuse Task 21B's minimal real kiosk approval helper to establish/replenish
-grants; Tasks 23/24 later extend its authentication and surface matrices.
+Follow [E2E-Coverage.md](E2E-Coverage.md). Correct-password rejection with the
+time-limit message and no usable desktop is sufficient customer evidence.
+Do not inspect PAM, logind, usage/grants, extension state, filters, rules,
+processes or broker reconciliation. Existing tests of those internals remain intact.
 
 ## Implementation slices
 
-Use the [implementation workflow](Implementation-Workflow.md). These are small
-work boundaries within the existing task, not extra acceptance checklists.
-Verification below is task acceptance; edits use the smallest affected selection.
-
-| Task | First proof, then expansion |
-| --- | --- |
-| 22A | One natural expiry, denial and replacement-grant unlock sequence; then fill session and soft-app variants. |
-| 22B | One display transition and visibility case; then the declared dependency-loss/recovery case. |
+Select this task in the broad customer queue. Complete one assigned time-limit
+variant, then expand natural expiry and restored-access variants.
+Reuse the smallest real Parent/kiosk interaction needed; Tasks 15–17 and the
+whole Parent/request matrices are not dependencies.
 
 ## Task 22A
 
-- Title: Prove lock, retained-session unlock, and fresh-login enforcement.
-- Depends on: Task 21B and the Task 16B/17B installed session assertions.
-- Complexity: very high. GNOME Shell, PAM, logind, active-user isolation, and
-  broker reconciliation must agree across retained and new sessions.
-- Recommended Codex model: `gpt-6-astra`
-- Recommended reasoning effort: `high`
+- Title: Zero-time rejection, natural expiry and restored access.
+- Depends on: accepted guarded graphical runner and verified package/account setup.
+- Default settings: `gpt-5.6-sol` / `high`.
+- Customer scope: E2E-008/009/010.
 - Work:
-  1. Configure the child through Parent and enter the child through real GDM.
-     Cover both graphical logout/login and Switch User preserving the parent's
-     session; verify packaged extension activation in the real Shell.
-  2. Let a real short grant expire. Verify lock, preservation of the child
-     session and its running apps, and no disruption to another foreground user.
-  3. Attempt zero-time unlock and verify the GDM time-limit explanation and
-     `gdm-password` denial. Use public `loginctl` orchestration separately to
-     expose a retained desktop without time and prove immediate relocking.
-     The forced exposure is a declared fault case, not evidence of an ordinary
-     successful unlock. Correct-password user attempts must use real GDM/PAM.
-  4. Verify expired-grant session preparation restores canonical blocks before
-     blocked-app termination. Correlate screens with Task 17B's real-caller
-     assertions; no child-side grant authority or timer hook is permitted.
-  5. Grant replacement time before unlock, testing both soft-app choices.
-     Verify unlock succeeds and preparation preserves the policy/process state
-     established by that current grant, including all open apps when allowed.
-  6. End the retained session, prove fresh GDM login is denied at zero, then
-     prove a fresh login succeeds during a valid grant.
-     Use the user's logout path; a denied-login case may end a live session
-     while time remains and then let its real grant expire at GDM. A test
-     helper must not replace the lifecycle steps with manufactured state.
-  7. Publish reusable login/lock/session-state helpers and update time, login,
-     reconciliation, and isolation mappings.
-- Verification:
-  - Run cleanup-safety regressions in isolation before session/process controls.
-  - Run each complete lock/login variant once; reset only outside attempts. Correlate
-    screenshots, logind sessions, PAM results, usage, grants, filters, processes,
-    and PII-safe logs.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: zero-time login/unlock denial, lock without logout,
-  replacement-grant precedence, and other-user isolation are proven graphically.
+  1. For `E2E-008/fresh-login`, parent opens Parent and sets zero allowance,
+     observes save, switches users, and attempts child login with the correct
+     password. Observe the time-limit explanation and no desktop access.
+     Reconcile this pending variant as configured zero-time denial; do not claim
+     that setting zero also proves natural exhaustion.
+  2. For `E2E-008/retained-unlock`, select a short supported allowance, log in
+     and use the child desktop until time naturally runs out. Observe lock;
+     correct-password unlock shows the time-limit rejection.
+  3. For E2E-009, obtain time through real kiosk selection and authentication,
+     log in, use the app and let the grant expire. Obtain replacement time and
+     unlock normally. Cover soft apps included/excluded through actual launch
+     results. The successful login/unlock provides the positive access control.
+  4. For E2E-010, switch to the parent or another child while the selected
+     child's time expires. Continue using that foreground desktop, then try to
+     return to the expired child and observe rejection.
+  5. If retained app state is claimed, obtain legitimate time and observe the
+     same window/activity after normal unlock. No invisible process-survival or
+     internal event-order assertion is required.
+- Verification: execute complete variants through the existing guarded E2E
+  selector, inspect visible results and retain normal evidence/cleanup.
+  Run existing safety prerequisites and affected regression checks; run common
+  acceptance checks once after the stable batch.
+- Completion criteria: the finite fresh-login, natural-lock, replacement-access
+  and other-user journeys pass by customer observation.
+- Separate work: `E2E-028/zero-time-exposure` uses a forced internal operation
+  and is outside this task. Preserve it as deferred system qualification.
+
+## Current handoff — 2026-09-14
+
+Customer variants remain pending. The [current continuation](Continuation.md)
+starts the general customer queue with Parent discovery. Time-limit rejection
+is one illustration of surface-only acceptance, not a priority over other
+families. Reuse the common graphical/evidence adaptation when this task is
+selected and reconcile only its affected legacy declarations. Preserve actual
+natural-expiry steps where claimed; configured zero alone does not prove them.
 
 ## Task 22B
 
-- Title: Automate countdown display, visibility, and estimate recovery.
-- Depends on: Task 22A.
-- Complexity: medium. Established session helpers isolate panel presentation
-  from the security-boundary implementation.
-- Recommended Codex model: `gpt-5.6-terra`
-- Recommended reasoning effort: `medium`
+- Title: Countdown display and visibility.
+- Depends on: only the real login/request interactions needed to show time.
+- Default settings: `gpt-5.6-sol` / `high`, lowered for settled UI expansion.
+- Customer scope: E2E-011.
 - Work:
-  1. Verify minute countdown and final-minute seconds with the shortest real
-     grant that crosses that transition and allows the required UI steps.
-     Do not use a too-short grant or add a production clock hook.
-  2. Verify the control appears only on the unlocked managed child's desktop
-     while usable time remains, never on GDM or the lock screen. Assert no
-     independent child settings or custom lock-screen controls.
-  3. Use established guest service controls for temporary Malcontent read
-     failure; verify the last verified estimate remains and refresh recovers.
-     This is a declared fault/recovery variant of E2E-028; it cannot replace
-     the natural countdown and visibility journey E2E-011.
-  4. Update countdown, visibility, and estimate-recovery mappings.
-- Verification:
-  - Run each complete display variant once on the guarded VM with bounded
-    screen waits and backend time evidence.
-  - Run `make check-e2e ARTIFACT_DIR=<verified-directory> SCENARIO=<assigned-scenario-id>`,
-    `make check`, and `git diff --check`.
-- Completion criteria: display and recovery requirements have visible evidence
-  without duplicating lock/login transaction infrastructure.
+  1. Obtain a duration long enough to observe minutes and final seconds.
+     Watch the countdown during real use; do not change clocks or read usage.
+  2. Observe the control on the unlocked managed desktop and its absence on
+     lock/GDM and inappropriate user surfaces. Use ordinary customer transitions.
+  3. Reopen/return through normal interactions and observe display refresh.
+     Do not stop Malcontent or inject read failures.
+- Verification/completion: all declared visible display variants pass using
+  bounded screen waits, normal evidence/cleanup and affected regressions.
+  `E2E-028/usage-read` stays separate internal fault qualification.

@@ -9,6 +9,7 @@ import check_graphical_smoke as smoke
 
 
 from tests.support.screens import png
+from tests.support.e2e_evidence import worker_evidence
 
 
 @pytest.mark.parametrize('name', ['../private', '/tmp/image.png', 'vars.json', 'smoke-a.png'])
@@ -75,7 +76,7 @@ def test_generalhw_uses_documented_32_bit_vnc_depth(tmp_path):
     assert selected['GENERAL_HW_VNC_DEPTH'] == 32
 
 
-def test_success_requires_all_stages_even_with_zero_backend_status(tmp_path):
+def test_success_requires_all_stages_even_with_zero_backend_status(tmp_path, worker_evidence):
     worker, server = Mock(), Mock(path=tmp_path / 'callback.sock')
     worker.poll.return_value = 0
     tmp_path.chmod(0o700)

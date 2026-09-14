@@ -119,7 +119,32 @@ def test_single_owned_client_closes_without_reopening(lifecycle):
         client.open(ADDRESS)
 
 
-@pytest.mark.parametrize("reply", [None, probe.UNIT_EXISTS, "org.test.Error"])
+def test_create_poll_uses_shared_admission_budget_without_losing_late_reply(lifecycle):
+    client = probe.ProbeBusClient()
+    assert client.open(ADDRESS)
+    client.start_create(":1.50", "onpc-test.service", "ONPC test", token="1" * 32)
+    deadline = lifecycle.now + 0.125
+    assert client.poll_create(deadline=deadline) is None
+    assert lifecycle.now == pytest.approx(deadline)
+    assert client.connection is lifecycle and lifecycle.creates == 1
+    lifecycle.schedule(lifecycle.create_callback)
+    # An expired shared budget must not dispatch even an already queued callback.
+    assert client.poll_create(deadline=deadline) is None
+    assert client.poll_create().outcome == "replied"
+    assert client.close() and client.cleanup_complete and lifecycle.creates == 1
+
+
+@pytest.mark.parametrize("token", ["", "0" * 32, "A" * 32, "1" * 31, "/tmp/target", 42])
+def test_native_command_refuses_invalid_token_before_dispatch(lifecycle, token):
+    client = probe.ProbeBusClient()
+    assert client.open(ADDRESS)
+    with pytest.raises(ValueError, match="invalid probe generation token"):
+        client.start_create(":1.50", "onpc-test.service", "ONPC test", token=token)
+    assert lifecycle.creates == 0
+    assert client.close() and client.cleanup_complete
+
+
+@pytest.mark.parametrize("reply", [None, *sorted(probe.CREATE_ERROR_NAMES), "org.test.PrivateName"])
 def test_late_create_reply_survives_deadline_without_disconnect_or_replay(lifecycle, caplog, reply):
     client = probe.ProbeBusClient()
     assert client.open(ADDRESS)
@@ -137,6 +162,16 @@ def test_late_create_reply_survives_deadline_without_disconnect_or_replay(lifecy
     assert result.outcome == ("replied" if reply is None else
                               "collision" if reply == probe.UNIT_EXISTS else "uncertain")
     assert bool(result.job) == (reply is None)
+    assert result.error_name == ("" if reply is None else
+                                  reply if reply in probe.CREATE_ERROR_NAMES else "other")
+    adapter = probe.ExecutionProbe(None)
+    adapter._client = client
+    retained, may_exist = adapter._collect_create(
+        probe.ProbeResult(unit="owned.service"), preserve_outcome=False)
+    assert retained.create_error_name == result.error_name
+    assert may_exist == (reply != probe.UNIT_EXISTS)
+    assert not retained.cleanup_complete and not retained.executed
+    assert "PrivateName" not in repr(retained) and "secret payload" not in repr(result)
     assert client.poll_create() is result and lifecycle.creates == 1
     assert "secret payload" not in caplog.text
     assert lifecycle.now <= 2 * probe.CLEANUP_SECONDS + probe.POLL_SECONDS

@@ -47,11 +47,13 @@ runs first on the next `start`.
 ## Progress review between slices
 
 Before another implementation slice, a fresh `gpt-6-astra` / `xhigh` session
-compares only the last two sections of the cumulative summary. The launcher
-extracts those sections and supplies the [review prompt](Progress-Review-Prompt.md);
-older history and implementation context are excluded from the judgment. With
-one section, the reviewer acknowledges that no trend is established yet.
-It evaluates useful forward progress versus stalled, blocked or repetitive work
+receives the last two sections of the cumulative summary. The launcher
+extracts those sections and supplies the [review prompt](Progress-Review-Prompt.md).
+The reviewer also reads Continuation.md and the selected active task handoff's
+cumulative completion/remaining-scope record before judging. No launcher code
+or additional summary-history reader is needed for that document-based context.
+Missing cumulative information is reported as uncertainty. It evaluates completed
+customer scenarios and shrinking remaining scope versus growing prerequisites
 and displays only a brief high-level verdict. Review chatter is suppressed;
 Codex retains its own conversation for resumption. Reviews do not append summary
 sections or consume the implementation slice count.
@@ -66,6 +68,13 @@ that slice, normal handoff settings apply again. A retry before tool use or a
 killed conversation's resumption retains its intervention until the slice ends.
 No settings choice guarantees a breakthrough; the following review evaluates
 the result and must not blindly renew the same failed intervention.
+
+Two customer implementation slices without a completed variant require an
+intervention before another prerequisite slice. Carry the cumulative counter
+across chats, task switches and settings changes. The next slice must complete
+the named visible case or preserve a concrete blocker; do not renew an
+unproductive dependency chain. Mechanical Tasks 18/20 instead retain their
+own qualification milestones, internal checks and recovery checkpoints.
 
 Reviews run for clean blocked/no-progress reports and final completion too.
 Outside approval or a required operator decision still stops implementation;
@@ -188,18 +197,19 @@ heading, followed by exactly six bullets in this order:
 - Duration: <whole minutes> minutes
 - Completed: Actual changes and findings. State what remains unfinished.
 
-- Verification and cleanup: Check results and counts, material failures and recovery, evidence path, and final command/VM/export cleanup state.
+- Verification and cleanup: Results for checks added or changed this session, material failures and recovery, evidence path, and final command/VM/export cleanup state.
 
 - Next session: Task <ID>: the concrete next action. Next settings: <model>/<effort>, Standard.
 ```
 
 Progress is a short overall assessment, placed first, immediately before Task.
-Choose one bold value: **Solid and healthy** when verified work advances the
-task and a concrete, feasible next action remains (or acceptance is complete);
-**Nearly blocked or stalled - need intervention** when repeated attempts yield
-no meaningful advance, an unresolved prerequisite prevents the next action, or
-outside input is needed. Base the rating on this session's evidence and the
-active handoff, not test counts alone or optimism. Do not read historical
+Choose one bold value: **Solid and healthy** when customer variants complete
+and frozen remaining work shrinks, or the first finite adapter serves a named
+consumer; **Nearly blocked or stalled - need intervention** when two customer
+slices complete no variant, prerequisites keep expanding, the finish line is
+unclear or outside input is needed. Mechanical work measures its finite
+qualification milestones separately. Use the cumulative active handoff, not
+helper-test counts or a feasible next micro-step alone. Do not read historical
 summaries to infer a trend. Keep the Progress line to the rating; explain the
 reason in Completed or Verification and cleanup, and identify the needed
 intervention in Next session. This is a progress-health assessment, not a time
@@ -210,6 +220,18 @@ rounding note. Keep Task, Duration and Completed adjacent; separate Verification
 and cleanup and Next session with blank lines. Use concise prose and preserve
 acceptance limits, evidence and material failure details. Put a blocker or
 required intervention in Next session; omit next settings when no work remains.
+
+Summarize changes and findings from this session, plus compact cumulative
+customer completed/remaining counts, scope transfers and the counter of slices
+without a completed variant. Keep these in the existing Completed field; no
+schema/renderer change is required. Do not repeat earlier accomplishment lists
+or successful runs/counts of existing tests
+(for example, "Passed 152 focused unit tests" or "7 isolated tests passed").
+Mention new or changed tests only when they were added or changed in this
+session, and describe the behavior they cover. Keep routine verification of
+unchanged tests in runner artifacts and the conversation/PR, not this summary.
+Retain material failures, unresolved verification limits and required cleanup
+state even when they involve existing tests.
 
 Compared with the older format, Progress comes first, followed by Task and
 Duration. Remove the duplicate Completion bullet, routine Outcome, current

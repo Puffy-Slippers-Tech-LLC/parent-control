@@ -56,8 +56,11 @@ def test_result_requires_binary_output_and_host_options_do_not_disable_tests(rel
     root, prefix = release
     attempt = tmp_path / 'attempt'
     attempt.mkdir()
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
     monkeypatch.setattr(ppa_build.shutil, 'which', lambda *a, **kw: '/usr/bin/tool')
-    monkeypatch.setattr(ppa_build.tempfile, 'mkdtemp', lambda **kw: str(attempt))
+    monkeypatch.setattr(ppa_build.tempfile, 'mkdtemp', lambda **kw:
+                        str(scratch if kw['prefix'] == 'onpc-sbuild-scratch-' else attempt))
     original_exists = Path.exists
     original_read = Path.read_text
     monkeypatch.setattr(Path, 'exists', lambda path: True if str(path) == '/etc/sbuild/sbuild.conf' else original_exists(path))
@@ -74,6 +77,9 @@ def test_result_requires_binary_output_and_host_options_do_not_disable_tests(rel
         assert kwargs['env']['DEB_BUILD_OPTIONS'] == 'parallel=2'
         assert 'APT_PACKAGE_PRIVATE_KEY_PASSPHRASE' not in kwargs['env']
         assert kwargs['env']['SBUILD_CONFIG'] == str(attempt / 'config/sbuild/config.pl')
+        config = (attempt / 'config/sbuild/config.pl').read_text()
+        assert f"$unshare_tmpdir_template = '{scratch}/root.XXXXXXXXXX';" in config
+        assert scratch.stat().st_mode & 0o777 == 0o711
         assert Path(argv[-1]).read_bytes() == (root.parent / f'{prefix}.dsc').read_bytes()
         kwargs['stdout'].write('missing build dependency\n')
         if artifacts:
@@ -92,6 +98,7 @@ def test_result_requires_binary_output_and_host_options_do_not_disable_tests(rel
     report = json.loads((attempt / 'result.json').read_text())
     assert report['status'] == ('passed' if artifacts else 'failed')
     assert report['exit_code'] == exit_code
+    assert report['scratch_directory'] == str(scratch)
     if artifacts:
         assert report['output_sha256'][f'{prefix}_amd64.deb'] == hashlib.sha256(b'binary evidence').hexdigest()
     assert (attempt / 'build.log').read_text() == 'missing build dependency\n'

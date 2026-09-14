@@ -8,6 +8,9 @@ from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import tarfile
+import tempfile
+
+from tools import package_inputs
 
 ROOT = Path(__file__).resolve().parents[2]
 NAME = "Puffy Slippers Tech LLC"
@@ -118,6 +121,7 @@ def inspect_archive(root: Path, version: str, *, tag: str | None = None) -> None
     for entry in run("git", "ls-files", "--stage", cwd=root).splitlines():
         metadata, name = entry.split('\t', 1)
         modes[name] = metadata.split()[0]
+    required = {path.as_posix() for path in package_inputs.paths(root)}
     seen = set()
     archive_root = None
     with tarfile.open(archive) as source:
@@ -132,7 +136,7 @@ def inspect_archive(root: Path, version: str, *, tag: str | None = None) -> None
             if member.isdir():
                 continue
             relative = str(PurePosixPath(*parts[1:]))
-            if relative not in tracked or relative in seen or ".." in parts:
+            if relative not in tracked or relative not in required or relative in seen or ".." in parts:
                 raise ValueError(f"unexpected/duplicate archive member: {member.name}")
             expected = subprocess.check_output(["git", "show", f"HEAD:{relative}"], cwd=root)
             if member.issym():
@@ -150,11 +154,20 @@ def inspect_archive(root: Path, version: str, *, tag: str | None = None) -> None
                 raise ValueError(f"archive differs from signed source: {relative}")
             seen.add(relative)
     missing = sorted(tracked - seen)
-    if any(not name.startswith(('.codex/', '.agents/')) for name in missing):
-        raise ValueError("source archive excludes tracked files beyond development agent configuration")
+    if required - seen:
+        raise ValueError("source archive excludes tracked package inputs")
     report = {"version": version, "source_tag": tag,
               "excluded_tracked_files_requiring_review": missing,
               "sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                          for p in (changes, dsc, archive)}}
     (root.parent / "source-review.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
+
+
+def build_archive(root: Path, command, log: Path) -> None:
+    """Build beside the signed checkout from the same reduced product sources."""
+    with tempfile.TemporaryDirectory(prefix='onpc-source-', dir=root.parent) as name:
+        checkout = Path(name)
+        package_inputs.copy(root, checkout)
+        command('dpkg-buildpackage', '--build=source', '--no-sign', '-d', '-sa',
+                cwd=checkout, log=log, timeout=3600)

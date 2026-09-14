@@ -133,7 +133,8 @@ def test_real_admission_fills_ui_branches_after_startup_at_low_cpu_load(slots, a
     assert set(finished) == set(kinds)
 
 
-def test_publishing_refills_with_screen_when_unit_and_component_are_exhausted():
+@pytest.mark.parametrize('companion', ['ui-screen', 'ui-request'])
+def test_publishing_refills_when_unit_and_component_are_exhausted(companion):
     release = threading.Event()
     state = SimpleNamespace(now=0, sample=Sample(20, 4, 32 * GIB, 8 * GIB, 0, 0, 0, False))
     admission = Admission(SimpleNamespace(sample=lambda: state.sample), lambda: state.now)
@@ -147,7 +148,7 @@ def test_publishing_refills_with_screen_when_unit_and_component_are_exhausted():
         started[job.kind] = state.now
         if job.kind == 'publish':
             state.sample = Sample(20, 4, 32 * GIB, 7 * GIB, 0, 0, 0, False)
-        if job.kind == 'ui-screen':
+        if job.kind == companion:
             assert 'component' in finished
             assert 'publish' not in finished
             release.set()
@@ -170,15 +171,42 @@ def test_publishing_refills_with_screen_when_unit_and_component_are_exhausted():
         Job('publish', None, ['publish'], estimate=374),
         Job('unit', None, ['unit'], estimate=177),
         Job('component', None, ['component'], estimate=25),
-        Job('ui-screen', None, ['ui-screen'], estimate=20),
-        Job('ui-request', None, ['ui-request'], estimate=10),
+        Job(companion, None, [companion], estimate=20),
+        Job('ui-preview', None, ['ui-preview'], estimate=10),
     ], control=Control(), admission=admission, begin=begin, run_command=command,
        tick=tick, waiting=lambda job, reason: reasons.append((job.kind, reason)))
     assert maximum == 3
-    assert list(started) == ['publish', 'unit', 'component', 'ui-screen', 'ui-request']
-    assert started['ui-screen'] - finished['component'] <= 2
-    assert started['ui-request'] >= finished['publish']
-    assert ('ui-request', 'unqualified pairing requires an idle runner') in reasons
+    assert list(started) == ['publish', 'unit', 'component', companion, 'ui-preview']
+    assert started[companion] - finished['component'] <= 2
+    assert started['ui-preview'] >= finished['publish']
+    assert ('ui-preview', 'unqualified pairing requires an idle runner') in reasons
+
+
+def test_recorded_observations_admit_request_after_io_and_cpu_recovery():
+    # Run 20260914T172159Z-eb26d6e2: component completion at 23417.663,
+    # with publishing, screen and units still active. Replay its next samples.
+    observations = [
+        (23416.465, 2.711, 13.873, 23215812608),
+        (23418.470, 3.963, 2.949, 23041966080),
+        (23420.546, 4.618, .008, 23269101568),
+        (23422.629, 4.286, 1.650, 23080796160),
+        (23424.690, 3.898, 3.234, 22253932544),
+    ]
+    state = SimpleNamespace(now=23402.303, sample=None)
+    admission = Admission(SimpleNamespace(sample=lambda: state.sample), lambda: state.now)
+    for kind, started in [('publish', 23402.303), ('ui-screen', 23406.385),
+                          ('unit', 23406.424)]:
+        state.now = started
+        admission.started(kind)
+    active = ['publish', 'ui-screen', 'unit']
+    for index, (now, busy, io, memory) in enumerate(observations):
+        state.now = now
+        state.sample = Sample(20, busy, 32733335552, memory, .521, 0, io, False)
+        allowed = admission.allows('ui-request', active)
+        assert allowed is (index == 4)
+    assert admission.allows('ui-request', active)
+    assert not admission.allows('ui-preview', active)
+    assert not admission.allows('artifacts', active)
 
 
 def test_long_job_overlaps_sequential_short_jobs_and_callbacks_stay_on_coordinator():

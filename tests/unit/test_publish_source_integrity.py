@@ -35,6 +35,7 @@ def test_wrong_source_signer_is_rejected(monkeypatch):
 @pytest.mark.parametrize('case,reason', [
     ('valid', None), ('mode', 'executable mode'), ('omission', 'excludes tracked'),
     ('bytes', 'differs from signed'), ('path', 'unsafe source archive'),
+    ('development', 'unexpected/duplicate archive member'),
     ('signer', 'signature does not belong'), ('duplicate-field', 'changes Source'),
     ('duplicate-manifest', 'SHA-256 manifest'), ('checksum', 'checksum mismatch'),
 ])
@@ -50,6 +51,9 @@ def test_strict_archive_and_tag_checks(tmp_path, monkeypatch, case, reason):
         payload = b'changed' if case == 'bytes' else b'executable source\n'
         info.size = len(payload)
         stream.addfile(info, io.BytesIO(payload))
+        if case == 'development':
+            info = tarfile.TarInfo('root/docs/internal.md')
+            stream.addfile(info, io.BytesIO(b''))
         if case == 'path':
             info = tarfile.TarInfo('root/../escape')
             info.type = tarfile.DIRTYPE
@@ -84,6 +88,8 @@ def test_strict_archive_and_tag_checks(tmp_path, monkeypatch, case, reason):
         pytest.fail('source integrity verification must not run local test commands')
 
     monkeypatch.setattr(release, 'run', run)
+    monkeypatch.setattr(release.package_inputs, 'paths', lambda root:
+                        [Path('tool')] + ([Path('missing-source')] if case == 'omission' else []))
     monkeypatch.setattr(release, 'verify_signature', lambda *args: None)
     monkeypatch.setattr(release.subprocess, 'run', external)
     monkeypatch.setattr(release.subprocess, 'check_output', lambda *args, **kwargs: b'executable source\n')
@@ -93,3 +99,24 @@ def test_strict_archive_and_tag_checks(tmp_path, monkeypatch, case, reason):
     else:
         release.inspect(root)
         assert (tmp_path / 'source-review.json').exists()
+
+
+def test_publisher_builds_source_from_only_declared_inputs(tmp_path):
+    root = tmp_path / 'source'
+    root.mkdir()
+    (root / 'Makefile').write_text('package-source-files:\n\t@printf "%s\\n" Makefile product\n')
+    (root / 'product').write_text('product bytes\n')
+    for category in ('docs', 'tests', 'tools'):
+        (root / category).mkdir()
+        (root / category / 'unused').write_text('internal\n\n')
+    calls = []
+
+    def command(*args, cwd, **kwargs):
+        calls.append(args)
+        assert cwd != root and cwd.parent == root.parent
+        assert {p.name for p in cwd.iterdir()} == {'Makefile', 'product'}
+        assert (cwd / 'product').read_bytes() == (root / 'product').read_bytes()
+
+    release.build_archive(root, command, tmp_path / 'log')
+    assert len(calls) == 1 and calls[0][0] == 'dpkg-buildpackage'
+    assert (root / 'docs/unused').exists()

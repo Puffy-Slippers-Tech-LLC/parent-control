@@ -11,6 +11,7 @@ import check_graphical_recovery as recovery
 import check_system_recovery as system_recovery
 import fixture_credentials
 from tests.support.vm_baseline import local_preparation_source
+from tests.support.e2e_evidence import worker_evidence
 
 
 @pytest.fixture
@@ -174,7 +175,7 @@ def test_invalid_invocation_refuses_before_files_commands_or_vm(arguments, uid):
     source.assert_not_called()
 
 
-def test_backend_poll_failure_still_closes_worker_and_callback(tmp_path):
+def test_backend_poll_failure_still_closes_worker_and_callback(tmp_path, worker_evidence):
     lease = Mock(state={'run': 'a' * 32})
     worker, server = Mock(), Mock(path=tmp_path / 'callback.sock')
     worker.poll.side_effect = RuntimeError('fixture backend failure')
@@ -189,7 +190,7 @@ def test_backend_poll_failure_still_closes_worker_and_callback(tmp_path):
 
 
 @pytest.mark.parametrize('fault', [None, 'worker-exit', 'not-ready', 'backend-exit', 'distribution'])
-def test_input_guard_binds_live_worker_and_staged_bytes_and_always_cleans(tmp_path, fault):
+def test_input_guard_binds_live_worker_and_staged_bytes_and_always_cleans(tmp_path, fault, worker_evidence):
     lease = Mock(state={'run': 'a' * 32})
     worker, server = Mock(ready=True, result=None), Mock(path=tmp_path / 'callback.sock')
     worker.poll.return_value = None

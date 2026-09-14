@@ -1,7 +1,7 @@
 # Clean local PPA validation
 
-`make test-publish` tests source packaging and a clean local binary build.
-`make test-all` includes that same [publishing test utility](../tools/publishing_checks.py),
+`make test-all` and `make test-all-verify` test source packaging and a clean local
+binary build through the [publishing test utility](../tools/publishing_checks.py),
 which calls the [clean build module](../tools/publishing/build.py). `make publish`
 delivers the release without rerunning these local tests.
 
@@ -29,10 +29,10 @@ For each new release candidate, prepare the application changes, add the new
 `docs/VersionHistory.md` entry, and run:
 
 ```sh
-make test-publish
+make test-all
 ```
 
-Use `make test-all` to run this alongside all established suites. These commands
+Use `make test-all-verify` to add full backing-file verification. These commands
 include uncommitted changes in a private source snapshot, require no signing
 credentials, and never push or upload. Each invocation builds fresh source and
 binary artifacts. Commit the application changes and run `make publish` when
@@ -82,7 +82,7 @@ activation. See [upgrade acceptance](Publishing.md#upgrade-acceptance).
 
 ## Approval scope
 
-`make test-publish` runs unprivileged on a configured host; namespace support and
+The publishing module runs unprivileged on a configured host; namespace support and
 dependency downloads can require execution outside an assistant's sandbox.
 An assistant needs separate authorization for publication through `make publish`.
 Local test permissions do not grant signing, pushing or uploading.

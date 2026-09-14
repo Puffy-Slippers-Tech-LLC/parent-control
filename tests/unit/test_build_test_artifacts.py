@@ -75,8 +75,8 @@ class TestBuildTestArtifacts(unittest.TestCase):
                     )
                 return subprocess.CompletedProcess(command, 0, "", "")
 
-            with mock.patch.object(artifacts, "_source_paths", return_value=[Path("README.md")]), \
-                 mock.patch.object(artifacts, "_source_digest", return_value="b" * 64), \
+            with mock.patch.object(artifacts.package_inputs, "paths", return_value=[Path("README.md")]), \
+                 mock.patch.object(artifacts.package_inputs, "digest", return_value="b" * 64), \
                  mock.patch.object(artifacts, "_metadata", return_value=metadata), \
                  mock.patch.object(artifacts, "_run", side_effect=fake_run):
                 manifest_path = artifacts.build(output)
@@ -104,3 +104,23 @@ class TestBuildTestArtifacts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_development_only_commit_preserves_package_metadata(tmp_path, monkeypatch):
+    def git(*args):
+        return subprocess.run(['git', '-c', 'user.name=Tests', '-c',
+                               'user.email=tests@invalid', '-c', 'commit.gpgsign=false', *args],
+                              cwd=tmp_path, check=True, capture_output=True)
+
+    git('init', '-q')
+    (tmp_path / 'product').write_text('product input\n')
+    git('add', 'product')
+    git('commit', '-qm', 'Product')
+    monkeypatch.setattr(artifacts, 'REPOSITORY', tmp_path)
+    monkeypatch.setattr(artifacts, '_command_version', lambda command: 'tool-version')
+    before = artifacts._metadata([Path('product')], 'digest')
+    (tmp_path / 'docs').mkdir()
+    (tmp_path / 'docs/internal.md').write_text('development-only\n')
+    git('add', 'docs/internal.md')
+    git('commit', '-qm', 'Documentation')
+    assert artifacts._metadata([Path('product')], 'digest') == before

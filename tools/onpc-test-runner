@@ -5,6 +5,10 @@
 # Checkout imports must never leave root-owned caches that break package clean.
 
 import argparse
+from contextlib import nullcontext
+import fcntl
+import hashlib
+import json
 import os
 from pathlib import Path
 import pwd
@@ -12,6 +16,26 @@ import re
 import runpy
 import subprocess
 import sys
+
+
+def retention_guard(root):
+    """Read recovery state under the existing VM lease; never repair it here."""
+    sys.path.insert(0, str(root / 'tests/integration'))
+    import prepare_host as baseline
+    baseline.canonical(baseline.BASELINES)
+    fd = os.open(baseline.BASELINES / '.lock', os.O_RDWR | os.O_NOFOLLOW)
+    try:
+        baseline.identity(baseline.BASELINES / '.lock', private=True, mode=0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        for name, phase in (('phase.json', 'finalized'), ('system-run.json', 'complete')):
+            path = baseline.BASELINES / name
+            if name != 'phase.json' and not os.path.lexists(path):
+                continue
+            baseline.identity(path, private=True, mode=0o600)
+            if json.loads(path.read_bytes()).get('phase') != phase:
+                raise ValueError('retention: VM recovery is unfinished; preserve evidence')
+    finally:
+        os.close(fd)
 
 CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
 VM_UUID = None  # Pinned from finalized baseline state by install_test_runner.py.
@@ -130,6 +154,14 @@ def selection(root, argv):
 
 
 def run(root, argv, caller):
+    retention_run = None
+    if argv and argv[0].startswith('--retention-run='):
+        retention_run = argv[0].partition('=')[2]
+        if not re.fullmatch('[0-9a-f]{32}', retention_run):
+            raise ValueError('test-runner:invalid-retention-run')
+        argv = argv[1:]
+        if argv[:1] != ['--unattended']:
+            raise ValueError('test-runner:retention-requires-unattended')
     if argv[:1] == ['--unattended']:
         # This fixed mode accepts the same validated selections. Stdin is a
         # cancellation channel, never a command or privileged path source.
@@ -149,7 +181,15 @@ def run(root, argv, caller):
             if status:
                 return status
             environment.update(PKEXEC_UID=str(caller.pw_uid), HOME='/root')
-            return control.run(command, cwd=root, env=environment)
+            import test_retention
+            checkout_id = hashlib.sha256(str(root).encode()).hexdigest()[:16]
+            store = test_retention.Store(Path('/var/tmp') /
+                f'onpc-test-retention-root-{caller.pw_uid}-{checkout_id}')
+            context = (store.session(run=retention_run, guard=lambda: retention_guard(root))
+                       if retention_run else nullcontext())
+            with context:
+                environment.update(test_retention.environment())
+                return control.run(command, cwd=root, env=environment)
     command = selection(root, argv)
     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                    'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1'}

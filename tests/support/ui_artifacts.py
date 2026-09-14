@@ -10,7 +10,8 @@ import tempfile
 
 class RenderArtifacts:
     def __init__(self, prefix, *, parent='/var/tmp', shader_cache=False):
-        self.path = Path(tempfile.mkdtemp(prefix=prefix, dir=parent))
+        from tools.test_retention import allocate
+        self.path = Path(allocate(tempfile.mkdtemp, prefix=prefix, dir=parent))
         self.shader_cache = shader_cache
         info = self.path.stat()
         self.identity = info.st_dev, info.st_ino

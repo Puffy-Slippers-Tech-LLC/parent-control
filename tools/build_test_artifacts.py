@@ -19,11 +19,17 @@ import sys
 import tempfile
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools import package_inputs
+
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 FIXTURE_BUILDER = REPOSITORY / "tests/fixtures/build_test_applications.py"
 MANIFEST_NAME = "artifact-manifest.json"
 SCHEMA_VERSION = 1
+# Supervisor-owned operator output is never a build or execution input. Keep
+# this exact repository-relative exception shared with controller provenance.
+OPERATOR_LOG_PATH = "docs/Test-Automation-Slice-Summary.md"
 
 
 class ArtifactError(RuntimeError):
@@ -68,8 +74,10 @@ def _require_empty_output(output: Path) -> Path:
 
 
 def _source_paths() -> list[Path]:
-    result = _run(["git", "ls-files", "--cached", "--others", "--exclude-standard"], cwd=REPOSITORY)
-    paths = [Path(line) for line in result.stdout.splitlines() if line]
+    result = _run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z",
+                   "--", ".", f":(top,exclude,literal){OPERATOR_LOG_PATH}"], cwd=REPOSITORY)
+    paths = sorted({Path(name) for name in result.stdout.split("\0")
+                    if name and name != OPERATOR_LOG_PATH})
     if not paths or any(path.is_absolute() or ".." in path.parts for path in paths):
         raise ArtifactError("source input list is invalid")
     present = []
@@ -130,13 +138,16 @@ def _fixture_digest(payload: Path) -> str:
 
 
 def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
-    revision = _run(["git", "rev-parse", "HEAD"], cwd=REPOSITORY).stdout.strip()
-    epoch = _run(["git", "log", "-1", "--format=%ct", "HEAD"], cwd=REPOSITORY).stdout.strip()
+    # Documentation-only commits must not change package timestamps or identity.
+    selection = ['HEAD', '--', *(path.as_posix() for path in source_paths)]
+    revision = _run(['git', 'log', '-1', '--format=%H', *selection], cwd=REPOSITORY).stdout.strip()
+    epoch = _run(['git', 'log', '-1', '--format=%ct', *selection], cwd=REPOSITORY).stdout.strip()
     architecture = _run(["dpkg-architecture", "-qDEB_HOST_ARCH"], cwd=REPOSITORY).stdout.strip()
     if not revision or not epoch.isdecimal() or not architecture:
         raise ArtifactError("source revision metadata is invalid")
     return {
-        "source": {"revision": revision, "digest_sha256": source_digest, "file_count": len(source_paths)},
+        "source": {"revision": revision, "digest_sha256": source_digest, "file_count": len(source_paths),
+                   "scope": "package"},
         "build_inputs": {"source_date_epoch": int(epoch), "architecture": architecture,
                          "deb_build_options": "nocheck parallel=2",
                          "package_command": ["dpkg-buildpackage", "--build=binary", "--no-sign", f"-a{architecture}"]},
@@ -149,8 +160,8 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
 
 def build(output: Path) -> Path:
     output = _require_empty_output(output)
-    source_paths = _source_paths()
-    source_digest = _source_digest(source_paths)
+    source_paths = package_inputs.paths(REPOSITORY)
+    source_digest = package_inputs.digest(REPOSITORY, source_paths)
     metadata = _metadata(source_paths, source_digest)
     _log("build", "started", revision=metadata["source"]["revision"][:12])
     with tempfile.TemporaryDirectory(prefix="onpc-package-build-") as temporary_name:
@@ -158,14 +169,10 @@ def build(output: Path) -> Path:
         source_copy = temporary / "source"
         source_copy.mkdir()
         _copy_source(source_paths, source_copy)
-        # Task 12's preparation guard verifies that a checkout has a Git
-        # directory. The isolated package tree has recorded source files rather
-        # than repository history, so provide only that structural marker.
-        (source_copy / ".git").mkdir()
-        # The copied source tree is intentionally not the fixed development
-        # checkout accepted by Task 12's host-controller tests. Run make check
-        # from the real checkout as this task's separate required validation;
-        # use Debian's standard nocheck option only for this test artifact.
+        if (package_inputs.paths(REPOSITORY) != source_paths
+                or package_inputs.digest(REPOSITORY, source_paths) != source_digest
+                or package_inputs.digest(source_copy, source_paths) != source_digest):
+            raise ArtifactError('package source inputs changed while copying')
         environment = os.environ | {"SOURCE_DATE_EPOCH": str(metadata["build_inputs"]["source_date_epoch"]),
                                     "DEB_BUILD_OPTIONS": metadata["build_inputs"]["deb_build_options"]}
         command = metadata["build_inputs"]["package_command"]
@@ -244,7 +251,7 @@ def main() -> int:
             build(arguments.output)
         else:
             raise ArtifactError("--output is required when building")
-    except ArtifactError as error:
+    except (ArtifactError, ValueError, OSError, subprocess.SubprocessError) as error:
         _log("command", "failed", category=str(error))
         return 1
     return 0

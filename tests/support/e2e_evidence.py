@@ -13,6 +13,15 @@ SECRET = 'fixture-only-password-9!'
 
 
 @pytest.fixture
+def worker_evidence(tmp_path, monkeypatch):
+    """Keep real worker reports from controller doubles inside pytest storage."""
+    import e2e_worker
+    def collect(**options):
+        return private_artifacts.PrivateCollector(**options, parent=tmp_path)
+    monkeypatch.setattr(e2e_worker, 'PrivateCollector', collect)
+
+
+@pytest.fixture
 def attempt(tmp_path):
     """A synthetic recorder contract with no guest credential provisioning."""
     document, _ = inventory.read_json(inventory.INVENTORY)

@@ -123,12 +123,18 @@ def environment(root):
     result.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', PYTHONDONTWRITEBYTECODE='1',
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')
     result.update(test_activity.environment())
+    import test_retention
+    result.update(test_retention.environment())
     return result
 
 
 def test_environment(root):
     result = environment(root)
     result.pop(test_activity.VARIABLE, None)
+    # Unit doubles deliberately replace/remove paths. They must not register
+    # those fixtures as real aggregate outputs. UI workers opt in explicitly.
+    import test_retention
+    result.pop(test_retention.VARIABLE, None)
     # Pytest capture and temporary fixtures must not compete with retained
     # screenshots for the per-user quota of a RAM-backed /tmp. tempfile and
     # pytest still create/lock their own private names for concurrent workers.

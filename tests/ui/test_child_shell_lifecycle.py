@@ -104,7 +104,13 @@ def _copy_reviewable_artifacts(artifact_root: Path, destination: Path) -> None:
 
 
 def _preserve_attempt_artifacts(artifact_root: Path, scenario: str) -> Path:
+    from tools.test_retention import allocate
     destination = ARTIFACTS / scenario / artifact_root.name
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    def create():
+        destination.mkdir(mode=0o700)
+        return destination
+    allocate(create)
     _copy_reviewable_artifacts(artifact_root, destination)
     return destination
 

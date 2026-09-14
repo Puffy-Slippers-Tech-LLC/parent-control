@@ -236,7 +236,7 @@
       "id": "E2E-005",
       "title": "Allowance validation, automatic saves and live control",
       "category": "customer-journey",
-      "owners": ["21A", "21B"],
+      "owners": ["21B"],
       "requirements": ["ONPC-CORE-TIME-001", "ONPC-CORE-TIME-003", "ONPC-CORE-TIME-004", "ONPC-CORE-TIME-005", "ONPC-COMP-PARENT-003", "ONPC-COMP-PARENT-005"],
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
@@ -288,19 +288,19 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "daily-only-new", "owner": "21A", "parameters": {"time": "daily-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "daily-only-retained", "owner": "21A", "parameters": {"time": "daily-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "grant-only-new", "owner": "21A", "parameters": {"time": "grant-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "grant-only-retained", "owner": "21A", "parameters": {"time": "grant-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "combined-new", "owner": "21A", "parameters": {"time": "combined", "session": "new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "combined-retained", "owner": "21A", "parameters": {"time": "combined", "session": "retained"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+        {"id": "daily-only-new", "owner": "21B", "parameters": {"time": "daily-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "daily-only-retained", "owner": "21B", "parameters": {"time": "daily-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "grant-only-new", "owner": "21B", "parameters": {"time": "grant-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "grant-only-retained", "owner": "21B", "parameters": {"time": "grant-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "combined-new", "owner": "21B", "parameters": {"time": "combined", "session": "new"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"id": "combined-retained", "owner": "21B", "parameters": {"time": "combined", "session": "retained"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
       "id": "E2E-006",
       "title": "App policy editing and matching",
       "category": "customer-journey",
-      "owners": ["21B"],
+      "owners": ["21B", "25A"],
       "requirements": ["ONPC-COMP-PARENT-004", "ONPC-CORE-APPS-006", "ONPC-CORE-APPS-008", "ONPC-CORE-ACCOUNTS-004"],
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
@@ -1540,7 +1540,7 @@
       "id": "E2E-026",
       "title": "Customer package update and activation",
       "category": "customer-journey",
-      "owners": ["26C"],
+      "owners": ["18A"],
       "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003"],
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/Publishing.md"],
@@ -1588,16 +1588,16 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "process", "owner": "26C", "parameters": {"activation": "process"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
-        {"id": "session", "owner": "26C", "parameters": {"activation": "session"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
-        {"id": "reboot", "owner": "26C", "parameters": {"activation": "reboot"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+        {"id": "process", "owner": "18A", "parameters": {"activation": "process"}, "status": "pending", "pending_reason": "Task 18A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "session", "owner": "18A", "parameters": {"activation": "session"}, "status": "pending", "pending_reason": "Task 18A must implement this complete journey and its assertions.", "executable": null},
+        {"id": "reboot", "owner": "18A", "parameters": {"activation": "reboot"}, "status": "pending", "pending_reason": "Task 18A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
       "id": "E2E-027",
       "title": "Install through remove, reinstall and purge",
       "category": "customer-journey",
-      "owners": ["26C"],
+      "owners": ["18C"],
       "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003"],
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/SystemDesign/Package-Removal.md"],
@@ -1648,7 +1648,7 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "continuous", "owner": "26C", "parameters": {"lifecycle": "continuous"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+        {"id": "continuous", "owner": "18C", "parameters": {"lifecycle": "continuous"}, "status": "pending", "pending_reason": "Task 18C must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {

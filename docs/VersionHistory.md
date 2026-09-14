@@ -1,7 +1,8 @@
-## v1.2 — 2026-09-12
+## v1.2
 ### Bug Fixes
 - Software Updater: Fixed the description to match app name
 - Harden execution probes with isolated D-Bus clients, retained late replies, recoverable cleanup, and stricter execution identity checks.
+- Packaging: Removed some non-product files (internal tools, docs) from package.
 
 ### New Features
 - Logging: Added bunch of logging to help troubleshoot - no PII logged, as promised

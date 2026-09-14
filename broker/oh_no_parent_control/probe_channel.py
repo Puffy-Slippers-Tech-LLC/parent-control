@@ -183,7 +183,7 @@ class ProbeChannel:
             if not eof and len(data) == FRAME_SIZE:
                 return bytes(data)
 
-    def select(self):
+    def select(self, *, deadline=None):
         """Return the sole candidate's kernel credentials and parsed hello."""
         self._enter()
         try:
@@ -192,6 +192,8 @@ class ProbeChannel:
                 raise RuntimeError("probe candidate unavailable")
             self._selected = True
             self._admission_deadline = time.monotonic() + TIMEOUT
+            if deadline is not None:
+                self._admission_deadline = min(self._admission_deadline, deadline)
             self._wait(self._listener, writing=False, deadline=self._admission_deadline)
             self._peer, _ = self._listener.accept()
             self._peer.setblocking(False)

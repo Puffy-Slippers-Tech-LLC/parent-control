@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import runpy
 import shutil
+import stat
 import tempfile
 from types import SimpleNamespace
 import uuid
@@ -30,10 +31,18 @@ def advance_to_expiry(store):
             pass
 
 
+@pytest.fixture
+def repetition_tree():
+    # Only the bounded repetition workload uses /tmp (tmpfs on the host).
+    # Keep real filesystem calls; disk-backed sync/error checks use tmp_path.
+    with tempfile.TemporaryDirectory(prefix='onpc-retention-stress-', dir='/tmp') as root:
+        yield Path(root)
+
+
 @pytest.mark.parametrize('outcome', ['pass', 'failure', 'interrupt'])
-def test_one_hundred_runs_have_constant_retained_size(tmp_path, outcome):
-    store = retention.Store(tmp_path / 'state')
-    foreign = tmp_path / 'onpc-unregistered'
+def test_one_hundred_runs_have_constant_retained_size(repetition_tree, outcome):
+    store = retention.Store(repetition_tree / 'state')
+    foreign = repetition_tree / 'onpc-unregistered'
     foreign.mkdir()
     (foreign / 'keep').write_text('not owned by this runner')
     sizes = []
@@ -44,10 +53,15 @@ def test_one_hundred_runs_have_constant_retained_size(tmp_path, outcome):
                 if len(previous) == 3:
                     assert all(not path.exists() for path in previous.pop(0))
                 assert all(path.exists() for group in previous for path in group)
-                previous.append([allocated(tmp_path, f'run-{number}-{kind}')
+                previous.append([allocated(repetition_tree, f'run-{number}-{kind}')
                                  for kind in ('report', 'build-a', 'build-b', 'ui', 'vm')])
                 # Producers may independently discard passing render output.
-                disposable = allocated(tmp_path, f'render-{number}')
+                disposable = allocated(repetition_tree, f'render-{number}')
+                # Fail before another iteration if a regression grows this
+                # shared-filesystem footprint. Includes journals and sentinels.
+                entries = list(repetition_tree.rglob('*'))
+                assert len(entries) < 64
+                assert sum(p.stat().st_size for p in entries if p.is_file()) < 256 * 1024
                 shutil.rmtree(disposable)
                 if outcome == 'failure':
                     raise ValueError('assertion failed')
@@ -57,7 +71,7 @@ def test_one_hundred_runs_have_constant_retained_size(tmp_path, outcome):
             if outcome == 'pass':
                 raise
         sizes.append(sum(p.stat().st_size for group in previous for path in group for p in path.iterdir()))
-        assert len(list(tmp_path.glob('run-*'))) == 5 * min(number + 1, 3)
+        assert len(list(repetition_tree.glob('run-*'))) == 5 * min(number + 1, 3)
         assert (foreign / 'keep').read_text() == 'not owned by this runner'
     assert len(set(sizes[2:])) == 1
     state = json.loads((store.path / 'current.json').read_text())
@@ -239,6 +253,64 @@ def test_registration_failure_removes_only_the_new_empty_allocation(tmp_path, mo
         with pytest.raises(OSError, match='journal unavailable'):
             retention.allocate(tempfile.mkdtemp, prefix='allocation-', dir=tmp_path)
         assert not list(tmp_path.glob('allocation-*'))
+
+
+@pytest.mark.parametrize('fault', [None, 'file-sync', 'replace', 'directory-sync'])
+def test_registration_syncs_before_return_and_preserves_evidence_on_io_failure(tmp_path, monkeypatch,
+                                                                             fault):
+    # Use the launcher's ordinary disk-backed tmp_path for the durability
+    # protocol. All operations remain real except the one injected I/O failure.
+    store = retention.Store(tmp_path / 'state')
+    calls, created = [], []
+    real_sync, real_replace = os.fsync, os.replace
+
+    def factory(**options):
+        path = tempfile.mkdtemp(**options)
+        created.append(path)
+        return path
+
+    def sync(fd):
+        stage = 'directory-sync' if stat.S_ISDIR(os.fstat(fd).st_mode) else 'file-sync'
+        calls.append(stage)
+        if stage == 'file-sync':
+            # The bytes must already have left Python's buffer before fsync.
+            pending = json.loads((store.path / 'current.tmp').read_text())
+            assert {record['path'] for record in pending['paths']} == {str(existing), created[0]}
+        if fault == stage:
+            raise OSError('injected ' + stage)
+        real_sync(fd)
+
+    def replace(*args, **options):
+        calls.append('replace')
+        if fault == 'replace':
+            raise OSError('injected replace')
+        real_replace(*args, **options)
+
+    with store.session():
+        existing = allocated(tmp_path, 'existing-evidence')
+        original = json.loads((store.path / 'current.json').read_text())
+        with monkeypatch.context() as patch:
+            patch.setattr(os, 'fsync', sync)
+            patch.setattr(os, 'replace', replace)
+            expectation = pytest.raises(OSError, match='injected ' + fault) if fault else nullcontext()
+            with expectation:
+                result = retention.allocate(factory, prefix='allocation-', dir=tmp_path)
+                calls.append('returned')
+        order = ['file-sync', 'replace', 'directory-sync', 'returned']
+        assert calls == (order[:order.index(fault) + 1] if fault else order)
+        assert len(created) == 1
+        assert Path(created[0]).exists() is (fault is None)
+        if fault is None:
+            assert result == created[0]
+        saved = json.loads((store.path / 'current.json').read_text())
+        assert saved['paths'][0] == original['paths'][0]
+        assert (existing / 'test.log').read_bytes() == b'evidence' * 128
+        if fault in ('file-sync', 'replace'):
+            assert saved == original
+        else:
+            # Directory-sync failure can expose the replaced journal; it must
+            # still raise, remove only the fresh empty tree and retain evidence.
+            assert {record['path'] for record in saved['paths']} == {str(existing), created[0]}
 
 
 def test_sbuild_traversable_scratch_is_registered_and_rotated(tmp_path):

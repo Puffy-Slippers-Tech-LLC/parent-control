@@ -1,140 +1,89 @@
 # Scheduling for `make test-all`
 
-## Four host branches
+This document owns the current scheduling policy and isolation rationale.
+The [runner guide](../../tests/README.md#all-established-regressions) owns commands,
+operator output and retention; [Task 28A](Task-28.md#task-28a) owns unfinished
+input-capture and caching work. Update contracts in place. Generated aggregate
+reports own per-run qualification and timing evidence.
 
-The host concurrency cap is four. Scheduler workers,
-resource admission, branch assignment and the dashboard share one limit.
-Every candidate must still be compatible with every active job and fit the
-combined CPU and memory budgets. Pressure hysteresis, startup reservations,
-exclusive VM work and inner build/Node concurrency remain unchanged.
-The change applies to newly started runs; an existing process retains its
-loaded limit. Idle branch headings are gray and running branch headings are bold.
-This document owns the current scheduling contract and reusable rationale.
-Update it in place; do not append run reports or superseded design histories.
-Generated aggregate reports own per-run qualification and timing evidence.
-Implementation presence does not establish a standing release pass.
+Priorities are reliable results and resource ownership, complete-run wall time,
+then desktop responsiveness. Disabling overlap must preserve discovery,
+assertions, prerequisites and evidence. Implementation presence does not
+establish a release pass. Package update activation is **none**: these are
+development/test tools, and a running coordinator retains its loaded policy.
 
-## Progress event framing
+## Schedule and selection
 
-`regression_events.emit` writes the leading delimiter, JSON and trailing
-delimiter in one stream write, then flushes to prevent diagnostics from splitting
-the event framing. The prepare-host dispatch test also joins its
-owned thread before returning, so its deliberate failure diagnostic cannot
-escape into the next test. The decoder still rejects malformed records.
-`test_regression.py` deterministically interleaves diagnostics between stream
-writes for collection, completion and failure events, including fragmented
-delivery and multiline details. Generated host aggregate reports own live
-qualification; a single stream write does not establish arbitrary multi-process
-atomicity for records larger than a pipe's atomic-write limit. Package update
-activation is none.
+Scheduler workers, admission, branch assignment and the dashboard share a
+four-worker cap. Every candidate must be compatible with every active job and
+fit the combined budgets. Discovery precedes cleanup; every cleanup worker must
+pass and exit before downstream execution. Host jobs, publishing and artifact
+operations then share the four branches. Installed-system and each ready E2E
+variant run exclusively after the host/build join, with cleanup between attempts.
 
-## Prompt branch refill
+Validate dependencies and job identities before launch. Order ready jobs by
+estimated downstream duration, preserving declaration order for ties. A
+prerequisite inherits the importance of work it unlocks. Estimates include
+startup and cleanup and affect ordering only. Request behavior precedes units
+and components. Try another compatible ready job when a candidate cannot fit;
+with one slot available, execute the same complete scope serially.
 
-The refill target is within five seconds, with ten seconds as the maximum
-ordinary scheduling delay when compatible, dependency-ready work fits the
-resource budgets. A full queue does not override real resource shortages,
-failed prerequisites or exclusive VM ownership.
+Refill a free branch within five seconds, or at most ten seconds through an
+ordinary transient delay, when compatible, dependency-ready work fits the
+budgets. These targets never override resource shortages or failed prerequisites.
 
-Publishing now also admits the request-behavior bucket. Its shared kiosk/child
-form tests use a private compositor, accessibility/session buses, XDG settings,
-mock broker, per-test event/selection files and explicitly owned preview
-processes. Publishing reads the checkout into its private snapshot and builds
-with separate source/config/output directories, no host bind mounts and no
-external hooks. This extends only `ui-request`; other unreviewed publishing
-pairings and VM operations remain excluded. Artifact pairings are described below.
+## Cleanup buckets and required join
 
-Host I/O admission now closes at 10% interval stalls and recovers after four
-seconds of fresh samples below 5%. Artifact, installed-system and E2E launches
-retain their original 2% I/O refusal threshold, even if the host overlap gate is
-open. CPU, memory, swap, startup reservations and the four-worker cap still
-apply. These are engineering thresholds that tolerate modest build/report I/O,
-not hard resource limits. Resource records retain the host and exclusive I/O
-thresholds.
+After discovery, the same four host branches execute the cleanup prerequisites
+in four balanced buckets. `regression_cleanup.py` keeps reviewed modules eligible
+to overlap only with other cleanup buckets; newly discovered safety modules stay
+included but exclusive until their isolation is reviewed. All cases in
+`test_*cleanup_safety.py` and `test_graphical_lease.py` remain required. Workers
+run serial pytest sessions with private temporary trees, disabled caches and no
+inherited aggregate retention registration. External commands and VM services in
+these modules are doubles; real child-process, socket and kernel-lease checks
+operate on explicitly owned resources. Keep every module and its fixtures
+together, including retention's three 100-run stress variants.
 
-Request behavior precedes units and components in the queue. A regression invokes the production queue builder,
-worker dispatcher, branch assignment and report completion paths with simulated
-child completions. It checks branch 4's unit-to-component refill within five
-seconds, and publishing-to-preview refill within five seconds normally or ten
-seconds through a transient I/O burst. It also checks request/publishing overlap
-and the independent builds joining before comparison. Generated host/build runs own live
-timing and overlap qualification. Newly started runs load the change; an existing
-coordinator retains its policy. Package update activation is none.
+Only those retention repetition tests use private `/tmp` trees, with per-iteration
+bounds of fewer than 64 entries and 256 KiB of file contents per case. They keep
+all 100 iterations and real filesystem operations. Memory-backed `/tmp` avoids
+repeating disk flush latency; hosts with disk-backed `/tmp` may be slower.
+Disk-backed tests separately verify journal flush/replace/directory-sync order,
+I/O failure propagation and preservation of existing evidence. The ordinary
+pytest temporary root, runner journals and evidence remain disk-backed; no
+production sync or cleanup protection is bypassed.
 
-## Host CPU admission
+The existing scheduler applies the same resource budgets and cancellation
+protocol. Pack the longest estimated pieces first into the least-loaded bucket,
+using deterministic tie-breaks. Grouping avoids an interpreter start and repeated
+admission for every small module. Estimates affect packing and ordering only;
+actual wall time and host contention determine savings. Exact collection and completion IDs must match
+each bucket's discovered inventory. The coordinator joins every worker, requires
+every bucket to pass, validates source inputs and persists results before
+publishing the shared cleanup gate. No downstream host, build or VM execution
+starts before this join. Discovery and collection still precede the gate.
 
-Admission now adds the candidate's full estimate and one core of growth per
-established job (capped at its estimate) to measured host usage. Full active
-reservations apply until a fresh sample at least 20 seconds after launch, using
-the same startup window as memory. Four UI buckets can therefore be admitted
-in stages at 30% measured CPU usage when memory and pressure also permit.
-The 75% CPU admission ceiling, pressure hysteresis, memory allowances and
-compatibility rules still apply. Growth is an engineering allowance, not a hard
-CPU limit; later bursts can exceed it and defer further launches. Wait reasons
-separate pressure recovery from CPU budget and report the required spare cores.
-An already running coordinator retains its loaded policy.
+Before the first cleanup launch, allow the existing overlap monitor up to one
+recovery window plus one sample (six seconds) to warm up. Otherwise one early
+disk-heavy bucket can prevent its companions from being admitted. This wait is
+cancellable and counted in cleanup wall time. Missing metrics or persistent
+pressure retain normal serial fallback; no admission threshold is relaxed.
 
-## Prompt admission after pressure recovery
+The dashboard and schedule distinguish cleanup from subsequent host execution;
+both phases reuse branches 1–4 and have independent frozen timers and joins.
+Waiting rows append case totals and omit routine capacity/dependency reasons;
+resource and other actionable reasons remain visible and the schedule retains
+all reasons. A vertical spacer continues the tree before each join.
 
-Admission now computes CPU `some`, memory `some` and I/O `full` stall percentages
-from changes in the kernel's PSI `total` counters over each sampling interval,
-alongside CPU utilization and swap rates. These counters are the supported
-[custom-window PSI interface](https://docs.kernel.org/accounting/psi.html#pressure-interface).
-The kernel's `avg10` values remain in `resources.jsonl` as separate diagnostic
-fields. A new pressure burst closes overlap immediately on observation; reopening
-requires four seconds of consecutive low-pressure observations, normally three
-samples at the two-second cadence. Cached readings cannot advance recovery.
-Missing, malformed or decreasing counters disable overlap until valid samples
-and the recovery window return.
+Cooperative interruption drains every owned worker. Abrupt termination during
+parallel cleanup refuses automatic recovery because partial bucket results do
+not prove all children exited. Preserve the existing recovery journal rather
+than broadening the old serial-initial-check exception.
 
-CPU, memory, I/O and swap thresholds, the four-worker cap, category compatibility,
-CPU/memory budgets and 20-second startup reservations remain in force. The
-four-second recovery window is an
-engineering policy, not a guarantee against later load spikes. It allows more
-responsive admission after transient I/O and also detects new stalls before
-they dominate `avg10`. Reports retain the pressure basis, recovery duration and
-observed healthy time. Deterministic tests cover cold scheduler startup, active
-reservations, stale averages, new stalls and invalid counters. Generated host
-runs own live qualification. Package update activation is none; a running
-coordinator retains the policy it loaded.
+## Builds and compatible companions
 
-## Host memory admission
-
-Host tests keep a fixed 2 GiB desktop reserve plus the candidate's full memory
-budget. Established categories contribute up to 1 GiB each (capped at their full
-budgets) to a shared growth allowance capped at 2 GiB across the active jobs.
-Each launch is recorded by the coordinator; an active category keeps its full
-reservation until a resource sample taken at least 20 seconds after launch.
-These startup reservations are added separately and never capped by the pool.
-This prevents immediate launches from spending the same unsampled headroom.
-After startup, available memory already reflects resident running work, so
-admission reserves incremental growth instead of charging full budgets again.
-Adding components alongside established publishing
-now requires 4 GiB available, adding units alongside publishing or UI requires
-5 GiB, and adding another UI bucket requires 7 GiB. Publishing as the new
-candidate still needs its full 6 GiB plus desktop and active growth allowances.
-
-Regression coverage includes simultaneous UI workers at the 8 GiB boundary,
-mixed startup/established workers, one-byte memory boundaries, stale samples,
-new launches and the other admission gates.
-
-These remain engineering allowances, not measured subtree peaks or hard limits.
-Startup duration does not prove peak allocation is complete: the policy accepts
-later combined growth exceeding the 2 GiB pool, and unexpected external allocations
-can still cause pressure. CPU, swap, pressure hysteresis, pairing restrictions and the four-worker
-cap remain unchanged. VM launches keep a fixed 2 GiB desktop reserve
-in addition to configured guest RAM and overhead. Memory deferrals display the
-required available RAM alongside the existing sampled resource evidence.
-
-Package update activation is none; an already running coordinator does not
-reload the policy.
-
-## Build queue extension
-
-Publishing admits screen fidelity (`ui-screen`) and request behavior (`ui-request`)
-when resource budgets permit. Scheduler regressions check refill after other
-companions finish; generated runs own live overlap qualification.
-
-Publishing, two fresh artifact builds and comparison now participate in the
+Publishing, two fresh artifact builds and comparison participate in the
 four-worker host schedule. Publishing, build A and build B are independent;
 only comparison depends on both builders. No comparison starts before both
 builders exit and the coordinator validates their results. Both artifact paths
@@ -145,16 +94,8 @@ qualification failure blocks VM execution without erasing independent host
 assertions. Fixture setup/cleanup or pytest infrastructure failure stops further
 scheduling and drains owned companions. Setup/teardown events latch cancellation
 as soon as their failure record is durable, without waiting for category exit.
-Routine output remains flushed to live readers, with progress snapshots coalesced
-to one per second and disk synchronization batched every five seconds by the
-coordinator. Failure records, category closure and final closure force a checkpoint.
-This prevents per-event report barriers from generating I/O pressure that starves
-queued branches. Abrupt machine failure may lose the latest routine interval;
-failure checkpoints retain the immediate durability boundary. Wait messages name
-I/O, CPU, memory or swap pressure separately so spare RAM is not mistaken for a
-guarantee that every admission gate is open. Pending categories with a known
-reason display `[Waiting]`, including observed and required RAM. Waiting rows
-have the same terminal-height priority as running and failed rows.
+Checkpoint cadence and durability limits belong to the
+[runner guide](../../tests/README.md#all-established-regressions).
 Host pytest capture/fixtures and retained UI images use disk-backed `/var/tmp`
 storage; see the [quota failure and storage contract](../../tests/README.md#local-component-work).
 The isolated aggregate cleanup gate is shared with its UI, component and
@@ -201,11 +142,6 @@ enforcement and expiry share accounts and global services and stay serial inside
 one installation. This extension does not implement caller caching, guest test
 sharding, new VMs or different backing verification.
 
-The scheduler validates dependencies before launch and orders ready jobs by their
-estimated downstream duration, preserving declaration order for ties. Build
-estimates are based on retained runs (publishing about six minutes, each artifact
-build about seven seconds); existing UI estimates remain ordering hints.
-Unknown/changed jobs require isolation review, regardless of estimated duration.
 One coordinator records `schedule.jsonl` start/finish/dependency/wait events,
 including admitted companions, beside the existing resource samples and raw
 pytest duration streams. Resource observations cover host load, including build
@@ -227,11 +163,9 @@ If a pairing shows unexplained interference, remove it from the list until its
 cause is fixed and qualified. Measure total wall time as well as post-join time;
 moving work across the join alone is not a speed improvement.
 
-Package update activation remains **none**.
+## UI isolation
 
-## UI bucket extension
-
-The host queue now partitions the discovered UI inventory into six groups:
+The host queue partitions the discovered UI inventory into six groups:
 request behavior, layout/overflow, feedback, preview/About, screen fidelity and
 nested Shell. Entire modules run sequentially inside a private pytest process;
 each of the four host workers can admit a UI bucket using the full UI
@@ -271,55 +205,7 @@ shutdown at every stage. Signal handlers only latch cancellation; repeated
 interrupts cannot bypass cleanup. Final output distinguishes shutdown completion
 from the cleanup outcome recorded in the report.
 
-## Resource sampling and launcher coordination
-
-`regression_resources.py` samples CPU utilization, unified cgroup ancestor
-limits, memory availability, swap activity and pressure. It uses the interval pressure thresholds and four-second recovery window. Any swap write or at least
-1 MiB/s of swap reads closes admission. Smaller reads of previously evicted
-pages do not alone imply current reclaim; memory and PSI gates still apply.
-Both swap rates are recorded for calibration. Initial fixed reservations
-are intentionally conservative: UI 4 CPUs/4 GiB, units 2 CPUs/2 GiB, other host
-categories 1–2 CPUs/1 GiB. These are engineering budgets, not measured subtree
-peaks. Admission combines observed usage with startup reservations and established-job
-growth allowances rather than attempting unsafe process attribution. CPU headroom gates overlap; memory gates even single known host
-jobs. High host pressure or over 75% observed CPU use defers even serial work.
-Publishing reserves 6 GiB, artifact construction 4 GiB. Before a VM attempt,
-the maintained pinned `tools/test-vm xml` reader supplies configured RAM and
-vCPU counts; admission adds QEMU/controller overhead without changing the VM.
-A single CPU-heavy job remains eligible on smaller otherwise healthy hosts.
-Missing metrics disable overlap. Unknown categories stay exclusive. Internal Node and package
-build concurrency is bounded at two; no CPU/I/O priority or cgroup mutation was
-introduced. Peak-based profiles and stronger process resource controls remain
-outside scope.
-
-`test_activity.py` coordinates maintained checkout launchers using an inherited
-locked descriptor, not an environment-only bypass. Ordinary pytest caches are
-disabled. Source content/mode checks at boundaries reject detected input changes;
-they do not provide immutable source execution. Regression modules cover
-scheduling, resource admission, input identity and activity ownership, with
-real two-worker cancellation in `test_regression_cleanup_safety.py`.
-The report records measured host wall time, summed category execution and maximum
-active workers; private `resources.jsonl` records sampled headroom and pressure.
-
-These changes are development/test tooling; package update activation is none.
-They do not alter installed product state or require new privileged operations.
-
-## Objectives
-
-Priorities, in order: preserve reliable results and resource ownership; reduce
-complete-run wall time; preserve responsiveness for ordinary desktop work.
-Parallel execution is an optimization that can be disabled without changing
-collection, assertions, prerequisites, required evidence, or acceptance.
-
-Schedule **at most four active host categories**, subject to compatibility and
-CPU, memory and I/O admission. A category can contain many child processes,
-so the worker limit is not a resource guarantee. VM attempts remain exclusive.
-
-The [runner contracts](../../tests/README.md#all-established-regressions) and
-[Task 28A](Task-28.md#task-28a) remain authoritative; planned input capture and
-artifact caching are not assumed to exist.
-
-## Resource and isolation contract
+## Shared ownership and isolation
 
 Use a small, fixed category table in the existing aggregate. Each category
 declares prerequisites, exclusive resources, qualified companion categories,
@@ -327,15 +213,6 @@ and a conservative resource estimate. Unknown categories default to exclusive
 execution; newly discovered cases remain included in their owning suite.
 Changes to fixtures, launchers, or external dependencies require reassessing
 the affected overlap qualification.
-
-| Work | Concurrency policy |
-| --- | --- |
-| Discovery and initial cleanup-safety gate | Serial, before protected work. |
-| UI/nested-Shell buckets | One serial UI process per admitted bucket; at most four host jobs, private graphical sessions, unchanged full UI reservations. New modules stay exclusive pending isolation review. |
-| Unit/contracts, private-D-Bus components, fixture runtime | Eligible companions after isolation audit and qualification; execute in separate processes. |
-| Source/traceability, static, child Node/GJS, backend readiness | Eligible companions; their short durations do not justify additional slots. |
-| Publishing, artifact build A, artifact build B, comparison | Independent private builds; comparison joins A and B. Reviewed host companions and resource admission govern overlap. |
-| Installed-system and each ready E2E variant | Exclusive of other test categories, from controller launch through collection, restoration, and exit. |
 
 Retain the existing nonblocking [VM lease](../../tests/integration/system_runner.py)
 across all invocations. It rejects conflicts; it does not queue controllers.
@@ -359,86 +236,55 @@ temporary directories and run-specific evidence. Nested-Shell shared `latest`
 outputs must not be written by concurrent invocations. Keep tests serial inside
 their current session-scoped UI and D-Bus fixtures.
 
-## Schedule and selection
-
-Discovery and the isolated cleanup-safety gate precede all host work. Up to
-four compatible host categories run concurrently. Publishing participates in
-that queue with its reviewed companions. Build A and B are independent of
-publishing and each other; comparison joins both validated outputs. After the host
-and build join, installed-system and each ready E2E variant run serially, with
-cleanup completed between attempts.
-
-Each job starts only after its prerequisites pass and current load admits it.
-Aggregate workers validate the shared passing cleanup gate; standalone launchers
-run their own prerequisites.
-
-Schedule ready work by estimated remaining critical-path duration, with fixed
-category order as a deterministic tie-breaker. A prerequisite inherits the
-importance of work it unlocks. Estimates include launcher prerequisite and
-cleanup time. Long work starts early; do not deliberately delay it to match
-the end of another suite. When UI finishes, remaining compatible host work
-can use available slots, but the one-build rule still applies. If a candidate does
-not fit, try another compatible ready category rather than blocking the queue
-behind it. With one slot available, execute the same complete scope serially.
-
-No publishing/artifact job is assumed to be short. Initially use conservative
-estimates; record their actual times before optimizing ordering. Build A and B
-remain independent fresh builds, sequentially scheduled, and comparison depends
-on both. Package-bearing tests require successful builds and comparison.
-Preserve current independent product-failure reporting; a failed host test does
-not become a pass or automatically erase other required results. Infrastructure,
-source-integrity, prerequisite, cancellation, and cleanup failures block work
-according to their dependencies, with uncertain ownership stopping new work.
-
 ## Load-aware admission and desktop headroom
 
-Sample read-only CPU utilization, effective CPU capacity, `MemAvailable`,
-swap-in/out activity, and CPU/memory/I/O pressure every two seconds. Use sustained
-windows rather than a single `loadavg` reading. Linux
-[pressure stall information](https://docs.kernel.org/accounting/psi.html)
-measures time lost waiting for resources and provides recent averages. Use
-CPU `some`, memory `some`/`full`, and I/O `some`/`full`; system CPU `full` is not
-a useful signal. Missing or stale measurements disable overlap, with a visible
-reason. A known inability to fit even one job requires waiting or an explicit
-resource refusal, not forced execution.
+`regression_resources.py` samples CPU utilization, unified cgroup ancestor
+limits, memory availability, swap activity and pressure every two seconds.
+Admission uses CPU `some`, memory `some` and I/O `full` percentages from interval
+changes in PSI total counters; kernel `avg10` values remain diagnostic evidence.
+Cached readings cannot advance recovery. Missing, stale, malformed or decreasing
+counters disable overlap until valid samples and the recovery window return.
 
-Admission policy (engineering allowances, subject to qualification):
-
-| Control | Value |
+| Control | Policy |
 | --- | --- |
-| Active categories | Maximum four; serial fallback. |
-| CPU headroom | Predict total host demand, including unrelated work, at no more than 75% of effective CPU capacity. Account for subprocesses and internal build/Node parallelism. |
-| Memory headroom | Host: 2 GiB desktop reserve plus candidate budget, full startup reservations and up to 2 GiB pooled established growth. VM: 2 GiB desktop reserve plus full configured guest RAM and overhead. Do not count swap as headroom. |
-| Permit overlap | All resource budgets fit and, for four seconds of fresh interval samples, CPU `some` < 5%, memory `some` < 0.5%, I/O `full` < 5%, with no sustained swap-in/out. |
-| Defer new launches | A headroom budget fails, or CPU `some` >= 10%, memory `some` >= 1%, or host I/O `full` >= 10%. Exclusive artifact/installed-system/E2E launches retain the 2% I/O refusal threshold. Reopen only after the full low-pressure window. |
-| Marginal readings | Between admission and deferral thresholds, preserve the current gate state; never override the headroom budgets. |
+| CPU | Overlap must fit 75% of effective capacity, including measured usage, full candidate demand and active allowances. Observed usage above 75% also defers serial work; a single CPU-heavy job can run on a smaller otherwise healthy host. |
+| Host memory | 2 GiB desktop reserve plus full candidate budget, startup reservations and pooled established growth. Shortage defers even one known host job. |
+| VM memory | 2 GiB desktop reserve plus configured guest RAM and QEMU/controller overhead, using the pinned `tools/test-vm xml` reader. Swap is not headroom. |
+| Open overlap gate | Four seconds of fresh samples with CPU pressure < 5%, memory pressure < 0.5%, I/O pressure < 5% and no disqualifying swap activity. Normally three samples. |
+| Close overlap gate | CPU pressure >= 10%, memory pressure >= 1%, host I/O pressure >= 10%, or disqualifying swap activity. |
+| Artifact and VM I/O | Artifact, installed-system and E2E launches additionally refuse at I/O pressure >= 2%, even when the host overlap gate is open. |
+| Swap | Any swap write or reads >= 1 MiB/s defer admission. Smaller reads alone do not imply current reclaim. |
+| Marginal pressure | Preserve gate state between low/high thresholds; budgets still apply. |
+| Inner concurrency | Node file and package build concurrency are capped at two. |
 
-These are engineering thresholds, not measured guarantees or kernel recommendations.
-Use available memory plus expected *incremental* growth; do not subtract the
-same resident memory twice. Account for external CPU demand separately from
-active tests' reserved demand. Peak measurements must cover owned descendants;
-never infer ownership through process-name matching or host-wide process scans.
-Cold build caches and representative external load belong in qualification.
+Reserve full active CPU and memory budgets until a fresh sample at least
+20 seconds after launch. This prevents launches spending the same unsampled
+headroom. After startup, measured usage already includes resident work:
+add one CPU core of growth per established job, capped at its estimate;
+add up to 1 GiB per job, capped at its memory estimate, to a growth pool
+capped at 2 GiB. Startup reservations are separate and never capped by that pool.
 
-Cap internal build parallelism explicitly; preserve the publishing builder's
-current two-job setting. Qualify reduced CPU/I/O priority for background build
-work through supported process-group/resource controls. Any cgroup accounting
-or priority setup must use supported delegated interfaces through the maintained
-setup/launcher boundary, and verify coverage of actual children. Libvirt's QEMU
-process is not assumed to inherit the caller's limits. CPU/I/O weights provide
-relative preference, not guaranteed reservations; tight memory limits can cause
-reclaim stalls or OOM failures. See the kernel's
-[cgroup controls](https://docs.kernel.org/admin-guide/cgroup-v2.html).
-Do not use dynamic throttling of UI/VM execution as the normal load response.
+Budgets include nested processes: UI 4 CPUs/4 GiB; units and cleanup 2 CPUs/2 GiB;
+other host categories 1–2 CPUs/1 GiB; publishing 2 CPUs/6 GiB; artifacts
+2 CPUs/4 GiB. Adding units beside established UI needs 5 GiB available; a second
+UI bucket needs 7 GiB; a fourth beside three established UI jobs needs 8 GiB.
+These are engineering allowances, not hard limits or measured subtree peaks.
+Later growth and unrelated applications can exceed them. Regression coverage
+includes mixed startup/established workers, one-byte memory boundaries,
+stale samples, new pressure bursts and invalid counters.
+
+Wait reasons distinguish pressure recovery, CPU, memory, I/O and swap; memory
+and CPU budget messages show required headroom. Missing metrics permit only
+normal serial fallback, never override a known shortage. Waiting is visible,
+cancellable and timed; prolonged waits never relax thresholds.
 
 On rising load, stop admitting work and let active jobs finish and clean up.
-Do not SIGSTOP tests, freeze the VM, change clocks/timeouts, or automatically
-retry a failure. Already-running jobs cannot instantly shed their resource
-usage; conservative reservations and bounded internal parallelism are necessary.
-Arbitrary new external load cannot be guaranteed harmless. If resources become
-critically unsafe, use owned cooperative cancellation, retain an incomplete
-result, and await cleanup. Resource waiting is visible, cancellable, and counted
-separately from test execution; prolonged deferral never relaxes the thresholds.
+Do not freeze tests/VMs, change clocks or deadlines, or automatically retry.
+Critical resource conditions require owned cooperative cancellation and an
+incomplete result. No CPU/I/O priority or cgroup mutation is implemented.
+Stronger controls require supported delegated interfaces and qualification
+covering actual owned children; QEMU does not necessarily inherit caller limits.
+Never infer ownership or attribute peaks through host-wide process scans.
 
 ## Coordinator, evidence, and source consistency
 
@@ -480,6 +326,19 @@ distinction. Compare complete-run wall time; summed worker time and test counts
 do not establish savings. Historical timings only guide scheduling, never reuse
 passing tests or replace required cleanup checks.
 
+## Progress event framing
+
+`regression_events.emit` writes the leading delimiter, JSON and trailing
+delimiter in one stream write, then flushes to prevent diagnostics from splitting
+the event framing. The prepare-host dispatch test also joins its
+owned thread before returning, so its deliberate failure diagnostic cannot
+escape into the next test. The decoder still rejects malformed records.
+`test_regression.py` deterministically interleaves diagnostics between stream
+writes for collection, completion and failure events, including fragmented
+delivery and multiline details. Generated host aggregate reports own live
+qualification; a single stream write does not establish arbitrary multi-process
+atomicity for records larger than a pipe's atomic-write limit.
+
 ## Verification required before enabling overlap
 
 1. Deterministic scheduler tests with fake time/resource samples: dependency and
@@ -492,8 +351,8 @@ passing tests or replace required cleanup checks.
    harmless processes. Prove all children are reaped and evidence survives.
 4. Audit each enabled pairing and obtain current serial timing/resource evidence
    through supported launchers. Qualify pairings individually under idle and
-   representative busy-host conditions. Start with UI plus unit/short host work;
-   admit UI plus publishing/build only after its separate qualification.
+   representative busy-host conditions. New pairings require separate
+   qualification before admission.
 5. Verify no changes to host desktop/settings/accounts, fixture ownership,
    source files, artifact integrity, or shared evidence. Prove parallel and serial
    plans execute the same discovered case IDs and prerequisite closure.

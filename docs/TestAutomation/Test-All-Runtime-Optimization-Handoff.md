@@ -371,9 +371,11 @@ versus parallel benchmark. VM categories alone total approximately 35 minutes;
 merely widening host overlap cannot reach a 28-minute total with these durations.
 Account separately for resource waits, collection and controller work.
 
-The [first implementation](Test-All-Parallelism-Design.md#implemented-first-scope)
-limits host work to two categories: UI plus sequential smaller suites. Publishing,
-artifact builds and all VM attempts remain serial. Installed-system functional
+That historical run used two host categories: UI plus sequential smaller suites,
+with publishing and artifact builds after the host join. The current
+[scheduling contract](Test-All-Parallelism-Design.md#schedule-and-selection)
+allows four workers and reviewed build overlap; VM attempts remain exclusive.
+Installed-system functional
 phases already share one installation. The ready E2E case needs a product-free
 guest; it cannot inherit the installed-system guest state. Pending journeys are
 not available work to combine.

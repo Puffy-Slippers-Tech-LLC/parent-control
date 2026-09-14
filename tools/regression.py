@@ -18,8 +18,9 @@ from regression_process import Control
 import test_launcher as host
 from regression_schedule import Job, run_jobs
 from regression_inputs import identity as source_identity
-from regression_resources import Admission, HOST_WORKERS, vm_demand
+from regression_resources import Admission, HOST_WORKERS, PRESSURE_RECOVERY_SECONDS, vm_demand
 from regression_ui import buckets as ui_buckets
+from regression_cleanup import buckets as cleanup_buckets
 
 
 def authorization():
@@ -46,6 +47,7 @@ class Category:
     branch: int | None = None
     launch_order: int = 0
     nodeids: tuple[str, ...] | None = None
+    phase: str = 'host'
 
     def duration(self, now):
         seconds = self.elapsed + (now - self.started if self.started is not None else 0)
@@ -71,6 +73,8 @@ class Dashboard:
         self.started = time.monotonic()
         self.host_started = None
         self.host_elapsed = None
+        self.cleanup_started = None
+        self.cleanup_elapsed = None
         self.control = None
         self.cleanup_finished = False
 
@@ -84,9 +88,12 @@ class Dashboard:
 
     def category(self, item, now):
         total = '?' if item.total is None else str(item.total)
+        routine = (f'{HOST_WORKERS} host categories already running', 'waiting for required host jobs')
+        reason = '' if item.wait_reason in routine else item.wait_reason
         if item.state == 'Pending':
             if item.wait_reason:
-                return f'\033[33m[Waiting] {item.name}: {item.wait_reason}\033[0m'
+                suffix = ': ' + reason if reason else ''
+                return f'\033[33m[Waiting] {item.name}{suffix} ({total})\033[0m'
             return f'\033[90m[Pending] {item.name} ({total})\033[0m'
         percent = '?' if item.total is None else str(int(100 * item.done / max(item.total, 1)))
         label = {'Passed': '✓', 'Failed': '✗', 'Interrupted': '✗',
@@ -96,19 +103,23 @@ class Dashboard:
         return (f'\033[{color}m[{label}] {item.name} - {percent}% '
                 + self.counts(item.done, item.failures, total)
                 + f' - {item.duration(now)}'
-                + (f' ({item.wait_reason})' if item.wait_reason else '') + '\033[0m')
+                + (f' ({reason})' if reason else '') + '\033[0m')
 
-    def branches(self, items, now):
+    def branches(self, items, now, phase='host'):
         lines = []
+        phase_elapsed = getattr(self, phase + '_elapsed')
+        phase_started = getattr(self, phase + '_started')
         for branch in range(1, HOST_WORKERS + 1):
             if lines:
                 lines.append('│')
             assigned = sorted((item for item in items if item.branch == branch),
                               key=lambda item: item.launch_order)
             active = any(item.state == 'Running' for item in assigned)
-            state = 'running' if active else 'idle' if self.host_elapsed is None else 'finished'
+            state = 'running' if active else 'idle' if phase_elapsed is None else 'finished'
             style = {'running': '\033[1m', 'idle': '\033[90m', 'finished': ''}[state]
-            lines.append(f'{style}├─ Host branch {branch} — {state}\033[0m')
+            elapsed = sum(item.elapsed + (now - item.started if item.started is not None else 0)
+                          for item in assigned)
+            lines.append(f'{style}├─ Host branch {branch} — {state} - {elapsed / 60:.1f}m\033[0m')
             if not assigned:
                 lines.append('│  └─ No categories assigned')
             for index, item in enumerate(assigned):
@@ -119,26 +130,34 @@ class Dashboard:
             lines.append('│')
             lines.append('│  Unassigned host work — waiting for a branch and headroom')
             lines.extend('│    ' + self.category(item, now) for item in unassigned)
-        if self.host_elapsed is None:
-            state = 'waiting for host work'
+        if phase_elapsed is None:
+            state = 'waiting for cleanup prerequisites' if phase == 'cleanup' else 'waiting for host work'
         else:
             state = 'passed' if all(item.state == 'Passed' for item in items) else 'incomplete or failed'
-        elapsed = self.host_elapsed
-        if elapsed is None and self.host_started is not None:
-            elapsed = now - self.host_started
+        elapsed = phase_elapsed
+        if phase_started is not None:
+            elapsed = (now - self.started if elapsed is None else
+                       phase_started - self.started + elapsed)
         timing = '' if elapsed is None else f' — {(elapsed / 60):.1f}m wall time'
-        lines.append(f'└─ Join host branches — {state}{timing}')
+        lines.append('│')
+        join = 'Join cleanup prerequisites' if phase == 'cleanup' else 'Join host branches'
+        lines.append(f'└─ {join} — {state}{timing}')
         return lines
 
     def render(self, now):
         lines = []
         hosts = [item for item in self.categories if item.host]
+        rendered = set()
         for item in self.categories:
             if item.host:
-                if item is hosts[0]:
+                if item.phase not in rendered:
+                    rendered.add(item.phase)
                     if lines:
                         lines.append('│')
-                    lines.extend(self.branches(hosts, now))
+                    if item.phase == 'cleanup':
+                        lines.append('Cleanup safety prerequisites')
+                    lines.extend(self.branches([other for other in hosts if other.phase == item.phase],
+                                               now, item.phase))
             else:
                 lines.append(('│  ' if hosts else '') + self.category(item, now))
         done = sum(item.done for item in self.categories)
@@ -148,6 +167,7 @@ class Dashboard:
         color = '31' if any(c.state in ('Failed', 'Interrupted', 'Blocked') for c in self.categories) else (
             '32' if all(c.state == 'Passed' for c in self.categories) else '97;1')
         failures = sum(item.failures for item in self.categories)
+        lines.append('')
         lines.append(f'\033[{color}mOverall - {percent}% '
                      + self.counts(done, failures, total if known else '?')
                      + f' - {(now - self.started) / 60:.1f}m\033[0m')
@@ -188,9 +208,9 @@ class Dashboard:
                 return 0
             if '[Running]' in plain or '[Waiting]' in plain or '[✗]' in plain:
                 return 1
-            if plain.startswith(('├─ Host branch ', '└─ Join host branches')):
+            if plain.startswith(('├─ Host branch ', '└─ Join ')):
                 return 2
-            if plain == '│':
+            if plain in ('', '│'):
                 return 4
             return 3
 
@@ -402,12 +422,12 @@ class Execution:
                         raise ValueError('test inventory IDs changed after collection')
                     item.nodeids = ids
                 elif item.nodeids is not None:
-                    raise ValueError('missing UI inventory IDs')
+                    raise ValueError('missing test inventory IDs')
             elif event['kind'] == 'finished' and not self.collect:
                 if event['nodeid'] in self.finished:
                     raise ValueError('duplicate test completion')
                 if item.nodeids is not None and event['nodeid'] not in item.nodeids:
-                    raise ValueError('uncollected UI test completion')
+                    raise ValueError('uncollected test completion')
                 self.finished.add(event['nodeid'])
                 item.done = len(self.finished)
             elif event['kind'] == 'failure':
@@ -453,7 +473,7 @@ class Execution:
                 item.state = 'Pending' if status == 0 else 'Failed'
             else:
                 if item.nodeids is not None and not self.inventory_seen and not run.control.stopped.is_set():
-                    raise ValueError('missing UI execution inventory')
+                    raise ValueError('missing test execution inventory')
                 if not self.events and not run.control.stopped.is_set():
                     before = item.done
                     item.done = (min(item.total or 1, item.done + self.units)
@@ -571,12 +591,14 @@ class Run:
         item.waiting += time.monotonic() - started
         item.wait_reason = ''
 
-    def host_jobs(self, jobs):
+    def host_jobs(self, jobs, *, phase='host'):
         queued = time.monotonic()
         before = sum(job.item.elapsed for job in jobs)
-        self.dashboard.host_started = queued
+        setattr(self.dashboard, phase + '_started', queued)
+        setattr(self.dashboard, phase + '_elapsed', None)
         for job in jobs:
             job.item.host = True
+            job.item.phase = phase
 
         def begin(job):
             self.check_inputs()
@@ -587,6 +609,7 @@ class Run:
             job.item.waiting += time.monotonic() - queued
             job.item.wait_reason = ''
             self.report.schedule({'event': 'start', 'job': job.key or job.item.name,
+                                  'phase': phase,
                                   'kind': job.kind, 'branch': job.item.branch,
                                   'companions': [other.kind for other in jobs
                                                  if other.item.state == 'Running'],
@@ -617,15 +640,28 @@ class Run:
             self.dashboard.draw()
 
         try:
+            if phase == 'cleanup' and len(jobs) > 1 and hasattr(self.admission, 'overlap_ready'):
+                # A disk-heavy first bucket can keep the overlap gate closed
+                # for its entire lifetime. Give existing hysteresis one recovery
+                # window plus a sample before starting it. This is bounded;
+                # missing metrics and persistent pressure retain normal fallback.
+                deadline = queued + PRESSURE_RECOVERY_SECONDS + 2
+                while (not self.control.stopped.is_set() and time.monotonic() < deadline
+                       and not self.admission.overlap_ready()):
+                    for job in jobs:
+                        if not job.item.wait_reason:
+                            waiting(job, 'warming up cleanup parallel admission')
+                    tick()
+                    self.control.stopped.wait(.1)
             maximum = run_jobs(jobs, control=self.control, begin=begin, run_command=command,
                                admission=self.admission, waiting=waiting,
                                tick=tick, complete=self.complete_host, blocked=blocked)
         finally:
-            self.dashboard.host_elapsed = time.monotonic() - queued
+            setattr(self.dashboard, phase + '_elapsed', time.monotonic() - queued)
             self.dashboard.draw(force=True)
         elapsed = time.monotonic() - queued
         executed = sum(job.item.elapsed for job in jobs) - before
-        self.report.write(f'\nHost scheduling: wall={elapsed:.3f}s '
+        self.report.write(f'\n{phase.capitalize()} scheduling: wall={elapsed:.3f}s '
                           f'category-execution={executed:.3f}s maximum-active={maximum}\n')
 
     def complete_host(self, job, result):
@@ -640,6 +676,7 @@ class Run:
                 raise ValueError('package build output invalid; package-bearing suites refused')
             self.artifacts[job.key] = matches[0]
         self.report.schedule({'event': 'finish', 'job': job.key or job.item.name,
+                              'phase': job.item.phase,
                               'kind': job.kind, 'state': job.item.state,
                               'elapsed_seconds': job.item.elapsed, 'waiting_seconds': job.item.waiting})
 
@@ -711,17 +748,9 @@ class Run:
         discovery.done, discovery.state = 1, 'Passed'
         discovery.stop_timer()
 
-        status, _ = self.execute(safety, self.command('unit', *selections[0][1], '-q'), events=True)
+        self.cleanup_jobs(safety)
         if self.control.stopped.is_set():
             return
-        if status or safety.state != 'Passed':
-            raise ValueError('cleanup safety prerequisites failed; protected suites refused')
-        # Execution.finish has persisted the passing gate and checked inputs.
-        # Child launchers recheck the same identity through the inherited lock.
-        import test_activity
-        test_activity.record_cleanup(self.inputs)
-        self.report.write('\nHost cleanup prerequisites: passed; owned host workers reuse '
-                          'this gate after validating unchanged source inputs.\n')
         estimates = {'unit': 150, 'component': 20, 'fixture-runtime': 12}
         jobs = [Job(kind, item, self.command(kind, *args, '-q'), events=True,
                     estimate=estimates[kind]) for (_, kind, args), item in zip(suites, suite_items)
@@ -762,6 +791,30 @@ class Run:
             self.report.snapshot(self.categories)
             return
         self.vm_tests(system, graphical, ready)
+
+    def cleanup_jobs(self, safety):
+        buckets = cleanup_buckets(safety.nodeids)
+        items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids,
+                          host=True, phase='cleanup') for bucket in buckets]
+        position = self.categories.index(safety)
+        self.categories[position:position + 1] = items
+        jobs = [Job(bucket.kind, item, self.command('unit', *bucket.paths, '-q', '--durations=0'),
+                    events=True, estimate=bucket.estimate)
+                for bucket, item in zip(buckets, items, strict=True)]
+        self.host_jobs(jobs, phase='cleanup')
+        if self.control.stopped.is_set():
+            return
+        if any(item.state != 'Passed' for item in items):
+            raise ValueError('cleanup safety prerequisites failed; protected suites refused')
+        # The scheduler has joined every worker; Execution validated each exact
+        # inventory, completion, exit and source boundary. Persist before reuse.
+        self.check_inputs()
+        self.report.snapshot(self.categories)
+        self.report.checkpoint(force=True)
+        import test_activity
+        test_activity.record_cleanup(self.inputs)
+        self.report.write('\nHost cleanup prerequisites: passed; owned host workers reuse '
+                          'this gate after validating unchanged source inputs.\n')
 
     def discover_vm(self, system, graphical):
         status, listing = self.execute(system, self.command('system', '--list'), collect=True)
@@ -815,6 +868,11 @@ def recover_initial_checks(root, state):
         # unreadable progress is uncertainty, not permission to restart suites.
         test_retention.remove(record, validate_only=True)
         progress = json.loads((report / 'progress.json').read_text())
+        # A dead parallel coordinator cannot prove that all worker cleanups
+        # finished. Keep that journal for explicit recovery, never infer safety
+        # from partial bucket successes or an absent schedule file.
+        if any(item.get('phase') == 'cleanup' for item in progress):
+            return False
         by_name = {item['name']: item for item in progress}
         if len(by_name) != len(progress):
             return False

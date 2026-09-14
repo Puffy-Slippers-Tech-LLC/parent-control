@@ -209,12 +209,12 @@ def test_branch_frame_shows_both_running_counts_queue_and_real_wall_time():
     assert '├─ Host branch 4 — idle' in first
     assert first.count('├─ Host branch ') == 4
     styled = '\n'.join(dashboard.render(160))
-    assert '\033[1m├─ Host branch 1 — running\033[0m' in styled
-    assert '\033[90m├─ Host branch 3 — idle\033[0m' in styled
+    assert '\033[1m├─ Host branch 1 — running - 1.0m\033[0m' in styled
+    assert '\033[90m├─ Host branch 3 — idle - 0.0m\033[0m' in styled
     assert '│  └─ [Running] UI - 30% (3/10) - 1.0m' in first
     assert '│  └─ [Running] Unit - 40% (8/20) - 40s' in first
     assert first.index('Unassigned host work') < first.index('[Waiting] Components')
-    assert '│    [Waiting] Components: memory headroom\n' in first
+    assert '│    [Waiting] Components: memory headroom (5)\n' in first
     assert first.index('Join host branches') < first.index('[Pending] VM')
     assert 'Overall - 29% (11/37) - 1.0m' in first
     ui.done, unit.done = 6, 15
@@ -223,6 +223,28 @@ def test_branch_frame_shows_both_running_counts_queue_and_real_wall_time():
     assert '[Running] Unit - 75% (15/20) - 1.2m' in second
     assert 'Overall - 56% (21/37) - 1.5m' in second
     assert second.count('[Waiting] Components') == 1
+
+
+def test_branch_totals_and_join_time_freeze_before_later_work():
+    categories = [
+        regression.Category('First', 1, 1, 'Passed', elapsed=60, host=True, branch=1),
+        regression.Category('Second', 1, 1, 'Passed', elapsed=90, host=True, branch=1),
+        regression.Category('Third', 1, 1, 'Passed', elapsed=120, host=True, branch=2),
+        regression.Category('VM', 1),
+    ]
+    dashboard = regression.Dashboard(categories, io.StringIO())
+    dashboard.started = 100
+    dashboard.host_started = 160
+    running = dashboard.ANSI.sub('', '\n'.join(dashboard.render(340)))
+    assert '\n│\n└─ Join host branches — waiting for host work — 4.0m wall time' in running
+    dashboard.host_elapsed = 180
+    for now in (340, 700):
+        frame = dashboard.ANSI.sub('', '\n'.join(dashboard.render(now)))
+        assert 'Host branch 1 — finished - 2.5m' in frame
+        assert 'Host branch 2 — finished - 2.0m' in frame
+        assert 'Host branch 3 — finished - 0.0m' in frame
+        assert '\n│\n└─ Join host branches — passed — 4.0m wall time' in frame
+        assert '\n\nOverall - 75% (3/4)' in frame
 
 
 def test_terminal_redraw_clips_long_names_and_erases_shrinking_queue(monkeypatch):
@@ -781,6 +803,9 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
         return Sample(20, 2, 32 * GIB, 24 * GIB, 0, 0, io, False)
 
     run.execute = discover
+    # This test's simulated clock/pressure window describes the downstream
+    # host queue. Cleanup phase ordering is exercised separately below.
+    run.cleanup_jobs = lambda safety: None
     run.admission = Admission(SimpleNamespace(sample=sample), lambda: state.now)
     scheduler = regression.run_jobs
 
@@ -829,11 +854,12 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     assert all(event['state'] == 'Passed' for event in finishes.values())
 
 
-@pytest.mark.parametrize('fail_unit,fail_publish', [(False, False), (True, False), (False, True)])
+@pytest.mark.parametrize('fail_unit,fail_publish,fail_safety', [
+    (False, False, False), (True, False, False), (False, True, False), (False, False, True)])
 @pytest.mark.parametrize('verify_backing_bytes', [True, False])
 @pytest.mark.parametrize('scope', ['all', 'host', 'host-builds', 'host-builds-serial'])
 def test_entire_plan_discovers_ready_cases_and_preserves_failure(
-        report, tmp_path, monkeypatch, fail_unit, fail_publish, verify_backing_bytes, scope):
+        report, tmp_path, monkeypatch, fail_unit, fail_publish, fail_safety, verify_backing_bytes, scope):
     host_only = scope == 'host'
     host_builds = scope.startswith('host-builds')
     def authorize():
@@ -854,6 +880,12 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
             category = 'ui' if command[0].endswith('run-ui-tests') else command[1]
             ui_ids = ['tests/ui/test_preview_smoke.py::test_one',
                       'tests/ui/test_request_form_component.py::test_two']
+            safety_ids = ['tests/unit/test_fixture_cleanup_safety.py::test_one',
+                          'tests/unit/test_graphical_lease.py::test_two']
+            safety = category == 'unit' and any('cleanup_safety' in arg or 'test_graphical_lease.py' in arg
+                                                for arg in command)
+            if safety and '--collect-only' not in command:
+                safety_ids = [node for node in safety_ids if node.partition('::')[0] in command]
             if category == 'ui' and '--collect-only' not in command:
                 ui_ids = [node for node in ui_ids if node.partition('::')[0] in command]
             def event(kind, **fields):
@@ -866,18 +898,20 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                                                   dict(case_id='E2E-998/wait', status='pending')],
                                            pending_cases=['E2E-998/wait'])).encode() + b'\n')
             elif '--collect-only' in command:
-                event('collection', total=2, **({'nodeids': ui_ids} if category == 'ui' else {}))
+                event('collection', total=2, **({'nodeids': ui_ids} if category == 'ui' else
+                                               {'nodeids': safety_ids} if safety else {}))
             elif category in ('unit', 'component', 'ui', 'fixture-runtime', 'system'):
-                safety = any('cleanup_safety' in item for item in command)
+                nodes = ui_ids if category == 'ui' else safety_ids if safety else ('one', 'two')
                 if category != 'system':
-                    event('collection', total=len(ui_ids) if category == 'ui' else 2,
-                          **({'nodeids': ui_ids} if category == 'ui' else {}))
-                if fail_unit and category == 'unit' and not safety:
+                    event('collection', total=len(nodes),
+                          **({'nodeids': nodes} if category == 'ui' or safety else {}))
+                failed = category == 'unit' and ((fail_unit and not safety) or (fail_safety and safety))
+                if failed:
                     event('failure', nodeid='one', detail='test assertion failed')
                     event('failure', nodeid='one', detail='test teardown failed')
-                for node in ui_ids if category == 'ui' else ('one', 'two'):
+                for node in nodes:
                     event('finished', nodeid=node)
-                return int(fail_unit and category == 'unit' and not safety)
+                return int(failed)
             elif category == 'artifacts' and 'build' in command:
                 self.builds += 1
                 output(f'run-tests: output=/tmp/onpc-test-artifacts-fake{self.builds}\n'.encode())
@@ -888,13 +922,21 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
     run = regression.Run(tmp_path, report, control, verify_backing_bytes=verify_backing_bytes,
                          host_only=host_only, host_builds=host_builds,
                          serial_builds=scope == 'host-builds-serial')
+    if fail_safety:
+        with pytest.raises(ValueError, match='cleanup safety prerequisites failed'):
+            run.run()
+        executed = [call for call in control.calls if '--collect-only' not in call and '--list' not in call]
+        assert executed
+        assert all(call[1] == 'unit' and any('cleanup_safety' in arg or 'test_graphical_lease.py' in arg
+                                           for arg in call) for call in executed)
+        return
     run.run()
     expected_failure = int(fail_unit or (fail_publish and not host_only))
     assert [item.state for item in run.categories].count('Failed') == expected_failure
     assert sum(item.failures for item in run.categories) == expected_failure
     if not fail_publish or host_only:
         assert all(item.done == item.total for item in run.categories)
-    ui = [item for item in run.categories if item.nodeids is not None]
+    ui = [item for item in run.categories if item.name.startswith('UI — ')]
     assert len(ui) == 2 and sum(item.done for item in ui) == 2
     if host_only:
         assert not any(call[1] in ('system', 'e2e', 'publish', 'artifacts') for call in control.calls)

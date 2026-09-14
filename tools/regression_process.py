@@ -140,8 +140,13 @@ def host_run(root, category, argv):
         command = host.pytest_command(root, argv, category)
         env = host.test_environment(root)
         env.update(ONPC_REGRESSION_EVENTS='1', PYTHONUNBUFFERED='1')
+        targets = command[command.index('--') + 1:] if '--' in command else []
+        cleanup = category == 'unit' and targets and all(
+            target.partition('::')[0].endswith(('cleanup_safety.py', '/test_graphical_lease.py'))
+            for target in targets)
+        if category == 'ui' or cleanup:
+            env['ONPC_REGRESSION_INVENTORY'] = '1'
         if category == 'ui':
-            env['ONPC_REGRESSION_UI_INVENTORY'] = '1'
             import test_retention
             env.update(test_retention.environment())
         if category != 'unit' and '--collect-only' not in command:

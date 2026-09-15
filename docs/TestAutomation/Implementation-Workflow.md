@@ -84,6 +84,8 @@ handoff/continuation updates only if they change the ongoing task's state.
    reads for authorized mechanical/product work start at
    [System-Design.md](../System-Design.md). Before adding necessary infrastructure, read the
    selected [reuse-map row](Reuse-Map.md) and relevant contract/limitation links.
+   Customer scenarios start with the [building blocks and lessons](E2E-Building-Blocks.md)
+   before adding setup, pointer, navigation or recording code.
    Compare implementation, regressions and qualification to the needed boundary.
    Link the reused contract and identify only the missing capability or changed
    assumption; reopening a solution requires new evidence or an invalidating

@@ -1,0 +1,19 @@
+{
+  "tags": [
+    "onpc-parent-license-link"
+  ],
+  "area": [
+    {
+      "xpos": 411,
+      "ypos": 632,
+      "width": 174,
+      "height": 20,
+      "type": "match",
+      "match": 100,
+      "click_point": {
+        "xpos": 87,
+        "ypos": 10
+      }
+    }
+  ]
+}

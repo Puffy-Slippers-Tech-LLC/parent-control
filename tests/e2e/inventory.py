@@ -163,7 +163,14 @@ def _validate_inventory(document, *, root):
         fields(assertions, ('visible', 'backend', 'other_user'), 'assertion:fields')
         assertion_ids = set()
         for kind, items in assertions.items():
-            require(isinstance(items, list) and items, 'assertion:empty')
+            require(isinstance(items, list), 'assertion:list')
+            # Customer journeys are accepted from visible behavior.  Their
+            # legacy pending declarations may still carry the older three-way
+            # shape, but a reconciled family needs only the assertion kinds its
+            # customer actually observes.  Non-customer qualification keeps
+            # all three sides.
+            required_kind = scenario['category'] != 'customer-journey' or kind == 'visible'
+            require(not required_kind or bool(items), 'assertion:empty')
             for item in items:
                 fields(item, ('id', 'step_id', 'description'), 'assertion:fields')
                 require(token(item['id']) and item['id'] not in assertion_ids, 'assertion:id')
@@ -172,7 +179,20 @@ def _validate_inventory(document, *, root):
                         'assertion:step')
                 require(nonempty(item['description']), 'assertion:description')
         evidence = set(scenario['expected_evidence'])
-        require(evidence <= EVIDENCE and EVIDENCE - {'intervention', 'delivery'} <= evidence,
+        required_evidence = {
+            'action-trace', 'screen', 'continuity', 'input-provenance',
+            'outcomes', 'cleanup',
+        }
+        assertion_evidence = {
+            'visible': 'screen', 'backend': 'backend', 'other_user': 'other-user',
+        }
+        required_evidence.update(assertion_evidence[kind]
+                                 for kind, items in assertions.items() if items)
+        if interventions:
+            required_evidence.add('intervention')
+        if 'delivery' in evidence:
+            required_evidence.add('delivery')
+        require(evidence <= EVIDENCE and evidence == required_evidence,
                 'evidence:expectations')
         require(not interventions or 'intervention' in evidence, 'evidence:intervention')
         if 'delivery' in evidence:
@@ -235,6 +255,13 @@ def _validate_inventory(document, *, root):
                 identity = (str(path), executable['test_id'])
                 require(identity not in test_ids, 'executable:duplicate-test-id')
                 test_ids.add(identity)
+        # A runnable customer family cannot retain the superseded backend
+        # product witness.  Pending legacy families remain loadable so each is
+        # reconciled with its first consumer rather than by a broad rewrite.
+        if scenario['category'] == 'customer-journey' and any(
+                variant['status'] == 'ready' for variant in variants):
+            require(not assertions['backend'] and 'backend' not in evidence,
+                    'customer:backend-evidence')
         # Every declared value and interacting combination must have a case,
         # including pending cases; selection must never shrink the matrix.
         for key, values in dimensions.items():
@@ -246,10 +273,12 @@ def _validate_inventory(document, *, root):
             require(actual == expected, 'matrix:missing-combination')
 
 
-def resolve_selection(document, scenario=None, *, require_runnable=False, root=ROOT):
+def resolve_selection(document, scenario=None, *, ready_only=False, require_runnable=False, root=ROOT):
     """A family expands all variants; an explicit case remains a partial result."""
     validate_inventory(document, root=root)
     require(scenario is None or nonempty(scenario), 'selection:empty')
+    require(type(ready_only) is bool and (not ready_only or scenario is None),
+            'selection:conflicting-selectors')
     selected = []
     for family in document['scenarios']:
         for variant in family['variants']:
@@ -270,22 +299,31 @@ def resolve_selection(document, scenario=None, *, require_runnable=False, root=R
                                  'expected_evidence': family['expected_evidence']})
     require(bool(selected), 'selection:unknown')
     pending = [case['case_id'] for case in selected if case['status'] == 'pending']
+    excluded = pending if ready_only else []
+    if ready_only:
+        selected = [case for case in selected if case['status'] == 'ready']
+        pending = []
+        require(bool(selected), 'selection:no-ready-cases')
     require(not require_runnable or not pending, 'selection:pending')
-    return {'schema_version': 1, 'scope': 'full' if scenario is None else 'partial',
+    return {'schema_version': 1, 'scope': 'full' if scenario is None and not ready_only else 'partial',
             'selector': scenario, 'vm_required_for_execution': True,
+            'ready_only': ready_only, 'excluded_pending_cases': excluded,
             'pending_cases': pending, 'cases': selected,
             'evidence_contract': document['evidence_contract']}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--scenario', help='exact E2E-NNN family or E2E-NNN/variant')
+    selectors = parser.add_mutually_exclusive_group()
+    selectors.add_argument('--scenario', help='exact E2E-NNN family or E2E-NNN/variant')
+    selectors.add_argument('--ready', action='store_true', help='select all ready variants explicitly')
     parser.add_argument('--require-runnable', action='store_true',
                         help='refuse pending cases; this command still never executes tests')
     args = parser.parse_args(argv)
     try:
         document, digest = read_json(INVENTORY)
-        selection = resolve_selection(document, args.scenario, require_runnable=args.require_runnable)
+        selection = resolve_selection(document, args.scenario, ready_only=args.ready,
+                                      require_runnable=args.require_runnable)
         selection['inventory_sha256'] = digest
         selection['mode'] = 'list-only'
         print(json.dumps(selection, indent=2))

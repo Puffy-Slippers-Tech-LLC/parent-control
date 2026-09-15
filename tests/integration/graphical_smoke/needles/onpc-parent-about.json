@@ -1,0 +1,31 @@
+{
+  "tags": [
+    "onpc-parent-about"
+  ],
+  "area": [
+    {
+      "xpos": 520,
+      "ypos": 80,
+      "width": 42,
+      "height": 19,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 423,
+      "ypos": 282,
+      "width": 232,
+      "height": 31,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 500,
+      "ypos": 321,
+      "width": 85,
+      "height": 22,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

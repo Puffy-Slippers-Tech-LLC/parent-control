@@ -81,6 +81,24 @@ def test_generic_password_prompt_cannot_authorize_a_fixture_role(distribution):
         worker.distribution_inputs()
 
 
+@pytest.mark.parametrize('fault', [None, 'point', 'threshold', 'missing'])
+def test_installed_input_is_a_separate_fixed_account_region(distribution, fault):
+    dist, _ = distribution
+    source = Path(worker.__file__).resolve().parents[1] / 'integration/graphical_smoke/needles'
+    name = 'onpc-gdm-parent-installed-input-account'
+    doc = json.loads((source / (name + '.json')).read_bytes())
+    if fault == 'point': doc['area'][0]['click_point']['xpos'] += 1
+    elif fault == 'threshold': doc['area'][0]['match'] = 99
+    elif fault == 'missing': del doc['area'][0]['click_point']
+    (dist / ('needles/' + name + '.png')).write_bytes((source / (name + '.png')).read_bytes())
+    (dist / ('needles/' + name + '.json')).write_text(json.dumps(doc))
+    if fault:
+        with pytest.raises(RuntimeError, match='installed-input-layout'):
+            worker.distribution_inputs()
+    else:
+        worker.distribution_inputs()
+
+
 @pytest.mark.parametrize('point', [None, {}, 'center', {'xpos': True, 'ypos': 10},
     {'xpos': 0, 'ypos': 10}, {'xpos': 200, 'ypos': 10}, {'xpos': 10, 'ypos': 40},
     {'xpos': 10, 'ypos': 10, 'id': 'unexpected'}, {'xpos': 10, 'ypos': 10}])

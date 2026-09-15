@@ -42,30 +42,77 @@ Use [the workflow](Implementation-Workflow.md) for bounded work and progress.
 
 ## Current handoff — 2026-09-14
 
-First customer result: complete `E2E-003/existing-and-new`. Log in as the
-parent, open Parent, observe/select existing eligible children, provision the
-declared new account through accepted fixture setup, and observe its discovery
-without restarting Parent. Do not inspect the catalog or broker to assert the
-result. This starts the broad customer queue; timeout/login is only another
-family, not a privileged priority.
+**E2E-030/parent is complete and passed public customer acceptance.** Progress:
+**1 completed**, **155 remaining of the frozen 156**, no transfers or
+scope additions; **0 consecutive slices without a completed customer variant**.
+The supervised intervention resolved the session-100 repair decision and earned
+the first complete customer variant. Task 21A remains unchecked for its other
+variants. The launcher summary and saved blocked status describe session 100;
+this handoff supersedes that blocker after the supervised pass.
 
-Reconcile this pending declaration and only the minimum common evidence-gate
-adaptation needed to accept visible assertions without backend product
-witnesses. Preserve existing VM, provenance, secret-input and cleanup guards.
-No new collector or general framework is required by the plan. The adapter
-alone earns no completed customer variant; its consumer is this same journey.
+The registered [Parent callback](../../tests/e2e/parent_about.py) logs in through
+the installed Parent prompt, launches from the app grid, selects the existing
+fixture child, reads About/version and the installed GPL license, closes the
+viewer, reads the copyright/footer, closes About and returns to that same child
+with unchanged displayed settings. All 18 positive matches passed at 100%;
+negative recipient checks precede unchanged secret input. Setup and customer
+actions retain separate recorded phases. Boot continuity, source/package
+identities and outer cleanup passed; no backend product probe supplies acceptance.
+The requirement is `ONPC-CORE-ABOUT-001`, with surface-only evidence.
 
-Baseline: 0 completed customer variants; selected finish line 1 complete
-discovery journey; consecutive implementation slices without a completed
-customer variant since this scope rewrite 0. No implementation or runtime
-acceptance occurred in this documentation session. Record executed steps,
-remaining frozen scope, actual blockers and evidence here at the next handoff.
-Use the workflow's two-slice intervention rule for stalled completion.
+The [composition contract](../../tests/e2e/README.md#parent-consumer-composition-limits)
+and [building-block guide](E2E-Building-Blocks.md) own the reusable boundaries
+and lessons. New consumers compose `InstalledJourney`/`record_installed_journey`,
+`onpc_pointer`, `onpc_journey` and the Parent login/launch/selection operations.
+The About modules retain scenario-specific expectations. The
+[reuse row](Reuse-Map.md#customer-scenario-work) selects the next consumer.
+Qualification review mode cannot supply acceptance or bypass recipient/click checks.
+The shared composition passed the public `--ready` invocation with E2E-001 and
+E2E-030/parent; this refactor adds no customer variant or scope credit.
 
-Next settings: `gpt-5.6-sol` / `high`, Standard, for a bounded visible journey.
-Reconcile actual runner/lease ownership before execution; historical cleanup
-is not current machine-state evidence.
+**Evidence needed for continuation:**
 
+- Public invocation: `/tmp/onpc-e2e-evidence-3esteq9z/invocation-terminal-candidate.json`.
+  Selector `--ready`; E2E-001 and E2E-030/parent passed, dispatcher exited 0.
+  Partial scope explicitly retains 155 pending exclusions. Parent run
+  `scenario-986d63c38497407a9d562696774c0d4d` passed product, infrastructure,
+  collection and cleanup with no first failure.
+- Accepted Parent record and final phases/preservation:
+  `/tmp/onpc-e2e-evidence-pj3urxa2/acceptance.json`.
+  Raw matches/screens: `/tmp/onpc-graphical-smoke-6ehyth8a/testresults/`.
+  Worker cleanup: `/tmp/onpc-e2e-evidence-t2pybly1/worker-result.json`.
+- Passing inputs: `/tmp/onpc-test-artifacts-deuc055i`, source
+  `e98b18f77e8836d3ce4184b2d5997c67324e9ef332df0422ddd634efb56396b5`,
+  inventory `33a1025063f9a5fb2fcba678d6d17aec97791f617961ecb1635220e8a12e020e`.
+  Coverage/handoff metadata changed afterward; build fresh artifacts for future
+  VM runs. Original qualification reports, private captures and build inputs remain.
+- `make check` passed: 9,103 unit tests, 139 component tests, and 1,182 isolated
+  cleanup-safety tests plus 3 subtests. The public E2E invocation independently
+  passed its safety prerequisites and full baseline restoration.
+
+**Next bounded consumer: E2E-003/existing-and-new.** Reuse the now-proven
+installed login, launch and selected-child observations. Complete the scoped
+bridge to the existing account fixture while Parent stays open, reconcile the
+fixture-event declaration, and prove that the new child appears and both
+children can be selected with their displayed settings. Do not repeat E2E-030
+acquisition or postpone this consumer for unrelated internal designs.
+
+Other retained boundaries: E2E-003/none needs an empty-account fixture and its
+visible empty state. E2E-004/app-grid and /terminal need a qualified standard-user
+recipient and their normal launch/refusal interactions; no denial is yet proven.
+Later customer work remains in its owning handoffs. No earlier task is marked
+complete by this pass.
+
+**Cleanup complete:** VM off, accepted baseline fully restored, owned worker and
+callback stopped, host/source preserved; no owned operation remains. All-task VM
+authorization persists. R1 remains 0 charged hours / 0 new attempts because its
+execution-source/validation-lifetime recovery was unchanged.
+
+**Actual settings:** `gpt-6-astra` / `high`, Standard.
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: lower; effort: keep.
+**Reason:** installed input, pointer mapping and the complete evidence path are
+now qualified. Use the settled helpers for the next consumer; reassess to Astra
+if its new fixture bridge exposes unresolved ownership or concurrency questions.
 ## Task 21B
 
 - Title: Parent saves, control changes and revocation.

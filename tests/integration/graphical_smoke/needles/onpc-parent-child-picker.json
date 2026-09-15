@@ -1,0 +1,27 @@
+{
+  "tags": [
+    "onpc-parent-child-picker"
+  ],
+  "area": [
+    {
+      "xpos": 464,
+      "ypos": 48,
+      "width": 196,
+      "height": 36,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 368,
+      "ypos": 190,
+      "width": 23,
+      "height": 24,
+      "type": "match",
+      "match": 100,
+      "click_point": {
+        "xpos": 11,
+        "ypos": 12
+      }
+    }
+  ]
+}

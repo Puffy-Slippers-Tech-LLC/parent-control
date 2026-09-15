@@ -43,10 +43,10 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert [case['case_id'] for case in plan['cases']] == expected
     assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
                                      if case['status'] == 'pending']
-    assert len(plan['pending_cases']) == 156
+    assert len(plan['pending_cases']) == 155
     assert plan['scope'] == 'full'
     assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
-        'E2E-001/gdm-observation']
+        'E2E-001/gdm-observation', 'E2E-030/parent']
     assert all(case['assertions'] and case['expected_evidence'] for case in plan['cases'])
     assert plan['evidence_contract']['outcomes'] == ['product', 'infrastructure', 'collection', 'cleanup']
 
@@ -57,6 +57,26 @@ def test_shared_form_family_selects_both_surfaces_and_all_variants(document, sid
     assert {case['parameters']['surface'] for case in plan['cases']} == {'child-overlay', 'kiosk'}
     assert len(plan['cases']) == len(family(document, sid)['variants'])
     assert plan['scope'] == 'partial'
+
+
+def test_ready_selection_explicitly_accounts_for_every_pending_case(document):
+    full = inventory.resolve_selection(document)
+    plan = inventory.resolve_selection(document, ready_only=True, require_runnable=True)
+    assert plan['scope'] == 'partial' and plan['ready_only'] is True
+    assert plan['pending_cases'] == []
+    assert plan['excluded_pending_cases'] == full['pending_cases']
+    assert plan['cases'] == [c for c in full['cases'] if c['status'] == 'ready']
+    assert len(plan['cases']) + len(plan['excluded_pending_cases']) == len(full['cases'])
+    with pytest.raises(inventory.InventoryError, match='conflicting-selectors'):
+        inventory.resolve_selection(document, 'E2E-030', ready_only=True)
+
+
+def test_no_ready_cases_refuses_instead_of_passing_an_empty_suite(document):
+    for item in document['scenarios']:
+        for variant in item['variants']:
+            variant.update(status='pending', executable=None, pending_reason='Unimplemented fixture')
+    with pytest.raises(inventory.InventoryError, match='selection:no-ready-cases'):
+        inventory.resolve_selection(document, ready_only=True, require_runnable=True)
 
 
 def test_specific_variant_selects_once_and_keeps_pending_reason(document):
@@ -210,8 +230,23 @@ def test_fault_intervention_requires_actor_step_and_evidence(document):
 
 
 @pytest.mark.parametrize('kind', ['visible', 'backend', 'other_user'])
-def test_three_sided_assertions_are_required(document, kind):
-    family(document)['assertions'][kind] = []
+def test_non_customer_qualification_keeps_three_sided_assertions(document, kind):
+    family(document, 'E2E-001')['assertions'][kind] = []
+    with pytest.raises(inventory.InventoryError, match='assertion:empty'):
+        inventory.validate_inventory(document)
+
+
+def test_customer_surface_declaration_can_omit_internal_witnesses(document):
+    chosen = family(document, 'E2E-003')
+    assert chosen['assertions']['visible']
+    assert chosen['assertions']['backend'] == chosen['assertions']['other_user'] == []
+    assert set(chosen['expected_evidence']) == {
+        'action-trace', 'cleanup', 'continuity', 'input-provenance', 'outcomes', 'screen'}
+    inventory.validate_inventory(document)
+
+
+def test_customer_visible_assertion_remains_mandatory(document):
+    family(document, 'E2E-003')['assertions']['visible'] = []
     with pytest.raises(inventory.InventoryError, match='assertion:empty'):
         inventory.validate_inventory(document)
 
@@ -247,6 +282,8 @@ def ready_document(document, tmp_path):
     executable.parent.mkdir(parents=True)
     executable.write_text('raise RuntimeError("inventory must never execute this")\n')
     variant = document['scenarios'][0]['variants'][0]
+    document['scenarios'][0]['assertions']['backend'] = []
+    document['scenarios'][0]['expected_evidence'].remove('backend')
     variant.update(status='ready', pending_reason=None,
                    executable={'path': 'tests/e2e/tests/example.py', 'test_id': 'test_example'})
     return document, tmp_path, variant
@@ -260,6 +297,17 @@ def test_ready_exact_case_resolves_but_family_does_not_drop_pending(ready_docume
     assert plan['cases'][0]['executable']['test_id'] == 'test_example'
     with pytest.raises(inventory.InventoryError, match='selection:pending'):
         inventory.resolve_selection(document, 'E2E-012', require_runnable=True, root=root)
+
+
+def test_ready_customer_family_cannot_restore_backend_product_evidence(ready_document):
+    document, root, _ = ready_document
+    chosen = document['scenarios'][0]
+    chosen['assertions']['backend'] = [{
+        'id': 'backend-result', 'step_id': 'step-3',
+        'description': 'A stale private product witness.'}]
+    chosen['expected_evidence'].append('backend')
+    with pytest.raises(inventory.InventoryError, match='customer:backend-evidence'):
+        inventory.validate_inventory(document, root=root)
 
 
 @pytest.mark.parametrize('path', ['/tmp/example.py', 'tests/e2e/../../example.py',
@@ -351,12 +399,22 @@ def test_every_declared_launch_route_policy_control_combination_remains_pending(
 
 
 def test_unmapped_surfaces_and_external_delivery_are_explicit_pending_work(document):
-    for sid in ['E2E-030', 'E2E-031', 'E2E-032', 'E2E-033']:
+    for sid in ['E2E-031', 'E2E-032', 'E2E-033']:
         chosen = family(document, sid)
         assert chosen['requirement_gap']
         assert all(v['status'] == 'pending' for v in chosen['variants'])
     assert {'explicit-external-delivery-authorization', 'dedicated-test-recipient',
             'supported-real-feedback-service-profile'} <= set(family(document, 'E2E-032')['preconditions'])
+
+
+def test_parent_about_maps_customer_information_without_internal_product_evidence(document):
+    chosen = family(document, 'E2E-030')
+    assert chosen['requirements'] == ['ONPC-CORE-ABOUT-001']
+    assert chosen['requirement_gap'] is None
+    assert chosen['assertions']['visible']
+    assert chosen['assertions']['backend'] == chosen['assertions']['other_user'] == []
+    assert not {'backend', 'other-user'} & set(chosen['expected_evidence'])
+    assert 'fixture-credentials-via-secret-api' in chosen['preconditions']
 
 
 def test_external_retry_is_declared_fault_recovery_and_requires_delivery_profile(document):

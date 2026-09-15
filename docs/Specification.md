@@ -85,6 +85,10 @@ Terms used below:
 - [ONPC-CORE-RECOVERY-007] Only one app-policy save, approval, revocation, or session-entry reconciliation transaction runs at a time. Rapid repeat submissions are refused rather than counted twice; a denied or cancelled approval attempt does not consume the repeat-request interval.
 - [ONPC-CORE-RECOVERY-008] Request screens show a simple actionable error without exposing system paths, service names, or other backend details. Failure of the authentication helper denies that request but does not permanently break the request station; a later request can be attempted.
 
+### Product information
+
+- [ONPC-CORE-ABOUT-001] A parent can open About from the installed Parent App, read its product name, version, copyright and license information, open the installed license text, and close those views to return to the same selected child.
+
 ## 2. Component specifications
 
 ### Parent App

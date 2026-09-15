@@ -1,0 +1,23 @@
+{
+  "tags": [
+    "onpc-parent-app-grid"
+  ],
+  "area": [
+    {
+      "xpos": 330,
+      "ypos": 299,
+      "width": 60,
+      "height": 88,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 209,
+      "ypos": 439,
+      "width": 69,
+      "height": 89,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

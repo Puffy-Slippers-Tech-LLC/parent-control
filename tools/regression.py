@@ -824,16 +824,16 @@ class Run:
         if status or match is None:
             raise ValueError('installed-system inventory failed')
         system.total = int(match[1])
-        status, listing = self.execute(graphical, self.command('e2e', '--list'), collect=True)
+        status, listing = self.execute(graphical, self.command('e2e', '--list', '--ready'), collect=True)
         if self.control.stopped.is_set():
             return []
         if status:
             raise ValueError('E2E inventory failed')
         inventory = json.loads(listing[listing.index('{'):])
-        ready = [case['case_id'] for case in inventory['cases'] if case['status'] == 'ready']
+        ready = [case['case_id'] for case in inventory['cases']]
         graphical.total = len(ready)
         self.report.write('\nReady E2E variants: ' + ', '.join(ready) + '\n'
-                          'Pending variants excluded: ' + str(len(inventory['pending_cases'])) + '\n')
+                          'Pending variants excluded: ' + str(len(inventory['excluded_pending_cases'])) + '\n')
         return ready
 
     def vm_tests(self, system, graphical, ready):

@@ -35,6 +35,12 @@ existing full verification at each VM attempt boundary. Both retain ownership
 locks, backing read leases, snapshot/chain checks, guest inspection and cleanup;
 reports explicitly record the verification policy. Direct system/E2E runs still
 verify backing bytes unless `--skip-backing-verification` is explicitly selected.
+Both aggregate targets automatically discover all ready E2E variants, including
+the installed Parent About/license scenario. For E2E-only runs, use
+`tools/run-tests e2e --ready --artifacts '<fresh-artifact-directory>'`; for just
+Parent About, replace `--ready` with `--scenario 'E2E-030/parent'`. The
+[E2E runner guide](e2e/README.md#run-e2e-scenarios) covers building inputs, listing,
+pending scope and prerequisites.
 Both aggregate targets run independently of their terminal. Closing the terminal
 detaches the display; tests continue. Ctrl+C still requests cancellation and waits
 for owned cleanup. Rerun the same target in

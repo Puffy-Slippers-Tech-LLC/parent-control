@@ -10,20 +10,39 @@ harness tests remain unchanged. Mechanical Tasks 18/20 retain necessary
 internal installation, migration, removal and recovery checks as separate
 package/system qualification.
 
-This is a documentation change, not a runtime schema migration. The inventory,
-validators and much of the detailed implementation record below still describe
-the earlier mandatory backend evidence contract. At the first affected customer
-consumer, reconcile its declaration and the minimum common validation required
-for surface-only assertions. Preserve source/package identity, secret protection,
-VM ownership, safe evidence and cleanup. Do not fabricate backend fields or
-add product probes to satisfy the old shape. Do not rewrite unrelated existing
-tests or build a new evidence framework. Until implemented, pending selectors
-remain pending and no customer coverage is claimed.
+The runtime schema now permits customer families to omit backend and unrelated-
+user assertions when those are not visible parts of the journey. E2E-003 and
+E2E-030 have reconciled declarations. A customer family cannot become runnable while it
+still declares backend product evidence. Other-user customer assertions remain
+optional, but when present their assertion evidence must include a screen from
+the real other-user surface. Source/package identity, secret protection, VM
+ownership, safe evidence and cleanup remain mandatory harness evidence. Pending
+legacy declarations are retained and reconciled with their first consumer; do
+not fabricate backend fields, rewrite unrelated tests or build a replacement
+evidence framework. Pending selectors still provide no customer coverage.
 
-Keep mechanical startup/fault assertions explicitly separate from the customer
-part of an installation journey. Historical qualification and detailed safety
-interfaces below remain useful at their stated scope; old future backend
-requirements do not override the new customer contract or task order.
+### Parent consumer composition limits
+
+[The registered Parent callback](parent_about.py) implements `E2E-030/parent`:
+installed Parent login, app-grid launch, existing fixture-child selection, About
+product/version, the installed GPL license in its normal viewer, copyright/footer
+access and return to the same child/settings. Its public acceptance evidence is
+in [Task 21](../../docs/TestAutomation/Task-21.md#current-handoff--2026-09-14).
+
+The [building-block guide](../../docs/TestAutomation/E2E-Building-Blocks.md) owns
+the reusable APIs, composition recipe and lessons: installed setup and fresh VNC
+reattachment, strict recipient qualification, framebuffer-aware matched clicks,
+Parent navigation, durable acknowledgements, phase timing and ordered screen
+reconciliation. Start there when adding a customer scenario or repairing one of
+these boundaries. The thin About worker is
+[onpc_parent_about.pm](../integration/graphical_smoke/lib/onpc_parent_about.pm).
+
+A customer family's `installed-digest-verified-product` prerequisite selects
+verified package setup before its journey. Mechanical startup/fault assertions
+remain separate. E2E-003's dynamic account discovery still needs a scoped fixture
+bridge while Parent stays open; visible appearance and selection remain customer
+assertions. The existing qualification's review mode acquires only nonsecret
+observations and never awards coverage or bypasses mandatory input matches.
 
 ## Current implementation inventory
 
@@ -33,8 +52,8 @@ Those synthetic fixtures are separate from the live helpers described below.
 
 `scenarios.json` is the versioned inventory for
 [E2E coverage](../../docs/TestAutomation/E2E-Coverage.md): 33 families and
-157 variants. `E2E-001/gdm-observation` is registered for public execution;
-the other 156 variants remain **pending**.
+157 variants. `E2E-001/gdm-observation` and `E2E-030/parent` are registered for
+public execution; the other 155 variants remain **pending**.
 [Task 19B is accepted](../../docs/TestAutomation/Evidence/19B-Acceptance-20260908.md)
 after three complete, visually reviewed public qualifications. This establishes
 runner-smoke behavior, not customer acceptance.
@@ -58,6 +77,7 @@ need no root, package artifacts, installed product, graphical tools or VM:
 
 ```sh
 tools/run-tests e2e --list
+tools/run-tests e2e --list --ready
 tools/run-tests e2e --list --scenario E2E-023
 tools/run-tests e2e --list --scenario E2E-023/fullscreen
 make check-e2e LIST=1 SCENARIO=E2E-023/fullscreen
@@ -72,6 +92,12 @@ The lower-level `inventory.py --require-runnable` command also refuses any
 selection containing a pending variant; it still only lists and never executes
 anything. Pending cases are never silently filtered to obtain a successful selection.
 
+`--ready` explicitly selects every ready variant, in inventory order, and cannot
+be combined with `--scenario`. Its JSON reports `ready_only: true`, partial
+scope and every omitted ID in `excluded_pending_cases`; `pending_cases` describes
+the selected cases only. An empty ready selection refuses. Newly registered
+ready cases are discovered automatically on the next invocation.
+
 `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-002` and
 `make check-e2e ARTIFACT_DIR=/tmp/onpc-... SCENARIO=E2E-002` fail with
 `selection:pending`, before artifact access, privilege checks, cleanup tests,
@@ -85,7 +111,7 @@ same `runner.preflight`; refresh the latter with `./setup.sh --test-tools-only`
 after dispatcher changes. Development activation is `none` (next invocation),
 with no product or saved-data changes. Missing/unsafe inventory inputs fail
 closed. A fully ready selection requires existing safe artifacts and Python
-controller callbacks. The other 156 cases still refuse as pending.
+controller callbacks. The other 155 cases still refuse as pending.
 There is no bypass, checkpoint or resume option. Listing
 success is declaration inspection, never an E2E pass.
 
@@ -95,6 +121,42 @@ expected evidence and the SHA-256 of the exact inventory bytes read. This digest
 identifies the declaration only. `provenance.VerifiedInputs` separately identifies
 current source, requirement mappings, staged packages/assets and the verified
 baseline's guest preparation. Execution dispatch must use that capture.
+
+## Run E2E scenarios
+
+Build once after finishing source, test, needle and documentation edits:
+
+```sh
+tools/run-tests artifacts build
+```
+
+The builder prints `run-tests: output=/tmp/onpc-test-artifacts-...`. Substitute
+that exact directory for `REPLACE` below. Keep the checkout unchanged during runs.
+
+```sh
+# All currently implemented E2E variants:
+tools/run-tests e2e --ready --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+
+# Only the installed Parent About/license customer journey:
+tools/run-tests e2e --scenario 'E2E-030/parent' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+```
+
+Each selected case gets its own guarded attempt and baseline restoration. The
+invocation stops after the first failed attempt, including evidence or cleanup
+failure, and retains the expected case list and pending exclusions in its report.
+The current ready set contains the E2E-001 harness smoke and E2E-030/parent:
+**two runnable variants, one customer scenario**. Another 155 variants are pending.
+Omitting both `--ready` and `--scenario` requests the whole inventory and still
+refuses while any variant is pending. A ready-suite pass is partial coverage.
+
+`make test-all` and `make test-all-verify` both discover every ready E2E variant
+through the same selector, after required host/package and installed-system
+prerequisites. No Makefile entry is needed for a newly ready scenario. Both stop
+the VM sequence on a failed installed-system/E2E attempt. `test-all` skips
+backing-file byte scans; `test-all-verify` and direct E2E commands verify them.
+All modes retain ownership, provenance, evidence and cleanup checks. These
+aggregates also run the other established suites; use the commands above for
+E2E-only execution.
 
 ## Maintain declarations
 
@@ -158,9 +220,9 @@ attachment/diagnostic review; E2E-032 covers authorized real delivery; E2E-033
 covers retry after a declared real transport fault. Delivery prerequisites are
 explicit authorization, a dedicated test recipient and the actual supported
 service profile. Inventory registration grants no delivery permission.
-About and feedback requirement-mapping gaps are explicit pending
-work with owners and authoritative contract references. They must be mapped
-before those cases become ready. No existing requirement is marked covered.
+About maps to `ONPC-CORE-ABOUT-001`. Feedback requirement-mapping gaps remain
+explicit pending work with owners and authoritative contract references; map
+them before those cases become ready.
 Task 20's [startup audit](../../docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md)
 maps clean installation to `ONPC-CORE-INSTALL-001` and startup gates to
 `ONPC-COMP-BROKER-010`. The retained `startup-enforcement` variant owns the
@@ -180,10 +242,13 @@ Provisioning belongs only in setup and the outer reset only in cleanup.
 Customer steps are UI actions, read-only observations or real waits. Fault and
 controlled-environment operations require the matching category and a declared
 intervention with actor, step and expected evidence. Every family declares
-visible, backend and other-user assertions tied to actual journey steps. The
-runner smoke instead checks host/source preservation without claiming a
-customer isolation test. These typed declarations are not a sandbox for test
-code: the launcher must enforce lifecycle, secret and observation boundaries.
+visible assertions tied to actual journey steps. Runner, fault and environment
+qualification also retains backend and other-user assertions. Customer families
+may declare an other-user assertion only for an observed customer surface; its
+evidence includes the corresponding screen. Pending legacy customer families
+may retain backend fields until their first consumer, but the inventory refuses
+to make such a family runnable. These typed declarations are not a sandbox for
+test code: the launcher must enforce lifecycle, secret and observation boundaries.
 
 ## Minimum evidence declaration, version 1
 
@@ -202,12 +267,15 @@ qualification and customer coverage remain their owning tasks' work.
 | Step `step_id`, `phase`, `operation`, `outcome`, `monotonic_seconds` | Actual execution order, declared operation and bounded measured timing. |
 | Step `boot_id`, `session_ids`, `assertion_ids`, `artifact_ids` | Real continuity, using safe identity aliases in exported evidence, and links to executed assertions and collected evidence. |
 
-Expected evidence always includes action trace, screen, backend, other-user,
-continuity, input provenance, split outcomes and cleanup. Declared faults also
-require intervention evidence, and external-delivery scenarios require delivery
-evidence. Missing, extra, duplicate, skipped, failed or stale required results,
-unsafe artifacts and failed cleanup prevent a runtime pass. Task 27 extends
-this minimum contract and connects evidence across all layers.
+Expected evidence always includes action trace, screen, continuity, input
+provenance, split outcomes and cleanup. Backend and other-user evidence is
+required exactly when that assertion kind is declared; runnable customer
+families cannot declare backend evidence, and customer other-user assertions
+also require screen evidence. Declared faults require intervention evidence,
+and external-delivery scenarios require delivery evidence. Missing, extra,
+duplicate, skipped, failed or stale required results, unsafe artifacts and
+failed cleanup prevent a runtime pass. Task 27 extends this minimum contract
+and connects evidence across all layers.
 
 ## Runtime gate and private collector
 
@@ -492,7 +560,7 @@ later preflight must establish a settled input set before another Task 20 attemp
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
 VM provenance or customer behavior. E2E-034 supplies separate live public
-controller proof; 156 customer/fault variants remain pending.
+controller proof; 155 customer/fault variants remain pending.
 
 ## Verify edits
 
@@ -1455,10 +1523,12 @@ at a match rectangle can reduce even an identical region's score. Only reviewed
 fixture pixels are retained in these assets; unrelated identities and clocks
 remain outside them. Other roles/surfaces still require reviewed needles and
 live positive/negative qualification before input. No coordinate fallback exists.
-The sole additional fixed name, `onpc-gdm-parent-installed-account`, matches the
+The observation-only fixed name, `onpc-gdm-parent-installed-account`, matches the
 reviewed fixture label after installation/reboot. It has no click point and is
-used only for graphical return; arbitrary installed variants and password/click
-extensions refuse staging. Its retained-image checks are described below.
+used only for graphical return. The separately bounded installed account input
+tag is described in the Parent composition contract above; arbitrary installed
+variants and password extensions still refuse staging. The observation tag's
+retained-image checks are described below.
 
 ### GDM readiness and graphical return
 
@@ -1856,5 +1926,5 @@ lease is held, writes the diagnostic report, verifies its private copies and
 rechecks provenance before release. A `finalization-rejected` event is terminal,
 including after an earlier candidate pass. The final `result.json` also accounts
 for release/connection errors. These reports have diagnostic qualification scope,
-no scenario ID, no inventory override and no customer assertions. The 156 customer/fault variants remain pending. E2E-001 is the canonical
+no scenario ID, no inventory override and no customer assertions. The 155 customer/fault variants remain pending. E2E-001 is the canonical
 public scenario recorder and terminal invocation smoke, superseding E2E-034.

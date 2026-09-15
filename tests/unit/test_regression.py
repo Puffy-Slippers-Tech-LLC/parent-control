@@ -894,9 +894,9 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                 if category == 'system':
                     output(b'expected-executions: 2\n')
                 else:
-                    output(json.dumps(dict(cases=[dict(case_id='E2E-999/future', status='ready'),
-                                                  dict(case_id='E2E-998/wait', status='pending')],
-                                           pending_cases=['E2E-998/wait'])).encode() + b'\n')
+                    assert '--ready' in command
+                    output(json.dumps(dict(cases=[dict(case_id='E2E-999/future', status='ready')],
+                                           excluded_pending_cases=['E2E-998/wait'])).encode() + b'\n')
             elif '--collect-only' in command:
                 event('collection', total=2, **({'nodeids': ui_ids} if category == 'ui' else
                                                {'nodeids': safety_ids} if safety else {}))

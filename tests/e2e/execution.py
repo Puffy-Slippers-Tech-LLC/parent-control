@@ -110,13 +110,15 @@ class ScenarioContext:
         self.worker = None
         self._worker_started = False
 
-    def run_worker(self, *, observe, validate, authenticate=False, serial=False, timeout=600):
+    def run_worker(self, *, observe, validate, authenticate=False, serial=False, timeout=600,
+                   guarded_observe=None):
         require(not self._worker_started, 'execution:worker-already-attempted')
         self._worker_started = True
         self.worker = self.recorder.run_worker(
             self.verified, self.directory, self.lease, self.lease.ledger,
             observe=observe, validate=validate, timeout=timeout,
-            credentials=self.credentials if authenticate else None, serial=serial)
+            credentials=self.credentials if authenticate else None, serial=serial,
+            **({'guarded_observe': guarded_observe} if guarded_observe is not None else {}))
         return copy.deepcopy(self.worker)
 
 
@@ -178,12 +180,18 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                 'source_sha256': source_check['source_sha256'],
                 'inventory_sha256': plan['inventory_sha256'], 'case': case}
             input_directory = directory / 'input'
-            input_directory.mkdir(mode=0o700)
-            with (input_directory / 'selected-inputs.json').open('xb') as stream:
-                os.fchmod(stream.fileno(), 0o600)
-                stream.write(system.baseline.encode(bootstrap_inputs))
-                stream.flush()
-                os.fsync(stream.fileno())
+            installed_consumer = (case['category'] == 'customer-journey'
+                                  and 'installed-digest-verified-product' in case['preconditions'])
+            if installed_consumer:
+                from installed_setup import stage
+                stage(directory, staged, bootstrap_inputs)
+            else:
+                input_directory.mkdir(mode=0o700)
+                with (input_directory / 'selected-inputs.json').open('xb') as stream:
+                    os.fchmod(stream.fileno(), 0o600)
+                    stream.write(system.baseline.encode(bootstrap_inputs))
+                    stream.flush()
+                    os.fsync(stream.fileno())
             print('e2e:bootstrap-inputs-staged', file=sys.stderr, flush=True)
             host_before = system.host_fingerprint(commands)
             source, guestfs = open_source()
@@ -196,7 +204,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                 with ledger.measure('preparation'):
                     lease.prepare()
                     host_key = system.bootstrap(commands, lease, directory, guestfs,
-                                                observation_only=True)
+                                                observation_only=not installed_consumer)
                     lease.guard(off=True)
                     lease.save('isolated')
                     verified = VerifiedInputs(lease=lease, assets=staged, root=root)
@@ -301,6 +309,8 @@ def main(plan):
     previous = signal.signal(signal.SIGTERM, interrupted)
     report = {'schema_version': 1, 'scope': plan['scope'], 'outcome': 'failed',
               'inventory_sha256': plan['inventory_sha256'],
+              'ready_only': plan.get('ready_only', False),
+              'excluded_pending_cases': plan.get('excluded_pending_cases', []),
               'expected_cases': [c['case_id'] for c in plan['cases']], 'attempts': []}
     collector = None
     try:

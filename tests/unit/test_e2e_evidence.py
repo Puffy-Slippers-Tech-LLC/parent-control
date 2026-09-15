@@ -128,6 +128,23 @@ def test_executed_assertions_require_identity_and_their_actual_step_evidence(att
         contract.validate([result], collector)
 
 
+def test_customer_other_user_assertion_requires_screen_evidence():
+    actual = [{'assertion_id': 'other-user-result', 'step_id': 'step-1',
+               'kind': 'other_user', 'outcome': 'passed',
+               'artifact_ids': ['other-user']}]
+    expected = {'other-user-result': ('other_user', 'step-1')}
+    artifacts = [{'artifact_id': 'other-user', 'kind': 'other-user'},
+                 {'artifact_id': 'screen', 'kind': 'screen'}]
+    with pytest.raises(EvidenceError, match='customer-other-user-screen'):
+        evidence.EvidenceContract._assertions(
+            actual, expected, {'other-user', 'screen'}, artifacts,
+            category='customer-journey')
+    actual[0]['artifact_ids'].append('screen')
+    evidence.EvidenceContract._assertions(
+        actual, expected, {'other-user', 'screen'}, artifacts,
+        category='customer-journey')
+
+
 @pytest.mark.parametrize('key', evidence.CLEANUP_FIELDS)
 def test_every_cleanup_guarantee_is_required(attempt, key):
     contract, collector, result, _, _ = attempt

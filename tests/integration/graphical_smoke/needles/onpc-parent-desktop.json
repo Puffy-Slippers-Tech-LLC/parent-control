@@ -1,0 +1,23 @@
+{
+  "tags": [
+    "onpc-parent-desktop"
+  ],
+  "area": [
+    {
+      "xpos": 6,
+      "ypos": 43,
+      "width": 40,
+      "height": 47,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 5,
+      "ypos": 716,
+      "width": 42,
+      "height": 42,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

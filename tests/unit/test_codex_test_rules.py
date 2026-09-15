@@ -1,5 +1,6 @@
 """Routine commands stay approved; scoped restrictions dominate saved allows."""
 import ast
+from functools import cache
 from pathlib import Path
 import runpy
 import shlex
@@ -27,8 +28,8 @@ SETUP_SEARCH = [
 ]
 
 
-def entries(name='codex-tests.rules'):
-    tree = ast.parse((ROOT / 'config' / name).read_text())
+def parse_entries(source):
+    tree = ast.parse(source)
     result = []
     for statement in tree.body:
         assert isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
@@ -37,39 +38,49 @@ def entries(name='codex-tests.rules'):
     return result
 
 
+@cache
+def entries(name='codex-tests.rules'):
+    if name == 'codex-tests.rules':
+        installer = runpy.run_path(str(ROOT / 'tools/install_codex_rules.py'))
+        return parse_entries(installer['render'](ROOT))
+    return parse_entries((ROOT / 'config' / name).read_text())
+
+
 def matches(pattern, argv):
     return len(argv) >= len(pattern) and all(value in token if isinstance(token, list)
                                             else value == token for token, value in zip(pattern, argv))
 
 
 @pytest.mark.parametrize('entrypoint', [
-    'tools/codex_slices.py', './tools/codex_slices.py', '@CHECKOUT@/tools/codex_slices.py',
+    'tools/codex_slices.py', './tools/codex_slices.py', str(ROOT / 'tools/codex_slices.py'),
 ])
-@pytest.mark.parametrize('action', ['--help', '-h', 'status'])
-def test_slice_inspection_has_only_allow_matches(entrypoint, action):
+@pytest.mark.parametrize('args', [
+    ['--help'], ['-h'], ['status'], ['start'], ['run', '--max-slices', '1'],
+    ['stop'], ['restart'], ['kill'], ['--max-slices=1', 'start'],
+    ['--reconciled', 'run'], ['--max-api-retries', '2', 'run'], [],
+    ['--command', 'invalid-options-remain-the-launchers-responsibility'],
+])
+def test_all_slice_commands_have_one_allow_and_no_conflicting_prompt(entrypoint, args):
     rules = [*entries('codex-read-only.rules'), *entries()]
-    assert {rule['decision'] for rule in rules
-            if matches(rule['pattern'], [entrypoint, action])} == {'allow'}
+    assert [rule['decision'] for rule in rules
+            if matches(rule['pattern'], [entrypoint, *args])] == ['allow']
 
 
 @pytest.mark.parametrize('command', [
     'python3 tools/codex_slices.py --help', 'python3 -',
     'python3 -c arbitrary', '/usr/bin/python3 tools/codex_slices.py status',
-    'tools/codex_slices.py start --max-slices 1', 'tools/codex_slices.py run',
-    './tools/codex_slices.py stop', 'tools/codex_slices.py --reconciled start',
 ])
-def test_inspection_allowance_does_not_cancel_interpreter_or_worker_prompts(command):
+def test_tool_allowance_does_not_cancel_general_interpreter_prompts(command):
     rules = [*entries('codex-read-only.rules'), *entries()]
     assert {rule['decision'] for rule in rules
             if matches(rule['pattern'], shlex.split(command))} == {'prompt'}
 
 
 @pytest.mark.parametrize('command', [
-    'tools/random.py --help', 'tools/codex_slices.py --max-slices=1 start',
-    'tools/codex_slices.py --command arbitrary', 'tools/codex_slices.py',
+    'tools/random.py --help', '/tmp/tools/codex_slices.py run',
     'pkexec tools/codex_slices.py status', 'apply_patch arbitrary',
 ])
-def test_inspection_does_not_grant_other_programs_or_unrecognized_argument_forms(command):
+def test_tool_allowance_does_not_grant_other_programs_or_wrappers(command):
     rules = [*entries('codex-read-only.rules'), *entries()]
     assert not any(rule['decision'] == 'allow' and matches(rule['pattern'], shlex.split(command))
                    for rule in rules)
@@ -116,9 +127,7 @@ def test_renderer_requires_inspection_launcher_and_preserves_quoted_checkout_pat
     launcher.touch(mode=0o755)
     rendered = installer['render'](root)
     assert installer['render'](root) == rendered
-    rules = []
-    for statement in ast.parse(rendered).body:
-        rules.append({key.arg: ast.literal_eval(key.value) for key in statement.value.keywords})
+    rules = parse_entries(rendered)
     assert {rule['decision'] for rule in rules
             if matches(rule['pattern'], [str(launcher), '--help'])} == {'allow'}
 
@@ -144,13 +153,59 @@ def test_validated_routes_only_match_allow_rules(command):
 
 
 @pytest.mark.parametrize('command', [
-    'make publish', '/usr/bin/make publish', 'tools/publish.py', './tools/publish.py',
-    '@CHECKOUT@/tools/publish.py',
+    'make publish', '/usr/bin/make publish',
 ])
-def test_publication_is_not_granted_by_local_test_permissions(command):
+def test_project_tools_do_not_grant_unlisted_make_targets(command):
     rules = [*entries('codex-read-only.rules'), *entries()]
     assert 'allow' not in {rule['decision'] for rule in rules
                            if matches(rule['pattern'], shlex.split(command))}
+
+
+def test_every_executable_project_tool_is_allowed_in_all_direct_forms():
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    executables = [path for path in (ROOT / 'tools').rglob('*')
+                   if path.is_file() and path.stat().st_mode & 0o111]
+    assert ROOT / 'tools/codex_slices.py' in executables
+    assert ROOT / 'tools/publish.py' in executables
+    for path in executables:
+        relative = path.relative_to(ROOT).as_posix()
+        for executable in (relative, './' + relative, str(path)):
+            assert [rule['decision'] for rule in rules
+                    if matches(rule['pattern'], [executable, '--help'])] == ['allow']
+
+
+def test_new_executable_tools_are_discovered_on_refresh(tmp_path):
+    root = tmp_path / 'checkout with "quotes"'
+    (root / 'tools/nested').mkdir(parents=True)
+    installer = runpy.run_path(str(ROOT / 'tools/install_codex_rules.py'))
+    tool = root / 'tools/nested/new tool'
+    tool.touch(mode=0o755)
+    (root / 'tools/module.py').touch(mode=0o644)
+    paths = installer['project_tool_paths'](root)
+    assert paths == ['tools/nested/new tool', './tools/nested/new tool', str(tool)]
+    assert installer['project_tool_paths'](root) == paths
+    # Executable removal must remove its grant on the next refresh.
+    tool.chmod(0o644)
+    with pytest.raises(ValueError, match='no executable project tools'):
+        installer['project_tool_paths'](root)
+
+
+@pytest.mark.parametrize('target_kind', ['file', 'directory', 'tools-directory'])
+def test_tool_discovery_refuses_symlink_targets(tmp_path, target_kind):
+    root = tmp_path / 'checkout'
+    root.mkdir()
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (outside / 'executable').touch(mode=0o755)
+    if target_kind == 'tools-directory':
+        (root / 'tools').symlink_to(outside, target_is_directory=True)
+    else:
+        (root / 'tools').mkdir()
+        target = outside / 'executable' if target_kind == 'file' else outside
+        (root / 'tools/linked').symlink_to(target)
+    installer = runpy.run_path(str(ROOT / 'tools/install_codex_rules.py'))
+    with pytest.raises(ValueError, match='symlink|unsafe project tools directory'):
+        installer['project_tool_paths'](root)
 
 
 @pytest.mark.parametrize('command', [

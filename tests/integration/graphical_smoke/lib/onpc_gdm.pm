@@ -48,6 +48,28 @@ sub return_after_reboot {
     return _return_from_serial('onpc-gdm-parent-installed-account');
 }
 
+sub reattach_after_setup {
+    die "gdm:arguments\n" if @_;
+    die "gdm:console\n" unless testapi::current_console() eq 'sut';
+    # disable closes VNC but leaves the console activated. The documented
+    # reboot reset makes select_console activate it again and obtain fresh pixels.
+    testapi::reset_consoles();
+    testapi::select_console('sut');
+    testapi::assert_screen('onpc-gdm-parent-installed-account', 90)
+        or die "gdm:list-not-matched\n";
+}
+
+# Installed input has a separate reviewed tag; the observation-only tag stays
+# unable to authorize clicks. This acquisition route never submits a secret.
+sub inspect_installed_parent {
+    die "gdm:arguments\n" if @_;
+    die "gdm:console\n" unless testapi::current_console() eq 'sut';
+    testapi::assert_and_click('onpc-gdm-parent-installed-input-account', timeout => 30, mousehide => 1);
+    testapi::wait_still_screen(1, 10);
+    die "gdm:list-still-visible\n"
+        if testapi::check_screen('onpc-gdm-parent-installed-account', 1);
+}
+
 sub _return_from_serial {
     my ($tag) = @_;
     die "gdm:serial-console\n" unless testapi::current_console() eq 'onpc-serial';

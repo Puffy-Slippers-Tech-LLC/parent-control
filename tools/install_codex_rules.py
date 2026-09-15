@@ -50,6 +50,24 @@ def install_system_rules(root, destination=SYSTEM_RULES):
     print('codex-rules-install: installed machine-wide read rules')
 
 
+def project_tool_paths(root):
+    """Enumerate executable tools as literal argv tokens, without following links."""
+    directory = root / 'tools'
+    if directory.is_symlink() or not directory.is_dir():
+        raise ValueError('unsafe project tools directory')
+    paths = []
+    for path in sorted(directory.rglob('*')):
+        info = path.lstat()
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError('symlink in project tools path')
+        if stat.S_ISREG(info.st_mode) and info.st_mode & 0o111:
+            relative = path.relative_to(root).as_posix()
+            paths.extend((relative, './' + relative, str(path)))
+    if not paths:
+        raise ValueError('no executable project tools')
+    return paths
+
+
 def render(root):
     for name in ('run-unit-tests', 'run-ui-tests', 'run-tests', 'diagnose', 'test-vm',
                  'cleanup-screenshots', 'read-only', 'codex_slices.py'):
@@ -57,8 +75,14 @@ def render(root):
         if not path.is_file() or path.is_symlink() or not os.access(path, os.X_OK):
             raise ValueError('missing or nonexecutable launcher; restore checkout executable modes')
     source = (root / 'config/codex-tests.rules').read_text()
-    # Replace inside Starlark string literals; quoted spaces remain one argv token.
-    return source.replace('@CHECKOUT@', json.dumps(str(root))[1:-1])
+    placeholder = '"@PROJECT_TOOL_PATHS@"'
+    if source.count(placeholder) != 1:
+        raise ValueError('project tool paths placeholder must occur exactly once')
+    # JSON quoting produces literal Starlark tokens even for spaces and quotes.
+    paths = '[\n        ' + ',\n        '.join(
+        json.dumps(path) for path in project_tool_paths(root)) + '\n    ]'
+    return source.replace(placeholder, paths).replace(
+        '@CHECKOUT@', json.dumps(str(root))[1:-1])
 
 
 def main():

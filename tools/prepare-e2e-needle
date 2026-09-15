@@ -1,0 +1,26 @@
+#!/usr/bin/python3 -IB
+"""Retain reviewed screen regions for the installed Parent customer journey."""
+
+import argparse
+import importlib.util
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('parent_needles', ROOT / 'tests/e2e/parent_needles.py')
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--source', type=Path, required=True)
+parser.add_argument('--tag', choices=module.TAGS, required=True)
+parser.add_argument('--area', action='append', required=True, help='reviewed x,y,width,height region')
+parser.add_argument('--click', action='store_true', help='click the center of the last matched region')
+parser.add_argument('--replace', action='store_true')
+args = parser.parse_args()
+try:
+    module.prepare(ROOT, args.source, args.tag, args.area, click=args.click, replace=args.replace)
+except (ValueError, OSError) as error:
+    print('prepare-e2e-needle: ' + str(error), file=sys.stderr)
+    sys.exit(2)
+print('prepare-e2e-needle: reviewed regions retained; live matching still required')

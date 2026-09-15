@@ -6,6 +6,20 @@ product inspection is outside customer E2E. This supersedes older backend
 corroboration requirements in pending declarations and historical handoffs.
 The [master plan](Test-Automation.md) prioritizes customer journeys.
 
+**Functional GUI acceptance — 2026-09-15:** E2E validates what customers can do,
+not how closely the screen resembles a reference image. Misalignment, sizing,
+color, font, resolution, scaling and noncritical layout defects pass when the
+customer can still use the feature and obtain its expected result. This overrides
+older perfect-match and rendering-qualification requirements for customer UI.
+Use the [shared functional validation contract](E2E-Building-Blocks.md#functional-validation)
+for every new or migrated case. A dropdown must open and select the intended
+child; a switch must change state and produce the expected child behavior. A
+successful click or changed switch alone does not establish policy enforcement.
+Fail a GUI defect when it prevents the interaction, makes required information
+unavailable, selects the wrong target or produces the wrong functional result.
+Dedicated rendering tests remain separate, as do credential-recipient safety
+checks; neither supplies customer feature coverage.
+
 ## Scope tests around the app
 
 Keep these kinds of work separate:
@@ -56,8 +70,9 @@ customer step safely, qualify it with that consumer, then return to the journey.
 ## Customer journeys must exercise the real machine
 
 - Use real installed Parent, child overlay, kiosk, GDM and desktop sessions.
-  Send keyboard/mouse input through the accepted graphical backend and inspect
-  displayed results. Customer command-line operations use the guest terminal.
+  Use public accessibility actions or keyboard/mouse input through the accepted
+  graphical backend and inspect the resulting public UI state. Customer
+  command-line operations use the guest terminal.
 - Passwords go into the real system prompt through existing secret-safe input.
   Check rejected/cancelled requests through the response, preserved choices,
   continued access restriction and a subsequent real retry.

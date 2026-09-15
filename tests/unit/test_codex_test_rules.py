@@ -286,7 +286,7 @@ def test_routine_make_targets_are_allowed_without_saved_user_rules(executable, t
 @pytest.mark.parametrize('command', [
     'make', 'make arbitrary-target', 'make check-other',
     'make -f /tmp/Makefile check', 'make -C /tmp check',
-    'make installdeb', 'make uninstalldeb', 'make prepare-host', 'make prep-vm',
+    'make installdeb', 'make uninstalldeb', 'make prepare-host', 'make prepare-vm',
     'make check-system', 'pkexec make check', 'pkexec /usr/bin/make check',
     "bash -lc 'make check'", "/bin/bash -lc 'make check'",
     "bash -lc 'make check && arbitrary-command'", 'env make check',

@@ -5,6 +5,78 @@ Start with the [customer scope](E2E-Coverage.md) and the selected
 first complete customer example. Reuse its operations and acceptance machinery;
 keep each new scenario's actions and visible finish line explicit.
 
+## Functional validation
+
+Customer E2E passes on usable interactions and their results. It must tolerate
+misalignment, altered size, colors, fonts, spacing, resolution, scale and ugly
+but functional rendering. Do not compare screenshot appearance, widget geometry,
+whole-window layout, decoration, tile positions or pixel similarity for customer
+acceptance. Rendering regressions belong to separate UI tests.
+
+Use public AT-SPI names, roles, state and text to locate UI controls and observe
+results. Public accessibility actions and normal keyboard/mouse input operate
+the installed GUI. Require an unambiguous, showing, enabled target before input;
+then wait for the expected resulting state. Do not call product methods, set
+widget values directly, read saved policy or treat an action API's success as
+the functional result. A displayed setting may be read while disabled (for
+example, daily allowance when limits are off); only input requires enablement.
+Ordinary scrolling and keyboard navigation are valid
+ways to reach a control regardless of its position. Do not activate hidden
+controls to conceal a reachability failure.
+
+Examples:
+
+- Open the child picker, observe the intended choice, select it, and verify the
+  selected child and usable settings. A displaced popup is acceptable.
+- Toggle a time limit, verify its UI state and exercise the affected child's
+  normal login/session behavior. Reopen settings when persistence is required.
+  An illuminated switch alone cannot prove enforcement.
+- Open About, read product/version information, follow the license link to its
+  actual viewer, read the license, close it, reach the footer and return to the
+  same child and displayed settings. Font/color/layout changes do not matter.
+
+For required text, assert meaning-bearing content on a showing public UI node,
+not its line breaks, font or coordinates. Missing controls, failed expansion,
+wrong selection, inaccessible required information, ineffective settings,
+timeouts and crashes remain failures. Keep a failed journey failed; no fallback
+that silently skips an assertion or directly applies the requested setting.
+
+The shared [accessible UI adapter](../../tests/e2e/accessible_ui.py) uses bounded
+fresh lookups and public actions. [UiObservations](../../tests/e2e/ui_observations.py)
+runs it as the fixed fixture user only inside the guarded VM transport, accepts
+only registered operations, and returns sanitized semantic screen evidence.
+No raw accessibility trees, document bodies or account names enter reports.
+Use explicitly qualified interface methods when GI method names collide, such
+as `Atspi.Text.get_text(text, start, end)`, rather than the different
+`Accessible.get_text` accessor. Read-only lookups may retry stale objects within
+their deadline; never replay an action whose effect is uncertain.
+The [real GTK adapter checks](../../tests/ui/test_e2e_accessible_adapter.py)
+exercise selection, disabled-setting reads, About and footer access at 100%
+and 125% display scale. These are adapter qualification; the installed case
+still must pass its whole guarded journey.
+The APIs are documented by upstream [AT-SPI](https://gnome.pages.gitlab.gnome.org/at-spi2-core/libatspi/class.Accessible.html).
+Test-tool activation is `none` (next invocation); no product integration or
+saved-data migration is involved.
+
+In `JourneyPlan.screen_tags`, use `ui:<operation>` for functional observations.
+The controller performs the fixed public UI operation at that stage, records its
+fresh result durably, checks ownership and only then acknowledges the worker.
+Final reconciliation requires all ordered worker markers and matching controller
+results. Reusing an earlier result or merely returning zero cannot pass. `screen`
+evidence may describe the observed public accessibility surface; it does not
+require a screenshot or a pixel score. Private diagnostic images have no cosmetic
+pass/fail authority.
+
+Case **151 / E2E-030/parent** is the migration example. Its Parent, app-search,
+About and license stages use functional validation. Its existing GDM password
+recipient checks remain deliberately strict as a separate input-safety boundary.
+Do not lower those thresholds or type secrets into an uncertain recipient.
+Future authentication adaptation must prove intended identity, masked/focused
+field and wrong-recipient refusal through an equally strong public UI contract.
+Report an unsupported locator/recipient as an automation limitation, not a
+cosmetic product failure. Legacy cases retain their existing behavior until
+migrated; they are not templates for new pixel-based customer acceptance.
+
 ## Existing building blocks
 
 | Need | Implementation | Contract |
@@ -12,10 +84,11 @@ keep each new scenario's actions and visible finish line explicit.
 | Verified installed app | [installed_setup.py](../../tests/e2e/installed_setup.py): `stage`, `InstalledSetup.run` | Bind package/helper/selection bytes before bootstrap; install, reboot and verify once in setup. Failure is terminal. |
 | Controller rendezvous | [installed_journey.py](../../tests/e2e/installed_journey.py): `JourneyPlan`, `InstalledJourney` | Ordered requests, durable observation callback, fresh ownership guard, then atomic reply. Boot identity supplies harness continuity only. |
 | Recorder composition | [installed_journey.py](../../tests/e2e/installed_journey.py): `record_installed_journey` | Provision fixture credentials, enter declared phases, checkpoint observations and reconcile screenshots. Strict customer execution; existing recorder owns evidence and final acceptance. |
-| Fresh matched click | [onpc_pointer.pm](../../tests/integration/graphical_smoke/lib/onpc_pointer.pm): `click(tag, timeout)` | Match all regions perfectly; require an interior click point; map image coordinates to the public framebuffer dimensions. Missing/weak/unsupported input refuses. |
+| Functional control and result | [accessible_ui.py](../../tests/e2e/accessible_ui.py), [ui_observations.py](../../tests/e2e/ui_observations.py) | Find showing, enabled controls by role/name; activate through public UI actions; independently verify outcomes. No appearance thresholds. |
+| Legacy/security matched click | [onpc_pointer.pm](../../tests/integration/graphical_smoke/lib/onpc_pointer.pm): `click(tag, timeout)` | Retained for unmigrated consumers and credential qualification; not the customer acceptance template. |
 | Worker stage reporting | [onpc_journey.pm](../../tests/integration/graphical_smoke/lib/onpc_journey.pm): `seen`, `observe`, `finish` | Emit the named screen stage and wait for its acknowledgement. Keep automatic captures private and verify shutdown. |
 | Interrupted pre-start setup | [system_runner.py](../../tests/integration/system_runner.py): `recover_graphical_cleanup`, through `tools/run-tests integration check_graphical_recovery` | Restore a recorded `isolated` attempt only with a null instance ID, powered-off pinned guest, matching run tag, original disk identities, no host sharing and a full baseline proof under the exclusive lease. Reuse outer cleanup; never start the guest or replace the baseline. |
-| Parent entry and navigation | [onpc_parent.pm](../../tests/integration/graphical_smoke/lib/onpc_parent.pm): `login`, `launch_from_app_grid`, `select_existing_child` | Installed GDM recipient qualification, unchanged secret API, real app-grid launch and explicit fixture-child selection. |
+| Parent entry and navigation | [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm), [onpc_parent.pm](../../tests/integration/graphical_smoke/lib/onpc_parent.pm): `login(journey, 1)` | Qualified GDM entry followed by functional app search and child selection. Older `launch_from_app_grid`/`select_existing_child` helpers remain for unmigrated cases. |
 | Standard-user Parent access | [parent_access.py](../../tests/e2e/parent_access.py), [onpc_parent_access.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_access.pm) | `login_standard` qualifies the canonical `other-child` GDM recipient, then `open_app_grid` supplies the normal discovery route. Match the full product query, web-only suggestion and empty application results to establish the administrator-only launcher's unavailability. No product backend or other-user-state assertion is collected. |
 | Parent account fixtures | [account_fixture.py](../../tests/e2e/account_fixture.py), [e2e_dynamic_account.py](../../tests/integration/e2e_dynamic_account.py) | One fixed action creates a collision-free eligible account while Parent is open; another requires the guarded baseline's finite eligible set, preserves the package request station and makes that set ineligible before Parent launches. Fixture checks are setup evidence; only visible refresh/selection or the empty explanation supplies customer acceptance. |
 | Reviewed image preparation | [parent_needles.py](../../tests/e2e/parent_needles.py), via [prepare-e2e-needle](../../tools/prepare-e2e-needle) | Fixed registered nonsecret tags, inspected source pixels, reviewed regions, 16-pixel matcher context, bounded destinations. |
@@ -32,13 +105,19 @@ choose a customer's expected result or query internal product state.
    required fixtures and surfaces. Reuse accepted setup; installation mechanics
    do not become customer assertions. If a shared operation is missing, name the
    blocked action and implement only that operation with this consumer.
-2. Compose a worker module from the operations above. For Parent, start with
-   `login`, `launch_from_app_grid` and the appropriate visible child selection.
+2. Compose a worker module from the operations above. For Parent, follow case
+   151: `login(journey, 1)`, normal app-search keys, then functional checkpoints.
+   The picker-open checkpoint clicks its exposed toggle button. The next
+   reply supplies Home/Down navigation derived from the current public list
+   order. A checkpoint verifies the intended highlighted row; Enter selects it,
+   and a fresh
+   checkpoint verifies the closed picker and displayed child/settings.
    Add a fixed branch in [smoke.pm](../../tests/integration/graphical_smoke/tests/smoke.pm)
    for the new worker mode. Reuse the existing exchange channel and owned worker;
    do not create another VM runner or invoke private product APIs.
 3. Define a `JourneyPlan` in the Python scenario module. `screen_tags` maps
-   stage names to expected needles **in execution order**; `ready` and
+   stage names to `ui:<operation>` **in execution order** (legacy/security stages
+   may still name a needle); `ready` and
    `setup-detached` are prepended automatically. `prefix` must match the worker's
    `onpc_journey` prefix. `worker_mode` names the fixed ready-reply branch.
    `phases` maps every stage to a declared recorder step. `advance_after` opens
@@ -81,14 +160,18 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | Installed greeter differs from the baseline account list | Observation and input tags have different purposes. Keep installed and baseline pixels separate. Match the real wrong-role empty prompt negatively and Parent prompt positively before the unchanged secret API. Account selection alone proves no password recipient. |
 | GDM scrolls its account list during a standard-account click | `onpc_gdm::inspect_installed_standard` establishes the Parent prompt, returns to the list and navigates from Home through the fixed baseline's account order. Escape resets focus to the top. Match the standard fixture's focused outline before Enter, then its own empty password prompt before secret input. The optional parent-prompt callback provides wrong-role qualification. Never infer the recipient from a clicked position or the absence of a list needle. |
 | Parent search shows only an online suggestion for a standard user | The [launcher contract](../SystemDesign/Broker.md#accounts-and-roles) intentionally restricts app-grid discovery to administrators. Match the exact query, web-only suggestion and empty application-result area. Do not press Enter on the suggestion or invent a denial dialog. Executable denial belongs to the separate terminal variant. |
-| Keyboard assumptions select the wrong child or menu item | Match and click the explicit fixture row and About menu item. Launch Parent with Super-A, a confirmed app grid, the product name and Enter. An app-grid stage precedes launching the app. |
-| About footer stays hidden | After closing LICENSE, reassert About, focus its scroll area with Tab and use plain End. In this GTK ScrolledWindow, Ctrl-End scrolls horizontally. Preserve the positive footer match. |
+| Keyboard assumptions select the wrong child or menu item | Derive Home/Down navigation from the current public list order, verify the intended highlighted row, then press Enter. Verify the selected child independently. Launch Parent with Super-A, the product query, a functional search-result checkpoint and Enter. |
+| About footer starts below the viewport | Use public accessibility scrolling to bring the required content into view. Assert its text and showing state; do not require a fixed scroll distance, dialog size or pixel match. |
 | An acknowledged action has no durable evidence, or belongs to the wrong step | Store the observation and any required next-phase start before publishing the reply; guard ownership again after storage. An acknowledgement may immediately permit input. Storage or guard failure latches terminal failure. |
-| A stale match appears to prove returning to the same child | `matched_screens` consumes one fresh match per ordered stage marker and requires every region at 100%. Reassert the same child's displayed settings on return. Missing, reused, weak or reordered evidence refuses. Worker exit zero alone cannot pass. |
+| A stale observation appears to prove returning to the same child | Reconcile one fresh semantic result per ordered stage. Compare the returned child, switch state and allowance with the initial displayed settings. Missing, reused or reordered evidence refuses. Worker exit zero alone cannot pass. |
 | Fresh code runs against stale package/needle inputs | Finish all edits, including docs, before building. Use the generated artifact directory unchanged. Do not edit during a guarded attempt; provenance changes invalidate its result. |
 | VM is off but baseline acquisition reports `guard:source-changed` | Inspect the saved run phase and inactive configuration through the approved readers. An interrupted `isolated` setup can retain the test configuration. Use recorded graphical cleanup; do not edit the journal, recreate the baseline or treat powered-off status alone as restored state. |
 
 ## Add or repair a screen needle
+
+This section is for retained legacy/security consumers. For customer feature
+validation, migrate to the functional contract above instead of recording more
+image variants, loosening a similarity threshold or adding coordinate fallbacks.
 
 A needle is a reviewed PNG plus JSON regions used by the real image matcher.
 It must come from the installed surface being tested. Inspect the current

@@ -31,7 +31,7 @@ def local_preparation_source(monkeypatch):
 
 
 def xml(disk):
-    return f"""<domain type='kvm'><name>ubuntu26.04</name><uuid>{UUID}</uuid><devices>
+    return f"""<domain type='kvm'><name>{host.DOMAIN}</name><uuid>{UUID}</uuid><devices>
       <disk type='file' device='disk'><driver type='qcow2'/><source file='{disk}'/>
       <target dev='vda'/></disk>
       <disk type='file' device='cdrom'><target dev='sda'/><readonly/></disk>
@@ -112,7 +112,7 @@ class Images:
 @pytest.fixture
 def rig(tmp_path, monkeypatch):
     use_local_preparation_source(monkeypatch)
-    anchor, top = tmp_path / "ubuntu26.04.qcow2", tmp_path / "ubuntu26.04.overlay"
+    anchor, top = tmp_path / "guest.qcow2", tmp_path / "guest.overlay"
     anchor.write_bytes(b"base data")
     top.write_bytes(b"overlay data")
     source, commands = Source(top), Images(top, anchor)

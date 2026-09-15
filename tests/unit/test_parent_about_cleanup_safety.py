@@ -75,25 +75,37 @@ def test_installed_wrong_role_prompt_refuses_the_parent_secret_needle():
     assert not result['ok'], result
 
 
-@pytest.mark.parametrize('fault', ['missing-return', 'stale-return', 'wrong-child', 'weak-match'])
+@pytest.mark.parametrize('fault', ['missing-return', 'stale-return', 'wrong-child', 'weak-match',
+                                  'alternate', 'wrong-alternate', 'weak-alternate'])
 def test_terminal_evidence_refuses_missing_or_reused_return(tmp_path, monkeypatch, fault):
     details = []
+    observations = []
     for index, (stage, tag) in enumerate(parent_about.SCREEN_TAGS.items()):
-        details.extend([
-            {'needle': tag, 'result': 'ok', 'area': [{'result': 'ok', 'similarity': 100}],
-             'screenshot': f'smoke-{index}.png'},
-            {'title': 'parent-' + stage, 'result': 'ok'},
-        ])
+        if tag.startswith('ui:'):
+            observations.append({'stage': stage, 'ui': {'operation': tag[3:], 'outcome': 'passed'}})
+        else:
+            details.append({'needle': tag, 'result': 'ok', 'area': [{'result': 'ok', 'similarity': 100}],
+                            'screenshot': f'smoke-{index}.png'})
+        details.append({'title': 'parent-' + stage, 'result': 'ok'})
     if fault == 'missing-return':
-        details = details[:-2]
+        details.pop()
     elif fault == 'stale-return':
-        del details[-2]
+        observations.pop()
     elif fault == 'wrong-child':
-        details[-2]['needle'] = 'onpc-parent-about'
+        observations[-1]['ui']['operation'] = 'about'
+    elif fault == 'weak-match':
+        details[0]['area'][0]['similarity'] = 99
     else:
-        details[-2]['area'][0]['similarity'] = 99
+        details[0]['needle'] = ('onpc-gdm-parent-baseline-installed-account' if fault != 'wrong-alternate'
+                                else 'onpc-gdm-other-parent-baseline-installed-input-account')
+        if fault == 'weak-alternate':
+            details[0]['area'][0]['similarity'] = 99
     (tmp_path / 'testresults').mkdir()
     (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
     monkeypatch.setattr(installed_journey, 'screenshot', lambda *_: {'sha256': 'a'*64})
-    with pytest.raises(EvidenceError, match='parent:'):
-        parent_about.matched_screens(tmp_path)
+    if fault == 'alternate':
+        screens = parent_about.matched_screens(tmp_path, observations)
+        assert screens[0]['needle'] == 'onpc-gdm-parent-baseline-installed-account'
+    else:
+        with pytest.raises(EvidenceError, match='parent:'):
+            parent_about.matched_screens(tmp_path, observations)

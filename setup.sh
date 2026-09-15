@@ -16,7 +16,7 @@ Usage: ./setup.sh [MODE]
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --prepare-host        Prepare/reconcile the existing test VM baseline on the host
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
-  --prepare-vm          Prepare test accounts and reusable tools INSIDE the source VM
+  --prepare-vm          Prepare accounts and reusable tools INSIDE the configured VM
   --install-extension   Install the development extension for the current user
   -h, --help            Show this help
 
@@ -37,7 +37,9 @@ case "$mode" in
 esac
 
 cd -- "$script_dir"
-if [[ ! -f Makefile || ! -x child/preview ]]; then
+# Guest checkouts can live on noexec shared mounts. Check completeness without
+# requiring execution of a launcher that guest preparation does not use.
+if [[ ! -f Makefile || ! -f child/preview ]]; then
     echo 'setup: run from a complete repository checkout' >&2
     exit 1
 fi

@@ -9,7 +9,7 @@ use onpc_pointer ();
 # Installed account pixels and negative recipient qualification are shared by
 # Parent customers. An observation tag alone never authorizes password input.
 sub login {
-    my ($journey) = @_;
+    my ($journey, $functional) = @_;
     onpc_gdm::reattach_after_setup();
     $journey->seen('installed-greeter');
     die 'parent:list-is-password' if testapi::check_screen('onpc-gdm-parent-masked-password', 0);
@@ -24,7 +24,7 @@ sub login {
     $journey->seen('recipient-qualified');
     onpc_password::enter_password('parent', 'gdm');
     testapi::send_key('ret');
-    testapi::assert_screen('onpc-parent-desktop', 90);
+    testapi::assert_screen('onpc-parent-desktop', 90) unless $functional;
     $journey->seen('desktop');
 }
 

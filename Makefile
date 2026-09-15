@@ -100,7 +100,7 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	data/gnome-session/sessions/oh-no-parent-control.session data/wayland-sessions/oh-no-parent-control.desktop \
 	data/applications/com.puffyslippers.OhNoParentControl.desktop data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
 
-.PHONY: publish bump-version build installdeb uninstalldeb prep-vm check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: publish bump-version build installdeb uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -205,9 +205,9 @@ check-e2e:
 .PHONY: check-e2e
 
 # Guest-only preparation also goes through the master with explicit selection.
-.PHONY: prepare-vm prep-vm
-prepare-vm prep-vm:
-	@./setup.sh --prepare-vm
+.PHONY: prepare-vm
+prepare-vm:
+	@/bin/bash ./setup.sh --prepare-vm
 
 TEST_ENV = PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$${PYTHONPATH:-}
 PYTEST = $(TEST_ENV) $(PYTHON) -m pytest

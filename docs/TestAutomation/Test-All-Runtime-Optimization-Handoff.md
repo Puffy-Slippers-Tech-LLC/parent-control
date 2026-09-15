@@ -202,7 +202,7 @@ aggregate; earlier category results were not combined into that pass.
 
 ## Guest preparation implementation
 
-`make prepare-vm` and the retained `make prep-vm` alias delegate to
+`make prepare-vm` delegates to
 `setup.sh --prepare-vm`, inside the product-free guest. Preparation installs
 the single pinned inventory in `tests/integration/guest_test_dependencies.py`,
 including OpenSSH/pytest and OpenLDAP/SSSD tools. Repeats verify configured

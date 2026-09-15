@@ -24,7 +24,8 @@ Installed areas share real broker calls and snapshots through
 ## Environment and ownership
 
 Installed-system tests use the real package and operating-system services on
-the existing guarded `ubuntu26.04` VM. They do not install the product or change
+the existing VM selected in [config/test-vm.json](../../config/test-vm.json).
+They do not install the product or change
 accounts, PAM, Polkit, services or policy on the development host. An existing
 host product installation is preserved. Detailed identity, baseline and
 recovery requirements are in [Environment.md](Environment.md).

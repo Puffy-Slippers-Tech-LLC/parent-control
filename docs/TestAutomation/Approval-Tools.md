@@ -255,8 +255,9 @@ Collection/listing does not run cleanup or claim passing test coverage.
 ## The one test VM
 
 `tools/test-vm` has no domain, URI, disk, XML, snapshot-name or arbitrary-command
-argument. It uses `qemu:///system`, the name `ubuntu26.04`, and the UUID pinned
-from root-private finalized baseline provenance during setup. A missing baseline
+argument. It uses `qemu:///system`, the name in
+[config/test-vm.json](../../config/test-vm.json), and the UUID pinned
+from that name's root-private finalized baseline provenance during setup. A missing baseline
 disables this route until preparation and a tools refresh; it never selects a
 replacement by name alone.
 

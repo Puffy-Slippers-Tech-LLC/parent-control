@@ -62,6 +62,12 @@ def validate_marker(marker, expected, machine, domain, mounts):
         require(isinstance(marker.get(key), str) and re.fullmatch(r'[0-9a-f]{64}', marker[key]), 'marker-digest')
 
 
+def check_prepared_hostname(expected_digest, hostname):
+    require(sha(BASELINE) == expected_digest, 'preparation-digest')
+    prepared = json.loads(BASELINE.read_text())
+    require(hostname == prepared['guest']['hostname'], 'hostname')
+
+
 def guard():
     require(os.geteuid() == 0, 'root-required')
     info = MARKER.lstat()
@@ -74,12 +80,11 @@ def guard():
                     Path('/etc/machine-id').read_text().strip(),
                     Path('/sys/class/dmi/id/product_uuid').read_text().strip(), mounts)
     require(run(['systemd-detect-virt', '--vm']) in {'kvm', 'qemu'}, 'virtualization')
-    require(Path('/etc/hostname').read_text().strip() == 'ubuntu26.04', 'hostname')
+    check_prepared_hostname(marker['preparation_sha256'], Path('/etc/hostname').read_text().strip())
     release = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines()
                    if '=' in line)
     require(release.get('ID', '').strip('"') == 'ubuntu' and
             release.get('VERSION_ID', '').strip('"') == '26.04', 'release')
-    require(sha(BASELINE) == marker['preparation_sha256'], 'preparation-digest')
     package = PAYLOAD / 'package.deb'
     require(sha(package) == marker['package_sha256'], 'package-digest')
     inventory = json.loads((PAYLOAD / 'transfer-sha256.json').read_text())
@@ -268,6 +273,7 @@ def collect(marker, outcome):
     # Account names, home paths and host names are additional PII beyond secrets.
     import pwd
     identities = [(p.pw_name, p.pw_gecos, p.pw_dir) for p in pwd.getpwall() if p.pw_uid >= 1000]
+    hostname = Path('/etc/hostname').read_text().strip()
     for source in sorted((PAYLOAD / 'private' / 'redaction-identities').glob('*.json')):
         require(source.is_file() and not source.is_symlink(), 'redaction-identity-file')
         identity = json.loads(source.read_text())
@@ -281,7 +287,7 @@ def collect(marker, outcome):
             for value in (home, full, name):
                 if value and value != '/':
                     contents = contents.replace(value, '[Test user]')
-        return contents.replace('ubuntu26.04', '[Test VM]')
+        return contents.replace(hostname, '[Test VM]') if hostname else contents
 
     result = Commands().run(['journalctl', '--no-pager', '--utc', '-b', '-u', BROKER,
                              '-u', 'fapolicyd.service', '-u', 'accounts-daemon.service'],

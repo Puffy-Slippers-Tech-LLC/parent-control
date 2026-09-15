@@ -23,14 +23,17 @@ from typing import Callable, Sequence
 if __name__ == '__main__':
     sys.dont_write_bytecode = True
 
-CHECKOUT = Path("/Data/Code/PST/parent-control")
+CHECKOUT = Path(__file__).resolve().parents[2]
 if str(CHECKOUT) not in sys.path:
     sys.path.insert(0, str(CHECKOUT))
 
 from common.oh_no_parent_control_ui.test_identities import TEST_IDENTITIES
 import guest_test_dependencies as guest_tools
+import vm_config
+
+VM = vm_config.load(CHECKOUT / 'config/test-vm.json')
 MARKER = Path("/etc/oh-no-parent-control-test-baseline.json")
-HOSTNAME = "ubuntu26.04"
+HOSTNAME = VM.name
 UBUNTU_VERSION = "26.04"
 MARKER_PURPOSE = "oh-no-parent-control-test-baseline"
 MARKER_VERSION = 2
@@ -41,6 +44,8 @@ SCRIPT_FILES = (
     "tests/integration/prepare-vm",
     "tests/integration/prepare_vm.py",
     "tests/integration/guest_test_dependencies.py",
+    "tests/integration/vm_config.py",
+    "config/test-vm.json",
 )
 
 
@@ -55,6 +60,8 @@ REQUIRED_CHECKOUT_ENTRIES = (
     "tests/integration/prepare-vm",
     "tests/integration/prepare_vm.py",
     "tests/integration/guest_test_dependencies.py",
+    "tests/integration/vm_config.py",
+    "config/test-vm.json",
 )
 
 # Each installed-state category has its own fail-closed probes so a partial or
@@ -202,19 +209,19 @@ def preparation_digest(checkout: Path = CHECKOUT) -> str:
 
 
 def validate_checkout(cwd: Path, checkout: Path = CHECKOUT) -> None:
-    if cwd != checkout or cwd.resolve() != checkout:
-        raise PreparationError("guard:checkout", "run from the fixed source-VM checkout")
+    if cwd.resolve() != checkout or checkout != checkout.resolve():
+        raise PreparationError("guard:checkout", "run from this checkout root inside the configured VM")
     for relative in REQUIRED_CHECKOUT_ENTRIES:
         path = checkout / relative
         if relative == ".git":
-            valid = path.is_dir()
+            valid = path.is_dir() or path.is_file()
         else:
             valid = path.is_file()
         if not valid:
-            raise PreparationError("guard:checkout", "the fixed checkout is incomplete")
+            raise PreparationError("guard:checkout", "the preparation checkout is incomplete")
     expected_script = checkout / "tests/integration/prepare_vm.py"
     if Path(__file__).resolve() != expected_script:
-        raise PreparationError("guard:checkout", "the preparer is not the fixed checkout copy")
+        raise PreparationError("guard:checkout", "the preparer is not this checkout's copy")
 
 
 def find_residue(root: Path, runner: Runner, lookup_user: Callable[[str], object]) -> str | None:
@@ -523,9 +530,9 @@ def reconcile_accounts(
             raise PreparationError("verify:uid-collision", f"{identity.label} shares a UID with another account")
         seen_uids.add(uid)
         suppress_initial_setup(identity.username, runner=runner)
-        print(f"prep-vm: {identity.label} first-login welcome suppression verified", file=sys.stderr)
+        print(f"prepare-vm: {identity.label} first-login welcome suppression verified", file=sys.stderr)
         verified[identity.username] = {"uid": uid, "role": identity.role}
-        print(f"prep-vm: {identity.label} verified", file=sys.stderr)
+        print(f"prepare-vm: {identity.label} verified", file=sys.stderr)
     return verified
 
 
@@ -640,7 +647,7 @@ def prepare_test_dependencies(*, runner, root=Path('/')):
     except ValueError as error:
         if str(error) == 'guest-tools:ambiguous-package-status':
             raise PreparationError('guest-tools:package-status', 'package database is ambiguous') from error
-        print('prep-vm: [stage:dependencies] installing pinned guest test tools', file=sys.stderr)
+        print('prepare-vm: [stage:dependencies] installing pinned guest test tools', file=sys.stderr)
         runner.run(['debconf-set-selections'], input_text=
                    'slapd slapd/no_configuration boolean true\n')
         runner.run(['apt-get', '-o', 'APT::Update::Error-Mode=any', 'update'], timeout=600)
@@ -677,26 +684,26 @@ def prepare_test_dependencies(*, runner, root=Path('/')):
             or '.ssh/authorized_keys' not in settings.get('authorizedkeysfile', '').split()):
         raise PreparationError('guest-tools:ssh-configuration',
                                'OpenSSH must permit root public-key authentication using .ssh/authorized_keys')
-    print('prep-vm: [stage:dependencies] reusable test tools verified', file=sys.stderr)
+    print('prepare-vm: [stage:dependencies] reusable test tools verified', file=sys.stderr)
 
 
 def main() -> int:
     try:
-        print("prep-vm: [stage:guard] validating fixed source guest", file=sys.stderr)
+        print("prepare-vm: [stage:guard] validating configured source guest", file=sys.stderr)
         runner = Runner()
         guest = validate_environment(runner=runner)
         existing = preflight_accounts()
         digest = preparation_digest()
         prepare_test_dependencies(runner=runner)
-        print("prep-vm: [stage:hostname] setting test guest hostname to ubuntu26.04", file=sys.stderr)
+        print(f"prepare-vm: [stage:hostname] setting test guest hostname to {HOSTNAME}", file=sys.stderr)
         runner.run(["hostnamectl", "set-hostname", HOSTNAME])
         guest = dataclasses.replace(guest, hostname=HOSTNAME)
-        print("prep-vm: [stage:password] enter the shared test-account password once", file=sys.stderr)
+        print("prepare-vm: [stage:password] enter the shared test-account password once", file=sys.stderr)
         password = getpass.getpass("Shared test-account password: ")
-        print("prep-vm: [stage:accounts] reconciling four fixed test identities", file=sys.stderr)
+        print("prepare-vm: [stage:accounts] reconciling four fixed test identities", file=sys.stderr)
         accounts = reconcile_accounts(existing, password, runner=runner)
         password = ""
-        print("prep-vm: [stage:record] writing verified preparation record", file=sys.stderr)
+        print("prepare-vm: [stage:record] writing verified preparation record", file=sys.stderr)
         write_marker(MARKER, marker_document(guest, accounts, digest))
     except (PreparationError, subprocess.SubprocessError, KeyError, OSError) as error:
         if isinstance(error, PreparationError):
@@ -707,15 +714,15 @@ def main() -> int:
             detail = "[verify:account] a fixed test identity was unavailable"
         else:
             detail = "[io:failed] a required local operation failed"
-        print(f"prep-vm: {detail}", file=sys.stderr)
+        print(f"prepare-vm: {detail}", file=sys.stderr)
         return 1
     except (EOFError, KeyboardInterrupt):
-        print("prep-vm: [password:input] password entry was interrupted", file=sys.stderr)
+        print("prepare-vm: [password:input] password entry was interrupted", file=sys.stderr)
         return 1
     finally:
         if "password" in locals():
             password = ""
-    print("prep-vm: [outcome:success] product-free accounts and test tools are verified", file=sys.stderr)
+    print("prepare-vm: [outcome:success] product-free accounts and test tools are verified", file=sys.stderr)
     return 0
 
 

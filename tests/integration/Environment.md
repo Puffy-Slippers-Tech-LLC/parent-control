@@ -1,19 +1,55 @@
 # Test VM prerequisites and recovery
 
 This is an environment reference for maintenance or a replacement machine, not
-a daily test sequence. The existing VM baseline is already prepared. Ordinary
-tests validate and reuse it; they must not rerun account preparation, capture
+a daily test sequence. Prepare the configured VM before its first test run. Ordinary
+tests validate and reuse its accepted baseline; they must not rerun account preparation, capture
 another baseline, download a new image, or create a replacement domain.
 
-## Fixed resources
+## Shared VM configuration
+
+[config/test-vm.json](../../config/test-vm.json) is the single configuration for
+guest preparation, host capture, installed-system/E2E runners and VM maintenance.
+Set `name` to the existing libvirt domain name and `disk_anchor` to its absolute
+base QCOW2 image path. The configured name also becomes the guest's static
+hostname, so use a lowercase hostname (letters, digits, hyphens and dots, at most
+63 characters). The active image can be a backing-chain member; capture still
+verifies that the chain ends at the configured anchor. VM selection has no
+environment-variable or command-line override. The E2E inventory's `ubuntu26.04`
+environment label describes the supported OS, independently of the VM name.
+
+Use matching source and configuration in the host and guest checkouts; their
+filesystem locations may differ. From the checkout root **inside the product-free
+Ubuntu 26.04 VM**, run `./setup.sh --prepare-vm` (or `make prepare-vm`), then shut
+down the guest. On the host, run `./setup.sh --prepare-host`. Host preparation
+captures and verifies the configured domain and refreshes the installed helpers
+with its finalized UUID. All existing virtualization, product-residue, disk,
+snapshot, share-isolation and ownership checks still apply.
+
+For a guest checkout on a `noexec` shared mount, use `make prepare-vm` or
+`/bin/bash ./setup.sh --prepare-vm`. The Make target invokes Bash explicitly;
+direct execution of `./setup.sh` is blocked by that mount even with executable
+file permissions.
+
+Each VM name gets its own controller-state subdirectory. Existing unscoped
+baseline records and other VMs' directories remain intact; they are never
+silently adopted or retired when the configuration changes. A replaced VM with
+the same configured name still fails the recorded UUID/disk checks. All names
+share the existing controller lock in the state root. Finish tests and stop any
+maintenance attempt before changing the selected VM. Configuration
+and loader sources are included in the preparation digest, so changing them
+requires matching guest preparation before a new baseline can be accepted.
+This is development tooling: activation is the next invocation (installed UUID
+pinning is refreshed by host preparation); no product activation or data migration.
+
+## Resources
 
 | Resource | Contract |
 | --- | --- |
-| Libvirt connection and domain | `qemu:///system`, `ubuntu26.04` |
-| Host/guest preparation checkout | `/Data/Code/PST/parent-control` |
-| Disk-chain anchor | `/Data/virt-manager/ubuntu26.04.qcow2`; resolve and validate the actual active chain. |
+| Libvirt connection and domain | `qemu:///system`; `name` in the shared config, currently `oh-no-parent-control` |
+| Host/guest preparation checkout | The checkout containing the invoked `setup.sh`; guest preparation requires that checkout's root. Installed host helpers retain their checkout pin. |
+| Disk-chain anchor | `disk_anchor` in the shared config, currently `/Data/virt-manager/oh-no-parent-control.qcow2`; resolve and validate the actual active chain. |
 | Retained product-free baseline | Internal `onpc-baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_host.py](prepare_host.py). Previously captured baselines retain the name defined by `PREVIOUS_SNAPSHOT`; preparation and restoration validate their saved proof and preserve them. |
-| Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/` |
+| Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/<configured-name>/` |
 | Provenance and active attempt | Immutable finalized `phase.json`; separate mutable `system-run.json`. |
 | Guest preparation record | Root-owned mode-0600 `/etc/oh-no-parent-control-test-baseline.json` |
 
@@ -29,7 +65,7 @@ Host setup is orchestrated only by `setup.sh`; its scoped dependency module is
 [../ui/requirements.txt](../ui/requirements.txt). Missing tooling is a
 prerequisite failure, not permission for a test to install host packages.
 The shared [guest tool inventory](guest_test_dependencies.py) is installed by
-`make prepare-vm` (also `make prep-vm` or `./setup.sh --prepare-vm`) **inside the
+`make prepare-vm` (or `./setup.sh --prepare-vm`) **inside the
 source guest, before baseline capture**. The Make aliases only delegate to
 `setup.sh`. Dependencies are pinned OpenSSH server, pytest, OpenLDAP server/client
 and SSSD LDAP/NSS packages, including their package-manager-resolved dependencies.
@@ -77,7 +113,7 @@ For an explicitly requested replacement environment, consult the maintained
 `./setup.sh --prepare-host` is host-only baseline creation/reconciliation, followed
 by refreshing helpers with the finalized VM identity. Run ordinary `./setup.sh`
 on a replacement host first to install its dependencies and policies. The
-Makefile's `prepare-vm` (also `prep-vm`) and `prepare-host` targets only delegate to these modes.
+Makefile's `prepare-vm` and `prepare-host` targets only delegate to these modes.
 They remain tooling, not daily `test-*`
 targets, and are never called automatically to repair a missing accepted
 baseline. Guest preparation suppresses Ubuntu's optional welcome/opt-in wizard

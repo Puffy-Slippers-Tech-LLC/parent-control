@@ -1,200 +1,140 @@
-# Project boundaries and implementation
+# Unattended execution
 
-- **Customer E2E scope:** follow
-  [E2E-Coverage.md](docs/TestAutomation/E2E-Coverage.md). Operate and observe the
-  installed app as a real customer across all surfaces; no backend product
-  probes or internal fault injection in customer acceptance. Preserve completed
-  unit/component/system tests. Mechanical installation, upgrade, migration and
-  removal retain necessary internal checks in Tasks 18/20. Prioritize the
-  customer queue; deferred policy-acknowledgement design is not an E2E dependency.
-  Add infrastructure only for a named blocked consumer and measure progress by
-  complete scenarios and shrinking frozen remaining scope.
+- Run authorized work fully unattended through existing agent rules, approved
+  command prefixes and validated harnesses. Do not prompt for Codex or Polkit
+  approvals. Correct quoting/command-shape problems; if required grants or
+  prerequisites are missing, report the blocker without bypassing controls.
+- Reuse category-wide grants; never add duplicate/per-directory rules, broader
+  shell/interpreter/Git/Make/libvirt grants or prompts overriding global allows.
+  Prefixes do not validate trailing arguments or environments. Honor denials and
+  restrictive project/organization policy over older broad grants.
+- Direct execution of executable project `tools/` commands, including all
+  `tools/codex_slices.py` actions, is preapproved within authorized task scope.
+  Invoke launchers directly; this grants no generic wrappers or additional scope.
+- Use approved helpers outside the sandbox when sockets, Polkit or real ownership
+  metadata require it. Check execution context before reinstalling tools; never
+  disable ownership validation or use authentication fallbacks after denial.
 
-- **Client/portal ownership:** never edit the portal checkout (code, tests, docs
-  or configuration) or deploy it from a client session. Prior cross-repository
-  work and command approvals do not authorize this. Put needed API changes in
-  a client `docs/` handoff for a separate portal session: reason, current/requested
-  contract, request/response examples, compatibility/release dependencies and
-  acceptance checks. Report formatting, component names, metadata and attachment
-  preparation belong in the client; the portal supplies generic delivery.
-- For architecture, start at [System-Design.md](docs/System-Design.md).
-  Fix root causes reproducibly on a clean computer; unless specified otherwise,
-  treat this as a new app without existing installations. Use supported,
-  maintained public code/APIs, never legacy, private, internal or hacky substitutes.
-- Add useful detailed logging as needed; never log PII. Redacted labels such as
-  `[Child user]` are allowed. Preserve compatibility between the shared child
-  form and kiosk GUI.
-- Classify new system integrations under
-  [package update activation](docs/Publishing.md#package-update-activation).
-  Before incompatible saved-data readers/writers, ship the required
-  [migration](docs/SystemDesign/Data-Migration.md).
+# Project boundaries
+
+- Start at [System-Design.md](docs/System-Design.md). Fix root causes reproducibly
+  on clean computers; assume a new app unless specified otherwise. Use supported,
+  maintained public code/APIs, not legacy, private or hacky substitutes.
+  Preserve shared child-form/kiosk compatibility; add useful logging without PII
+  (redacted labels such as `[Child user]` are allowed).
+- Never edit or deploy the portal checkout from a client session, regardless of
+  prior work/approvals. Request API changes through a client `docs/` handoff:
+  reason, current/requested contracts, request/response examples, compatibility,
+  release dependencies and acceptance checks. Report formatting, component names,
+  metadata and attachments belong in the client; portal delivery stays generic.
+- Classify new integrations under [package update activation](docs/Publishing.md#package-update-activation).
+  Ship required [migrations](docs/SystemDesign/Data-Migration.md) before
+  incompatible saved-data readers/writers.
 - Follow the [model policy](docs/TestAutomation/Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff):
-  quality first, weekly allowance second; Sol high/Standard for settled
-  implementation, Astra for unresolved security, concurrency, ownership,
-  difficult diagnosis or broad correctness review. Reassess each slice; no
-  blanket Astra/high or max-effort default. Choices for authorized work need no
-  further settings approval; historical pins are execution records.
+  quality first, weekly allowance second. Reassess each slice: Sol high/Standard
+  for settled implementation; Astra for unresolved security, concurrency,
+  ownership, difficult diagnosis or broad correctness review. No blanket
+  Astra/high/max default or further settings approval; historical pins are records.
 
-# Reads, searches and approvals
+# Customer acceptance
 
-- Inspect every search path operand before execution. Quote every file/directory
-  operand to `tail`, `head`, `cat`, `sed`, `rg` and `tools/read-only`,
-  including absolute paths and filenames containing `~`. Submit reads/searches
-  directly with the tool's working directory and each full filename on one
-  command line; no explicit shell wrappers, substitutions, environment assignments
-  or redirections.
-- If **any** search path needs filename expansion (`*`, `?`, brackets), use
-  `tools/read-only search --path-glob 'path/prefix*' 'regex' 'literal/path'`.
-  Repeat the quoted `--path-glob` for each pattern. For discovery use
-  `tools/read-only files --path-glob 'path/prefix*'`; unmatched patterns refuse.
-  Never supply an unquoted wildcard to a search/helper or a quoted filename
-  pattern as an `rg` path.
-- Direct `rg -n` requires a quoted regex and quoted literal paths. Quoted
-  `--glob` filters are allowed (ripgrep expands them); anchor them to the
-  literal root. Regex metacharacters are allowed inside quoted regexes.
-  Apply this preflight to every search. See
-  [search examples](docs/TestAutomation/Approval-Tools.md#ripgrep-searches-without-shell-expansion).
-- If an ordinary read/search gets a general-shell approval reason, correct
-  quoting/command shape and retry the same operation under its existing allowance
-  first. Do not forward avoidable approval requests, refresh current rules or
-  add duplicate/broader reader/shell grants. Honor actual denials and remaining
-  sandbox restrictions.
-- Reuse approved prefixes for ordinary trusted reads; they do not validate trailing
-  arguments. Machine-wide `pwd`, `git status`, `rg -n`, `sed -n` rules cover
-  all working directories/repos/paths. They live in `config/codex-read-only.rules`,
-  installed by `./setup.sh --codex-rules-only` (also full/test-tools setup).
-  Never add per-directory duplicates, blanket Git/shell grants or project
-  `rg`/`sed` prompts that override global allows.
-- Logs/journals, public read-only web requests and internet research are always
-  authorized; this grants no writes. Use direct `curl -fsSL 'https://example.com/path'`
-  with a literal quoted URL and no uploads, custom requests or output files.
-  Preserve its global grant; no duplicate/wider rule or overriding project prompt.
-- For untrusted arguments or repeated escalated reads beyond the ordinary
-  `rg -n`/`sed -n`/`curl -fsSL` forms, use
-  `tools/read-only <search|files|slice|sort|unique|gzip|fetch> ...`, quoting paths,
-  patterns and URLs. Its fixed options forbid preprocessors, custom requests,
-  output paths and shell escapes. This supersedes broad saved sort/uniq/gzip/wget
-  grants when escalation is needed; ordinary sandboxed reads remain available.
-- Request minimum read-only sandbox escalation when needed, without separate
-  authorization. For troubleshooting, read
-  `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log`; escalate immediately
-  if sandbox-blocked. Never modify/delete logs. Prefer ordinary readers, otherwise
-  `tools/diagnose <operation> ...` for validated journal, systemd, inventory and
-  diagnostic-file reads. Quote unit patterns/dates. Never use raw privileged
-  systemctl/journalctl or broad utility grants; see
-  [Approval-Tools.md](docs/TestAutomation/Approval-Tools.md).
-- Avoid changing inline Python snippets and unnecessary wrappers. Recurring
-  privileged diagnostics need a proposed reusable, argument-validated entry point
-  with explained scope before persistent approval; never blanket privileged
-  shell/interpreter grants.
+- Follow [E2E coverage](docs/TestAutomation/E2E-Coverage.md): operate and observe
+  the installed app as a customer across all surfaces, without backend product
+  probes or internal fault injection. Preserve completed unit/component/system
+  tests; Tasks 18/20 retain mechanical install/upgrade/migration/removal checks.
+- Prioritize the customer queue; deferred policy-acknowledgement design is no
+  dependency. Add infrastructure only for a named blocked consumer. Measure
+  completed scenarios and shrinking frozen remaining scope.
+- [Functional GUI acceptance](docs/TestAutomation/E2E-Building-Blocks.md#functional-validation)
+  uses public accessibility names/roles/states and real UI actions to verify
+  customer results. Cosmetic defects, resolution/scale, screenshot similarity
+  and fixed geometry cannot gate acceptance; fail only when interaction or access
+  to required information is blocked.
 
-# Workspace documents and launcher inspection
+# Reads and edits
 
-- Use native `apply_patch` with explicit paths/context for authorized text edits.
-  Check local inline Markdown links with `tools/read-only links '<file.md>' ...`;
-  count words with `tools/read-only words [--after 'exact marker']
-  [--before 'exact marker'] '<file.md>'`. Never substitute inline Python,
-  heredocs or unrestricted shells; future command families need reviewed,
-  bounded entry points.
-- Invoke `tools/codex_slices.py --help` or `tools/codex_slices.py status`
-  directly. Its shebang isolates Python; maintained rules cover relative and
-  checkout-absolute commands. The user preapproves direct execution of all
-  executable tools under this project's `tools/`, including every slice-launcher
-  action. Use these grants for authorized work without another command-approval
-  question. Setup discovers new executables when refreshing rules; this does not
-  expand task scope or authorize generic shell/interpreter/privileged wrappers.
-- [Evidence retention](docs/TestAutomation/Implementation-Workflow.md#retain-useful-evidence-without-one-off-reports)
-  supersedes older per-attempt reporting rules. Report routine test/build
-  failures (including `make test-all`), fixes and verification in conversation/PR,
-  not new standalone investigation/attempt/verification reports anywhere.
-  Do not append one-time run reports, incident timelines, qualification
-  summaries or superseded implementation histories to existing design docs.
-  Revise the current contract in place; keep per-run history in runner artifacts.
-  Update owning docs for reusable behavior/regressions and existing active
-  handoffs only when continuation needs them. Preserve runner reports, logs,
-  artifacts and useful qualification evidence. New evidence documents require
-  an explicit request or concrete ongoing acceptance/recovery need unmet by
-  existing artifacts/handoff; a failed test or completed fix alone is insufficient.
+- Inspect search operands; quote all paths, regexes, patterns and URLs. Run reads
+  directly with the tool's working directory and full filenames on one command
+  line; no shell wrappers, substitutions, environment assignments or redirections.
+- `rg -n 'regex' 'literal/path'` accepts quoted `--glob` filters anchored to the
+  literal root. For any filename expansion use
+  `tools/read-only search --path-glob 'path/prefix*' 'regex' 'literal/path'`
+  or `tools/read-only files --path-glob 'path/prefix*'`; repeat the option for
+  multiple patterns. Never pass wildcard paths directly to `rg`.
+- Logs/journals and public read-only internet research are authorized, without
+  writes. Fetch with `curl -fsSL 'https://example.com/path'`; no uploads, custom
+  requests or output files. Correct command shape before escalating a read.
+- For untrusted arguments or repeated escalated reads beyond ordinary
+  `rg -n`/`sed -n`/`curl -fsSL`, use
+  `tools/read-only <search|files|slice|sort|unique|gzip|fetch>` instead of broad
+  saved utility grants. See [Approval-Tools.md](docs/TestAutomation/Approval-Tools.md).
+- Troubleshoot `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log` with
+  ordinary readers or `tools/diagnose`; never modify/delete logs or use raw
+  privileged systemctl/journalctl. Use minimum necessary read-only escalation
+  under existing grants. Recurring privileged diagnostics require reviewed,
+  reusable, argument-validated entry points, not inline Python or broad grants.
+- Edit text with native `apply_patch`. Validate Markdown with
+  `tools/read-only links '<file.md>'`; count with `tools/read-only words '<file.md>'`.
+  No inline Python, heredocs or unrestricted shells as substitutes.
+- Follow [evidence retention](docs/TestAutomation/Implementation-Workflow.md#retain-useful-evidence-without-one-off-reports):
+  report routine failures/fixes/verification in conversation or PR; keep run
+  history in runner artifacts. Preserve useful reports/logs/artifacts. Revise
+  current contracts and needed active handoffs, not incident histories in design
+  docs. New evidence documents require an explicit request or ongoing acceptance/
+  recovery need unmet by existing artifacts; a failure or fix alone is insufficient.
 
-# Test execution, artifacts and VM ownership
+# Tests, artifacts and VM ownership
 
-- Plain `make check`, `make build` and build/check targets in
-  `config/codex-tests.rules` are authorized in this trusted checkout. No blanket
-  Make prompt may override them. Prefix grants do not validate trailing arguments
-  or Make environments: use plain targets, validated launchers for options.
-  Keep generic shells, privileged Make and direct system-test/setup targets restricted.
-- Use [approved categories](docs/TestAutomation/Approval-Tools.md) and
-  `tools/run-tests --list`: `tools/run-unit-tests` for unit/property/contracts,
-  `tools/run-tests component` for private-D-Bus tests, fixed categories for
-  child Node/GJS, static, coverage, fixtures, artifacts and aggregates.
-  Privileged integration/system/E2E uses `tools/run-tests <category> ...` or
-  installed `onpc-test-runner`; planned routes refuse until implemented.
-  Never substitute generic pytest markers, Make arguments, shells or individually
-  approved Python. New integration checks are direct
-  `tests/integration/check_[a-z][a-z0-9_]*.py` files without CLI arguments,
-  with applicable cleanup-safety regressions.
-- Quote test patterns and parametrized IDs; category validators expand only
-  category-local patterns/options. Example:
-  `tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' 'tests/unit/test_graphical_lease.py' -q`.
-  Non-VM UI pytest must directly use
-  `tools/run-ui-tests --timeout <duration> [validated selections/options...]`,
-  which confines selection to `tests/ui` and controls environment/cleanup
-  prerequisites. No inline environment, wrapping shell, or general
-  shell/interpreter/Make/libvirt grants.
-- Signal only explicitly spawned, identity-recorded processes. Never infer
-  ownership from names, environment, runtime directories or host-wide `/proc`
-  scans. Before host-integrated tests that terminate processes, run their
-  cleanup-safety regressions in isolation and proceed only if they pass.
-- Prefer unprivileged artifact readers; privileged access uses
-  `pkexec /usr/local/libexec/onpc-test-artifacts <read|tail|list|stat|export> <absolute-path>`.
-  It covers all formats under documented test storage/log roots (see
-  [tests/README.md](tests/README.md)); place new privileged artifacts there.
-  Never substitute privileged head/cat/cp/interpreters that trigger Polkit dialogs.
-- Privileged graphical PNG exports must use
+- Plain `make build`, `make check` and targets in `config/codex-tests.rules` are
+  authorized. Use validated launchers for options; privileged Make and direct
+  system-test/setup targets remain restricted.
+- Discover categories with `tools/run-tests --list`. Use `tools/run-unit-tests`
+  for unit/property/contracts, `tools/run-tests component` for private D-Bus,
+  and fixed categories for other suites. Privileged integration/system/E2E uses
+  `tools/run-tests <category>` or installed `onpc-test-runner`; unimplemented
+  routes refuse. No generic pytest markers, Make arguments or Python substitutes.
+- Quote test patterns/parametrized IDs. Non-VM UI tests use
+  `tools/run-ui-tests --timeout <duration> [validated selections/options...]`.
+  New integration checks are argument-free
+  `tests/integration/check_[a-z][a-z0-9_]*.py` files with applicable cleanup tests.
+- Signal only explicitly spawned, identity-recorded processes; never infer
+  ownership from names, environments, runtime directories or host `/proc` scans.
+  Before host-integrated tests terminate processes, pass their cleanup-safety
+  regressions in isolation.
+- Prefer unprivileged artifact reads. Otherwise use
+  `pkexec /usr/local/libexec/onpc-test-artifacts <read|tail|list|stat|export> <absolute-path>`
+  within [documented storage/log roots](tests/README.md); store new privileged
+  artifacts there. Never substitute privileged readers/copy tools/interpreters.
+- Export graphical PNGs only through
   `pkexec /usr/local/libexec/onpc-export-screenshot /tmp/onpc-graphical-smoke-<run>/testresults/<image>.png /tmp/onpc-<name>.png`.
-  It validates sources and creates new caller-owned PNGs only. No privileged
-  install/cp/chown/ad hoc substitutes or grants; resolve validation failures.
-  Authorized temporary cleanup uses `tools/cleanup-screenshots /tmp/onpc-<name>.png ...`
-  with explicit filenames: only caller-owned regular `onpc-` PNGs directly in
-  `/tmp`, never logs or repeated rm approvals.
-- Authorized VM maintenance uses
-  `tools/test-vm <status|xml|start|stop|reboot|reset|screenshot|send-key>`.
-  It takes no guest name/URI/path, requires the installed pinned UUID/shared
-  lease, and refuses concurrent/replaced guests. Never bypass ownership, use
-  broad virsh/virt-manager rules, operate another guest or create snapshots,
-  overlays or clones. Stop maintenance before system/E2E tests. Reset is an
-  outer maintenance boundary, never a customer-journey step.
-- Run approved helpers outside the sandbox through normal escalation when local
-  sockets, Polkit or real root-owned metadata are needed. Sandboxes can remap
-  ownership/deny D-Bus: check execution context before reinstalling tools and
-  never disable ownership validation.
+  Resolve validation failures. Clean authorized temporary screenshots with
+  `tools/cleanup-screenshots '/tmp/onpc-<name>.png' ...`: explicit caller-owned
+  regular PNGs directly in `/tmp`, never logs.
+- VM maintenance uses only
+  `tools/test-vm <status|xml|start|stop|reboot|reset|screenshot|send-key>` with its
+  pinned UUID/shared lease. No ownership bypass, other guests, snapshots, overlays
+  or clones. Stop maintenance before system/E2E tests; reset is never a customer
+  journey step.
 
-# Setup and rule maintenance
+# Setup and rules
 
-- `./setup.sh` is the sole public setup entry point for development machines
-  and VM hosts: dependencies, build prerequisites, test tools, graphical policies,
-  Codex rules and baseline preparation. Use its approved modes; never invoke
-  installer helpers with privileged Python or seek per-file grants.
-- Add setup changes to the appropriate mode. Keep specialist modules scoped;
-  no alternative documented entry points or duplicate orchestration. Makefile
-  setup aliases only delegate; builds/tests report missing prerequisites instead
-  of installing them. Modes must be idempotent/retryable, preserve unrelated
-  configuration and accepted baselines, and stop on failed prerequisites.
-  Add focused repeat/failure coverage for orchestration changes and update master
-  help/docs. `--prepare-host` requires explicit baseline authorization;
-  guest-only `--prepare-vm` must never run during ordinary host setup.
-- Refresh helpers (including artifact/screenshot helpers) and Polkit/Codex rules
-  with `./setup.sh --test-tools-only`. Rule-only/screenshot-cleanup rule refresh
-  uses `./setup.sh --codex-rules-only`. Restart Codex to load rules with this
-  checkout trusted; Polkit watches its rule directory. Reuse category-wide grants.
-- First install uses `./setup.sh --bootstrap-tools` and may require administrator
-  authentication; full setup bootstraps missing helpers before dependencies.
-  Repeated bootstrap reuses the installed grant. Repairing an existing denied
-  installation requires that mode from an administrator-authorized root session.
-- Routine modes, including dependencies, use installed `onpc-setup` with a fixed
-  operation, pinned trusted checkout, dedicated default-deny Polkit action and
-  noninteractive privilege check. Invoking-user Git/venv configuration stays
-  unprivileged. Never use generic `pkexec python3`, direct sudo, authentication
-  fallback after denial, or weakened policy. Approval trusts maintained checkout
-  tests/imports; filename patterns alone do not prove safety. Restrictive
-  project/organization rules override old broad grants.
+- `./setup.sh` is the sole public development/VM-host setup entry point. Keep
+  changes in appropriate modes and specialist modules scoped; Make aliases only
+  delegate. Builds/tests report missing prerequisites instead of installing them.
+- Modes must be idempotent/retryable, preserve unrelated configuration/accepted
+  baselines and stop on failed prerequisites. Cover orchestration repeat/failure
+  behavior and update master help/docs. `--prepare-host` needs explicit baseline
+  authorization; guest-only `--prepare-vm` never runs during ordinary host setup.
+- Refresh helpers and Polkit/Codex rules with `./setup.sh --test-tools-only`;
+  rules alone with `./setup.sh --codex-rules-only`. Global read rules live in
+  `config/codex-read-only.rules`. Codex needs a restart with this checkout trusted;
+  Polkit watches its rules directory. Do not refresh rules to fix command quoting.
+- First installation uses `./setup.sh --bootstrap-tools`; administrator setup is
+  a prerequisite to unattended work if no grant exists. Full setup bootstraps
+  missing helpers before dependencies; repeats reuse the grant. Denied-installation
+  repair requires that mode in an administrator-authorized root session.
+- Routine modes use installed `onpc-setup`: fixed operations, pinned trusted
+  checkout, default-deny Polkit action and noninteractive privilege checks.
+  Invoking-user Git/venv setup stays unprivileged. No direct sudo, generic
+  `pkexec python3`, privileged installer shortcuts or weakened policy. Grants
+  trust maintained checkout tests/imports, not filename patterns alone.

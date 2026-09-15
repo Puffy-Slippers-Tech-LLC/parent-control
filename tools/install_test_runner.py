@@ -13,6 +13,9 @@ import tempfile
 import uuid
 import xml.etree.ElementTree as ET
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/integration'))
+import vm_config
+
 
 def install_missing_dependencies():
     """Fill missing launcher prerequisites with no requested upgrades or removals."""
@@ -48,8 +51,10 @@ def validated_policy(root):
     return data
 
 
-def pinned_vm_uuid(directory=Path('/Data/virt-manager/oh-no-parent-control-baseline-state'), *, owner=0):
+def pinned_vm_uuid(directory=None, *, owner=0):
     """Pin only accepted root-private provenance; never silently select another VM."""
+    if directory is None:
+        directory = vm_config.load().baseline_directory
     path = directory / 'phase.json'
     if not directory.exists():
         return None

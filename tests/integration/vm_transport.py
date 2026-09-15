@@ -14,6 +14,7 @@ import threading
 import time
 
 from owned_commands import Commands, require, CommandError as Error
+import vm_config
 
 BOOT_SHA256_PROBE = '''import hashlib,pathlib,re
 value=pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
@@ -47,11 +48,13 @@ def ssh(config, *, attempts=1):
 def guard_host(config):
     import libvirt
     import xml.etree.ElementTree as ET
-    connection = libvirt.open('qemu:///system')
+    configured = vm_config.load()
+    connection = libvirt.open(vm_config.URI)
     try:
         domain = connection.lookupByUUIDString(config['domain_uuid'])
         root = ET.fromstring(domain.XMLDesc(0))
-        require(domain.ID() == config['domain_id'] and domain.name() == 'ubuntu26.04' and
+        require(connection.getURI() == vm_config.URI and
+                domain.ID() == config['domain_id'] and domain.name() == configured.name and
                 root.findtext('description') == 'onpc-system-run:' + config['run'] and
                 not root.findall('devices/filesystem') and not root.findall('devices/hostdev') and
                 not root.findall('devices/channel') and not root.findall('devices/redirdev'),

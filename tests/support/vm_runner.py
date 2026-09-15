@@ -50,7 +50,7 @@ def bootstrap_guest():
 
 
 def xml():
-    return f'''<domain type="kvm"><name>ubuntu26.04</name><uuid>{UUID}</uuid><devices>
+    return f'''<domain type="kvm"><name>{runner.baseline.DOMAIN}</name><uuid>{UUID}</uuid><devices>
       <disk type="file" device="disk"><driver type="qcow2"/><source file="/image"/><target dev="vda"/></disk>
       <filesystem type="mount"><driver type="virtiofs"/><source dir="/Data"/><target dir="Data"/></filesystem>
       <interface type="network"><source network="default"/></interface>

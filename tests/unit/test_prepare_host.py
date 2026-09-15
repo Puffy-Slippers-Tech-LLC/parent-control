@@ -229,7 +229,7 @@ def test_repeat_preserves_baseline_after_product_testing(rig, running):
 
 
 @pytest.mark.parametrize("change", [
-    lambda value: value.replace("ubuntu26.04</name>", "another</name>"),
+    lambda value: value.replace(f"{host.DOMAIN}</name>", "another</name>"),
     lambda value: value.replace(UUID, "00000000-0000-0000-0000-000000000000"),
     lambda value: value.replace("device='disk'", "device='lun'"),
     lambda value: value.replace("type='file' device='disk'", "type='block' device='disk'"),
@@ -259,7 +259,7 @@ def test_malformed_xml_refused():
                                   "backing-format", "external-data", "encrypted"])
 def test_source_refusals_precede_shutdown_and_file_creation(rig, kind):
     if kind == "anchor-typo":
-        rig.source.layout["disk"] = "/Data/virt-managewr/ubuntu26.04.qcow2"
+        rig.source.layout["disk"] = "/Data/virt-managewr/guest.qcow2"
     elif kind == "symlink":
         target = rig.top.with_suffix(".real")
         rig.top.rename(target)
@@ -408,9 +408,9 @@ def test_finalized_snapshot_reuse_detects_missing_or_changed_baseline(rig, kind)
 
 def guest_fixture():
     accounts = {item.username: {"uid": 1000 + i, "role": item.role} for i, item in enumerate(guest.IDENTITIES)}
-    marker = guest.marker_document(guest.GuestIdentity("ubuntu26.04", "a" * 32, "26.04", "kvm"),
+    marker = guest.marker_document(guest.GuestIdentity(guest.HOSTNAME, "a" * 32, "26.04", "kvm"),
                                    accounts, SCRIPT_DIGEST)
-    files = {str(guest.MARKER): host.encode(marker), "/etc/hostname": b"ubuntu26.04\n",
+    files = {str(guest.MARKER): host.encode(marker), "/etc/hostname": (guest.HOSTNAME + '\n').encode(),
              "/etc/machine-id": b"a" * 32, "/var/lib/dpkg/status": b"Package: bash\nStatus: install ok installed\n"}
     files['/var/lib/dpkg/status'] += ('\n' + '\n\n'.join(
         f'Package: {name}\nVersion: {version}\nStatus: install ok installed\n'
@@ -669,6 +669,7 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
 
 def test_capture_accepts_installed_product_on_host(monkeypatch):
     monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
+    monkeypatch.setattr(host, 'prepare_state_root', Mock())
     worker = Mock()
     monkeypatch.setattr(host.threading, "Thread", Mock(return_value=worker))
     monkeypatch.setattr(host.shutil, "which", lambda name: f"/usr/bin/{name}")
@@ -698,6 +699,7 @@ def test_absent_baseline_is_listed_without_error_lookup(rig):
 
 def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
     monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
+    monkeypatch.setattr(host, 'prepare_state_root', Mock())
     api = Mock()
     request = host.threading.Event()
     answered = host.threading.Event()

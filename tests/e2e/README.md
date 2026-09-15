@@ -1,5 +1,24 @@
 # E2E inventory and runner contract
 
+## Functional GUI acceptance
+
+Follow [functional validation](../../docs/TestAutomation/E2E-Building-Blocks.md#functional-validation)
+for all new and migrated customer cases. Cosmetic defects (including alignment,
+size, color, font, resolution and scale changes) pass while the customer can
+complete the action and obtain its expected result. Public accessibility
+names/roles/states, normal GUI actions and resulting behavior replace appearance
+matching. Fail blocked interactions, wrong targets/results and unavailable
+required information. Keep backend probes out of customer acceptance.
+
+Case 151 (`E2E-030/parent`) is the reference migration: functional app-search,
+picker, selected settings, About, license viewer, footer and unchanged return
+settings. `ui:` stages retain sanitized public accessibility observations as
+screen evidence; ordered worker markers alone cannot pass. Existing GDM
+recipient needles protect secret input separately. Historical pixel-based
+guidance below applies to unmigrated consumers and credential qualification,
+not new customer feature assertions. Do not repair cosmetic differences by
+continually adding new reference images.
+
 ## Customer scope and runtime transition — 2026-09-14
 
 The [current customer contract](../../docs/TestAutomation/E2E-Coverage.md)
@@ -36,6 +55,16 @@ Parent navigation, durable acknowledgements, phase timing and ordered screen
 reconciliation. Start there when adding a customer scenario or repairing one of
 these boundaries. The thin About worker is
 [onpc_parent_about.pm](../integration/graphical_smoke/lib/onpc_parent_about.pm).
+
+App-grid readiness matches the active Show Apps button and the grid's page
+navigation controls at 100%. It excludes app tiles, whose positions and rendered
+labels depend on the installed application set. Pixel regressions require all
+three controls, allow changed tile contents, and refuse desktop/login screens.
+The child dropdown retains both reviewed row renderings for the existing fixture
+child, including the two-child list. Its fixed `PARENT_RENDERINGS` alias keeps
+the canonical selection tag, exact matched click point and 100% threshold;
+another child's label must not match. Selecting a child still requires the
+subsequent visible account and allowance controls before the journey advances.
 
 A customer family's `installed-digest-verified-product` prerequisite selects
 verified package setup before its journey. Mechanical startup/fault assertions
@@ -1640,12 +1669,15 @@ at a match rectangle can reduce even an identical region's score. Only reviewed
 fixture pixels are retained in these assets; unrelated identities and clocks
 remain outside them. Other roles/surfaces still require reviewed needles and
 live positive/negative qualification before input. No coordinate fallback exists.
-The observation-only fixed name, `onpc-gdm-parent-installed-account`, matches the
-reviewed fixture label after installation/reboot. It has no click point and is
-used only for graphical return. The separately bounded installed account input
-tag is described in the Parent composition contract above; arbitrary installed
-variants and password extensions still refuse staging. The observation tag's
-retained-image checks are described below.
+The observation-only fixed tag, `onpc-gdm-parent-installed-account`, matches the
+reviewed fixture label after installation/reboot. Both retained GDM renderings
+can occur after setup; installation state does not uniquely determine label
+pixels. The fixed alternatives in `parent_needles.GDM_RENDERINGS` share their
+canonical observation or account-input tag. Observation alternatives have no
+click point; input alternatives retain the reviewed label, center click point
+and 100% threshold. Arbitrary aliases, roles, password extensions and altered
+alternative layouts refuse staging. Evidence retains the actual matched needle
+name and resolves only these fixed aliases when checking the expected stage.
 
 ### GDM readiness and graphical return
 
@@ -1660,16 +1692,14 @@ The serial helper calls `return_from_serial()` only after independently observed
 logout; it selects `sut` and requires a fresh account-list match before success.
 The successful installation path instead calls `return_after_reboot()` after
 changed boot and a fresh serial login prompt. This uses the separately reviewed
-`onpc-gdm-parent-installed-account` needle at 100%. The old label failed against
-the retained post-reboot image at 87.9%; the new label matches that same image
-at 100%. Only the canonical fixture label and a 16-pixel blur border enter the
-asset; other accounts and the clock are blacked out. The
-[pixel regressions](../unit/test_e2e_gdm_pixels.py) execute installed tinycv against
-bounded position changes, the other parent, the password prompt and the original
-rendering. The correction is locally verified against real failure pixels;
-a complete live return acknowledgement remains pending. The
-[unblock evidence](../../docs/TestAutomation/Evidence/20-Reboot-Unblock-20260909.md)
-retains the original failure and inspection scope.
+`onpc-gdm-parent-installed-account` tag at 100%. Its two reviewed renderings
+match the same fixture identity; comparing one rendering against the other
+alone scores about 87.9%. Only the canonical fixture label and a 16-pixel blur
+border enter each asset; other accounts and the clock are blacked out. The
+[pixel regressions](../unit/test_e2e_gdm_pixels.py) exercise installed tinycv
+against both renderings, bounded position changes, wrong identities, password
+screens and the observation/input click boundary. A passing image comparison
+does not replace complete live journey qualification.
 There is no fixed ten-second render delay or whole-screen stillness gate in
 this graphical/serial smoke path. The separate credential qualification retains
 its settling check at the other parent's negative-prompt boundary.

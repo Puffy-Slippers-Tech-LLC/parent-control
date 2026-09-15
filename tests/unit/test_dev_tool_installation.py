@@ -32,6 +32,18 @@ def test_pin_from_finalized_provenance_only(baseline):
     assert installer['pinned_vm_uuid'](baseline / 'missing') is None
 
 
+def test_default_pin_uses_configured_vm_state_and_never_legacy_record(baseline, monkeypatch):
+    import vm_config
+    monkeypatch.setattr(vm_config, 'STATE_ROOT', baseline)
+    monkeypatch.setattr(vm_config, 'load', lambda: vm_config.VMConfig('another-vm', Path('/disk')))
+    assert installer['pinned_vm_uuid'](owner=os.getuid()) is None
+    selected = baseline / 'another-vm'
+    selected.mkdir(mode=0o700)
+    (selected / 'phase.json').write_bytes((baseline / 'phase.json').read_bytes())
+    (selected / 'phase.json').chmod(0o600)
+    assert installer['pinned_vm_uuid'](owner=os.getuid()) == UUID
+
+
 @pytest.mark.parametrize('kind', ['file-mode', 'directory-mode', 'symlink', 'hardlink', 'uuid'])
 def test_unsafe_baseline_cannot_pin_vm(baseline, kind):
     path = baseline / 'phase.json'

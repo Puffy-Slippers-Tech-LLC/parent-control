@@ -1,6 +1,6 @@
 
 #!/usr/bin/python3
-"""Create a reusable internal baseline snapshot of the existing ubuntu26.04 VM.
+"""Create a reusable internal baseline snapshot of the configured test VM.
 
 Only main() selects real resources. Injectable adapters are for host-safe tests.
 The journal binds the named libvirt snapshot to the inspected guest. Repeated
@@ -35,10 +35,10 @@ if __name__ == '__main__':
 import prepare_vm as guest_contract
 
 
-URI = "qemu:///system"
-DOMAIN = "ubuntu26.04"
-ANCHOR = Path("/Data/virt-manager/ubuntu26.04.qcow2")
-BASELINES = Path("/Data/virt-manager/oh-no-parent-control-baseline-state")
+URI = guest_contract.vm_config.URI
+DOMAIN = guest_contract.VM.name
+ANCHOR = guest_contract.VM.disk_anchor
+BASELINES = guest_contract.VM.baseline_directory
 # Shared by snapshot creation, validation, VM runners and test fixtures.
 SNAPSHOT = "onpc-baseline"
 # Retained baselines keep their original internal QCOW2 snapshot identity.
@@ -408,6 +408,12 @@ class Capture:
         self.backing_verification = None
         self.verification_failure = None
 
+    @property
+    def lock_path(self):
+        root = guest_contract.vm_config.STATE_ROOT
+        directory = root if self.directory.parent == root else self.directory
+        return directory / '.lock'
+
     def begin_backing_verification(self, owner):
         from backing_verification import BackingVerification
         if self.verification_failure is not None:
@@ -596,9 +602,9 @@ class Capture:
         # Resolve the existing disk and chain before filesystem writes/shutdown.
         inventory, _off = self.inventory()
         self.directory_identity = self.prepare_private_directory()
-        fd = os.open(self.directory / ".lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
-            identity(self.directory / ".lock", private=True, mode=0o600)
+            identity(self.lock_path, private=True, mode=0o600)
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
@@ -740,6 +746,17 @@ class Capture:
         log("outcome:baseline-snapshot-created")
 
 
+def prepare_state_root(directory=guest_contract.vm_config.STATE_ROOT):
+    """Keep legacy provenance in place while adding per-VM state below it."""
+    canonical(directory.parent)
+    directory.mkdir(mode=0o700, exist_ok=True)
+    canonical(directory)
+    info = directory.stat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid() and
+            info.st_gid == os.getegid() and stat.S_IMODE(info.st_mode) == 0o700,
+            'guard:baseline-state-root')
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check-tools", action="store_true", help="check dependencies only; no VM connection or writes")
@@ -776,6 +793,7 @@ def main(argv=None):
                     return
         threading.Thread(target=dispatch_events, name="libvirt-events", daemon=True).start()
         source = LibvirtSource(modules["libvirt"])
+        prepare_state_root()
         capture = Capture(source, Commands(), lambda disk, sha: inspect_guest(modules["guestfs"], disk, sha))
         if args.replace_missing:
             capture.run(replace_missing=True)

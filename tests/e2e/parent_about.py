@@ -7,10 +7,12 @@ from installed_journey import (
 SCREEN_TAGS = {
     'installed-greeter': 'onpc-gdm-parent-installed-account',
     'recipient-qualified': 'onpc-gdm-parent-masked-password',
-    'desktop': 'onpc-parent-desktop', 'app-grid': 'onpc-parent-app-grid',
-    'parent-selected': 'onpc-parent-child-selected', 'about': 'onpc-parent-about',
-    'license': 'onpc-parent-license', 'about-returned': 'onpc-parent-about-legal',
-    'parent-returned': 'onpc-parent-child-selected',
+    'desktop': 'ui:desktop', 'app-grid': 'ui:app-grid',
+    'child-picker-opened': 'ui:child-picker-opened',
+    'child-choice-highlighted': 'ui:child-choice-highlighted',
+    'parent-selected': 'ui:parent-selected', 'about': 'ui:about',
+    'license': 'ui:license', 'about-returned': 'ui:about-returned',
+    'parent-returned': 'ui:parent-returned',
 }
 PLAN = JourneyPlan(
     prefix='parent', worker_mode='parent_about', review_mode='parent_review',
@@ -18,6 +20,8 @@ PLAN = JourneyPlan(
     phases={
         'ready': 'setup', 'setup-detached': 'setup', 'installed-greeter': 'start',
         'recipient-qualified': 'step-1', 'desktop': 'step-1', 'app-grid': 'step-1',
+        'child-picker-opened': 'step-1',
+        'child-choice-highlighted': 'step-1',
         'parent-selected': 'step-1', 'about': 'step-1', 'license': 'step-1',
         'about-returned': 'step-2', 'parent-returned': 'step-2',
     },
@@ -34,8 +38,8 @@ class ParentJourney(InstalledJourney):
         super().__init__(context, progress, PLAN, review=review)
 
 
-def matched_screens(directory):
-    return reconcile_screens(directory, PLAN)
+def matched_screens(directory, observations=()):
+    return reconcile_screens(directory, PLAN, observations)
 
 
 def execute(recorder, context):

@@ -42,7 +42,8 @@ Use [the workflow](Implementation-Workflow.md) for bounded work and progress.
 
 ## Current handoff — 2026-09-15
 
-**E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid and E2E-030/parent are complete.**
+**Accepted coverage includes E2E-003/existing-and-new, E2E-003/none,
+E2E-004/app-grid and E2E-030/parent; current shared requalification is blocked below.**
 Progress is **4 completed, 152 remaining of the frozen 156**, with no additions
 or transfers and **0 consecutive slices without a completed customer variant**.
 Task 21A remains unchecked for E2E-004/terminal and E2E-031.
@@ -68,7 +69,22 @@ passed every declared phase and all four outcome domains. Case evidence is
 `9db43a1776e96a1eebd3a324d629e60210d1500fabd45e18da61e60ff75dcc8d`;
 inventory is `16ed590ee9fd7be782625c741fddd94d7c147a5103482efde6017134e614c3d8`.
 E2E-003/existing-and-new remains `scenario-117ce953fa404067aef01072bbce5b6b`;
-E2E-030 remains `scenario-986d63c38497407a9d562696774c0d4d`.
+E2E-030's current passing attempt is `scenario-c2585a481eca4cf9b2b9021f502eaf42`,
+with all customer steps and cleanup passed; invocation evidence is
+`/tmp/onpc-e2e-evidence-wqwsmafn`, using source
+`fd5f6b37120cdcfdcb3408b6a86e5a28a964191f484e879d62715abf2e6d5072` and
+artifacts `/tmp/onpc-test-artifacts-ntq5uzt6`. Later handoff edits need fresh
+build inputs, but do not invalidate the demonstrated screen behavior.
+
+**Current shared blocker:** E2E-003/existing-and-new attempt
+`scenario-e7cc3a8d1bc04ff2a189e882d88ea2b2` reached Parent, where an Ubuntu
+update-notifier banner obscured the title required by the child-picker needle.
+See `/tmp/onpc-graphical-smoke-abfecf2s/testresults/smoke-37.png` and invocation
+`/tmp/onpc-e2e-evidence-lch8lg4y`. This is a graphical harness blocker, with
+cleanup passed and no demonstrated product failure. The invocation stopped
+before cases 4/5. Before requalification, add a bounded customer-UI dismissal
+of the observed notification, preserving the existing Parent recognition.
+Then run cases 3/4/5 and the shared About consumer; do not retry unchanged.
 
 Four failed acquisition runs remain retained and fully restored: the first
 exposed a missing declared step-2 transition (`/tmp/onpc-e2e-evidence-z2nkqg2x`);

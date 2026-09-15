@@ -13,8 +13,10 @@ from check_graphical_smoke import module_result, screenshot
 from installed_setup import InstalledSetup
 from observation_transport import ReadOnlyObservations
 from private_artifacts import require
+from parent_needles import semantic_tag
 import system_runner as system
 from vm_transport import Transport
+from ui_observations import UiObservations
 
 
 @dataclass(frozen=True)
@@ -38,8 +40,12 @@ class JourneyPlan:
         return ('ready', 'setup-detached', *self.screen_tags)
 
 
-def matched_screens(directory, plan):
-    """Require one fresh, perfect automatic match per ordered stage marker."""
+def matched_screens(directory, plan, observations=()):
+    """Reconcile ordered public UI results; legacy/security needles stay strict.
+
+    ui: operations use fresh, durable accessibility results, not image scores.
+    A worker marker alone, or a prior observation, cannot satisfy a stage.
+    """
     module_result(directory)
     details = json.loads((directory / 'testresults/result-smoke.json').read_bytes())['details']
     stages, screens = [], []
@@ -55,10 +61,19 @@ def matched_screens(directory, plan):
         if not title.startswith(marker):
             continue
         stage = title.removeprefix(marker)
-        require(stage in plan.screen_tags and stage not in stages and detail.get('result') == 'ok'
-                and last_match is not None and last_match[1]['needle'] == plan.screen_tags[stage],
+        require(stage in plan.screen_tags and stage not in stages and detail.get('result') == 'ok',
                 plan.prefix + ':screen-order')
         stages.append(stage)
+        tag = plan.screen_tags[stage]
+        if tag.startswith('ui:'):
+            matches = [item for item in observations if item['stage'] == stage]
+            require(len(matches) == 1 and matches[0].get('ui', {}).get('operation') == tag[3:]
+                    and matches[0]['ui'].get('outcome') == 'passed', plan.prefix + ':ui-evidence')
+            screens.append({'stage': stage, 'detail_index': index, 'ui': matches[0]['ui']})
+            last_match = None
+            continue
+        require(last_match is not None and semantic_tag(last_match[1]['needle']) == tag,
+                plan.prefix + ':screen-order')
         match_index, match = last_match
         screens.append({'stage': stage, 'needle': match['needle'], 'detail_index': match_index,
                         **screenshot(directory, match.get('screenshot'))})
@@ -81,6 +96,7 @@ class InstalledJourney:
         self.steps = []
         self.vm = None
         self.transport = None
+        self.ui = None
         self.boot = None
         self.failed = False
 
@@ -132,7 +148,14 @@ class InstalledJourney:
             require(self.boot is None or self.boot == current, plan.prefix + ':boot-changed')
             self.boot = current
             observed['boot_sha256'] = current
+            tag = plan.screen_tags[stage]
+            if tag.startswith('ui:'):
+                if self.ui is None:
+                    self.ui = UiObservations(self.transport)
+                observed['ui'] = self.ui.observe(tag[3:])
             reply = {'observed': stage}
+            if 'navigation' in observed.get('ui', {}):
+                reply['ui_keys'] = observed['ui']['navigation']
         if stage in plan.stage_actions:
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)
@@ -148,7 +171,7 @@ class InstalledJourney:
     def validate(self):
         require([s['stage'] for s in self.steps] == list(self.plan.stages),
                 self.plan.prefix + ':missing-stages')
-        return matched_screens(self.context.directory, self.plan)
+        return matched_screens(self.context.directory, self.plan, self.steps)
 
 
 def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=None):

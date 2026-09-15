@@ -1,0 +1,19 @@
+{
+  "tags": [
+    "onpc-parent-child-choice"
+  ],
+  "area": [
+    {
+      "xpos": 188,
+      "ypos": 272,
+      "width": 121,
+      "height": 36,
+      "type": "match",
+      "match": 100,
+      "click_point": {
+        "xpos": 60,
+        "ypos": 18
+      }
+    }
+  ]
+}

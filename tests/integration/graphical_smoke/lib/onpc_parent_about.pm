@@ -4,30 +4,35 @@ use warnings;
 use testapi ();
 use onpc_journey ();
 use onpc_parent ();
-use onpc_pointer ();
 
 sub run {
     my ($exchange, $review) = @_;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'parent', review => $review);
-    onpc_parent::login($journey);
-    onpc_parent::launch_from_app_grid($journey);
-    onpc_parent::select_existing_child($journey);
-    onpc_pointer::click('onpc-parent-menu', 30);
-    onpc_pointer::click('onpc-parent-about-item', 30);
-    $journey->observe('onpc-parent-about', 30);
+    # Password recipient checks stay in the qualified input helper. From the
+    # desktop onward the controller operates and observes public AT-SPI widgets.
+    # No app pixels, geometry, fonts, colors or screenshot similarity can fail it.
+    onpc_parent::login($journey, 1);
+    testapi::send_key('super-a');
+    testapi::type_string('Oh No! Parent Control');
+    $journey->seen('app-grid');
+    testapi::send_key('ret');
+    my $choice = $journey->seen('child-picker-opened');
+    my $keys = $choice->{ui_keys};
+    die 'parent:choice-navigation' unless ref($keys) eq 'ARRAY' && @$keys >= 1
+        && @$keys <= 32 && $keys->[0] eq 'home'
+        && !grep { $_ ne 'down' } @$keys[1 .. $#$keys];
+    testapi::send_key($_) for @$keys;
+    $journey->seen('child-choice-highlighted');
+    testapi::send_key('ret');
+    $journey->seen('parent-selected');
     $journey->seen('about');
-    onpc_pointer::click('onpc-parent-license-link', 30);
-    $journey->observe('onpc-parent-license', 60);
     $journey->seen('license');
     testapi::send_key('alt-f4');
-    testapi::assert_screen('onpc-parent-about', 30);
     testapi::send_key('tab');
     # GtkScrolledWindow binds End to vertical end; Ctrl-End is horizontal.
     testapi::send_key('end');
-    $journey->observe('onpc-parent-about-legal', 30);
     $journey->seen('about-returned');
     testapi::send_key('alt-f4');
-    $journey->observe('onpc-parent-child-selected', 30);
     $journey->seen('parent-returned');
     $journey->finish();
 }

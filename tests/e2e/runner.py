@@ -36,6 +36,7 @@ def preflight(argv, *, root=ROOT):
     parser.add_argument('--list', action='store_true')
     selectors = parser.add_mutually_exclusive_group()
     selectors.add_argument('--scenario', help='exact E2E-NNN family or E2E-NNN/variant')
+    selectors.add_argument('--id', type=int, help='exact numeric case ID in docs/Test-Coverage.md')
     selectors.add_argument('--ready', action='store_true', help='run all ready variants; report pending exclusions')
     parser.add_argument('--artifacts', type=Path)
     parser.add_argument('--skip-backing-verification', action='store_true')
@@ -47,7 +48,7 @@ def preflight(argv, *, root=ROOT):
     if args.qualify_transfer or args.qualify_install or args.qualify_install_refusal:
         if args.skip_backing_verification:
             raise ValueError('e2e:qualification-requires-backing-verification')
-        if args.list or args.scenario is not None or args.ready:
+        if args.list or args.scenario is not None or args.id is not None or args.ready:
             raise ValueError('e2e:qualification-cannot-select-scenarios')
         validate_artifact_path(args.artifacts)
         if not args.artifacts.is_dir():
@@ -61,6 +62,7 @@ def preflight(argv, *, root=ROOT):
     api = runpy.run_path(str(confined_file(root, 'tests/e2e/inventory.py')))
     document, digest = api['read_json'](confined_file(root, 'tests/e2e/scenarios.json'))
     plan = api['resolve_selection'](document, args.scenario, ready_only=args.ready,
+                                    coverage_id=args.id,
                                     require_runnable=not args.list, root=root)
     plan['inventory_sha256'] = digest
     plan['mode'] = 'list-only' if args.list else 'execution-preflight'

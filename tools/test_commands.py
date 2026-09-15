@@ -31,7 +31,7 @@ CATEGORIES = {
     'artifacts': 'build, verify PATH, compare FIRST SECOND; generated build output',
     'integration': 'installed dispatcher for check_* basenames; no script arguments',
     'system': 'guarded installed runner; --artifacts, --previous-artifacts, --area, --test, --list',
-    'e2e': 'graphical inventory --list; --ready or --scenario selects runnable cases with --artifacts',
+    'e2e': 'graphical inventory --list; --id NUMBER (docs/Test-Coverage.md), --ready or --scenario; execution requires --artifacts',
     'fast': 'reserved for the Task 28 make test-fast target',
     'all': 'all established regression suites without backing-file byte scans',
     'all-verify': 'all established regression suites with full backing-file verification',
@@ -103,7 +103,10 @@ def plan(root, category, argv):
         command = dispatcher['selection'](root, [category, *argv])
         if '--list' in argv and category != 'integration':
             return [command], False
-        return [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', category, *argv]], False
+        # Bind a numeric E2E ID to its exact canonical variant before elevation.
+        # Existing installed dispatchers already understand --scenario.
+        forwarded = command[3:] if category == 'e2e' else argv
+        return [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', category, *forwarded]], False
     if category in ('child-node', 'child-gjs'):
         defaults = [path.relative_to(root).as_posix() for path in sorted((root / 'tests/child').rglob('*'))
                     if (path.name.endswith(('.test.mjs', '.test.js')) if category == 'child-node'

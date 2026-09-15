@@ -59,7 +59,7 @@
         "rationale": "One canonical runner smoke covers stable positive/negative GDM matching, real serial command, boot continuity, credential/asset forwarding and final controller evidence. It supersedes E2E-034/serial-controller without dropping its assertions or duplicating ordinary execution. No customer coverage is claimed."
       },
       "variants": [
-        {"id": "gdm-observation", "owner": "19B", "parameters": {"transport": "gdm-observation"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/controller_qualification.py", "test_id": "gdm-observation"}}
+        {"coverage_id": 1, "id": "gdm-observation", "owner": "19B", "parameters": {"transport": "gdm-observation"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/controller_qualification.py", "test_id": "gdm-observation"}}
       ]
     },
     {
@@ -118,7 +118,7 @@
         "rationale": "One clean customer journey covers real installation, reboot notice, actual reboot and independent broker/login readiness. Startup failures and recovery are separate E2E-028 attempts; no fault is injected into this success journey. Task 20 audit: docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md."
       },
       "variants": [
-        {"id": "clean", "owner": "20", "parameters": {"installation": "clean"}, "status": "pending", "pending_reason": "Task 20 must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 2, "id": "clean", "owner": "20", "parameters": {"installation": "clean"}, "status": "pending", "pending_reason": "Task 20 must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -169,8 +169,8 @@
         "rationale": "Existing-and-new keeps Parent open while one supported eligible-account fixture is provisioned, then visibly selects both children. None separately covers the visible empty state. The owning task retains both stable IDs and audits remaining visible requirements before family acceptance."
       },
       "variants": [
-        {"id": "existing-and-new", "owner": "21A", "parameters": {"children": "existing-and-new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "none", "owner": "21A", "parameters": {"children": "none"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 3, "id": "existing-and-new", "owner": "21A", "parameters": {"children": "existing-and-new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 4, "id": "none", "owner": "21A", "parameters": {"children": "none"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -224,8 +224,8 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "app-grid", "owner": "21A", "parameters": {"launch": "app-grid"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "terminal", "owner": "21A", "parameters": {"launch": "terminal"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 5, "id": "app-grid", "owner": "21A", "parameters": {"launch": "app-grid"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 6, "id": "terminal", "owner": "21A", "parameters": {"launch": "terminal"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -284,12 +284,12 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "daily-only-new", "owner": "21B", "parameters": {"time": "daily-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "daily-only-retained", "owner": "21B", "parameters": {"time": "daily-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "grant-only-new", "owner": "21B", "parameters": {"time": "grant-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "grant-only-retained", "owner": "21B", "parameters": {"time": "grant-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "combined-new", "owner": "21B", "parameters": {"time": "combined", "session": "new"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "combined-retained", "owner": "21B", "parameters": {"time": "combined", "session": "retained"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 7, "id": "daily-only-new", "owner": "21B", "parameters": {"time": "daily-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 8, "id": "daily-only-retained", "owner": "21B", "parameters": {"time": "daily-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 9, "id": "grant-only-new", "owner": "21B", "parameters": {"time": "grant-only", "session": "new"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 10, "id": "grant-only-retained", "owner": "21B", "parameters": {"time": "grant-only", "session": "retained"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 11, "id": "combined-new", "owner": "21B", "parameters": {"time": "combined", "session": "new"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 12, "id": "combined-retained", "owner": "21B", "parameters": {"time": "combined", "session": "retained"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -347,10 +347,10 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "enabled-precise", "owner": "21B", "parameters": {"control": "enabled", "match": "precise"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "enabled-pattern", "owner": "21B", "parameters": {"control": "enabled", "match": "pattern"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "disabled-precise", "owner": "21B", "parameters": {"control": "disabled", "match": "precise"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "disabled-pattern", "owner": "21B", "parameters": {"control": "disabled", "match": "pattern"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 13, "id": "enabled-precise", "owner": "21B", "parameters": {"control": "enabled", "match": "precise"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 14, "id": "enabled-pattern", "owner": "21B", "parameters": {"control": "enabled", "match": "pattern"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 15, "id": "disabled-precise", "owner": "21B", "parameters": {"control": "disabled", "match": "precise"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 16, "id": "disabled-pattern", "owner": "21B", "parameters": {"control": "disabled", "match": "pattern"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -408,10 +408,10 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "zero-single", "owner": "21B", "parameters": {"daily": "zero", "sessions": "single"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "zero-multiple", "owner": "21B", "parameters": {"daily": "zero", "sessions": "multiple"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "remaining-single", "owner": "21B", "parameters": {"daily": "remaining", "sessions": "single"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "remaining-multiple", "owner": "21B", "parameters": {"daily": "remaining", "sessions": "multiple"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 17, "id": "zero-single", "owner": "21B", "parameters": {"daily": "zero", "sessions": "single"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 18, "id": "zero-multiple", "owner": "21B", "parameters": {"daily": "zero", "sessions": "multiple"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 19, "id": "remaining-single", "owner": "21B", "parameters": {"daily": "remaining", "sessions": "single"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 20, "id": "remaining-multiple", "owner": "21B", "parameters": {"daily": "remaining", "sessions": "multiple"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -466,8 +466,8 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "retained-unlock", "owner": "22A", "parameters": {"entry": "retained-unlock"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "fresh-login", "owner": "22A", "parameters": {"entry": "fresh-login"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 21, "id": "retained-unlock", "owner": "22A", "parameters": {"entry": "retained-unlock"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 22, "id": "fresh-login", "owner": "22A", "parameters": {"entry": "fresh-login"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -522,8 +522,8 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "excluded", "owner": "22A", "parameters": {"soft-apps": "excluded"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "included", "owner": "22A", "parameters": {"soft-apps": "included"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 23, "id": "excluded", "owner": "22A", "parameters": {"soft-apps": "excluded"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 24, "id": "included", "owner": "22A", "parameters": {"soft-apps": "included"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -578,8 +578,8 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "parent", "owner": "22A", "parameters": {"foreground": "parent"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "other-child", "owner": "22A", "parameters": {"foreground": "other-child"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 25, "id": "parent", "owner": "22A", "parameters": {"foreground": "parent"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 26, "id": "other-child", "owner": "22A", "parameters": {"foreground": "other-child"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -634,9 +634,9 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "daily-only", "owner": "22B", "parameters": {"time": "daily-only"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "grant-only", "owner": "22B", "parameters": {"time": "grant-only"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "combined", "owner": "22B", "parameters": {"time": "combined"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 27, "id": "daily-only", "owner": "22B", "parameters": {"time": "daily-only"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 28, "id": "grant-only", "owner": "22B", "parameters": {"time": "grant-only"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 29, "id": "combined", "owner": "22B", "parameters": {"time": "combined"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -694,10 +694,10 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "excluded-first", "owner": "23A", "parameters": {"soft-apps": "excluded", "approver": "first"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "excluded-second", "owner": "23A", "parameters": {"soft-apps": "excluded", "approver": "second"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "included-first", "owner": "23A", "parameters": {"soft-apps": "included", "approver": "first"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "included-second", "owner": "23A", "parameters": {"soft-apps": "included", "approver": "second"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 30, "id": "excluded-first", "owner": "23A", "parameters": {"soft-apps": "excluded", "approver": "first"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 31, "id": "excluded-second", "owner": "23A", "parameters": {"soft-apps": "excluded", "approver": "second"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 32, "id": "included-first", "owner": "23A", "parameters": {"soft-apps": "included", "approver": "first"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 33, "id": "included-second", "owner": "23A", "parameters": {"soft-apps": "included", "approver": "second"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -755,10 +755,10 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "child-overlay-wrong-password", "owner": "23A", "parameters": {"surface": "child-overlay", "outcome": "wrong-password"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "child-overlay-cancel", "owner": "23A", "parameters": {"surface": "child-overlay", "outcome": "cancel"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-wrong-password", "owner": "24B", "parameters": {"surface": "kiosk", "outcome": "wrong-password"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-cancel", "owner": "24B", "parameters": {"surface": "kiosk", "outcome": "cancel"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 34, "id": "child-overlay-wrong-password", "owner": "23A", "parameters": {"surface": "child-overlay", "outcome": "wrong-password"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 35, "id": "child-overlay-cancel", "owner": "23A", "parameters": {"surface": "child-overlay", "outcome": "cancel"}, "status": "pending", "pending_reason": "Task 23A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 36, "id": "kiosk-wrong-password", "owner": "24B", "parameters": {"surface": "kiosk", "outcome": "wrong-password"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 37, "id": "kiosk-cancel", "owner": "24B", "parameters": {"surface": "kiosk", "outcome": "cancel"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -816,12 +816,12 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "child-overlay-predefined", "owner": "23B", "parameters": {"surface": "child-overlay", "choice": "predefined"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "child-overlay-custom", "owner": "23B", "parameters": {"surface": "child-overlay", "choice": "custom"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "child-overlay-rest-of-day", "owner": "23B", "parameters": {"surface": "child-overlay", "choice": "rest-of-day"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-predefined", "owner": "24B", "parameters": {"surface": "kiosk", "choice": "predefined"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-custom", "owner": "24B", "parameters": {"surface": "kiosk", "choice": "custom"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-rest-of-day", "owner": "24B", "parameters": {"surface": "kiosk", "choice": "rest-of-day"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 38, "id": "child-overlay-predefined", "owner": "23B", "parameters": {"surface": "child-overlay", "choice": "predefined"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 39, "id": "child-overlay-custom", "owner": "23B", "parameters": {"surface": "child-overlay", "choice": "custom"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 40, "id": "child-overlay-rest-of-day", "owner": "23B", "parameters": {"surface": "child-overlay", "choice": "rest-of-day"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 41, "id": "kiosk-predefined", "owner": "24B", "parameters": {"surface": "kiosk", "choice": "predefined"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 42, "id": "kiosk-custom", "owner": "24B", "parameters": {"surface": "kiosk", "choice": "custom"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 43, "id": "kiosk-rest-of-day", "owner": "24B", "parameters": {"surface": "kiosk", "choice": "rest-of-day"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -878,12 +878,12 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "child-overlay-cancel", "owner": "23B", "parameters": {"surface": "child-overlay", "exit": "cancel"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "child-overlay-escape", "owner": "23B", "parameters": {"surface": "child-overlay", "exit": "escape"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "child-overlay-approved", "owner": "23B", "parameters": {"surface": "child-overlay", "exit": "approved"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-cancel", "owner": "24B", "parameters": {"surface": "kiosk", "exit": "cancel"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-escape", "owner": "24B", "parameters": {"surface": "kiosk", "exit": "escape"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-approved", "owner": "24B", "parameters": {"surface": "kiosk", "exit": "approved"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 44, "id": "child-overlay-cancel", "owner": "23B", "parameters": {"surface": "child-overlay", "exit": "cancel"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 45, "id": "child-overlay-escape", "owner": "23B", "parameters": {"surface": "child-overlay", "exit": "escape"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 46, "id": "child-overlay-approved", "owner": "23B", "parameters": {"surface": "child-overlay", "exit": "approved"}, "status": "pending", "pending_reason": "Task 23B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 47, "id": "kiosk-cancel", "owner": "24B", "parameters": {"surface": "kiosk", "exit": "cancel"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 48, "id": "kiosk-escape", "owner": "24B", "parameters": {"surface": "kiosk", "exit": "escape"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 49, "id": "kiosk-approved", "owner": "24B", "parameters": {"surface": "kiosk", "exit": "approved"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -938,9 +938,9 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "approved", "owner": "24A", "parameters": {"request": "approved"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "denied", "owner": "24A", "parameters": {"request": "denied"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "cancelled", "owner": "24A", "parameters": {"request": "cancelled"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 50, "id": "approved", "owner": "24A", "parameters": {"request": "approved"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 51, "id": "denied", "owner": "24A", "parameters": {"request": "denied"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 52, "id": "cancelled", "owner": "24A", "parameters": {"request": "cancelled"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -995,11 +995,11 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "multiple", "owner": "24B", "parameters": {"accounts": "multiple"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "no-child", "owner": "24B", "parameters": {"accounts": "no-child"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "no-parent", "owner": "24B", "parameters": {"accounts": "no-parent"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "ineligible-parent", "owner": "24B", "parameters": {"accounts": "ineligible-parent"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "disabled-child", "owner": "24B", "parameters": {"accounts": "disabled-child"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 53, "id": "multiple", "owner": "24B", "parameters": {"accounts": "multiple"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 54, "id": "no-child", "owner": "24B", "parameters": {"accounts": "no-child"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 55, "id": "no-parent", "owner": "24B", "parameters": {"accounts": "no-parent"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 56, "id": "ineligible-parent", "owner": "24B", "parameters": {"accounts": "ineligible-parent"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 57, "id": "disabled-child", "owner": "24B", "parameters": {"accounts": "disabled-child"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1057,10 +1057,10 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "overlay-to-kiosk-first", "owner": "24B", "parameters": {"direction": "overlay-to-kiosk", "child": "first"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "overlay-to-kiosk-second", "owner": "24B", "parameters": {"direction": "overlay-to-kiosk", "child": "second"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-to-overlay-first", "owner": "24B", "parameters": {"direction": "kiosk-to-overlay", "child": "first"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-to-overlay-second", "owner": "24B", "parameters": {"direction": "kiosk-to-overlay", "child": "second"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 58, "id": "overlay-to-kiosk-first", "owner": "24B", "parameters": {"direction": "overlay-to-kiosk", "child": "first"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 59, "id": "overlay-to-kiosk-second", "owner": "24B", "parameters": {"direction": "overlay-to-kiosk", "child": "second"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 60, "id": "kiosk-to-overlay-first", "owner": "24B", "parameters": {"direction": "kiosk-to-overlay", "child": "first"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 61, "id": "kiosk-to-overlay-second", "owner": "24B", "parameters": {"direction": "kiosk-to-overlay", "child": "second"}, "status": "pending", "pending_reason": "Task 24B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1119,54 +1119,54 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "native-grid-allowed-enabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-grid-allowed-disabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-grid-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-grid-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-grid-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-grid-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-desktop-allowed-enabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-desktop-allowed-disabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-desktop-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-desktop-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-desktop-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-desktop-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-file-manager-allowed-enabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-file-manager-allowed-disabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-file-manager-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-file-manager-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-file-manager-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-file-manager-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-command-allowed-enabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-command-allowed-disabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-command-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-command-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-command-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "native-command-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-grid-allowed-enabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-grid-allowed-disabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-grid-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-grid-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-grid-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-grid-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-command-allowed-enabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-command-allowed-disabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-command-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-command-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-command-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "snap-command-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-grid-allowed-enabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-grid-allowed-disabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-grid-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-grid-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-grid-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-grid-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-command-allowed-enabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-command-allowed-disabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-command-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-command-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-command-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "flatpak-command-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 62, "id": "native-grid-allowed-enabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 63, "id": "native-grid-allowed-disabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 64, "id": "native-grid-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 65, "id": "native-grid-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 66, "id": "native-grid-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 67, "id": "native-grid-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 68, "id": "native-desktop-allowed-enabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 69, "id": "native-desktop-allowed-disabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 70, "id": "native-desktop-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 71, "id": "native-desktop-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 72, "id": "native-desktop-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 73, "id": "native-desktop-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-desktop", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 74, "id": "native-file-manager-allowed-enabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 75, "id": "native-file-manager-allowed-disabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 76, "id": "native-file-manager-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 77, "id": "native-file-manager-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 78, "id": "native-file-manager-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 79, "id": "native-file-manager-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-file-manager", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 80, "id": "native-command-allowed-enabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 81, "id": "native-command-allowed-disabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 82, "id": "native-command-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 83, "id": "native-command-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 84, "id": "native-command-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 85, "id": "native-command-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "native-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 86, "id": "snap-grid-allowed-enabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 87, "id": "snap-grid-allowed-disabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 88, "id": "snap-grid-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 89, "id": "snap-grid-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 90, "id": "snap-grid-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 91, "id": "snap-grid-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 92, "id": "snap-command-allowed-enabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 93, "id": "snap-command-allowed-disabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 94, "id": "snap-command-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 95, "id": "snap-command-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 96, "id": "snap-command-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 97, "id": "snap-command-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "snap-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 98, "id": "flatpak-grid-allowed-enabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 99, "id": "flatpak-grid-allowed-disabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 100, "id": "flatpak-grid-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 101, "id": "flatpak-grid-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 102, "id": "flatpak-grid-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 103, "id": "flatpak-grid-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 104, "id": "flatpak-command-allowed-enabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 105, "id": "flatpak-command-allowed-disabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 106, "id": "flatpak-command-hard-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 107, "id": "flatpak-command-hard-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 108, "id": "flatpak-command-soft-blocked-enabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 109, "id": "flatpak-command-soft-blocked-disabled", "owner": "25A", "parameters": {"route": "flatpak-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1221,8 +1221,8 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "update", "owner": "25A", "parameters": {"change": "update"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "remove", "owner": "25A", "parameters": {"change": "remove"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 110, "id": "update", "owner": "25A", "parameters": {"change": "update"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 111, "id": "remove", "owner": "25A", "parameters": {"change": "remove"}, "status": "pending", "pending_reason": "Task 25A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1277,10 +1277,10 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "save", "owner": "25B", "parameters": {"transaction": "save"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "approve-without-soft", "owner": "25B", "parameters": {"transaction": "approve-without-soft"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "approve-with-soft", "owner": "25B", "parameters": {"transaction": "approve-with-soft"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "revoke", "owner": "25B", "parameters": {"transaction": "revoke"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 112, "id": "save", "owner": "25B", "parameters": {"transaction": "save"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 113, "id": "approve-without-soft", "owner": "25B", "parameters": {"transaction": "approve-without-soft"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 114, "id": "approve-with-soft", "owner": "25B", "parameters": {"transaction": "approve-with-soft"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 115, "id": "revoke", "owner": "25B", "parameters": {"transaction": "revoke"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1339,16 +1339,16 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "app-restart-active", "owner": "26B", "parameters": {"boundary": "app-restart", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "app-restart-expired", "owner": "26B", "parameters": {"boundary": "app-restart", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "sign-out-in-active", "owner": "26B", "parameters": {"boundary": "sign-out-in", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "sign-out-in-expired", "owner": "26B", "parameters": {"boundary": "sign-out-in", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "reboot-active", "owner": "26B", "parameters": {"boundary": "reboot", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "reboot-expired", "owner": "26B", "parameters": {"boundary": "reboot", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "idle-active", "owner": "26B", "parameters": {"boundary": "idle", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "idle-expired", "owner": "26B", "parameters": {"boundary": "idle", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "suspend-wake-active", "owner": "26B", "parameters": {"boundary": "suspend-wake", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "suspend-wake-expired", "owner": "26B", "parameters": {"boundary": "suspend-wake", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 116, "id": "app-restart-active", "owner": "26B", "parameters": {"boundary": "app-restart", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 117, "id": "app-restart-expired", "owner": "26B", "parameters": {"boundary": "app-restart", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 118, "id": "sign-out-in-active", "owner": "26B", "parameters": {"boundary": "sign-out-in", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 119, "id": "sign-out-in-expired", "owner": "26B", "parameters": {"boundary": "sign-out-in", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 120, "id": "reboot-active", "owner": "26B", "parameters": {"boundary": "reboot", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 121, "id": "reboot-expired", "owner": "26B", "parameters": {"boundary": "reboot", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 122, "id": "idle-active", "owner": "26B", "parameters": {"boundary": "idle", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 123, "id": "idle-expired", "owner": "26B", "parameters": {"boundary": "idle", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 124, "id": "suspend-wake-active", "owner": "26B", "parameters": {"boundary": "suspend-wake", "grant": "active"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 125, "id": "suspend-wake-expired", "owner": "26B", "parameters": {"boundary": "suspend-wake", "grant": "expired"}, "status": "pending", "pending_reason": "Task 26B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1406,8 +1406,8 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "windowed", "owner": "26C", "parameters": {"gameplay": "windowed"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
-        {"id": "fullscreen", "owner": "26C", "parameters": {"gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 126, "id": "windowed", "owner": "26C", "parameters": {"gameplay": "windowed"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 127, "id": "fullscreen", "owner": "26C", "parameters": {"gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1465,10 +1465,10 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "daily-dominant-windowed", "owner": "26C", "parameters": {"time": "daily-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
-        {"id": "daily-dominant-fullscreen", "owner": "26C", "parameters": {"time": "daily-dominant", "gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
-        {"id": "grant-dominant-windowed", "owner": "26C", "parameters": {"time": "grant-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
-        {"id": "grant-dominant-fullscreen", "owner": "26C", "parameters": {"time": "grant-dominant", "gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 128, "id": "daily-dominant-windowed", "owner": "26C", "parameters": {"time": "daily-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 129, "id": "daily-dominant-fullscreen", "owner": "26C", "parameters": {"time": "daily-dominant", "gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 130, "id": "grant-dominant-windowed", "owner": "26C", "parameters": {"time": "grant-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 131, "id": "grant-dominant-fullscreen", "owner": "26C", "parameters": {"time": "grant-dominant", "gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1526,10 +1526,10 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "excluded-new-login", "owner": "26C", "parameters": {"soft-apps": "excluded", "entry": "new-login"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
-        {"id": "excluded-retained-unlock", "owner": "26C", "parameters": {"soft-apps": "excluded", "entry": "retained-unlock"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
-        {"id": "included-new-login", "owner": "26C", "parameters": {"soft-apps": "included", "entry": "new-login"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
-        {"id": "included-retained-unlock", "owner": "26C", "parameters": {"soft-apps": "included", "entry": "retained-unlock"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 132, "id": "excluded-new-login", "owner": "26C", "parameters": {"soft-apps": "excluded", "entry": "new-login"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 133, "id": "excluded-retained-unlock", "owner": "26C", "parameters": {"soft-apps": "excluded", "entry": "retained-unlock"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 134, "id": "included-new-login", "owner": "26C", "parameters": {"soft-apps": "included", "entry": "new-login"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 135, "id": "included-retained-unlock", "owner": "26C", "parameters": {"soft-apps": "included", "entry": "retained-unlock"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1584,9 +1584,9 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "process", "owner": "18A", "parameters": {"activation": "process"}, "status": "pending", "pending_reason": "Task 18A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "session", "owner": "18A", "parameters": {"activation": "session"}, "status": "pending", "pending_reason": "Task 18A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "reboot", "owner": "18A", "parameters": {"activation": "reboot"}, "status": "pending", "pending_reason": "Task 18A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 136, "id": "process", "owner": "18A", "parameters": {"activation": "process"}, "status": "pending", "pending_reason": "Task 18A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 137, "id": "session", "owner": "18A", "parameters": {"activation": "session"}, "status": "pending", "pending_reason": "Task 18A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 138, "id": "reboot", "owner": "18A", "parameters": {"activation": "reboot"}, "status": "pending", "pending_reason": "Task 18A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1644,7 +1644,7 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "continuous", "owner": "18C", "parameters": {"lifecycle": "continuous"}, "status": "pending", "pending_reason": "Task 18C must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 139, "id": "continuous", "owner": "18C", "parameters": {"lifecycle": "continuous"}, "status": "pending", "pending_reason": "Task 18C must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1706,11 +1706,11 @@
         "rationale": "Retain startup-enforcement for the fapolicyd/GDM gate and add startup-broker for independent broker reconciliation failure. Inject one failed dependency per complete attempt so one blocked gate cannot mask the other; observe failure before real recovery. Other owners retain their variants. Task 20 audit: docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md."
       },
       "variants": [
-        {"id": "startup-enforcement", "owner": "20", "parameters": {"fault": "startup-enforcement"}, "status": "pending", "pending_reason": "Task 20 must implement a guarded fapolicyd readiness failure, prove managed GDM startup is denied, then recover in the same attempt.", "executable": null},
-        {"id": "startup-broker", "owner": "20", "parameters": {"fault": "startup-broker"}, "status": "pending", "pending_reason": "Task 20 must implement a guarded broker execution-policy reconciliation failure, prove its D-Bus object remains unpublished, then recover in the same attempt.", "executable": null},
-        {"id": "zero-time-exposure", "owner": "22A", "parameters": {"fault": "zero-time-exposure"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "usage-read", "owner": "22B", "parameters": {"fault": "usage-read"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "kiosk-auth-agent", "owner": "24A", "parameters": {"fault": "kiosk-auth-agent"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 140, "id": "startup-enforcement", "owner": "20", "parameters": {"fault": "startup-enforcement"}, "status": "pending", "pending_reason": "Task 20 must implement a guarded fapolicyd readiness failure, prove managed GDM startup is denied, then recover in the same attempt.", "executable": null},
+        {"coverage_id": 141, "id": "startup-broker", "owner": "20", "parameters": {"fault": "startup-broker"}, "status": "pending", "pending_reason": "Task 20 must implement a guarded broker execution-policy reconciliation failure, prove its D-Bus object remains unpublished, then recover in the same attempt.", "executable": null},
+        {"coverage_id": 142, "id": "zero-time-exposure", "owner": "22A", "parameters": {"fault": "zero-time-exposure"}, "status": "pending", "pending_reason": "Task 22A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 143, "id": "usage-read", "owner": "22B", "parameters": {"fault": "usage-read"}, "status": "pending", "pending_reason": "Task 22B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 144, "id": "kiosk-auth-agent", "owner": "24A", "parameters": {"fault": "kiosk-auth-agent"}, "status": "pending", "pending_reason": "Task 24A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1770,12 +1770,12 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "failed-save", "owner": "21B", "parameters": {"fault": "failed-save"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
-        {"id": "stale-identity", "owner": "26A", "parameters": {"fault": "stale-identity"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "disconnect", "owner": "26A", "parameters": {"fault": "disconnect"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "concurrent-transaction", "owner": "26A", "parameters": {"fault": "concurrent-transaction"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "policy-reload", "owner": "26A", "parameters": {"fault": "policy-reload"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "partial-termination", "owner": "25B", "parameters": {"fault": "partial-termination"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 145, "id": "failed-save", "owner": "21B", "parameters": {"fault": "failed-save"}, "status": "pending", "pending_reason": "Task 21B must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 146, "id": "stale-identity", "owner": "26A", "parameters": {"fault": "stale-identity"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 147, "id": "disconnect", "owner": "26A", "parameters": {"fault": "disconnect"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 148, "id": "concurrent-transaction", "owner": "26A", "parameters": {"fault": "concurrent-transaction"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 149, "id": "policy-reload", "owner": "26A", "parameters": {"fault": "policy-reload"}, "status": "pending", "pending_reason": "Task 26A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 150, "id": "partial-termination", "owner": "25B", "parameters": {"fault": "partial-termination"}, "status": "pending", "pending_reason": "Task 25B must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1825,7 +1825,7 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "parent", "owner": "21A", "parameters": {"surface": "parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_about.py", "test_id": "parent"}}
+        {"coverage_id": 151, "id": "parent", "owner": "21A", "parameters": {"surface": "parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_about.py", "test_id": "parent"}}
       ]
     },
     {
@@ -1879,10 +1879,10 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "draft-reopen", "owner": "21A", "parameters": {"flow": "draft-reopen"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "validation", "owner": "21A", "parameters": {"flow": "validation"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "attachments", "owner": "21A", "parameters": {"flow": "attachments"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"id": "diagnostic-export", "owner": "21A", "parameters": {"flow": "diagnostic-export"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 152, "id": "draft-reopen", "owner": "21A", "parameters": {"flow": "draft-reopen"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 153, "id": "validation", "owner": "21A", "parameters": {"flow": "validation"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 154, "id": "attachments", "owner": "21A", "parameters": {"flow": "attachments"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 155, "id": "diagnostic-export", "owner": "21A", "parameters": {"flow": "diagnostic-export"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1936,7 +1936,7 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "success", "owner": "26C", "parameters": {"delivery": "success"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 156, "id": "success", "owner": "26C", "parameters": {"delivery": "success"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
       ]
     },
     {
@@ -1996,7 +1996,7 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "retry", "owner": "26C", "parameters": {"delivery": "retry"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 157, "id": "retry", "owner": "26C", "parameters": {"delivery": "retry"}, "status": "pending", "pending_reason": "Task 26C must implement this complete journey and its assertions.", "executable": null}
       ]
     }
   ]

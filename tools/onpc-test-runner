@@ -76,6 +76,7 @@ def selection(root, argv):
     e2e.add_argument('--artifacts', type=Path)
     selectors = e2e.add_mutually_exclusive_group()
     selectors.add_argument('--scenario')
+    selectors.add_argument('--id', type=int, help='exact numeric case ID in docs/Test-Coverage.md')
     selectors.add_argument('--ready', action='store_true')
     e2e.add_argument('--list', action='store_true')
     e2e.add_argument('--skip-backing-verification', action='store_true')
@@ -118,11 +119,16 @@ def selection(root, argv):
             options.append('--qualify-install-refusal')
         if args.scenario is not None:
             options.append('--scenario=' + args.scenario)
+        if args.id is not None:
+            options.append('--id=' + str(args.id))
         if args.artifacts is not None:
             options.append('--artifacts=' + str(args.artifacts))
         # Validate inventory before either caller privilege checks or isolated
         # safety tests. The installed dispatcher repeats this checkout preflight.
-        runpy.run_path(str(target))['preflight'](options, root=root)
+        plan = runpy.run_path(str(target))['preflight'](options, root=root)
+        if args.id is not None:
+            options.remove('--id=' + str(args.id))
+            options.append('--scenario=' + plan['selector'])
         return ['/usr/bin/python3', '-B', str(target), *options]
     else:
         target = confined_file(root, 'tests/integration/system_runner.py')

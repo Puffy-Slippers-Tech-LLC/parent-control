@@ -83,6 +83,7 @@ CONTENT_MAX_WIDTH = 1046
 DEFAULT_WINDOW_WIDTH = CONTENT_MAX_WIDTH + 2 * 24
 TIME_STATUS_RETRY_DELAY_SECONDS = 1
 MAX_TIME_STATUS_RETRIES = 3
+ACCOUNT_REFRESH_SECONDS = 5
 CUSTOM_DAILY_LIMIT_SAVE_DELAY_MS = 350
 # Building every app row on the GTK thread in one burst freezes the window.
 # Yield between small batches so the App Limits tab can switch immediately
@@ -167,6 +168,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self.set_size_request(820, -1)
         self._client = client_factory()
         self._users = []
+        self._users_loaded_once = False
+        self._users_loading = False
         self._preferences = None
         self._rows = []
         self._loading = False
@@ -194,6 +197,9 @@ class ParentWindow(Adw.ApplicationWindow):
         self._build()
         self._time_status_refresh_id = GLib.timeout_add_seconds(
             30, self._refresh_time_status,
+        )
+        self._account_refresh_id = GLib.timeout_add_seconds(
+            ACCOUNT_REFRESH_SECONDS, self._refresh_users,
         )
         self.connect("close-request", self._close_requested)
         LOG.info("parent.002", app_count=len(self._rows))
@@ -1106,21 +1112,36 @@ class ParentWindow(Adw.ApplicationWindow):
         threading.Thread(target=worker, daemon=True).start()
 
     def _load_users(self):
+        if self._users_loading:
+            return GLib.SOURCE_REMOVE
+        self._users_loading = True
         LOG.info("parent.005")
         self._run(self._client.list_users, self._users_loaded, self._users_failed)
         return GLib.SOURCE_REMOVE
 
     def _users_failed(self, error):
         """Fail closed before exposing a parent-management surface."""
+        self._users_loading = False
         LOG.warning("parent.006", error_type=error_code(error))
         self.get_content().set_sensitive(False)
         self._show_error(error, "The Parent App could not load. Please try again later.",
                          on_close=self.get_application().quit)
 
     def _users_loaded(self, users):
-        self._users = [parse_listed_user(user) for user in users]
+        loaded = [parse_listed_user(user) for user in users]
+        self._users_loading = False
+        if self._users_loaded_once and loaded == self._users:
+            return
+        previous_uid = self._selected_uid()
+        self._users_loaded_once = True
+        self._users = loaded
         LOG.info("parent.007", count=len(self._users))
-        if self._users:
+        selected = next((index for index, user in enumerate(self._users)
+                         if user[0] == previous_uid), 0)
+        selection_changed = previous_uid is None or not any(
+            user[0] == previous_uid for user in self._users
+        )
+        if self._users and selection_changed:
             # Kick off the selected child's catalog before the account picker
             # model is rebuilt so App Limits work does not wait on UI setup.
             self._ensure_apps_load(self._users[0][0])
@@ -1130,15 +1151,16 @@ class ParentWindow(Adw.ApplicationWindow):
                 [label for _uid, label, _icon in self._users]
             ))
             if self._users:
-                self._account.set_selected(0)
+                self._account.set_selected(selected)
         finally:
             self._account.handler_unblock(self._account_changed_handler)
 
-        if self._users:
+        self._no_users_message.set_visible(not self._users)
+        if self._users and selection_changed:
             self._load_selected()
         else:
-            self._no_users_message.set_visible(True)
-            self._toast("No interactive non-admin users were found")
+            if not self._users:
+                self._toast("No interactive non-admin users were found")
 
     def _selected_uid(self):
         index = self._account.get_selected()
@@ -1376,12 +1398,19 @@ class ParentWindow(Adw.ApplicationWindow):
             self._load_time_status()
         return GLib.SOURCE_CONTINUE
 
+    def _refresh_users(self):
+        self._load_users()
+        return GLib.SOURCE_CONTINUE
+
     def _close_requested(self, *_args):
         self._cancel_time_status_retry()
         self._cancel_custom_daily_limit_save()
         if self._time_status_refresh_id:
             GLib.source_remove(self._time_status_refresh_id)
             self._time_status_refresh_id = 0
+        if self._account_refresh_id:
+            GLib.source_remove(self._account_refresh_id)
+            self._account_refresh_id = 0
         return False
 
     def _set_apps_sensitive(self, sensitive):

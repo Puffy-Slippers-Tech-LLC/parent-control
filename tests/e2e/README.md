@@ -27,7 +27,7 @@ evidence framework. Pending selectors still provide no customer coverage.
 installed Parent login, app-grid launch, existing fixture-child selection, About
 product/version, the installed GPL license in its normal viewer, copyright/footer
 access and return to the same child/settings. Its public acceptance evidence is
-in [Task 21](../../docs/TestAutomation/Task-21.md#current-handoff--2026-09-14).
+in [Task 21](../../docs/TestAutomation/Task-21.md#current-handoff--2026-09-15).
 
 The [building-block guide](../../docs/TestAutomation/E2E-Building-Blocks.md) owns
 the reusable APIs, composition recipe and lessons: installed setup and fresh VNC
@@ -39,10 +39,18 @@ these boundaries. The thin About worker is
 
 A customer family's `installed-digest-verified-product` prerequisite selects
 verified package setup before its journey. Mechanical startup/fault assertions
-remain separate. E2E-003's dynamic account discovery still needs a scoped fixture
-bridge while Parent stays open; visible appearance and selection remain customer
-assertions. The existing qualification's review mode acquires only nonsecret
-observations and never awards coverage or bypasses mandatory input matches.
+remain separate. E2E-003/existing-and-new uses a durable controller action to
+create one eligible local account only after the existing child is visible.
+E2E-003/none uses a bounded action after the administrator opens the app grid
+but before Parent launches to make the guarded baseline's finite three-account
+eligible standard-user set ineligible while leaving the package request station
+unchanged;
+outer baseline restoration owns reversal. Its customer uses the unchanged
+administrator login and normal app-grid launch, then observes the visible empty
+explanation. Fixture role/collision checks are setup evidence;
+only the screens are customer assertions. The existing qualification's review
+mode acquires only nonsecret observations and never awards coverage or bypasses
+mandatory input matches.
 
 ## Current implementation inventory
 
@@ -52,8 +60,9 @@ Those synthetic fixtures are separate from the live helpers described below.
 
 `scenarios.json` is the versioned inventory for
 [E2E coverage](../../docs/TestAutomation/E2E-Coverage.md): 33 families and
-157 variants. `E2E-001/gdm-observation` and `E2E-030/parent` are registered for
-public execution; the other 155 variants remain **pending**.
+157 variants. `E2E-001/gdm-observation`, `E2E-003/existing-and-new`,
+`E2E-003/none` and `E2E-030/parent` are registered for public execution; the other 153 variants
+remain **pending**.
 [Task 19B is accepted](../../docs/TestAutomation/Evidence/19B-Acceptance-20260908.md)
 after three complete, visually reviewed public qualifications. This establishes
 runner-smoke behavior, not customer acceptance.
@@ -81,9 +90,18 @@ Each documented number is one exact variant's persistent `coverage_id`:
 `tools/run-tests e2e --list --id 1` inspects it, and
 `tools/run-tests e2e --id 1 --artifacts /tmp/onpc-test-artifacts-REPLACE`
 executes it using an existing verified package-artifact directory. Pending
-cases still refuse execution. `--id`, `--scenario` and `--ready` are mutually
-exclusive. The launcher resolves the number to the canonical variant before
-privileged dispatch, so existing installed dispatchers need no refresh.
+cases still refuse execution. `--id 1,3,4` selects a comma-separated list of
+one or more numeric IDs. Empty entries, malformed IDs and unknown IDs refuse
+the entire selection; repeated IDs run once. `--id`, `--scenario` and `--ready`
+are mutually exclusive. Refresh installed dispatchers with
+`./setup.sh --test-tools-only` to support multiple IDs.
+
+`tools/run-tests e2e` runs every runnable E2E case and reports pending exclusions.
+It does not dispatch other test categories. Execution without `--artifacts`
+builds the required package artifacts automatically; an explicit artifact
+directory reuses the existing verified inputs. The guarded dispatcher's mandatory
+cleanup-safety prerequisites still apply. Explicit pending IDs refuse rather
+than silently narrowing the requested list.
 
 From the checkout, these commands only read declarations and print JSON. They
 need no root, package artifacts, installed product, graphical tools or VM:
@@ -114,8 +132,9 @@ ready cases are discovered automatically on the next invocation.
 `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-002` and
 `make check-e2e ARTIFACT_DIR=/tmp/onpc-... SCENARIO=E2E-002` fail with
 `selection:pending`, before artifact access, privilege checks, cleanup tests,
-worker imports or VM operations. Omitting the selector checks the entire
-inventory. `LIST=1` rejects artifact arguments; other nonempty `LIST` values and
+worker imports or VM operations. Omitting the selector lists the entire
+inventory in listing mode and executes all ready cases in execution mode.
+`LIST=1` rejects artifact arguments; other nonempty `LIST` values and
 all nonempty `VM_IMAGE` values fail. Make forwards selector values through the
 environment, so they cannot become recipe shell commands.
 
@@ -124,7 +143,7 @@ same `runner.preflight`; refresh the latter with `./setup.sh --test-tools-only`
 after dispatcher changes. Development activation is `none` (next invocation),
 with no product or saved-data changes. Missing/unsafe inventory inputs fail
 closed. A fully ready selection requires existing safe artifacts and Python
-controller callbacks. The other 155 cases still refuse as pending.
+controller callbacks. The other 153 cases still refuse as pending.
 There is no bypass, checkpoint or resume option. Listing
 success is declaration inspection, never an E2E pass.
 
@@ -152,13 +171,34 @@ tools/run-tests e2e --ready --artifacts '/tmp/onpc-test-artifacts-REPLACE'
 
 # Only the installed Parent About/license customer journey:
 tools/run-tests e2e --scenario 'E2E-030/parent' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+
+# Only dynamic Parent child discovery and selection:
+tools/run-tests e2e --scenario 'E2E-003/existing-and-new' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+
+# Only Parent's no-eligible-children explanation:
+tools/run-tests e2e --scenario 'E2E-003/none' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+
+# Only standard-user denial through the normal app grid:
+tools/run-tests e2e --scenario 'E2E-004/app-grid' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
 ```
 
 Each selected case gets its own guarded attempt and baseline restoration. The
 invocation stops after the first failed attempt, including evidence or cleanup
 failure, and retains the expected case list and pending exclusions in its report.
-The current ready set contains the E2E-001 harness smoke and E2E-030/parent:
-**two runnable variants, one customer scenario**. Another 155 variants are pending.
+The current ready set contains the E2E-001 harness smoke,
+E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid and E2E-030/parent:
+**five runnable variants, four customer variants**. Another 152 variants are
+pending. Readiness does not certify a passing run.
+
+E2E-004/app-grid composes the shared installed setup, standard-user login,
+app-grid search and ordered screen evidence. The
+[administrator-only launcher](../../docs/SystemDesign/Broker.md#accounts-and-roles)
+is absent for standard users: match the full product query, web-only suggestion
+and empty application results. Do not press Enter on the unrelated suggestion.
+Its stale private grant/policy and
+other-user-state witnesses are outside customer scope; existing authorization
+and isolation regressions retain those obligations. This declaration correction
+earns no executed coverage. The terminal variant remains separately pending.
 Omitting both `--ready` and `--scenario` requests the whole inventory and still
 refuses while any variant is pending. A ready-suite pass is partial coverage.
 
@@ -579,7 +619,7 @@ later preflight must establish a settled input set before another Task 20 attemp
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
 VM provenance or customer behavior. E2E-034 supplies separate live public
-controller proof; 155 customer/fault variants remain pending.
+controller proof; 153 customer/fault variants remain pending.
 
 ## Verify edits
 
@@ -1945,5 +1985,5 @@ lease is held, writes the diagnostic report, verifies its private copies and
 rechecks provenance before release. A `finalization-rejected` event is terminal,
 including after an earlier candidate pass. The final `result.json` also accounts
 for release/connection errors. These reports have diagnostic qualification scope,
-no scenario ID, no inventory override and no customer assertions. The 155 customer/fault variants remain pending. E2E-001 is the canonical
+no scenario ID, no inventory override and no customer assertions. The 153 customer/fault variants remain pending. E2E-001 is the canonical
 public scenario recorder and terminal invocation smoke, superseding E2E-034.

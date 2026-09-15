@@ -1,0 +1,23 @@
+{
+  "tags": [
+    "onpc-parent-empty"
+  ],
+  "area": [
+    {
+      "xpos": 164,
+      "ypos": 190,
+      "width": 85,
+      "height": 28,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 118,
+      "ypos": 254,
+      "width": 298,
+      "height": 22,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

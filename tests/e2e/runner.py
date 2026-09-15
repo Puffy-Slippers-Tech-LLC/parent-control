@@ -30,13 +30,13 @@ def confined_file(root, relative):
     return path
 
 
-def preflight(argv, *, root=ROOT):
+def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     """Read declarations only. Never import worker/VM code or create artifacts."""
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--list', action='store_true')
     selectors = parser.add_mutually_exclusive_group()
     selectors.add_argument('--scenario', help='exact E2E-NNN family or E2E-NNN/variant')
-    selectors.add_argument('--id', type=int, help='exact numeric case ID in docs/Test-Coverage.md')
+    selectors.add_argument('--id', help='comma-separated numeric case IDs in docs/Test-Coverage.md')
     selectors.add_argument('--ready', action='store_true', help='run all ready variants; report pending exclusions')
     parser.add_argument('--artifacts', type=Path)
     parser.add_argument('--skip-backing-verification', action='store_true')
@@ -61,13 +61,16 @@ def preflight(argv, *, root=ROOT):
         raise ValueError('e2e:listing-does-not-use-artifacts')
     api = runpy.run_path(str(confined_file(root, 'tests/e2e/inventory.py')))
     document, digest = api['read_json'](confined_file(root, 'tests/e2e/scenarios.json'))
-    plan = api['resolve_selection'](document, args.scenario, ready_only=args.ready,
+    ready_only = args.ready or (not args.list and args.scenario is None and args.id is None)
+    plan = api['resolve_selection'](document, args.scenario, ready_only=ready_only,
                                     coverage_id=args.id,
                                     require_runnable=not args.list, root=root)
     plan['inventory_sha256'] = digest
     plan['mode'] = 'list-only' if args.list else 'execution-preflight'
     plan['verify_backing_bytes'] = not args.skip_backing_verification
     if args.list:
+        return plan
+    if args.artifacts is None and allow_missing_artifacts:
         return plan
     validate_artifact_path(args.artifacts)
     if not args.artifacts.is_dir():

@@ -31,7 +31,7 @@ CATEGORIES = {
     'artifacts': 'build, verify PATH, compare FIRST SECOND; generated build output',
     'integration': 'installed dispatcher for check_* basenames; no script arguments',
     'system': 'guarded installed runner; --artifacts, --previous-artifacts, --area, --test, --list',
-    'e2e': 'graphical inventory --list; --id NUMBER (docs/Test-Coverage.md), --ready or --scenario; execution requires --artifacts',
+    'e2e': 'all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)',
     'fast': 'reserved for the Task 28 make test-fast target',
     'all': 'all established regression suites without backing-file byte scans',
     'all-verify': 'all established regression suites with full backing-file verification',
@@ -100,11 +100,11 @@ def plan(root, category, argv):
         # repeats it after pkexec. Loading this checkout copy confers no privilege.
         import runpy
         dispatcher = runpy.run_path(host.confined_file(root, 'tools/onpc-test-runner'))
-        command = dispatcher['selection'](root, [category, *argv])
+        command = dispatcher['selection'](root, [category, *argv],
+                                          allow_missing_artifacts=category == 'e2e')
         if '--list' in argv and category != 'integration':
             return [command], False
-        # Bind a numeric E2E ID to its exact canonical variant before elevation.
-        # Existing installed dispatchers already understand --scenario.
+        # Forward the validated E2E options, preserving a multi-case selection.
         forwarded = command[3:] if category == 'e2e' else argv
         return [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', category, *forwarded]], False
     if category in ('child-node', 'child-gjs'):
@@ -198,6 +198,18 @@ def _main(argv=None):
             if category == 'host-builds':
                 return regression_main(root, host_builds=True, serial_builds=bool(args))
             return regression_main(root, verify_backing_bytes=category == 'all-verify')
+        if category == 'e2e' and '--list' not in args:
+            options = args[1:] if args[:1] == ['--unattended'] else args
+            planned, _ = plan(root, category, options)
+            if not any(value.startswith('--artifacts=') for value in planned[0]):
+                directory = tempfile.mkdtemp(prefix='onpc-test-artifacts-', dir='/tmp')
+                print('run-tests: output=' + directory, flush=True)
+                status = subprocess.run(
+                    python_file(root, 'tools/build_test_artifacts.py', '--output', directory),
+                    cwd=root, env=host.environment(root), check=False).returncode
+                if status:
+                    return status if status > 0 else 128 - status
+                args = [*args, '--artifacts=' + directory]
         if args[:1] == ['--unattended']:
             from regression_process import host_run, category_run
             if category in ('unit', 'component', 'ui'):

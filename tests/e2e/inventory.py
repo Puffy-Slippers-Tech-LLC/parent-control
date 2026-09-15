@@ -277,19 +277,31 @@ def _validate_inventory(document, *, root):
             require(actual == expected, 'matrix:missing-combination')
 
 
+def parse_ids(value):
+    """Accept one or more positive numeric IDs without echoing caller input."""
+    require(isinstance(value, str) and re.fullmatch(r'[0-9]+(?:,[0-9]+)*', value),
+            'selection:invalid-id')
+    numbers = [int(part) for part in value.split(',')]
+    require(all(number > 0 for number in numbers), 'selection:invalid-id')
+    return list(dict.fromkeys(numbers))
+
+
 def resolve_selection(document, scenario=None, *, coverage_id=None, ready_only=False,
                       require_runnable=False, root=ROOT):
     """A family expands all variants; an explicit case remains a partial result."""
     validate_inventory(document, root=root)
-    require(coverage_id is None or (type(coverage_id) is int and coverage_id > 0),
+    if isinstance(coverage_id, str):
+        coverage_id = parse_ids(coverage_id)
+    ids = coverage_id if isinstance(coverage_id, list) else [coverage_id]
+    require(coverage_id is None or (bool(ids) and all(type(n) is int and n > 0 for n in ids)),
             'selection:invalid-id')
     require(coverage_id is None or (scenario is None and not ready_only),
             'selection:conflicting-selectors')
     if coverage_id is not None:
         matches = [family['id'] + '/' + variant['id'] for family in document['scenarios']
-                   for variant in family['variants'] if variant['coverage_id'] == coverage_id]
-        require(len(matches) == 1, 'selection:unknown-id')
-        scenario = matches[0]
+                   for variant in family['variants'] if variant['coverage_id'] in ids]
+        require(len(matches) == len(set(ids)), 'selection:unknown-id')
+        scenario = matches[0] if len(matches) == 1 else ','.join(matches)
     require(scenario is None or nonempty(scenario), 'selection:empty')
     require(type(ready_only) is bool and (not ready_only or scenario is None),
             'selection:conflicting-selectors')
@@ -297,7 +309,8 @@ def resolve_selection(document, scenario=None, *, coverage_id=None, ready_only=F
     for family in document['scenarios']:
         for variant in family['variants']:
             cid = family['id'] + '/' + variant['id']
-            if scenario is None or scenario in (family['id'], cid):
+            if (variant['coverage_id'] in ids if coverage_id is not None
+                    else scenario is None or scenario in (family['id'], cid)):
                 selected.append({'case_id': cid, 'coverage_id': variant['coverage_id'],
                                  'scenario_id': family['id'],
                                  'category': family['category'], 'owner': variant['owner'],
@@ -331,7 +344,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     selectors = parser.add_mutually_exclusive_group()
     selectors.add_argument('--scenario', help='exact E2E-NNN family or E2E-NNN/variant')
-    selectors.add_argument('--id', type=int, help='exact numeric case ID in docs/Test-Coverage.md')
+    selectors.add_argument('--id', help='comma-separated numeric case IDs in docs/Test-Coverage.md')
     selectors.add_argument('--ready', action='store_true', help='select all ready variants explicitly')
     parser.add_argument('--require-runnable', action='store_true',
                         help='refuse pending cases; this command still never executes tests')

@@ -16,6 +16,13 @@ Implementation: [parent main.py](../../parent/oh_no_parent_control_parent/main.p
    Screen-time changes go through
    `SetParentControl`; revocation goes through `RevokeOneTimeGrant` after a
    confirmation that running blocked apps will close.
+   While the window remains open it refreshes the broker's current managed-user
+   list every five seconds. Overlapping reads are coalesced, an unchanged list
+   does not rebuild the picker, and a newly created account does not disturb the
+   selected child's displayed settings. If the selected account disappears, the
+   first remaining child is loaded; an empty result shows the existing visible
+   explanation. This activates with the next Parent App process and changes no
+   saved data.
 2. **Child session entry:** On extension startup and after an unlock transition,
    the child component calls `PrepareOwnSession`. The broker re-reads the grant
    under the shared transaction lock. It reconciles and terminates only for an

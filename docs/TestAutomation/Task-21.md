@@ -40,79 +40,61 @@ Use [the workflow](Implementation-Workflow.md) for bounded work and progress.
   E2E-005 ownership now matches 21B; registration or reclassification earns no
   scenario credit.
 
-## Current handoff — 2026-09-14
+## Current handoff — 2026-09-15
 
-**E2E-030/parent is complete and passed public customer acceptance.** Progress:
-**1 completed**, **155 remaining of the frozen 156**, no transfers or
-scope additions; **0 consecutive slices without a completed customer variant**.
-The supervised intervention resolved the session-100 repair decision and earned
-the first complete customer variant. Task 21A remains unchecked for its other
-variants. The launcher summary and saved blocked status describe session 100;
-this handoff supersedes that blocker after the supervised pass.
+**E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid and E2E-030/parent are complete.**
+Progress is **4 completed, 152 remaining of the frozen 156**, with no additions
+or transfers and **0 consecutive slices without a completed customer variant**.
+Task 21A remains unchecked for E2E-004/terminal and E2E-031.
 
-The registered [Parent callback](../../tests/e2e/parent_about.py) logs in through
-the installed Parent prompt, launches from the app grid, selects the existing
-fixture child, reads About/version and the installed GPL license, closes the
-viewer, reads the copyright/footer, closes About and returns to that same child
-with unchanged displayed settings. All 18 positive matches passed at 100%;
-negative recipient checks precede unchanged secret input. Setup and customer
-actions retain separate recorded phases. Boot continuity, source/package
-identities and outer cleanup passed; no backend product probe supplies acceptance.
-The requirement is `ONPC-CORE-ABOUT-001`, with surface-only evidence.
+The registered [discovery callback](../../tests/e2e/parent_discovery.py) now owns
+both finite variants. Existing-and-new retains its guarded in-app account event
+and visible refresh/selection path. None pauses at the normal app grid, requires
+the guarded baseline's exact three eligible standard-account fixtures, preserves
+the package request station, makes only that finite set ineligible, launches
+Parent and matches the visible empty explanation. Fixture identities and role
+changes remain setup evidence; ordered screens alone supply customer acceptance.
+The [composition contract](../../tests/e2e/README.md#parent-consumer-composition-limits),
+[building blocks](E2E-Building-Blocks.md) and [reuse row](Reuse-Map.md#customer-scenario-work)
+own the bounded action, refusal, matcher and cleanup limits.
 
-The [composition contract](../../tests/e2e/README.md#parent-consumer-composition-limits)
-and [building-block guide](E2E-Building-Blocks.md) own the reusable boundaries
-and lessons. New consumers compose `InstalledJourney`/`record_installed_journey`,
-`onpc_pointer`, `onpc_journey` and the Parent login/launch/selection operations.
-The About modules retain scenario-specific expectations. The
-[reuse row](Reuse-Map.md#customer-scenario-work) selects the next consumer.
-Qualification review mode cannot supply acceptance or bypass recipient/click checks.
-The shared composition passed the public `--ready` invocation with E2E-001 and
-E2E-030/parent; this refactor adds no customer variant or scope credit.
+E2E-003/none public acceptance `scenario-5eaf88431a4a410d8c851acc266ad172`
+passed every declared phase and all four outcome domains. Case evidence is
+`/tmp/onpc-e2e-evidence-ydumn7i0`, invocation evidence
+`/tmp/onpc-e2e-evidence-7mu8l2oe`, worker evidence
+`/tmp/onpc-e2e-evidence-cfpnrur8`, ordered matches
+`/tmp/onpc-graphical-smoke-nsebkdir/testresults`, and artifacts
+`/tmp/onpc-test-artifacts-ws32mits`. Passing source is
+`9db43a1776e96a1eebd3a324d629e60210d1500fabd45e18da61e60ff75dcc8d`;
+inventory is `16ed590ee9fd7be782625c741fddd94d7c147a5103482efde6017134e614c3d8`.
+E2E-003/existing-and-new remains `scenario-117ce953fa404067aef01072bbce5b6b`;
+E2E-030 remains `scenario-986d63c38497407a9d562696774c0d4d`.
 
-**Evidence needed for continuation:**
+Four failed acquisition runs remain retained and fully restored: the first
+exposed a missing declared step-2 transition (`/tmp/onpc-e2e-evidence-z2nkqg2x`);
+the second visibly exposed one unhandled baseline standard account
+(`/tmp/onpc-e2e-evidence-ynz2p1qn`); the third fixed the failure at the package
+request-station exclusion (`empty-account:baseline`,
+`/tmp/onpc-e2e-evidence-ubaj_nv8`); the fourth acquired the genuine empty screen
+before its reviewed needle existed (`/tmp/onpc-e2e-evidence-oboc3c81`). Each
+subsequent attempt used new discriminating evidence and locally checked code;
+none reported a product failure. Focused fixture, worker, inventory, runner,
+needle and controller regressions pass, as do each run's 1,184 cleanup-safety
+tests plus 3 subtests. The final run verified full baseline restoration.
 
-- Public invocation: `/tmp/onpc-e2e-evidence-3esteq9z/invocation-terminal-candidate.json`.
-  Selector `--ready`; E2E-001 and E2E-030/parent passed, dispatcher exited 0.
-  Partial scope explicitly retains 155 pending exclusions. Parent run
-  `scenario-986d63c38497407a9d562696774c0d4d` passed product, infrastructure,
-  collection and cleanup with no first failure.
-- Accepted Parent record and final phases/preservation:
-  `/tmp/onpc-e2e-evidence-pj3urxa2/acceptance.json`.
-  Raw matches/screens: `/tmp/onpc-graphical-smoke-6ehyth8a/testresults/`.
-  Worker cleanup: `/tmp/onpc-e2e-evidence-t2pybly1/worker-result.json`.
-- Passing inputs: `/tmp/onpc-test-artifacts-deuc055i`, source
-  `e98b18f77e8836d3ce4184b2d5997c67324e9ef332df0422ddd634efb56396b5`,
-  inventory `33a1025063f9a5fb2fcba678d6d17aec97791f617961ecb1635220e8a12e020e`.
-  Coverage/handoff metadata changed afterward; build fresh artifacts for future
-  VM runs. Original qualification reports, private captures and build inputs remain.
-- `make check` passed: 9,103 unit tests, 139 component tests, and 1,182 isolated
-  cleanup-safety tests plus 3 subtests. The public E2E invocation independently
-  passed its safety prerequisites and full baseline restoration.
+**Next: E2E-004/terminal.** Reuse the qualified standard-user recipient and
+installed setup. Invoke the executable through the guest terminal and observe
+denial with no management window. The app-grid variant proves the intentional
+absence of the administrator-only launcher; it does not exercise executable
+denial. Do not add internal authorization assertions.
+Post-pass documentation edits require fresh artifacts. VM is off,
+temporary exports are removed, no owned operation remains, and R1 stays 0 hours /
+0 attempts.
 
-**Next bounded consumer: E2E-003/existing-and-new.** Reuse the now-proven
-installed login, launch and selected-child observations. Complete the scoped
-bridge to the existing account fixture while Parent stays open, reconcile the
-fixture-event declaration, and prove that the new child appears and both
-children can be selected with their displayed settings. Do not repeat E2E-030
-acquisition or postpone this consumer for unrelated internal designs.
-
-Other retained boundaries: E2E-003/none needs an empty-account fixture and its
-visible empty state. E2E-004/app-grid and /terminal need a qualified standard-user
-recipient and their normal launch/refusal interactions; no denial is yet proven.
-Later customer work remains in its owning handoffs. No earlier task is marked
-complete by this pass.
-
-**Cleanup complete:** VM off, accepted baseline fully restored, owned worker and
-callback stopped, host/source preserved; no owned operation remains. All-task VM
-authorization persists. R1 remains 0 charged hours / 0 new attempts because its
-execution-source/validation-lifetime recovery was unchanged.
-
-**Actual settings:** `gpt-6-astra` / `high`, Standard.
-**Next-session settings:** `gpt-5.6-sol` / `high`; model: lower; effort: keep.
-**Reason:** installed input, pointer mapping and the complete evidence path are
-now qualified. Use the settled helpers for the next consumer; reassess to Astra
-if its new fixture bridge exposes unresolved ownership or concurrency questions.
+**Actual settings:** `gpt-5.6-sol` / `high`, Standard.
+**Next-session settings:** `gpt-5.6-sol` / `high`; model: keep; effort: keep.
+**Reason:** standard-user login and app-grid unavailability are qualified; the
+terminal route needs its own complete installed customer run.
 ## Task 21B
 
 - Title: Parent saves, control changes and revocation.

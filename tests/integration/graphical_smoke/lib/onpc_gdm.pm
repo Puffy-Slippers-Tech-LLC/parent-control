@@ -2,6 +2,7 @@ package onpc_gdm;
 use strict;
 use warnings;
 use testapi ();
+use onpc_pointer ();
 
 # Small reviewed fixture regions, never clocks, whole-screen stillness or a
 # coordinate fallback. assert_screen retains the actual match and screenshot
@@ -65,6 +66,32 @@ sub inspect_installed_parent {
     die "gdm:arguments\n" if @_;
     die "gdm:console\n" unless testapi::current_console() eq 'sut';
     testapi::assert_and_click('onpc-gdm-parent-installed-input-account', timeout => 30, mousehide => 1);
+    testapi::wait_still_screen(1, 10);
+    die "gdm:list-still-visible\n"
+        if testapi::check_screen('onpc-gdm-parent-installed-account', 1);
+}
+
+# Select the fixed visible child-role fixture without submitting its password.
+# The separate prompt acquisition is still pre-authentication and cannot
+# authorize later secret input by itself.
+sub inspect_installed_standard {
+    my ($verify_parent) = @_;
+    die "gdm:arguments\n" if @_ > 1 || (defined($verify_parent) && ref($verify_parent) ne 'CODE');
+    die "gdm:console\n" unless testapi::current_console() eq 'sut';
+    # GDM scrolls its list while changing focus. Establish the Parent prompt,
+    # return to the list, start at Home, and reach the fixed baseline fixture.
+    # Escape resets focus to the top, not the account whose prompt was open.
+    # A positive focused-row match guards Enter; the caller independently
+    # requires the role-specific empty prompt before any password input.
+    onpc_pointer::click('onpc-gdm-parent-installed-input-account', 30);
+    testapi::assert_screen('onpc-gdm-parent-masked-password', 30);
+    $verify_parent->() if defined($verify_parent);
+    testapi::send_key('esc');
+    testapi::assert_screen('onpc-gdm-parent-installed-account', 30);
+    testapi::send_key('home');
+    testapi::send_key('down') for 1 .. 4;
+    testapi::assert_screen('onpc-gdm-standard-selected-account', 30);
+    testapi::send_key('ret');
     testapi::wait_still_screen(1, 10);
     die "gdm:list-still-visible\n"
         if testapi::check_screen('onpc-gdm-parent-installed-account', 1);

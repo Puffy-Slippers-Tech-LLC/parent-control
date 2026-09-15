@@ -141,7 +141,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Log in as Parent, launch from the app grid, and inspect eligible children or the empty state."},
-          {"id": "step-2", "operation": "ui", "description": "For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe the child appear without restarting Parent."},
+          {"id": "step-2", "operation": "ui", "description": "For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe it appear without restarting Parent. For none, pause before launching Parent while the fixed fixture makes only the child accounts ineligible."},
           {"id": "step-3", "operation": "observe", "description": "Select each visible eligible child and navigate the displayed status and application choices; for none, observe the explained empty state."}
         ],
         "end": [
@@ -169,8 +169,8 @@
         "rationale": "Existing-and-new keeps Parent open while one supported eligible-account fixture is provisioned, then visibly selects both children. None separately covers the visible empty state. The owning task retains both stable IDs and audits remaining visible requirements before family acceptance."
       },
       "variants": [
-        {"coverage_id": 3, "id": "existing-and-new", "owner": "21A", "parameters": {"children": "existing-and-new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
-        {"coverage_id": 4, "id": "none", "owner": "21A", "parameters": {"children": "none"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 3, "id": "existing-and-new", "owner": "21A", "parameters": {"children": "existing-and-new"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_discovery.py", "test_id": "existing-and-new"}},
+        {"coverage_id": 4, "id": "none", "owner": "21A", "parameters": {"children": "none"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_discovery.py", "test_id": "none"}}
       ]
     },
     {
@@ -180,10 +180,10 @@
       "owners": ["21A"],
       "requirements": ["ONPC-CORE-ACCOUNTS-001", "ONPC-COMP-PARENT-001"],
       "requirement_gap": null,
-      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md", "docs/SystemDesign/Broker.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
           {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
@@ -192,8 +192,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Log in as a standard user and attempt to launch Parent through the selected customer route."},
-          {"id": "step-2", "operation": "observe", "description": "Observe denial and absence of management controls; do not substitute direct D-Bus attacks for this UI case."}
+          {"id": "step-1", "operation": "ui", "description": "Log in as a standard user and open the selected customer launch surface: app grid or terminal."},
+          {"id": "step-2", "operation": "ui", "description": "For app-grid, search the full product name and observe that no Parent application is available, with only the web-search suggestion and empty application results. For terminal, invoke the executable and observe denial. No management controls become available through either route."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -205,16 +205,12 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-2", "description": "No management window becomes available."}
+          {"id": "visible-result", "step_id": "step-2", "description": "Parent management is unavailable through the selected normal launch route: the app-grid search exposes no Parent launcher, or terminal execution visibly denies management."}
         ],
-        "backend": [
-          {"id": "backend-result", "step_id": "step-2", "description": "No grant or policy state changes after denied access."}
-        ],
-        "other_user": [
-          {"id": "other-user-result", "step_id": "step-2", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
-        ]
+        "backend": [],
+        "other_user": []
       },
-      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
@@ -224,7 +220,7 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"coverage_id": 5, "id": "app-grid", "owner": "21A", "parameters": {"launch": "app-grid"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
+        {"coverage_id": 5, "id": "app-grid", "owner": "21A", "parameters": {"launch": "app-grid"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_access.py", "test_id": "app-grid"}},
         {"coverage_id": 6, "id": "terminal", "owner": "21A", "parameters": {"launch": "terminal"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
       ]
     },

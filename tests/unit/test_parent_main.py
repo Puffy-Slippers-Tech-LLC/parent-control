@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest import mock
 
 from parent.oh_no_parent_control_parent.main import (
-    APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
+    ACCOUNT_REFRESH_SECONDS, APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
     _time_status_subtitle,
 )
 from parent.oh_no_parent_control_parent.preview_data import (
@@ -25,12 +25,17 @@ class FakeDropDown:
         self.blocked = False
 
     def set_model(self, _model):
+        self.owner.model_updates += 1
         if not self.blocked:
             self.owner._account_changed()
 
     def set_selected(self, _index):
+        self.owner.selected_index = _index
         if not self.blocked:
             self.owner._account_changed()
+
+    def get_selected(self):
+        return self.owner.selected_index if self.owner.selected_index is not None else 0
 
 
 class FakeSensitiveWidget:
@@ -64,13 +69,18 @@ class FakeToggleButton:
 class ParentWindowHarness:
     _users_loaded = ParentWindow._users_loaded
     _account_changed = ParentWindow._account_changed
+    _selected_uid = ParentWindow._selected_uid
 
     def __init__(self):
         self._users = []
+        self._users_loaded_once = False
+        self._users_loading = True
         self._account_changed_handler = 1
         self._account = FakeDropDown(self)
         self._no_users_message = FakeVisibleWidget()
         self.load_count = 0
+        self.model_updates = 0
+        self.selected_index = None
         self.apps_load_uids = []
         self.toasts = []
 
@@ -638,6 +648,61 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(window.load_count, 1)
         self.assertEqual(window.apps_load_uids, [1001])
+        self.assertFalse(window._users_loading)
+        self.assertFalse(window._no_users_message.visible)
+
+    def test_account_refresh_adds_user_without_reloading_selected_settings(self):
+        window = ParentWindowHarness()
+        window._users_loaded([(1001, "Existing child", "")])
+        window.load_count = 0
+        window.apps_load_uids.clear()
+
+        window._users_loaded([
+            (1001, "Existing child", ""), (1002, "New child", ""),
+        ])
+
+        self.assertEqual([user[0] for user in window._users], [1001, 1002])
+        self.assertEqual(window.selected_index, 0)
+        self.assertEqual(window.load_count, 0)
+        self.assertEqual(window.apps_load_uids, [])
+        self.assertFalse(window._no_users_message.visible)
+
+    def test_unchanged_account_refresh_does_not_rebuild_picker(self):
+        window = ParentWindowHarness()
+        users = [(1001, "Existing child", "")]
+        window._users_loaded(users)
+        updates = window.model_updates
+
+        window._users_loading = True
+        window._users_loaded(users)
+
+        self.assertEqual(window.model_updates, updates)
+        self.assertFalse(window._users_loading)
+
+    def test_account_refresh_moves_selection_when_selected_user_disappears(self):
+        window = ParentWindowHarness()
+        window._users_loaded([
+            (1001, "Existing child", ""), (1002, "Other child", ""),
+        ])
+        window._users = [(1002, "Other child", ""), (1001, "Existing child", "")]
+        window.selected_index = 0
+        window.load_count = 0
+
+        window._users_loaded([(1001, "Existing child", "")])
+
+        self.assertEqual(window.selected_index, 0)
+        self.assertEqual(window.load_count, 1)
+        self.assertEqual(window.apps_load_uids[-1], 1001)
+
+    def test_account_refresh_is_bounded_and_coalesces_overlapping_loads(self):
+        window = type("WindowHarness", (), {})()
+        window._users_loading = True
+        window._client = mock.Mock()
+        window._run = mock.Mock()
+
+        self.assertGreater(ACCOUNT_REFRESH_SECONDS, 0)
+        self.assertEqual(ParentWindow._load_users(window), 0)
+        window._run.assert_not_called()
 
     def test_loading_no_users_does_not_load_preferences(self):
         window = ParentWindowHarness()

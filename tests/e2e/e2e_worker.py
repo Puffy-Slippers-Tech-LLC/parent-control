@@ -327,5 +327,8 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
             # Fixed codes only. The path is a generated private artifact locator.
             print('e2e-worker: evidence=' + str(collector.path), file=sys.stderr, flush=True)
     if first_error is not None:
+        # ScenarioContext preserves the owned-resource cleanup result while
+        # propagating the original exception and failure ordering unchanged.
+        first_error.onpc_worker_result = dict(result)
         raise first_error
     return result

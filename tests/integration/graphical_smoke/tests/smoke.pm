@@ -9,6 +9,8 @@ use onpc_serial ();
 use onpc_gdm ();
 use onpc_vt6 ();
 use onpc_parent_about ();
+use onpc_parent_access ();
+use onpc_parent_discovery ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -46,6 +48,24 @@ sub run {
         onpc_parent_about::run(\&exchange, $ready->{parent_review} ? 1 : 0);
         return;
     }
+    if ($ready->{parent_access}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_access::run(\&exchange, $ready->{parent_access_review} ? 1 : 0);
+        return;
+    }
+    if ($ready->{parent_discovery}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_discovery::run(\&exchange);
+        return;
+    }
+    if ($ready->{parent_discovery_none}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_discovery::run_none(\&exchange);
+        return;
+    }
     if ($ready->{parent_setup}) {
         # Fixture setup owns the reboot, before customer interaction. Disable
         # VNC polling first; no serial console or password API is attached.
@@ -59,6 +79,13 @@ sub run {
             send_key('esc');
             assert_screen('onpc-gdm-parent-installed-account', 30);
             capture('installed-parent-dismissed');
+        }
+        if ($ready->{parent_standard_input}) {
+            onpc_gdm::inspect_installed_standard();
+            capture('installed-standard-prompt');
+            send_key('esc');
+            assert_screen('onpc-gdm-parent-installed-account', 30);
+            capture('installed-standard-dismissed');
         }
         console('sut')->disable();
         power('off');

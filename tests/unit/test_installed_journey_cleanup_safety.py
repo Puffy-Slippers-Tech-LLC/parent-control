@@ -141,3 +141,50 @@ def test_invalid_phase_plan_refuses_before_credentials_or_worker(tmp_path):
 def test_review_requires_a_named_qualification_mode(tmp_path):
     with pytest.raises(EvidenceError, match='review-mode'):
         journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), SYNTHETIC, review=True)
+
+
+def test_stage_action_runs_after_worker_guard_and_before_durable_reply(tmp_path, monkeypatch):
+    plan = replace(SYNTHETIC, screen_tags={"created": "onpc-example-created"},
+                   phases={"ready": "setup", "setup-detached": "setup", "created": "step-1"},
+                   stage_actions={"created": "create-account"})
+    directory = tmp_path
+    for stage in plan.stages:
+        (directory / (stage + ".request.json")).write_text(
+            json.dumps({"stage": stage, "screenshot": None}))
+    monkeypatch.setattr(journeys.system, "address", Mock(return_value="fixture-host"))
+    transport = Mock()
+    monkeypatch.setattr(journeys, "Transport", Mock(return_value=transport))
+    monkeypatch.setattr(journeys, "InstalledSetup", Mock(return_value=SimpleNamespace(
+        run=Mock(return_value={"package_verified": True}))))
+    monkeypatch.setattr(journeys, "ReadOnlyObservations", Mock(return_value=SimpleNamespace(
+        read=Mock(return_value={"boot_sha256": "b" * 64}))))
+    context = SimpleNamespace(directory=directory, host_key="fixture-key", commands=Mock(),
+        verified=Mock(), lease=SimpleNamespace(source=SimpleNamespace(uuid="fixture-uuid"),
+        view=SimpleNamespace(domain_id=7), state={"run": "a" * 32}, guard=Mock()))
+    events = []
+
+    def action(journey, guard):
+        assert journey.transport is transport
+        assert not (directory / "created.reply.json").exists()
+        guard()
+        events.append("action")
+        return {"eligible_account_created": True}
+
+    journey = journeys.InstalledJourney(
+        context, lambda stage, observed: events.append((stage, observed)), plan,
+        actions={"create-account": action},
+    )
+    for _stage in plan.stages:
+        journey.step(lambda: events.append("guard"))
+
+    created = next(event[1] for event in events
+                   if isinstance(event, tuple) and event[0] == "created")
+    assert created["fixture"] == {"eligible_account_created": True}
+    assert events.index("action") < events.index(("created", created))
+    assert json.loads((directory / "created.reply.json").read_text()) == {"observed": "created"}
+
+
+def test_stage_action_registry_refuses_missing_or_extra_actions(tmp_path):
+    plan = replace(SYNTHETIC, stage_actions={"details": "create-account"})
+    with pytest.raises(EvidenceError, match="stage-actions"):
+        journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)

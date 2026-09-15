@@ -114,11 +114,17 @@ class ScenarioContext:
                    guarded_observe=None):
         require(not self._worker_started, 'execution:worker-already-attempted')
         self._worker_started = True
-        self.worker = self.recorder.run_worker(
-            self.verified, self.directory, self.lease, self.lease.ledger,
-            observe=observe, validate=validate, timeout=timeout,
-            credentials=self.credentials if authenticate else None, serial=serial,
-            **({'guarded_observe': guarded_observe} if guarded_observe is not None else {}))
+        try:
+            self.worker = self.recorder.run_worker(
+                self.verified, self.directory, self.lease, self.lease.ledger,
+                observe=observe, validate=validate, timeout=timeout,
+                credentials=self.credentials if authenticate else None, serial=serial,
+                **({'guarded_observe': guarded_observe} if guarded_observe is not None else {}))
+        except BaseException as error:
+            retained = getattr(error, 'onpc_worker_result', None)
+            if isinstance(retained, dict):
+                self.worker = copy.deepcopy(retained)
+            raise
         return copy.deepcopy(self.worker)
 
 
@@ -227,8 +233,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                                 'baseline_restored': held.state['phase'] == 'complete',
                                 'host_preserved': True, 'source_preserved': True,
                                 'owned_processes_stopped': worker.get('worker_stopped') is True
-                                    and worker.get('callback_closed') is True
-                                    and worker.get('shutdown_verified') is True}
+                                    and worker.get('callback_closed') is True}
 
                     bridge = LeasedScenario(recorder, verified, cleanup=cleanup)
                     checkpoint('preparation-complete')

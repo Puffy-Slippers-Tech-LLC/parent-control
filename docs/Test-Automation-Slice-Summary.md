@@ -62,3 +62,36 @@ must exclude this file from reads, searches, diffs and edits.
 - Verification and cleanup: Outcome: blocked. Cleanup and handoff confirmed. 84 focused tests and 1154 dispatcher safety tests plus 3 subtests passed. Artifact build and guarded check_parent_input passed; input matched at 100%. Evidence: /tmp/onpc-graphical-smoke-o8zx5r0_/result.json; prompt screenshot reviewed directly. All commands exited; worker shutdown, baseline restoration and host/source preservation passed; screenshot exports removed. Links and whitespace checks passed. Original setup failure remains retained in docs/TestAutomation/Task-21.md.
 
 - Next session: The cumulative progress checkpoint requires a different complete-customer route, an independently ready customer case, or a bounded desktop-adapter repair decision. Do not automatically repeat input-only qualification. Task-21.md and Continuation.md preserve this decision. Next settings: gpt-6-astra/high, Standard. Blocker: decision.
+
+
+## Session 101 — 2026-09-15 00:59 PDT
+
+- Task: Task 21A — implement and accept E2E-003/existing-and-new across the installed Parent surface, including runtime registration and full customer-visible execution.
+- Duration: 66 minutes
+- Completed: Progress: **Solid and healthy** — completed customer variant E2E-003/existing-and-new. Cumulative customer coverage is 2/156 variants, with 154 frozen variants remaining, no scope additions or transfers, and zero consecutive slices without a completed variant. Task 21A remains unchecked because E2E-003/none and later variants remain unfinished. Added live Parent account refresh, the guarded dynamic-account fixture, visual automation, reviewed needles, runtime registration, and reusable contracts.
+
+- Verification and cleanup: The registered ready entry was discovered by `tools/run-tests e2e --list` and passed as scenario-117ce953fa404067aef01072bbce5b6b, with every visible stage and all product, infrastructure, collection, and cleanup domains passing. Retained evidence: /tmp/onpc-test-artifacts-2ugnj00h, /tmp/onpc-e2e-evidence-vd0pp88b, /tmp/onpc-e2e-evidence-xqzz7_bw, /tmp/onpc-e2e-evidence-ztav5m77, and /tmp/onpc-graphical-smoke-mrkxd0y0/testresults. Two expected needle-acquisition attempts failed before acceptance; both restored the full baseline, and their exported temporary PNGs were removed. Those attempts exposed a worker cleanup-accounting defect, which was repaired and regression-tested. Final `make check` passed: 9,143 unit, 1,184 cleanup-safety plus 3 subtests, and 139 component tests. An earlier aggregate run’s two stale ready-count expectations and one adjacent focused expectation were corrected; the focused runner suite then passed 44 tests. Documentation validation checked 211 links with none missing; scoped whitespace validation passed; stale-pointer search found no matches. All commands exited, the VM is off, the accepted baseline and host/source were preserved, no owned processes remain, and R1 recovery remains 0 hours/0 attempts. Detailed handoff: docs/TestAutomation/Task-21.md; next selection: docs/TestAutomation/Continuation.md.
+
+- Next session: Continue Task 21A with the bounded E2E-003/none customer variant: implement only the cleanup-safe empty-account adapter needed to expose and verify the visible empty state. Generate fresh qualification artifacts because post-pass source and handoff edits invalidate reuse of this run’s inputs. Next settings: gpt-5.6-sol/high, Standard.
+
+
+## Session 102 — 2026-09-15 01:57 PDT
+
+- Task: Task 21A — registered, discovered and passed the complete installed E2E-003/none customer journey, including its cleanup-safe finite account fixture and reviewed empty-state needle.
+- Duration: 58 minutes
+- Completed: **Solid and healthy** — completed E2E-003/none, newly adding 1 customer variant this slice. Cumulative progress is 3 completed (E2E-003/existing-and-new, E2E-003/none, E2E-030/parent), 153 remaining of the frozen 156, no additions/transfers, and 0 consecutive slices without a completed variant. Task 21A remains unfinished for E2E-004 and E2E-031. The active handoff is docs/TestAutomation/Task-21.md#current-handoff--2026-09-15; R1 remains 0 hours/0 attempts.
+
+- Verification and cleanup: Final acceptance `scenario-5eaf88431a4a410d8c851acc266ad172` passed every declared stage, all four outcome domains, evidence collection and full baseline restoration. Evidence: /tmp/onpc-e2e-evidence-ydumn7i0, /tmp/onpc-e2e-evidence-cfpnrur8, and /tmp/onpc-graphical-smoke-nsebkdir/testresults; final artifacts: /tmp/onpc-test-artifacts-ws32mits. Four fully restored acquisition failures were retained: step-order mismatch, an incomplete fixture set, request-station misclassification, and the expected missing-needle acquisition; each subsequent run used new discriminating evidence. One focused test found a missing import and was corrected. Final focused verification passed 244 tests; each guarded attempt passed 1,184 cleanup-safety tests plus 3 subtests. Runtime discovery reports E2E-003/none ready with its callback; five documentation files passed 195 link checks and scoped diff checks passed. `make check` is deferred to stable Task 21A acceptance as required. The VM is off, both temporary screenshot exports were removed, and no command or owned process remains.
+
+- Next session: Implement E2E-004/app-grid: qualify the fixed standard-user login recipient, use the normal app-grid route, and visibly establish that no Parent management window is available. Keep E2E-004/terminal separate and add no internal authorization assertions. Next settings: gpt-5.6-sol/high, Standard.
+
+
+## Session 103 — 2026-09-15 08:10 PDT
+
+- Task: Unconfirmed; consult the current task handoff.
+- Duration: 31 minutes
+- Completed: No valid end-of-session report was returned; work is unconfirmed.
+
+- Verification and cleanup: Outcome: killed. Session interrupted; work and cleanup are unconfirmed. Verification and cleanup are unconfirmed.
+
+- Next session: Retry only if the supervisor confirms a failure before tool use; otherwise reconcile the current task handoff and owned operations.

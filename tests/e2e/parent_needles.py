@@ -10,12 +10,20 @@ import stat
 from PIL import Image
 
 TAGS = ('onpc-gdm-other-parent-installed-input-account',
+        'onpc-gdm-standard-installed-input-account',
+        'onpc-gdm-standard-selected-account',
+        'onpc-gdm-other-child-masked-password',
         'onpc-parent-desktop', 'onpc-parent-app-grid',
+        'onpc-parent-standard-unavailable',
         'onpc-parent-child-picker', 'onpc-parent-child-choice', 'onpc-parent-child-selected',
+        'onpc-parent-new-child-choice', 'onpc-parent-new-child-selected',
+        'onpc-parent-empty',
         'onpc-parent-menu', 'onpc-parent-about-item', 'onpc-parent-about',
         'onpc-parent-about-legal', 'onpc-parent-license-link', 'onpc-parent-license')
 CLICK_TAGS = frozenset(('onpc-gdm-other-parent-installed-input-account',
+    'onpc-gdm-standard-installed-input-account',
     'onpc-parent-child-picker', 'onpc-parent-child-choice', 'onpc-parent-menu',
+    'onpc-parent-new-child-choice',
     'onpc-parent-about-item', 'onpc-parent-license-link'))
 
 

@@ -4,23 +4,20 @@
 
 ## Test case counts
 
-| Category | Count | Counting unit |
+| Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | 9128 | Collected pytest cases, including parameter combinations |
-| Private D-Bus component | 139 | Collected pytest cases, including parameter combinations |
-| UI | 142 | Collected pytest cases, including parameter combinations |
-| Fixture runtime | 1 | Collected pytest cases, including parameter combinations |
-| Installed system | 243 | Registered cases; repeated phases and prerequisites counted once |
-| Child Node | 3 | One check per executable test script; Node subtests not expanded |
-| Child GJS | 1 | One check per executable test script |
-| Integration qualification | 14 | One check per installed-runner check_*.py entry point |
-| E2E customer-journey (ready) | 1 | One exact scenario variant |
-| E2E fault-recovery (ready) | 0 | One exact scenario variant |
-| E2E runner-smoke (ready) | 1 | One exact scenario variant |
-| E2E customer-journey (pending) | 143 | One exact scenario variant |
-| E2E fault-recovery (pending) | 12 | One exact scenario variant |
-| E2E runner-smoke (pending) | 0 | One exact scenario variant |
-| **Total** | **9828** | All entries above, including pending E2E |
+| Unit, property and contract | <span style="color: green">9186</span>/<span style="color: gray">0</span>/9186 | Collected pytest cases, including parameter combinations |
+| Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
+| UI | <span style="color: green">142</span>/<span style="color: gray">0</span>/142 | Collected pytest cases, including parameter combinations |
+| Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
+| Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Registered cases; repeated phases and prerequisites counted once |
+| Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | One check per executable test script; Node subtests not expanded |
+| Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One check per executable test script |
+| Integration qualification | <span style="color: green">16</span>/<span style="color: gray">0</span>/16 | One check per installed-runner check_*.py entry point |
+| E2E customer-journey | <span style="color: green">4</span>/<span style="color: gray">140</span>/144 | One exact scenario variant |
+| E2E fault-recovery | <span style="color: green">0</span>/<span style="color: gray">12</span>/12 | One exact scenario variant |
+| E2E runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One exact scenario variant |
+| **Total** | **<span style="color: green">9736</span>/<span style="color: gray">152</span>/9888** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -35,162 +32,162 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | ID | Scenario | Variant | Status |
 | ---: | --- | --- | --- |
 | [1](#scenario-1) | Fresh boot and graphical/observation transport | `E2E-001/gdm-observation` | ready |
+| [3](#scenario-3) | Parent discovery and navigation (children: existing and new) | `E2E-003/existing-and-new` | ready |
+| [4](#scenario-4) | Parent discovery and navigation (children: none) | `E2E-003/none` | ready |
+| [5](#scenario-5) | Standard user cannot manage policy (launch: app grid) | `E2E-004/app-grid` | ready |
 | [151](#scenario-151) | Installed About and license access | `E2E-030/parent` | ready |
-| [2](#scenario-2) | Clean install, reboot and ready GDM | `E2E-002/clean` | pending |
-| [3](#scenario-3) | Parent discovery and navigation | `E2E-003/existing-and-new` | pending |
-| [4](#scenario-4) | Parent discovery and navigation | `E2E-003/none` | pending |
-| [5](#scenario-5) | Standard user cannot manage policy | `E2E-004/app-grid` | pending |
-| [6](#scenario-6) | Standard user cannot manage policy | `E2E-004/terminal` | pending |
-| [7](#scenario-7) | Allowance validation, automatic saves and live control | `E2E-005/daily-only-new` | pending |
-| [8](#scenario-8) | Allowance validation, automatic saves and live control | `E2E-005/daily-only-retained` | pending |
-| [9](#scenario-9) | Allowance validation, automatic saves and live control | `E2E-005/grant-only-new` | pending |
-| [10](#scenario-10) | Allowance validation, automatic saves and live control | `E2E-005/grant-only-retained` | pending |
-| [11](#scenario-11) | Allowance validation, automatic saves and live control | `E2E-005/combined-new` | pending |
-| [12](#scenario-12) | Allowance validation, automatic saves and live control | `E2E-005/combined-retained` | pending |
-| [13](#scenario-13) | App policy editing and matching | `E2E-006/enabled-precise` | pending |
-| [14](#scenario-14) | App policy editing and matching | `E2E-006/enabled-pattern` | pending |
-| [15](#scenario-15) | App policy editing and matching | `E2E-006/disabled-precise` | pending |
-| [16](#scenario-16) | App policy editing and matching | `E2E-006/disabled-pattern` | pending |
-| [17](#scenario-17) | Cancel then confirm revocation with open apps | `E2E-007/zero-single` | pending |
-| [18](#scenario-18) | Cancel then confirm revocation with open apps | `E2E-007/zero-multiple` | pending |
-| [19](#scenario-19) | Cancel then confirm revocation with open apps | `E2E-007/remaining-single` | pending |
-| [20](#scenario-20) | Cancel then confirm revocation with open apps | `E2E-007/remaining-multiple` | pending |
-| [21](#scenario-21) | Natural daily exhaustion, retained unlock and fresh login denial | `E2E-008/retained-unlock` | pending |
-| [22](#scenario-22) | Natural daily exhaustion, retained unlock and fresh login denial | `E2E-008/fresh-login` | pending |
-| [23](#scenario-23) | Grant expiry followed by kiosk approval and unlock | `E2E-009/excluded` | pending |
-| [24](#scenario-24) | Grant expiry followed by kiosk approval and unlock | `E2E-009/included` | pending |
-| [25](#scenario-25) | Switch User while child time expires | `E2E-010/parent` | pending |
-| [26](#scenario-26) | Switch User while child time expires | `E2E-010/other-child` | pending |
-| [27](#scenario-27) | Countdown and visibility transitions | `E2E-011/daily-only` | pending |
-| [28](#scenario-28) | Countdown and visibility transitions | `E2E-011/grant-only` | pending |
-| [29](#scenario-29) | Countdown and visibility transitions | `E2E-011/combined` | pending |
-| [30](#scenario-30) | Single child overlay and selected-parent approval | `E2E-012/excluded-first` | pending |
-| [31](#scenario-31) | Single child overlay and selected-parent approval | `E2E-012/excluded-second` | pending |
-| [32](#scenario-32) | Single child overlay and selected-parent approval | `E2E-012/included-first` | pending |
-| [33](#scenario-33) | Single child overlay and selected-parent approval | `E2E-012/included-second` | pending |
-| [34](#scenario-34) | Authentication denial and cancellation retry | `E2E-013/child-overlay-wrong-password` | pending |
-| [35](#scenario-35) | Authentication denial and cancellation retry | `E2E-013/child-overlay-cancel` | pending |
-| [36](#scenario-36) | Authentication denial and cancellation retry | `E2E-013/kiosk-wrong-password` | pending |
-| [37](#scenario-37) | Authentication denial and cancellation retry | `E2E-013/kiosk-cancel` | pending |
-| [38](#scenario-38) | Shared duration boundaries and duplicate submission | `E2E-014/child-overlay-predefined` | pending |
-| [39](#scenario-39) | Shared duration boundaries and duplicate submission | `E2E-014/child-overlay-custom` | pending |
-| [40](#scenario-40) | Shared duration boundaries and duplicate submission | `E2E-014/child-overlay-rest-of-day` | pending |
-| [41](#scenario-41) | Shared duration boundaries and duplicate submission | `E2E-014/kiosk-predefined` | pending |
-| [42](#scenario-42) | Shared duration boundaries and duplicate submission | `E2E-014/kiosk-custom` | pending |
-| [43](#scenario-43) | Shared duration boundaries and duplicate submission | `E2E-014/kiosk-rest-of-day` | pending |
-| [44](#scenario-44) | Request surface exit behavior | `E2E-015/child-overlay-cancel` | pending |
-| [45](#scenario-45) | Request surface exit behavior | `E2E-015/child-overlay-escape` | pending |
-| [46](#scenario-46) | Request surface exit behavior | `E2E-015/child-overlay-approved` | pending |
-| [47](#scenario-47) | Request surface exit behavior | `E2E-015/kiosk-cancel` | pending |
-| [48](#scenario-48) | Request surface exit behavior | `E2E-015/kiosk-escape` | pending |
-| [49](#scenario-49) | Request surface exit behavior | `E2E-015/kiosk-approved` | pending |
-| [50](#scenario-50) | Restricted request station | `E2E-016/approved` | pending |
-| [51](#scenario-51) | Restricted request station | `E2E-016/denied` | pending |
-| [52](#scenario-52) | Restricted request station | `E2E-016/cancelled` | pending |
-| [53](#scenario-53) | Kiosk selection and unavailable requests | `E2E-017/multiple` | pending |
-| [54](#scenario-54) | Kiosk selection and unavailable requests | `E2E-017/no-child` | pending |
-| [55](#scenario-55) | Kiosk selection and unavailable requests | `E2E-017/no-parent` | pending |
-| [56](#scenario-56) | Kiosk selection and unavailable requests | `E2E-017/ineligible-parent` | pending |
-| [57](#scenario-57) | Kiosk selection and unavailable requests | `E2E-017/disabled-child` | pending |
-| [58](#scenario-58) | Per-child cross-surface choices and separate mute | `E2E-018/overlay-to-kiosk-first` | pending |
-| [59](#scenario-59) | Per-child cross-surface choices and separate mute | `E2E-018/overlay-to-kiosk-second` | pending |
-| [60](#scenario-60) | Per-child cross-surface choices and separate mute | `E2E-018/kiosk-to-overlay-first` | pending |
-| [61](#scenario-61) | Per-child cross-surface choices and separate mute | `E2E-018/kiosk-to-overlay-second` | pending |
-| [62](#scenario-62) | Supported launch routes and policy matches | `E2E-019/native-grid-allowed-enabled` | pending |
-| [63](#scenario-63) | Supported launch routes and policy matches | `E2E-019/native-grid-allowed-disabled` | pending |
-| [64](#scenario-64) | Supported launch routes and policy matches | `E2E-019/native-grid-hard-blocked-enabled` | pending |
-| [65](#scenario-65) | Supported launch routes and policy matches | `E2E-019/native-grid-hard-blocked-disabled` | pending |
-| [66](#scenario-66) | Supported launch routes and policy matches | `E2E-019/native-grid-soft-blocked-enabled` | pending |
-| [67](#scenario-67) | Supported launch routes and policy matches | `E2E-019/native-grid-soft-blocked-disabled` | pending |
-| [68](#scenario-68) | Supported launch routes and policy matches | `E2E-019/native-desktop-allowed-enabled` | pending |
-| [69](#scenario-69) | Supported launch routes and policy matches | `E2E-019/native-desktop-allowed-disabled` | pending |
-| [70](#scenario-70) | Supported launch routes and policy matches | `E2E-019/native-desktop-hard-blocked-enabled` | pending |
-| [71](#scenario-71) | Supported launch routes and policy matches | `E2E-019/native-desktop-hard-blocked-disabled` | pending |
-| [72](#scenario-72) | Supported launch routes and policy matches | `E2E-019/native-desktop-soft-blocked-enabled` | pending |
-| [73](#scenario-73) | Supported launch routes and policy matches | `E2E-019/native-desktop-soft-blocked-disabled` | pending |
-| [74](#scenario-74) | Supported launch routes and policy matches | `E2E-019/native-file-manager-allowed-enabled` | pending |
-| [75](#scenario-75) | Supported launch routes and policy matches | `E2E-019/native-file-manager-allowed-disabled` | pending |
-| [76](#scenario-76) | Supported launch routes and policy matches | `E2E-019/native-file-manager-hard-blocked-enabled` | pending |
-| [77](#scenario-77) | Supported launch routes and policy matches | `E2E-019/native-file-manager-hard-blocked-disabled` | pending |
-| [78](#scenario-78) | Supported launch routes and policy matches | `E2E-019/native-file-manager-soft-blocked-enabled` | pending |
-| [79](#scenario-79) | Supported launch routes and policy matches | `E2E-019/native-file-manager-soft-blocked-disabled` | pending |
-| [80](#scenario-80) | Supported launch routes and policy matches | `E2E-019/native-command-allowed-enabled` | pending |
-| [81](#scenario-81) | Supported launch routes and policy matches | `E2E-019/native-command-allowed-disabled` | pending |
-| [82](#scenario-82) | Supported launch routes and policy matches | `E2E-019/native-command-hard-blocked-enabled` | pending |
-| [83](#scenario-83) | Supported launch routes and policy matches | `E2E-019/native-command-hard-blocked-disabled` | pending |
-| [84](#scenario-84) | Supported launch routes and policy matches | `E2E-019/native-command-soft-blocked-enabled` | pending |
-| [85](#scenario-85) | Supported launch routes and policy matches | `E2E-019/native-command-soft-blocked-disabled` | pending |
-| [86](#scenario-86) | Supported launch routes and policy matches | `E2E-019/snap-grid-allowed-enabled` | pending |
-| [87](#scenario-87) | Supported launch routes and policy matches | `E2E-019/snap-grid-allowed-disabled` | pending |
-| [88](#scenario-88) | Supported launch routes and policy matches | `E2E-019/snap-grid-hard-blocked-enabled` | pending |
-| [89](#scenario-89) | Supported launch routes and policy matches | `E2E-019/snap-grid-hard-blocked-disabled` | pending |
-| [90](#scenario-90) | Supported launch routes and policy matches | `E2E-019/snap-grid-soft-blocked-enabled` | pending |
-| [91](#scenario-91) | Supported launch routes and policy matches | `E2E-019/snap-grid-soft-blocked-disabled` | pending |
-| [92](#scenario-92) | Supported launch routes and policy matches | `E2E-019/snap-command-allowed-enabled` | pending |
-| [93](#scenario-93) | Supported launch routes and policy matches | `E2E-019/snap-command-allowed-disabled` | pending |
-| [94](#scenario-94) | Supported launch routes and policy matches | `E2E-019/snap-command-hard-blocked-enabled` | pending |
-| [95](#scenario-95) | Supported launch routes and policy matches | `E2E-019/snap-command-hard-blocked-disabled` | pending |
-| [96](#scenario-96) | Supported launch routes and policy matches | `E2E-019/snap-command-soft-blocked-enabled` | pending |
-| [97](#scenario-97) | Supported launch routes and policy matches | `E2E-019/snap-command-soft-blocked-disabled` | pending |
-| [98](#scenario-98) | Supported launch routes and policy matches | `E2E-019/flatpak-grid-allowed-enabled` | pending |
-| [99](#scenario-99) | Supported launch routes and policy matches | `E2E-019/flatpak-grid-allowed-disabled` | pending |
-| [100](#scenario-100) | Supported launch routes and policy matches | `E2E-019/flatpak-grid-hard-blocked-enabled` | pending |
-| [101](#scenario-101) | Supported launch routes and policy matches | `E2E-019/flatpak-grid-hard-blocked-disabled` | pending |
-| [102](#scenario-102) | Supported launch routes and policy matches | `E2E-019/flatpak-grid-soft-blocked-enabled` | pending |
-| [103](#scenario-103) | Supported launch routes and policy matches | `E2E-019/flatpak-grid-soft-blocked-disabled` | pending |
-| [104](#scenario-104) | Supported launch routes and policy matches | `E2E-019/flatpak-command-allowed-enabled` | pending |
-| [105](#scenario-105) | Supported launch routes and policy matches | `E2E-019/flatpak-command-allowed-disabled` | pending |
-| [106](#scenario-106) | Supported launch routes and policy matches | `E2E-019/flatpak-command-hard-blocked-enabled` | pending |
-| [107](#scenario-107) | Supported launch routes and policy matches | `E2E-019/flatpak-command-hard-blocked-disabled` | pending |
-| [108](#scenario-108) | Supported launch routes and policy matches | `E2E-019/flatpak-command-soft-blocked-enabled` | pending |
-| [109](#scenario-109) | Supported launch routes and policy matches | `E2E-019/flatpak-command-soft-blocked-disabled` | pending |
-| [110](#scenario-110) | Catalog update/disappearance between display and save | `E2E-020/update` | pending |
-| [111](#scenario-111) | Catalog update/disappearance between display and save | `E2E-020/remove` | pending |
-| [112](#scenario-112) | Multi-session child-only transaction effects | `E2E-021/save` | pending |
-| [113](#scenario-113) | Multi-session child-only transaction effects | `E2E-021/approve-without-soft` | pending |
-| [114](#scenario-114) | Multi-session child-only transaction effects | `E2E-021/approve-with-soft` | pending |
-| [115](#scenario-115) | Multi-session child-only transaction effects | `E2E-021/revoke` | pending |
-| [116](#scenario-116) | Customer lifecycle persistence and resume | `E2E-022/app-restart-active` | pending |
-| [117](#scenario-117) | Customer lifecycle persistence and resume | `E2E-022/app-restart-expired` | pending |
-| [118](#scenario-118) | Customer lifecycle persistence and resume | `E2E-022/sign-out-in-active` | pending |
-| [119](#scenario-119) | Customer lifecycle persistence and resume | `E2E-022/sign-out-in-expired` | pending |
-| [120](#scenario-120) | Customer lifecycle persistence and resume | `E2E-022/reboot-active` | pending |
-| [121](#scenario-121) | Customer lifecycle persistence and resume | `E2E-022/reboot-expired` | pending |
-| [122](#scenario-122) | Customer lifecycle persistence and resume | `E2E-022/idle-active` | pending |
-| [123](#scenario-123) | Customer lifecycle persistence and resume | `E2E-022/idle-expired` | pending |
-| [124](#scenario-124) | Customer lifecycle persistence and resume | `E2E-022/suspend-wake-active` | pending |
-| [125](#scenario-125) | Customer lifecycle persistence and resume | `E2E-022/suspend-wake-expired` | pending |
-| [126](#scenario-126) | Zero allowance to kiosk approval, real gameplay and expiry | `E2E-023/windowed` | pending |
-| [127](#scenario-127) | Zero allowance to kiosk approval, real gameplay and expiry | `E2E-023/fullscreen` | pending |
-| [128](#scenario-128) | Additional time accumulates during gameplay | `E2E-024/daily-dominant-windowed` | pending |
-| [129](#scenario-129) | Additional time accumulates during gameplay | `E2E-024/daily-dominant-fullscreen` | pending |
-| [130](#scenario-130) | Additional time accumulates during gameplay | `E2E-024/grant-dominant-windowed` | pending |
-| [131](#scenario-131) | Additional time accumulates during gameplay | `E2E-024/grant-dominant-fullscreen` | pending |
-| [132](#scenario-132) | Replacement grant precedence at session entry | `E2E-025/excluded-new-login` | pending |
-| [133](#scenario-133) | Replacement grant precedence at session entry | `E2E-025/excluded-retained-unlock` | pending |
-| [134](#scenario-134) | Replacement grant precedence at session entry | `E2E-025/included-new-login` | pending |
-| [135](#scenario-135) | Replacement grant precedence at session entry | `E2E-025/included-retained-unlock` | pending |
-| [136](#scenario-136) | Customer package update and activation | `E2E-026/process` | pending |
-| [137](#scenario-137) | Customer package update and activation | `E2E-026/session` | pending |
-| [138](#scenario-138) | Customer package update and activation | `E2E-026/reboot` | pending |
-| [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | pending |
-| [140](#scenario-140) | Startup, usage and authentication-agent failure recovery | `E2E-028/startup-enforcement` | pending |
-| [141](#scenario-141) | Startup, usage and authentication-agent failure recovery | `E2E-028/startup-broker` | pending |
-| [142](#scenario-142) | Startup, usage and authentication-agent failure recovery | `E2E-028/zero-time-exposure` | pending |
-| [143](#scenario-143) | Startup, usage and authentication-agent failure recovery | `E2E-028/usage-read` | pending |
-| [144](#scenario-144) | Startup, usage and authentication-agent failure recovery | `E2E-028/kiosk-auth-agent` | pending |
-| [145](#scenario-145) | Transactional failure, rollback and identity races | `E2E-029/failed-save` | pending |
-| [146](#scenario-146) | Transactional failure, rollback and identity races | `E2E-029/stale-identity` | pending |
-| [147](#scenario-147) | Transactional failure, rollback and identity races | `E2E-029/disconnect` | pending |
-| [148](#scenario-148) | Transactional failure, rollback and identity races | `E2E-029/concurrent-transaction` | pending |
-| [149](#scenario-149) | Transactional failure, rollback and identity races | `E2E-029/policy-reload` | pending |
-| [150](#scenario-150) | Transactional failure, rollback and identity races | `E2E-029/partial-termination` | pending |
-| [152](#scenario-152) | Feedback drafts, validation and attachment review | `E2E-031/draft-reopen` | pending |
-| [153](#scenario-153) | Feedback drafts, validation and attachment review | `E2E-031/validation` | pending |
-| [154](#scenario-154) | Feedback drafts, validation and attachment review | `E2E-031/attachments` | pending |
-| [155](#scenario-155) | Feedback drafts, validation and attachment review | `E2E-031/diagnostic-export` | pending |
-| [156](#scenario-156) | Authorized feedback delivery | `E2E-032/success` | pending |
-| [157](#scenario-157) | Authorized feedback retry after a real transport failure | `E2E-033/retry` | pending |
+| <span style="color: gray">[2](#scenario-2)</span> | <span style="color: gray">Clean install, reboot and ready GDM</span> | <span style="color: gray">`E2E-002/clean`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[10](#scenario-10)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: retained; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-retained`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[11](#scenario-11)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: new; time: combined)</span> | <span style="color: gray">`E2E-005/combined-new`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[12](#scenario-12)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: retained; time: combined)</span> | <span style="color: gray">`E2E-005/combined-retained`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[13](#scenario-13)</span> | <span style="color: gray">App policy editing and matching (control: enabled; match: precise)</span> | <span style="color: gray">`E2E-006/enabled-precise`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[14](#scenario-14)</span> | <span style="color: gray">App policy editing and matching (control: enabled; match: pattern)</span> | <span style="color: gray">`E2E-006/enabled-pattern`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[15](#scenario-15)</span> | <span style="color: gray">App policy editing and matching (control: disabled; match: precise)</span> | <span style="color: gray">`E2E-006/disabled-precise`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[16](#scenario-16)</span> | <span style="color: gray">App policy editing and matching (control: disabled; match: pattern)</span> | <span style="color: gray">`E2E-006/disabled-pattern`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[17](#scenario-17)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: single)</span> | <span style="color: gray">`E2E-007/zero-single`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[19](#scenario-19)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: single)</span> | <span style="color: gray">`E2E-007/remaining-single`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[21](#scenario-21)</span> | <span style="color: gray">Natural daily exhaustion, retained unlock and fresh login denial (entry: retained unlock)</span> | <span style="color: gray">`E2E-008/retained-unlock`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[22](#scenario-22)</span> | <span style="color: gray">Natural daily exhaustion, retained unlock and fresh login denial (entry: fresh login)</span> | <span style="color: gray">`E2E-008/fresh-login`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[23](#scenario-23)</span> | <span style="color: gray">Grant expiry followed by kiosk approval and unlock (soft apps: excluded)</span> | <span style="color: gray">`E2E-009/excluded`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[24](#scenario-24)</span> | <span style="color: gray">Grant expiry followed by kiosk approval and unlock (soft apps: included)</span> | <span style="color: gray">`E2E-009/included`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[25](#scenario-25)</span> | <span style="color: gray">Switch User while child time expires (foreground: parent)</span> | <span style="color: gray">`E2E-010/parent`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[26](#scenario-26)</span> | <span style="color: gray">Switch User while child time expires (foreground: other child)</span> | <span style="color: gray">`E2E-010/other-child`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[27](#scenario-27)</span> | <span style="color: gray">Countdown and visibility transitions (time: daily only)</span> | <span style="color: gray">`E2E-011/daily-only`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[28](#scenario-28)</span> | <span style="color: gray">Countdown and visibility transitions (time: grant only)</span> | <span style="color: gray">`E2E-011/grant-only`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[29](#scenario-29)</span> | <span style="color: gray">Countdown and visibility transitions (time: combined)</span> | <span style="color: gray">`E2E-011/combined`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[30](#scenario-30)</span> | <span style="color: gray">Single child overlay and selected-parent approval (approver: first; soft apps: excluded)</span> | <span style="color: gray">`E2E-012/excluded-first`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[31](#scenario-31)</span> | <span style="color: gray">Single child overlay and selected-parent approval (approver: second; soft apps: excluded)</span> | <span style="color: gray">`E2E-012/excluded-second`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[32](#scenario-32)</span> | <span style="color: gray">Single child overlay and selected-parent approval (approver: first; soft apps: included)</span> | <span style="color: gray">`E2E-012/included-first`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[33](#scenario-33)</span> | <span style="color: gray">Single child overlay and selected-parent approval (approver: second; soft apps: included)</span> | <span style="color: gray">`E2E-012/included-second`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[34](#scenario-34)</span> | <span style="color: gray">Authentication denial and cancellation retry (outcome: wrong password; surface: child overlay)</span> | <span style="color: gray">`E2E-013/child-overlay-wrong-password`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[35](#scenario-35)</span> | <span style="color: gray">Authentication denial and cancellation retry (outcome: cancel; surface: child overlay)</span> | <span style="color: gray">`E2E-013/child-overlay-cancel`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[36](#scenario-36)</span> | <span style="color: gray">Authentication denial and cancellation retry (outcome: wrong password; surface: kiosk)</span> | <span style="color: gray">`E2E-013/kiosk-wrong-password`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[37](#scenario-37)</span> | <span style="color: gray">Authentication denial and cancellation retry (outcome: cancel; surface: kiosk)</span> | <span style="color: gray">`E2E-013/kiosk-cancel`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[38](#scenario-38)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-predefined`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[39](#scenario-39)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: custom; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-custom`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[40](#scenario-40)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: rest of day; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-rest-of-day`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[41](#scenario-41)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-predefined`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[42](#scenario-42)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: custom; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-custom`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[43](#scenario-43)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: rest of day; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-rest-of-day`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[44](#scenario-44)</span> | <span style="color: gray">Request surface exit behavior (exit: cancel; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-cancel`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[45](#scenario-45)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-escape`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[46](#scenario-46)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-approved`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[47](#scenario-47)</span> | <span style="color: gray">Request surface exit behavior (exit: cancel; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-cancel`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[48](#scenario-48)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-escape`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[49](#scenario-49)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-approved`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[50](#scenario-50)</span> | <span style="color: gray">Restricted request station (request: approved)</span> | <span style="color: gray">`E2E-016/approved`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[51](#scenario-51)</span> | <span style="color: gray">Restricted request station (request: denied)</span> | <span style="color: gray">`E2E-016/denied`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[52](#scenario-52)</span> | <span style="color: gray">Restricted request station (request: cancelled)</span> | <span style="color: gray">`E2E-016/cancelled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[53](#scenario-53)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: multiple)</span> | <span style="color: gray">`E2E-017/multiple`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[54](#scenario-54)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: no child)</span> | <span style="color: gray">`E2E-017/no-child`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[55](#scenario-55)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: no parent)</span> | <span style="color: gray">`E2E-017/no-parent`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[56](#scenario-56)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: ineligible parent)</span> | <span style="color: gray">`E2E-017/ineligible-parent`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[57](#scenario-57)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: disabled child)</span> | <span style="color: gray">`E2E-017/disabled-child`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[58](#scenario-58)</span> | <span style="color: gray">Per-child cross-surface choices and separate mute (child: first; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-first`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[59](#scenario-59)</span> | <span style="color: gray">Per-child cross-surface choices and separate mute (child: second; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-second`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[60](#scenario-60)</span> | <span style="color: gray">Per-child cross-surface choices and separate mute (child: first; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-first`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[61](#scenario-61)</span> | <span style="color: gray">Per-child cross-surface choices and separate mute (child: second; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-second`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[62](#scenario-62)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[63](#scenario-63)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[64](#scenario-64)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[65](#scenario-65)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[66](#scenario-66)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[67](#scenario-67)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[68](#scenario-68)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[69](#scenario-69)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[70](#scenario-70)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[71](#scenario-71)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[72](#scenario-72)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[73](#scenario-73)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[74](#scenario-74)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[75](#scenario-75)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[76](#scenario-76)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[77](#scenario-77)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[78](#scenario-78)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[79](#scenario-79)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[80](#scenario-80)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[81](#scenario-81)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[82](#scenario-82)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[83](#scenario-83)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[84](#scenario-84)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[85](#scenario-85)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[86](#scenario-86)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[87](#scenario-87)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[88](#scenario-88)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[89](#scenario-89)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[90](#scenario-90)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[91](#scenario-91)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[92](#scenario-92)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[93](#scenario-93)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[94](#scenario-94)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[95](#scenario-95)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[96](#scenario-96)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[97](#scenario-97)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[98](#scenario-98)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[99](#scenario-99)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[100](#scenario-100)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[101](#scenario-101)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[102](#scenario-102)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[103](#scenario-103)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[104](#scenario-104)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[105](#scenario-105)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[106](#scenario-106)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[107](#scenario-107)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[108](#scenario-108)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[109](#scenario-109)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[110](#scenario-110)</span> | <span style="color: gray">Catalog update/disappearance between display and save (change: update)</span> | <span style="color: gray">`E2E-020/update`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[111](#scenario-111)</span> | <span style="color: gray">Catalog update/disappearance between display and save (change: remove)</span> | <span style="color: gray">`E2E-020/remove`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[112](#scenario-112)</span> | <span style="color: gray">Multi-session child-only transaction effects (transaction: save)</span> | <span style="color: gray">`E2E-021/save`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[113](#scenario-113)</span> | <span style="color: gray">Multi-session child-only transaction effects (transaction: approve without soft)</span> | <span style="color: gray">`E2E-021/approve-without-soft`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[114](#scenario-114)</span> | <span style="color: gray">Multi-session child-only transaction effects (transaction: approve with soft)</span> | <span style="color: gray">`E2E-021/approve-with-soft`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[115](#scenario-115)</span> | <span style="color: gray">Multi-session child-only transaction effects (transaction: revoke)</span> | <span style="color: gray">`E2E-021/revoke`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[116](#scenario-116)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: app restart; grant: active)</span> | <span style="color: gray">`E2E-022/app-restart-active`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[117](#scenario-117)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: app restart; grant: expired)</span> | <span style="color: gray">`E2E-022/app-restart-expired`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[118](#scenario-118)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: sign out in; grant: active)</span> | <span style="color: gray">`E2E-022/sign-out-in-active`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[119](#scenario-119)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: sign out in; grant: expired)</span> | <span style="color: gray">`E2E-022/sign-out-in-expired`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[120](#scenario-120)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: reboot; grant: active)</span> | <span style="color: gray">`E2E-022/reboot-active`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[121](#scenario-121)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: reboot; grant: expired)</span> | <span style="color: gray">`E2E-022/reboot-expired`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[122](#scenario-122)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: idle; grant: active)</span> | <span style="color: gray">`E2E-022/idle-active`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[123](#scenario-123)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: idle; grant: expired)</span> | <span style="color: gray">`E2E-022/idle-expired`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[124](#scenario-124)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: suspend wake; grant: active)</span> | <span style="color: gray">`E2E-022/suspend-wake-active`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[125](#scenario-125)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: suspend wake; grant: expired)</span> | <span style="color: gray">`E2E-022/suspend-wake-expired`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[126](#scenario-126)</span> | <span style="color: gray">Zero allowance to kiosk approval, real gameplay and expiry (gameplay: windowed)</span> | <span style="color: gray">`E2E-023/windowed`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[127](#scenario-127)</span> | <span style="color: gray">Zero allowance to kiosk approval, real gameplay and expiry (gameplay: fullscreen)</span> | <span style="color: gray">`E2E-023/fullscreen`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[128](#scenario-128)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: windowed; time: daily dominant)</span> | <span style="color: gray">`E2E-024/daily-dominant-windowed`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[129](#scenario-129)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: fullscreen; time: daily dominant)</span> | <span style="color: gray">`E2E-024/daily-dominant-fullscreen`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[130](#scenario-130)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: windowed; time: grant dominant)</span> | <span style="color: gray">`E2E-024/grant-dominant-windowed`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[131](#scenario-131)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant)</span> | <span style="color: gray">`E2E-024/grant-dominant-fullscreen`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[132](#scenario-132)</span> | <span style="color: gray">Replacement grant precedence at session entry (entry: new login; soft apps: excluded)</span> | <span style="color: gray">`E2E-025/excluded-new-login`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[133](#scenario-133)</span> | <span style="color: gray">Replacement grant precedence at session entry (entry: retained unlock; soft apps: excluded)</span> | <span style="color: gray">`E2E-025/excluded-retained-unlock`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[134](#scenario-134)</span> | <span style="color: gray">Replacement grant precedence at session entry (entry: new login; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-new-login`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[135](#scenario-135)</span> | <span style="color: gray">Replacement grant precedence at session entry (entry: retained unlock; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-retained-unlock`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[136](#scenario-136)</span> | <span style="color: gray">Customer package update and activation (activation: process)</span> | <span style="color: gray">`E2E-026/process`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[137](#scenario-137)</span> | <span style="color: gray">Customer package update and activation (activation: session)</span> | <span style="color: gray">`E2E-026/session`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[139](#scenario-139)</span> | <span style="color: gray">Install through remove, reinstall and purge</span> | <span style="color: gray">`E2E-027/continuous`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[140](#scenario-140)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: startup enforcement)</span> | <span style="color: gray">`E2E-028/startup-enforcement`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[141](#scenario-141)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: startup broker)</span> | <span style="color: gray">`E2E-028/startup-broker`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[142](#scenario-142)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: zero time exposure)</span> | <span style="color: gray">`E2E-028/zero-time-exposure`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[143](#scenario-143)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: usage read)</span> | <span style="color: gray">`E2E-028/usage-read`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[144](#scenario-144)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: kiosk auth agent)</span> | <span style="color: gray">`E2E-028/kiosk-auth-agent`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[145](#scenario-145)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: failed save)</span> | <span style="color: gray">`E2E-029/failed-save`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[146](#scenario-146)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: stale identity)</span> | <span style="color: gray">`E2E-029/stale-identity`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[147](#scenario-147)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: disconnect)</span> | <span style="color: gray">`E2E-029/disconnect`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[148](#scenario-148)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: concurrent transaction)</span> | <span style="color: gray">`E2E-029/concurrent-transaction`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[149](#scenario-149)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: policy reload)</span> | <span style="color: gray">`E2E-029/policy-reload`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[150](#scenario-150)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: partial termination)</span> | <span style="color: gray">`E2E-029/partial-termination`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[152](#scenario-152)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: draft reopen)</span> | <span style="color: gray">`E2E-031/draft-reopen`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[154](#scenario-154)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: attachments)</span> | <span style="color: gray">`E2E-031/attachments`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[155](#scenario-155)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: diagnostic export)</span> | <span style="color: gray">`E2E-031/diagnostic-export`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Authorized feedback delivery</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Authorized feedback retry after a real transport failure</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
 
 ### Scenario 1
 
@@ -206,6 +203,47 @@ Variant: transport: gdm observation
 - Select the supported serial console, verify the real fixture login prompt and disabled echo, authenticate through the secret-safe API, require actual harmless command output, and perform real logout.
 - Select graphics after serial logout, independently acknowledge the session-free greeter, and reconcile ordered private match screenshots and the command result before accepting shutdown.
 
+### Scenario 3
+
+**Parent discovery and navigation (children: existing and new)**
+
+Case: `E2E-003/existing-and-new` · Category: customer-journey · Status: **ready**
+
+Variant: children: existing and new
+
+**Steps:**
+
+- Log in as Parent, launch from the app grid, and inspect eligible children or the empty state.
+- For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe it appear without restarting Parent. For none, pause before launching Parent while the fixed fixture makes only the child accounts ineligible.
+- Select each visible eligible child and navigate the displayed status and application choices; for none, observe the explained empty state.
+
+### Scenario 4
+
+**Parent discovery and navigation (children: none)**
+
+Case: `E2E-003/none` · Category: customer-journey · Status: **ready**
+
+Variant: children: none
+
+**Steps:**
+
+- Log in as Parent, launch from the app grid, and inspect eligible children or the empty state.
+- For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe it appear without restarting Parent. For none, pause before launching Parent while the fixed fixture makes only the child accounts ineligible.
+- Select each visible eligible child and navigate the displayed status and application choices; for none, observe the explained empty state.
+
+### Scenario 5
+
+**Standard user cannot manage policy (launch: app grid)**
+
+Case: `E2E-004/app-grid` · Category: customer-journey · Status: **ready**
+
+Variant: launch: app grid
+
+**Steps:**
+
+- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
+- For app-grid, search the full product name and observe that no Parent application is available, with only the web-search suggestion and empty application results. For terminal, invoke the executable and observe denial. No management controls become available through either route.
+
 ### Scenario 151
 
 **Installed About and license access**
@@ -218,6 +256,8 @@ Variant: surface: parent
 
 - Log in as Parent, launch the installed app from the app grid, select an existing child, open About, read its product/version information and open the installed license text.
 - Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy.
+
+<div style="color: gray">
 
 ### Scenario 2
 
@@ -235,56 +275,13 @@ Variant: installation: clean
 
 Pending: Task 20 must implement this complete journey and its assertions.
 
-### Scenario 3
+</div>
 
-**Parent discovery and navigation**
-
-Case: `E2E-003/existing-and-new` · Category: customer-journey · Status: **pending**
-
-Variant: children: existing and new
-
-**Steps:**
-
-- Log in as Parent, launch from the app grid, and inspect eligible children or the empty state.
-- For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe the child appear without restarting Parent.
-- Select each visible eligible child and navigate the displayed status and application choices; for none, observe the explained empty state.
-
-Pending: Task 21A must implement this complete journey and its assertions.
-
-### Scenario 4
-
-**Parent discovery and navigation**
-
-Case: `E2E-003/none` · Category: customer-journey · Status: **pending**
-
-Variant: children: none
-
-**Steps:**
-
-- Log in as Parent, launch from the app grid, and inspect eligible children or the empty state.
-- For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe the child appear without restarting Parent.
-- Select each visible eligible child and navigate the displayed status and application choices; for none, observe the explained empty state.
-
-Pending: Task 21A must implement this complete journey and its assertions.
-
-### Scenario 5
-
-**Standard user cannot manage policy**
-
-Case: `E2E-004/app-grid` · Category: customer-journey · Status: **pending**
-
-Variant: launch: app grid
-
-**Steps:**
-
-- Log in as a standard user and attempt to launch Parent through the selected customer route.
-- Observe denial and absence of management controls; do not substitute direct D-Bus attacks for this UI case.
-
-Pending: Task 21A must implement this complete journey and its assertions.
+<div style="color: gray">
 
 ### Scenario 6
 
-**Standard user cannot manage policy**
+**Standard user cannot manage policy (launch: terminal)**
 
 Case: `E2E-004/terminal` · Category: customer-journey · Status: **pending**
 
@@ -292,14 +289,18 @@ Variant: launch: terminal
 
 **Steps:**
 
-- Log in as a standard user and attempt to launch Parent through the selected customer route.
-- Observe denial and absence of management controls; do not substitute direct D-Bus attacks for this UI case.
+- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
+- For app-grid, search the full product name and observe that no Parent application is available, with only the web-search suggestion and empty application results. For terminal, invoke the executable and observe denial. No management controls become available through either route.
 
 Pending: Task 21A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 7
 
-**Allowance validation, automatic saves and live control**
+**Allowance validation, automatic saves and live control (session: new; time: daily only)**
 
 Case: `E2E-005/daily-only-new` · Category: customer-journey · Status: **pending**
 
@@ -314,9 +315,13 @@ Variant: session: new; time: daily only
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 8
 
-**Allowance validation, automatic saves and live control**
+**Allowance validation, automatic saves and live control (session: retained; time: daily only)**
 
 Case: `E2E-005/daily-only-retained` · Category: customer-journey · Status: **pending**
 
@@ -331,9 +336,13 @@ Variant: session: retained; time: daily only
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 9
 
-**Allowance validation, automatic saves and live control**
+**Allowance validation, automatic saves and live control (session: new; time: grant only)**
 
 Case: `E2E-005/grant-only-new` · Category: customer-journey · Status: **pending**
 
@@ -348,9 +357,13 @@ Variant: session: new; time: grant only
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 10
 
-**Allowance validation, automatic saves and live control**
+**Allowance validation, automatic saves and live control (session: retained; time: grant only)**
 
 Case: `E2E-005/grant-only-retained` · Category: customer-journey · Status: **pending**
 
@@ -365,9 +378,13 @@ Variant: session: retained; time: grant only
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 11
 
-**Allowance validation, automatic saves and live control**
+**Allowance validation, automatic saves and live control (session: new; time: combined)**
 
 Case: `E2E-005/combined-new` · Category: customer-journey · Status: **pending**
 
@@ -382,9 +399,13 @@ Variant: session: new; time: combined
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 12
 
-**Allowance validation, automatic saves and live control**
+**Allowance validation, automatic saves and live control (session: retained; time: combined)**
 
 Case: `E2E-005/combined-retained` · Category: customer-journey · Status: **pending**
 
@@ -399,9 +420,13 @@ Variant: session: retained; time: combined
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 13
 
-**App policy editing and matching**
+**App policy editing and matching (control: enabled; match: precise)**
 
 Case: `E2E-006/enabled-precise` · Category: customer-journey · Status: **pending**
 
@@ -415,9 +440,13 @@ Variant: control: enabled; match: precise
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 14
 
-**App policy editing and matching**
+**App policy editing and matching (control: enabled; match: pattern)**
 
 Case: `E2E-006/enabled-pattern` · Category: customer-journey · Status: **pending**
 
@@ -431,9 +460,13 @@ Variant: control: enabled; match: pattern
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 15
 
-**App policy editing and matching**
+**App policy editing and matching (control: disabled; match: precise)**
 
 Case: `E2E-006/disabled-precise` · Category: customer-journey · Status: **pending**
 
@@ -447,9 +480,13 @@ Variant: control: disabled; match: precise
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 16
 
-**App policy editing and matching**
+**App policy editing and matching (control: disabled; match: pattern)**
 
 Case: `E2E-006/disabled-pattern` · Category: customer-journey · Status: **pending**
 
@@ -463,9 +500,13 @@ Variant: control: disabled; match: pattern
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 17
 
-**Cancel then confirm revocation with open apps**
+**Cancel then confirm revocation with open apps (daily: zero; sessions: single)**
 
 Case: `E2E-007/zero-single` · Category: customer-journey · Status: **pending**
 
@@ -479,9 +520,13 @@ Variant: daily: zero; sessions: single
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 18
 
-**Cancel then confirm revocation with open apps**
+**Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)**
 
 Case: `E2E-007/zero-multiple` · Category: customer-journey · Status: **pending**
 
@@ -495,9 +540,13 @@ Variant: daily: zero; sessions: multiple
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 19
 
-**Cancel then confirm revocation with open apps**
+**Cancel then confirm revocation with open apps (daily: remaining; sessions: single)**
 
 Case: `E2E-007/remaining-single` · Category: customer-journey · Status: **pending**
 
@@ -511,9 +560,13 @@ Variant: daily: remaining; sessions: single
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 20
 
-**Cancel then confirm revocation with open apps**
+**Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)**
 
 Case: `E2E-007/remaining-multiple` · Category: customer-journey · Status: **pending**
 
@@ -527,9 +580,13 @@ Variant: daily: remaining; sessions: multiple
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 21
 
-**Natural daily exhaustion, retained unlock and fresh login denial**
+**Natural daily exhaustion, retained unlock and fresh login denial (entry: retained unlock)**
 
 Case: `E2E-008/retained-unlock` · Category: customer-journey · Status: **pending**
 
@@ -543,9 +600,13 @@ Variant: entry: retained unlock
 
 Pending: Task 22A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 22
 
-**Natural daily exhaustion, retained unlock and fresh login denial**
+**Natural daily exhaustion, retained unlock and fresh login denial (entry: fresh login)**
 
 Case: `E2E-008/fresh-login` · Category: customer-journey · Status: **pending**
 
@@ -559,9 +620,13 @@ Variant: entry: fresh login
 
 Pending: Task 22A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 23
 
-**Grant expiry followed by kiosk approval and unlock**
+**Grant expiry followed by kiosk approval and unlock (soft apps: excluded)**
 
 Case: `E2E-009/excluded` · Category: customer-journey · Status: **pending**
 
@@ -575,9 +640,13 @@ Variant: soft apps: excluded
 
 Pending: Task 22A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 24
 
-**Grant expiry followed by kiosk approval and unlock**
+**Grant expiry followed by kiosk approval and unlock (soft apps: included)**
 
 Case: `E2E-009/included` · Category: customer-journey · Status: **pending**
 
@@ -591,9 +660,13 @@ Variant: soft apps: included
 
 Pending: Task 22A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 25
 
-**Switch User while child time expires**
+**Switch User while child time expires (foreground: parent)**
 
 Case: `E2E-010/parent` · Category: customer-journey · Status: **pending**
 
@@ -607,9 +680,13 @@ Variant: foreground: parent
 
 Pending: Task 22A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 26
 
-**Switch User while child time expires**
+**Switch User while child time expires (foreground: other child)**
 
 Case: `E2E-010/other-child` · Category: customer-journey · Status: **pending**
 
@@ -623,9 +700,13 @@ Variant: foreground: other child
 
 Pending: Task 22A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 27
 
-**Countdown and visibility transitions**
+**Countdown and visibility transitions (time: daily only)**
 
 Case: `E2E-011/daily-only` · Category: customer-journey · Status: **pending**
 
@@ -639,9 +720,13 @@ Variant: time: daily only
 
 Pending: Task 22B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 28
 
-**Countdown and visibility transitions**
+**Countdown and visibility transitions (time: grant only)**
 
 Case: `E2E-011/grant-only` · Category: customer-journey · Status: **pending**
 
@@ -655,9 +740,13 @@ Variant: time: grant only
 
 Pending: Task 22B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 29
 
-**Countdown and visibility transitions**
+**Countdown and visibility transitions (time: combined)**
 
 Case: `E2E-011/combined` · Category: customer-journey · Status: **pending**
 
@@ -671,9 +760,13 @@ Variant: time: combined
 
 Pending: Task 22B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 30
 
-**Single child overlay and selected-parent approval**
+**Single child overlay and selected-parent approval (approver: first; soft apps: excluded)**
 
 Case: `E2E-012/excluded-first` · Category: customer-journey · Status: **pending**
 
@@ -687,9 +780,13 @@ Variant: approver: first; soft apps: excluded
 
 Pending: Task 23A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 31
 
-**Single child overlay and selected-parent approval**
+**Single child overlay and selected-parent approval (approver: second; soft apps: excluded)**
 
 Case: `E2E-012/excluded-second` · Category: customer-journey · Status: **pending**
 
@@ -703,9 +800,13 @@ Variant: approver: second; soft apps: excluded
 
 Pending: Task 23A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 32
 
-**Single child overlay and selected-parent approval**
+**Single child overlay and selected-parent approval (approver: first; soft apps: included)**
 
 Case: `E2E-012/included-first` · Category: customer-journey · Status: **pending**
 
@@ -719,9 +820,13 @@ Variant: approver: first; soft apps: included
 
 Pending: Task 23A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 33
 
-**Single child overlay and selected-parent approval**
+**Single child overlay and selected-parent approval (approver: second; soft apps: included)**
 
 Case: `E2E-012/included-second` · Category: customer-journey · Status: **pending**
 
@@ -735,9 +840,13 @@ Variant: approver: second; soft apps: included
 
 Pending: Task 23A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 34
 
-**Authentication denial and cancellation retry**
+**Authentication denial and cancellation retry (outcome: wrong password; surface: child overlay)**
 
 Case: `E2E-013/child-overlay-wrong-password` · Category: customer-journey · Status: **pending**
 
@@ -751,9 +860,13 @@ Variant: outcome: wrong password; surface: child overlay
 
 Pending: Task 23A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 35
 
-**Authentication denial and cancellation retry**
+**Authentication denial and cancellation retry (outcome: cancel; surface: child overlay)**
 
 Case: `E2E-013/child-overlay-cancel` · Category: customer-journey · Status: **pending**
 
@@ -767,9 +880,13 @@ Variant: outcome: cancel; surface: child overlay
 
 Pending: Task 23A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 36
 
-**Authentication denial and cancellation retry**
+**Authentication denial and cancellation retry (outcome: wrong password; surface: kiosk)**
 
 Case: `E2E-013/kiosk-wrong-password` · Category: customer-journey · Status: **pending**
 
@@ -783,9 +900,13 @@ Variant: outcome: wrong password; surface: kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 37
 
-**Authentication denial and cancellation retry**
+**Authentication denial and cancellation retry (outcome: cancel; surface: kiosk)**
 
 Case: `E2E-013/kiosk-cancel` · Category: customer-journey · Status: **pending**
 
@@ -799,9 +920,13 @@ Variant: outcome: cancel; surface: kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 38
 
-**Shared duration boundaries and duplicate submission**
+**Shared duration boundaries and duplicate submission (choice: predefined; surface: child overlay)**
 
 Case: `E2E-014/child-overlay-predefined` · Category: customer-journey · Status: **pending**
 
@@ -815,9 +940,13 @@ Variant: choice: predefined; surface: child overlay
 
 Pending: Task 23B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 39
 
-**Shared duration boundaries and duplicate submission**
+**Shared duration boundaries and duplicate submission (choice: custom; surface: child overlay)**
 
 Case: `E2E-014/child-overlay-custom` · Category: customer-journey · Status: **pending**
 
@@ -831,9 +960,13 @@ Variant: choice: custom; surface: child overlay
 
 Pending: Task 23B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 40
 
-**Shared duration boundaries and duplicate submission**
+**Shared duration boundaries and duplicate submission (choice: rest of day; surface: child overlay)**
 
 Case: `E2E-014/child-overlay-rest-of-day` · Category: customer-journey · Status: **pending**
 
@@ -847,9 +980,13 @@ Variant: choice: rest of day; surface: child overlay
 
 Pending: Task 23B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 41
 
-**Shared duration boundaries and duplicate submission**
+**Shared duration boundaries and duplicate submission (choice: predefined; surface: kiosk)**
 
 Case: `E2E-014/kiosk-predefined` · Category: customer-journey · Status: **pending**
 
@@ -863,9 +1000,13 @@ Variant: choice: predefined; surface: kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 42
 
-**Shared duration boundaries and duplicate submission**
+**Shared duration boundaries and duplicate submission (choice: custom; surface: kiosk)**
 
 Case: `E2E-014/kiosk-custom` · Category: customer-journey · Status: **pending**
 
@@ -879,9 +1020,13 @@ Variant: choice: custom; surface: kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 43
 
-**Shared duration boundaries and duplicate submission**
+**Shared duration boundaries and duplicate submission (choice: rest of day; surface: kiosk)**
 
 Case: `E2E-014/kiosk-rest-of-day` · Category: customer-journey · Status: **pending**
 
@@ -895,9 +1040,13 @@ Variant: choice: rest of day; surface: kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 44
 
-**Request surface exit behavior**
+**Request surface exit behavior (exit: cancel; surface: child overlay)**
 
 Case: `E2E-015/child-overlay-cancel` · Category: customer-journey · Status: **pending**
 
@@ -910,9 +1059,13 @@ Variant: exit: cancel; surface: child overlay
 
 Pending: Task 23B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 45
 
-**Request surface exit behavior**
+**Request surface exit behavior (exit: escape; surface: child overlay)**
 
 Case: `E2E-015/child-overlay-escape` · Category: customer-journey · Status: **pending**
 
@@ -925,9 +1078,13 @@ Variant: exit: escape; surface: child overlay
 
 Pending: Task 23B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 46
 
-**Request surface exit behavior**
+**Request surface exit behavior (exit: approved; surface: child overlay)**
 
 Case: `E2E-015/child-overlay-approved` · Category: customer-journey · Status: **pending**
 
@@ -940,9 +1097,13 @@ Variant: exit: approved; surface: child overlay
 
 Pending: Task 23B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 47
 
-**Request surface exit behavior**
+**Request surface exit behavior (exit: cancel; surface: kiosk)**
 
 Case: `E2E-015/kiosk-cancel` · Category: customer-journey · Status: **pending**
 
@@ -955,9 +1116,13 @@ Variant: exit: cancel; surface: kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 48
 
-**Request surface exit behavior**
+**Request surface exit behavior (exit: escape; surface: kiosk)**
 
 Case: `E2E-015/kiosk-escape` · Category: customer-journey · Status: **pending**
 
@@ -970,9 +1135,13 @@ Variant: exit: escape; surface: kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 49
 
-**Request surface exit behavior**
+**Request surface exit behavior (exit: approved; surface: kiosk)**
 
 Case: `E2E-015/kiosk-approved` · Category: customer-journey · Status: **pending**
 
@@ -985,9 +1154,13 @@ Variant: exit: approved; surface: kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 50
 
-**Restricted request station**
+**Restricted request station (request: approved)**
 
 Case: `E2E-016/approved` · Category: customer-journey · Status: **pending**
 
@@ -1001,9 +1174,13 @@ Variant: request: approved
 
 Pending: Task 24A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 51
 
-**Restricted request station**
+**Restricted request station (request: denied)**
 
 Case: `E2E-016/denied` · Category: customer-journey · Status: **pending**
 
@@ -1017,9 +1194,13 @@ Variant: request: denied
 
 Pending: Task 24A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 52
 
-**Restricted request station**
+**Restricted request station (request: cancelled)**
 
 Case: `E2E-016/cancelled` · Category: customer-journey · Status: **pending**
 
@@ -1033,9 +1214,13 @@ Variant: request: cancelled
 
 Pending: Task 24A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 53
 
-**Kiosk selection and unavailable requests**
+**Kiosk selection and unavailable requests (accounts: multiple)**
 
 Case: `E2E-017/multiple` · Category: customer-journey · Status: **pending**
 
@@ -1049,9 +1234,13 @@ Variant: accounts: multiple
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 54
 
-**Kiosk selection and unavailable requests**
+**Kiosk selection and unavailable requests (accounts: no child)**
 
 Case: `E2E-017/no-child` · Category: customer-journey · Status: **pending**
 
@@ -1065,9 +1254,13 @@ Variant: accounts: no child
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 55
 
-**Kiosk selection and unavailable requests**
+**Kiosk selection and unavailable requests (accounts: no parent)**
 
 Case: `E2E-017/no-parent` · Category: customer-journey · Status: **pending**
 
@@ -1081,9 +1274,13 @@ Variant: accounts: no parent
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 56
 
-**Kiosk selection and unavailable requests**
+**Kiosk selection and unavailable requests (accounts: ineligible parent)**
 
 Case: `E2E-017/ineligible-parent` · Category: customer-journey · Status: **pending**
 
@@ -1097,9 +1294,13 @@ Variant: accounts: ineligible parent
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 57
 
-**Kiosk selection and unavailable requests**
+**Kiosk selection and unavailable requests (accounts: disabled child)**
 
 Case: `E2E-017/disabled-child` · Category: customer-journey · Status: **pending**
 
@@ -1113,9 +1314,13 @@ Variant: accounts: disabled child
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 58
 
-**Per-child cross-surface choices and separate mute**
+**Per-child cross-surface choices and separate mute (child: first; direction: overlay to kiosk)**
 
 Case: `E2E-018/overlay-to-kiosk-first` · Category: customer-journey · Status: **pending**
 
@@ -1129,9 +1334,13 @@ Variant: child: first; direction: overlay to kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 59
 
-**Per-child cross-surface choices and separate mute**
+**Per-child cross-surface choices and separate mute (child: second; direction: overlay to kiosk)**
 
 Case: `E2E-018/overlay-to-kiosk-second` · Category: customer-journey · Status: **pending**
 
@@ -1145,9 +1354,13 @@ Variant: child: second; direction: overlay to kiosk
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 60
 
-**Per-child cross-surface choices and separate mute**
+**Per-child cross-surface choices and separate mute (child: first; direction: kiosk to overlay)**
 
 Case: `E2E-018/kiosk-to-overlay-first` · Category: customer-journey · Status: **pending**
 
@@ -1161,9 +1374,13 @@ Variant: child: first; direction: kiosk to overlay
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 61
 
-**Per-child cross-surface choices and separate mute**
+**Per-child cross-surface choices and separate mute (child: second; direction: kiosk to overlay)**
 
 Case: `E2E-018/kiosk-to-overlay-second` · Category: customer-journey · Status: **pending**
 
@@ -1177,9 +1394,13 @@ Variant: child: second; direction: kiosk to overlay
 
 Pending: Task 24B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 62
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: allowed; route: native grid)**
 
 Case: `E2E-019/native-grid-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1193,9 +1414,13 @@ Variant: control: enabled; policy: allowed; route: native grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 63
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: allowed; route: native grid)**
 
 Case: `E2E-019/native-grid-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1209,9 +1434,13 @@ Variant: control: disabled; policy: allowed; route: native grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 64
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native grid)**
 
 Case: `E2E-019/native-grid-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1225,9 +1454,13 @@ Variant: control: enabled; policy: hard blocked; route: native grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 65
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native grid)**
 
 Case: `E2E-019/native-grid-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1241,9 +1474,13 @@ Variant: control: disabled; policy: hard blocked; route: native grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 66
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native grid)**
 
 Case: `E2E-019/native-grid-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1257,9 +1494,13 @@ Variant: control: enabled; policy: soft blocked; route: native grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 67
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native grid)**
 
 Case: `E2E-019/native-grid-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1273,9 +1514,13 @@ Variant: control: disabled; policy: soft blocked; route: native grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 68
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: allowed; route: native desktop)**
 
 Case: `E2E-019/native-desktop-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1289,9 +1534,13 @@ Variant: control: enabled; policy: allowed; route: native desktop
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 69
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: allowed; route: native desktop)**
 
 Case: `E2E-019/native-desktop-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1305,9 +1554,13 @@ Variant: control: disabled; policy: allowed; route: native desktop
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 70
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native desktop)**
 
 Case: `E2E-019/native-desktop-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1321,9 +1574,13 @@ Variant: control: enabled; policy: hard blocked; route: native desktop
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 71
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native desktop)**
 
 Case: `E2E-019/native-desktop-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1337,9 +1594,13 @@ Variant: control: disabled; policy: hard blocked; route: native desktop
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 72
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native desktop)**
 
 Case: `E2E-019/native-desktop-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1353,9 +1614,13 @@ Variant: control: enabled; policy: soft blocked; route: native desktop
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 73
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native desktop)**
 
 Case: `E2E-019/native-desktop-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1369,9 +1634,13 @@ Variant: control: disabled; policy: soft blocked; route: native desktop
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 74
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: allowed; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1385,9 +1654,13 @@ Variant: control: enabled; policy: allowed; route: native file manager
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 75
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: allowed; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1401,9 +1674,13 @@ Variant: control: disabled; policy: allowed; route: native file manager
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 76
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1417,9 +1694,13 @@ Variant: control: enabled; policy: hard blocked; route: native file manager
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 77
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1433,9 +1714,13 @@ Variant: control: disabled; policy: hard blocked; route: native file manager
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 78
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1449,9 +1734,13 @@ Variant: control: enabled; policy: soft blocked; route: native file manager
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 79
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1465,9 +1754,13 @@ Variant: control: disabled; policy: soft blocked; route: native file manager
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 80
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: allowed; route: native command)**
 
 Case: `E2E-019/native-command-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1481,9 +1774,13 @@ Variant: control: enabled; policy: allowed; route: native command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 81
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: allowed; route: native command)**
 
 Case: `E2E-019/native-command-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1497,9 +1794,13 @@ Variant: control: disabled; policy: allowed; route: native command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 82
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native command)**
 
 Case: `E2E-019/native-command-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1513,9 +1814,13 @@ Variant: control: enabled; policy: hard blocked; route: native command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 83
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native command)**
 
 Case: `E2E-019/native-command-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1529,9 +1834,13 @@ Variant: control: disabled; policy: hard blocked; route: native command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 84
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native command)**
 
 Case: `E2E-019/native-command-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1545,9 +1854,13 @@ Variant: control: enabled; policy: soft blocked; route: native command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 85
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native command)**
 
 Case: `E2E-019/native-command-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1561,9 +1874,13 @@ Variant: control: disabled; policy: soft blocked; route: native command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 86
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: allowed; route: snap grid)**
 
 Case: `E2E-019/snap-grid-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1577,9 +1894,13 @@ Variant: control: enabled; policy: allowed; route: snap grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 87
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: allowed; route: snap grid)**
 
 Case: `E2E-019/snap-grid-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1593,9 +1914,13 @@ Variant: control: disabled; policy: allowed; route: snap grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 88
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: snap grid)**
 
 Case: `E2E-019/snap-grid-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1609,9 +1934,13 @@ Variant: control: enabled; policy: hard blocked; route: snap grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 89
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: snap grid)**
 
 Case: `E2E-019/snap-grid-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1625,9 +1954,13 @@ Variant: control: disabled; policy: hard blocked; route: snap grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 90
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: snap grid)**
 
 Case: `E2E-019/snap-grid-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1641,9 +1974,13 @@ Variant: control: enabled; policy: soft blocked; route: snap grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 91
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: snap grid)**
 
 Case: `E2E-019/snap-grid-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1657,9 +1994,13 @@ Variant: control: disabled; policy: soft blocked; route: snap grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 92
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: allowed; route: snap command)**
 
 Case: `E2E-019/snap-command-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1673,9 +2014,13 @@ Variant: control: enabled; policy: allowed; route: snap command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 93
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: allowed; route: snap command)**
 
 Case: `E2E-019/snap-command-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1689,9 +2034,13 @@ Variant: control: disabled; policy: allowed; route: snap command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 94
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: snap command)**
 
 Case: `E2E-019/snap-command-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1705,9 +2054,13 @@ Variant: control: enabled; policy: hard blocked; route: snap command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 95
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: snap command)**
 
 Case: `E2E-019/snap-command-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1721,9 +2074,13 @@ Variant: control: disabled; policy: hard blocked; route: snap command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 96
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: snap command)**
 
 Case: `E2E-019/snap-command-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1737,9 +2094,13 @@ Variant: control: enabled; policy: soft blocked; route: snap command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 97
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: snap command)**
 
 Case: `E2E-019/snap-command-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1753,9 +2114,13 @@ Variant: control: disabled; policy: soft blocked; route: snap command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 98
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: allowed; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1769,9 +2134,13 @@ Variant: control: enabled; policy: allowed; route: flatpak grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 99
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: allowed; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1785,9 +2154,13 @@ Variant: control: disabled; policy: allowed; route: flatpak grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 100
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1801,9 +2174,13 @@ Variant: control: enabled; policy: hard blocked; route: flatpak grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 101
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1817,9 +2194,13 @@ Variant: control: disabled; policy: hard blocked; route: flatpak grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 102
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1833,9 +2214,13 @@ Variant: control: enabled; policy: soft blocked; route: flatpak grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 103
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1849,9 +2234,13 @@ Variant: control: disabled; policy: soft blocked; route: flatpak grid
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 104
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: allowed; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1865,9 +2254,13 @@ Variant: control: enabled; policy: allowed; route: flatpak command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 105
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: allowed; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1881,9 +2274,13 @@ Variant: control: disabled; policy: allowed; route: flatpak command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 106
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1897,9 +2294,13 @@ Variant: control: enabled; policy: hard blocked; route: flatpak command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 107
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1913,9 +2314,13 @@ Variant: control: disabled; policy: hard blocked; route: flatpak command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 108
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1929,9 +2334,13 @@ Variant: control: enabled; policy: soft blocked; route: flatpak command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 109
 
-**Supported launch routes and policy matches**
+**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1945,9 +2354,13 @@ Variant: control: disabled; policy: soft blocked; route: flatpak command
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 110
 
-**Catalog update/disappearance between display and save**
+**Catalog update/disappearance between display and save (change: update)**
 
 Case: `E2E-020/update` · Category: customer-journey · Status: **pending**
 
@@ -1961,9 +2374,13 @@ Variant: change: update
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 111
 
-**Catalog update/disappearance between display and save**
+**Catalog update/disappearance between display and save (change: remove)**
 
 Case: `E2E-020/remove` · Category: customer-journey · Status: **pending**
 
@@ -1977,9 +2394,13 @@ Variant: change: remove
 
 Pending: Task 25A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 112
 
-**Multi-session child-only transaction effects**
+**Multi-session child-only transaction effects (transaction: save)**
 
 Case: `E2E-021/save` · Category: customer-journey · Status: **pending**
 
@@ -1993,9 +2414,13 @@ Variant: transaction: save
 
 Pending: Task 25B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 113
 
-**Multi-session child-only transaction effects**
+**Multi-session child-only transaction effects (transaction: approve without soft)**
 
 Case: `E2E-021/approve-without-soft` · Category: customer-journey · Status: **pending**
 
@@ -2009,9 +2434,13 @@ Variant: transaction: approve without soft
 
 Pending: Task 25B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 114
 
-**Multi-session child-only transaction effects**
+**Multi-session child-only transaction effects (transaction: approve with soft)**
 
 Case: `E2E-021/approve-with-soft` · Category: customer-journey · Status: **pending**
 
@@ -2025,9 +2454,13 @@ Variant: transaction: approve with soft
 
 Pending: Task 25B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 115
 
-**Multi-session child-only transaction effects**
+**Multi-session child-only transaction effects (transaction: revoke)**
 
 Case: `E2E-021/revoke` · Category: customer-journey · Status: **pending**
 
@@ -2041,9 +2474,13 @@ Variant: transaction: revoke
 
 Pending: Task 25B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 116
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: app restart; grant: active)**
 
 Case: `E2E-022/app-restart-active` · Category: customer-journey · Status: **pending**
 
@@ -2058,9 +2495,13 @@ Variant: boundary: app restart; grant: active
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 117
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: app restart; grant: expired)**
 
 Case: `E2E-022/app-restart-expired` · Category: customer-journey · Status: **pending**
 
@@ -2075,9 +2516,13 @@ Variant: boundary: app restart; grant: expired
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 118
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: sign out in; grant: active)**
 
 Case: `E2E-022/sign-out-in-active` · Category: customer-journey · Status: **pending**
 
@@ -2092,9 +2537,13 @@ Variant: boundary: sign out in; grant: active
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 119
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: sign out in; grant: expired)**
 
 Case: `E2E-022/sign-out-in-expired` · Category: customer-journey · Status: **pending**
 
@@ -2109,9 +2558,13 @@ Variant: boundary: sign out in; grant: expired
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 120
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: reboot; grant: active)**
 
 Case: `E2E-022/reboot-active` · Category: customer-journey · Status: **pending**
 
@@ -2126,9 +2579,13 @@ Variant: boundary: reboot; grant: active
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 121
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: reboot; grant: expired)**
 
 Case: `E2E-022/reboot-expired` · Category: customer-journey · Status: **pending**
 
@@ -2143,9 +2600,13 @@ Variant: boundary: reboot; grant: expired
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 122
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: idle; grant: active)**
 
 Case: `E2E-022/idle-active` · Category: customer-journey · Status: **pending**
 
@@ -2160,9 +2621,13 @@ Variant: boundary: idle; grant: active
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 123
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: idle; grant: expired)**
 
 Case: `E2E-022/idle-expired` · Category: customer-journey · Status: **pending**
 
@@ -2177,9 +2642,13 @@ Variant: boundary: idle; grant: expired
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 124
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: suspend wake; grant: active)**
 
 Case: `E2E-022/suspend-wake-active` · Category: customer-journey · Status: **pending**
 
@@ -2194,9 +2663,13 @@ Variant: boundary: suspend wake; grant: active
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 125
 
-**Customer lifecycle persistence and resume**
+**Customer lifecycle persistence and resume (boundary: suspend wake; grant: expired)**
 
 Case: `E2E-022/suspend-wake-expired` · Category: customer-journey · Status: **pending**
 
@@ -2211,9 +2684,13 @@ Variant: boundary: suspend wake; grant: expired
 
 Pending: Task 26B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 126
 
-**Zero allowance to kiosk approval, real gameplay and expiry**
+**Zero allowance to kiosk approval, real gameplay and expiry (gameplay: windowed)**
 
 Case: `E2E-023/windowed` · Category: customer-journey · Status: **pending**
 
@@ -2230,9 +2707,13 @@ Variant: gameplay: windowed
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 127
 
-**Zero allowance to kiosk approval, real gameplay and expiry**
+**Zero allowance to kiosk approval, real gameplay and expiry (gameplay: fullscreen)**
 
 Case: `E2E-023/fullscreen` · Category: customer-journey · Status: **pending**
 
@@ -2249,9 +2730,13 @@ Variant: gameplay: fullscreen
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 128
 
-**Additional time accumulates during gameplay**
+**Additional time accumulates during gameplay (gameplay: windowed; time: daily dominant)**
 
 Case: `E2E-024/daily-dominant-windowed` · Category: customer-journey · Status: **pending**
 
@@ -2265,9 +2750,13 @@ Variant: gameplay: windowed; time: daily dominant
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 129
 
-**Additional time accumulates during gameplay**
+**Additional time accumulates during gameplay (gameplay: fullscreen; time: daily dominant)**
 
 Case: `E2E-024/daily-dominant-fullscreen` · Category: customer-journey · Status: **pending**
 
@@ -2281,9 +2770,13 @@ Variant: gameplay: fullscreen; time: daily dominant
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 130
 
-**Additional time accumulates during gameplay**
+**Additional time accumulates during gameplay (gameplay: windowed; time: grant dominant)**
 
 Case: `E2E-024/grant-dominant-windowed` · Category: customer-journey · Status: **pending**
 
@@ -2297,9 +2790,13 @@ Variant: gameplay: windowed; time: grant dominant
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 131
 
-**Additional time accumulates during gameplay**
+**Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant)**
 
 Case: `E2E-024/grant-dominant-fullscreen` · Category: customer-journey · Status: **pending**
 
@@ -2313,9 +2810,13 @@ Variant: gameplay: fullscreen; time: grant dominant
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 132
 
-**Replacement grant precedence at session entry**
+**Replacement grant precedence at session entry (entry: new login; soft apps: excluded)**
 
 Case: `E2E-025/excluded-new-login` · Category: customer-journey · Status: **pending**
 
@@ -2329,9 +2830,13 @@ Variant: entry: new login; soft apps: excluded
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 133
 
-**Replacement grant precedence at session entry**
+**Replacement grant precedence at session entry (entry: retained unlock; soft apps: excluded)**
 
 Case: `E2E-025/excluded-retained-unlock` · Category: customer-journey · Status: **pending**
 
@@ -2345,9 +2850,13 @@ Variant: entry: retained unlock; soft apps: excluded
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 134
 
-**Replacement grant precedence at session entry**
+**Replacement grant precedence at session entry (entry: new login; soft apps: included)**
 
 Case: `E2E-025/included-new-login` · Category: customer-journey · Status: **pending**
 
@@ -2361,9 +2870,13 @@ Variant: entry: new login; soft apps: included
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 135
 
-**Replacement grant precedence at session entry**
+**Replacement grant precedence at session entry (entry: retained unlock; soft apps: included)**
 
 Case: `E2E-025/included-retained-unlock` · Category: customer-journey · Status: **pending**
 
@@ -2377,9 +2890,13 @@ Variant: entry: retained unlock; soft apps: included
 
 Pending: Task 26C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 136
 
-**Customer package update and activation**
+**Customer package update and activation (activation: process)**
 
 Case: `E2E-026/process` · Category: customer-journey · Status: **pending**
 
@@ -2393,9 +2910,13 @@ Variant: activation: process
 
 Pending: Task 18A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 137
 
-**Customer package update and activation**
+**Customer package update and activation (activation: session)**
 
 Case: `E2E-026/session` · Category: customer-journey · Status: **pending**
 
@@ -2409,9 +2930,13 @@ Variant: activation: session
 
 Pending: Task 18A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 138
 
-**Customer package update and activation**
+**Customer package update and activation (activation: reboot)**
 
 Case: `E2E-026/reboot` · Category: customer-journey · Status: **pending**
 
@@ -2424,6 +2949,10 @@ Variant: activation: reboot
 - Log in or resume as required and use the installed product with preserved settings and enforced rules.
 
 Pending: Task 18A must implement this complete journey and its assertions.
+
+</div>
+
+<div style="color: gray">
 
 ### Scenario 139
 
@@ -2442,9 +2971,13 @@ Variant: lifecycle: continuous
 
 Pending: Task 18C must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 140
 
-**Startup, usage and authentication-agent failure recovery**
+**Startup, usage and authentication-agent failure recovery (fault: startup enforcement)**
 
 Case: `E2E-028/startup-enforcement` · Category: fault-recovery · Status: **pending**
 
@@ -2460,9 +2993,13 @@ Variant: fault: startup enforcement
 
 Pending: Task 20 must implement a guarded fapolicyd readiness failure, prove managed GDM startup is denied, then recover in the same attempt.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 141
 
-**Startup, usage and authentication-agent failure recovery**
+**Startup, usage and authentication-agent failure recovery (fault: startup broker)**
 
 Case: `E2E-028/startup-broker` · Category: fault-recovery · Status: **pending**
 
@@ -2478,9 +3015,13 @@ Variant: fault: startup broker
 
 Pending: Task 20 must implement a guarded broker execution-policy reconciliation failure, prove its D-Bus object remains unpublished, then recover in the same attempt.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 142
 
-**Startup, usage and authentication-agent failure recovery**
+**Startup, usage and authentication-agent failure recovery (fault: zero time exposure)**
 
 Case: `E2E-028/zero-time-exposure` · Category: fault-recovery · Status: **pending**
 
@@ -2496,9 +3037,13 @@ Variant: fault: zero time exposure
 
 Pending: Task 22A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 143
 
-**Startup, usage and authentication-agent failure recovery**
+**Startup, usage and authentication-agent failure recovery (fault: usage read)**
 
 Case: `E2E-028/usage-read` · Category: fault-recovery · Status: **pending**
 
@@ -2514,9 +3059,13 @@ Variant: fault: usage read
 
 Pending: Task 22B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 144
 
-**Startup, usage and authentication-agent failure recovery**
+**Startup, usage and authentication-agent failure recovery (fault: kiosk auth agent)**
 
 Case: `E2E-028/kiosk-auth-agent` · Category: fault-recovery · Status: **pending**
 
@@ -2532,9 +3081,13 @@ Variant: fault: kiosk auth agent
 
 Pending: Task 24A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 145
 
-**Transactional failure, rollback and identity races**
+**Transactional failure, rollback and identity races (fault: failed save)**
 
 Case: `E2E-029/failed-save` · Category: fault-recovery · Status: **pending**
 
@@ -2550,9 +3103,13 @@ Variant: fault: failed save
 
 Pending: Task 21B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 146
 
-**Transactional failure, rollback and identity races**
+**Transactional failure, rollback and identity races (fault: stale identity)**
 
 Case: `E2E-029/stale-identity` · Category: fault-recovery · Status: **pending**
 
@@ -2568,9 +3125,13 @@ Variant: fault: stale identity
 
 Pending: Task 26A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 147
 
-**Transactional failure, rollback and identity races**
+**Transactional failure, rollback and identity races (fault: disconnect)**
 
 Case: `E2E-029/disconnect` · Category: fault-recovery · Status: **pending**
 
@@ -2586,9 +3147,13 @@ Variant: fault: disconnect
 
 Pending: Task 26A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 148
 
-**Transactional failure, rollback and identity races**
+**Transactional failure, rollback and identity races (fault: concurrent transaction)**
 
 Case: `E2E-029/concurrent-transaction` · Category: fault-recovery · Status: **pending**
 
@@ -2604,9 +3169,13 @@ Variant: fault: concurrent transaction
 
 Pending: Task 26A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 149
 
-**Transactional failure, rollback and identity races**
+**Transactional failure, rollback and identity races (fault: policy reload)**
 
 Case: `E2E-029/policy-reload` · Category: fault-recovery · Status: **pending**
 
@@ -2622,9 +3191,13 @@ Variant: fault: policy reload
 
 Pending: Task 26A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 150
 
-**Transactional failure, rollback and identity races**
+**Transactional failure, rollback and identity races (fault: partial termination)**
 
 Case: `E2E-029/partial-termination` · Category: fault-recovery · Status: **pending**
 
@@ -2640,9 +3213,13 @@ Variant: fault: partial termination
 
 Pending: Task 25B must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 152
 
-**Feedback drafts, validation and attachment review**
+**Feedback drafts, validation and attachment review (flow: draft reopen)**
 
 Case: `E2E-031/draft-reopen` · Category: customer-journey · Status: **pending**
 
@@ -2655,9 +3232,13 @@ Variant: flow: draft reopen
 
 Pending: Task 21A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 153
 
-**Feedback drafts, validation and attachment review**
+**Feedback drafts, validation and attachment review (flow: validation)**
 
 Case: `E2E-031/validation` · Category: customer-journey · Status: **pending**
 
@@ -2670,9 +3251,13 @@ Variant: flow: validation
 
 Pending: Task 21A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 154
 
-**Feedback drafts, validation and attachment review**
+**Feedback drafts, validation and attachment review (flow: attachments)**
 
 Case: `E2E-031/attachments` · Category: customer-journey · Status: **pending**
 
@@ -2685,9 +3270,13 @@ Variant: flow: attachments
 
 Pending: Task 21A must implement this complete journey and its assertions.
 
+</div>
+
+<div style="color: gray">
+
 ### Scenario 155
 
-**Feedback drafts, validation and attachment review**
+**Feedback drafts, validation and attachment review (flow: diagnostic export)**
 
 Case: `E2E-031/diagnostic-export` · Category: customer-journey · Status: **pending**
 
@@ -2699,6 +3288,10 @@ Variant: flow: diagnostic export
 - Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case.
 
 Pending: Task 21A must implement this complete journey and its assertions.
+
+</div>
+
+<div style="color: gray">
 
 ### Scenario 156
 
@@ -2714,6 +3307,10 @@ Variant: delivery: success
 - Observe the actual service confirmation and corroborate the dedicated recipient receipt without substituting a mock transport.
 
 Pending: Task 26C must implement this complete journey and its assertions.
+
+</div>
+
+<div style="color: gray">
 
 ### Scenario 157
 
@@ -2732,3 +3329,5 @@ Variant: delivery: retry
 - Observe bounded automatic retry, confirmed success and the dedicated recipient receipt for the frozen submission.
 
 Pending: Task 26C must implement this complete journey and its assertions.
+
+</div>

@@ -30,6 +30,7 @@ class JourneyPlan:
     screen_tags: dict
     phases: dict
     advance_after: dict = field(default_factory=dict)
+    stage_actions: dict = field(default_factory=dict)
     review_mode: str | None = None
 
     @property
@@ -69,13 +70,17 @@ def matched_screens(directory, plan):
 class InstalledJourney:
     """One guarded stage rendezvous, with durable observations before replies."""
 
-    def __init__(self, context, progress, plan, *, review=False):
+    def __init__(self, context, progress, plan, *, review=False, actions=None):
         require(type(review) is bool and (not review or plan.review_mode is not None),
                 plan.prefix + ':review-mode')
         self.context, self.progress, self.plan = context, progress, plan
         self.review = review
+        self.actions = actions or {}
+        require(set(self.actions) == set(plan.stage_actions.values())
+                and set(plan.stage_actions) <= set(plan.stages), plan.prefix + ':stage-actions')
         self.steps = []
         self.vm = None
+        self.transport = None
         self.boot = None
         self.failed = False
 
@@ -118,6 +123,7 @@ class InstalledJourney:
             transport.probe_ready(timeout=180)
             observed['setup'] = InstalledSetup(context.directory, context.verified, transport).run(guard)
             self.vm = ReadOnlyObservations(transport)
+            self.transport = transport
             reply = {'setup_complete': True}
         else:
             # Harness boot identity is continuity metadata, never a product
@@ -127,6 +133,9 @@ class InstalledJourney:
             self.boot = current
             observed['boot_sha256'] = current
             reply = {'observed': stage}
+        if stage in plan.stage_actions:
+            action = self.actions[plan.stage_actions[stage]]
+            observed['fixture'] = action(self, guard)
         guard()
         self.steps.append(observed)
         self.progress(stage, observed)
@@ -142,7 +151,7 @@ class InstalledJourney:
         return matched_screens(self.context.directory, self.plan)
 
 
-def record_installed_journey(recorder, context, plan, *, timeout=1800):
+def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=None):
     """Run a strict customer plan through the existing recorder and worker gate.
 
     Phases describe when each observation belongs; advance_after describes when
@@ -188,7 +197,7 @@ def record_installed_journey(recorder, context, plan, *, timeout=1800):
         context.credentials.provision(context.lease, context.verified, context.directory,
                                       context.guestfs, context.commands)
         artifact('inputs', 'input-provenance', context.verified.inputs)
-        journey = InstalledJourney(context, progress, plan)
+        journey = InstalledJourney(context, progress, plan, actions=actions)
         worker = context.run_worker(observe=lambda: None, guarded_observe=journey.step,
                                     validate=journey.validate, authenticate=True, timeout=timeout)
         require(worker['shutdown_verified'] is True, plan.prefix + ':shutdown-unverified')

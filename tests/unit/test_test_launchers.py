@@ -151,7 +151,7 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused():
     assert '--list' in plan[0]
     assert safety is False
     with pytest.raises(ValueError, match='selection:pending'):
-        commands.plan(ROOT, 'e2e', ['--artifacts=/tmp/onpc-future'])
+        commands.plan(ROOT, 'e2e', ['--scenario=E2E-002', '--artifacts=/tmp/onpc-future'])
 
 
 def test_privileged_parent_symlink_is_rejected(checkout):

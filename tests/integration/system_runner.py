@@ -590,8 +590,8 @@ class Lease:
     def recover_graphical_cleanup(self):
         """Resume a recorded VNC cleanup, or verify an already restored off guest.
 
-        No start, preparation, new baseline or journal replacement is allowed.
-        An off guest must exactly match the recorded original inactive XML.
+        No start, preparation or new baseline is allowed. An off guest either
+        matches the restored original XML or the recorded pre-start isolation.
         """
         require(self.fd is None and self.view.graphics_type == 'vnc', 'recovery:invalid-lease')
         self._recover_recorded_cleanup()
@@ -616,20 +616,22 @@ class Lease:
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
             baseline.identity(self.journal, private=True, mode=0o600)
             state = baseline.parse_json(self.journal.read_bytes())
+            isolated = isinstance(state, dict) and state.get('phase') == 'isolated'
             require(isinstance(state, dict) and set(state) == {
                 'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
                 'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
-                state['phase'] == 'cleanup-requested' and
+                state['phase'] in ('cleanup-requested', 'isolated') and
                 isinstance(state['run'], str) and re.fullmatch(r'[0-9a-f]{32}', state['run']) and
-                type(state['domain_id']) is int and state['domain_id'] >= 0 and
+                ((isolated and state['domain_id'] is None) or
+                 (not isolated and type(state['domain_id']) is int and state['domain_id'] >= 0)) and
                 state['domain_uuid'] == self.source.uuid and
                 state['baseline_sha256'] == hashlib.sha256(baseline.encode(self.capture.state)).hexdigest(),
                 'recovery:journal-identity')
             off = self.source.domain.ID() == -1
             require(not self.source.domain.autostart() and
-                    (off or self.source.domain.ID() == state['domain_id']),
+                    (off if isolated else (off or self.source.domain.ID() == state['domain_id'])),
                     'recovery:domain-replaced-or-off')
-            if off:
+            if off and not isolated:
                 require(self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) ==
                         state['original_xml'], 'recovery:off-configuration-changed')
             else:
@@ -643,13 +645,13 @@ class Lease:
                          graphics_type=self.view.graphics_type)
             self.state = state
             self.view.original_shares = self.capture.state['source']['layout']['source_shares']
-            self.view.run = None if off else state['run']
+            self.view.run = None if off and not isolated else state['run']
             self.view.domain_id = None if off else state['domain_id']
             self.snapshot_xml = self.source.baseline()
             self.guard()
             require(self.capture.verify_snapshot(force_bytes=True, boundary='recovery') ==
                     self.capture.state['proof'], 'recovery:baseline-changed')
-            if off:
+            if off and not isolated:
                 # No domain mutation is authorized by the off-state branch.
                 # Independently audit the restored guest and reconcile the
                 # exact inactive configuration again before completing cleanup.
@@ -664,6 +666,10 @@ class Lease:
                 log('recovery:verified-restored-off')
                 return
             self.mutated = True
+            # An interrupted bootstrap may leave a never-started isolated
+            # guest. The held lock, null instance ID, run-tagged configuration,
+            # unchanged disk identities and full snapshot proof above authorize
+            # only the existing outer restoration, never starting the guest.
             log('recovery:recorded-cleanup')
             self.finish()
         finally:

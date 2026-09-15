@@ -1,0 +1,31 @@
+{
+  "tags": [
+    "onpc-parent-standard-unavailable"
+  ],
+  "area": [
+    {
+      "xpos": 418,
+      "ypos": 48,
+      "width": 120,
+      "height": 24,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 132,
+      "ypos": 98,
+      "width": 812,
+      "height": 68,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 132,
+      "ypos": 176,
+      "width": 810,
+      "height": 485,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

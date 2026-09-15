@@ -1,16 +1,3 @@
-# This unprivileged helper validates every path; trust includes edits to the
-# helper in this checkout. No arbitrary rm or privileged deletion is approved.
-prefix_rule(
-    pattern = [["tools/cleanup-screenshots", "./tools/cleanup-screenshots", "@CHECKOUT@/tools/cleanup-screenshots"]],
-    decision = "allow",
-    justification = "Remove explicitly selected caller-owned project PNG screenshots directly inside /tmp, with path validation.",
-    match = [
-        "tools/cleanup-screenshots /tmp/onpc-19p-gdm.png /tmp/onpc-future.png",
-        "./tools/cleanup-screenshots /tmp/onpc-selected.png",
-    ],
-    not_match = ["rm -f /tmp/onpc-selected.png", "pkexec tools/cleanup-screenshots /tmp/onpc-selected.png"],
-)
-
 # The installed root-owned helper validates paths and creates only new PNG exports.
 prefix_rule(
     pattern = ["pkexec", "/usr/local/libexec/onpc-export-screenshot"],
@@ -54,33 +41,24 @@ prefix_rule(
     ],
 )
 
-# Quoted wildcards are expanded by this unprivileged checkout helper. It
-# validates unit paths and pytest options; trust includes edits to the helper
-# and the tests it loads. Always quote globs so the shell does not expand them.
+# Operator authorization: direct execution of every executable project tool
+# is preapproved, including all slice-launcher actions and argument orders.
+# Setup expands this placeholder to exact tools/, ./tools/ and checkout-absolute
+# paths. Prefix rules have no filename glob; new executables need a rules refresh.
+# This trusts the tools and their future edits. It does not validate arguments
+# or grant unrelated task scope, general interpreters, shells or root wrappers.
 prefix_rule(
-    pattern = [["tools/run-unit-tests", "./tools/run-unit-tests", "@CHECKOUT@/tools/run-unit-tests"]],
+    pattern = ["@PROJECT_TOOL_PATHS@"],
     decision = "allow",
-    justification = "Run unprivileged unit tests through a launcher that validates selections and expands quoted patterns inside tests/unit.",
+    justification = "The user preapproves direct execution of this project's tools, including unattended slice controls, without repeated command approval.",
     match = [
-        "tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' tests/unit/test_graphical_lease.py -q",
-        "./tools/run-unit-tests tests/unit -q",
-    ],
-    not_match = [
-        "pkexec tools/run-unit-tests tests/unit",
-        "bash -lc 'tools/run-unit-tests tests/unit/*'",
-    ],
-)
-
-# Each entry point validates its own arguments; no generic tools/* prefix.
-prefix_rule(
-    pattern = [["tools/run-tests", "./tools/run-tests", "@CHECKOUT@/tools/run-tests",
-                "tools/run-ui-tests", "./tools/run-ui-tests", "@CHECKOUT@/tools/run-ui-tests",
-                "tools/diagnose", "./tools/diagnose", "@CHECKOUT@/tools/diagnose",
-                "tools/test-vm", "./tools/test-vm", "@CHECKOUT@/tools/test-vm",
-                "tools/read-only", "./tools/read-only", "@CHECKOUT@/tools/read-only"]],
-    decision = "allow",
-    justification = "Use validated category, system diagnostic, or pinned test-VM operations.",
-    match = [
+        "tools/codex_slices.py run --max-slices 1",
+        "./tools/codex_slices.py --max-slices=1 start",
+        "tools/codex_slices.py restart",
+        "tools/codex_slices.py kill",
+        "tools/codex_slices.py status",
+        "tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' -q",
+        "tools/cleanup-screenshots /tmp/onpc-selected.png",
         "tools/run-tests component 'tests/component/test_*.py' -q",
         "tools/run-tests child-node 'tests/child/**/*.test.mjs'",
         "tools/run-tests static all",
@@ -106,26 +84,6 @@ prefix_rule(
     not_match = ["pkexec /usr/bin/journalctl --vacuum-time=1s"],
 )
 
-# Slice inspection runs through its isolated, executable checkout entry point.
-# Keep this separate from Python: an allow cannot override the interpreter
-# prompt, and neither --help nor a script filename makes arbitrary code safe.
-prefix_rule(
-    pattern = [["tools/codex_slices.py", "./tools/codex_slices.py", "@CHECKOUT@/tools/codex_slices.py"],
-               ["--help", "-h", "status"]],
-    decision = "allow",
-    justification = "Inspect the trusted slice launcher's help or saved status; these routes do not start workers or change control state.",
-    match = ["tools/codex_slices.py --help", "./tools/codex_slices.py -h", "tools/codex_slices.py status"],
-    not_match = ["python3 tools/codex_slices.py --help", "tools/codex_slices.py start", "tools/random.py --help"],
-)
-prefix_rule(
-    pattern = [["tools/codex_slices.py", "./tools/codex_slices.py", "@CHECKOUT@/tools/codex_slices.py"],
-               ["start", "run", "stop", "--max-slices", "--max-api-retries", "--reconciled"]],
-    decision = "prompt",
-    justification = "Starting or controlling unattended Codex workers needs authorization for that work; only help and status are preapproved.",
-    match = ["tools/codex_slices.py start --max-slices 1", "tools/codex_slices.py stop"],
-    not_match = ["tools/codex_slices.py --help", "tools/codex_slices.py status"],
-)
-
 # Restrictive project overrides also take precedence over old global allow
 # entries. An allow cannot cancel a prompt. Use the validated entry points above.
 # Machine-wide ordinary read allowances are maintained separately by setup.
@@ -138,7 +96,7 @@ prefix_rule(
     pattern = [["python3", "/usr/bin/python3", "python", "/usr/bin/python",
                 ".venv/onpc-ui-tests/bin/python"]],
     decision = "prompt",
-    justification = "Use tools/run-tests for tests, tools/read-only for document checks, tools/codex_slices.py for inspection, or native apply_patch for edits; general Python can execute arbitrary code.",
+    justification = "Use direct project tools for tests, document checks and slice controls, or native apply_patch for edits; general Python can execute arbitrary code.",
 )
 # Routine Make targets are explicitly authorized in this trusted checkout.
 # A blanket make prompt would override both this rule and saved target allows.

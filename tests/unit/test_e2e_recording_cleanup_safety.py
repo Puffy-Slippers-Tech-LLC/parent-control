@@ -119,6 +119,26 @@ def test_missing_assertions_are_reported_when_the_real_step_finishes(session):
     assert r.records[0]['steps'][-2]['outcome'] == 'failed'
 
 
+def test_customer_other_user_assertion_is_refused_before_a_screen_is_linked(session):
+    r = session.recorder
+    r.begin_case('E2E-001/gdm-observation')
+    r._case['category'] = 'customer-journey'
+    for step_id in ('setup', 'start', 'step-1', 'step-2'):
+        with r.step(step_id):
+            if step_id != 'setup':
+                r.continuity(boot='private-canary-boot')
+    with r.step('step-3'):
+        r.continuity(boot='private-canary-boot')
+        other_user = r.artifact('other-user', 'other-user', b'reviewed', reviewed=True)
+        with pytest.raises(EvidenceError, match='customer-other-user-screen'):
+            r.assertion('other-user-result', artifact_ids=[other_user])
+        screen = r.artifact('screen', 'screen', b'reviewed', reviewed=True)
+        backend = r.artifact('backend', 'backend', b'reviewed', reviewed=True)
+        r.assertion('visible-result', artifact_ids=[screen])
+        r.assertion('backend-result', artifact_ids=[backend])
+        r.assertion('other-user-result', artifact_ids=[other_user, screen])
+
+
 @pytest.mark.parametrize('change', ['release', 'incomplete', 'input', 'report'])
 def test_final_gate_failure_is_retained_with_original_failure_and_no_acceptance(session, change, monkeypatch):
     complete(session)

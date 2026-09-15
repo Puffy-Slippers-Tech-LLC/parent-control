@@ -1,0 +1,39 @@
+{
+  "tags": [
+    "onpc-parent-child-selected"
+  ],
+  "area": [
+    {
+      "xpos": 464,
+      "ypos": 48,
+      "width": 196,
+      "height": 36,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 194,
+      "ypos": 188,
+      "width": 121,
+      "height": 32,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 889,
+      "ypos": 379,
+      "width": 57,
+      "height": 30,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 840,
+      "ypos": 449,
+      "width": 86,
+      "height": 28,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

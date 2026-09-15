@@ -8,6 +8,7 @@ use onpc_password ();
 use onpc_serial ();
 use onpc_gdm ();
 use onpc_vt6 ();
+use onpc_parent_about ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -17,7 +18,7 @@ sub exchange {
     print {$request} encode_json({stage => $stage, screenshot => $shot});
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
-    my $deadline = time + 420;
+    my $deadline = time + ($stage eq 'setup-detached' ? 1500 : 420);
     while (!-f "$stage.reply.json") {
         die 'smoke:controller-timeout' if time >= $deadline;
         sleep 0.1;
@@ -39,6 +40,32 @@ sub run {
     # generalhw opens graphics during boot without setting testapi's selected
     # console. Establish that public selection before checking its identity.
     select_console('sut');
+    if ($ready->{parent_about}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_about::run(\&exchange, $ready->{parent_review} ? 1 : 0);
+        return;
+    }
+    if ($ready->{parent_setup}) {
+        # Fixture setup owns the reboot, before customer interaction. Disable
+        # VNC polling first; no serial console or password API is attached.
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_gdm::reattach_after_setup();
+        capture('installed-greeter');
+        if ($ready->{parent_input}) {
+            onpc_gdm::inspect_installed_parent();
+            capture('installed-parent-prompt');
+            send_key('esc');
+            assert_screen('onpc-gdm-parent-installed-account', 30);
+            capture('installed-parent-dismissed');
+        }
+        console('sut')->disable();
+        power('off');
+        die 'smoke:shutdown-unverified' unless check_shutdown(0);
+        record_info('setup', 'Installed fixture greeter observed; no password submitted.');
+        return;
+    }
     # Backend/session readiness can precede GDM rendering. Wait for the
     # reviewed account region instead of sleeping through that transition.
     onpc_gdm::wait_list(90);

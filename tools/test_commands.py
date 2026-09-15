@@ -31,7 +31,7 @@ CATEGORIES = {
     'artifacts': 'build, verify PATH, compare FIRST SECOND; generated build output',
     'integration': 'installed dispatcher for check_* basenames; no script arguments',
     'system': 'guarded installed runner; --artifacts, --previous-artifacts, --area, --test, --list',
-    'e2e': 'host-safe graphical inventory --list; invalid/pending execution refused before privilege',
+    'e2e': 'graphical inventory --list; --ready or --scenario selects runnable cases with --artifacts',
     'fast': 'reserved for the Task 28 make test-fast target',
     'all': 'all established regression suites without backing-file byte scans',
     'all-verify': 'all established regression suites with full backing-file verification',

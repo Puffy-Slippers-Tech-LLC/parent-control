@@ -1,0 +1,119 @@
+"""One fixed installed setup/greeter observation for the first Parent consumer."""
+
+import json
+import os
+from types import SimpleNamespace
+
+import check_graphical_smoke as smoke
+
+
+class ParentSetupQualification(smoke.Qualification):
+    def execute(self, lease, guestfs):
+        self.checkpoint('attempt-started')
+        try:
+            lease.prepare()
+            host_key = smoke.runner.bootstrap(self.commands, lease, self.directory, guestfs)
+            lease.guard(off=True)
+            lease.save('isolated')
+            self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets)
+            self.result['provenance'] = self.verified.inputs
+            self.result['fixture_credentials'] = self.credentials.provision(
+                lease, self.verified, self.directory, guestfs, self.commands)
+            # Credentials remain controller-private: this worker only observes.
+            input_review = self.result.get('scope') == 'installed-parent-input-qualification'
+            stages = ('ready', 'setup-detached', 'installed-greeter')
+            if input_review:
+                stages += ('installed-parent-prompt', 'installed-parent-dismissed')
+            steps = []
+
+            def observe(guard):
+                if len(steps) == len(stages):
+                    return
+                stage = stages[len(steps)]
+                path = self.directory / (stage + '.request.json')
+                if not path.exists():
+                    return
+                smoke.require(not path.is_symlink() and path.stat().st_size <= 1024,
+                              'setup:request-file')
+                request = json.loads(path.read_text())
+                smoke.require(set(request) == {'stage', 'screenshot'} and request['stage'] == stage,
+                              'setup:request-schema')
+                guard()
+                self.active_stage = stage
+                self.checkpoint('stage-started')
+                if stage == 'ready':
+                    smoke.require(request['screenshot'] is None, 'setup:early-screenshot')
+                    reply = {'parent_setup': True}
+                    if input_review:
+                        reply['parent_input'] = True
+                elif stage == 'setup-detached':
+                    smoke.require(request['screenshot'] is None, 'setup:early-screenshot')
+                    hostname = smoke.runner.address(lease.source, timeout=90)
+                    (self.directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
+                    config = {'directory': str(self.directory), 'hostname': hostname,
+                              'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
+                              'run': lease.state['run']}
+                    vm = smoke.Transport(config, self.commands, guard=lambda _: lease.guard())
+                    vm.probe_ready(timeout=180)
+                    setup = smoke.installed_setup.InstalledSetup(self.directory, self.verified, vm)
+                    reply = setup.run(guard)
+                    self.result['installed_setup'] = reply
+                else:
+                    reply = smoke.screenshot(self.directory, request['screenshot'])
+                    self.result[stage.replace('-', '_')] = {'screenshot': request['screenshot'], **reply}
+                guard()
+                pending = self.directory / (stage + '.reply.tmp')
+                destination = self.directory / (stage + '.reply.json')
+                smoke.require(not os.path.lexists(pending) and not os.path.lexists(destination),
+                              'setup:reply-replay')
+                steps.append({'stage': stage, 'outcome': 'passed'})
+                self.result['steps'] = list(steps)
+                # The reply authorizes the worker's next action. Retain the
+                # observation durably first, then revalidate after storage.
+                self.checkpoint('stage-observed')
+                guard()
+                with pending.open('x') as stream:
+                    json.dump(reply, stream)
+                pending.rename(destination)
+
+            def validate():
+                smoke.require(len(steps) == len(stages), 'setup:missing-stages')
+                smoke.module_result(self.directory)
+
+            self.result['worker_evidence'] = smoke.e2e_worker.run_distribution(
+                self.directory, lease, self.ledger, expected_inputs=self.verified.source_files,
+                observe=lambda: None, guarded_observe=observe, validate=validate,
+                on_failure=self.failure, timeout=1800)
+        finally:
+            self.checkpoint('before-cleanup')
+
+
+class ParentAboutQualification(smoke.Qualification):
+    def execute(self, lease, guestfs):
+        from parent_about import ParentJourney
+        self.checkpoint('attempt-started')
+        try:
+            lease.prepare()
+            host_key = smoke.runner.bootstrap(self.commands, lease, self.directory, guestfs)
+            lease.guard(off=True)
+            lease.save('isolated')
+            self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets)
+            self.result['provenance'] = self.verified.inputs
+            self.result['fixture_credentials'] = self.credentials.provision(
+                lease, self.verified, self.directory, guestfs, self.commands)
+            context = SimpleNamespace(directory=self.directory, lease=lease, verified=self.verified,
+                                      commands=self.commands, host_key=host_key)
+
+            def progress(stage, observed):
+                self.active_stage = stage
+                self.result['steps'] = list(journey.steps)
+                self.checkpoint('stage-observed')
+
+            journey = ParentJourney(context, progress, review=True)
+            self.result['worker_evidence'] = smoke.e2e_worker.run_distribution(
+                self.directory, lease, self.ledger, expected_inputs=self.verified.source_files,
+                observe=lambda: None, guarded_observe=journey.step, validate=journey.validate,
+                on_failure=self.failure, timeout=1800, credentials=self.credentials)
+            self.result['matched_screens'] = journey.validate()
+        finally:
+            self.checkpoint('before-cleanup')

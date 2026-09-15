@@ -10,7 +10,7 @@ the timeout/login example is not a special focus.
 
 | Consumer | Reuse | Acceptance boundary |
 | --- | --- | --- |
-| 21A/21B Parent | Accepted GDM/app input, account fixtures and installed setup; shared request helper only when needed. | Visible discovery, controls, save, access, app use and revocation. No broker/catalog/policy witnesses. |
+| 21A/21B Parent | [Complete installed Parent consumer and input contract](../../tests/e2e/README.md#parent-consumer-composition-limits), with existing guarded setup and surface-only evidence. | E2E-030/parent passed public customer acceptance: installed login, app-grid launch, fixture-child selection, About/license/footer and return to the same child. Perfect matched input uses public framebuffer coordinate conversion; wrong-role refusal, evidence and full cleanup passed. [Task 21](Task-21.md#current-handoff--2026-09-14) retains acceptance evidence. Reuse this path for E2E-003; its dynamic account-fixture bridge remains to implement. |
 | 22A/22B time | Real Parent/request actions, normal login/switch/unlock and bounded screen matching. | Display, natural expiry, rejection and later legitimate access. No PAM, usage/grant or session probes. |
 | 23A/23B overlay | Installed shared form, real system prompt and secret-safe input. | Visible choices, approval/cancel/retry, countdown and actual app use. |
 | 24A/24B kiosk | Same shared form/input plus real GDM entry/return. | Request-only interaction, selection, approval, exits and observed cross-surface persistence. No agent-stop test. |
@@ -24,6 +24,9 @@ reopen the deferred policy design before writing the next customer scenario.
 
 ## Existing interfaces to find once
 
+- [Customer E2E building blocks and lessons](E2E-Building-Blocks.md): installed
+  setup, guarded stage/recorder composition, matched pointer input, Parent
+  navigation, image preparation and the recipe for adding a consumer.
 - [Guarded graphical input, recording and safe artifacts](../../tests/e2e/README.md).
   The current runtime contract still has legacy backend requirements: reconcile
   the first affected consumer and minimum validator under E2E-Coverage.md.

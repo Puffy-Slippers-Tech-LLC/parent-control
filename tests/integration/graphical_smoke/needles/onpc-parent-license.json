@@ -1,0 +1,47 @@
+{
+  "tags": [
+    "onpc-parent-license"
+  ],
+  "area": [
+    {
+      "xpos": 512,
+      "ypos": 155,
+      "width": 55,
+      "height": 21,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 465,
+      "ypos": 174,
+      "width": 146,
+      "height": 17,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 398,
+      "ypos": 207,
+      "width": 174,
+      "height": 17,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 416,
+      "ypos": 228,
+      "width": 164,
+      "height": 18,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 271,
+      "ypos": 264,
+      "width": 456,
+      "height": 58,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

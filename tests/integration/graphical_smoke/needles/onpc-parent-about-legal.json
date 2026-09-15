@@ -1,0 +1,39 @@
+{
+  "tags": [
+    "onpc-parent-about-legal"
+  ],
+  "area": [
+    {
+      "xpos": 520,
+      "ypos": 80,
+      "width": 42,
+      "height": 19,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 423,
+      "ypos": 145,
+      "width": 232,
+      "height": 31,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 500,
+      "ypos": 184,
+      "width": 85,
+      "height": 20,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 455,
+      "ypos": 672,
+      "width": 169,
+      "height": 38,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

@@ -7,6 +7,81 @@ import pytest
 from tests.support.perl import run_perl
 
 LIB = Path(__file__).resolve().parents[1] / 'integration/graphical_smoke/lib'
+
+INSTALLED_INPUT = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our $mode = shift;
+our $clicked = 0;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub current_console { $main::mode eq 'wrong-console' ? 'onpc-serial' : 'sut' }
+sub assert_and_click {
+    my ($tag, %opts) = @_;
+    die 'wrong tag' unless $tag eq 'onpc-gdm-parent-installed-input-account'
+        && $opts{timeout} == 30 && $opts{mousehide} == 1;
+    die 'missing account' if $main::mode eq 'missing-account';
+    $main::clicked = 1;
+}
+sub wait_still_screen { die 'unbounded wait' unless $_[0] == 1 && $_[1] == 10; }
+sub check_screen {
+    die 'wrong negative' unless $_[0] eq 'onpc-gdm-parent-installed-account' && $_[1] == 1;
+    return $main::mode eq 'still-list';
+}
+sub type_password { die 'secret forbidden'; }
+package main;
+require onpc_gdm;
+my $ok = eval { onpc_gdm::inspect_installed_parent(); 1; };
+print encode_json({ok => $ok ? 1 : 0, clicked => $clicked});
+'''
+
+
+@pytest.mark.parametrize('mode', ['ok', 'wrong-console', 'missing-account', 'still-list'])
+def test_installed_selection_requires_reviewed_input_and_leaves_the_list(mode):
+    result = json.loads(run_perl(INSTALLED_INPUT, mode).stdout)
+    assert result['ok'] == (mode == 'ok')
+    assert result['clicked'] == (mode in ('ok', 'still-list'))
+
+REATTACH = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our $mode = shift;
+our $activated = 1;
+our $connected = 0;
+our $matched = 0;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub current_console { $main::mode eq 'wrong-console' ? 'onpc-serial' : 'sut' }
+sub reset_consoles { $main::activated = 0; }
+sub select_console {
+    die 'wrong console' unless $_[0] eq 'sut';
+    if (!$main::activated) { $main::connected = 1; $main::activated = 1; }
+}
+sub assert_screen {
+    die 'stale screen' unless $main::connected;
+    die 'wrong match' unless $_[0] eq 'onpc-gdm-parent-installed-account' && $_[1] == 90;
+    return 0 if $main::mode eq 'missing-list';
+    $main::matched = 1;
+    return 1;
+}
+sub type_password { die 'secret forbidden'; }
+sub assert_and_click { die 'input forbidden'; }
+package main;
+require onpc_gdm;
+my $ok = eval { onpc_gdm::reattach_after_setup(); 1; };
+print encode_json({ok => $ok ? 1 : 0, connected => $connected, matched => $matched});
+'''
+
+
+@pytest.mark.parametrize('mode', ['ok', 'wrong-console', 'missing-list'])
+def test_setup_reattachment_requires_fresh_connection_and_match(mode):
+    result = json.loads(run_perl(REATTACH, mode).stdout)
+    assert result['ok'] == result['matched'] == (mode == 'ok')
+    assert result['connected'] == (mode != 'wrong-console')
+
+
 PROBE = r'''
 use strict;
 use warnings;

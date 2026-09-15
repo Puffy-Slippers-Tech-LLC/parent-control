@@ -20,7 +20,8 @@ import dev_privileges
 @pytest.fixture
 def checkout(tmp_path):
     for relative in ('tests/e2e/runner.py', 'tests/e2e/inventory.py',
-                     'tests/e2e/scenarios.json', 'tests/e2e/controller_qualification.py', 'tests/requirements.json',
+                     'tests/e2e/scenarios.json', 'tests/e2e/controller_qualification.py',
+                     'tests/e2e/parent_about.py', 'tests/requirements.json',
                      'docs/TestAutomation/E2E-Coverage.md'):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -31,7 +32,7 @@ def checkout(tmp_path):
 def test_full_listing_keeps_pending_cases_and_exact_digest():
     plan = runner['preflight'](['--list'])
     assert len(plan['cases']) == 157
-    assert len(plan['pending_cases']) == 156
+    assert len(plan['pending_cases']) == 155
     assert plan['scope'] == 'full'
     assert plan['mode'] == 'list-only'
     assert plan['inventory_sha256'] == hashlib.sha256(
@@ -53,7 +54,7 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
         plan = runner['preflight'](options)
         assert plan == {'mode': mode, 'artifacts': directory}
         assert dispatcher['selection'](ROOT, ['e2e', *options])[-2:] == options
-        for extra in ('--list', '--scenario=E2E-001', '--scenario='):
+        for extra in ('--list', '--ready', '--scenario=E2E-001', '--scenario='):
             with pytest.raises(ValueError, match='qualification-cannot-select-scenarios'):
                 runner['preflight']([*options, extra])
         with pytest.raises(ValueError, match='qualification-requires-backing-verification'):
@@ -83,6 +84,7 @@ def test_dispatcher_preserves_execution_verification_policy(skip):
 
 
 @pytest.mark.parametrize('options,code', [
+    (['--ready', '--scenario=E2E-030/parent'], 'invalid-arguments'),
     ([], 'selection:pending'),
     (['--scenario=E2E-002'], 'selection:pending'),
     (['--scenario=E2E-028/startup-enforcement'], 'selection:pending'),
@@ -195,6 +197,24 @@ def test_make_listing_matches_category_listing():
                            'LIST=1', 'SCENARIO=E2E-023/fullscreen'], **options)
     assert direct.returncode == make.returncode == 0
     assert json.loads(direct.stdout) == json.loads(make.stdout)
+
+
+def test_public_ready_listing_and_installed_dispatcher_share_selection():
+    result = subprocess.run([str(ROOT / 'tools/run-tests'), 'e2e', '--list', '--ready'],
+                            cwd=ROOT, capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    listing = json.loads(result.stdout)
+    assert listing == runner['preflight'](['--list', '--ready'])
+    assert listing['scope'] == 'partial' and listing['ready_only'] is True
+    assert [c['case_id'] for c in listing['cases']] == ['E2E-001/gdm-observation', 'E2E-030/parent']
+    assert len(listing['excluded_pending_cases']) == 155
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix='onpc-ready-test-') as directory:
+        command = dispatcher['selection'](ROOT, ['e2e', '--ready', '--artifacts=' + directory])
+        plan = runner['preflight'](command[3:])
+        assert plan['cases'] == listing['cases']
+        assert plan['excluded_pending_cases'] == listing['excluded_pending_cases']
+        assert plan['verify_backing_bytes'] is True
 
 
 def test_make_selector_never_becomes_recipe_shell_code(tmp_path):

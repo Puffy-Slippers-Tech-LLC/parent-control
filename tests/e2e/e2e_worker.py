@@ -41,10 +41,12 @@ def validate_needles(files):
     empty/focused/masked prompt and live positive/negative matches are still
     required before password input is enabled for a surface.
     """
+    from parent_needles import TAGS as parent_tags, CLICK_TAGS as parent_click_tags
     names = {name for name in files if name.startswith('needles/')}
     for name in names:
         require(re.fullmatch(r'needles/onpc-(?:(gdm|polkit|lock)-(parent|child|other-parent|other-child)'
-                             r'-(masked-password|account)|gdm-parent-installed-account|vt6-parent-password)\.(png|json)', name),
+                             r'-(masked-password|account)|gdm-parent-installed-(?:input-)?account|vt6-parent-password)\.(png|json)', name)
+                or (Path(name).stem in parent_tags and Path(name).suffix in ('.png', '.json')),
                 'e2e:needle-name')
         require(name.rsplit('.', 1)[0] + ('.png' if name.endswith('.json') else '.json') in names,
                 'e2e:needle-pair')
@@ -64,6 +66,11 @@ def validate_needles(files):
                 and document['tags'] == [Path(name).stem]
                 and type(document['area']) is list and 1 <= len(document['area']) <= 8,
                 'e2e:needle-schema')
+        if name == 'needles/onpc-gdm-parent-installed-input-account.json':
+            require((width, height) == (1024, 768) and document['area'] == [
+                {'xpos': 442, 'ypos': 351, 'width': 118, 'height': 32,
+                 'type': 'match', 'match': 100,
+                 'click_point': {'xpos': 59, 'ypos': 16}}], 'e2e:installed-input-layout')
         if name == 'needles/onpc-vt6-parent-password.json':
             # Fixed baseline pixels, including the complete selected login and
             # blank challenge. Only its six-pixel terminal cursor cell may blink.
@@ -93,8 +100,9 @@ def validate_needles(files):
                     and 1 <= area['height'] <= height - area['ypos'], 'e2e:needle-area')
             if 'click_point' in area:
                 point = area['click_point']
-                require(name.endswith('-account.json') and not name.endswith('-installed-account.json')
-                        and len(document['area']) == 1
+                require(((name.endswith('-account.json') and not name.endswith('-installed-account.json')
+                          and len(document['area']) == 1)
+                         or (Path(name).stem in parent_click_tags and area is document['area'][-1]))
                         and type(point) is dict and set(point) == {'xpos', 'ypos'}
                         and all(type(point[key]) is int for key in ('xpos', 'ypos'))
                         and 0 < point['xpos'] < area['width']

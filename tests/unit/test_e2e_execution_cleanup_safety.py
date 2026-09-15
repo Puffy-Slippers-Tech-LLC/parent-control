@@ -238,6 +238,27 @@ def test_public_preparation_satisfies_real_bootstrap_input_contract(harness, mon
     assert 'private-guest-identity' not in json.dumps(documents(harness))
 
 
+@pytest.mark.parametrize('category', ['customer-journey', 'runner-smoke', 'fault-recovery'])
+@pytest.mark.parametrize('installed', [True, False])
+def test_installed_preparation_uses_customer_prerequisites_without_a_case_id_switch(
+        harness, monkeypatch, category, installed):
+    import installed_setup
+    stage = Mock()
+    monkeypatch.setattr(installed_setup, 'stage', stage)
+    harness.case['category'] = category
+    harness.case['preconditions'] = ['installed-digest-verified-product'] if installed else []
+    execution.system.bootstrap.side_effect = RuntimeError('stop after inspecting bootstrap inputs')
+    result = run(harness)
+    assert result['outcome'] == 'failed'
+    expected = category == 'customer-journey' and installed
+    assert execution.system.bootstrap.call_args.kwargs['observation_only'] is not expected
+    assert stage.call_count == int(expected)
+    if expected:
+        assert stage.call_args.args[2]['case'] == harness.case
+    harness.leases[0].finish.assert_called_once()
+    harness.leases[0].release.assert_called_once()
+
+
 def test_credential_tool_pin_refuses_before_vm_acquisition(harness, monkeypatch):
     harness.case['preconditions'].append('fixture-credentials-via-secret-api')
     check = Mock(side_effect=RuntimeError('private-canary'))
@@ -476,16 +497,21 @@ def test_public_failure_is_terminal_and_retains_original_attempt(public, monkeyp
         assert terminal['outcome'] == ('passed' if failure == 'collector-close' else 'failed')
 
 
-def test_multiple_cases_use_independent_attempts_and_stop_after_first_failure(public, monkeypatch, capsys):
+@pytest.mark.parametrize('failure', [None, 1])
+def test_ready_cases_use_independent_attempts_and_stop_after_first_failure(public, monkeypatch, capsys, failure):
     plan = copy.deepcopy(public.plan)
+    plan.update(scope='partial', ready_only=True, excluded_pending_cases=['E2E-004/pending'])
     plan['cases'] = [dict(public.case, case_id=f'E2E-00{i}/synthetic') for i in range(1, 4)]
-    results = [dict(case_id=c['case_id'], outcome='failed' if i == 1 else 'passed',
+    results = [dict(case_id=c['case_id'], outcome='failed' if i == failure else 'passed',
                     inputs={'source_sha256': 'frozen'}) for i, c in enumerate(plan['cases'])]
     execute = Mock(side_effect=results)
     monkeypatch.setattr(execution, 'attempt', execute)
-    assert execution.main(plan) == 1
+    assert execution.main(plan) == (0 if failure is None else 1)
     result = json.loads(capsys.readouterr().out)
-    assert len(result['expected_cases']) == 3 and len(result['attempts']) == 2
+    assert len(result['expected_cases']) == 3
+    assert len(result['attempts']) == (3 if failure is None else 2)
+    assert result['scope'] == 'partial' and result['ready_only'] is True
+    assert result['excluded_pending_cases'] == ['E2E-004/pending']
     assert execute.call_args_list[0].kwargs['expected_inputs'] is None
     assert execute.call_args_list[1].kwargs['expected_inputs'] == results[0]['inputs']
 

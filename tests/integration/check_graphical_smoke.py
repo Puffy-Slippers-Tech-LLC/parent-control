@@ -32,6 +32,7 @@ from private_artifacts import EvidenceError, PrivateCollector
 from provenance import VerifiedInputs, preflight_source, refusal_code
 from recording import save_checkpoint
 from asset_transfer import AssetTransfer
+import installed_setup
 from guest_observations import GREETER as OBSERVATION
 from observation_transport import ReadOnlyObservations
 from fixture_credentials import (FixtureCredentials, preflight as credential_preflight,
@@ -383,7 +384,9 @@ class Qualification:
         self.sequence += 1
         try:
             save_checkpoint(self.collector, self.sequence, event, {
-                'scope': ('authenticated-vt6-shell-qualification' if self.vt6_auth else
+                'scope': ('installed-parent-setup-qualification'
+                          if self.result.get('scope') == 'installed-parent-setup-qualification' else
+                          'authenticated-vt6-shell-qualification' if self.vt6_auth else
                           'credential-free-vt6-prompt-qualification' if self.vt6_prompt else
                           'deliberate-installation-refusal-qualification' if self.install_refusal else
                           'authenticated-installation-qualification' if self.install else
@@ -579,7 +582,17 @@ class Qualification:
 
 
 def main(*, assets=None, provision_credentials=False, serial=False, install=False,
-         install_refusal=False, vt6_prompt=False, vt6_auth=False):
+         install_refusal=False, vt6_prompt=False, vt6_auth=False, parent_setup=False,
+         parent_input=False, parent_about=False):
+    require(type(parent_about) is bool and (not parent_about or (assets is not None
+            and provision_credentials and not any((serial, install, install_refusal,
+                vt6_prompt, vt6_auth, parent_setup, parent_input)))), 'smoke:parent-about-prerequisites')
+    require(type(parent_input) is bool and (not parent_input or parent_setup),
+            'smoke:parent-input-prerequisites')
+    require(type(parent_setup) is bool and (not parent_setup or (assets is not None
+            and provision_credentials and not any((serial, install, install_refusal,
+                                                   vt6_prompt, vt6_auth)))),
+            'smoke:parent-setup-prerequisites')
     require(type(vt6_auth) is bool and (not vt6_auth or (provision_credentials
             and assets is None and not serial and not install and not install_refusal
             and not vt6_prompt)), 'smoke:vt6-auth-prerequisites')
@@ -619,6 +632,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         result['scope'] = 'credential-free-vt6-prompt-qualification'
     if vt6_auth:
         result['scope'] = 'authenticated-vt6-shell-qualification'
+    if parent_setup:
+        result['scope'] = 'installed-parent-setup-qualification'
+    if parent_input:
+        result['scope'] = 'installed-parent-input-qualification'
+    if parent_about:
+        result['scope'] = 'installed-parent-about-qualification'
     started = time.monotonic()
     def interrupted(*_):
         raise KeyboardInterrupt
@@ -636,8 +655,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 runner.stage_assets(runner.artifact_source(assets), staged, commands)
                 staged.chmod(0o700)
                 result['source_preflight'] = preflight_source(staged)
-            (directory / 'input').mkdir(mode=0o700)
-            (directory / 'input/selected-inputs.json').write_text(json.dumps(result['inputs_sha256'], sort_keys=True))
+            if parent_setup or parent_about:
+                installed_setup.stage(directory, staged, result['inputs_sha256'])
+            else:
+                (directory / 'input').mkdir(mode=0o700)
+                (directory / 'input/selected-inputs.json').write_text(json.dumps(result['inputs_sha256'], sort_keys=True))
             host_before = runner.host_fingerprint(commands)
             api, guestfs = importlib.import_module('libvirt'), importlib.import_module('guestfs')
             api.virEventRegisterDefaultImpl()
@@ -653,7 +675,14 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                               secrets=credentials.variables.registered_secrets
                               if credentials is not None else []) as collector:
             result['qualification_evidence'] = str(collector.path)
-            qualification = Qualification(directory, commands, ledger, collector, result, host_before,
+            qualification_class = Qualification
+            if parent_setup:
+                from parent_setup_qualification import ParentSetupQualification
+                qualification_class = ParentSetupQualification
+            if parent_about:
+                from parent_setup_qualification import ParentAboutQualification
+                qualification_class = ParentAboutQualification
+            qualification = qualification_class(directory, commands, ledger, collector, result, host_before,
                                           staged, credentials, serial, install, install_refusal, vt6_prompt,
                                           vt6_auth)
             lease.finalize = qualification.finalize

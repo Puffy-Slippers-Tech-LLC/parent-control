@@ -160,7 +160,8 @@ class EvidenceContract:
                     'result:step-count')
             assertions = {a['id']: (kind, a['step_id']) for kind, items in case['assertions'].items()
                           for a in items}
-            self._assertions(result['assertions'], assertions, set(artifact_ids), artifacts)
+            self._assertions(result['assertions'], assertions, set(artifact_ids), artifacts,
+                             category=case['category'])
             linked, previous = set(), 0
             for step, (phase, expected) in zip(result['steps'], declared):
                 fields(step, inventory.STEP_FIELDS, 'result:step-fields')
@@ -207,7 +208,7 @@ class EvidenceContract:
                 'inputs': copy.deepcopy(self._inputs)}
 
     @staticmethod
-    def _assertions(actual, expected, artifact_ids, artifacts):
+    def _assertions(actual, expected, artifact_ids, artifacts, *, category):
         require(isinstance(actual, list) and len(actual) == len(expected), 'result:assertion-count')
         seen = set()
         kinds = {a['artifact_id']: a['kind'] for a in artifacts}
@@ -225,6 +226,9 @@ class EvidenceContract:
                     'result:assertion-artifacts')
             needed = {'visible': 'screen', 'backend': 'backend', 'other_user': 'other-user'}[item['kind']]
             require(needed in {kinds[a] for a in item['artifact_ids']}, 'result:assertion-evidence-kind')
+            if category == 'customer-journey' and item['kind'] == 'other_user':
+                require('screen' in {kinds[a] for a in item['artifact_ids']},
+                        'result:customer-other-user-screen')
 
     @staticmethod
     def _failures(result, step_ids, duration, recorded):

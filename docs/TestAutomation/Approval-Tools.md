@@ -26,8 +26,16 @@ The tools-only refresh also fills missing `curl`, `ripgrep` and Python coverage
 plugin packages without requesting package upgrades; ordinary test commands
 never install dependencies. Full setup includes these prerequisites too.
 
-The [rules renderer](../../tools/install_codex_rules.py) validates its entire
-fixed launcher inventory before rendering.
+The [rules renderer](../../tools/install_codex_rules.py) validates its required
+launcher inventory, then discovers every regular executable under `tools/`
+without following symlinks. The user preapproves direct project-tool execution;
+setup renders one allow rule containing the exact `tools/`, `./tools/` and
+checkout-absolute executable paths. This includes all slice-launcher actions and
+argument orders. A new executable joins the grant at the next rules refresh;
+removed or nonexecutable tools leave it. Codex matches literal argument tokens,
+so a `tools/*` string is not a directory-wide grant. General shells/interpreters
+and arbitrary privileged wrappers retain their restrictions. The tools' own
+argument validation, task authorization and VM/Polkit guards still apply.
 Simulated checkouts must copy that complete inventory too:
 `test_rules_render_for_a_checkout_with_spaces` in the
 [installation regressions](../../tests/unit/test_dev_tool_installation.py)
@@ -78,9 +86,10 @@ snapshot, run source integrity and Lintian checks, and build/test it in clean
 sbuild. They require no publisher credentials and never push or upload.
 
 Manual execution on a configured host needs no approval or Polkit dialog.
-When an assistant performs an authorized publication, approve the whole
-`make publish` process outside the sandbox at launch if platform policy requires
-it. Local test permissions do not grant publication. The old preparation-only
+When an assistant performs an authorized publication, direct `tools/publish.py`
+uses the project-tool command grant. `make publish` still needs command approval
+if platform policy requires it. Tool execution approval alone does not request
+publication. The old preparation-only
 launcher and its maintained allow rule have been removed.
 See [unattended publishing](../Publishing.md#unattended-operation-and-approvals).
 
@@ -98,17 +107,25 @@ tools/codex_slices.py --help
 tools/codex_slices.py status
 ```
 
-Maintained rules cover `--help`, `-h` and `status` through `tools/`,
-`./tools/` and the rendered absolute checkout path. Isolated Python writes no
+Maintained rules cover every direct slice-launcher invocation through `tools/`,
+`./tools/` and the rendered absolute checkout path, including
+`tools/codex_slices.py run --max-slices 1`, `restart` and `kill`. There is no
+conflicting project prompt for its control actions. Isolated Python writes no
 bytecode; help exits during argument parsing and status only reads fixed saved
-state. Starting/stopping/reconciling work still requires its authorization.
+state. Starting/stopping/reconciling work must still serve the authorized task.
 Activation is `none`; changed rules need `./setup.sh --codex-rules-only` and
 Codex restart.
 
 Do not substitute `python3 tools/codex_slices.py --help`: it matches the
 general interpreter prompt, which a longer allow cannot override. Arbitrary
-scripts are not safe merely because they accept `--help`; new tools need a
-reviewed argument boundary.
+scripts are not safe merely because they accept `--help`; maintain the tools'
+argument boundaries even though their direct invocation is preapproved.
+
+After a rules refresh, restart the Codex process and resume the saved chat to
+load the trusted project rules. Merely switching chats inside an existing
+process is not a documented rule reload. Resuming restores the conversation;
+it does not automatically reissue a command cancelled at an approval prompt.
+Continue the task to issue that command again under the newly loaded rules.
 
 For authorized workspace text edits, use native `apply_patch` with explicit
 paths/context, subject to workspace write permissions. No shell-prefix grant is
@@ -178,7 +195,7 @@ argument; the launcher expands file patterns without a shell.
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify /tmp/onpc-...` / `compare /tmp/onpc-first /tmp/onpc-second` | Fixed builder; explicit existing project artifact inputs |
 | Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
-| Graphical journeys, harness qualification, variants and fault/recovery scenarios | `tools/run-tests e2e --list --scenario E2E-001` / `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` | Host-safe inventory preflight; invalid/pending execution refuses before privilege checks. Ready callbacks use the accepted guarded controller; E2E-001 supersedes E2E-034 and adds ordered GDM-return evidence; [19B's three public qualifications are accepted](Evidence/19B-Acceptance-20260908.md). Other 156 variants remain pending |
+| Graphical journeys and harness scenarios | `tools/run-tests e2e --list --ready` / `tools/run-tests e2e --artifacts '/tmp/onpc-...' --ready` / `--scenario 'E2E-030/parent'` | Host-safe preflight; invalid/pending execution refuses before privilege checks. Explicit ready selection reports pending exclusions and partial scope. E2E-001 harness smoke and E2E-030/parent are runnable; 155 variants remain pending. See [commands and prerequisites](../../tests/e2e/README.md#run-e2e-scenarios). |
 | Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
 | Established regressions | `make test-all` / `tools/run-tests all` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors |

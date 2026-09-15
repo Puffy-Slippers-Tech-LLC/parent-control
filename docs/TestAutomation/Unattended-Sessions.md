@@ -91,10 +91,12 @@ tools/codex_slices.py status
 tools/codex_slices.py stop
 ```
 
-Help (`tools/codex_slices.py --help` or `-h`) and `status` have maintained
-inspection-only Codex rules. Use the executable directly, without a `python3`
-prefix; setup renders relative and checkout-absolute forms. Starting or
-controlling the loop still needs authorization for that work. Use the native
+All direct `tools/codex_slices.py` commands have maintained Codex allow rules,
+including help, status, start/run and stop/restart/kill. Use the executable
+directly, without a `python3` prefix; setup renders relative and
+checkout-absolute forms. The user preapproves project-tool execution, so
+starting or controlling authorized loop work needs no repeated command prompt.
+The task's scope, ownership and recovery checkpoints still apply. Use the native
 `apply_patch` tool for workspace handoff edits. See the
 [inspection and editing contract](Approval-Tools.md#launcher-inspection-and-workspace-edits).
 

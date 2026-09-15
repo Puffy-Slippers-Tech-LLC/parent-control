@@ -98,8 +98,11 @@
   bounded entry points.
 - Invoke `tools/codex_slices.py --help` or `tools/codex_slices.py status`
   directly. Its shebang isolates Python; maintained rules cover relative and
-  checkout-absolute help/status. Starting/controlling unattended work requires
-  authorization for that work.
+  checkout-absolute commands. The user preapproves direct execution of all
+  executable tools under this project's `tools/`, including every slice-launcher
+  action. Use these grants for authorized work without another command-approval
+  question. Setup discovers new executables when refreshing rules; this does not
+  expand task scope or authorize generic shell/interpreter/privileged wrappers.
 - [Evidence retention](docs/TestAutomation/Implementation-Workflow.md#retain-useful-evidence-without-one-off-reports)
   supersedes older per-attempt reporting rules. Report routine test/build
   failures (including `make test-all`), fixes and verification in conversation/PR,

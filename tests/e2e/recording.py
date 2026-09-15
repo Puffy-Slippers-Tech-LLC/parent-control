@@ -162,7 +162,7 @@ class ScenarioRecorder:
         self.checkpoint('failure')
 
     def run_worker(self, verified, directory, lease, ledger, *, observe, validate, timeout=600,
-                   credentials=None, serial=False):
+                   credentials=None, serial=False, guarded_observe=None):
         """Run the qualified worker; observed stages remain scenario code's job.
 
         Neither module success nor worker diagnostics manufacture step/assertion
@@ -192,7 +192,8 @@ class ScenarioRecorder:
                     credentials.worker_secrets(lease).registered_secrets)
             return e2e_worker.run_distribution(directory, lease, ledger,
                 expected_inputs=verified.source_files, observe=observe, validate=validate,
-                timeout=timeout, on_failure=self.failure, credentials=credentials, serial=serial)
+                timeout=timeout, on_failure=self.failure, credentials=credentials, serial=serial,
+                **({'guarded_observe': guarded_observe} if guarded_observe is not None else {}))
         except BaseException as error:
             # Adapter and directory refusals happen before the worker owns any
             # resource and therefore before its failure hook is installed.
@@ -248,6 +249,10 @@ class ScenarioRecorder:
         require(bool(artifact_ids) and set(artifact_ids) <= set(self._active['artifact_ids'])
                 and any(a['artifact_id'] in artifact_ids and a['kind'] == needed
                         for a in self._record['artifacts']), 'recording:assertion-artifacts')
+        if self._case['category'] == 'customer-journey' and kind == 'other_user':
+            require(any(a['artifact_id'] in artifact_ids and a['kind'] == 'screen'
+                        for a in self._record['artifacts']),
+                    'recording:customer-other-user-screen')
         self._record['assertions'].append({'assertion_id': assertion_id,
             'kind': kind, 'step_id': self._active['step_id'], 'outcome': outcome,
             'artifact_ids': list(artifact_ids)})

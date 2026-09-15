@@ -1,0 +1,27 @@
+{
+  "tags": [
+    "onpc-parent-menu"
+  ],
+  "area": [
+    {
+      "xpos": 464,
+      "ypos": 48,
+      "width": 196,
+      "height": 36,
+      "type": "match",
+      "match": 100
+    },
+    {
+      "xpos": 858,
+      "ypos": 50,
+      "width": 24,
+      "height": 31,
+      "type": "match",
+      "match": 100,
+      "click_point": {
+        "xpos": 12,
+        "ypos": 15
+      }
+    }
+  ]
+}

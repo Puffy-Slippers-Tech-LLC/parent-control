@@ -1,0 +1,5 @@
+{
+  "tags": ["onpc-gdm-parent-installed-input-account"],
+  "area": [{"xpos": 442, "ypos": 351, "width": 118, "height": 32,
+    "type": "match", "match": 100, "click_point": {"xpos": 59, "ypos": 16}}]
+}

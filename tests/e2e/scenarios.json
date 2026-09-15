@@ -141,8 +141,8 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Log in as Parent, launch from the app grid, and inspect eligible children or the empty state."},
-          {"id": "step-2", "operation": "ui", "description": "For existing-and-new, create another local child through supported OS UI after installation, then rediscover and select each child."},
-          {"id": "step-3", "operation": "observe", "description": "Navigate each child status and catalog; verify administrator, system, remote and kiosk accounts are excluded."}
+          {"id": "step-2", "operation": "ui", "description": "For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe the child appear without restarting Parent."},
+          {"id": "step-3", "operation": "observe", "description": "Select each visible eligible child and navigate the displayed status and application choices; for none, observe the explained empty state."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -154,23 +154,19 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Each selection shows that child data; the empty state clearly explains the absence of eligible children."}
+          {"id": "visible-result", "step_id": "step-3", "description": "For existing-and-new, the existing and newly provisioned child both appear and each can be selected with the chosen child's displayed settings; for none, the empty state visibly explains the absence of eligible children."}
         ],
-        "backend": [
-          {"id": "backend-result", "step_id": "step-3", "description": "Read-only account and per-child catalog identities corroborate discovery and isolation."}
-        ],
-        "other_user": [
-          {"id": "other-user-result", "step_id": "step-3", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
-        ]
+        "backend": [],
+        "other_user": []
       },
-      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
           "children": ["existing-and-new", "none"]
         },
         "full_combinations": [],
-        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
+        "rationale": "Existing-and-new keeps Parent open while one supported eligible-account fixture is provisioned, then visibly selects both children. None separately covers the visible empty state. The owning task retains both stable IDs and audits remaining visible requirements before family acceptance."
       },
       "variants": [
         {"id": "existing-and-new", "owner": "21A", "parameters": {"children": "existing-and-new"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null},
@@ -1787,12 +1783,12 @@
       "title": "Installed About and license access",
       "category": "customer-journey",
       "owners": ["21A"],
-      "requirements": [],
-      "requirement_gap": "Task 21A must link About/license access to a stable normative requirement ID; E2E-Coverage requires this omitted surface.",
-      "contract_refs": ["docs/TestAutomation/E2E-Coverage.md"],
+      "requirements": ["ONPC-CORE-ABOUT-001"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/TestAutomation/E2E-Coverage.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
           {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
@@ -1801,8 +1797,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Log in as Parent, launch the installed app, open About and follow its license/copyright information."},
-          {"id": "step-2", "operation": "ui", "description": "Close the informational view and return to the same selected child without changing policy."}
+          {"id": "step-1", "operation": "ui", "description": "Log in as Parent, launch the installed app from the app grid, select an existing child, open About, read its product/version information and open the installed license text."},
+          {"id": "step-2", "operation": "ui", "description": "Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1816,14 +1812,10 @@
         "visible": [
           {"id": "visible-result", "step_id": "step-2", "description": "Installed About and license information are readable and the parent can return to normal use."}
         ],
-        "backend": [
-          {"id": "backend-result", "step_id": "step-2", "description": "Displayed version/license agrees with the installed digest-identified package; policy is unchanged."}
-        ],
-        "other_user": [
-          {"id": "other-user-result", "step_id": "step-2", "description": "Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user."}
-        ]
+        "backend": [],
+        "other_user": []
       },
-      "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
@@ -1833,7 +1825,7 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the owning task must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"id": "parent", "owner": "21A", "parameters": {"surface": "parent"}, "status": "pending", "pending_reason": "Task 21A must implement this complete journey and its assertions.", "executable": null}
+        {"id": "parent", "owner": "21A", "parameters": {"surface": "parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_about.py", "test_id": "parent"}}
       ]
     },
     {

@@ -333,6 +333,30 @@ def collect(marker, outcome):
         tree.write(source, encoding='utf-8', xml_declaration=True)
 
 
+def install_setup():
+    marker = guard()
+    require(sha(PAYLOAD / 'selected-inputs.json') == marker['selected_inputs_sha256'],
+            'selected-inputs-digest')
+    install()
+
+
+def verify_setup():
+    """Feature fixture setup only; no product-policy or activation assertions."""
+    marker = guard()
+    require(sha(PAYLOAD / 'selected-inputs.json') == marker['selected_inputs_sha256'],
+            'selected-inputs-digest')
+    wait_for_boot()
+    require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) ==
+            'install ok installed', 'package-status')
+    require(run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control']) ==
+            run(['dpkg-deb', '-f', str(PAYLOAD / 'package.deb'), 'Version']), 'package-version')
+    require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+    before = json.loads((PAYLOAD / 'before.json').read_text())
+    require(before['boot_id'] != Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+            'setup-reboot-required')
+    print('onpc-system: stage=feature-setup outcome=passed', flush=True)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
@@ -340,9 +364,11 @@ def main(argv=None):
             collect(guard(), argv[1])
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
-                             ['install-previous'], ['upgrade']), 'invalid-command')
+                             ['install-previous'], ['upgrade'], ['install-setup'],
+                             ['verify-setup']), 'invalid-command')
             {'guard': guard, 'before-install': before_install, 'install': install,
-             'install-previous': install_previous, 'upgrade': upgrade}[argv[0]]()
+             'install-previous': install_previous, 'upgrade': upgrade,
+             'install-setup': install_setup, 'verify-setup': verify_setup}[argv[0]]()
         return 0
     except Exception as error:
         category = str(error) if isinstance(error, (GuestError, CommandError)) else 'unexpected-failure'

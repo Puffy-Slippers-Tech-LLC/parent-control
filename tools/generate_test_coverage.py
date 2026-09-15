@@ -83,11 +83,11 @@ def render(document, counts, *, root=ROOT):
     api['validate_inventory'](document, root=root)
     cases = sorted(((variant['coverage_id'], family, variant)
                     for family in document['scenarios'] for variant in family['variants']),
-                   key=lambda item: item[0])
+                   key=lambda item: (item[2]['status'] == 'pending', item[0]))
     totals = Counter((family['category'], variant['status']) for _, family, variant in cases)
     rows = list(counts)
-    for category in sorted({family['category'] for _, family, _ in cases}):
-        for status in ('ready', 'pending'):
+    for status in ('ready', 'pending'):
+        for category in sorted({family['category'] for _, family, _ in cases}):
             rows.append((f'E2E {category} ({status})', totals[category, status],
                          'One exact scenario variant'))
     lines = [
@@ -118,10 +118,12 @@ def render(document, counts, *, root=ROOT):
         '', '| ID | Scenario | Variant | Status |', '| ---: | --- | --- | --- |',
     ]
     for number, family, variant in cases:
-        lines.append(f'| {number} | {prose(family["title"])} | '
-                     f'`{family["id"]}/{variant["id"]}` | {variant["status"]} |')
+        link = f'[{number}](#scenario-{number})'
+        cells = [prose(family['title']), f'`{family["id"]}/{variant["id"]}`', variant['status']]
+        lines.append('| ' + link + ' | ' + ' | '.join(cells) + ' |')
     for number, family, variant in cases:
-        lines.extend(['', f'### {number}. {prose(family["title"])}', '',
+        lines.extend(['', f'### Scenario {number}', '',
+                      f'**{prose(family["title"])}**', '',
                       f'Case: `{family["id"]}/{variant["id"]}` · '
                       f'Category: {family["category"]} · Status: **{variant["status"]}**', '',
                       'Variant: ' + '; '.join(f'{prose(key.replace("-", " "))}: '

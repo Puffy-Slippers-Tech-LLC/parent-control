@@ -466,6 +466,43 @@ def test_original_single_run_journal_upgrades_without_losing_evidence(tmp_path):
         assert not path.exists()
 
 
+@pytest.mark.parametrize('fault', [None, 'identity', 'mode', 'unfinished', 'foreign'])
+def test_legacy_system_export_is_preserved_only_after_identity_audit(tmp_path, fault):
+    store = retention.Store(tmp_path / 'state')
+    with tempfile.TemporaryDirectory(prefix='onpc-system-', dir='/tmp') as name:
+        path = Path(name)
+        with store.session() as old_run:
+            retention.retain(path)
+            (path / 'result.log').write_text('retained evidence')
+            if fault == 'foreign':
+                foreign = allocated(tmp_path, 'foreign')
+        journal = store.path / 'current.json'
+        old = json.loads(journal.read_text())
+        path.chmod(0o755)
+        if fault == 'identity':
+            old['paths'][0]['inode'] += 1
+        elif fault == 'mode':
+            path.chmod(0o777)
+        elif fault == 'unfinished':
+            old['finished'] = False
+        elif fault == 'foreign':
+            foreign.chmod(0o755)
+        journal.write_text(json.dumps(old))
+        if fault:
+            with pytest.raises(ValueError):
+                with store.session(preserve_completed=retention.legacy_system_evidence):
+                    pytest.fail('unsafe legacy journal accepted')
+            assert json.loads(journal.read_text()) == old
+        else:
+            with store.session(preserve_completed=retention.legacy_system_evidence):
+                assert json.loads(journal.read_text())['history'] == []
+            assert json.loads((store.path / f'preserved-{old_run}.json').read_text()) == old
+            for _ in range(4):
+                with store.session(preserve_completed=retention.legacy_system_evidence):
+                    pass
+        assert (path / 'result.log').read_text() == 'retained evidence'
+
+
 def test_older_vm_token_cannot_resume_after_a_newer_run(tmp_path):
     store = retention.Store(tmp_path / 'state')
     with store.session() as run:

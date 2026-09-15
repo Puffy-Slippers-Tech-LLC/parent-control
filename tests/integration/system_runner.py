@@ -1281,7 +1281,8 @@ def evidence(directory, manifest, lease, passed, category, selection,
     for path in output.rglob('*'):
         path.chmod(0o755 if path.is_dir() else 0o644)
     output.chmod(0o755)
-    directory.chmod(0o755)
+    # Keep the registered allocation private. The installed artifact reader
+    # provides access without invalidating retention's ownership/mode proof.
     return passed, category
 
 

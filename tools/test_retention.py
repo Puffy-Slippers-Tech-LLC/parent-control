@@ -126,7 +126,7 @@ class Store:
         os.fsync(fd)
 
     @contextmanager
-    def session(self, *, run=None, guard=None, recover=None):
+    def session(self, *, run=None, guard=None, recover=None, preserve_completed=None):
         if not self.path.is_absolute() or '..' in self.path.parts:
             raise ValueError('retention: invalid storage path')
         ensure_directory(self.path)
@@ -139,6 +139,13 @@ class Store:
                 guard()
             with self.locked(fd, 'writer.lock'):
                 state = self.read(fd)
+                if (state and state['finished'] and preserve_completed is not None
+                        and 'recovery-required' not in os.listdir(fd)
+                        and preserve_completed(state)):
+                    # Preserve legacy evidence outside rotation. Never rewrite
+                    # its ownership records or delete a mismatched allocation.
+                    self.save(fd, state, name=f'preserved-{uuid.UUID(hex=state["run"]).hex}.json')
+                    state = None
                 if state and not state['finished']:
                     if ('recovery-required' in os.listdir(fd) or recover is None
                             or not recover(state)):
@@ -185,6 +192,45 @@ class Store:
 def environment():
     value = os.environ.get(VARIABLE)
     return {} if value is None else {VARIABLE: value}
+
+
+def legacy_system_evidence(state):
+    """Recognize the old system exporter changing a registered 0700 root to 0755.
+
+    Only the privileged dispatcher uses this migration, under its recovery
+    guard. Audit every allocation; archive the whole journal without deletion.
+    """
+    legacy = False
+    for entry in [state, *state['history']]:
+        for record in entry['paths']:
+            path = Path(record['path'])
+            if (path.parent != Path('/tmp') or not path.name.startswith('onpc-system-')
+                    or record.get('mode', 0o700) != 0o700):
+                remove(record, validate_only=True)
+                continue
+            try:
+                target = directory(path)
+            except FileNotFoundError:
+                continue
+            try:
+                info = os.fstat(target)
+                if stat.S_IMODE(info.st_mode) != 0o755:
+                    remove(record, validate_only=True)
+                    continue
+                if (info.st_uid != os.geteuid() or
+                        (info.st_dev, info.st_ino) != (record['device'], record['inode'])):
+                    raise ValueError('retention: legacy allocation identity changed')
+                parent = directory(path.parent)
+                try:
+                    if mount_id(target) != mount_id(parent):
+                        raise ValueError('retention: mounted storage is not disposable')
+                finally:
+                    os.close(parent)
+                check_tree(target, info.st_dev)
+                legacy = True
+            finally:
+                os.close(target)
+    return legacy
 
 
 def token():

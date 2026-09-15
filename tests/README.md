@@ -208,6 +208,16 @@ run or a failure before VM execution does not discard the last VM diagnostics.
 Refresh the installed dispatcher with `./setup.sh --test-tools-only` after this
 change. Test tooling has package update activation **none**.
 
+System evidence keeps its registered allocation root at mode 0700; use the
+installed artifact reader for privileged results. Older system exporters changed
+that root to 0755 after registering 0700. On the next privileged aggregate, a
+completed journal with this specific mismatch is archived as
+`preserved-<run>.json` outside rotation. Every recorded allocation must still
+pass identity, ownership and mount checks, with only that system-root mode
+exception. The VM recovery guard must pass; unfinished or recovery-marked
+journals are not migrated. Existing evidence and its original records remain
+untouched, and subsequent runs use a fresh journal.
+
 Storage leases exclude active owners; deletion uses recorded directory identities
 and pinned descriptors, refusing replacements, symlink ancestors and mounts.
 No `/tmp/onpc-*` or `/var/tmp/onpc-*` prefix sweep is used. An unfinished retention

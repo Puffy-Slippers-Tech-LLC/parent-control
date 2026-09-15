@@ -21,9 +21,14 @@ class ParentSetupQualification(smoke.Qualification):
                 lease, self.verified, self.directory, guestfs, self.commands)
             # Credentials remain controller-private: this worker only observes.
             input_review = self.result.get('scope') == 'installed-parent-input-qualification'
+            standard_input_review = (
+                self.result.get('scope') == 'installed-standard-input-qualification'
+            )
             stages = ('ready', 'setup-detached', 'installed-greeter')
             if input_review:
                 stages += ('installed-parent-prompt', 'installed-parent-dismissed')
+            if standard_input_review:
+                stages += ('installed-standard-prompt', 'installed-standard-dismissed')
             steps = []
 
             def observe(guard):
@@ -46,6 +51,8 @@ class ParentSetupQualification(smoke.Qualification):
                     reply = {'parent_setup': True}
                     if input_review:
                         reply['parent_input'] = True
+                    if standard_input_review:
+                        reply['parent_standard_input'] = True
                 elif stage == 'setup-detached':
                     smoke.require(request['screenshot'] is None, 'setup:early-screenshot')
                     hostname = smoke.runner.address(lease.source, timeout=90)
@@ -88,9 +95,10 @@ class ParentSetupQualification(smoke.Qualification):
             self.checkpoint('before-cleanup')
 
 
-class ParentAboutQualification(smoke.Qualification):
+class ParentJourneyQualification(smoke.Qualification):
+    """Shared installed setup and private image acquisition for Parent plans."""
+
     def execute(self, lease, guestfs):
-        from parent_about import ParentJourney
         self.checkpoint('attempt-started')
         try:
             lease.prepare()
@@ -109,7 +117,7 @@ class ParentAboutQualification(smoke.Qualification):
                 self.result['steps'] = list(journey.steps)
                 self.checkpoint('stage-observed')
 
-            journey = ParentJourney(context, progress, review=True)
+            journey = self.journey(context, progress)
             self.result['worker_evidence'] = smoke.e2e_worker.run_distribution(
                 self.directory, lease, self.ledger, expected_inputs=self.verified.source_files,
                 observe=lambda: None, guarded_observe=journey.step, validate=journey.validate,
@@ -117,3 +125,17 @@ class ParentAboutQualification(smoke.Qualification):
             self.result['matched_screens'] = journey.validate()
         finally:
             self.checkpoint('before-cleanup')
+
+
+class ParentAboutQualification(ParentJourneyQualification):
+    @staticmethod
+    def journey(context, progress):
+        from parent_about import ParentJourney
+        return ParentJourney(context, progress, review=True)
+
+
+class ParentAccessQualification(ParentJourneyQualification):
+    @staticmethod
+    def journey(context, progress):
+        from parent_access import ParentAccessJourney
+        return ParentAccessJourney(context, progress, review=True)

@@ -30,12 +30,39 @@ sub login {
 
 sub launch_from_app_grid {
     my ($journey) = @_;
-    testapi::send_key('super-a');
-    testapi::assert_screen('onpc-parent-app-grid', 30);
-    $journey->seen('app-grid');
+    open_app_grid($journey);
     testapi::type_string('Oh No! Parent Control');
     testapi::wait_still_screen(1, 10);
     testapi::send_key('ret');
+}
+
+sub open_app_grid {
+    my ($journey) = @_;
+    testapi::send_key('super-a');
+    testapi::assert_screen('onpc-parent-app-grid', 30);
+    $journey->seen('app-grid');
+}
+
+sub login_standard {
+    my ($journey) = @_;
+    onpc_gdm::reattach_after_setup();
+    $journey->seen('installed-greeter');
+    die 'parent-access:list-is-password'
+        if testapi::check_screen('onpc-gdm-other-child-masked-password', 0);
+    onpc_gdm::inspect_installed_standard(sub {
+        die 'parent-access:parent-matches-standard'
+            if testapi::check_screen('onpc-gdm-other-child-masked-password', 0);
+    });
+    die 'parent-access:list-still-visible'
+        if testapi::check_screen('onpc-gdm-parent-installed-account', 0);
+    die 'parent-access:wrong-password-recipient'
+        if testapi::check_screen('onpc-gdm-parent-masked-password', 0);
+    testapi::assert_screen('onpc-gdm-other-child-masked-password', 30);
+    $journey->seen('recipient-qualified');
+    onpc_password::enter_password('other-child', 'gdm');
+    testapi::send_key('ret');
+    testapi::assert_screen('onpc-parent-desktop', 90);
+    $journey->seen('desktop');
 }
 
 sub select_existing_child {

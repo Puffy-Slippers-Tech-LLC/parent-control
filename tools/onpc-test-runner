@@ -59,7 +59,7 @@ def confined_file(root, relative):
     return candidate
 
 
-def selection(root, argv):
+def selection(root, argv, *, allow_missing_artifacts=False):
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     categories = parser.add_subparsers(dest='category', required=True)
     integration = categories.add_parser('integration', allow_abbrev=False)
@@ -76,7 +76,7 @@ def selection(root, argv):
     e2e.add_argument('--artifacts', type=Path)
     selectors = e2e.add_mutually_exclusive_group()
     selectors.add_argument('--scenario')
-    selectors.add_argument('--id', type=int, help='exact numeric case ID in docs/Test-Coverage.md')
+    selectors.add_argument('--id', help='comma-separated numeric case IDs in docs/Test-Coverage.md')
     selectors.add_argument('--ready', action='store_true')
     e2e.add_argument('--list', action='store_true')
     e2e.add_argument('--skip-backing-verification', action='store_true')
@@ -125,8 +125,9 @@ def selection(root, argv):
             options.append('--artifacts=' + str(args.artifacts))
         # Validate inventory before either caller privilege checks or isolated
         # safety tests. The installed dispatcher repeats this checkout preflight.
-        plan = runpy.run_path(str(target))['preflight'](options, root=root)
-        if args.id is not None:
+        plan = runpy.run_path(str(target))['preflight'](
+            options, root=root, allow_missing_artifacts=allow_missing_artifacts)
+        if args.id is not None and len(plan['cases']) == 1:
             options.remove('--id=' + str(args.id))
             options.append('--scenario=' + plan['selector'])
         return ['/usr/bin/python3', '-B', str(target), *options]

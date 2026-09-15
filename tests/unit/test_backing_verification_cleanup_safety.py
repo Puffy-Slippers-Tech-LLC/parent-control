@@ -581,3 +581,52 @@ def test_off_recovery_audits_exact_restoration_without_vm_mutations(lease_rig, f
     lease.source.domain.destroyFlags.assert_not_called()
     lease.source.domain.revertToSnapshot.assert_not_called()
     lease.source.connection.defineXML.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['none', 'active', 'run', 'sharing', 'backing', 'instance'])
+@pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])
+def test_prestart_recovery_restores_only_recorded_off_isolation(lease_rig, fault, graphics_type):
+    import system_runner as runner
+    lease, current = lease_rig
+    lease.view.graphics_type = graphics_type
+    lease.__enter__()
+    lease.prepare()
+    lease.release()  # Simulate interruption after isolation, before guest start.
+    recovery = runner.Lease(lease.source, lease.commands, lease.inspect,
+                            directory=lease.directory, anchor=lease.capture.anchor,
+                            graphics_type=graphics_type)
+    recover = (recovery.recover_graphical_cleanup if graphics_type == 'vnc'
+               else recovery.recover_system_cleanup)
+    if fault == 'active':
+        current['id'] = 72
+        lease.source.off = False
+    elif fault == 'run':
+        current['xml'] = current['xml'].replace(lease.state['run'], 'b' * 32)
+    elif fault == 'sharing':
+        current['xml'] = current['xml'].replace('</devices>', '<channel/></devices>')
+    elif fault == 'backing':
+        lease.capture.anchor.write_bytes(b'x' * lease.capture.anchor.stat().st_size)
+    elif fault == 'instance':
+        state = json.loads(lease.journal.read_bytes())
+        state['domain_id'] = 17
+        lease.journal.write_bytes(runner.baseline.encode(state))
+    journal = lease.journal.read_bytes()
+    lease.source.domain.reset_mock()
+    lease.source.connection.reset_mock()
+    shutdowns = lease.source.shutdown_calls
+    if fault == 'none':
+        recover()
+        assert recovery.state['phase'] == 'complete'
+        assert current['xml'] == lease.original_xml
+        lease.source.domain.revertToSnapshot.assert_called_once()
+        lease.source.connection.defineXML.assert_called_once_with(lease.original_xml)
+    else:
+        with pytest.raises((runner.Error, baseline.CaptureError)):
+            recover()
+        assert lease.journal.read_bytes() == journal
+        lease.source.domain.revertToSnapshot.assert_not_called()
+        lease.source.connection.defineXML.assert_not_called()
+    assert recovery.fd is None
+    assert lease.source.shutdown_calls == shutdowns
+    lease.source.domain.create.assert_not_called()
+    lease.source.domain.destroyFlags.assert_not_called()

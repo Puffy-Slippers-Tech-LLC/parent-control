@@ -173,6 +173,9 @@ def test_failure_is_persisted_before_cleanup_without_raw_exception(attempt, boun
     assert attempt.events[-2:] == ['server-close', 'worker-result']
     assert 'private-canary' not in json.dumps(final)
     assert final['outcome'] == 'failed'
+    if boundary != 'spawn':
+        assert caught.value.onpc_worker_result['worker_stopped'] is True
+        assert caught.value.onpc_worker_result['callback_closed'] is True
     if boundary == 'spawn':
         attempt.worker.close.assert_not_called()
     else:

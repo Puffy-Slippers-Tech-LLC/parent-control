@@ -1,0 +1,15 @@
+{
+  "tags": [
+    "onpc-gdm-standard-selected-account"
+  ],
+  "area": [
+    {
+      "xpos": 370,
+      "ypos": 356,
+      "width": 276,
+      "height": 80,
+      "type": "match",
+      "match": 100
+    }
+  ]
+}

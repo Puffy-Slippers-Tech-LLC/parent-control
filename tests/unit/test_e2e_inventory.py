@@ -43,10 +43,11 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert [case['case_id'] for case in plan['cases']] == expected
     assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
                                      if case['status'] == 'pending']
-    assert len(plan['pending_cases']) == 155
+    assert len(plan['pending_cases']) == 152
     assert plan['scope'] == 'full'
     assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
-        'E2E-001/gdm-observation', 'E2E-030/parent']
+        'E2E-001/gdm-observation', 'E2E-003/existing-and-new', 'E2E-003/none',
+        'E2E-004/app-grid', 'E2E-030/parent']
     assert all(case['assertions'] and case['expected_evidence'] for case in plan['cases'])
     assert plan['evidence_contract']['outcomes'] == ['product', 'infrastructure', 'collection', 'cleanup']
 
@@ -236,8 +237,9 @@ def test_non_customer_qualification_keeps_three_sided_assertions(document, kind)
         inventory.validate_inventory(document)
 
 
-def test_customer_surface_declaration_can_omit_internal_witnesses(document):
-    chosen = family(document, 'E2E-003')
+@pytest.mark.parametrize('sid', ['E2E-003', 'E2E-004'])
+def test_customer_surface_declaration_can_omit_internal_witnesses(document, sid):
+    chosen = family(document, sid)
     assert chosen['assertions']['visible']
     assert chosen['assertions']['backend'] == chosen['assertions']['other_user'] == []
     assert set(chosen['expected_evidence']) == {

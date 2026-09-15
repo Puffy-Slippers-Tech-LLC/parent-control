@@ -62,6 +62,37 @@ my $ok = eval { onpc_parent_about::run(sub { push @events, ['stage', $_[0]]; }, 
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
 
+STANDARD_RECIPIENT_PROBE = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+our $tag;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub current_console { 'sut' }
+sub assert_screen {
+    $main::tag = $_[0];
+    return {area => [{x => 443, y => 444, w => 121, h => 29, similarity => 1,
+        click_point => {xpos => 60, ypos => 14}}]};
+}
+sub mouse_set { push @main::events, ['pointer', @_]; }
+sub mouse_click { push @main::events, ['click', $main::tag]; }
+sub mouse_hide { }
+sub get_var { $_[1] }
+sub console { bless {}, 'Console' }
+sub send_key { push @main::events, ['key', $_[0]]; }
+sub wait_still_screen { push @main::events, ['still']; }
+sub check_screen { push @main::events, ['check', $_[0]]; 0 }
+package Console;
+sub mouse_width { 1280 }
+sub mouse_height { 800 }
+package main;
+require onpc_gdm;
+onpc_gdm::inspect_installed_standard();
+print encode_json(\@events);
+'''
+
 
 @pytest.mark.parametrize('review', ['0', '1'])
 @pytest.mark.parametrize('fault', ['recipient', 'click'])
@@ -78,6 +109,17 @@ def test_customer_missing_screen_stops_before_menu_input():
     result = json.loads(run_perl(PROBE, '0', 'screen').stdout)
     assert not result['ok']
     assert ['click', 'onpc-parent-menu'] not in result['events']
+
+
+def test_fixed_standard_recipient_is_selected_before_opening_its_prompt():
+    events = json.loads(run_perl(STANDARD_RECIPIENT_PROBE).stdout)
+    assert events == [
+        ['pointer', 628, 477],
+        ['click', 'onpc-gdm-parent-installed-input-account'],
+        ['still'], ['key', 'esc'], ['key', 'home'],
+        *[['key', 'down']] * 4, ['key', 'ret'], ['still'],
+        ['check', 'onpc-gdm-parent-installed-account'],
+    ]
 
 
 def test_qualification_can_acquire_nonsecret_screens_without_explicit_capture():

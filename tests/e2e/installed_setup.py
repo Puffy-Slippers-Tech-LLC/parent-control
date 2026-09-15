@@ -14,7 +14,8 @@ def stage(directory, assets, selection):
     require(not destination.exists(), 'setup:input-exists')
     shutil.copytree(assets, destination)
     files = {}
-    for relative in ('tests/integration/system_guest.py', 'tests/integration/owned_commands.py'):
+    for relative in ('tests/integration/system_guest.py', 'tests/integration/owned_commands.py',
+                     'tests/integration/e2e_dynamic_account.py'):
         target = Path(relative).name
         shutil.copyfile(system.ROOT / relative, destination / target)
         files[target] = {'source': relative, 'sha256': system.baseline.digest(destination / target)}

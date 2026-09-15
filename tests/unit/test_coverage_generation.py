@@ -25,8 +25,17 @@ def document():
 
 def test_every_document_number_selects_exactly_its_documented_case(document):
     rendered = coverage.render(document, [('Example', 3, 'Collected cases')])
+    links = re.findall(r'\[(\d+)\]\(#scenario-(\d+)\)', rendered)
+    assert all(label == target for label, target in links)
+    numbers = [int(label) for label, _ in links]
+    headings = [int(number) for number in re.findall(r'^### Scenario (\d+)$', rendered, re.M)]
+    assert numbers == headings
+    assert not re.search(r'<(?:a|span)\b', rendered)
+    rendered = re.sub(r'\[(\d+)\]\(#scenario-\d+\)', r'\1', rendered)
     rows = re.findall(r'^\| (\d+) \| .*? \| `(E2E-\d+/[^`]+)` \| (ready|pending) \|$',
                       rendered, re.M)
+    assert [status for _, _, status in rows] == sorted(
+        (status for _, _, status in rows), key=lambda status: status == 'pending')
     assert len(rows) == sum(len(f['variants']) for f in document['scenarios'])
     assert '| **Total** | **' + str(3 + len(rows)) + '** |' in rendered
     for number, case_id, status in rows:

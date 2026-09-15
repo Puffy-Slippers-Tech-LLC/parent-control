@@ -404,7 +404,7 @@ def test_full_selection_executes_each_variant_once_and_cannot_reuse_another_case
     family = document['scenarios'][0]
     family['matrix']['dimensions']['transport'].append('second-transport')
     variant = copy.deepcopy(family['variants'][0])
-    variant.update(id='second-transport', parameters={'transport': 'second-transport'},
+    variant.update(coverage_id=2, id='second-transport', parameters={'transport': 'second-transport'},
                    executable={'path': 'tests/e2e/synthetic.py', 'test_id': 'synthetic-second'})
     family['variants'].append(variant)
     path.write_text(json.dumps(document))

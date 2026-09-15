@@ -96,7 +96,7 @@ def _validate_inventory(document, *, root):
     known_requirements = {entry['id'] for entry in registry['requirements']}
     scenarios = document['scenarios']
     require(isinstance(scenarios, list) and scenarios, 'inventory:empty')
-    scenario_ids, case_ids, test_ids = set(), set(), set()
+    scenario_ids, case_ids, test_ids, coverage_ids = set(), set(), set(), set()
     for scenario in scenarios:
         fields(scenario, ('id', 'title', 'category', 'owners', 'requirements', 'requirement_gap',
                           'contract_refs', 'components', 'environment', 'preconditions',
@@ -220,8 +220,10 @@ def _validate_inventory(document, *, root):
         require(isinstance(variants, list) and variants, 'scenario:empty-variants')
         combinations = set()
         for variant in variants:
-            fields(variant, ('id', 'owner', 'parameters', 'status', 'pending_reason', 'executable'),
+            fields(variant, ('coverage_id', 'id', 'owner', 'parameters', 'status', 'pending_reason', 'executable'),
                    'variant:fields')
+            number = variant['coverage_id']
+            require(type(number) is int and number > 0, 'variant:coverage-id')
             require(token(variant['id']), 'variant:id')
             cid = sid + '/' + variant['id']
             require(cid not in case_ids, 'variant:duplicate-id')
@@ -234,6 +236,8 @@ def _validate_inventory(document, *, root):
             combination = tuple(params[key] for key in dimensions)
             require(combination not in combinations, 'variant:duplicate-combination')
             combinations.add(combination)
+            require(number not in coverage_ids, 'variant:duplicate-coverage-id')
+            coverage_ids.add(number)
             require(variant['status'] in ('pending', 'ready'), 'variant:status')
             if variant['status'] == 'pending':
                 require(nonempty(variant['pending_reason']) and variant['executable'] is None,
@@ -273,9 +277,19 @@ def _validate_inventory(document, *, root):
             require(actual == expected, 'matrix:missing-combination')
 
 
-def resolve_selection(document, scenario=None, *, ready_only=False, require_runnable=False, root=ROOT):
+def resolve_selection(document, scenario=None, *, coverage_id=None, ready_only=False,
+                      require_runnable=False, root=ROOT):
     """A family expands all variants; an explicit case remains a partial result."""
     validate_inventory(document, root=root)
+    require(coverage_id is None or (type(coverage_id) is int and coverage_id > 0),
+            'selection:invalid-id')
+    require(coverage_id is None or (scenario is None and not ready_only),
+            'selection:conflicting-selectors')
+    if coverage_id is not None:
+        matches = [family['id'] + '/' + variant['id'] for family in document['scenarios']
+                   for variant in family['variants'] if variant['coverage_id'] == coverage_id]
+        require(len(matches) == 1, 'selection:unknown-id')
+        scenario = matches[0]
     require(scenario is None or nonempty(scenario), 'selection:empty')
     require(type(ready_only) is bool and (not ready_only or scenario is None),
             'selection:conflicting-selectors')
@@ -284,7 +298,8 @@ def resolve_selection(document, scenario=None, *, ready_only=False, require_runn
         for variant in family['variants']:
             cid = family['id'] + '/' + variant['id']
             if scenario is None or scenario in (family['id'], cid):
-                selected.append({'case_id': cid, 'scenario_id': family['id'],
+                selected.append({'case_id': cid, 'coverage_id': variant['coverage_id'],
+                                 'scenario_id': family['id'],
                                  'category': family['category'], 'owner': variant['owner'],
                                  'environment': family['environment'],
                                  'preconditions': family['preconditions'],
@@ -316,6 +331,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     selectors = parser.add_mutually_exclusive_group()
     selectors.add_argument('--scenario', help='exact E2E-NNN family or E2E-NNN/variant')
+    selectors.add_argument('--id', type=int, help='exact numeric case ID in docs/Test-Coverage.md')
     selectors.add_argument('--ready', action='store_true', help='select all ready variants explicitly')
     parser.add_argument('--require-runnable', action='store_true',
                         help='refuse pending cases; this command still never executes tests')
@@ -323,6 +339,7 @@ def main(argv=None):
     try:
         document, digest = read_json(INVENTORY)
         selection = resolve_selection(document, args.scenario, ready_only=args.ready,
+                                      coverage_id=args.id,
                                       require_runnable=args.require_runnable)
         selection['inventory_sha256'] = digest
         selection['mode'] = 'list-only'

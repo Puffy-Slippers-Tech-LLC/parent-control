@@ -72,6 +72,19 @@ remain host-safe; a listing is never an execution pass.
 
 ## Inspect scope on the host
 
+Run `tools/generate_test_coverage.sh` to completely regenerate
+[Test-Coverage.md](../../docs/Test-Coverage.md) from local test collection and
+the runtime inventory. No Codex, network service or VM is needed; use the
+development dependencies installed by `./setup.sh`.
+
+Each documented number is one exact variant's persistent `coverage_id`:
+`tools/run-tests e2e --list --id 1` inspects it, and
+`tools/run-tests e2e --id 1 --artifacts /tmp/onpc-test-artifacts-REPLACE`
+executes it using an existing verified package-artifact directory. Pending
+cases still refuse execution. `--id`, `--scenario` and `--ready` are mutually
+exclusive. The launcher resolves the number to the canonical variant before
+privileged dispatch, so existing installed dispatchers need no refresh.
+
 From the checkout, these commands only read declarations and print JSON. They
 need no root, package artifacts, installed product, graphical tools or VM:
 
@@ -159,6 +172,12 @@ aggregates also run the other established suites; use the commands above for
 E2E-only execution.
 
 ## Maintain declarations
+
+Keep each variant's positive integer `coverage_id` unchanged across edits,
+reordering and readiness changes. Allocate new numbers above the highest ever
+assigned; never reuse retired IDs. Regenerate
+[Test-Coverage.md](../../docs/Test-Coverage.md) after changing tests or scenario
+titles, steps, variants or readiness. Edit the source inventory, not that document.
 
 Run the canonical smoke with
 `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` using fresh

@@ -71,6 +71,34 @@ def finish(harness):
                               for key in CLEANUP_FIELDS})
 
 
+@pytest.mark.parametrize('fault', [None, 'missing-ui', 'duplicate-ui', 'wrong-operation',
+                                  'missing-marker', 'reordered-marker', 'early-return', 'no-logout'])
+def test_semantic_reconciliation_requires_fresh_results_and_logout_order(tmp_path, fault):
+    details, observations = [], []
+    for stage, tag in qualification.PLAN.screen_tags.items():
+        if stage == 'gdm-return': details.append({'title': 'serial-logout', 'result': 'ok'})
+        details.append({'title': 'smokeui-' + stage, 'result': 'ok'})
+        observations.append({'stage': stage, 'ui': {
+            'operation': tag[3:], 'outcome': 'passed', 'interface': 'AT-SPI'}})
+    if fault == 'missing-ui': observations.pop()
+    if fault == 'duplicate-ui': observations.append(observations[-1])
+    if fault == 'wrong-operation': observations[-1]['ui']['operation'] = 'gdm-list'
+    if fault == 'missing-marker': details.pop()
+    if fault == 'reordered-marker': details[0], details[1] = details[1], details[0]
+    if fault == 'early-return': details[-1], details[-2] = details[-2], details[-1]
+    if fault == 'no-logout': details.pop(-2)
+    directory = tmp_path / 'testresults'
+    directory.mkdir()
+    (directory / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
+    if fault:
+        with pytest.raises((EvidenceError, RuntimeError)):
+            qualification.matched_screens(tmp_path, observations)
+    else:
+        result = qualification.matched_screens(tmp_path, observations)
+        assert [item['stage'] for item in result] == list(qualification.PLAN.screen_tags)
+        assert all('ui' in item and 'sha256' not in item for item in result)
+
+
 def test_actual_callback_evidence_passes_exact_contract(harness):
     qualification.execute(harness.recorder, harness.context)
     finish(harness)

@@ -167,6 +167,7 @@ my $exchange = sub {
 my $ok = eval {
     $mode eq 'install-refusal' ? onpc_serial::run_install_refusal($exchange)
         : $mode =~ /^install/ ? onpc_serial::run_install($exchange)
+        : $mode eq 'functional' ? onpc_serial::run_functional($exchange)
         : onpc_serial::run($exchange);
     1;
 };
@@ -176,6 +177,18 @@ my $capture = eval { onpc_password::capture_before_authentication(); 1; };
 print encode_json({ok => $ok ? 1 : 0, error => $error, retry => $retry ? 1 : 0,
                    capture => $capture ? 1 : 0, events => \@events});
 '''
+
+
+def test_functional_return_keeps_secret_boundary_command_and_logout_without_pixels():
+    result = run_perl(PROBE, 'functional')
+    data = json.loads(result.stdout)
+    assert data['ok'] and not data['retry'] and not data['capture']
+    events = data['events']
+    assert events.index('serial-password') < events.index('password') < events.index('serial-command')
+    assert events.index('serial-command') < events.index('logout') < events.index('serial-logout')
+    assert events.index('serial-logout') < events.index('console:sut') < events.index('gdm-return')
+    assert 'gdm-match' not in events
+    assert 'private-canary' not in result.stdout + result.stderr
 
 
 @pytest.mark.parametrize('mode', ['ok', 'install', 'install-refusal', 'double-cr', 'ansi-output', 'shell-not-ready', 'video', 'console', 'prompt', 'wrong-echo', 'process',

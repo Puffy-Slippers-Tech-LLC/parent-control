@@ -38,6 +38,7 @@ from observation_transport import ReadOnlyObservations
 from fixture_credentials import (FixtureCredentials, preflight as credential_preflight,
                                  provision_vt6_login_window)
 from graphical_serial import provision_getty
+from ui_observations import UiObservations
 from installation_boundary import InstallationBoundary
 import installation_observations
 from vt6_authentication import (Authentication as VT6Authentication, STAGES as VT6_LOGIN_STAGES,
@@ -49,6 +50,7 @@ VT6_AUTH_STAGES = (*STAGES, *VT6_LOGIN_STAGES)
 AUTH_STAGES = (*STAGES, 'authenticated')
 SERIAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated', 'serial-command', 'serial-logout',
                  'gdm-return')
+FUNCTIONAL_SERIAL_STAGES = ('ready', 'gdm', 'focused', *SERIAL_STAGES[2:])
 INSTALL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated',
                   *InstallationBoundary.STAGES, 'reboot-ready', 'reboot-password',
                   'reboot-observed', 'gdm-return')
@@ -106,16 +108,43 @@ def screenshot(directory, name):
     return {'width': width, 'height': height, 'sha256': hashlib.sha256(raw).hexdigest()}
 
 
+def matched_serial_screens(directory):
+    """Retained legacy pixel qualification; case 1 uses functional UI evidence."""
+    module_result(directory)
+    details = json.loads((directory / 'testresults/result-smoke.json').read_text())['details']
+    matches = [(i, d) for i, d in enumerate(details) if 'needle' in d]
+    account, prompt = 'onpc-gdm-parent-account', 'onpc-gdm-parent-masked-password'
+    require([d['needle'] for _, d in matches] == [account, account, account, prompt, account, account],
+            'qualification:match-sequence')
+    logout = [i for i, d in enumerate(details) if d.get('title') == 'serial-logout' and d.get('result') == 'ok']
+    returned = [i for i, d in enumerate(details) if d.get('title') == 'gdm-return' and d.get('result') == 'ok']
+    require(len(logout) == len(returned) == 1
+            and matches[-2][0] < logout[0] < matches[-1][0] < returned[0],
+            'qualification:return-order')
+    result = []
+    for (index, match), stage in zip(matches, ('initial', 'select-ready', 'click', 'prompt', 'dismissed', 'returned')):
+        require(match.get('result') == 'ok' and match.get('area')
+                and all(a.get('result') == 'ok' and a.get('similarity') == 100 for a in match['area']),
+                'qualification:match-quality')
+        result.append({'stage': stage, 'detail_index': index, 'needle': match['needle'],
+                       **screenshot(directory, match.get('screenshot'))})
+    return result
+
+
 class Smoke:
     def __init__(self, directory, lease, commands, host_key, progress=None, transfer=None,
                  authenticate=False, serial=False, installation=None, vt6_prompt=False,
-                 vt6_auth=False, verified=None):
+                 vt6_auth=False, verified=None, functional=False):
         self.directory, self.lease, self.commands = directory, lease, commands
         self.host_key = host_key
         self.steps = []
         self.vm = None
         self.progress = progress
         self.transfer = transfer
+        require(type(functional) is bool and (not functional or
+                (serial and authenticate and installation is None and not vt6_auth and not vt6_prompt)),
+                'smoke:functional-prerequisites')
+        self.functional, self.ui = functional, None
         require(type(vt6_prompt) is bool and (not vt6_prompt or
                 (not authenticate and not serial and installation is None and transfer is None)),
                 'smoke:vt6-prompt-prerequisites')
@@ -132,7 +161,8 @@ class Smoke:
         self._failed = False
         self._reboot_boot = None
         self._reboot_password_verified = False
-        self.stages = (VT6_AUTH_STAGES if vt6_auth else VT6_PROMPT_STAGES if vt6_prompt else
+        self.stages = (FUNCTIONAL_SERIAL_STAGES if functional else
+                       VT6_AUTH_STAGES if vt6_auth else VT6_PROMPT_STAGES if vt6_prompt else
                        INSTALL_REFUSAL_STAGES if installation is not None and installation.refusal else
                        INSTALL_STAGES if installation is not None else
                        SERIAL_STAGES if serial else AUTH_STAGES if authenticate else STAGES)
@@ -186,12 +216,16 @@ class Smoke:
                       'domain_id': self.lease.view.domain_id, 'run': self.lease.state['run']}
             transport = Transport(config, self.commands, guard=lambda _: self.lease.guard())
             transport.probe_ready(timeout=180)
+            if self.functional:
+                self.ui = UiObservations(transport)
             self.vm = ReadOnlyObservations(transport, on_diagnostic=(
                 lambda condition: self.progress(self.stages[len(self.steps)],
                     {'recipient_refusal': condition})) if self.progress is not None else None)
             reply = {'observation': 'active-greeter-no-user-session'}
             reply['authenticate'] = self.stages == AUTH_STAGES
-            reply['serial'] = self.stages == SERIAL_STAGES
+            reply['serial'] = self.functional or self.stages == SERIAL_STAGES
+            if self.functional:
+                reply['functional_smoke'] = True
             reply['install'] = self.installation is not None
             reply['install_refusal'] = self.installation is not None and self.installation.refusal
             reply['vt6_prompt'] = self.stages == VT6_PROMPT_STAGES
@@ -268,6 +302,8 @@ class Smoke:
             # reconciles it from the completed module, never reopening capture.
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
             reply = self.vm.read('greeter')
+            if self.functional:
+                reply['ui'] = self.ui.observe('gdm-returned')
             if self._reboot_boot is not None:
                 boot = self.vm.read('boot')['boot_sha256']
                 require(boot == self.steps[-1]['boot_sha256'], 'smoke:boot-changed-again')
@@ -294,6 +330,13 @@ class Smoke:
             # No post-password screenshot may cross the explicit capture route.
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
             reply = self.vm.read('parent-session')
+        elif self.functional and stage in ('gdm', 'focused', 'selected', 'dismissed'):
+            require(request['screenshot'] is None, 'smoke:functional-capture-refused')
+            operation = {'gdm': 'gdm-list', 'focused': 'gdm-focused', 'selected': 'gdm-select-parent',
+                         'dismissed': 'gdm-dismissed'}[stage]
+            reply = {'ui': self.ui.observe(operation)}
+            if 'navigation' in reply['ui']:
+                reply['ui_keys'] = reply['ui']['navigation']
         else:
             reply = screenshot(self.directory, request['screenshot'])
             if stage != 'gdm':
@@ -314,6 +357,7 @@ class Smoke:
             # Persist the actual corroboration before acknowledging the next
             # guest action. Raw screenshots/SSH identities never enter reports.
             self.progress(stage, self.steps[-1])
+        self.lease.guard()
         if self.vt6_auth:
             # A durable checkpoint failure above prevents input. Recheck the
             # owned worker after persistence, immediately before publication.

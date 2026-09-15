@@ -27,6 +27,15 @@ sub seen {
     $self->{exchange}->($stage, undef);
 }
 
+sub navigate_choice {
+    my ($self, $choice) = @_;
+    my $keys = $choice->{ui_keys};
+    die 'journey:choice-navigation' unless ref($keys) eq 'ARRAY' && @$keys >= 1
+        && @$keys <= 32 && $keys->[0] eq 'home'
+        && !grep { $_ ne 'down' } @$keys[1 .. $#$keys];
+    testapi::send_key($_) for @$keys;
+}
+
 sub finish {
     my ($self) = @_;
     # No explicit captures after authentication. Automatic matcher results stay

@@ -165,3 +165,33 @@ def test_screen_readiness_refuses_before_next_action(mode, installed):
         assert 'record:gdm-return' not in events
     else:
         assert 'return' not in events
+@pytest.mark.parametrize('failure', ['', 'gdm', 'focused', 'selected', 'dismissed'])
+def test_functional_greeter_uses_normal_keys_and_stops_on_failed_observation(failure):
+    probe = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+our $failure = shift;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub current_console { 'sut' }
+sub send_key { push @main::events, 'key:' . $_[0]; }
+sub record_info { }
+sub assert_screen { die 'pixels forbidden'; }
+sub save_screenshot { die 'capture forbidden'; }
+package main;
+require onpc_gdm;
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'smokeui', review => 0, exchange => sub {
+    push @events, $_[0];
+    die 'unavailable' if $_[0] eq $failure;
+    return {ui_keys => ['home', 'down']};
+});
+my $ok = eval { onpc_gdm::functional_selection($journey); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+'''
+    data = json.loads(run_perl(probe, failure).stdout)
+    expected = ['gdm', 'key:home', 'key:down', 'focused', 'key:ret', 'selected', 'key:esc', 'dismissed']
+    assert data['ok'] == (not failure)
+    assert data['events'] == (expected[:expected.index(failure) + 1] if failure else expected)

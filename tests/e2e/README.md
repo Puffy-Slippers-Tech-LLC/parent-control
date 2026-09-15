@@ -1681,6 +1681,22 @@ name and resolves only these fixed aliases when checking the expected stage.
 
 ### GDM readiness and graphical return
 
+Case 1 uses `accessible_ui.py` through `UiObservations` and the shared `ui:`
+checkpoint reconciler. It activates the showing, enabled fixture account by
+public name/role: navigate Home/Down from the current list order, verify account
+focus, then press Enter. It verifies the intended account label and focused password role
+with the account list hidden, dismisses with Escape and observes the list again.
+After real serial command output and logout, it selects `sut` and requires a
+fresh semantic list observation. Ordered evidence cannot reuse the initial
+list to prove return. No geometry or image similarity gates these operations;
+password text is never read, and these checks authorize no graphical secret.
+Serial recipient safety and the smoke's independent harness checks remain intact.
+Public logind session metadata resolves the sole active local greeter's account,
+including dynamic GDM accounts. The adapter waits for its owned session bus;
+missing, ambiguous or wrong-owner connections fail before any UI action.
+
+The following pixel helpers remain for legacy and credential qualification:
+
 `lib/onpc_gdm.pm` shares the existing reviewed GDM needles. `wait_list(90)`
 allows the initial display handoff to finish; later matches use 30-second
 deadlines. The smoke explicitly selects `sut` first: backend display activation

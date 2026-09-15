@@ -10,16 +10,20 @@ import os
 from pathlib import Path
 import pwd
 import stat
+import subprocess
 import sys
 import time
 
 
 OPERATIONS = frozenset({
+    'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
     'about', 'license', 'about-returned', 'parent-returned',
 })
 PRODUCT = 'Oh No! Parent Control'
 CHILD = 'Riley (Child)'
+PARENT = 'Jamie (Parent)'
+GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned'})
 
 
 class UiError(RuntimeError):
@@ -189,10 +193,41 @@ class AccessibleUI:
                 'limit_enabled': toggle.get_state_set().contains(self.api.StateType.CHECKED),
                 'allowance': labels}
 
+    def greeter_list(self):
+        button = self.labelled_button(PARENT)
+        self.wait(lambda: self.find(roles=('password text',)) is None, 'gdm-prompt-dismissed')
+        return button
+
+    def greeter_prompt(self):
+        # This observation submits no secret and cannot authorize one. Read
+        # only the account label and password role/state, never its contents.
+        self.target(PARENT, ('label',))
+        self.wait(lambda: self.find(PARENT, ('button', 'push button')) is None,
+                  'gdm-list-hidden')
+        self.wait(lambda: (field := self.find(roles=('password text',), sensitive=True))
+                  is not None and self.has_state(field, self.api.StateType.FOCUSED),
+                  'gdm-password-focus')
+
     def run(self, operation, version):
         require(operation in OPERATIONS, 'ui:operation')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation == 'desktop':
+        if operation in GREETER_OPERATIONS:
+            if operation == 'gdm-select-parent':
+                self.greeter_prompt()
+            elif operation == 'gdm-focused':
+                self.wait(lambda: self.has_state(self.greeter_list(), self.api.StateType.FOCUSED),
+                          'gdm-account-focus')
+            elif operation == 'gdm-list':
+                button = self.greeter_list()
+                container = button.get_parent()
+                require(container is not None, 'ui:gdm-account-list')
+                rows = [node for node in self.nodes(container)
+                        if node.get_role_name() in ('button', 'push button')]
+                require(0 < len(rows) <= 32 and rows.count(button) == 1, 'ui:gdm-account-list')
+                result['navigation'] = ['home'] + ['down'] * rows.index(button)
+            else:
+                self.greeter_list()
+        elif operation == 'desktop':
             self.target('Activities', ('toggle button', 'button', 'push button'))
         elif operation == 'app-grid':
             # The worker entered the product query with real keyboard input.
@@ -265,20 +300,72 @@ class AccessibleUI:
         return result
 
 
+def greeter_account():
+    """Resolve the sole active local greeter via public logind session metadata.
+
+    Modern GDM can use a dynamic account instead of the legacy gdm UID. This
+    selects only the public UI connection identity; it proves no product result.
+    """
+    deadline = time.monotonic() + 15
+    def call(*args):
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, 'ui:timeout:greeter-identity')
+        return subprocess.run(['/usr/bin/loginctl', *args], capture_output=True,
+                              text=True, check=True, timeout=min(5, remaining)).stdout
+    rows = call('list-sessions', '--no-legend', '--no-pager').splitlines()
+    require(len(rows) <= 32, 'ui:session-bound')
+    found = []
+    for row in rows:
+        session = row.split()[0]
+        import re
+        require(re.fullmatch(r'[a-zA-Z0-9]+', session), 'ui:session-id')
+        props = dict(line.split('=', 1) for line in call('show-session', session,
+            '-p', 'Class', '-p', 'Active', '-p', 'Remote', '-p', 'Type', '-p', 'Seat', '-p', 'User').splitlines())
+        if (props.get('Class') == 'greeter' and props.get('Active') == 'yes'
+                and props.get('Remote') == 'no' and props.get('Seat') == 'seat0'
+                and props.get('Type') in ('wayland', 'x11')):
+            require(props.get('User', '').isdecimal() and int(props['User']) > 0,
+                    'ui:greeter-user')
+            found.append(int(props['User']))
+    require(len(found) == 1, 'ui:greeter-identity')
+    return pwd.getpwuid(found[0])
+
+
+def session_environment(account, *, runtime_root=Path('/run/user'), timeout=20):
+    """Wait for the selected account's owned public session-bus socket."""
+    runtime = runtime_root / str(account.pw_uid)
+    deadline = time.monotonic() + timeout
+    while True:
+        pending = 'runtime'
+        try:
+            info = runtime.lstat()
+            require(stat.S_ISDIR(info.st_mode) and info.st_uid == account.pw_uid,
+                    'ui:runtime-owner')
+            path = runtime / 'bus'
+            pending = 'session-bus'
+            info = path.lstat()
+            require(stat.S_ISSOCK(info.st_mode) and info.st_uid == account.pw_uid,
+                    'ui:session-bus')
+            return {'XDG_RUNTIME_DIR': str(runtime),
+                    'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + str(path)}
+        except FileNotFoundError:
+            require(time.monotonic() < deadline, 'ui:timeout:' + pending)
+            time.sleep(.2)
+
+
 def main():
     require(len(sys.argv) == 3 and sys.argv[1] in OPERATIONS, 'ui:arguments')
-    account = pwd.getpwnam('onpc-parent-jamie')
-    require(os.geteuid() == 0 and account.pw_uid >= 1000, 'ui:fixture-identity')
-    runtime = Path('/run/user') / str(account.pw_uid)
-    require(runtime.stat().st_uid == account.pw_uid
-            and stat.S_ISSOCK((runtime / 'bus').stat().st_mode), 'ui:session-bus')
+    greeter = sys.argv[1] in GREETER_OPERATIONS
+    require(os.geteuid() == 0, 'ui:fixture-identity')
+    account = greeter_account() if greeter else pwd.getpwnam('onpc-parent-jamie')
+    require(account.pw_uid > 0 and (greeter or account.pw_uid >= 1000), 'ui:fixture-identity')
+    environment = session_environment(account)
     os.initgroups(account.pw_name, account.pw_gid)
     os.setgid(account.pw_gid)
     os.setuid(account.pw_uid)
     os.environ.clear()
     os.environ.update(HOME=account.pw_dir, USER=account.pw_name,
-                      XDG_RUNTIME_DIR=str(runtime),
-                      DBUS_SESSION_BUS_ADDRESS='unix:path=' + str(runtime / 'bus'),
+                      **environment,
                       LANG='C.UTF-8', NO_AT_BRIDGE='0')
     import gi
     gi.require_version('Atspi', '2.0')

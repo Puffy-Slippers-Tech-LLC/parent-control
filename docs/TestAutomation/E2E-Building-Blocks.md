@@ -43,7 +43,7 @@ that silently skips an assertion or directly applies the requested setting.
 
 The shared [accessible UI adapter](../../tests/e2e/accessible_ui.py) uses bounded
 fresh lookups and public actions. [UiObservations](../../tests/e2e/ui_observations.py)
-runs it as the fixed fixture user only inside the guarded VM transport, accepts
+runs it as the fixed fixture user or qualified greeter inside the guarded VM transport, accepts
 only registered operations, and returns sanitized semantic screen evidence.
 No raw accessibility trees, document bodies or account names enter reports.
 Use explicitly qualified interface methods when GI method names collide, such
@@ -76,6 +76,22 @@ field and wrong-recipient refusal through an equally strong public UI contract.
 Report an unsupported locator/recipient as an automation limitation, not a
 cosmetic product failure. Legacy cases retain their existing behavior until
 migrated; they are not templates for new pixel-based customer acceptance.
+
+Case **1 / E2E-001/gdm-observation** uses the same `ui:` checkpoints for
+GDM account selection, the intended account's focused password prompt, Escape
+dismissal and fresh graphical return after serial logout. The adapter connects
+as the sole active local greeter for these registered operations only. Public
+logind metadata resolves its current account, including dynamic GDM accounts;
+the owned runtime/session socket is validated before dropping privileges. No
+graphical password is submitted or authorized by this observation contract.
+Account rows expose no AT-SPI click action in this GDM. Derive bounded Home/Down
+input from their public list order, verify the intended button's focus, press
+Enter and independently verify the selected account's prompt. Both this worker
+and case 151 use `onpc_journey::navigate_choice` to validate navigation replies.
+Its real serial authentication, command-output, session/boot, asset and cleanup
+checks remain harness qualification, with no customer feature coverage credit.
+The shared reconciler requires fresh controller results for each ordered worker
+marker, and case 1 additionally requires logout before graphical return.
 
 ## Existing building blocks
 

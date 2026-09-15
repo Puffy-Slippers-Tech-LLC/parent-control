@@ -737,6 +737,10 @@ def test_partial_selection_evidence_records_expected_and_executed_ids(tmp_path):
 
 
 def test_public_evidence_records_stage_timings_and_separate_outcomes(tmp_path):
+    from tools import test_retention
+    tmp_path.chmod(0o700)
+    info = tmp_path.stat()
+    record = dict(path=str(tmp_path), device=info.st_dev, inode=info.st_ino, mode=0o700)
     selection = runner.resolve_selection(
         'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)
     manifest = {
@@ -759,6 +763,7 @@ def test_public_evidence_records_stage_timings_and_separate_outcomes(tmp_path):
 
     assert runner.evidence(tmp_path, manifest, lease, False, 'collection:missing',
                            selection, 'd' * 64, ledger) == (False, 'collection:missing')
+    test_retention.remove(record, validate_only=True)
 
     result = json.loads((tmp_path / 'evidence/result.json').read_text())
     assert result['category'] == 'collection:missing'

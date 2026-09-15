@@ -185,7 +185,8 @@ def run(root, argv, caller):
             checkout_id = hashlib.sha256(str(root).encode()).hexdigest()[:16]
             store = test_retention.Store(Path('/var/tmp') /
                 f'onpc-test-retention-root-{caller.pw_uid}-{checkout_id}')
-            context = (store.session(run=retention_run, guard=lambda: retention_guard(root))
+            context = (store.session(run=retention_run, guard=lambda: retention_guard(root),
+                                     preserve_completed=test_retention.legacy_system_evidence)
                        if retention_run else nullcontext())
             with context:
                 environment.update(test_retention.environment())

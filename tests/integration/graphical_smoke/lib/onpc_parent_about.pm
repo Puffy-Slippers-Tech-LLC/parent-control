@@ -17,11 +17,7 @@ sub run {
     $journey->seen('app-grid');
     testapi::send_key('ret');
     my $choice = $journey->seen('child-picker-opened');
-    my $keys = $choice->{ui_keys};
-    die 'parent:choice-navigation' unless ref($keys) eq 'ARRAY' && @$keys >= 1
-        && @$keys <= 32 && $keys->[0] eq 'home'
-        && !grep { $_ ne 'down' } @$keys[1 .. $#$keys];
-    testapi::send_key($_) for @$keys;
+    $journey->navigate_choice($choice);
     $journey->seen('child-choice-highlighted');
     testapi::send_key('ret');
     $journey->seen('parent-selected');

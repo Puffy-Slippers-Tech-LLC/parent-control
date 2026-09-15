@@ -2,7 +2,7 @@
 
 The existing serial smoke owns input and verifies the command's actual output.
 This callback records its acknowledged stages before allowing the next input.
-Raw captures/terminal output stay private; screen evidence is digest metadata.
+Raw captures/terminal output stay private; screen evidence is semantic metadata.
 """
 
 import json
@@ -12,40 +12,29 @@ import sys
 from asset_transfer import AssetTransfer
 from private_artifacts import require
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'integration'))
-from check_graphical_smoke import Smoke, SERIAL_STAGES, module_result, screenshot
+from check_graphical_smoke import Smoke, FUNCTIONAL_SERIAL_STAGES as SERIAL_STAGES, module_result
 from graphical_serial import provision_getty
 sys.path.pop(0)
+from installed_journey import JourneyPlan, matched_screens as reconcile_screens
+
+
+PLAN = JourneyPlan(prefix='smokeui', worker_mode='functional_smoke', phases={}, screen_tags={
+    'gdm': 'ui:gdm-list', 'focused': 'ui:gdm-focused', 'selected': 'ui:gdm-select-parent',
+    'dismissed': 'ui:gdm-dismissed', 'gdm-return': 'ui:gdm-returned',
+})
 
 
 def encoded(value):
     return (json.dumps(value, sort_keys=True) + '\n').encode()
 
 
-def matched_screens(directory):
-    """Reconcile public module results; export only fixed names and PNG hashes.
-
-    In particular, an earlier account-list capture cannot prove graphical
-    return. Require its match after the recorded real serial logout. Identical
-    initial/return pixels are valid because serial leaves the greeter unchanged.
-    """
-    module_result(directory)
+def matched_screens(directory, observations):
+    """Fresh semantic results and ordered worker markers, including real logout."""
+    result = reconcile_screens(directory, PLAN, observations)
     details = json.loads((directory / 'testresults/result-smoke.json').read_text())['details']
-    matches = [(i, d) for i, d in enumerate(details) if 'needle' in d]
-    account, prompt = 'onpc-gdm-parent-account', 'onpc-gdm-parent-masked-password'
-    require([d['needle'] for _, d in matches] == [account, account, account, prompt, account, account],
-            'qualification:match-sequence')
     logout = [i for i, d in enumerate(details) if d.get('title') == 'serial-logout' and d.get('result') == 'ok']
-    returned = [i for i, d in enumerate(details) if d.get('title') == 'gdm-return' and d.get('result') == 'ok']
-    require(len(logout) == len(returned) == 1
-            and matches[-2][0] < logout[0] < matches[-1][0] < returned[0],
+    require(len(logout) == 1 and result[-2]['detail_index'] < logout[0] < result[-1]['detail_index'],
             'qualification:return-order')
-    result = []
-    for (index, match), stage in zip(matches, ('initial', 'select-ready', 'click', 'prompt', 'dismissed', 'returned')):
-        require(match.get('result') == 'ok' and match.get('area')
-                and all(a.get('result') == 'ok' and a.get('similarity') == 100 for a in match['area']),
-                'qualification:match-quality')
-        result.append({'stage': stage, 'detail_index': index, 'needle': match['needle'],
-                       **screenshot(directory, match.get('screenshot'))})
     return result
 
 
@@ -82,7 +71,7 @@ def execute(recorder, context):
         # The fixed session probes establish presence/absence separately. This
         # case makes no cross-session continuity assertion or invented alias.
         trace.append({'stage': stage, 'boot_sha256': boot})
-        if stage in ('gdm', 'selected', 'dismissed'):
+        if stage in ('gdm', 'focused', 'selected', 'dismissed'):
             ref = artifact(stage, 'screen', observed)
         else:
             ref = artifact(stage, 'backend', observed)
@@ -101,7 +90,7 @@ def execute(recorder, context):
         recorder.checkpoint('observation')
         index = SERIAL_STAGES.index(stage) + 1
         following = SERIAL_STAGES[index] if index < len(SERIAL_STAGES) else None
-        next_step = ('step-1' if following in ('gdm', 'selected', 'dismissed') else
+        next_step = ('step-1' if following in ('gdm', 'focused', 'selected', 'dismissed') else
                      'step-2' if following and following.startswith('serial-') else 'step-3')
         if next_step != current_step:
             closing, active = active, None
@@ -111,7 +100,7 @@ def execute(recorder, context):
             active.__enter__()
 
     smoke = Smoke(context.directory, context.lease, context.commands, context.host_key,
-                  progress=progress, transfer=transfer, authenticate=True, serial=True)
+                  progress=progress, transfer=transfer, authenticate=True, serial=True, functional=True)
 
     def validate():
         require([s['stage'] for s in smoke.steps] == list(SERIAL_STAGES),
@@ -122,7 +111,7 @@ def execute(recorder, context):
         worker = context.run_worker(observe=smoke.step, validate=validate,
                                     authenticate=True, serial=True, timeout=600)
         require(worker['shutdown_verified'] is True, 'qualification:shutdown-unverified')
-        ref = artifact('matched-screens', 'screen', matched_screens(context.directory))
+        ref = artifact('matched-screens', 'screen', matched_screens(context.directory, smoke.steps))
         recorder.assertion('visible-result', artifact_ids=[ref])
         require(command_ref is not None, 'qualification:command-not-observed')
         ref = artifact('command-continuity', 'backend', {'command_artifact': command_ref,

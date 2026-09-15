@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">9343</span>/<span style="color: gray">0</span>/9343 | Collected pytest cases, including parameter combinations |
+| Unit, property and contract | <span style="color: green">9391</span>/<span style="color: gray">0</span>/9391 | Collected pytest cases, including parameter combinations |
 | Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
 | UI | <span style="color: green">147</span>/<span style="color: gray">0</span>/147 | Collected pytest cases, including parameter combinations |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
@@ -17,7 +17,7 @@
 | E2E customer-journey | <span style="color: green">4</span>/<span style="color: gray">140</span>/144 | One exact scenario variant |
 | E2E fault-recovery | <span style="color: green">0</span>/<span style="color: gray">12</span>/12 | One exact scenario variant |
 | E2E runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One exact scenario variant |
-| **Total** | **<span style="color: green">9899</span>/<span style="color: gray">152</span>/10051** | All entries above, including pending E2E |
+| **Total** | **<span style="color: green">9947</span>/<span style="color: gray">152</span>/10099** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -199,9 +199,9 @@ Variant: transport: gdm observation
 
 **Steps:**
 
-- Recognize real GDM on a fresh product-free boot, click the fixture account, reject the account-list needle on its empty password prompt, and dismiss with Escape.
+- Recognize real GDM through public accessibility on a fresh product-free boot, navigate from its public account-list order, verify the intended account's focus and press Enter. Independently verify the intended account label and focused password role with the account list hidden, then dismiss with Escape. No graphical password is submitted.
 - Select the supported serial console, verify the real fixture login prompt and disabled echo, authenticate through the secret-safe API, require actual harmless command output, and perform real logout.
-- Select graphics after serial logout, independently acknowledge the session-free greeter, and reconcile ordered private match screenshots and the command result before accepting shutdown.
+- Select graphics after serial logout, independently acknowledge the session-free greeter and fresh public account-list UI, and reconcile ordered functional UI checkpoints and the command result before accepting shutdown.
 
 ### Scenario 3
 

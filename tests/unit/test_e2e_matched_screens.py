@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-import controller_qualification as qualification
+from check_graphical_smoke import matched_serial_screens
 from private_artifacts import EvidenceError
 from tests.support.screens import png
 
@@ -30,7 +30,7 @@ def completed(tmp_path):
 def collect(completed):
     directory, document = completed
     (directory / 'testresults/result-smoke.json').write_text(json.dumps(document))
-    return qualification.matched_screens(directory)
+    return matched_serial_screens(directory)
 
 
 def test_ordered_matches_retain_only_screen_metadata(completed):

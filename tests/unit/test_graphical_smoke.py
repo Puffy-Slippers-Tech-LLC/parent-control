@@ -50,6 +50,31 @@ def test_unchanged_selection_refuses_acknowledgement(tmp_path):
     assert not (tmp_path / 'selected.reply.json').exists()
 
 
+@pytest.mark.parametrize('fault', [None, 'ui', 'storage', 'ownership'])
+def test_functional_selection_is_fresh_durable_and_never_replayed(tmp_path, fault):
+    controller = smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key', serial=True,
+                             authenticate=True, functional=True, progress=Mock())
+    controller.steps = [{'stage': 'ready'}, {'stage': 'gdm'}, {'stage': 'focused'}]
+    controller.vm = Mock()
+    result = {'operation': 'gdm-select-parent', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    controller.ui = Mock(observe=Mock(return_value=result))
+    (tmp_path / 'selected.request.json').write_text(json.dumps({'stage': 'selected', 'screenshot': None}))
+    if fault == 'ui': controller.ui.observe.side_effect = RuntimeError('missing prompt')
+    if fault == 'storage':
+        controller.progress.side_effect = lambda stage, observed: (
+            (_ for _ in ()).throw(OSError('storage')) if observed else None)
+    if fault == 'ownership': controller.lease.guard.side_effect = [None, RuntimeError('lost lease')]
+    if fault:
+        with pytest.raises((RuntimeError, OSError)): controller.step()
+        assert not (tmp_path / 'selected.reply.json').exists()
+        with pytest.raises(RuntimeError, match='previous-failure'): controller.step()
+    else:
+        controller.step()
+        assert json.loads((tmp_path / 'selected.reply.json').read_text()) == {'ui': result}
+        controller.progress.assert_called_with('selected', {'stage': 'selected', 'ui': result})
+    controller.ui.observe.assert_called_once_with('gdm-select-parent')
+
+
 @pytest.mark.parametrize('capture', [None, 'smoke-1.png'])
 def test_return_requires_independent_greeter_before_ack_and_keeps_capture_sealed(tmp_path, capture):
     events = []

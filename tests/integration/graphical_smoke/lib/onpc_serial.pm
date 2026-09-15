@@ -29,6 +29,10 @@ sub run {
     return _run($_[0], 0, scalar @_);
 }
 
+sub run_functional {
+    return _run($_[0], 0, scalar @_, 1);
+}
+
 sub run_install {
     return _run($_[0], 1, scalar @_);
 }
@@ -38,7 +42,7 @@ sub run_install_refusal {
 }
 
 sub _run {
-    my ($exchange, $install, $count) = @_;
+    my ($exchange, $install, $count, $functional) = @_;
     die "serial:already-attempted\n" if $attempted++;
     onpc_password::seal_capture();
     my $reboot_stage;
@@ -154,6 +158,10 @@ sub _run {
         $reboot_stage = 'gdm-return' if $install == 1;
         if ($install == 1) {
             onpc_gdm::return_after_reboot();
+        } elsif ($functional) {
+            die 'serial:return-console' unless testapi::current_console() eq 'onpc-serial';
+            testapi::select_console('sut');
+            die 'serial:return-console' unless testapi::current_console() eq 'sut';
         } else {
             onpc_gdm::return_from_serial();
         }

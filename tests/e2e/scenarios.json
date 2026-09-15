@@ -26,9 +26,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Recognize real GDM on a fresh product-free boot, click the fixture account, reject the account-list needle on its empty password prompt, and dismiss with Escape."},
+          {"id": "step-1", "operation": "ui", "description": "Recognize real GDM through public accessibility on a fresh product-free boot, navigate from its public account-list order, verify the intended account's focus and press Enter. Independently verify the intended account label and focused password role with the account list hidden, then dismiss with Escape. No graphical password is submitted."},
           {"id": "step-2", "operation": "ui", "description": "Select the supported serial console, verify the real fixture login prompt and disabled echo, authenticate through the secret-safe API, require actual harmless command output, and perform real logout."},
-          {"id": "step-3", "operation": "ui", "description": "Select graphics after serial logout, independently acknowledge the session-free greeter, and reconcile ordered private match screenshots and the command result before accepting shutdown."}
+          {"id": "step-3", "operation": "ui", "description": "Select graphics after serial logout, independently acknowledge the session-free greeter and fresh public account-list UI, and reconcile ordered functional UI checkpoints and the command result before accepting shutdown."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -56,7 +56,7 @@
           "transport": ["gdm-observation"]
         },
         "full_combinations": [],
-        "rationale": "One canonical runner smoke covers stable positive/negative GDM matching, real serial command, boot continuity, credential/asset forwarding and final controller evidence. It supersedes E2E-034/serial-controller without dropping its assertions or duplicating ordinary execution. No customer coverage is claimed."
+        "rationale": "One canonical runner smoke covers functional GDM selection, prompt/list exclusion, dismissal and graphical return, real serial command, boot continuity, credential/asset forwarding and final controller evidence. It supersedes E2E-034/serial-controller without dropping its assertions or duplicating ordinary execution. No customer coverage is claimed."
       },
       "variants": [
         {"coverage_id": 1, "id": "gdm-observation", "owner": "19B", "parameters": {"transport": "gdm-observation"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/controller_qualification.py", "test_id": "gdm-observation"}}

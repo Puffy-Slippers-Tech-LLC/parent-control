@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from accessible_ui import AccessibleUI, UiError
+from accessible_ui import AccessibleUI, UiError, greeter_account, session_environment
 from private_artifacts import EvidenceError
 from ui_observations import UiObservations
 
@@ -38,7 +38,114 @@ def ui_for(root):
         get_n_actions=lambda action: action.get_n_actions(),
         get_action_name=lambda action, index: action.get_action_name(index),
         do_action=lambda action, index: action.do_action(index)), StateType=SimpleNamespace(
-        SHOWING='showing', VISIBLE='visible', SENSITIVE='sensitive', DEFUNCT='defunct')), timeout=0)
+        SHOWING='showing', VISIBLE='visible', SENSITIVE='sensitive', DEFUNCT='defunct',
+        FOCUSED='focused')), timeout=0)
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-account', 'no-prompt', 'unfocused', 'list-remains'])
+def test_gdm_selection_requires_independent_identity_prompt_and_focus(fault):
+    button = Node('Jamie (Parent)', 'push button', appearance={'scale': 2, 'misaligned': True})
+    root = Node(children=[Node('Other Parent' if fault == 'wrong-account' else 'Jamie (Parent)', 'label')])
+    field = Node('Password', 'password text', states=('showing', 'visible', 'sensitive', 'focused'))
+    field.get_text_iface = Mock(side_effect=AssertionError('password read'))
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    if fault != 'no-prompt': root.children.append(field)
+    if fault == 'unfocused': field.states.remove('focused')
+    if fault == 'list-remains': root.children.append(button)
+    ui = ui_for(root)
+    if fault:
+        with pytest.raises((UiError, LookupError)):
+            ui.run('gdm-select-parent', '')
+    else:
+        assert ui.run('gdm-select-parent', '')['outcome'] == 'passed'
+    button.action.do_action.assert_not_called()
+    field.get_text_iface.assert_not_called()
+    field.get_child_count.assert_not_called()
+
+
+@pytest.mark.parametrize('index', [0, 1, 3])
+def test_gdm_navigation_uses_public_order_and_independently_requires_focus(index):
+    button = Node('Jamie (Parent)', 'push button')
+    rows = [Node('Other fixture ' + str(number), 'push button') for number in range(3)]
+    rows.insert(index, button)
+    ui = ui_for(Node(children=rows))
+    assert ui.run('gdm-list', '')['navigation'] == ['home'] + ['down'] * index
+    with pytest.raises(UiError, match='gdm-account-focus'): ui.run('gdm-focused', '')
+    button.states.add('focused')
+    assert ui.run('gdm-focused', '')['outcome'] == 'passed'
+    button.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['gdm-list', 'gdm-dismissed', 'gdm-returned'])
+def test_gdm_account_label_cannot_hide_an_undismissed_prompt(operation):
+    ui = ui_for(Node(children=[Node('Jamie (Parent)', 'push button'),
+                              Node('Password', 'password text')]))
+    with pytest.raises(UiError, match='gdm-prompt-dismissed'):
+        ui.run(operation, '')
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'symlink', 'regular', 'wrong-owner'])
+def test_public_bus_discovery_is_owned_and_bounded(tmp_path, fault, monkeypatch):
+    import os
+    import socket
+    from pathlib import Path
+    account = SimpleNamespace(pw_uid=os.getuid())
+    runtime = tmp_path / str(account.pw_uid)
+    directory = runtime
+    directory.mkdir(parents=True)
+    bus = directory / 'bus'
+    sockets = []
+    try:
+        if fault == 'regular': bus.touch()
+        elif fault != 'missing':
+            connection = socket.socket(socket.AF_UNIX)
+            sockets.append(connection)
+            connection.bind(str(bus))
+        if fault == 'symlink':
+            bus.rename(directory / 'original')
+            bus.symlink_to(directory / 'original')
+        if fault == 'wrong-owner':
+            original = Path.lstat
+            def wrong_owner(path):
+                info = original(path)
+                return SimpleNamespace(st_mode=info.st_mode, st_uid=account.pw_uid + 1)
+            monkeypatch.setattr(Path, 'lstat', wrong_owner)
+        if fault:
+            with pytest.raises(UiError):
+                session_environment(account, runtime_root=tmp_path, timeout=0)
+        else:
+            result = session_environment(account, runtime_root=tmp_path, timeout=0)
+            key = 'DBUS_SESSION_BUS_ADDRESS'
+            assert result == {'XDG_RUNTIME_DIR': str(runtime), key: 'unix:path=' + str(bus)}
+    finally:
+        for connection in sockets: connection.close()
+
+
+@pytest.mark.parametrize('fault', [None, 'duplicate', 'remote', 'inactive', 'desktop', 'wrong-seat', 'root'])
+def test_greeter_identity_uses_unique_active_local_session_not_legacy_uid(monkeypatch, fault):
+    import accessible_ui
+    props = {'Class': 'greeter', 'Active': 'yes', 'Remote': 'no', 'Type': 'wayland',
+             'Seat': 'seat0', 'User': '61234'}
+    if fault == 'remote': props['Remote'] = 'yes'
+    if fault == 'inactive': props['Active'] = 'no'
+    if fault == 'desktop': props['Class'] = 'user'
+    if fault == 'wrong-seat': props['Seat'] = 'seat1'
+    if fault == 'root': props['User'] = '0'
+    def call(argv, **kwargs):
+        assert argv[0] == '/usr/bin/loginctl' and 0 < kwargs['timeout'] <= 5
+        if argv[1] == 'list-sessions':
+            return SimpleNamespace(stdout='c1 private-name\n' + ('c2 private-name\n' if fault == 'duplicate' else ''))
+        return SimpleNamespace(stdout='\n'.join(key + '=' + value for key, value in props.items()))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', call)
+    account = SimpleNamespace(pw_uid=61234)
+    lookup = Mock(return_value=account)
+    monkeypatch.setattr(accessible_ui.pwd, 'getpwuid', lookup)
+    if fault:
+        with pytest.raises(UiError): greeter_account()
+        lookup.assert_not_called()
+    else:
+        assert greeter_account() is account
+        lookup.assert_called_once_with(61234)
 
 
 @pytest.mark.parametrize('appearance', [
@@ -165,20 +272,21 @@ def test_license_reads_the_text_interface_and_requires_actual_visible_content(fa
         ui.api.Text.get_text.assert_not_called()
 
 
+@pytest.mark.parametrize('operation', ['child-picker-opened', 'gdm-list'])
 @pytest.mark.parametrize('keys,valid', [
     (['home'], True), (['home', 'down', 'down'], True),
     ([], False), (['down'], False), (['home', 'ret'], False),
     (['home', 'alt-f4'], False), (['home'] + ['down'] * 32, False),
 ])
-def test_guest_list_navigation_is_bounded_to_customer_arrow_keys(keys, valid):
-    result = {'operation': 'child-picker-opened', 'outcome': 'passed', 'interface': 'AT-SPI',
+def test_guest_list_navigation_is_bounded_to_customer_arrow_keys(keys, valid, operation):
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
               'navigation': keys}
     session = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
     if valid:
-        assert session.observe('child-picker-opened')['navigation'] == keys
+        assert session.observe(operation)['navigation'] == keys
     else:
         with pytest.raises(EvidenceError, match='ui:navigation'):
-            session.observe('child-picker-opened')
+            session.observe(operation)
 
 
 def test_password_widget_contents_are_never_traversed():

@@ -4,6 +4,18 @@ use warnings;
 use testapi ();
 use onpc_pointer ();
 
+sub functional_selection {
+    my ($journey) = @_;
+    die 'gdm:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    die 'gdm:console' unless testapi::current_console() eq 'sut';
+    $journey->navigate_choice($journey->seen('gdm'));
+    $journey->seen('focused');
+    testapi::send_key('ret');
+    $journey->seen('selected');
+    testapi::send_key('esc');
+    $journey->seen('dismissed');
+}
+
 # Small reviewed fixture regions, never clocks, whole-screen stillness or a
 # coordinate fallback. assert_screen retains the actual match and screenshot
 # in the private worker result; a timeout must stop the next input.

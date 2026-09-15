@@ -11,6 +11,7 @@ use onpc_vt6 ();
 use onpc_parent_about ();
 use onpc_parent_access ();
 use onpc_parent_discovery ();
+use onpc_journey ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -42,6 +43,16 @@ sub run {
     # generalhw opens graphics during boot without setting testapi's selected
     # console. Establish that public selection before checking its identity.
     select_console('sut');
+    if ($ready->{functional_smoke}) {
+        my $journey = onpc_journey->new(exchange => \&exchange, prefix => 'smokeui', review => 0);
+        onpc_gdm::functional_selection($journey);
+        onpc_serial::run_functional(sub {
+            my ($stage, $shot) = @_;
+            return $stage eq 'gdm-return' ? $journey->seen($stage) : exchange($stage, $shot);
+        });
+        $journey->finish();
+        return;
+    }
     if ($ready->{parent_about}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

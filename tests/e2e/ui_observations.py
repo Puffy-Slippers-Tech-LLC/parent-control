@@ -21,7 +21,7 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation == 'child-picker-opened':
+        if operation in ('child-picker-opened', 'gdm-list'):
             require(type(result) is dict and set(result) == {*expected, 'navigation'}, 'ui:response')
             keys = result['navigation']
             require(type(keys) is list and 1 <= len(keys) <= 32 and keys[0] == 'home'

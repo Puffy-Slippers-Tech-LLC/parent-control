@@ -55,6 +55,7 @@ add-apt-repository -y universe
     libglib2.0-bin \
     libvirt-daemon-system \
     qemu-system-x86 \
+    qemu-system-modules-opengl \
     virtiofsd \
     libvirt-clients=12.0.0-1ubuntu5.3 \
     libguestfs-tools=1:1.58.1-3ubuntu3 \

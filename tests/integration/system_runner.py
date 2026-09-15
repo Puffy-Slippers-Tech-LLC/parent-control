@@ -327,6 +327,11 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
         graphics.set('autoport', 'yes')
         ET.SubElement(graphics, 'clipboard', copypaste='no')
         ET.SubElement(graphics, 'filetransfer', enable='no')
+    else:
+        # Independent, private output collector. Neither endpoint listens on
+        # the host; users receive copied frames, never this QEMU connection.
+        observer = ET.SubElement(devices, 'graphics', type='dbus', p2p='yes')
+        ET.SubElement(observer, 'gl', enable='no')
     for name in ('serial', 'console'):
         require(all(node.get('type') == 'pty' for node in devices.findall(name)), 'guard:host-character-device')
     interfaces = devices.findall('interface')
@@ -343,7 +348,14 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
 def validate_private_vnc(root):
     """Refuse display replacement or any host listener, including normalized XML."""
     displays = root.findall('devices/graphics')
-    require(len(displays) == 1, 'guard:graphics-count')
+    # Accept the previous VNC-only layout for durable interrupted-run recovery.
+    require(len(displays) in (1, 2), 'guard:graphics-count')
+    if len(displays) == 2:
+        observer = displays[1]
+        require(observer.attrib == {'type': 'dbus', 'p2p': 'yes'} and
+                len(observer) == 1 and observer[0].tag == 'gl' and
+                observer[0].attrib == {'enable': 'no'} and len(observer[0]) == 0,
+                'guard:graphics-observer-endpoint')
     display = displays[0]
     require(display.get('type') == 'vnc' and
             set(display.attrib) <= {'type', 'port', 'autoport'} and
@@ -635,9 +647,13 @@ class Lease:
                 require(self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) ==
                         state['original_xml'], 'recovery:off-configuration-changed')
             else:
-                displays = ET.fromstring(self.source.domain.XMLDesc(0)).findall('devices/graphics')
-                require(len(displays) == 1 and displays[0].get('type') == self.view.graphics_type,
-                        'recovery:graphics-changed')
+                display_root = ET.fromstring(self.source.domain.XMLDesc(0))
+                displays = display_root.findall('devices/graphics')
+                if self.view.graphics_type == 'vnc':
+                    validate_private_vnc(display_root)
+                else:
+                    require(len(displays) == 1 and displays[0].get('type') == self.view.graphics_type,
+                            'recovery:graphics-changed')
             self.original_xml = state['original_xml']
             require(baseline.domain_layout(self.original_xml, self.source.uuid) ==
                     self.capture.state['source']['layout'], 'recovery:original-layout')

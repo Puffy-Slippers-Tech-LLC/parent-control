@@ -87,7 +87,10 @@ prefix_rule(
         "/Data/Code/PST/parent-control/tools/run-unit-tests",
         "tools/test-vm",
         "./tools/test-vm",
-        "/Data/Code/PST/parent-control/tools/test-vm"
+        "/Data/Code/PST/parent-control/tools/test-vm",
+        "tools/watch-e2e",
+        "./tools/watch-e2e",
+        "/Data/Code/PST/parent-control/tools/watch-e2e"
     ]],
     decision = "allow",
     justification = "The user preapproves direct execution of this project's tools, including unattended slice controls, without repeated command approval.",

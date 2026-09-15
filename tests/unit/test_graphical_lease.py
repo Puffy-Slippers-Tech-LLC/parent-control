@@ -36,6 +36,7 @@ def test_vnc_isolation_removes_all_host_listeners_and_shares():
     root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN, graphics_type='vnc'))
     runner.validate_private_vnc(root)
     assert root.find('devices/graphics').attrib == {'type': 'vnc'}
+    assert root.findall('devices/graphics')[1].attrib == {'type': 'dbus', 'p2p': 'yes'}
     assert root.find('devices/disk/source').get('file') == '/image'
     for name in ('filesystem', 'channel', 'redirdev', 'hostdev'):
         assert not root.findall('devices/' + name)
@@ -64,6 +65,18 @@ def test_accepts_only_documented_non_listening_vnc_normalization(display):
 def test_changed_or_exposed_endpoint_is_refused(display):
     with pytest.raises(runner.Error, match='guard:graphics-'):
         runner.validate_private_vnc(ET.fromstring('<domain><devices>' + display + '</devices></domain>'))
+
+
+@pytest.mark.parametrize('observer', [
+    '<graphics type="dbus" p2p="no"><gl enable="no"/></graphics>',
+    '<graphics type="dbus" p2p="yes"><gl enable="yes"/></graphics>',
+    '<graphics type="dbus" p2p="yes" address="unix:path=/tmp/guest"><gl enable="no"/></graphics>',
+    '<graphics type="dbus" p2p="yes"><gl enable="no"/><listen type="none"/></graphics>',
+])
+def test_observer_cannot_replace_private_copied_display(observer):
+    xml = '<domain><devices><graphics type="vnc"><listen type="none"/></graphics>'
+    with pytest.raises(runner.Error, match='graphics-observer-endpoint'):
+        runner.validate_private_vnc(ET.fromstring(xml + observer + '</devices></domain>'))
 
 
 def test_unsupported_graphics_refuses_before_lease_mutation(lease_rig):

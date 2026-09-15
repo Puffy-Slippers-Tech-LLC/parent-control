@@ -1,0 +1,146 @@
+#!/usr/bin/python3
+"""Guarded spectator qualification: client churn and collector failure."""
+
+import importlib
+import json
+import os
+from pathlib import Path
+import signal
+import struct
+import sys
+import tempfile
+import threading
+import time
+
+from graphical_lease import Adapter
+from owned_commands import Commands, require
+import system_runner as runner
+
+
+class RFBProbe:
+    """Minimal RFB 3.8 raw 1-pixel request, on the automation's own endpoint."""
+
+    def __init__(self, peer):
+        self.peer = peer
+        peer.settimeout(5)
+        require(self.read(12) == b'RFB 003.008\n', 'watch-rfb:greeting')
+        peer.sendall(b'RFB 003.008\n')
+        types = self.read(self.read(1)[0])
+        require(1 in types, 'watch-rfb:authentication')
+        peer.sendall(b'\x01')
+        require(self.read(4) == b'\0' * 4, 'watch-rfb:authentication')
+        peer.sendall(b'\x01')  # Shared automation connection.
+        header = self.read(24)
+        length = struct.unpack('>I', header[20:24])[0]
+        require(length < 4096, 'watch-rfb:name-size')
+        self.read(length)
+        # Fixed little-endian RGB32, then raw encoding only.
+        peer.sendall(struct.pack('>BBBBBBBBHHHBBBxxx', 0, 0, 0, 0, 32, 24, 0, 1,
+                                 255, 255, 255, 16, 8, 0))
+        peer.sendall(struct.pack('>BBHi', 2, 0, 1, 0))
+
+    def read(self, count):
+        data = b''
+        while len(data) < count:
+            part = self.peer.recv(count - len(data))
+            require(part, 'watch-rfb:eof')
+            data += part
+        return data
+
+    def frame(self):
+        started = time.monotonic()
+        self.peer.sendall(struct.pack('>BBHHHH', 3, 0, 0, 0, 1, 1))
+        header = self.read(4)
+        require(header[:2] == b'\0\0', 'watch-rfb:update')
+        for _ in range(struct.unpack('>H', header[2:])[0]):
+            x, y, width, height, encoding = struct.unpack('>HHHHi', self.read(12))
+            # QEMU rounds damage to tiles, including for a one-pixel request.
+            require(encoding == 0 and x >= 0 and y >= 0 and
+                    0 < width <= 2048 and 0 < height <= 2048, 'watch-rfb:rectangle')
+            self.read(width * height * 4)
+        return round((time.monotonic() - started) * 1000, 2)
+
+
+def probe(lease, commands):
+    adapter = Adapter(lease)
+    try:
+        adapter.request('off', adapter.run)
+        adapter.request('on', adapter.run)
+        observer = adapter.observer
+        require(observer is not None and observer.ready.is_set(), 'watch:collector-unavailable')
+        vnc = RFBProbe(adapter.request('graphics', adapter.run))
+        before = vnc.frame()
+        result = json.loads(commands.run(['/usr/bin/python3', '-B',
+            str(Path(__file__).with_name('e2e_watch_probe.py'))], timeout=40))
+        result['rfb_before_ms'] = before
+        result['rfb_after_client_churn_ms'] = vnc.frame()
+        # Harness fault only; never injected into customer E2E scenarios.
+        signal.pidfd_send_signal(observer.pidfd, signal.SIGSTOP)
+        require(observer.finished.wait(8), 'watch:watchdog-failed')
+        require(observer.child is None and observer.pidfd is None, 'watch:collector-not-reaped')
+        result['rfb_after_collector_stall_ms'] = vnc.frame()
+        adapter.revalidate()
+        result['watchdog_reaped_collector'] = True
+        adapter.request('off', adapter.run)
+        return result
+    finally:
+        adapter.close_display()
+        adapter.close_observer()
+
+
+def main():
+    require(len(sys.argv) == 1 and os.geteuid() == os.getegid() == 0, 'watch:invocation')
+    require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT, 'watch:checkout')
+    os.umask(0o077)
+    directory = Path(tempfile.mkdtemp(prefix='onpc-e2e-watch-check-'))
+    print('watch-check: evidence=' + str(directory), flush=True)
+    commands, ledger = Commands(), runner.RunLedger()
+    commands.directory = directory
+    source = lease = host_before = None
+    result = {'scope': 'spectator-harness', 'outcome': 'failed', 'evidence_directory': str(directory)}
+    started = time.monotonic()
+    def interrupted(*_):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
+    try:
+        host_before = runner.host_fingerprint(commands)
+        api, guestfs = importlib.import_module('libvirt'), importlib.import_module('guestfs')
+        api.virEventRegisterDefaultImpl()
+        def events():
+            while True:
+                api.virEventRunDefaultImpl()
+        threading.Thread(target=events, daemon=True, name='libvirt-events').start()
+        source = runner.baseline.LibvirtSource(api)
+        lease = runner.Lease(source, commands,
+            lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
+            ledger=ledger, graphics_type='vnc')
+        with lease:
+            lease.prepare()
+            result['probe'] = probe(lease, commands)
+            ledger.pass_outcome('infrastructure')
+            ledger.pass_outcome('collection')
+        result['outcome'] = 'passed'
+    except (Exception, KeyboardInterrupt) as error:
+        result['category'] = runner.record_caught_failure(ledger, error)
+        result['exception_type'] = type(error).__name__
+    finally:
+        try:
+            if host_before is not None:
+                require(runner.host_fingerprint(commands) == host_before, 'watch:host-state-changed')
+        except BaseException:
+            ledger.fail_outcome('cleanup', 'watch:host-state-unverifiable')
+        finally:
+            if source is not None:
+                source.close()
+        result.update(ledger.data())
+        if any(v['outcome'] == 'failed' for v in ledger.outcomes.values()):
+            result['outcome'] = 'failed'
+        result['duration_seconds'] = round(time.monotonic() - started, 3)
+        result['lease_phase'] = lease.state['phase'] if lease and lease.state else None
+        (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+        print(json.dumps(result, sort_keys=True), flush=True)
+    return 0 if result['outcome'] == 'passed' else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -136,7 +136,7 @@ def test_isolation_removes_shares_and_spice_transfer_but_preserves_disk():
 
 
 @pytest.mark.parametrize('old,new', [
-    ('ubuntu26.04', 'host'), (UUID, 'other'), ('type="qcow2"', 'type="raw"'),
+    (runner.baseline.DOMAIN, 'host'), (UUID, 'other'), ('type="qcow2"', 'type="raw"'),
     ('source network="default"', 'source network="bridged"'),
     ('console type="pty"', 'console type="file"'),
     ('</devices>', '<hostdev/></devices>'),

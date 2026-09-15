@@ -1,21 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 
-readonly CHECKOUT=/Data/Code/PST/parent-control
+CHECKOUT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+readonly CHECKOUT
 readonly PREPARER="$CHECKOUT/tests/integration/prepare_vm.py"
 
 if (( $# != 0 )); then
-    echo 'prep-vm: no arguments are accepted' >&2
+    echo 'prepare-vm: no arguments are accepted' >&2
     exit 2
 fi
 
-if [[ "$PWD" != "$CHECKOUT" ]]; then
-    echo 'prep-vm: [guard:checkout] run from the fixed source-VM checkout' >&2
+if [[ "$(pwd -P)" != "$CHECKOUT" ]]; then
+    echo 'prepare-vm: [guard:checkout] run from this checkout root inside the configured VM' >&2
     exit 1
 fi
 
 if (( EUID != 0 )); then
-    echo 'prep-vm: [stage:sudo] requesting root privileges for source-VM preparation' >&2
+    echo 'prepare-vm: [stage:sudo] requesting root privileges for source-VM preparation' >&2
     exec sudo -- /usr/bin/python3 -B "$PREPARER"
 fi
 

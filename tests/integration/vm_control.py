@@ -23,7 +23,7 @@ import system_runner as runner
 def check_identity(source, expected):
     runner.require(source.connection.getURI() == 'qemu:///system' and
                    source.uuid == expected and source.domain.UUIDString() == expected and
-                   source.domain.name() == 'ubuntu26.04', 'vm-control:identity-mismatch')
+                   source.domain.name() == runner.baseline.DOMAIN, 'vm-control:identity-mismatch')
 
 
 def save_owner(lease):
@@ -45,7 +45,7 @@ def resume(lease, *, stopping=False):
     """Only adopt this helper's exact recorded instance, never another controller."""
     base = runner.baseline
     lease.capture.directory_identity = lease.capture.private_directory()
-    lock = lease.directory / '.lock'
+    lock = lease.capture.lock_path
     base.identity(lock, private=True, mode=0o600)
     lease.fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
     try:
@@ -160,7 +160,7 @@ def main(argv=None):
             domain = connection.lookupByUUIDString(args.expected_uuid)
             runner.require(connection.getURI() == 'qemu:///system' and
                            domain.UUIDString() == args.expected_uuid and
-                           domain.name() == 'ubuntu26.04', 'vm-control:identity-mismatch')
+                           domain.name() == runner.baseline.DOMAIN, 'vm-control:identity-mismatch')
             print(domain.XMLDesc(0) if args.action == 'xml' else
                   json.dumps({'state': domain.state()[0], 'id': domain.ID(),
                               'scope': 'pinned-test-vm'}))

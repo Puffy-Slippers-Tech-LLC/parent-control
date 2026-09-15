@@ -58,7 +58,12 @@ sub mouse_width { $main::fault eq 'dimensions' ? 1920 : $main::fault eq 'native'
 sub mouse_height { $main::fault eq 'native' ? 768 : 800 }
 package main;
 require onpc_parent_about;
-my $ok = eval { onpc_parent_about::run(sub { push @events, ['stage', $_[0]]; }, $review); 1; };
+my $ok = eval { onpc_parent_about::run(sub {
+    die 'picker failed' if $fault eq 'click' && $_[0] eq 'child-picker-opened';
+    die 'selection failed' if $fault eq 'screen' && $_[0] eq 'parent-selected';
+    push @events, ['stage', $_[0]];
+    return {ui_keys => ['home', 'down']};
+}, $review); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
 
@@ -105,10 +110,10 @@ def test_qualification_cannot_bypass_password_recipient_or_click_matches(review,
         assert ['stage', 'parent-selected'] not in result['events']
 
 
-def test_customer_missing_screen_stops_before_menu_input():
+def test_customer_failed_selection_stops_before_about():
     result = json.loads(run_perl(PROBE, '0', 'screen').stdout)
     assert not result['ok']
-    assert ['click', 'onpc-parent-menu'] not in result['events']
+    assert ['stage', 'about'] not in result['events']
 
 
 def test_fixed_standard_recipient_is_selected_before_opening_its_prompt():
@@ -122,12 +127,14 @@ def test_fixed_standard_recipient_is_selected_before_opening_its_prompt():
     ]
 
 
-def test_qualification_can_acquire_nonsecret_screens_without_explicit_capture():
-    result = json.loads(run_perl(PROBE, '1', 'screen').stdout)
+def test_functional_journey_uses_semantic_results_without_explicit_capture():
+    result = json.loads(run_perl(PROBE, '0', '').stdout)
     assert result['ok']
-    assert ['check', 'onpc-parent-child-selected'] in result['events']
-    assert ['assert', 'onpc-parent-desktop'] in result['events']
-    assert ['assert', 'onpc-parent-app-grid'] in result['events']
+    assert ['stage', 'child-picker-opened'] in result['events']
+    assert ['stage', 'parent-selected'] in result['events']
+    assert ['stage', 'parent-returned'] in result['events']
+    assert not any(event[0] == 'assert' and event[1].startswith('onpc-parent-')
+                   for event in result['events'])
     assert result['events'][-1] == ['power', 'off']
 
 

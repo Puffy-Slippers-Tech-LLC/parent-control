@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Run installed-system pytest on the fixed VM, resetting its retained snapshot.
+"""Run installed-system pytest on the configured VM, resetting its retained snapshot.
 
 Root host controller. No product installation command executes on the host.
 All VM/storage operations are injectable; imports have no machine side effects.
@@ -437,8 +437,8 @@ class Lease:
     def __enter__(self):
         try:
             self.capture.directory_identity = self.capture.private_directory()
-            self.fd = os.open(self.directory / '.lock', os.O_RDWR | os.O_NOFOLLOW)
-            baseline.identity(self.directory / '.lock', private=True, mode=0o600)
+            self.fd = os.open(self.capture.lock_path, os.O_RDWR | os.O_NOFOLLOW)
+            baseline.identity(self.capture.lock_path, private=True, mode=0o600)
             try:
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
@@ -493,7 +493,7 @@ class Lease:
 
     def prepare(self):
         self.snapshot_xml = self.source.baseline()
-        # The initial shutdown is explicitly authorized for this fixed source VM.
+        # The initial shutdown is authorized for this identity-recorded source VM.
         self.save('shutdown-requested')
         self.source.shutdown(self.guard, requested=False)
         self.guard(off=True)
@@ -617,8 +617,8 @@ class Lease:
         """Reacquire ownership and verify every saved identity before mutation."""
         try:
             self.capture.directory_identity = self.capture.private_directory()
-            self.fd = os.open(self.directory / '.lock', os.O_RDWR | os.O_NOFOLLOW)
-            baseline.identity(self.directory / '.lock', private=True, mode=0o600)
+            self.fd = os.open(self.capture.lock_path, os.O_RDWR | os.O_NOFOLLOW)
+            baseline.identity(self.capture.lock_path, private=True, mode=0o600)
             try:
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:

@@ -1,0 +1,46 @@
+"""Qualify the E2E public UI adapter against real GTK, outside the VM journey."""
+
+import importlib.util
+import json
+
+import pytest
+
+from tests.support.paths import ROOT
+
+pytestmark = pytest.mark.ui
+
+
+@pytest.mark.parametrize('dpi_scale', [1.0, 1.25])
+def test_parent_functional_adapter_at_display_scales(
+        launch_ui, request_display_scale, dpi_scale):
+    spec = importlib.util.spec_from_file_location('e2e_accessible_ui', ROOT / 'tests/e2e/accessible_ui.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    application, _log = launch_ui('parent_component_preview')
+    from gi.repository import Atspi, GLib
+    ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,))
+    version = json.loads((ROOT / 'data/app.json').read_text())['version']
+    try:
+        opened = ui.run('child-picker-opened', version)
+        from dogtail import rawinput
+        for key in opened['navigation']:
+            rawinput.pressKey(key.title())
+        ui.run('child-choice-highlighted', version)
+        rawinput.pressKey('Return')
+        selected = ui.run('parent-selected', version)
+        assert selected['settings']['child'] == 'fixture-child'
+        # The allowance remains readable when the switch normally disables it.
+        toggle = ui.target('Screen time limit', ('switch',), root=ui.parent())
+        if ui.has_state(toggle, Atspi.StateType.CHECKED):
+            ui.activate(toggle)
+        ui.wait(lambda: not ui.has_state(toggle, Atspi.StateType.CHECKED), 'limit-off')
+        disabled = ui.settings()
+        assert not disabled['limit_enabled']
+        assert disabled['allowance'] == selected['settings']['allowance']
+        ui.run('about', version)
+        ui.reveal('© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.',
+                  ('label',), root=ui.about())
+    except Exception:
+        from dogtail.hermetic.session import dump_tree
+        print(dump_tree(application, max_depth=24))
+        raise

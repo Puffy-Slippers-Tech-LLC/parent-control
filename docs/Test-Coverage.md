@@ -6,18 +6,18 @@
 
 | Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">9186</span>/<span style="color: gray">0</span>/9186 | Collected pytest cases, including parameter combinations |
+| Unit, property and contract | <span style="color: green">9343</span>/<span style="color: gray">0</span>/9343 | Collected pytest cases, including parameter combinations |
 | Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
-| UI | <span style="color: green">142</span>/<span style="color: gray">0</span>/142 | Collected pytest cases, including parameter combinations |
+| UI | <span style="color: green">147</span>/<span style="color: gray">0</span>/147 | Collected pytest cases, including parameter combinations |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Registered cases; repeated phases and prerequisites counted once |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | One check per executable test script; Node subtests not expanded |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One check per executable test script |
-| Integration qualification | <span style="color: green">16</span>/<span style="color: gray">0</span>/16 | One check per installed-runner check_*.py entry point |
+| Integration qualification | <span style="color: green">17</span>/<span style="color: gray">0</span>/17 | One check per installed-runner check_*.py entry point |
 | E2E customer-journey | <span style="color: green">4</span>/<span style="color: gray">140</span>/144 | One exact scenario variant |
 | E2E fault-recovery | <span style="color: green">0</span>/<span style="color: gray">12</span>/12 | One exact scenario variant |
 | E2E runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One exact scenario variant |
-| **Total** | **<span style="color: green">9736</span>/<span style="color: gray">152</span>/9888** | All entries above, including pending E2E |
+| **Total** | **<span style="color: green">9899</span>/<span style="color: gray">152</span>/10051** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 

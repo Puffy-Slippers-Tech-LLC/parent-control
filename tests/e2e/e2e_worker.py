@@ -42,6 +42,7 @@ def validate_needles(files):
     required before password input is enabled for a surface.
     """
     from parent_needles import TAGS as parent_tags, CLICK_TAGS as parent_click_tags
+    from parent_needles import GDM_RENDERINGS, PARENT_RENDERINGS, semantic_tag
     names = {name for name in files if name.startswith('needles/')}
     for name in names:
         require(re.fullmatch(r'needles/onpc-(?:(gdm|polkit|lock)-(parent|child|other-parent|other-child)'
@@ -63,7 +64,7 @@ def validate_needles(files):
         except (ValueError, UnicodeError):
             require(False, 'e2e:needle-json')
         require(type(document) is dict and set(document) == {'tags', 'area'}
-                and document['tags'] == [Path(name).stem]
+                and document['tags'] == [semantic_tag(Path(name).stem)]
                 and type(document['area']) is list and 1 <= len(document['area']) <= 8,
                 'e2e:needle-schema')
         if name == 'needles/onpc-gdm-parent-installed-input-account.json':
@@ -71,6 +72,19 @@ def validate_needles(files):
                 {'xpos': 442, 'ypos': 351, 'width': 118, 'height': 32,
                  'type': 'match', 'match': 100,
                  'click_point': {'xpos': 59, 'ypos': 16}}], 'e2e:installed-input-layout')
+        if Path(name).stem in GDM_RENDERINGS:
+            _, y, click = GDM_RENDERINGS[Path(name).stem]
+            area = {'xpos': 442, 'ypos': y, 'width': 118, 'height': 32,
+                    'type': 'match', 'match': 100}
+            if click:
+                area['click_point'] = {'xpos': 59, 'ypos': 16}
+            require((width, height) == (1024, 768) and document['area'] == [area],
+                    'e2e:installed-rendering-layout')
+        if Path(name).stem in PARENT_RENDERINGS:
+            require((width, height) == (1024, 768) and document['area'] == [
+                {'xpos': 188, 'ypos': 272, 'width': 121, 'height': 36,
+                 'type': 'match', 'match': 100,
+                 'click_point': {'xpos': 60, 'ypos': 18}}], 'e2e:child-choice-rendering-layout')
         if name == 'needles/onpc-vt6-parent-password.json':
             # Fixed baseline pixels, including the complete selected login and
             # blank challenge. Only its six-pixel terminal cursor cell may blink.

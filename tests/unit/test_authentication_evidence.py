@@ -4,6 +4,7 @@ import json
 import shutil
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
+import pytest
 
 from tests.support.paths import ROOT
 from owned_commands import Commands
@@ -15,16 +16,17 @@ from tests.support.authentication import collect_local
 from tests.support.vm_runner import INVENTORIES
 
 
-def test_junit_redaction_handles_escaped_values_without_breaking_xml(monkeypatch, tmp_path):
+@pytest.mark.parametrize('hostname', ['oh-no-parent-control', 'custom-evidence-vm'])
+def test_junit_redaction_handles_escaped_values_without_breaking_xml(monkeypatch, tmp_path, hostname):
     results = tmp_path / 'results'
     results.mkdir()
-    root = ET.Element('testsuite', hostname='ubuntu26.04')
+    root = ET.Element('testsuite', hostname=hostname)
     case = ET.SubElement(root, 'testcase', name='test_example')
     failure = ET.SubElement(case, 'failure', message='password=credential<&"')
     failure.text = 'Private <Test> & User /home/private-user password=credential<&"'
     failure.tail = 'private-user token=' + 'a' * 32
     ET.ElementTree(root).write(results / 'authorization.xml', encoding='utf-8')
-    collect_local(monkeypatch, tmp_path, tmp_path)
+    collect_local(monkeypatch, tmp_path, tmp_path, hostname=hostname)
     exported = ET.parse(results / 'authorization.xml').getroot()
     assert exported.get('hostname') == '[Test VM]'
     failure = exported.find('testcase/failure')

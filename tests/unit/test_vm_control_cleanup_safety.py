@@ -98,10 +98,10 @@ def test_wrong_vm_uuid_or_connection_refuses_before_leasing():
     source = Mock(uuid=UUID)
     source.connection.getURI.return_value = 'qemu:///system'
     source.domain.UUIDString.return_value = UUID
-    source.domain.name.return_value = 'ubuntu26.04'
+    source.domain.name.return_value = runner.baseline.DOMAIN
     control.check_identity(source, UUID)
-    for uri, expected, name in [('qemu:///session', UUID, 'ubuntu26.04'),
-                                 ('qemu:///system', 'f' * 36, 'ubuntu26.04'),
+    for uri, expected, name in [('qemu:///session', UUID, runner.baseline.DOMAIN),
+                                 ('qemu:///system', 'f' * 36, runner.baseline.DOMAIN),
                                  ('qemu:///system', UUID, 'other-vm')]:
         source.connection.getURI.return_value = uri
         source.domain.name.return_value = name

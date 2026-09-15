@@ -74,7 +74,7 @@ class BackingVerification:
         self.state = copy.deepcopy(capture.state)
         self.pid, self.lock_fd = os.getpid(), owner.fd
         self.run = owner.backing_run
-        self.lock_identity = identity(capture.directory / '.lock', private=True, mode=0o600)
+        self.lock_identity = identity(capture.lock_path, private=True, mode=0o600)
         self.files = []
         self.enabled = False
         self.verified = False
@@ -103,7 +103,7 @@ class BackingVerification:
                 and (self.owner.state is None or self.owner.state['run'] == self.run),
                 'guard:backing-owner-changed')
         require(self.capture.state == self.state, 'guard:backing-state-changed')
-        lock = self.capture.directory / '.lock'
+        lock = self.capture.lock_path
         require(identity(lock, private=True, mode=0o600) == self.lock_identity,
                 'guard:backing-owner-changed')
         info = os.fstat(self.lock_fd)

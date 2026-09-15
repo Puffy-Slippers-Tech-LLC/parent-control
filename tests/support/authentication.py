@@ -6,12 +6,15 @@ from unittest.mock import Mock
 
 import system_guest as guest
 
-def collect_local(monkeypatch, tmp_path, payload):
+def collect_local(monkeypatch, tmp_path, payload, *, hostname='custom-evidence-vm'):
     """Exercise real collection while substituting all OS reads."""
     monkeypatch.setattr(guest, 'PAYLOAD', payload)
     monkeypatch.setattr(guest, 'EXPIRY_DIAGNOSTICS', tmp_path / 'expiry-fixture')
+    hostname_file = tmp_path / 'hostname'
+    hostname_file.write_text(hostname + '\n')
     monkeypatch.setattr(guest, 'Path', lambda value: (
         tmp_path / 'absent-product-logs' if value == '/var/log/oh-no-parent-control'
+        else hostname_file if value == '/etc/hostname'
         else Path(value)))
     monkeypatch.setattr(guest, 'Commands', lambda: Mock(run=Mock(return_value=b'')))
     import pwd

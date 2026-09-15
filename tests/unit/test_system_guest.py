@@ -9,6 +9,23 @@ import pytest
 import system_guest as guest
 
 
+@pytest.mark.parametrize('fault', [None, 'hostname', 'record'])
+def test_hostname_comes_from_verified_preparation_record(tmp_path, monkeypatch, fault):
+    baseline = tmp_path / 'prepared.json'
+    baseline.write_text(json.dumps({'guest': {'hostname': 'custom-test-vm'}}))
+    monkeypatch.setattr(guest, 'BASELINE', baseline)
+    expected = guest.sha(baseline)
+    if fault == 'record':
+        baseline.write_text(json.dumps({'guest': {'hostname': 'changed-vm'}}))
+    hostname = 'old-vm' if fault == 'hostname' else 'custom-test-vm'
+    if fault:
+        category = 'hostname' if fault == 'hostname' else 'preparation-digest'
+        with pytest.raises(guest.GuestError, match=category):
+            guest.check_prepared_hostname(expected, hostname)
+    else:
+        guest.check_prepared_hostname(expected, hostname)
+
+
 @pytest.mark.parametrize('path,group', [
     ('/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop', 'sudo'),
     ('/usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules', 'root'),

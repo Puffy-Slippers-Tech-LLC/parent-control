@@ -3,6 +3,7 @@
 import io
 from contextlib import nullcontext
 import shlex
+import sys
 import tarfile
 from unittest.mock import Mock
 
@@ -21,6 +22,33 @@ def client():
     commands.run.return_value = b''
     commands.last_returncode = 0
     return transport.Transport(config(), commands, guard=Mock())
+
+
+@pytest.mark.parametrize('fault', [None, 'name', 'instance', 'connection', 'shares', 'run'])
+def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch, fault):
+    configured = Mock(name='configuration')
+    configured.name = 'custom-test-vm'
+    monkeypatch.setattr(transport.vm_config, 'load', lambda: configured)
+    domain = Mock()
+    domain.ID.return_value = 72 if fault == 'instance' else 71
+    domain.name.return_value = 'old-vm' if fault == 'name' else configured.name
+    run = 'b' * 32 if fault == 'run' else config()['run']
+    devices = '<filesystem/>' if fault == 'shares' else ''
+    domain.XMLDesc.return_value = (
+        f'<domain><description>onpc-system-run:{run}</description><devices>{devices}</devices></domain>')
+    connection = Mock()
+    connection.getURI.return_value = 'qemu:///session' if fault == 'connection' else 'qemu:///system'
+    connection.lookupByUUIDString.return_value = domain
+    api = Mock()
+    api.open.return_value = connection
+    monkeypatch.setitem(sys.modules, 'libvirt', api)
+    if fault:
+        with pytest.raises(transport.Error, match='domain-replaced-or-shared'):
+            transport.guard_host(config())
+    else:
+        transport.guard_host(config())
+    connection.lookupByUUIDString.assert_called_once_with(config()['domain_uuid'])
+    connection.close.assert_called_once()
 
 
 @pytest.fixture(autouse=True)

@@ -54,7 +54,7 @@ def test_exact_fixed_identity_map():
     ]
 
 
-def test_environment_guard_accepts_only_the_fixed_guest_context(tmp_path):
+def test_environment_guard_accepts_relocated_checkout_in_product_free_guest(tmp_path):
     root = guest_root(tmp_path)
     checkout = tmp_path / "checkout"
     for relative in prepare.REQUIRED_CHECKOUT_ENTRIES:
@@ -66,9 +66,13 @@ def test_environment_guard_accepts_only_the_fixed_guest_context(tmp_path):
             path.write_bytes((ROOT / relative).read_bytes())
     # Load the fixture's actual preparer so its __file__ ownership check stays
     # intact. Do not require Git metadata in the package build's source tree.
+    (checkout / 'config/test-vm.json').write_text(
+        '{"name":"another-test-vm","disk_anchor":"/images/base.qcow2"}')
     fixture_prepare = load_module(
         'onpc_fixture_prepare_vm', checkout / 'tests/integration/prepare_vm.py',
     )
+    assert fixture_prepare.CHECKOUT == checkout
+    assert fixture_prepare.HOSTNAME == 'another-test-vm'
     defaults = dict(
         root=root, checkout=checkout, cwd=checkout, runner=GuardRunner(), euid=0,
         hostname="original-test-guest", lookup_user=missing_user,
@@ -113,14 +117,14 @@ def test_main_sets_hostname_before_recording_baseline(monkeypatch, hostname_fail
     monkeypatch.setattr(prepare, "write_marker", lambda path, document: records.append(document))
 
     assert prepare.main() == (1 if hostname_fails else 0)
-    assert commands == [["hostnamectl", "set-hostname", "ubuntu26.04"]]
+    assert commands == [["hostnamectl", "set-hostname", prepare.HOSTNAME]]
     if hostname_fails:
         assert records == []
     else:
-        assert records[0].hostname == "ubuntu26.04"
+        assert records[0].hostname == prepare.HOSTNAME
 
 
-def test_checkout_guard_requires_fixed_complete_checkout(tmp_path):
+def test_checkout_guard_requires_own_complete_checkout(tmp_path):
     with pytest.raises(prepare.PreparationError, match="guard:checkout"):
         prepare.validate_checkout(tmp_path, ROOT)
     assert prepare.preparation_digest(ROOT) == prepare.preparation_digest(ROOT)
@@ -314,7 +318,7 @@ def test_reconciliation_verifies_roles_and_passes_one_shared_secret_only_on_stdi
 
 
 def valid_marker():
-    guest = prepare.GuestIdentity("ubuntu26.04", "b" * 32, "26.04", "kvm")
+    guest = prepare.GuestIdentity(prepare.HOSTNAME, "b" * 32, "26.04", "kvm")
     accounts = {
         item.username: {"uid": 1300 + index, "role": item.role}
         for index, item in enumerate(prepare.IDENTITIES)
@@ -357,7 +361,7 @@ def test_account_reconciliation_repeats_after_creation_without_duplicate_users_o
             lookup_user=entries.__getitem__, list_users=lambda: list(entries.values()),
         )
         documents.append(prepare.marker_document(
-            prepare.GuestIdentity('ubuntu26.04', 'a' * 32, '26.04', 'kvm'), verified, 'b' * 64,
+            prepare.GuestIdentity(prepare.HOSTNAME, 'a' * 32, '26.04', 'kvm'), verified, 'b' * 64,
         ))
         assert sum(command[0] == 'useradd' for command in runner.commands) == (4 if attempt == 0 else 0)
         assert sum(command[0] == 'gpasswd' for command in runner.commands) == (4 if attempt == 0 else 0)

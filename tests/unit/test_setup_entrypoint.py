@@ -177,7 +177,7 @@ def test_unsafe_existing_installation_never_requests_authentication(checkout, mo
 
 
 @pytest.mark.parametrize('target,mode', [
-    ('prepare-host', '--prepare-host'), ('prep-vm', '--prepare-vm'),
+    ('prepare-host', '--prepare-host'),
     ('prepare-vm', '--prepare-vm'),
     ('install-extension', '--install-extension'),
 ])

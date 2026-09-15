@@ -56,6 +56,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     monkeypatch.setattr(journeys, 'InstalledSetup', Mock(return_value=SimpleNamespace(run=setup)))
     boot = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock(return_value=boot))
+    monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=SimpleNamespace(
+        observe=lambda operation: {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'})))
     boundary = next(iter(plan.advance_after))
     state = {'stage': None, 'stored': False}
     context = SimpleNamespace(directory=directory, host_key='fixture-key', commands=Mock(),

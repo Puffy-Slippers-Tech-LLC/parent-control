@@ -8,6 +8,7 @@ import struct
 import pytest
 
 import e2e_worker as worker
+from parent_needles import GDM_RENDERINGS, PARENT_RENDERINGS
 
 
 @pytest.fixture
@@ -78,6 +79,30 @@ def test_generic_password_prompt_cannot_authorize_a_fixture_role(distribution):
     for suffix in ('.json', '.png'):
         base.with_suffix(suffix).rename(dist / ('needles/onpc-gdm-masked-password' + suffix))
     with pytest.raises(RuntimeError, match='needle-name'):
+        worker.distribution_inputs()
+
+
+@pytest.mark.parametrize('name', [*GDM_RENDERINGS, *PARENT_RENDERINGS])
+@pytest.mark.parametrize('fault', [None, 'tag', 'role', 'threshold', 'region', 'click'])
+def test_fixed_rendering_alias_preserves_identity_layout_and_click_authority(distribution, name, fault):
+    dist, _ = distribution
+    source = Path(worker.__file__).resolve().parents[1] / 'integration/graphical_smoke/needles'
+    doc = json.loads((source / (name + '.json')).read_bytes())
+    if fault == 'tag': doc['tags'] = [name]
+    elif fault == 'role': doc['tags'] = ['onpc-gdm-child-masked-password']
+    elif fault == 'threshold': doc['area'][0]['match'] = 99
+    elif fault == 'region': doc['area'][0]['ypos'] += 1
+    elif fault == 'click':
+        if 'click_point' in doc['area'][0]:
+            del doc['area'][0]['click_point']
+        else:
+            doc['area'][0]['click_point'] = {'xpos': 59, 'ypos': 16}
+    (dist / ('needles/' + name + '.png')).write_bytes((source / (name + '.png')).read_bytes())
+    (dist / ('needles/' + name + '.json')).write_text(json.dumps(doc))
+    if fault:
+        with pytest.raises(RuntimeError, match='e2e:needle-schema|e2e:installed-rendering-layout|e2e:child-choice-rendering-layout'):
+            worker.distribution_inputs()
+    else:
         worker.distribution_inputs()
 
 

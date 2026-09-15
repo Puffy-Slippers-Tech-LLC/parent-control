@@ -1,0 +1,5 @@
+#!/usr/bin/python3 -B
+"""User-owned optional E2E spectator; no privilege or VM-control access."""
+from e2e_watch_viewer import main
+
+raise SystemExit(main())

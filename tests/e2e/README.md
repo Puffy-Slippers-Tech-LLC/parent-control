@@ -81,6 +81,64 @@ remain host-safe; a listing is never an execution pass.
 
 ## Inspect scope on the host
 
+### Optional live viewing
+
+Run `tools/watch-e2e` from your desktop terminal whenever you want to watch the
+guarded E2E VM. Tests remain headless by default: the runner never launches a
+window. You can open, close or reopen the viewer during an attempt. Leave it
+open across reboot, shutdown, failure cleanup and subsequent attempts; it shows
+Waiting between available displays and resumes automatically. Only closing the
+window yourself ends it. Automation neither owns nor signals your viewer process.
+
+The window is output only. Mouse, keyboard, scrolling, clipboard and window
+resizing have no route into the guest, including while the pointer is over the
+window. You can continue working on the host. The guest cursor is drawn from
+display updates; existing automated pointer jumps and hidden cursors remain
+visible as those actions actually happen. Serial-console and SSH setup work
+does not become a graphical interaction merely because the viewer is open.
+
+The runner retains its private VNC connection. A separate, lease-owned collector
+uses QEMU's public [D-Bus display listener](https://www.qemu.org/docs/master/interop/dbus-display.html)
+through libvirt's public graphics FD API, with no host display listener and GL
+disabled. It attaches before test input begins and remains attached regardless
+of viewer activity. Viewers receive only a sealed, read-only memory copy through
+an invoking-user-authenticated local socket under `/run/onpc-e2e-watch`; they
+never receive a QEMU/libvirt connection. There is no input or frame-request
+protocol. A slow reader cannot build a frame queue or block the writer. The
+collector does not advertise GPU/shared-map acknowledgement extensions.
+
+The feed coalesces updates at approximately 30 Hz, with a fixed 2048×2048 pixel
+limit and 256×256 cursor limit. Unsupported frames disable viewing. A separate
+watchdog revokes a stalled collector's own sockets after three seconds and reaps
+only its pinned process. Initial attachment has a five-second deadline. Feed
+failure disables viewing for that attempt; it does not fail the scenario or
+automatically retry a QEMU attachment during input. The window remains open for
+the next attempt. These are bounded failure paths, not a claim of zero CPU,
+memory or scheduling overhead: the collector runs even with no open viewer,
+and drawing consumes additional resources while viewing.
+
+Host dependencies come from `./setup.sh --dependencies-only`, including
+`qemu-system-modules-opengl` (the package containing `ui-dbus.so`), Python GI and
+GTK4. Refresh test tools/rules through `./setup.sh --test-tools-only`.
+This is development test infrastructure with package-update activation `none`;
+it installs no product service, changes no guest saved data and requires no host
+session renewal. Direct virt-manager/VNC viewing is outside this contract: its
+connection and input behavior do not enforce these boundaries.
+
+Qualification uses `tools/run-tests integration check_e2e_watch` for repeated
+client connections, premature closes, rejected input and collector stalls while
+the automation VNC endpoint remains responsive. The isolated GTK test is
+`tests/ui/test_e2e_watch.py::test_window_survives_stop_reconnect_and_resize`.
+For acceptance, run `E2E-030/parent` (verified installation setup, real reboot,
+Parent About journey and final shutdown), and select
+`tests/ui/test_e2e_watch.py` through `tools/run-ui-tests --timeout 1300` during
+its active feed. The live tests close an initial window during automation, then
+open another, reconnect its feed repeatedly and retain it through shutdown. The acceptance
+window belongs to the private test compositor, so its fixture cleanup cannot
+close a manually opened host viewer. Per-run results remain in runner artifacts.
+
+### Listing and execution
+
 Run `tools/generate_test_coverage.sh` to completely regenerate
 [Test-Coverage.md](../../docs/Test-Coverage.md) from local test collection and
 the runtime inventory. No Codex, network service or VM is needed; use the

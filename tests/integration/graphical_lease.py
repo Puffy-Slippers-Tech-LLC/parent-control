@@ -40,6 +40,7 @@ class Adapter:
         self.events = []
         self.display = None
         self.serial = None
+        self.observer = None
 
     def revalidate(self):
         try:
@@ -51,6 +52,7 @@ class Adapter:
                 self.close_serial()
             finally:
                 self.close_display()
+                self.close_observer()
             raise
 
     def close_serial(self):
@@ -70,7 +72,12 @@ class Adapter:
                 display.close()
             log('display-closed')
 
-    def open_display(self):
+    def close_observer(self):
+        if self.observer is not None:
+            observer, self.observer = self.observer, None
+            observer.close()
+
+    def open_display(self, *, index=0):
         """Public graphics FD API on a disposable graphics connection.
 
         A failed FD RPC can close its libvirt connection. Never issue it on
@@ -92,7 +99,8 @@ class Adapter:
             log('display-attach-requested')
             # Let libvirt create/label the pair for its confined QEMU process.
             # flags=0 retains authentication. No direct QEMU socket access.
-            descriptor = domain.openGraphicsFD(0, 0)
+            require(index in (0, 1), 'graphics:display-index')
+            descriptor = domain.openGraphicsFD(index, 0)
             try:
                 display = socket.socket(fileno=descriptor)
             except BaseException:
@@ -150,6 +158,7 @@ class Adapter:
                 self.events.append('initial-off')
             else:
                 self.lease.stop()
+                self.close_observer()
                 self.phase = 'stopped'
                 self.events.append('poweroff')
             log('poweroff-complete')
@@ -159,6 +168,10 @@ class Adapter:
             # Mark first: a failed start must never permit a second create.
             self.phase = 'starting'
             self.lease.start()
+            # Preattach before automation sends any input. Opening/closing a
+            # user's viewer never causes another QEMU connection or handshake.
+            import e2e_watch
+            self.observer = e2e_watch.start(self)
             self.phase = 'running'
             self.events.append('poweron')
             log('poweron-complete')
@@ -256,7 +269,10 @@ class CallbackServer:
             try:
                 self.adapter.close_display()
             finally:
-                self.listener.close()
+                try:
+                    self.adapter.close_observer()
+                finally:
+                    self.listener.close()
 
 
 def callback(path, run, action):

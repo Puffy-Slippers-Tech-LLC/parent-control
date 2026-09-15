@@ -285,7 +285,7 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
     source.domain.ID.return_value = 17
     source.domain.autostart.return_value = False
     source.domain.XMLDesc.return_value = (
-        f'<domain><devices><graphics type="{graphics_type}"/></devices></domain>')
+        f'<domain><devices><graphics type="{graphics_type}"><listen type="none"/></graphics></devices></domain>')
     lease = runner.Lease(source, Mock(), Mock(), directory=tmp_path, graphics_type=graphics_type)
     recover = (lease.recover_graphical_cleanup if graphics_type == 'vnc'
                else lease.recover_system_cleanup)

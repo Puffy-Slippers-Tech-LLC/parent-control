@@ -104,6 +104,15 @@ open across reboot, shutdown, failure cleanup and subsequent attempts; it shows
 Waiting between available displays and resumes automatically. Only closing the
 window yourself ends it. Automation neither owns nor signals your viewer process.
 
+The title is `[current/total] [ID]: Title`, using the selected invocation's case
+count (including the case in progress), numeric coverage ID and inventory title.
+The top reserves three lines for the current inventory step description; the
+bottom reserves one line for the operation about to run. Long text is ellipsized.
+Recorder phase changes clear the previous operation, and disconnected feeds
+clear the previous case. Progress is optional display metadata, never acceptance
+evidence. Case/step messages are also logged by the recorder, and fixed worker
+operation messages remain in the private worker log.
+
 The window is output only. Mouse, keyboard, scrolling, clipboard and window
 resizing have no route into the guest, including while the pointer is over the
 window. You can continue working on the host. The guest cursor is drawn from

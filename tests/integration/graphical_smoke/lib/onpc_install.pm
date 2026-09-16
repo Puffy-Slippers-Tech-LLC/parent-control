@@ -1,6 +1,7 @@
 package onpc_install;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use onpc_password ();
 
@@ -89,10 +90,12 @@ sub _command_diagnostic {
 # boot and VerifiedInputs checks; acknowledgements precede irreversible input.
 # No caller command, asset path, password value or capture option is accepted.
 sub run {
+    onpc_progress::operation('Installing the application');
     return _run($_[0], 0, scalar @_);
 }
 
 sub run_refusal {
+    onpc_progress::operation('Checking refused installation');
     return _run($_[0], 1, scalar @_);
 }
 

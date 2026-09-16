@@ -1,6 +1,7 @@
 package onpc_vt6;
 use strict;
 use warnings;
+use onpc_progress ();
 use JSON::PP ();
 use testapi ();
 use onpc_password ();
@@ -32,6 +33,7 @@ sub _input_console {
 # Selected only by the guarded authentication qualification controller.
 # No installation command, logout or retry is implicit in login.
 sub authenticate {
+    onpc_progress::operation('Authenticating at the fixture terminal');
     die "vt6:already-attempted\n" if $attempted++;
     my ($exchange) = @_;
     my $ok = eval {
@@ -101,6 +103,7 @@ sub authenticate {
 # Collect the missing reviewed fixture/challenge pixels without provisioning,
 # reading or submitting a password. This is not an authentication fallback.
 sub inspect_prompt {
+    onpc_progress::operation('Inspecting the terminal login prompt');
     die "vt6:already-attempted\n" if $attempted++;
     my ($exchange) = @_;
     my $ok = eval {

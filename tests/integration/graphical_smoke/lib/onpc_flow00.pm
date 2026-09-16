@@ -1,6 +1,7 @@
 package onpc_flow00;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use onpc_harness ();
 use onpc_gdm ();
@@ -8,6 +9,7 @@ use onpc_serial ();
 
 # FLOW00's serial phase also preserves the existing run_functional entry point.
 sub serial {
+    onpc_progress::operation('Running the serial console checks');
     my ($exchange) = @_;
     my $count = scalar @_;
     return onpc_serial::attempt($exchange, sub {
@@ -23,6 +25,7 @@ sub serial {
 }
 
 sub run {
+    onpc_progress::operation('Starting graphical and console checks');
     my ($journey, $exchange) = @_;
     die 'flow00:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
         && ref($exchange) eq 'CODE';

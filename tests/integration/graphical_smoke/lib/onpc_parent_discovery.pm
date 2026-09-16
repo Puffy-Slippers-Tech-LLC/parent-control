@@ -1,12 +1,14 @@
 package onpc_parent_discovery;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_gdm ();
 
 sub run {
+    onpc_progress::operation('Checking existing and newly added children');
     my ($exchange) = @_;
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-discovery', review => 0,
@@ -25,6 +27,7 @@ sub run {
 }
 
 sub run_none {
+    onpc_progress::operation('Checking Parent with no eligible children');
     my ($exchange) = @_;
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-empty', review => 0,

@@ -91,6 +91,7 @@ class InstalledJourney:
         require(type(review) is bool and (not review or plan.review_mode is not None),
                 plan.prefix + ':review-mode')
         self.context, self.progress, self.plan = context, progress, plan
+        self.watch_progress = getattr(getattr(context, 'recorder', None), 'progress', None)
         self.review = review
         self.actions = actions or {}
         require(set(self.actions) == set(plan.stage_actions.values())
@@ -130,6 +131,8 @@ class InstalledJourney:
 
     def dismiss_system_prompt(self, stage, point, guard):
         """One ordered pointer request within the worker's existing rendezvous."""
+        if self.watch_progress is not None:
+            self.watch_progress.operation('Dismissing the login-keyring prompt')
         require(not self.review, 'ui:system-prompt-review')
         sequence = self.prompt_counts.get(stage, 0) + 1
         require(sequence <= 3, 'ui:system-prompt-limit')
@@ -188,6 +191,8 @@ class InstalledJourney:
             if self.review:
                 reply[plan.review_mode] = True
         elif stage == 'setup-detached':
+            if self.watch_progress is not None:
+                self.watch_progress.operation('Installing and preparing the application')
             hostname = system.address(context.lease.source, timeout=90)
             (context.directory / 'known-hosts').write_text(f'{hostname} {context.host_key}\n')
             config = {'directory': str(context.directory), 'hostname': hostname,
@@ -209,7 +214,7 @@ class InstalledJourney:
             tag = plan.screen_tags[stage]
             if tag.startswith('ui:'):
                 if self.ui is None:
-                    self.ui = UiObservations(self.transport)
+                    self.ui = UiObservations(self.transport, progress=self.watch_progress)
                 self.ui.system_prompt = lambda point: self.dismiss_system_prompt(stage, point, guard)
                 observed['ui'] = self.ui.observe(tag[3:])
             reply = {'observed': stage}
@@ -219,6 +224,8 @@ class InstalledJourney:
                 reply['ui_pointer'] = observed['ui']['pointer']
         self.check_settings(stage, observed)
         if stage in plan.stage_actions:
+            if self.watch_progress is not None:
+                self.watch_progress.operation('Preparing the declared child-account fixture')
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)
         guard()
@@ -279,6 +286,7 @@ def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=N
 
     try:
         enter('setup')
+        recorder.progress.operation('Provisioning the declared fixture accounts')
         context.credentials.provision(context.lease, context.verified, context.directory,
                                       context.guestfs, context.commands)
         artifact('inputs', 'input-provenance', context.verified.inputs)

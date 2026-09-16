@@ -2,6 +2,7 @@
 
 import argparse
 import array
+import json
 import os
 from pathlib import Path
 import socket
@@ -10,7 +11,7 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
-from e2e_watch_protocol import Frames, layout, require
+from e2e_watch_protocol import Frames, layout, progress_packet, require
 
 # Supported QEMU org.qemu.Display1.Listener API, copied image path only.
 # Deliberately do not advertise Unix.Map/DMABUF (synchronous/GPU acknowledgements).
@@ -84,6 +85,18 @@ class Display:
         return False
 
 
+def receive_progress(control, frames):
+    """Controller-only metadata; no viewer or guest command channel."""
+    packet, _, flags, _ = control.recvmsg(3501)
+    if not packet:
+        return False
+    require(not flags & socket.MSG_TRUNC, 'progress-size')
+    value = json.loads(packet)
+    require(progress_packet(value) == packet, 'progress-packet')
+    frames.publish(progress=value)
+    return True
+
+
 def export_listener(connection, display, failed):
     from gi.repository import Gio, GLib
     def method(_connection, _sender, _path, _interface, name, parameters, invocation):
@@ -134,11 +147,9 @@ def main():
         nonlocal last_beat
         try:
             try:
-                if control.recv(16) != b'':
+                if not receive_progress(control, frames):
                     loop.quit()
                     return False
-                loop.quit()
-                return False
             except BlockingIOError:
                 pass
             for _ in range(4):

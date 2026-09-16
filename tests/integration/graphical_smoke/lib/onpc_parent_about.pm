@@ -1,6 +1,7 @@
 package onpc_parent_about;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use onpc_journey ();
 use onpc_parent ();
@@ -8,12 +9,14 @@ use onpc_gdm ();
 
 # ABOUT01/02: the registered adapter composes public menu/link actions and reads.
 sub open_about {
+    onpc_progress::operation('Opening About');
     my ($journey, $selected) = @_;
     $journey->consume_observation('parent-selected', $selected);
     return $journey->seen('about');
 }
 
 sub open_license {
+    onpc_progress::operation('Opening the license');
     my ($journey, $about) = @_;
     $journey->consume_observation('about', $about);
     return $journey->seen('license');
@@ -21,6 +24,7 @@ sub open_license {
 
 # UI18: consume fresh active-window proof, close once, observe the destination.
 sub close_window {
+    onpc_progress::operation('Closing the current window');
     my ($journey, $window, $proof) = @_;
     my %stages = (license => ['license', 'license-closed'],
                   about => ['about-returned', 'parent-returned']);
@@ -33,6 +37,7 @@ sub close_window {
 
 # ABOUT04: explicit preserved keyboard route, then public reveal/text observation.
 sub read_footer {
+    onpc_progress::operation('Reading the About footer');
     my ($journey, $returned, $route) = @_;
     die 'about:footer-binding' unless @_ == 3 && $route eq 'tab-end';
     $journey->consume_observation('license-closed', $returned);
@@ -43,6 +48,7 @@ sub read_footer {
 
 # ABOUT03: recipe-owned settings comparison runs before the terminal reply.
 sub return_to_parent {
+    onpc_progress::operation('Returning to Parent');
     my ($journey, $license, $route) = @_;
     my $returned = close_window($journey, 'license', $license);
     my $footer = read_footer($journey, $returned, $route);
@@ -50,6 +56,7 @@ sub return_to_parent {
 }
 
 sub run {
+    onpc_progress::operation('Checking About and license information');
     my ($exchange, $review) = @_;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'parent', review => $review);
     # Password recipient checks stay in the qualified input helper. From the

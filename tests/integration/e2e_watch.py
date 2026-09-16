@@ -80,8 +80,9 @@ class Observer:
     after three seconds, including while the controller waits on guest work.
     """
 
-    def __init__(self, display, uid, run):
+    def __init__(self, display, uid, run, *, progress=None):
         self.display = display
+        self.progress = progress
         self.child = self.pidfd = self.publication = self.thread = None
         self.control = self.listener = None
         self.stop = threading.Event()
@@ -116,6 +117,7 @@ class Observer:
 
     def _monitor(self):
         deadline = time.monotonic() + 5
+        last_progress = None
         try:
             while not self.stop.is_set():
                 try:
@@ -130,6 +132,15 @@ class Observer:
                         log('available')
                 elif message == b'':
                     break
+                if self.progress is not None:
+                    progress = self.progress.snapshot()
+                    if progress != last_progress:
+                        from e2e_watch_protocol import progress_packet
+                        try:
+                            self.control.send(progress_packet(progress), socket.MSG_DONTWAIT)
+                            last_progress = progress
+                        except BlockingIOError:
+                            pass  # Coalesce updates; never block scenario execution.
                 if time.monotonic() > deadline:
                     log('collector-timeout')
                     break
@@ -195,7 +206,8 @@ def start(adapter):
         return None
     observer = None
     try:
-        observer = Observer(adapter.open_display(index=1), int(uid), adapter.run)
+        observer = Observer(adapter.open_display(index=1), int(uid), adapter.run,
+                            progress=getattr(adapter.lease, 'watch_progress', None))
         if not observer.ready.wait(6) or observer.finished.is_set():
             observer.close()
             log('disabled')

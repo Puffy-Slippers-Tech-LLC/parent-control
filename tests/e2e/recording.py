@@ -14,6 +14,7 @@ import time
 
 from evidence import CLEANUP_FIELDS, fields, seconds, unique_strings
 import inventory
+from tools.e2e_progress import Progress, operation_labels
 from private_artifacts import EvidenceError, require
 
 
@@ -44,10 +45,11 @@ class ScenarioRecorder:
     Report failure is latched in the contract before any further operation.
     """
 
-    def __init__(self, contract, collector):
+    def __init__(self, contract, collector, *, progress=None):
         require(contract.run_id == collector.run_id, 'recording:collector-run')
         self.contract, self.collector = contract, collector
         self._cases = contract.plan['cases']
+        self.progress = progress if progress is not None else Progress(self._cases)
         self._records = []
         self._case = self._record = self._active = None
         self._started = None
@@ -86,6 +88,7 @@ class ScenarioRecorder:
         try:
             save_checkpoint(self.collector, self._sequence, event, {
                 'active_step': self._active['step_id'] if self._active else None,
+                'progress': self.progress.snapshot(),
                 'record': self.records[-1],
             })
         except BaseException:
@@ -109,6 +112,7 @@ class ScenarioRecorder:
             'cleanup': {key: None if key == 'lease_phase' else False for key in CLEANUP_FIELDS},
         }
         self._records.append(self._record)
+        self.progress.case(case_id)
         self.checkpoint('case-started')
 
     def run_case(self, case_id, *, execute, cleanup):
@@ -179,6 +183,7 @@ class ScenarioRecorder:
                 pass  # Preserve the input refusal if its checkpoint also fails.
             raise
         import e2e_worker
+        self.progress.follow_worker(directory, operation_labels(e2e_worker.DISTRIBUTION / 'lib'))
         before = len(self.contract.failure_state(self._case['case_id'])['failures'])
         try:
             require(type(serial) is bool and (not serial or credentials is not None),
@@ -288,6 +293,7 @@ class ScenarioRecorder:
         before = len(self.contract.failure_state(self._case['case_id'])['failures'])
         original = None
         try:
+            self.progress.step(expected['description'])
             self.checkpoint('step-started')
             require(phase == 'cleanup' or self.elapsed() <= self._case['duration_seconds'],
                     'recording:deadline')

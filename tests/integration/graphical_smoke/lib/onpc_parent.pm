@@ -1,12 +1,14 @@
 package onpc_parent;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use onpc_gdm ();
 use onpc_password ();
 use onpc_pointer ();
 
 sub login_functional {
+    onpc_progress::operation('Signing in as [Parent user]');
     my ($journey) = @_;
     die 'parent:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::reattach_functional();
@@ -15,6 +17,7 @@ sub login_functional {
 
 # GDM07: registered fresh accounts; setup reattachment belongs to the envelope.
 sub sign_in {
+    onpc_progress::operation('Signing in through the greeter');
     my ($journey, $account, $wrong_account, $expected) = @_;
     die 'parent:entry-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
         && ($account eq 'parent' || $account eq 'other-child')
@@ -31,6 +34,7 @@ sub sign_in {
 
 # SEARCH01: consume an independently observed desktop; return the empty field.
 sub open_search {
+    onpc_progress::operation('Opening public app search');
     my ($journey, $desktop, $surface) = @_;
     die 'parent:search-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && $surface eq 'overview';
@@ -44,6 +48,7 @@ sub open_search {
 
 # UI21: a fresh public target routes one click; a separate read proves focus.
 sub focus_search {
+    onpc_progress::operation('Focusing the app search field');
     my ($journey, $field, $surface) = @_;
     die 'parent:search-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && $surface eq 'overview';
@@ -54,6 +59,7 @@ sub focus_search {
 
 # SEARCH03: two paced inputs, each independently read, without input repair.
 sub enter_search_query {
+    onpc_progress::operation('Entering the Parent app search query');
     my ($journey, $focused, $product) = @_;
     die 'parent:search-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && $product eq 'Oh No! Parent Control';
@@ -67,6 +73,7 @@ sub enter_search_query {
 
 # SEARCH06: explicit observed desktop; stop at the launchable result, before Enter.
 sub search_whole_query {
+    onpc_progress::operation('Finding Parent through public app search');
     my ($journey, $desktop, $product, $result_stage) = @_;
     die 'parent:search-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
         && $product eq 'Oh No! Parent Control' && $result_stage eq 'app-grid';
@@ -78,6 +85,7 @@ sub search_whole_query {
 
 # SEARCH05/PARENT01, only the registered Parent/whole-query/new-window binding.
 sub open_management {
+    onpc_progress::operation('Opening Parent');
     my ($journey, $desktop, $route) = @_;
     die 'parent:launch-binding' unless @_ == 3 && $route eq 'whole-query';
     my $result = search_whole_query($journey, $desktop, 'Oh No! Parent Control', 'app-grid');
@@ -88,6 +96,7 @@ sub open_management {
 
 # FLOW15's bounded GDM/fresh/Parent/success route. Other routes remain unsupported.
 sub enter_desktop {
+    onpc_progress::operation('Entering the Parent desktop');
     my ($journey, $source, $account, $entry, $expected) = @_;
     die 'parent:desktop-binding' unless @_ == 5 && $source eq 'gdm' && $account eq 'parent'
         && $entry eq 'fresh' && $expected eq 'success';
@@ -96,6 +105,7 @@ sub enter_desktop {
 
 # FLOW01: independently supplied greeter, new Parent window, explicit child.
 sub open_for_child {
+    onpc_progress::operation('Opening Parent for [Child user]');
     my ($journey, $source, $entry, $window, $child) = @_;
     die 'parent:flow-binding' unless @_ == 5 && $source eq 'gdm' && $entry eq 'fresh'
         && $window eq 'new' && ($child eq 'existing' || $child eq 'child');
@@ -108,6 +118,7 @@ sub open_for_child {
 # PARENT02/UI15: opened public list -> UI14 -> Enter -> independent selection.
 # The caller may already hold the opened list at a recorder phase boundary.
 sub select_child {
+    onpc_progress::operation('Selecting [Child user] from the child selector');
     my ($journey, $child, $opened, $list_stage, $highlight_stage, $selected_stage) = @_;
     my %bindings = (
         child => 'child-picker-opened/child-choice-highlighted/parent-selected',
@@ -125,6 +136,7 @@ sub select_child {
 }
 
 sub login_standard_functional {
+    onpc_progress::operation('Signing in as [Standard user]');
     my ($journey) = @_;
     die 'parent:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::reattach_functional();
@@ -134,6 +146,7 @@ sub login_standard_functional {
 # Installed account pixels and negative recipient qualification are shared by
 # Parent customers. An observation tag alone never authorizes password input.
 sub login {
+    onpc_progress::operation('Signing in as [Parent user]');
     my ($journey, $functional) = @_;
     onpc_gdm::reattach_after_setup();
     $journey->seen('installed-greeter');
@@ -154,6 +167,7 @@ sub login {
 }
 
 sub launch_from_app_grid {
+    onpc_progress::operation('Launching Parent from the app grid');
     my ($journey) = @_;
     open_app_grid($journey);
     testapi::type_string('Oh No! Parent Control');
@@ -162,6 +176,7 @@ sub launch_from_app_grid {
 }
 
 sub open_app_grid {
+    onpc_progress::operation('Opening the app grid');
     my ($journey) = @_;
     testapi::send_key('super-a');
     testapi::assert_screen('onpc-parent-app-grid', 30);
@@ -169,6 +184,7 @@ sub open_app_grid {
 }
 
 sub login_standard {
+    onpc_progress::operation('Signing in as [Standard user]');
     my ($journey) = @_;
     onpc_gdm::reattach_after_setup();
     $journey->seen('installed-greeter');
@@ -191,6 +207,7 @@ sub login_standard {
 }
 
 sub select_existing_child {
+    onpc_progress::operation('Selecting [Existing child] from the child selector');
     my ($journey) = @_;
     onpc_pointer::click('onpc-parent-child-picker', 90);
     # Choose the reviewed existing fixture through the ordinary dropdown.

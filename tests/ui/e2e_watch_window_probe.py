@@ -9,7 +9,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from e2e_watch_protocol import Frames, SIZE
-from e2e_watch_viewer import Feed, application
+from e2e_watch_viewer import Feed, application, TITLE
 
 mode = os.environ.get('ONPC_WATCH_LIVE', '0')
 live = mode != '0'
@@ -33,6 +33,9 @@ started = time.monotonic()
 stage = 0
 evidence = {'live': live, 'frames': 0, 'reconnects': 0, 'max_age_ms': 0}
 failure = None
+progress = dict(current=3, total=5, case_id='3', title='Parent child discovery',
+                step='For both variants, reject the wrong-account prompt. ' * 40,
+                operation='Selecting [Existing child] from the child selector ' * 20)
 
 
 def inspect():
@@ -66,16 +69,25 @@ def inspect():
             source = Frames('a' * 32)
             source.publish(b'\0\0\xff\0' * 12, b'\xff' * 4, state='live', width=4, height=3,
                 stride=16, format=0x20020888, cursor_width=1, cursor_height=1,
-                cursor_x=2, cursor_y=1, cursor_on=True)
+                cursor_x=2, cursor_y=1, cursor_on=True, progress=progress)
             stage = 1
         elif stage == 1 and app.screen.texture is not None:
             assert app.screen.texture.get_width() == 4 and app.screen.cursor is not None
+            assert app.window.get_title() == '[3/5] [3]: Parent child discovery'
+            assert app.step.get_text() == progress['step']
+            assert app.status.get_text() == progress['operation']
+            assert app.step.get_layout().get_line_count() <= 3
+            assert app.status.get_layout().get_line_count() == 1
+            assert app.step.get_layout().is_ellipsized()
+            assert app.status.get_layout().is_ellipsized()
+            evidence['progress_visible_and_truncated'] = True
             assert app.screen.texture.save_to_png(str(output.with_suffix('.png')))
             source.close()
             source = None
             stage = 2
         elif stage == 2 and app.screen.texture is None:
             assert app.window.get_mapped()
+            assert app.window.get_title() == TITLE and app.step.get_text() == ''
             evidence['stopped_window_still_open'] = True
             source = Frames('b' * 32)
             source.publish(b'\xff\0\0\0' * 12, state='live', width=4, height=3,
@@ -83,6 +95,7 @@ def inspect():
             stage = 3
         elif stage == 3 and app.screen.texture is not None:
             assert app.screen.meta['run'] == 'b' * 32 and app.window.get_mapped()
+            assert app.window.get_title() == TITLE and app.step.get_text() == ''
             assert not app.screen.get_focusable()
             app.window.set_default_size(700, 600)
             evidence['resumed_same_window'] = True

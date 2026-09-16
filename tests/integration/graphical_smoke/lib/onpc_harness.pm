@@ -1,11 +1,13 @@
 package onpc_harness;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 
 # HAR01: select an existing console, never create or reconnect it. The initial
 # runner selection is the only binding which permits an unselected console.
 sub select_console {
+    onpc_progress::operation('Selecting the test console');
     my ($from, $to) = @_;
     die 'harness:console-binding' unless @_ == 2 && defined($from) && defined($to)
         && (($from eq 'initial' && $to eq 'sut')

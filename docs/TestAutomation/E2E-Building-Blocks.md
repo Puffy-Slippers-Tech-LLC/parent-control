@@ -1078,6 +1078,20 @@ choose a customer's expected result or query internal product state.
 
 ## Add a consumer
 
+The recorder automatically publishes each selected case's numeric ID, title,
+invocation position/total and current phase description to `tools/watch-e2e`.
+Keep descriptions in `scenarios.json` complete: the viewer uses that same text.
+Before a Perl building block acts, call
+`onpc_progress::operation('Fixed nonsecret description')`; use literal prose and
+redacted role labels, never credentials, entered text or observed account names.
+The shared publisher keeps the latest operation in the private worker directory
+and logs it before input. The controller only forwards literal labels declared
+by the maintained worker. Public UI adapter operations declare their prose in
+`ui_observations.OPERATION_LABELS` and publish it before observation/action.
+[Progress regressions](../../tests/unit/test_e2e_progress.py) require messages for
+new public worker blocks and UI operations, and check inventory/recorder timing.
+Viewing cannot authorize input or change scenario acceptance.
+
 1. Select one inventory variant and its complete visible result. Identify the
    required fixtures and surfaces. Reuse accepted setup; installation mechanics
    do not become customer assertions. If a shared operation is missing, name the

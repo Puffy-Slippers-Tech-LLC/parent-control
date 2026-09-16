@@ -197,8 +197,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                 'source_sha256': source_check['source_sha256'],
                 'inventory_sha256': plan['inventory_sha256'], 'case': case}
             input_directory = directory / 'input'
-            installed_consumer = (case['category'] == 'customer-journey'
-                                  and 'installed-digest-verified-product' in case['preconditions'])
+            from suite_lease import needs_installed
+            installed_consumer = needs_installed(case)
             if installed_consumer:
                 from installed_setup import stage
                 stage(directory, staged, bootstrap_inputs)
@@ -222,7 +222,10 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
         with lease:
             try:
                 with ledger.measure('preparation'):
-                    lease.prepare()
+                    if suite is None:
+                        lease.prepare()
+                    else:
+                        suite.prepare_case(case, directory, staged, bootstrap_inputs, root=root)
                     host_key = system.bootstrap(commands, lease, directory, guestfs,
                                                 observation_only=not installed_consumer)
                     lease.guard(off=True)
@@ -241,6 +244,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     lease.watch_progress = recorder.progress
                     context = ScenarioContext(recorder, verified, directory, commands,
                                               guestfs, host_key, credentials)
+                    context.installed_snapshot = (lease.installed_name
+                        if suite is not None and installed_consumer else None)
 
                     def cleanup(_recorder, held):
                         if suite is None:
@@ -341,8 +346,7 @@ def main(plan):
     from e2e_watch import ProgressPublication
     publication = ProgressPublication(progress)
     from suite_lease import Suite
-    suite = (Suite(open_source, verify_backing_bytes=plan.get('verify_backing_bytes', True))
-             if len(plan['cases']) > 1 else None)
+    suite = Suite(open_source, verify_backing_bytes=plan.get('verify_backing_bytes', True))
     previous_progress = system.watch_progress
     system.watch_progress = progress
     try:
@@ -354,7 +358,9 @@ def main(plan):
             collector.save_report('invocation-started', report)
             expected_inputs = None
             try:
-                for case in plan['cases']:
+                for index, case in enumerate(plan['cases']):
+                    suite.next_case = (plan['cases'][index + 1]
+                        if index + 1 < len(plan['cases']) else None)
                     result = attempt(plan, case, expected_inputs=expected_inputs, progress=progress,
                                      **({'suite': suite} if suite is not None else {}))
                     report['attempts'].append(result)

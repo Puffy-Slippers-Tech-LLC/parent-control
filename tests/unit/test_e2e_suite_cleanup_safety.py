@@ -2,6 +2,7 @@
 
 import fcntl
 import os
+import xml.etree.ElementTree as ET
 from contextlib import nullcontext
 from unittest.mock import Mock
 
@@ -195,3 +196,180 @@ def test_suite_closes_connection_even_after_audit_or_host_failure(monkeypatch, f
         suite.close()
     suite.lease.audit.assert_called_once()
     suite.source.close.assert_called_once()
+
+
+@pytest.fixture
+def snapshots(suite):
+    lease, current = suite
+    domain = lease.source.domain
+    baseline = domain.snapshotLookupByName.return_value
+    # The baseline fixture may use its supported historical snapshot name.
+    lease.capture.directory_identity = lease.capture.private_directory()
+    baseline_name = lease.capture.read_state()['proof']['name']
+    names = {baseline_name: baseline}
+    events = []
+    def add(name, xml):
+        snap = Mock()
+        snap.getXMLDesc.return_value = xml
+        def delete(flags):
+            assert flags == 0 and lease.source.off
+            events.append(('delete', name))
+            del names[name]
+        snap.delete.side_effect = delete
+        names[name] = snap
+        return snap
+    def lookup(name, flags):
+        if name not in names:
+            raise RuntimeError('suite:installed-snapshot-missing')
+        return names[name]
+    restore = domain.revertToSnapshot.side_effect
+    def revert(snap, flags):
+        name = next(name for name, value in names.items() if value is snap)
+        events.append(('restore', name))
+        restore(snap, flags)
+    def create(xml, flags):
+        assert lease.source.off and current['xml'] == lease.original_xml
+        assert flags == 0
+        root = ET.fromstring(xml)
+        assert root.find('memory').get('snapshot') == 'no'
+        name = root.findtext('name')
+        assert name not in names
+        events.append(('create', name))
+        return add(name, xml)
+    domain.snapshotLookupByName.side_effect = lookup
+    domain.snapshotListNames.side_effect = lambda flags: list(names)
+    domain.revertToSnapshot.side_effect = revert
+    domain.snapshotCreateXML.side_effect = create
+    return lease, names, events, add, baseline_name
+
+
+@pytest.fixture
+def prepared_suite(snapshots, tmp_path, monkeypatch):
+    import installed_setup
+    import provenance
+    import vm_transport
+    lease, names, events, add, baseline_name = snapshots
+    owner = suite_lease.Suite(Mock())
+    owner.lease = lease
+    owner.guestfs = Mock()
+    owner.commands = Mock()
+    owner.commands.run.return_value = b'1.1+test~26.04\n'
+    monkeypatch.setattr(installed_setup, 'stage', Mock())
+    monkeypatch.setattr(system, 'bootstrap', Mock(return_value='ssh-ed25519 fixture'))
+    monkeypatch.setattr(system, 'address', Mock(return_value='fixture-host'))
+    monkeypatch.setattr(provenance, 'VerifiedInputs', Mock())
+    monkeypatch.setattr(vm_transport, 'Transport', Mock())
+    setup = Mock()
+    setup.run.side_effect = lambda *args, **kwargs: events.append(('install-reboot', kwargs['verify']))
+    monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock(return_value=setup))
+    return owner, tmp_path, setup, snapshots
+
+
+@pytest.mark.parametrize('stale', [False, True])
+def test_installed_suite_installs_once_and_restores_next_case_without_extra_audits(prepared_suite, stale):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    name = 'onpc-1.1+test~26.04'
+    if stale:
+        add(name, '<stale/>')
+    installed = {'preconditions': ['installed-digest-verified-product']}
+    clean = {'preconditions': ['accepted-product-free-baseline']}
+    cases = [installed, installed, clean, installed]
+    for index, case in enumerate(cases):
+        owner.next_case = cases[index + 1] if index + 1 < len(cases) else None
+        lease.ledger = system.RunLedger()
+        with lease:
+            owner.prepare_case(case, directory, directory, {}, root=directory)
+            assert lease._restored_name == (name if case is installed else baseline_name)
+            lease.start()
+            lease.stop()
+        assert lease.capture.verification_totals['calls'] == 1
+        assert lease.inspect.call_count == 1
+    setup.run.assert_called_once_with(lease.guard, verify=False)
+    assert [event for event in events if event[0] == 'restore'] == [
+        ('restore', baseline_name), ('restore', name), ('restore', name),
+        ('restore', baseline_name), ('restore', name), ('restore', baseline_name)]
+    if stale:
+        assert events[:3] == [('restore', baseline_name), ('delete', name), ('install-reboot', False)]
+    lease.audit()
+    assert name not in names and baseline_name in names
+    assert events[-1] == ('delete', name)
+    assert lease.capture.verification_totals['calls'] == 2
+    assert lease.inspect.call_count == 2
+    lease.source.domain.destroyFlags.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['install', 'snapshot-create', 'case'])
+def test_suite_failure_restores_baseline_and_deletes_installed_snapshot(prepared_suite, fault):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    installed = {'preconditions': ['installed-digest-verified-product']}
+    owner.next_case = installed
+    if fault == 'install':
+        setup.run.side_effect = RuntimeError('injected failure')
+    if fault == 'snapshot-create':
+        create = lease.source.domain.snapshotCreateXML.side_effect
+        def fail(*args):
+            create(*args)  # libvirt can create metadata before an RPC fails.
+            raise RuntimeError('injected failure')
+        lease.source.domain.snapshotCreateXML.side_effect = fail
+    with pytest.raises(RuntimeError, match='injected failure'):
+        with lease:
+            owner.prepare_case(installed, directory, directory, {}, root=directory)
+            lease.start()
+            raise RuntimeError('injected failure')
+    lease.audit()
+    assert list(names) == [baseline_name]
+    assert lease._restored_name == baseline_name
+    assert lease.fd is None
+
+
+def test_missing_installed_snapshot_stops_without_reinstall_or_restore_retry(prepared_suite):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    installed = {'preconditions': ['installed-digest-verified-product']}
+    owner.next_case = installed
+    with pytest.raises(RuntimeError, match='installed-snapshot-missing'):
+        with lease:
+            owner.prepare_case(installed, directory, directory, {}, root=directory)
+            lease.start()
+            del names[lease.installed_name]
+            lease.stop()
+    before = list(events)
+    with pytest.raises(RuntimeError, match='cleanup-incomplete'):
+        lease.audit()
+    assert events == before and setup.run.call_count == 1
+    assert lease.fd is None
+
+
+@pytest.mark.parametrize('name', ['onpc-1.1', 'onpc-baseline', '../onpc-1.1', 'other-1.1'])
+def test_interrupted_suite_recovery_only_deletes_journaled_version(snapshots, name):
+    lease, names, events, add, baseline_name = snapshots
+    lease.__enter__()
+    lease.prepare()
+    lease.state['e2e_snapshot'] = name
+    lease.save('isolated')
+    if name != baseline_name:
+        add(name, '<snapshot/>')
+    system.Lease.release(lease)  # Simulate controller exit before starting a case.
+    recovery = system.Lease(lease.source, lease.commands, lease.inspect,
+        directory=lease.directory, anchor=lease.capture.anchor, graphics_type='vnc')
+    before = list(events)
+    if name == 'onpc-1.1':
+        recovery.recover_graphical_cleanup()
+        assert events[len(before):] == [('restore', baseline_name), ('delete', name)]
+        assert recovery.state['phase'] == 'complete'
+    else:
+        with pytest.raises(RuntimeError, match='snapshot-identity'):
+            recovery.recover_graphical_cleanup()
+        assert events == before
+    assert baseline_name in names
+    assert recovery.fd is None
+
+
+def test_inventory_package_lifecycle_cases_use_clean_baseline():
+    import json
+    from tests.support.paths import ROOT
+    inventory = json.loads((ROOT / 'tests/e2e/scenarios.json').read_text())
+    families = {family['id']: family for family in inventory['scenarios']}
+    for name in ('E2E-001', 'E2E-002', 'E2E-026', 'E2E-027'):
+        assert not suite_lease.needs_installed(families[name])
+    for name in ('E2E-003', 'E2E-004', 'E2E-028', 'E2E-030'):
+        assert suite_lease.needs_installed(families[name])

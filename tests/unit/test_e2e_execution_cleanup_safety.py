@@ -250,7 +250,7 @@ def test_installed_preparation_uses_customer_prerequisites_without_a_case_id_swi
     execution.system.bootstrap.side_effect = RuntimeError('stop after inspecting bootstrap inputs')
     result = run(harness)
     assert result['outcome'] == 'failed'
-    expected = category == 'customer-journey' and installed
+    expected = installed
     assert execution.system.bootstrap.call_args.kwargs['observation_only'] is not expected
     assert stage.call_count == int(expected)
     if expected:
@@ -445,6 +445,21 @@ def public(harness, monkeypatch):
     # metadata checks inside PrivateCollector and the rest of the process.
     monkeypatch.setattr(execution, 'os', SimpleNamespace(**(vars(execution.os) | {
         'geteuid': lambda: 0, 'getegid': lambda: 0, 'umask': Mock()})))
+    # Substitute suite VM operations using this fixture's existing fake lease.
+    # The real suite lifecycle is exercised with real locks in suite tests.
+    import suite_lease
+    def suite_factory(opener, *, verify_backing_bytes):
+        suite = Mock(lease=None, backend_checked=False, credentials_checked=False,
+                     commands=execution.Commands())
+        def acquire(ledger):
+            source, guestfs = opener()
+            suite.lease = execution.system.Lease(source, suite.commands, Mock(),
+                ledger=ledger, graphics_type='vnc', verify_backing_bytes=verify_backing_bytes)
+            return source, guestfs, suite.lease
+        suite.acquire.side_effect = acquire
+        suite.prepare_case.side_effect = lambda *args, **kwargs: suite.lease.prepare()
+        return suite
+    monkeypatch.setattr(suite_lease, 'Suite', suite_factory)
     original = execution.attempt
     monkeypatch.setattr(execution, 'attempt',
         lambda plan, case, **kwargs: original(plan, case, root=harness.root, **kwargs))

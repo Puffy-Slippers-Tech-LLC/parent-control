@@ -578,6 +578,7 @@ class Lease:
         self.save('cleanup-requested')
         self.stop()
         self.restore()
+        self.delete_suite_snapshot()
         log('stage:restored-baseline-verification')
         if self.backing_run is not None:
             self.capture.begin_backing_verification(self)
@@ -589,6 +590,18 @@ class Lease:
         self.source.connection.defineXML(self.original_xml)
         self.capture.revalidate(off=True)
         self.save('complete')
+
+    def delete_suite_snapshot(self):
+        """Recovery may remove only the journaled E2E version, while off."""
+        name = self.state.get('e2e_snapshot')
+        if name is None:
+            return
+        require(isinstance(name, str) and
+                re.fullmatch(r'onpc-[0-9][A-Za-z0-9.+:~\-]*', name),
+                'suite:invalid-snapshot-name')
+        self.guard(off=True)
+        if name in self.source.domain.snapshotListNames(0):
+            self.source.domain.snapshotLookupByName(name, 0).delete(0)
 
     def release(self):
         pending = None
@@ -641,7 +654,7 @@ class Lease:
             baseline.identity(self.journal, private=True, mode=0o600)
             state = baseline.parse_json(self.journal.read_bytes())
             isolated = isinstance(state, dict) and state.get('phase') == 'isolated'
-            require(isinstance(state, dict) and set(state) == {
+            require(isinstance(state, dict) and set(state) - {'e2e_snapshot'} == {
                 'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
                 'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
                 state['phase'] in ('running', 'cleanup-requested', 'isolated') and
@@ -651,6 +664,10 @@ class Lease:
                 state['domain_uuid'] == self.source.uuid and
                 state['baseline_sha256'] == hashlib.sha256(baseline.encode(self.capture.state)).hexdigest(),
                 'recovery:journal-identity')
+            require('e2e_snapshot' not in state or (
+                self.view.graphics_type == 'vnc' and isinstance(state['e2e_snapshot'], str) and
+                re.fullmatch(r'onpc-[0-9][A-Za-z0-9.+:~\-]*', state['e2e_snapshot'])),
+                'recovery:snapshot-identity')
             maintenance = self.directory / 'vm-control.json'
             if os.path.lexists(maintenance):
                 baseline.identity(maintenance, private=True, mode=0o600)
@@ -696,6 +713,7 @@ class Lease:
                 require(self.source.domain.ID() == -1 and
                         self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) ==
                         self.original_xml, 'recovery:off-configuration-changed')
+                self.delete_suite_snapshot()
                 self.save('complete')
                 log('recovery:verified-restored-off')
                 return

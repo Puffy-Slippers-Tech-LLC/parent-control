@@ -263,8 +263,16 @@ tools/run-tests e2e --scenario 'E2E-003/none' --artifacts '/tmp/onpc-test-artifa
 tools/run-tests e2e --scenario 'E2E-004/app-grid' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
 ```
 
-Each selected case gets its own guarded attempt and baseline restoration. The
-invocation stops after the first failed attempt, including evidence or cleanup
+Each invocation installs and reboots once, then captures a powered-off
+`onpc-[version]` snapshot using the full Debian package version. An existing
+same-name snapshot is deleted after restoring `onpc-baseline`, then rebuilt.
+Each case gets its own guarded attempt: installed-app prerequisites restore the
+version snapshot; installation/removal cases restore `onpc-baseline`. A missing
+version snapshot fails immediately without reinstalling. The previous case's
+direct restore selects the next case's snapshot, preserving one restore per
+transition and the existing boundary-only audits. Final cleanup restores the
+clean baseline and deletes the version snapshot, including on case failure.
+The invocation stops after the first failed attempt, including evidence or cleanup
 failure, and retains the expected case list and pending exclusions in its report.
 The current ready set contains the E2E-001 harness smoke,
 E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid and E2E-030/parent:

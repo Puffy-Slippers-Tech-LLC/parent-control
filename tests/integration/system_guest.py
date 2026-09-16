@@ -111,6 +111,10 @@ def before_install():
 
 def install():
     before_install()
+    install_package()
+
+
+def install_package():
     enable_diagnostics()
     os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
     run(['apt-get', 'update'], timeout=600)
@@ -346,6 +350,14 @@ def install_setup():
     install()
 
 
+def install_suite():
+    """Unconditional suite prerequisite; customer installation tests are separate."""
+    marker = guard()
+    require(sha(PAYLOAD / 'selected-inputs.json') == marker['selected_inputs_sha256'],
+            'selected-inputs-digest')
+    install_package()
+
+
 def verify_setup():
     """Feature fixture setup only; no product-policy or activation assertions."""
     marker = guard()
@@ -371,10 +383,11 @@ def main(argv=None):
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
                              ['install-previous'], ['upgrade'], ['install-setup'],
-                             ['verify-setup']), 'invalid-command')
+                             ['verify-setup'], ['install-suite']), 'invalid-command')
             {'guard': guard, 'before-install': before_install, 'install': install,
              'install-previous': install_previous, 'upgrade': upgrade,
-             'install-setup': install_setup, 'verify-setup': verify_setup}[argv[0]]()
+             'install-setup': install_setup, 'verify-setup': verify_setup,
+             'install-suite': install_suite}[argv[0]]()
         return 0
     except Exception as error:
         category = str(error) if isinstance(error, (GuestError, CommandError)) else 'unexpected-failure'

@@ -43,7 +43,6 @@ def compare_settings(observed, expected):
 class UiObservations:
     def __init__(self, transport, *, system_prompt=None):
         self.transport = transport
-        self.initial_settings = None
         self.last_operation = None
         self.wrong_recipient_refused = False
         self.standard_wrong_recipient_refused = False
@@ -130,14 +129,6 @@ class UiObservations:
                 r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', value)
                         for value in settings['allowance']), 'ui:settings')
             expected['settings'] = settings
-            # Retained About adapter only. Discovery's recipe now owns explicit
-            # immutable observations and comparisons in InstalledJourney.
-            if operation == 'parent-selected':
-                require(self.initial_settings is None, 'ui:selection-replay')
-                self.initial_settings = settings
-            elif operation == 'parent-returned':
-                require(self.initial_settings is not None and settings == self.initial_settings,
-                        'ui:settings-changed')
         require(result == expected, 'ui:response')
         if operation == 'gdm-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')

@@ -12,6 +12,7 @@ use warnings;
 use JSON::PP;
 our $review = shift;
 our $fault = shift;
+our $entry = shift // '';
 our @events;
 our $clicked = '';
 our $matched = '';
@@ -58,12 +59,30 @@ sub mouse_width { $main::fault eq 'dimensions' ? 1920 : $main::fault eq 'native'
 sub mouse_height { $main::fault eq 'native' ? 768 : 800 }
 package main;
 require onpc_parent_about;
-my $ok = eval { onpc_parent_about::run(sub {
+my $exchange = sub {
+    die 'checkpoint failed' if $fault eq 'checkpoint' && $_[0] eq 'license-closed';
+    die 'recipient refused' if $fault eq $_[0] && $_[0] =~ /recipient/;
     die 'picker failed' if $fault eq 'click' && $_[0] eq 'child-picker-opened';
     die 'selection failed' if $fault eq 'screen' && $_[0] eq 'parent-selected';
     push @events, ['stage', $_[0]];
-    return {ui_keys => ['home', 'down']};
-}, $review); 1; };
+    return {ui_keys => ['home', 'down']} if $_[0] =~ /(?:greeter|list|picker-opened)$/;
+    return {observed => $_[0]};
+};
+my $ok = eval {
+    if ($entry eq 'legacy') {
+        my $journey = onpc_journey->new(exchange => $exchange, prefix => 'unit', review => $review);
+        onpc_parent::login($journey, 1);
+    } elsif ($entry) {
+        my $journey = onpc_journey->new(exchange => $exchange, prefix => 'unit', review => $review);
+        my $proof = $fault eq 'missing' ? {} : $journey->seen('license');
+        $journey->seen('about') if $fault eq 'stale';
+        onpc_parent_about::return_to_parent($journey, $proof, 'tab-end');
+        onpc_parent_about::return_to_parent($journey, $proof, 'tab-end') if $fault eq 'replay';
+    } else {
+        onpc_parent_about::run($exchange, $review);
+    }
+    1;
+};
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
 
@@ -102,7 +121,7 @@ print encode_json(\@events);
 @pytest.mark.parametrize('review', ['0', '1'])
 @pytest.mark.parametrize('fault', ['recipient', 'click'])
 def test_qualification_cannot_bypass_password_recipient_or_click_matches(review, fault):
-    result = json.loads(run_perl(PROBE, review, fault).stdout)
+    result = json.loads(run_perl(PROBE, review, fault, 'legacy' if fault == 'recipient' else '').stdout)
     assert not result['ok']
     if fault == 'recipient':
         assert ['secret'] not in result['events']
@@ -138,15 +157,57 @@ def test_functional_journey_uses_semantic_results_without_explicit_capture():
     assert result['events'][-1] == ['power', 'off']
 
 
+@pytest.mark.parametrize('fault', ['', 'missing', 'stale', 'replay', 'checkpoint'])
+def test_return_block_accepts_independent_entry_and_never_replays_uncertain_input(fault):
+    result = json.loads(run_perl(PROBE, '0', fault, 'return').stdout)
+    assert result['ok'] == (not fault)
+    keys = [event[1] for event in result['events'] if event[0] == 'key']
+    if fault in ('missing', 'stale'):
+        assert not keys
+    elif fault == 'checkpoint':
+        assert keys == ['alt-f4']
+    else:
+        assert keys == ['alt-f4', 'tab', 'end', 'alt-f4']
+    assert not any(event[0] in ('secret', 'click', 'text') for event in result['events'])
+
+
+def test_close_observation_precedes_footer_input_and_return_close():
+    result = json.loads(run_perl(PROBE, '0', '', 'return').stdout)
+    assert result['events'] == [
+        ['stage', 'license'], ['key', 'alt-f4'], ['stage', 'license-closed'],
+        ['key', 'tab'], ['key', 'end'], ['stage', 'about-returned'],
+        ['key', 'alt-f4'], ['stage', 'parent-returned'],
+    ]
+
+
 @pytest.mark.parametrize('fault,coordinates', [('', [1087, 67]), ('native', [870, 65])])
 def test_pointer_uses_public_framebuffer_dimensions_and_matched_interior(fault, coordinates):
-    result = json.loads(run_perl(PROBE, '0', fault).stdout)
+    result = json.loads(run_perl(PROBE, '0', fault, 'legacy').stdout)
     assert result['ok']
     assert ['pointer', *coordinates] in result['events']
 
 
 @pytest.mark.parametrize('fault', ['dimensions', 'weak'])
 def test_unsupported_display_or_weak_match_cannot_authorize_a_click(fault):
-    result = json.loads(run_perl(PROBE, '0', fault).stdout)
+    result = json.loads(run_perl(PROBE, '0', fault, 'legacy').stdout)
     assert not result['ok']
     assert not any(event[0] in ('pointer', 'click', 'secret') for event in result['events'])
+
+
+@pytest.mark.parametrize('stage', ['wrong-recipient-refused', 'recipient-qualified', 'recipient-rechecked'])
+def test_about_sign_in_requires_wrong_recipient_refusal_and_two_fresh_checks(stage):
+    result = json.loads(run_perl(PROBE, '0', stage).stdout)
+    assert not result['ok']
+    assert ['secret'] not in result['events']
+
+
+def test_about_sign_in_uses_functional_proofs_immediately_before_one_secret():
+    result = json.loads(run_perl(PROBE, '0', '').stdout)
+    assert result['ok']
+    events = result['events']
+    assert events.count(['secret']) == 1
+    index = events.index(['secret'])
+    assert events[index - 2:index] == [
+        ['stage', 'recipient-qualified'], ['stage', 'recipient-rechecked']]
+    assert events.index(['stage', 'wrong-recipient-refused']) < index - 2
+    assert not any(event[0] in ('assert', 'check', 'pointer', 'click') for event in events)

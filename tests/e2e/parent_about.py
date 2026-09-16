@@ -5,13 +5,18 @@ from installed_journey import (
 )
 
 SCREEN_TAGS = {
-    'installed-greeter': 'onpc-gdm-parent-installed-account',
-    'recipient-qualified': 'onpc-gdm-parent-masked-password',
-    'desktop': 'ui:desktop', 'app-grid': 'ui:app-grid',
+    'installed-greeter': 'ui:gdm-other-list',
+    'other-parent-focused': 'ui:gdm-other-focused',
+    'wrong-recipient-refused': 'ui:gdm-wrong-recipient-refused',
+    'parent-list': 'ui:gdm-list', 'parent-focused': 'ui:gdm-focused',
+    'recipient-qualified': 'ui:gdm-parent-recipient',
+    'recipient-rechecked': 'ui:gdm-parent-recipient-rechecked',
+    'desktop': 'ui:desktop', 'app-grid': 'ui:app-grid', 'parent-window': 'ui:parent-window',
     'child-picker-opened': 'ui:child-picker-opened',
     'child-choice-highlighted': 'ui:child-choice-highlighted',
     'parent-selected': 'ui:parent-selected', 'about': 'ui:about',
-    'license': 'ui:license', 'about-returned': 'ui:about-returned',
+    'license': 'ui:license', 'license-closed': 'ui:license-closed',
+    'about-returned': 'ui:about-returned',
     'parent-returned': 'ui:parent-returned',
 }
 PLAN = JourneyPlan(
@@ -19,14 +24,18 @@ PLAN = JourneyPlan(
     screen_tags=SCREEN_TAGS,
     phases={
         'ready': 'setup', 'setup-detached': 'setup', 'installed-greeter': 'start',
-        'recipient-qualified': 'step-1', 'desktop': 'step-1', 'app-grid': 'step-1',
-        'child-picker-opened': 'step-1',
+        'other-parent-focused': 'step-1', 'wrong-recipient-refused': 'step-1',
+        'parent-list': 'step-1', 'parent-focused': 'step-1',
+        'recipient-qualified': 'step-1', 'recipient-rechecked': 'step-1',
+        'desktop': 'step-1', 'app-grid': 'step-1',
+        'parent-window': 'step-1', 'child-picker-opened': 'step-1',
         'child-choice-highlighted': 'step-1',
         'parent-selected': 'step-1', 'about': 'step-1', 'license': 'step-1',
-        'about-returned': 'step-2', 'parent-returned': 'step-2',
+        'license-closed': 'step-2', 'about-returned': 'step-2', 'parent-returned': 'step-2',
     },
     # The reply permits closing LICENSE. Open the return phase before that input.
     advance_after={'license': 'step-2'},
+    settings_checks={'parent-returned': 'parent-selected'},
 )
 STAGES = PLAN.stages
 

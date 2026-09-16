@@ -1,6 +1,7 @@
 """Customer controller preserves ownership and durable input acknowledgement."""
 
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -57,6 +58,37 @@ def test_boot_replacement_refuses_before_next_customer_action(tmp_path):
     assert not (tmp_path / (stage + '.reply.json')).exists()
 
 
+@pytest.mark.parametrize('fault', [None, 'child', 'toggle', 'allowance', 'missing', 'missing-earlier', 'replay'])
+def test_about_return_uses_explicit_immutable_settings_before_reply(tmp_path, fault):
+    stage = 'parent-returned'
+    progress = Mock()
+    journey = parent_about.ParentJourney(SimpleNamespace(directory=tmp_path), progress)
+    journey.steps = [{'stage': name} for name in parent_about.STAGES[:parent_about.STAGES.index(stage)]]
+    original = {'child': 'fixture-child', 'limit_enabled': False, 'allowance': ['30 minutes']}
+    if fault != 'missing-earlier':
+        journey.check_settings('parent-selected', {'ui': {'settings': original}})
+    # Mutating the source cannot mutate the scenario's saved immutable value.
+    original['allowance'].append('1 hour')
+    returned = {'child': 'fixture-child', 'limit_enabled': fault == 'toggle',
+                'allowance': ['45 minutes' if fault == 'allowance' else '30 minutes']}
+    if fault == 'child': returned['child'] = 'existing-fixture-child'
+    result = {'operation': stage, 'outcome': 'passed', 'interface': 'AT-SPI'}
+    if fault != 'missing': result['settings'] = returned
+    if fault == 'replay': journey.check_settings(stage, {'ui': result})
+    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'a' * 64}))
+    journey.ui = SimpleNamespace(observe=Mock(return_value=result))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
+        progress.assert_not_called()
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert progress.call_args.args[1]['comparison']['outcome'] == 'passed'
+        assert (tmp_path / (stage + '.reply.json')).exists()
+
+
 def test_installed_prompt_matches_existing_qualified_secret_recipient():
     result = match_image(ROOT / 'tests/fixtures/installed-parent-prompt.png',
                          'onpc-gdm-parent-masked-password')
@@ -78,9 +110,13 @@ def test_installed_wrong_role_prompt_refuses_the_parent_secret_needle():
 @pytest.mark.parametrize('fault', ['missing-return', 'stale-return', 'wrong-child', 'weak-match',
                                   'alternate', 'wrong-alternate', 'weak-alternate'])
 def test_terminal_evidence_refuses_missing_or_reused_return(tmp_path, monkeypatch, fault):
+    # Retain strict legacy matcher reconciliation coverage independently of the
+    # now fully functional About recipe.
+    plan = replace(parent_about.PLAN, screen_tags={
+        'legacy-greeter': 'onpc-gdm-parent-installed-account', **parent_about.SCREEN_TAGS})
     details = []
     observations = []
-    for index, (stage, tag) in enumerate(parent_about.SCREEN_TAGS.items()):
+    for index, (stage, tag) in enumerate(plan.screen_tags.items()):
         if tag.startswith('ui:'):
             observations.append({'stage': stage, 'ui': {'operation': tag[3:], 'outcome': 'passed'}})
         else:
@@ -104,8 +140,8 @@ def test_terminal_evidence_refuses_missing_or_reused_return(tmp_path, monkeypatc
     (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
     monkeypatch.setattr(installed_journey, 'screenshot', lambda *_: {'sha256': 'a'*64})
     if fault == 'alternate':
-        screens = parent_about.matched_screens(tmp_path, observations)
+        screens = installed_journey.matched_screens(tmp_path, plan, observations)
         assert screens[0]['needle'] == 'onpc-gdm-parent-baseline-installed-account'
     else:
         with pytest.raises(EvidenceError, match='parent:'):
-            parent_about.matched_screens(tmp_path, observations)
+            installed_journey.matched_screens(tmp_path, plan, observations)

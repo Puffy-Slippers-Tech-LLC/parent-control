@@ -51,11 +51,13 @@ Every `tools/run-tests` category runs independently of its terminal. Closing the
 terminal detaches the display; tests continue. Ctrl+C requests cancellation and
 waits for owned cleanup. Invoke `tools/run-tests` in a new terminal to attach to
 the existing progress and final output, including its exit status. While a run
-is active or has an unread result, every invocation warns and attaches to it,
+is active or has an unread successful result, every invocation warns and attaches to it,
 ignoring all new arguments—even another category, invalid options, `--help`,
 `--list`, or no arguments. The original selection and options remain in effect.
-A result completed while detached is replayed on the next invocation;
-after delivery, the next invocation starts a fresh run. Session output and ownership
+A failed or incomplete idle session can be replaced by an explicit new selection;
+its output is preserved and startup recovery runs before the new checks.
+Invoke without arguments to replay any unread result. After delivery, the next
+invocation starts a fresh run. Session output and ownership
 records live under `artifacts/test-sessions/`. Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
@@ -240,16 +242,22 @@ untouched, and subsequent runs use a fresh journal.
 Storage leases exclude active owners; deletion uses recorded directory identities
 and pinned descriptors, refusing replacements, symlink ancestors and mounts.
 No `/tmp/onpc-*` or `/var/tmp/onpc-*` prefix sweep is used. An unfinished retention
-journal after abrupt termination stops another run before allocating more output;
-preserve it and reconcile the owner/recovery condition. The aggregate can recover
-automatically when its checkout and storage locks are free, its sole allocation
-is the report, and saved progress proves it stopped in the legacy serial initial safety checks
-before any protected suite started. It archives the unfinished journal as
-`artifacts/test-retention/interrupted-<run>.json`, preserving all referenced
-evidence outside normal rotation, and starts a fresh run. A `recovery-required`
-marker, parallel cleanup phase, or ambiguous/later progress still refuses automatic recovery.
-Partial bucket results cannot prove that every child exited. Ordinary test failures
-and cooperative Ctrl+C finish their storage ownership and permit the next run.
+journal after abrupt termination triggers automatic recovery in `tools/run-tests`
+before the selected checks start. The launcher must hold checkout activity ownership
+and acquire the storage owner locks; a live owner is never killed or displaced.
+The installed `check_test_recovery` route reconciles the VM through the existing
+identity-checked recovery controller and shared VM lease. It also runs before a
+new VM category, so a stale VM journal cannot strand otherwise completed host work.
+Recovery runs its mandatory cleanup-safety prerequisites, not product suites.
+
+After VM recovery succeeds, unfinished retention journals and recovery markers
+are archived as `recovered-<run>.json` and `recovered-<run>.marker`. Every registered
+allocation must pass ownership, identity and mount validation before its blocker
+is cleared. Evidence remains in the normal three-run rotation; recovery itself
+does not delete logs or scan temporary-directory prefixes. Recovery is retryable.
+Changed identities, an active lease, unsupported VM interruption phases, or a failed
+baseline audit still refuse a new run and preserve evidence with a diagnostic.
+Ordinary test failures and cooperative Ctrl+C finish their storage ownership.
 Fixture setup/teardown or pytest infrastructure failures pin host evidence with
 `recovery-required` instead of assuming every fixture exited successfully.
 Deletion failures also stop the next run instead of silently accumulating output.

@@ -62,6 +62,43 @@ class Store:
     def __init__(self, path):
         self.path = Path(path)
 
+    def reconcile(self, guard):
+        """Recover an idle owner, retaining its evidence in normal rotation.
+
+        The caller holds checkout activity ownership; the privileged guard
+        additionally reconciles the recorded VM under its independent lease.
+        Never signal processes or discover disposable paths by name.
+        """
+        ensure_directory(self.path)
+        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
+            guard()
+            with self.locked(fd, 'writer.lock'):
+                state = self.read(fd)
+                marked = 'recovery-required' in os.listdir(fd)
+                if state is None:
+                    if marked:
+                        raise ValueError('retention: recovery marker has no journal')
+                    return False
+                if state['finished'] and not marked:
+                    return False
+                for entry in [state, *state['history']]:
+                    for record in entry['paths']:
+                        remove(record, validate_only=True)
+                run = uuid.UUID(hex=state['run']).hex
+                archive = f'recovered-{run}.json'
+                if archive not in os.listdir(fd):
+                    self.save(fd, state, name=archive)
+                if marked:
+                    marker = os.stat('recovery-required', dir_fd=fd, follow_symlinks=False)
+                    private(marker, regular=True)
+                    os.rename('recovery-required', f'recovered-{run}.marker',
+                              src_dir_fd=fd, dst_dir_fd=fd)
+                    os.fsync(fd)
+                state['finished'] = True
+                self.save(fd, state)
+                print('Recovered idle test retention; previous evidence retained.', flush=True)
+                return True
+
     @contextmanager
     def opened(self):
         fd = directory(self.path)

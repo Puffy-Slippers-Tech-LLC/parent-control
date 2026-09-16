@@ -9,6 +9,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 import regression_session
 from regression_process import Control
 import test_commands
+import test_recovery
+
+# This process exercises session ownership against a temporary checkout. Its
+# recovery behavior is covered separately; never dispatch host/VM work here.
+test_recovery.before_run = lambda root, argv: 0
 
 dispatch = test_commands._main
 

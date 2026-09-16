@@ -583,6 +583,53 @@ def test_off_recovery_audits_exact_restoration_without_vm_mutations(lease_rig, f
     lease.source.connection.defineXML.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', [None, 'instance', 'run', 'busy', 'maintenance'])
+@pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])
+def test_dead_running_owner_recovery_requires_its_vm_identity_and_lease(lease_rig, fault, graphics_type):
+    import system_runner as runner
+    lease, current = lease_rig
+    lease.view.graphics_type = graphics_type
+    lease.__enter__()
+    lease.prepare()
+    lease.start()
+    lease.release()
+    recovery = runner.Lease(lease.source, lease.commands, lease.inspect,
+                            directory=lease.directory, anchor=lease.capture.anchor,
+                            graphics_type=graphics_type)
+    recover = (recovery.recover_graphical_cleanup if graphics_type == 'vnc'
+               else recovery.recover_system_cleanup)
+    journal = lease.journal.read_bytes()
+    if fault == 'instance':
+        current['id'] = 72
+    if fault == 'run':
+        current['xml'] = current['xml'].replace(lease.state['run'], 'b' * 32)
+    if fault == 'maintenance':
+        path = lease.directory / 'vm-control.json'
+        path.write_text(json.dumps({'run': lease.state['run']}))
+        path.chmod(0o600)
+    lease.source.domain.reset_mock()
+    lease.source.connection.reset_mock()
+    if fault == 'busy':
+        import fcntl
+        with lease.capture.lock_path.open('rb') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with pytest.raises(runner.Error, match='busy-controller'):
+                recover()
+    elif fault:
+        with pytest.raises((runner.Error, baseline.CaptureError)):
+            recover()
+    else:
+        recover()
+        assert recovery.state['phase'] == 'complete'
+        assert current['xml'] == lease.original_xml
+        lease.source.domain.revertToSnapshot.assert_called_once()
+    if fault:
+        assert lease.journal.read_bytes() == journal
+        lease.source.domain.revertToSnapshot.assert_not_called()
+        lease.source.domain.destroyFlags.assert_not_called()
+    assert recovery.fd is None
+
+
 @pytest.mark.parametrize('fault', ['none', 'active', 'run', 'sharing', 'backing', 'instance'])
 @pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])
 def test_prestart_recovery_restores_only_recorded_off_isolation(lease_rig, fault, graphics_type):

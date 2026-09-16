@@ -266,7 +266,9 @@ def test_failed_observation_never_releases_graphical_input(tmp_path):
 
 
 @pytest.mark.parametrize('change,category', [
-    ({'phase': 'running'}, 'journal-identity'),
+    ({'phase': 'running'}, None),
+    ({'phase': 'unknown'}, 'journal-identity'),
+    ({'phase': 'complete'}, 'journal-identity'),
     ({'run': 'invalid'}, 'journal-identity'),
     ({'domain_uuid': 'replacement'}, 'journal-identity'),
     ({'domain_id': None}, 'journal-identity'),

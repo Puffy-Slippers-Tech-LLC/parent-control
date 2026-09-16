@@ -632,13 +632,19 @@ class Lease:
             require(isinstance(state, dict) and set(state) == {
                 'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
                 'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
-                state['phase'] in ('cleanup-requested', 'isolated') and
+                state['phase'] in ('running', 'cleanup-requested', 'isolated') and
                 isinstance(state['run'], str) and re.fullmatch(r'[0-9a-f]{32}', state['run']) and
                 ((isolated and state['domain_id'] is None) or
                  (not isolated and type(state['domain_id']) is int and state['domain_id'] >= 0)) and
                 state['domain_uuid'] == self.source.uuid and
                 state['baseline_sha256'] == hashlib.sha256(baseline.encode(self.capture.state)).hexdigest(),
                 'recovery:journal-identity')
+            maintenance = self.directory / 'vm-control.json'
+            if os.path.lexists(maintenance):
+                baseline.identity(maintenance, private=True, mode=0o600)
+                owner = baseline.parse_json(maintenance.read_bytes())
+                require(isinstance(owner, dict) and owner.get('run') != state['run'],
+                        'recovery:maintenance-owned; use tools/test-vm stop')
             off = self.source.domain.ID() == -1
             require(not self.source.domain.autostart() and
                     (off if isolated else (off or self.source.domain.ID() == state['domain_id'])),

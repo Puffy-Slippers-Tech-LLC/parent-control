@@ -32,6 +32,162 @@ def advance_to_expiry(store):
             pass
 
 
+@pytest.mark.parametrize('fault', [None, 'active', 'guard', 'replaced', 'marker-link'])
+def test_idle_reconciliation_preserves_evidence_and_refuses_unsafe_recovery(tmp_path, fault):
+    store = retention.Store(tmp_path / 'state')
+    with store.session() as run:
+        evidence = allocated(tmp_path, 'evidence')
+        retention.preserve_for_recovery()
+    original = (store.path / 'current.json').read_bytes()
+    marker = store.path / 'recovery-required'
+    if fault == 'replaced':
+        evidence.rename(tmp_path / 'original')
+        evidence.mkdir(mode=0o700)
+    if fault == 'marker-link':
+        marker.rename(tmp_path / 'marker')
+        marker.symlink_to(tmp_path / 'marker')
+    def guard():
+        if fault == 'guard':
+            raise ValueError('VM recovery refused')
+    if fault == 'active':
+        with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+            with pytest.raises(ValueError, match='another owner'):
+                store.reconcile(guard)
+    elif fault:
+        with pytest.raises(ValueError):
+            store.reconcile(guard)
+    else:
+        assert store.reconcile(guard)
+        assert not store.reconcile(guard)
+        assert (store.path / f'recovered-{run}.json').read_bytes() == original
+        assert not marker.exists()
+        assert json.loads((store.path / 'current.json').read_text())['finished']
+        assert (evidence / 'test.log').exists()
+        # Recovered allocations still participate in bounded normal retention.
+        advance_to_expiry(store)
+        with store.session():
+            pass
+        assert not evidence.exists()
+    if fault:
+        assert (store.path / 'current.json').read_bytes() == original
+        assert marker.exists()
+        assert evidence.exists()
+
+
+@pytest.mark.parametrize('status', [0, 1])
+def test_unattended_integration_runs_safety_before_recovery(tmp_path, monkeypatch, capsys, status):
+    dispatcher = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
+    dispatcher['run'].__globals__['selection'] = lambda *args: ['recovery']
+    commands = []
+    def execute(command, **kwargs):
+        output = capsys.readouterr().out
+        if command == ['safety']:
+            assert 'cleanup prerequisites starting (unprivileged)' in output
+        else:
+            assert 'cleanup prerequisites passed; selected operation starting' in output
+        commands.append(command)
+        return status if command == ['safety'] else 0
+    control = SimpleNamespace(run=execute, installed=lambda **kw: nullcontext(control))
+    monkeypatch.setattr(dispatcher['runpy'], 'run_path', lambda path: {
+        'Control': lambda: control, 'safety_command': lambda root: ['safety']})
+    dispatcher['run'].__globals__['confined_file'] = lambda *args: tmp_path / 'control'
+    monkeypatch.setattr(dispatcher['os'], 'getgrouplist', lambda *args: [])
+    caller = SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name='fixture',
+                             pw_dir=str(tmp_path))
+    assert dispatcher['run'](tmp_path, ['--unattended', 'integration', 'check_test_recovery'], caller) == status
+    assert commands == ([['safety']] if status else [['safety'], ['recovery']])
+    if status:
+        assert 'selected operation was not started' in capsys.readouterr().err
+
+
+def test_recovery_safety_output_names_each_check():
+    import regression_process
+    root = Path(__file__).resolve().parents[2]
+    command = regression_process.safety_command(root)
+    assert '-v' in command and '-q' not in command
+
+
+def test_idle_reconciliation_retries_after_marker_archive_and_failed_commit(tmp_path, monkeypatch):
+    store = retention.Store(tmp_path / 'state')
+    with store.session() as run:
+        evidence = allocated(tmp_path, 'evidence')
+        retention.preserve_for_recovery()
+    save = store.save
+    def failed_commit(fd, value, *, name='current.json'):
+        if name == 'current.json':
+            raise OSError('simulated commit failure')
+        save(fd, value, name=name)
+    monkeypatch.setattr(store, 'save', failed_commit)
+    with pytest.raises(OSError, match='commit failure'):
+        store.reconcile(lambda: None)
+    archived = (store.path / f'recovered-{run}.json').read_bytes()
+    assert not json.loads((store.path / 'current.json').read_text())['finished']
+    monkeypatch.setattr(store, 'save', save)
+    assert store.reconcile(lambda: None)
+    assert (store.path / f'recovered-{run}.json').read_bytes() == archived
+    assert (evidence / 'test.log').exists()
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_launcher_reconciles_only_idle_pending_storage(tmp_path, monkeypatch, failed):
+    import test_recovery
+    import test_retention as live_retention
+    import regression_process
+    monkeypatch.setattr(test_recovery.test_activity, 'descriptors', lambda: (123,))
+    store = live_retention.Store(tmp_path / 'artifacts/test-retention')
+    with store.session():
+        live_retention.preserve_for_recovery()
+    calls = []
+    def recover(root, category, args, **kwargs):
+        calls.append((category, args))
+        return int(failed)
+    monkeypatch.setattr(regression_process, 'category_run', recover)
+    if failed:
+        with pytest.raises(ValueError, match='automatic recovery failed'):
+            test_recovery.before_run(tmp_path, ['unit', 'selected'])
+        assert (store.path / 'recovery-required').exists()
+    else:
+        test_recovery.before_run(tmp_path, ['unit', 'selected'])
+        test_recovery.before_run(tmp_path, ['unit', 'selected'])
+        assert not (store.path / 'recovery-required').exists()
+    assert calls == [('integration', ['check_test_recovery'])]
+
+
+@pytest.mark.parametrize('fault', [None, 'busy', 'recovery-failed'])
+def test_automatic_vm_recovery_keeps_guard_refusals(tmp_path, monkeypatch, fault):
+    import check_test_recovery as recovery
+    calls = []
+    def guard(root):
+        calls.append('guard')
+        if fault == 'busy':
+            raise BlockingIOError('lease is held')
+        if calls == ['guard']:
+            raise ValueError('retention: VM recovery is unfinished; preserve evidence')
+    monkeypatch.setattr(recovery.runpy, 'run_path', lambda path: {'retention_guard': guard})
+    def finish(**kwargs):
+        assert kwargs == {'graphics_type': None}
+        calls.append('recover')
+        return int(fault == 'recovery-failed')
+    monkeypatch.setattr(recovery.check_graphical_recovery, 'main', finish)
+    if fault:
+        with pytest.raises((ValueError, BlockingIOError)):
+            recovery.reconcile_vm(tmp_path)
+    else:
+        recovery.reconcile_vm(tmp_path)
+    assert calls == (['guard'] if fault == 'busy' else
+                     ['guard', 'recover'] if fault else ['guard', 'recover', 'guard'])
+
+
+@pytest.mark.parametrize('argv', [[], ['--help'], ['system', '--list'], ['unit', 'selected']])
+def test_clean_host_or_listing_does_not_request_recovery(tmp_path, monkeypatch, argv):
+    import test_recovery
+    import regression_process
+    monkeypatch.setattr(test_recovery.test_activity, 'descriptors', lambda: (123,))
+    monkeypatch.setattr(regression_process, 'category_run',
+                        lambda *args, **kwargs: pytest.fail('unnecessary recovery'))
+    assert test_recovery.before_run(tmp_path, argv) == 0
+
+
 @pytest.fixture
 def repetition_tree():
     # Only the bounded repetition workload uses /tmp (tmpfs on the host).

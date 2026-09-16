@@ -179,19 +179,25 @@ def run(root, argv, caller):
         # cancellation channel, never a command or privileged path source.
         argv = argv[1:]
         command = selection(root, argv)
-        if argv[0] not in ('system', 'e2e') or '--list' in argv:
+        if argv[0] not in ('integration', 'system', 'e2e') or '--list' in argv:
             raise ValueError('test-runner:invalid-unattended-category')
+        if retention_run and argv[0] == 'integration':
+            raise ValueError('test-runner:invalid-retention-category')
         module = runpy.run_path(str(confined_file(root, 'tools/regression_process.py')))
         sys.path.insert(0, str(root / 'tools'))
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                        'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1',
                        'PYTHONUNBUFFERED': '1'}
         with module['Control']().installed(pipe=True) as control:
+            print('test-runner: cleanup prerequisites starting (unprivileged)', flush=True)
             status = control.run(module['safety_command'](root), cwd=root, env=environment,
                                  user=caller.pw_uid, group=caller.pw_gid,
                                  extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid))
             if status:
+                print('test-runner: cleanup prerequisites failed; selected operation was not started',
+                      file=sys.stderr, flush=True)
                 return status
+            print('test-runner: cleanup prerequisites passed; selected operation starting', flush=True)
             environment.update(PKEXEC_UID=str(caller.pw_uid), HOME='/root')
             import test_retention
             checkout_id = hashlib.sha256(str(root).encode()).hexdigest()[:16]
@@ -245,8 +251,10 @@ def main():
         if uid <= 0:
             raise ValueError('test-runner:unprivileged-caller-required')
         return run(Path(CHECKOUT), sys.argv[1:], pwd.getpwuid(uid))
-    except (ValueError, KeyError, OSError):
-        print('test-runner: invalid request, missing prerequisite, or execution failure', file=sys.stderr)
+    except (ValueError, KeyError, OSError) as error:
+        detail = str(error) if isinstance(error, ValueError) and str(error).startswith(
+            ('retention:', 'test-runner:')) else type(error).__name__
+        print('test-runner: ' + detail, file=sys.stderr)
         return 2
 
 

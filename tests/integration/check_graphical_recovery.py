@@ -9,13 +9,14 @@ import sys
 import tempfile
 import threading
 import time
+import xml.etree.ElementTree as ET
 
 import system_runner as runner
 
 
 def main(*, graphics_type='vnc'):
     runner.require(len(sys.argv) == 1, 'recovery:invalid-arguments')
-    runner.require(graphics_type in ('vnc', 'spice'), 'recovery:invalid-graphics')
+    runner.require(graphics_type in (None, 'vnc', 'spice'), 'recovery:invalid-graphics')
     runner.require(os.geteuid() == os.getegid() == 0, 'recovery:root-required')
     runner.require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT,
                    'recovery:checkout')
@@ -36,6 +37,11 @@ def main(*, graphics_type='vnc'):
                 api.virEventRunDefaultImpl()
         threading.Thread(target=events, daemon=True, name='libvirt-events').start()
         source = runner.baseline.LibvirtSource(api)
+        if graphics_type is None:
+            displays = ET.fromstring(source.domain.XMLDesc(0)).findall('devices/graphics')
+            runner.require(len(displays) == 1 and displays[0].get('type') in ('vnc', 'spice'),
+                           'recovery:invalid-graphics')
+            graphics_type = displays[0].get('type')
         lease = runner.Lease(source, commands,
                             lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
                             graphics_type=graphics_type)

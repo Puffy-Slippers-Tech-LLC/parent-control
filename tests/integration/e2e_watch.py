@@ -16,6 +16,62 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from e2e_watch_protocol import BASE, require
 
 
+class ProgressPublication:
+    """Invocation heartbeat independent of VM display and lease lifetime."""
+
+    def __init__(self, progress):
+        self.progress = progress
+        self.stop = threading.Event()
+        self.thread = None
+        self.path = None
+        uid = os.environ.get('PKEXEC_UID', '')
+        if os.geteuid() != 0 or not uid.isdecimal() or int(uid) <= 0:
+            return
+        try:
+            directory = BASE / str(int(uid))
+            for parent in (BASE, directory):
+                try:
+                    parent.mkdir(mode=0o755)
+                    parent.chmod(0o755)
+                except FileExistsError:
+                    pass
+                info = parent.lstat()
+                require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
+                        and stat.S_IMODE(info.st_mode) == 0o755
+                        and parent.resolve() == parent, 'registry-owner')
+            self.path = directory / 'progress.json'
+            self.thread = threading.Thread(target=self._publish, daemon=True,
+                                           name='e2e-watch-progress')
+            self.thread.start()
+        except Exception:
+            log('progress-disabled')
+
+    def _publish(self):
+        from e2e_watch_protocol import progress_packet
+        import uuid
+        temporary = self.path.with_name(uuid.uuid4().hex + '.progress')
+        try:
+            while not self.stop.is_set():
+                value = dict(updated_ns=time.monotonic_ns(),
+                             progress=json.loads(progress_packet(self.progress.snapshot(display=True))))
+                fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+                with os.fdopen(fd, 'w') as stream:
+                    os.fchmod(stream.fileno(), 0o644)
+                    json.dump(value, stream)
+                temporary.replace(self.path)
+                self.stop.wait(.25)
+        except Exception:
+            log('progress-disabled')
+        finally:
+            # Expire our heartbeat; a subsequent invocation may already own the path.
+            temporary.unlink(missing_ok=True)
+
+    def close(self):
+        self.stop.set()
+        if self.thread is not None:
+            self.thread.join(timeout=2)
+
+
 def log(event):
     print('e2e-watch: [' + event + ']', file=sys.stderr, flush=True)
 

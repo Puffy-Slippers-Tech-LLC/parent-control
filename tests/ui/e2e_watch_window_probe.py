@@ -18,6 +18,11 @@ source = None
 
 
 class FixtureFeed(Feed):
+    invocation_progress = None
+
+    def progress(self):
+        return self.invocation_progress
+
     def connect(self):
         if source is None:
             raise FileNotFoundError
@@ -84,23 +89,40 @@ def inspect():
             assert app.screen.texture.save_to_png(str(output.with_suffix('.png')))
             source.close()
             source = None
+            now = time.monotonic_ns()
+            feed.invocation_progress = dict(current=4, total=5, case_id='4',
+                title='Next case', step='', operation='Preparing VM: check-system: [stage:isolated]',
+                started_ns=now - 3660_000_000_000, case_started_ns=now - 120_000_000_000)
             stage = 2
         elif stage == 2 and app.screen.texture is None:
             assert app.window.get_mapped()
-            assert app.window.get_title() == TITLE and app.step.get_text() == ''
+            assert app.window.get_title() == '[4/5] [4]: Next case - (2m/1h 1m)'
+            assert app.step.get_text() == ''
+            assert app.status.get_text() == feed.invocation_progress['operation'] + ' - (2m 0s)'
+            evidence['preparation_visible_without_vm'] = True
             evidence['stopped_window_still_open'] = True
+            feed.invocation_progress = None
             source = Frames('b' * 32)
+            now = time.monotonic_ns()
             source.publish(b'\xff\0\0\0' * 12, state='live', width=4, height=3,
-                           stride=16, format=0x20020888)
+                           stride=16, format=0x20020888, progress=dict(progress,
+                               step='First step after preparation', operation='Opening About',
+                               started_ns=now, case_started_ns=now, operation_started_ns=now))
             stage = 3
         elif stage == 3 and app.screen.texture is not None:
             assert app.screen.meta['run'] == 'b' * 32 and app.window.get_mapped()
-            assert app.window.get_title() == TITLE and app.step.get_text() == ''
+            assert app.window.get_title() == '[3/5] [3]: Parent child discovery - (0m/0m)'
+            assert app.step.get_text() == 'First step after preparation'
+            assert app.status.get_text() == 'Opening About - (0s)'
             assert not app.screen.get_focusable()
             app.window.set_default_size(700, 600)
             evidence['resumed_same_window'] = True
             stage = 4
         elif stage == 4:
+            if app.status.get_text() == 'Opening About - (0s)':
+                assert elapsed < 15, 'Operation timer did not advance without a new frame'
+                return True
+            assert app.status.get_text() == 'Opening About - (1s)'
             assert (source.meta['width'], source.meta['height']) == (4, 3)
             evidence['resize_did_not_change_guest'] = True
             return finish()

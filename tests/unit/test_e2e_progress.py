@@ -1,9 +1,12 @@
 """Progress follows real recorder boundaries and cannot export worker secrets."""
 
 import json
+import os
 import re
 import socket
 import threading
+import time
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -12,8 +15,9 @@ import accessible_ui
 import inventory
 from e2e_watch_collector import receive_progress
 from e2e_watch import Observer
+from e2e_watch import ProgressPublication
 from e2e_watch_protocol import Frames, progress_packet, read_frame
-from e2e_watch_viewer import progress_text
+from e2e_watch_viewer import Feed, duration_text, progress_text
 from tools.e2e_progress import Progress, operation_labels
 from ui_observations import OPERATION_LABELS, UiObservations
 from tests.support.paths import ROOT
@@ -33,8 +37,112 @@ def test_count_includes_current_case_and_uses_selected_total():
     for index, case in enumerate(selected, 1):
         progress.case(case['case_id'])
         title, step, operation = progress_text({'progress': progress.snapshot()})
-        assert title == f"[{index}/5] [{case['coverage_id']}]: {case['title']}"
-        assert step == operation == ''
+        assert title == f"[{index}/5] [{case['coverage_id']}]: {case['title']} - (0m/0m)"
+        assert step == ''
+        assert operation.startswith('Preparing VM: ')
+
+
+@pytest.mark.parametrize('seconds, expected', [(0, '0m'), (59, '0m'), (60, '1m'),
+    (3599, '59m'), (3600, '1h 0m'), (7261, '2h 1m')])
+def test_elapsed_time_format(seconds, expected):
+    assert duration_text(seconds) == expected
+
+
+def test_operation_timer_ticks_and_groups_preparation_messages(monkeypatch):
+    clock = Mock(return_value=10_000_000_000)
+    monkeypatch.setattr('tools.e2e_progress.time.monotonic_ns', clock)
+    progress = Progress(cases()[:2])
+    progress.prepare(progress.cases[0]['case_id'])
+    progress.step('Install')
+    label = 'Installing and preparing the application'
+    progress.operation(label)
+    shown = json.loads(progress_packet(progress.snapshot()))
+    for seconds, expected in ((0, '0s'), (1, '1s'), (59, '59s'),
+                              (60, '1m 0s'), (61, '1m 1s'), (3601, '60m 1s')):
+        assert progress_text({'progress': shown},
+            now_ns=10_000_000_000 + seconds * 1_000_000_000)[2] == label + f' - ({expected})'
+    clock.return_value += 65_000_000_000
+    progress.operation('Opening About')
+    assert progress_text({'progress': progress.snapshot()})[2] == 'Opening About - (0s)'
+    progress.prepare_next()
+    clock.return_value += 59_000_000_000
+    progress.preparation_output('Cleanup')
+    assert progress_text({'progress': progress.snapshot(display=True)})[2] == 'Preparing VM: Cleanup - (59s)'
+    progress.prepare(progress.cases[1]['case_id'])
+    clock.return_value += 2_000_000_000
+    progress.preparation_output('Starting VM')
+    assert progress_text({'progress': progress.snapshot()})[2] == 'Preparing VM: Starting VM - (1m 1s)'
+    progress.step('Next case')
+    assert progress_text({'progress': progress.snapshot()})[2] == ''
+
+
+def test_next_case_visible_during_cleanup_and_preparation_without_resetting_total(monkeypatch):
+    clock = Mock(return_value=10_000_000_000)
+    monkeypatch.setattr('tools.e2e_progress.time.monotonic_ns', clock)
+    progress = Progress(cases()[:2])
+    first, second = progress.cases
+    progress.prepare(first['case_id'])
+    progress.step('First case')
+    clock.return_value += 3600_000_000_000
+    progress.prepare_next()
+    line = 'check-system: [timing:stage=test duration_seconds=67.918]'
+    progress.preparation_output(line)
+    shown = progress.snapshot(display=True)
+    assert shown['current'] == 2 and shown['step'] == ''
+    assert shown['operation'] == 'Preparing VM: ' + line
+    assert progress.snapshot()['current'] == 1  # Evidence still belongs to case one.
+    clock.return_value += 120_000_000_000
+    assert progress_text({'progress': shown})[0].endswith(' - (2m/1h 2m)')
+    progress.prepare(second['case_id'])
+    progress.case(second['case_id'])  # Recorder startup must not reset the clock.
+    assert progress.snapshot()['case_started_ns'] == shown['case_started_ns']
+    progress.step('Second case starts')
+    progress.operation('Opening About')
+    progress.preparation_output('late preparation output')
+    assert progress.snapshot(display=True)['operation'] == 'Opening About'
+
+
+def test_invocation_heartbeat_survives_without_display_and_expires(tmp_path, monkeypatch):
+    # Model root ownership only; use real atomic files, the publisher thread,
+    # bounded reader and monotonic expiry without touching the host registry.
+    original_lstat, original_fstat = Path.lstat, os.fstat
+    def root_owned(info):
+        fields = list(info)
+        fields[4] = 0
+        return os.stat_result(fields)
+    monkeypatch.setattr(Path, 'lstat', lambda path: root_owned(original_lstat(path)))
+    monkeypatch.setattr(os, 'fstat', lambda fd: root_owned(original_fstat(fd)))
+    monkeypatch.setattr(os, 'geteuid', lambda: 0)
+    monkeypatch.setenv('PKEXEC_UID', str(os.getuid() or 1000))
+    monkeypatch.setattr(os, 'getuid', lambda: int(os.environ['PKEXEC_UID']))
+    monkeypatch.setattr('e2e_watch.BASE', tmp_path / 'watch')
+    monkeypatch.setattr('e2e_watch_viewer.BASE', tmp_path / 'watch')
+    progress = Progress(cases()[:2])
+    progress.prepare(progress.cases[0]['case_id'])
+    publisher = ProgressPublication(progress)
+    feed = Feed()
+    def wait_for(current):
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            value = feed.progress()
+            if value and value['current'] == current:
+                return value
+            time.sleep(.01)
+        pytest.fail('Invocation progress was not published')
+    try:
+        assert wait_for(1)['operation'].startswith('Preparing VM: ')
+        progress.step('Current case')
+        progress.prepare_next()
+        progress.preparation_output('check-system: [stage:restored-baseline-verification]')
+        assert wait_for(2)['operation'].startswith('Preparing VM: check-system: ')
+        assert feed.memory is None
+    finally:
+        publisher.close()
+    assert not publisher.thread.is_alive()
+    value = json.loads(publisher.path.read_text())
+    monkeypatch.setattr('e2e_watch_viewer.time.monotonic_ns',
+                        lambda: value['updated_ns'] + 3_000_000_000)
+    assert feed.progress() is None
 
 
 def test_every_inventory_case_exposes_title_and_exact_step_descriptions():

@@ -506,6 +506,17 @@ is recipe reuse with every original parameter binding, never sampling.
 
 ### Parent, login and time scenarios
 
+Multi-case invocations hold one exclusive VM lease across fresh-baseline cases.
+The expensive baseline audit and offline guest inspection bracket the suite.
+After collecting a case's observations, the worker's final power-off callback
+directly force-restores the accepted off snapshot; it does not wait for ACPI.
+The next case provisions its declared inputs on that restored baseline, removes
+host sharing and boots, without a second restore. Live ownership, disk identity,
+snapshot metadata and isolation checks still apply. Per-case evidence is
+provisional until the final suite audit and release; failures stop subsequent
+cases. This changes runner transitions, not any customer action or assertion.
+See [suite lease](../../tests/e2e/suite_lease.py).
+
 | Family / cases / variant parameters | Ordered recipe and visible finish line |
 | --- | --- |
 | E2E-001 / **1** / `gdm-observation` | **Harness qualification, no customer credit.** FLOW00 inside the unchanged setup/start/end/cleanup envelope. 1: HAR01(sut) → GDM02(parent, prompt) → GDM09. 2: HAR05(serial login) → HAR06(harmless command) → HAR07(logout). 3: HAR08(fresh graphics); after worker finish/shutdown, HAR10 → HAR09 and all three existing terminal assertions. The [stage contract](#case-1-stage-contract) fixes every acknowledgement and phase boundary. |
@@ -1080,6 +1091,12 @@ choose a customer's expected result or query internal product state.
 
 The recorder automatically publishes each selected case's numeric ID, title,
 invocation position/total and current phase description to `tools/watch-e2e`.
+The title appends `- (case time/total time)` in whole minutes, or hours and
+minutes from one hour onward. Case time includes preparation; total time runs
+from invocation startup. An independent progress heartbeat keeps the next case
+visible during outer cleanup and leasing, with `Preparing VM: ` followed by
+the latest controller stage output until its first step starts. Display feed
+loss still clears stale VM pixels, and expired progress returns to waiting.
 Keep descriptions in `scenarios.json` complete: the viewer uses that same text.
 Before a Perl building block acts, call
 `onpc_progress::operation('Fixed nonsecret description')`; use literal prose and

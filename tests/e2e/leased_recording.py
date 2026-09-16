@@ -2,7 +2,7 @@
 
 The caller prepares and holds the lease, freezes provenance, and keeps the
 collector open. This adapter neither acquires nor restores nor releases a VM.
-Each independent case uses its own exact selection and complete outer attempt.
+Each independent case uses its own exact selection and baseline restoration.
 """
 
 import copy
@@ -17,8 +17,9 @@ class LeasedScenario:
     ``cleanup`` is a trusted read/report callback returning CLEANUP_FIELDS from
     actual worker, VM, host and source checks. It must not mutate or release the
     lease. The existing Lease.__exit__ invokes our finalizer even after failure.
-    ``result`` must be called after leaving that context so a release failure
-    cannot be mistaken for the earlier held-lease acceptance candidate.
+    ``result`` must be called after leaving that case context. A suite may keep
+    the underlying lock; its results stay provisional until the suite audit and
+    actual release. Independent attempts release immediately.
     """
 
     def __init__(self, recorder, verified, *, cleanup):
@@ -130,7 +131,7 @@ class LeasedScenario:
 
     def result(self):
         """Reject early access, failed restoration/collection, or failed release."""
-        require(self._finished and self.lease.fd is None, 'recording:lease-not-released')
+        require(self._finished and self.lease.attempt_released, 'recording:lease-not-released')
         require(self._first_error is None and self._summary is not None
                 and not any(item['outcome'] == 'failed'
                             for item in self.ledger.outcomes.values()),

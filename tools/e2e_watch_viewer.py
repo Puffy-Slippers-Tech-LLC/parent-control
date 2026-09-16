@@ -7,18 +7,38 @@ import socket
 import stat
 import time
 
-from e2e_watch_protocol import BASE, read_frame, receive_frames, require
+from e2e_watch_protocol import BASE, progress_packet, read_frame, receive_frames, require
 
 WAITING = 'Waiting for an E2E VM. You can leave this window open.'
 TITLE = 'E2E VM — View only'
 
 
-def progress_text(meta):
+def duration_text(seconds):
+    minutes = max(0, int(seconds) // 60)
+    hours, minutes = divmod(minutes, 60)
+    return f'{hours}h {minutes}m' if hours else f'{minutes}m'
+
+
+def progress_text(meta, *, now_ns=None):
     progress = meta.get('progress') or {}
     if not progress:
         return TITLE, '', ''
-    return (f"[{progress['current']}/{progress['total']}] [{progress['case_id']}]: {progress['title']}",
-            progress['step'], progress['operation'])
+    suffix = ''
+    now = time.monotonic_ns() if now_ns is None else now_ns
+    if 'started_ns' in progress:
+        current = duration_text((now - progress['case_started_ns']) / 1e9)
+        total = duration_text((now - progress['started_ns']) / 1e9)
+        suffix = f' - ({current}/{total})'
+    operation = progress['operation']
+    started = progress.get('operation_started_ns')
+    if operation.startswith('Preparing VM:'):
+        started = progress.get('case_started_ns', started)
+    if operation and started is not None:
+        minutes, seconds = divmod(max(0, (now - started) // 1_000_000_000), 60)
+        elapsed = f'{minutes}m {seconds}s' if minutes else f'{seconds}s'
+        operation += f' - ({elapsed})'
+    return (f"[{progress['current']}/{progress['total']}] [{progress['case_id']}]: {progress['title']}" + suffix,
+            progress['step'], operation)
 
 
 class Feed:
@@ -49,6 +69,26 @@ class Feed:
         if self.memory is not None:
             self.memory.close()
             self.memory = None
+
+    def progress(self):
+        """Read only the root-owned, bounded, fresh invocation heartbeat."""
+        directory = BASE / str(os.getuid())
+        try:
+            for path in (BASE, directory):
+                info = path.lstat()
+                require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
+                        and not info.st_mode & 0o022 and path.resolve() == path, 'registry-owner')
+            fd = os.open(directory / 'progress.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, 'rb') as stream:
+                info = os.fstat(stream.fileno())
+                require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
+                        and not info.st_mode & 0o022 and info.st_size <= 4096, 'progress-owner')
+                value = json.loads(stream.read(4097))
+            age = time.monotonic_ns() - value['updated_ns']
+            require(0 <= age < 3_000_000_000, 'progress-expired')
+            return json.loads(progress_packet(value['progress']))
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
 
     def poll(self):
         now = time.monotonic()
@@ -136,6 +176,7 @@ def application(feed=None):
             super().__init__(application_id='org.onpc.E2EWatch', flags=Gio.ApplicationFlags.NON_UNIQUE)
             self.feed = feed if feed is not None else Feed()
             self.window = None
+            self.metadata = {}
 
         def do_activate(self):
             if self.window is not None:
@@ -169,22 +210,23 @@ def application(feed=None):
 
         def tick(self):
             frame = self.feed.poll()
-            if frame is None:
-                return True
             if frame == 'waiting':
                 self.screen.clear()
-                self.window.set_title(TITLE)
-                self.step.set_label('')
-                self.status.set_label(WAITING)
-            else:
-                title, step, operation = progress_text(frame[1])
-                self.window.set_title(title)
-                self.step.set_label(step)
-                self.status.set_label(operation or ('Live · View only' if frame[1]['state'] == 'live' else WAITING))
+                self.metadata = {}
+            elif frame is not None:
+                self.metadata = frame[1]
                 if frame[1]['state'] == 'live':
                     self.screen.update(frame)
                 else:
                     self.screen.clear()
+            progress = self.feed.progress()
+            meta = dict(self.metadata)
+            if progress:
+                meta['progress'] = progress
+            title, step, operation = progress_text(meta)
+            self.window.set_title(title)
+            self.step.set_label(step)
+            self.status.set_label(operation or ('Live · View only' if meta.get('state') == 'live' else WAITING))
             return True
 
         def do_shutdown(self):

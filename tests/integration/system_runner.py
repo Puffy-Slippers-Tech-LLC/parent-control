@@ -93,8 +93,13 @@ Error = baseline.CaptureError
 from owned_commands import Commands, CommandError
 
 
+watch_progress = None
+
+
 def log(stage):
     print(f'check-system: [{stage}]', file=sys.stderr, flush=True)
+    if watch_progress is not None:
+        watch_progress.preparation_output(f'check-system: [{stage}]')
 
 
 STAGE_NAMES = ('preparation', 'bootstrap', 'install', 'reboot', 'test',
@@ -490,6 +495,13 @@ class Lease:
             self.capture.backing_verification.check_owner()
         self.capture.revalidate(off=off)
         require(self.source.baseline() == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
+
+    def verify_baseline(self):
+        return self.capture.verify_snapshot()
+
+    @property
+    def attempt_released(self):
+        return self.fd is None
 
     def prepare(self):
         self.snapshot_xml = self.source.baseline()

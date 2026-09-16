@@ -19,11 +19,39 @@ OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
     'about', 'license', 'about-returned', 'parent-returned',
+    'discovery-ready', 'new-child-picker-opened', 'new-child-choice-highlighted',
+    'new-child-selected', 'existing-child-picker-opened', 'existing-child-choice-highlighted',
+    'existing-returned', 'existing-apps', 'new-child-apps', 'new-child-screen',
+    'discovery-child-picker-opened', 'discovery-child-choice-highlighted', 'discovery-selected',
+    'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
+    'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
 })
 PRODUCT = 'Oh No! Parent Control'
 CHILD = 'Riley (Child)'
+EXISTING_CHILD = 'Jordan (Child)'
+NEW_CHILD = 'Morgan (Child)'
+CHILD_IDENTITIES = {CHILD: 'fixture-child', EXISTING_CHILD: 'existing-fixture-child',
+                    NEW_CHILD: 'new-fixture-child'}
+PICKER_OPERATIONS = {
+    'child-picker-opened': CHILD, 'new-child-picker-opened': NEW_CHILD,
+    'existing-child-picker-opened': EXISTING_CHILD, 'discovery-child-picker-opened': EXISTING_CHILD,
+}
+HIGHLIGHT_OPERATIONS = {
+    'child-choice-highlighted': CHILD, 'new-child-choice-highlighted': NEW_CHILD,
+    'existing-child-choice-highlighted': EXISTING_CHILD,
+    'discovery-child-choice-highlighted': EXISTING_CHILD,
+}
+SETTINGS_OPERATIONS = {
+    'parent-selected': CHILD, 'parent-returned': CHILD, 'discovery-ready': EXISTING_CHILD,
+    'discovery-selected': EXISTING_CHILD,
+    'new-child-selected': NEW_CHILD, 'new-child-screen': NEW_CHILD, 'existing-returned': EXISTING_CHILD,
+}
 PARENT = 'Jamie (Parent)'
-GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned'})
+OTHER_PARENT = 'Casey (Parent)'
+GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
+    'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
+    'gdm-parent-recipient', 'gdm-parent-recipient-rechecked'})
+GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list'})
 
 
 class UiError(RuntimeError):
@@ -53,17 +81,24 @@ class AccessibleUI:
         root = root if root is not None else self.api.get_desktop(0)
         pending = [root]
         visited = 0
+        seen = set()
         while pending:
             node = pending.pop()
             if node is None:
                 continue
             visited += 1
             require(visited <= 6000, 'ui:tree-bound')
+            # GTK can expose the same accessible through two parent paths
+            # during a stack transition. Identity deduplication still refuses
+            # two distinct matching controls and bounds malformed cycles.
+            if node in seen:
+                continue
+            seen.add(node)
             try:
                 node.clear_cache_single()
                 yield node
-                # Never inspect the contents of a password widget.
-                if node.get_role_name() != 'password text':
+                # Never traverse editable text, including a revealed password.
+                if node.get_role_name() not in ('password text', 'text', 'entry'):
                     pending.extend(node.get_child_at_index(i)
                                    for i in reversed(range(node.get_child_count())))
             except self.query_errors:
@@ -176,10 +211,10 @@ class AccessibleUI:
     def about(self):
         return self.target('About', ('frame', 'dialog'))
 
-    def settings(self):
+    def settings(self, child=CHILD):
         root = self.parent()
         picker = self.target(roles=('combo box',), root=root, sensitive=True)
-        self.target(CHILD, ('label',), root=picker)
+        self.target(child, ('label',), root=picker)
         toggle = self.target('Screen time limit', ('switch',), root=root, sensitive=True)
         allowance = self.target('Daily time allowance', ('button', 'push button'),
                                 root=root)
@@ -189,12 +224,14 @@ class AccessibleUI:
         import re
         require(labels and all(re.fullmatch(r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', text)
                                for text in labels), 'ui:allowance-label')
-        return {'child': 'fixture-child',
+        if child in (EXISTING_CHILD, NEW_CHILD):
+            self.reveal("Today's Remaining Time", ('label',), root=root)
+        return {'child': CHILD_IDENTITIES[child],
                 'limit_enabled': toggle.get_state_set().contains(self.api.StateType.CHECKED),
                 'allowance': labels}
 
-    def greeter_list(self):
-        button = self.labelled_button(PARENT)
+    def greeter_list(self, name=PARENT):
+        button = self.labelled_button(name)
         self.wait(lambda: self.find(roles=('password text',)) is None, 'gdm-prompt-dismissed')
         return button
 
@@ -208,17 +245,43 @@ class AccessibleUI:
                   is not None and self.has_state(field, self.api.StateType.FOCUSED),
                   'gdm-password-focus')
 
+    def password_recipient(self, name):
+        """Read only public identity, masked role, focus and empty length.
+
+        Never read password text or children. A false/stale observation cannot
+        authorize typing. The caller also requires a separate fresh recheck.
+        """
+        if self.find(name, ('label',)) is None:
+            return False
+        if any(self.find(label, ('button', 'push button')) is not None
+               for label in (PARENT, OTHER_PARENT)):
+            return False
+        other = OTHER_PARENT if name == PARENT else PARENT
+        if self.find(other, ('label',)) is not None:
+            return False
+        field = self.find(roles=('password text',), sensitive=True)
+        if field is None or not self.has_state(field, self.api.StateType.FOCUSED):
+            return False
+        interface = field.get_text_iface()
+        return interface is not None and self.api.Text.get_character_count(interface) == 0
+
     def run(self, operation, version):
         require(operation in OPERATIONS, 'ui:operation')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
         if operation in GREETER_OPERATIONS:
-            if operation == 'gdm-select-parent':
+            if operation == 'gdm-wrong-recipient-refused':
+                self.wait(lambda: self.password_recipient(OTHER_PARENT), 'gdm-other-recipient')
+                require(not self.password_recipient(PARENT), 'ui:gdm-wrong-recipient-accepted')
+            elif operation in ('gdm-parent-recipient', 'gdm-parent-recipient-rechecked'):
+                self.wait(lambda: self.password_recipient(PARENT), 'gdm-parent-recipient')
+            elif operation == 'gdm-select-parent':
                 self.greeter_prompt()
-            elif operation == 'gdm-focused':
-                self.wait(lambda: self.has_state(self.greeter_list(), self.api.StateType.FOCUSED),
+            elif operation in ('gdm-focused', 'gdm-other-focused'):
+                name = OTHER_PARENT if operation == 'gdm-other-focused' else PARENT
+                self.wait(lambda: self.has_state(self.greeter_list(name), self.api.StateType.FOCUSED),
                           'gdm-account-focus')
-            elif operation == 'gdm-list':
-                button = self.greeter_list()
+            elif operation in GREETER_NAVIGATION:
+                button = self.greeter_list(OTHER_PARENT if operation == 'gdm-other-list' else PARENT)
                 container = button.get_parent()
                 require(container is not None, 'ui:gdm-account-list')
                 rows = [node for node in self.nodes(container)
@@ -233,32 +296,58 @@ class AccessibleUI:
             # The worker entered the product query with real keyboard input.
             # Verify a launchable result, not GNOME's grid geometry or tiles.
             self.labelled_button(PRODUCT)
-        elif operation == 'child-picker-opened':
+        elif operation in PICKER_OPERATIONS:
+            child = PICKER_OPERATIONS[operation]
             root = self.parent()
             picker = self.target(roles=('combo box',), root=root, sensitive=True)
             self.activate(self.target(roles=('toggle button',), root=picker, sensitive=True))
-            listing = self.target(roles=('list box',), root=root)
-            self.target(CHILD, ('label',), root=listing)
-            rows = [node for node in self.nodes(listing) if node.get_role_name() == 'list item']
-            require(0 < len(rows) <= 32, 'ui:choice-bound')
-            choices = [index for index, row in enumerate(rows)
-                       if self.find(CHILD, ('label',), root=row) is not None]
-            require(len(choices) == 1, 'ui:choice-identity')
-            result['navigation'] = ['home'] + ['down'] * choices[0]
-        elif operation == 'child-choice-highlighted':
-            root = self.parent()
-            listing = self.target(roles=('list box',), root=root)
-            label = self.target(CHILD, ('label',), root=listing)
-            row = label
-            while row.get_role_name() != 'list item':
-                row = row.get_parent()
-                require(row is not None and row != root, 'ui:choice-row')
-            self.wait(lambda: self.has_state(row, self.api.StateType.SELECTED),
-                      'choice-highlight')
-        elif operation == 'parent-selected':
+            def navigation():
+                current = self.find(PRODUCT, ('frame',))
+                if current is None:
+                    return None
+                listing = self.find(roles=('list box',), root=current)
+                if listing is None or self.find(child, ('label',), root=listing) is None:
+                    return None
+                rows = [node for node in self.nodes(listing) if node.get_role_name() == 'list item']
+                require(0 < len(rows) <= 32, 'ui:choice-bound')
+                choices = [index for index, row in enumerate(rows)
+                           if self.find(child, ('label',), root=row) is not None]
+                require(len(choices) == 1, 'ui:choice-identity')
+                require(self.has_state(rows[choices[0]], self.api.StateType.SENSITIVE),
+                        'ui:unusable-choice')
+                return ['home'] + ['down'] * choices[0]
+            result['navigation'] = self.wait(navigation, 'child-choice')
+        elif operation in HIGHLIGHT_OPERATIONS:
+            def highlighted():
+                root = self.find(PRODUCT, ('frame',))
+                if root is None:
+                    return False
+                listing = self.find(roles=('list box',), root=root)
+                if listing is None:
+                    return False
+                row = self.find(HIGHLIGHT_OPERATIONS[operation], ('label',), root=listing)
+                for _ in range(16):
+                    if row is None or row == root:
+                        return False
+                    if row.get_role_name() == 'list item':
+                        return (self.showing(row) and self.has_state(row, self.api.StateType.SENSITIVE)
+                                and self.has_state(row, self.api.StateType.SELECTED))
+                    row = row.get_parent()
+                return False
+            self.wait(highlighted, 'choice-highlight')
+        elif operation in ('existing-apps', 'new-child-apps'):
+            child = EXISTING_CHILD if operation == 'existing-apps' else NEW_CHILD
+            self.settings(child)
+            self.activate(self.target('App Limits', ('page tab',), root=self.parent(), sensitive=True))
+            self.target('Search installed apps', ('text', 'entry'), root=self.parent(), sensitive=True)
+            self.reveal('Filter Access Rule', ('button', 'push button'), root=self.parent())
+            self.reveal('Filter Match Rule', ('button', 'push button'), root=self.parent())
+        elif operation in SETTINGS_OPERATIONS and operation != 'parent-returned':
+            if operation in ('discovery-ready', 'new-child-screen'):
+                self.activate(self.target('Screen Limits', ('page tab',), root=self.parent(), sensitive=True))
             self.wait(lambda: self.find(roles=('list box',), root=self.parent()) is None,
                       'picker-close')
-            result['settings'] = self.settings()
+            result['settings'] = self.settings(SETTINGS_OPERATIONS[operation])
         elif operation == 'about':
             self.activate(self.target('Parent app menu', ('toggle button',),
                                       root=self.parent(), sensitive=True))

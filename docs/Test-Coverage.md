@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">9391</span>/<span style="color: gray">0</span>/9391 | Collected pytest cases, including parameter combinations |
+| Unit, property and contract | <span style="color: green">9497</span>/<span style="color: gray">0</span>/9497 | Collected pytest cases, including parameter combinations |
 | Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
 | UI | <span style="color: green">147</span>/<span style="color: gray">0</span>/147 | Collected pytest cases, including parameter combinations |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
@@ -17,7 +17,7 @@
 | E2E customer-journey | <span style="color: green">4</span>/<span style="color: gray">140</span>/144 | One exact scenario variant |
 | E2E fault-recovery | <span style="color: green">0</span>/<span style="color: gray">12</span>/12 | One exact scenario variant |
 | E2E runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One exact scenario variant |
-| **Total** | **<span style="color: green">9947</span>/<span style="color: gray">152</span>/10099** | All entries above, including pending E2E |
+| **Total** | **<span style="color: green">10053</span>/<span style="color: gray">152</span>/10205** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -213,9 +213,9 @@ Variant: children: existing and new
 
 **Steps:**
 
-- Log in as Parent, launch from the app grid, and inspect eligible children or the empty state.
+- Log in as Parent through the qualified password recipient. For existing-and-new, reject the wrong-account prompt, qualify and freshly recheck the intended empty masked focused field before secret input, launch from the public app-search result, expand the child picker, navigate its public list order, verify the intended highlight and independently observe the selected existing child's limits-off/zero-minute settings, remaining-time section and App Limits controls. For none, reach the normal app grid.
 - For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe it appear without restarting Parent. For none, pause before launching Parent while the fixed fixture makes only the child accounts ineligible.
-- Select each visible eligible child and navigate the displayed status and application choices; for none, observe the explained empty state.
+- For existing-and-new, verify the new child's highlight before Enter, then independently observe its selected identity and displayed settings. Navigate App Limits search and rule-filter controls, return to Screen Limits and verify preserved values, then select the original child and compare its displayed settings with the initial observation. Use fresh public UI state without application image assertions or fixed coordinates. No time policy is changed. For none, observe the explained empty state.
 
 ### Scenario 4
 
@@ -227,9 +227,9 @@ Variant: children: none
 
 **Steps:**
 
-- Log in as Parent, launch from the app grid, and inspect eligible children or the empty state.
+- Log in as Parent through the qualified password recipient. For existing-and-new, reject the wrong-account prompt, qualify and freshly recheck the intended empty masked focused field before secret input, launch from the public app-search result, expand the child picker, navigate its public list order, verify the intended highlight and independently observe the selected existing child's limits-off/zero-minute settings, remaining-time section and App Limits controls. For none, reach the normal app grid.
 - For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe it appear without restarting Parent. For none, pause before launching Parent while the fixed fixture makes only the child accounts ineligible.
-- Select each visible eligible child and navigate the displayed status and application choices; for none, observe the explained empty state.
+- For existing-and-new, verify the new child's highlight before Enter, then independently observe its selected identity and displayed settings. Navigate App Limits search and rule-filter controls, return to Screen Limits and verify preserved values, then select the original child and compare its displayed settings with the initial observation. Use fresh public UI state without application image assertions or fixed coordinates. No time policy is changed. For none, observe the explained empty state.
 
 ### Scenario 5
 

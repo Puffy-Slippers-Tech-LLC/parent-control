@@ -11,20 +11,26 @@ sub run {
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-discovery', review => 0,
     );
-    onpc_parent::login($journey);
-    onpc_parent::launch_from_app_grid($journey);
-    onpc_parent::select_existing_child($journey);
-    $journey->observe('onpc-parent-child-selected', 30);
+    onpc_parent::login_functional($journey);
+    testapi::send_key('super-a');
+    testapi::type_string('Oh No! Parent Control');
+    $journey->seen('app-grid');
+    testapi::send_key('ret');
+    $journey->navigate_choice($journey->seen('child-picker-opened'));
+    $journey->seen('child-choice-highlighted');
+    testapi::send_key('ret');
+    $journey->seen('parent-selected');
+    $journey->seen('existing-apps');
     $journey->seen('fixture-requested');
-    onpc_pointer::click('onpc-parent-child-picker', 30);
-    $journey->observe('onpc-parent-new-child-choice', 45);
-    $journey->seen('new-child-visible');
-    onpc_pointer::click('onpc-parent-new-child-choice', 30);
-    $journey->observe('onpc-parent-new-child-selected', 60);
+    $journey->navigate_choice($journey->seen('new-child-visible'));
+    $journey->seen('new-child-choice-highlighted');
+    testapi::send_key('ret');
     $journey->seen('new-child-selected');
-    onpc_pointer::click('onpc-parent-child-picker', 30);
-    onpc_pointer::click('onpc-parent-child-choice', 30);
-    $journey->observe('onpc-parent-child-selected', 60);
+    $journey->seen('new-child-apps');
+    $journey->seen('new-child-screen');
+    $journey->navigate_choice($journey->seen('existing-child-picker-opened'));
+    $journey->seen('existing-child-choice-highlighted');
+    testapi::send_key('ret');
     $journey->seen('existing-returned');
     $journey->finish();
 }

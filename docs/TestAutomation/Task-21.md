@@ -43,14 +43,21 @@ Use [the workflow](Implementation-Workflow.md) for bounded work and progress.
 ## Current handoff — 2026-09-15
 
 **Accepted coverage includes E2E-003/existing-and-new, E2E-003/none,
-E2E-004/app-grid and E2E-030/parent; current shared requalification is blocked below.**
+E2E-004/app-grid and E2E-030/parent; the functional migration is described below.**
 Progress is **4 completed, 152 remaining of the frozen 156**, with no additions
 or transfers and **0 consecutive slices without a completed customer variant**.
 Task 21A remains unchecked for E2E-004/terminal and E2E-031.
 
 The registered [discovery callback](../../tests/e2e/parent_discovery.py) now owns
-both finite variants. Existing-and-new retains its guarded in-app account event
-and visible refresh/selection path. None pauses at the normal app grid, requires
+both finite variants. Case 3 existing-and-new uses functional AT-SPI checkpoints
+for app search, existing/new child selection, App Limits navigation and return to
+the original displayed settings. It retains the guarded in-app account event,
+qualified GDM credential boundary and complete cleanup. The functional GDM
+route verifies wrong-recipient refusal and twice checks the intended identity
+and empty masked field's focus before single-use secret input. Each selected child is
+observed independently after keyboard selection; switch and allowance values are
+compared on return. No time policy changes or enforcement claims occur here.
+None pauses at the normal app grid, requires
 the guarded baseline's exact three eligible standard-account fixtures, preserves
 the package request station, makes only that finite set ineligible, launches
 Parent and matches the visible empty explanation. Fixture identities and role
@@ -76,15 +83,16 @@ with all customer steps and cleanup passed; invocation evidence is
 artifacts `/tmp/onpc-test-artifacts-ntq5uzt6`. Later handoff edits need fresh
 build inputs, but do not invalidate the demonstrated screen behavior.
 
-**Current shared blocker:** E2E-003/existing-and-new attempt
+**Prior image-matcher blocker:** E2E-003/existing-and-new attempt
 `scenario-e7cc3a8d1bc04ff2a189e882d88ea2b2` reached Parent, where an Ubuntu
 update-notifier banner obscured the title required by the child-picker needle.
 See `/tmp/onpc-graphical-smoke-abfecf2s/testresults/smoke-37.png` and invocation
 `/tmp/onpc-e2e-evidence-lch8lg4y`. This is a graphical harness blocker, with
 cleanup passed and no demonstrated product failure. The invocation stopped
-before cases 4/5. Before requalification, add a bounded customer-UI dismissal
-of the observed notification, preserving the existing Parent recognition.
-Then run cases 3/4/5 and the shared About consumer; do not retry unchanged.
+before cases 4/5. Case 3's functional migration removes the application image
+dependency: a notification matters only when it blocks required interaction or
+information. Validate case 3 through its full public selector and retain the
+new invocation evidence. Cases 4/5 remain separate legacy consumers.
 
 Four failed acquisition runs remain retained and fully restored: the first
 exposed a missing declared step-2 transition (`/tmp/onpc-e2e-evidence-z2nkqg2x`);

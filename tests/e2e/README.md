@@ -1609,7 +1609,15 @@ Every fixture password uses an `_SECRET_ONPC_*_PASSWORD` name. os-autoinst's
 secret-filtered saves omit those names, but its initial vars and automatic
 backend output can still contain secrets: **never export raw vars/logs/captures**.
 
-The maintained Perl `lib/onpc_password.pm` provides `enter_password(role, surface)`
+Case 3 uses `enter_parent_gdm_password(journey)` from the same helper. Its fixed
+controller stages require an independently rejected wrong-account prompt followed
+by two fresh intended-account/empty-masked-field/focus observations. The second
+durable acknowledgement immediately precedes secret input; review mode, capture,
+changed order, failed checks and replay refuse. Only the zero character count is
+read from the password interface, never its contents. See the
+[functional credential contract](../../docs/TestAutomation/E2E-Building-Blocks.md#functional-validation).
+
+The maintained Perl `lib/onpc_password.pm` also provides `enter_password(role, surface)`
 for fixed `gdm`, `polkit` and `lock` surfaces. It requires `NOVIDEO=1`, a registered
 variable, and a successful public `assert_screen` for the fixed
 `onpc-<surface>-<role>-masked-password` tag immediately before public `type_password`.

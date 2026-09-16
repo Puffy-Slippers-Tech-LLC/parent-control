@@ -11,6 +11,7 @@ import pytest
 import evidence
 import installed_journey as journeys
 import parent_about
+import parent_discovery
 from private_artifacts import EvidenceError, PrivateCollector
 from recording import ScenarioRecorder
 from tests.support.paths import ROOT
@@ -26,7 +27,8 @@ SYNTHETIC = journeys.JourneyPlan(
 )
 
 
-@pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC], ids=['parent', 'different-consumer'])
+@pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN],
+                         ids=['parent', 'different-consumer', 'discovery'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -36,8 +38,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     inputs = {key: hashlib.sha256(key.encode()).hexdigest() for key in evidence.INPUT_FIELDS}
     inputs.update(inventory_sha256=hashlib.sha256(inventory.read_bytes()).hexdigest(),
                   environment_id='ubuntu26-04-pinned')
+    selector = ('E2E-003/existing-and-new' if plan is parent_discovery.PLAN else 'E2E-030/parent')
     contract = evidence.EvidenceContract(inventory_path=inventory, root=ROOT,
-        selector='E2E-030/parent', run_id='shared-controller-test', inputs=inputs)
+        selector=selector, run_id='shared-controller-test', inputs=inputs)
     directory = tmp_path / 'raw'
     directory.mkdir()
     (directory / 'testresults').mkdir()
@@ -58,7 +61,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock(return_value=boot))
     monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=SimpleNamespace(
         observe=lambda operation: {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'})))
-    boundary = next(iter(plan.advance_after))
+    boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')
     state = {'stage': None, 'stored': False}
     context = SimpleNamespace(directory=directory, host_key='fixture-key', commands=Mock(),
         guestfs=Mock(), credentials=Mock(), verified=SimpleNamespace(inputs=inputs),
@@ -67,7 +70,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
 
     with PrivateCollector(run_id=contract.run_id, secrets=[], parent=tmp_path) as collector:
         recorder = ScenarioRecorder(contract, collector)
-        recorder.begin_case('E2E-030/parent')
+        recorder.begin_case(selector)
         save = collector.save_report
 
         def checkpoint(name, value):
@@ -115,16 +118,22 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)
 
         context.run_worker = worker
+        actions = {name: Mock(return_value={'eligible_account_created': True})
+                   for name in plan.stage_actions.values()}
         if failure:
             with pytest.raises((OSError, RuntimeError)):
-                journeys.record_installed_journey(recorder, context, plan)
+                journeys.record_installed_journey(recorder, context, plan, actions=actions)
             assert acknowledged == list(plan.stages[:plan.stages.index(boundary)])
             assert recorder.records[0]['failures']
         else:
-            journeys.record_installed_journey(recorder, context, plan)
+            journeys.record_installed_journey(recorder, context, plan, actions=actions)
             assert acknowledged == list(plan.stages)
             steps = recorder.records[0]['steps']
-            assert [s['step_id'] for s in steps] == ['setup', 'start', 'step-1', 'step-2', 'end']
+            expected_steps = ['setup', 'start', 'step-1', 'step-2']
+            if plan is parent_discovery.PLAN:
+                expected_steps.append('step-3')
+                actions['create-account'].assert_called_once()
+            assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
             assert all(s['outcome'] == 'passed' for s in steps)
             assert steps[-2]['assertion_ids'] == ['visible-result']
         assert recorder._active is None
@@ -190,3 +199,28 @@ def test_stage_action_registry_refuses_missing_or_extra_actions(tmp_path):
     plan = replace(SYNTHETIC, stage_actions={"details": "create-account"})
     with pytest.raises(EvidenceError, match="stage-actions"):
         journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'reused', 'reordered', 'wrong-operation'])
+def test_discovery_requires_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault):
+    plan = parent_discovery.PLAN
+    details, observations = [], []
+    for stage, tag in plan.screen_tags.items():
+        if tag.startswith('ui:'):
+            observations.append({'stage': stage, 'ui': {
+                'operation': tag[3:], 'outcome': 'passed', 'interface': 'AT-SPI'}})
+        else:
+            details.append({'needle': tag, 'result': 'ok',
+                            'area': [{'result': 'ok', 'similarity': 100}], 'screenshot': 'safe.png'})
+        details.append({'title': plan.prefix + '-' + stage, 'result': 'ok'})
+    if fault == 'missing': observations.pop()
+    if fault == 'reused': observations[-1] = observations[-2]
+    if fault == 'reordered': details[-1], details[-2] = details[-2], details[-1]
+    if fault == 'wrong-operation': observations[-1]['ui']['operation'] = 'parent-selected'
+    (tmp_path / 'testresults').mkdir()
+    (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
+    monkeypatch.setattr(journeys, 'screenshot', lambda *_: {'sha256': 'a' * 64})
+    if fault:
+        with pytest.raises(EvidenceError): journeys.matched_screens(tmp_path, plan, observations)
+    else:
+        assert len(journeys.matched_screens(tmp_path, plan, observations)) == len(plan.screen_tags)

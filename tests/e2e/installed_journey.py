@@ -192,7 +192,7 @@ class InstalledJourney:
                 reply[plan.review_mode] = True
         elif stage == 'setup-detached':
             if self.watch_progress is not None:
-                self.watch_progress.operation('Installing and preparing the application')
+                self.watch_progress.operation('Preparing the application connection')
             hostname = system.address(context.lease.source, timeout=90)
             (context.directory / 'known-hosts').write_text(f'{hostname} {context.host_key}\n')
             config = {'directory': str(context.directory), 'hostname': hostname,
@@ -200,7 +200,10 @@ class InstalledJourney:
                 'run': context.lease.state['run']}
             transport = Transport(config, context.commands, guard=lambda _: context.lease.guard())
             transport.probe_ready(timeout=180)
-            observed['setup'] = InstalledSetup(context.directory, context.verified, transport).run(guard)
+            if getattr(context, 'installed_snapshot', None):
+                observed['setup'] = {'installed_snapshot': context.installed_snapshot}
+            else:
+                observed['setup'] = InstalledSetup(context.directory, context.verified, transport).run(guard)
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
             reply = {'setup_complete': True}

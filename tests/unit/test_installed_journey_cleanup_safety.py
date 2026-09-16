@@ -62,8 +62,9 @@ def test_shared_system_prompt_rendezvous_retains_request_and_refuses_uncertain_i
                                  parent_discovery.EMPTY_PLAN, parent_access.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty', 'standard-access'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
+@pytest.mark.parametrize('installed_snapshot', [None, 'onpc-1.1'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
-        tmp_path, monkeypatch, plan, failure):
+        tmp_path, monkeypatch, plan, failure, installed_snapshot):
     # A different trusted plan exercises the same recorder phase shape without
     # registering a synthetic scenario or awarding it any customer coverage.
     inventory = ROOT / 'tests/e2e/scenarios.json'
@@ -109,6 +110,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')
     state = {'stage': None, 'stored': False}
     context = SimpleNamespace(directory=directory, host_key='fixture-key', commands=Mock(),
+        installed_snapshot=installed_snapshot,
         guestfs=Mock(), credentials=Mock(), verified=SimpleNamespace(inputs=inputs),
         lease=SimpleNamespace(source=SimpleNamespace(uuid='fixture-uuid'),
             view=SimpleNamespace(domain_id=7), state={'run': 'a' * 32}, guard=Mock()))
@@ -189,7 +191,11 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             assert all(s['outcome'] == 'passed' for s in steps)
             assert steps[-2]['assertion_ids'] == ['visible-result']
         assert recorder._active is None
-        setup.assert_called_once()
+        if installed_snapshot:
+            setup.assert_not_called()
+            journeys.Transport.return_value.reboot.assert_not_called()
+        else:
+            setup.assert_called_once()
         assert boot.read.call_args_list and all(call.args == ('boot',) for call in boot.read.call_args_list)
 
 

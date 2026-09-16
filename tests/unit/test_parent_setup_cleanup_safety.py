@@ -39,6 +39,26 @@ def test_setup_verifies_package_after_owned_reboot(setup):
         adapter.run(guard)
 
 
+def test_suite_setup_installs_and_reboots_without_product_validation(setup):
+    adapter, vm, _ = setup
+    assert adapter.run(Mock(), verify=False) == {
+        'package_verified': False, 'setup_reboot_verified': True}
+    assert [call[0] for call in vm.mock_calls] == ['copy', 'call', 'reboot']
+    assert vm.call.call_args.args[0][-1] == 'install-suite'
+
+
+def test_guest_suite_install_does_not_check_existing_product_state(monkeypatch):
+    monkeypatch.setattr(system_guest, 'guard', lambda: {'selected_inputs_sha256': 'a' * 64})
+    monkeypatch.setattr(system_guest, 'sha', lambda _: 'a' * 64)
+    before = Mock(side_effect=AssertionError('unexpected product probe'))
+    install = Mock()
+    monkeypatch.setattr(system_guest, 'before_install', before)
+    monkeypatch.setattr(system_guest, 'install_package', install)
+    system_guest.install_suite()
+    install.assert_called_once_with()
+    before.assert_not_called()
+
+
 @pytest.mark.parametrize('boundary', ['copy', 'call', 'reboot'])
 def test_failed_setup_is_terminal_and_never_owns_cleanup(setup, boundary):
     adapter, vm, _ = setup

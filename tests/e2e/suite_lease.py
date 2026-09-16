@@ -1,15 +1,21 @@
 """Fresh baseline cases under one invocation's uninterrupted VM ownership.
 
 Expensive baseline audits bracket the suite. Between cases libvirt discards the
-recorded guest directly into the accepted off snapshot. No new snapshot, saved
-memory, or product state is carried to the next case. Case results remain
-candidates until the final audit and actual lock release succeed.
+recorded guest directly into the next case's off snapshot. A suite-owned installed
+snapshot avoids repeated installation; no case's product state reaches another.
+Case results remain candidates until the final audit and actual lock release succeed.
 """
 
 from pathlib import Path
+import re
+import xml.etree.ElementTree as ET
 
 import system_runner as system
 from owned_commands import Commands
+
+
+def needs_installed(case):
+    return case is not None and 'installed-digest-verified-product' in case['preconditions']
 
 
 class SuiteLease(system.Lease):
@@ -21,6 +27,36 @@ class SuiteLease(system.Lease):
         self._restored = False
         self._reset_attempted = False
         self._failed = False
+        self.installed_name = None
+        self.installed_xml = None
+        self.restore_installed = False
+        self._restored_name = None
+
+    def delete_installed(self):
+        """Only the exact version owned by this invocation; never descendants."""
+        if self.installed_name is None:
+            return
+        self.delete_suite_snapshot()
+        self.installed_xml = None
+
+    def create_installed(self):
+        system.log('stage:suite-installed-snapshot')
+        self.guard(off=True)
+        # Save the ordinary inactive configuration, just like onpc-baseline.
+        # Restores remove sharing again before any boot.
+        self.source.connection.defineXML(self.original_xml)
+        self.view.run = None
+        self.view.domain_id = None
+        self.state['domain_id'] = None
+        self.guard(off=True)
+        root = ET.Element('domainsnapshot')
+        ET.SubElement(root, 'name').text = self.installed_name
+        ET.SubElement(root, 'memory', snapshot='no')
+        snap = self.source.domain.snapshotCreateXML(ET.tostring(root, encoding='unicode'), 0)
+        self.installed_xml = snap.getXMLDesc(0)
+        self.source.connection.defineXML(self.test_xml)
+        self.view.run = self.state['run']
+        self.save('isolated')
 
     @property
     def attempt_released(self):
@@ -99,9 +135,12 @@ class SuiteLease(system.Lease):
         if not self.view.snapshot()[1]:
             system.require(self.view.domain_id is not None, 'cleanup:unowned-domain')
         self.save('cleanup-requested')
-        snap = self.source.domain.snapshotLookupByName(self.capture.state['proof']['name'], 0)
-        system.require(snap.getXMLDesc(0) == self.snapshot_xml,
-                       'baseline:snapshot-metadata-changed')
+        name = self.installed_name if self.restore_installed else self.capture.state['proof']['name']
+        expected = self.installed_xml if self.restore_installed else self.snapshot_xml
+        system.require(name is not None and expected is not None, 'suite:installed-snapshot-missing')
+        # Lookup failure is terminal: no fallback installation or baseline.
+        snap = self.source.domain.snapshotLookupByName(name, 0)
+        system.require(snap.getXMLDesc(0) == expected, 'suite:snapshot-metadata-changed')
         # FORCE permits replacing QEMU when the saved XML differs. The saved
         # baseline is off: do not boot until shares have been removed again.
         self.source.domain.revertToSnapshot(snap, self.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
@@ -116,6 +155,7 @@ class SuiteLease(system.Lease):
         self.guard(off=True)
         self.save('isolated')
         self._restored = True
+        self._restored_name = name
 
     def finish(self):
         if not self._fast:
@@ -141,6 +181,11 @@ class SuiteLease(system.Lease):
         try:
             system.require(self._case_released and self.state['phase'] == 'complete',
                            'suite:cleanup-incomplete')
+            if self._restored_name != self.capture.state['proof']['name']:
+                self.restore_installed = False
+                self._restored = self._reset_attempted = False
+                self.finish()
+            self.delete_installed()
             self._fast = False
             self.guard(off=True)
             system.log('stage:restored-baseline-verification')
@@ -172,6 +217,54 @@ class Suite:
         self.host_before = None
         self.verified = None
         self.backend_checked = self.credentials_checked = False
+        self.prepared = False
+        self.next_case = None
+
+    def prepare_installed(self, directory, assets, selection, *, root):
+        """Always rebuild once, before the first case (including clean cases)."""
+        from installed_setup import stage, InstalledSetup
+        from provenance import VerifiedInputs
+        from vm_transport import Transport
+        lease = self.lease
+        system.log('stage:suite-installation')
+        lease.prepare()
+        version = self.commands.run(['dpkg-deb', '-f', str(assets / 'package.deb'),
+                                     'Version']).decode().strip()
+        system.require(re.fullmatch(r'[0-9][A-Za-z0-9.+:~\-]*', version) is not None,
+                       'suite:invalid-package-version')
+        lease.installed_name = 'onpc-' + version
+        lease.state['e2e_snapshot'] = lease.installed_name
+        lease.save('isolated')
+        lease.delete_installed()  # prepare() restored baseline before deletion.
+        setup = directory / 'suite-setup'
+        setup.mkdir(mode=0o700)
+        stage(setup, assets, selection)
+        host_key = system.bootstrap(self.commands, lease, setup, self.guestfs)
+        lease.save('isolated')
+        verified = VerifiedInputs(lease=lease, assets=assets, root=root)
+        self.verified = verified
+        lease.start()
+        hostname = system.address(lease.source)
+        (setup / 'known-hosts').write_text(f'{hostname} {host_key}\n')
+        transport = Transport({'directory': str(setup), 'hostname': hostname,
+            'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
+            'run': lease.state['run']}, self.commands, guard=lambda _: lease.guard())
+        transport.probe_ready()
+        InstalledSetup(setup, verified, transport).run(lease.guard, verify=False)
+        # Actual shutdown here only; case transitions retain direct reverts.
+        lease.capture.retire_backing_verification()
+        lease.source.shutdown(lease.guard, requested=False)
+        lease.guard(off=True)
+        lease.create_installed()
+        self.prepared = True
+
+    def prepare_case(self, case, directory, assets, selection, *, root):
+        if not self.prepared:
+            self.prepare_installed(directory, assets, selection, root=root)
+            self.lease.restore_installed = needs_installed(case)
+            self.lease.stop()
+        self.lease.prepare()
+        self.lease.restore_installed = needs_installed(self.next_case)
 
     def acquire(self, ledger):
         if self.source is None:

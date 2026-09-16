@@ -506,13 +506,23 @@ is recipe reuse with every original parameter binding, never sampling.
 
 ### Parent, login and time scenarios
 
-Multi-case invocations hold one exclusive VM lease across fresh-baseline cases.
+Every E2E invocation, including a single-case selection, holds one exclusive VM
+lease. Before any case, restore `onpc-baseline`, delete an existing snapshot of
+the selected package version, install that package, reboot, shut down and create
+`onpc-[version]` (the full Debian package version, for example `onpc-1.1`). This
+setup always runs; the old snapshot is never reused or validated as a cache.
+Cases declaring `installed-digest-verified-product` start from this snapshot.
+Installation, removal and other clean-start cases use `onpc-baseline`.
+Missing installed snapshots fail the invocation without fallback installation.
 The expensive baseline audit and offline guest inspection bracket the suite.
 After collecting a case's observations, the worker's final power-off callback
-directly force-restores the accepted off snapshot; it does not wait for ACPI.
-The next case provisions its declared inputs on that restored baseline, removes
+directly force-restores the next case's required off snapshot; it does not wait
+for ACPI. The next case provisions its declared inputs on that snapshot, removes
 host sharing and boots, without a second restore. Live ownership, disk identity,
-snapshot metadata and isolation checks still apply. Per-case evidence is
+snapshot metadata and isolation checks still apply; transitions add no package
+validation, installation or reboot. Suite cleanup restores `onpc-baseline` and
+deletes the version snapshot before the final audit. The journal records its
+exact name for interrupted-run cleanup. Per-case evidence is
 provisional until the final suite audit and release; failures stop subsequent
 cases. This changes runner transitions, not any customer action or assertion.
 See [suite lease](../../tests/e2e/suite_lease.py).
@@ -1076,7 +1086,7 @@ as customer behavior.
 
 | Need | Implementation | Contract |
 | --- | --- | --- |
-| Verified installed app | [installed_setup.py](../../tests/e2e/installed_setup.py): `stage`, `InstalledSetup.run` | Bind package/helper/selection bytes before bootstrap; install, reboot and verify once in setup. Failure is terminal. |
+| Installed app prerequisite | [suite_lease.py](../../tests/e2e/suite_lease.py), [installed_setup.py](../../tests/e2e/installed_setup.py) | Bind package/helper bytes, install and reboot once per suite, then capture the powered-off version snapshot. Feature cases restore it without reinstalling or package validation. Failure is terminal. |
 | Controller rendezvous | [installed_journey.py](../../tests/e2e/installed_journey.py): `JourneyPlan`, `InstalledJourney` | Ordered requests, durable observation callback, fresh ownership guard, then atomic reply. Boot identity supplies harness continuity only. |
 | Recorder composition | [installed_journey.py](../../tests/e2e/installed_journey.py): `record_installed_journey` | Provision fixture credentials, enter declared phases, checkpoint observations and reconcile screenshots. Strict customer execution; existing recorder owns evidence and final acceptance. |
 | Legacy/security matched click | [onpc_pointer.pm](../../tests/integration/graphical_smoke/lib/onpc_pointer.pm): `click(tag, timeout)` | Retained for unmigrated consumers and credential qualification; not the customer acceptance template. |
@@ -1148,8 +1158,10 @@ Viewing cannot authorize input or change scenario acceptance.
    installation/reboot in E2E-002/026/027 remains a real customer action.
 5. Reconcile that variant's inventory declaration, requirements, visible
    assertions and evidence. Customer families use `category: customer-journey`.
-   The `installed-digest-verified-product` prerequisite selects package-bound
-   bootstrap automatically, without a case-ID branch in the executor. Declare
+   The `installed-digest-verified-product` prerequisite selects the suite's
+   installed snapshot and package-bound bootstrap, without a case-ID branch in
+   the executor. Package lifecycle scenarios omit it and provision their declared
+   initial package from `onpc-baseline`. Declare
    `fixture-credentials-via-secret-api` when using authenticated input. A ready
    callback must exist, and all required steps must have real implementations.
    Registration enables execution; only complete acceptance earns coverage.

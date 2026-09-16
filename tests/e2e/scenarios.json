@@ -20,7 +20,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -34,7 +34,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -75,7 +75,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -89,7 +89,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -134,7 +134,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "declared-account-eligibility-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -148,7 +148,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -186,7 +186,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -199,7 +199,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -237,7 +237,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -252,7 +252,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -301,7 +301,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "digest-identified-native-and-appimage-fixtures"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -315,7 +315,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -362,7 +362,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -376,7 +376,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -423,7 +423,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -437,7 +437,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -479,7 +479,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -493,7 +493,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -535,7 +535,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -549,7 +549,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -591,7 +591,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -605,7 +605,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -648,7 +648,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "two-eligible-parents", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -662,7 +662,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -709,7 +709,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -723,7 +723,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -770,7 +770,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -784,7 +784,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -833,7 +833,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -846,7 +846,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -895,7 +895,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -909,7 +909,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -952,7 +952,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "declared-account-eligibility-fixtures"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -966,7 +966,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1011,7 +1011,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1025,7 +1025,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1072,7 +1072,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "digest-identified-native-snap-flatpak-appimage-fixtures"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1086,7 +1086,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1178,7 +1178,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1192,7 +1192,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1234,7 +1234,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1248,7 +1248,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1292,7 +1292,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1307,7 +1307,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1360,7 +1360,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "pinned-real-offline-game-and-level-digests", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1377,7 +1377,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1419,7 +1419,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "pinned-real-offline-game-and-level-digests"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1433,7 +1433,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1480,7 +1480,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1494,7 +1494,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1538,10 +1538,10 @@
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/Publishing.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "digest-verified-activation-packages"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "digest-verified-activation-packages"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1555,7 +1555,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1598,7 +1598,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1613,7 +1613,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1656,7 +1656,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1672,7 +1672,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [
@@ -1722,7 +1722,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1738,7 +1738,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [
@@ -1787,7 +1787,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1800,7 +1800,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1837,7 +1837,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "synthetic-feedback-and-attachment-fixtures"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1850,7 +1850,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1894,7 +1894,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1907,7 +1907,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [],
@@ -1948,7 +1948,7 @@
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures"],
       "phases": {
         "setup": [
-          {"id": "setup", "operation": "provision", "description": "Validate and restore the accepted product-free baseline under the existing lease; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
+          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
         ],
         "start": [
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
@@ -1964,7 +1964,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the accepted baseline under the lease, and verify host/source preservation."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
         ]
       },
       "interventions": [

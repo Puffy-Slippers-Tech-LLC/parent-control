@@ -36,7 +36,7 @@ class InstalledSetup:
         self.directory, self.verified, self.transport = directory, verified, transport
         self.attempted = False
 
-    def run(self, guard):
+    def run(self, guard, *, verify=True):
         require(not self.attempted, 'setup:already-attempted')
         self.attempted = True
         guard()
@@ -56,10 +56,12 @@ class InstalledSetup:
         self.transport.copy(False, str(payload) + '/', system.PAYLOAD + '/')
         run = self.verified.lease.state['run']
         guard()
-        self.transport.call(system.guest_command(run, 'install-setup'), timeout=1200)
+        self.transport.call(system.guest_command(run, 'install-setup' if verify else 'install-suite'),
+                            timeout=1200)
         guard()
         self.transport.reboot()
         guard()
-        self.transport.call(system.guest_command(run, 'verify-setup'), timeout=660)
+        if verify:
+            self.transport.call(system.guest_command(run, 'verify-setup'), timeout=660)
         self.verified.recheck()
-        return {'package_verified': True, 'setup_reboot_verified': True}
+        return {'package_verified': verify, 'setup_reboot_verified': True}

@@ -17,7 +17,7 @@ import time
 
 OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
-    'desktop', 'app-grid', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
+    'desktop', 'app-grid', 'parent-window', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
     'about', 'license', 'about-returned', 'parent-returned',
     'discovery-ready', 'new-child-picker-opened', 'new-child-choice-highlighted',
     'new-child-selected', 'existing-child-picker-opened', 'existing-child-choice-highlighted',
@@ -212,12 +212,16 @@ class AccessibleUI:
 
     def reveal(self, name, roles, *, root):
         """Scroll existing content into view through the public UI interface."""
+        self.scroll_target(name, roles, root=root)
+        return self.target(name, roles, root=root)
+
+    def scroll_target(self, name, roles, *, root):
+        """UI23: one public scroll request, without asserting its result."""
         node = self.target(name, roles, root=root, showing=False)
         if not self.showing(node):
             component = node.get_component_iface()
             require(component is not None and component.scroll_to(self.api.ScrollType.ANYWHERE),
                     'ui:scroll-refused')
-        return self.target(name, roles, root=root)
 
     def find_labelled_button(self, name, *, root=None):
         """One fresh lookup by button name or its showing label's ancestry."""
@@ -244,23 +248,125 @@ class AccessibleUI:
         return self.target('About', ('frame', 'dialog'))
 
     def settings(self, child=CHILD):
+        """PARENT03: explicit child, public settings; no scenario expectations."""
+        require(child in CHILD_IDENTITIES, 'ui:child-binding')
         root = self.parent()
         picker = self.target(roles=('combo box',), root=root, sensitive=True)
-        self.target(child, ('label',), root=picker)
+        self.read_label(picker, 'child', expected=child, maximum=80)
         toggle = self.target('Screen time limit', ('switch',), root=root, sensitive=True)
         allowance = self.target('Daily time allowance', ('button', 'push button'),
                                 root=root)
-        labels = sorted({node.get_name() for node in self.nodes(allowance)
-                         if node.get_role_name() == 'label' and self.showing(node)})
-        # Only ordinary duration labels are returned; never arbitrary UI text.
-        import re
-        require(labels and all(re.fullmatch(r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', text)
-                               for text in labels), 'ui:allowance-label')
+        labels = self.read_label(allowance, 'allowance', maximum=80)
         if child in (EXISTING_CHILD, NEW_CHILD):
             self.reveal("Today's Remaining Time", ('label',), root=root)
         return {'child': CHILD_IDENTITIES[child],
                 'limit_enabled': toggle.get_state_set().contains(self.api.StateType.CHECKED),
                 'allowance': labels}
+
+    def read_label(self, root, projection, *, maximum, expected=None):
+        """UI03: bounded showing child/duration labels; never a Text interface."""
+        require(projection in ('child', 'allowance') and type(maximum) is int
+                and 1 <= maximum <= 80, 'ui:text-binding')
+        require(root.get_role_name() != 'password text', 'ui:masked-text')
+        if projection == 'child':
+            require(expected in CHILD_IDENTITIES and len(expected) <= maximum, 'ui:child-binding')
+            self.target(expected, ('label',), root=root)
+            return CHILD_IDENTITIES[expected]
+        import re
+        labels = sorted({node.get_name() for node in self.nodes(root, strict=True)
+                         if node.get_role_name() == 'label' and self.showing(node)})
+        require(1 <= len(labels) <= 2 and all(len(text) <= maximum and re.fullmatch(
+            r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', text) for text in labels),
+            'ui:allowance-label')
+        return labels
+
+    def open_child_picker(self, child):
+        """UI15 opening: activate once, then independently collect current order."""
+        require(child in CHILD_IDENTITIES, 'ui:child-binding')
+        picker = self.target(roles=('combo box',), root=self.parent(), sensitive=True)
+        self.activate(self.target(roles=('toggle button',), root=picker, sensitive=True))
+        return self.wait(lambda: self.child_navigation(child), 'child-choice')
+
+    def child_navigation(self, child):
+        require(child in CHILD_IDENTITIES, 'ui:child-binding')
+        root = self.find(PRODUCT, ('frame',))
+        if root is None:
+            return None
+        listing = self.find(roles=('list box',), root=root)
+        if listing is None or self.find(child, ('label',), root=listing) is None:
+            return None
+        choices = self.choice_order(listing, identities=CHILD_IDENTITIES,
+                                    maximum=32, cardinality=(1, 32), projection='child-picker-order')
+        identity = CHILD_IDENTITIES[child]
+        require(choices.count(identity) == 1, 'ui:choice-identity')
+        label = self.target(child, ('label',), root=listing)
+        row = label
+        for _ in range(16):
+            if row is None or row == listing or row.get_role_name() == 'list item':
+                break
+            row = row.get_parent()
+        require(row is not None and row.get_role_name() == 'list item'
+                and self.has_state(row, self.api.StateType.SENSITIVE), 'ui:unusable-choice')
+        return ['home'] + ['down'] * choices.index(identity)
+
+    def child_highlighted(self, child):
+        require(child in CHILD_IDENTITIES, 'ui:child-binding')
+        def highlighted():
+            root = self.find(PRODUCT, ('frame',))
+            if root is None:
+                return False
+            listing = self.find(roles=('list box',), root=root)
+            if listing is None:
+                return False
+            row = self.find(child, ('label',), root=listing)
+            for _ in range(16):
+                if row is None or row == root:
+                    return False
+                if row.get_role_name() == 'list item':
+                    return (self.showing(row) and self.has_state(row, self.api.StateType.SENSITIVE)
+                            and self.has_state(row, self.api.StateType.SELECTED))
+                row = row.get_parent()
+            return False
+        return self.wait(highlighted, 'choice-highlight')
+
+    def selected_child(self, child):
+        """UI15 closed-picker result followed by PARENT03, after caller's Enter."""
+        require(child in CHILD_IDENTITIES, 'ui:child-binding')
+        self.observe_absence('parent', 'child-popup', name=child, mode='snapshot')
+        return self.settings(child)
+
+    def parent_page(self, child, page):
+        """PARENT04: select the declared page and observe its usable controls."""
+        require(child in CHILD_IDENTITIES and page in ('Screen Limits', 'App Limits'),
+                'ui:page-binding')
+        print('ui:parent-page=started', file=sys.stderr, flush=True)
+        root = self.parent()
+        picker = self.target(roles=('combo box',), root=root, sensitive=True)
+        self.read_label(picker, 'child', expected=child, maximum=80)
+        self.activate(self.target(page, ('page tab',), root=root, sensitive=True))
+        print('ui:parent-page=activated', file=sys.stderr, flush=True)
+        if page == 'Screen Limits':
+            return self.selected_child(child)
+        # Reacquire once after the page transition. Local target roots can be
+        # shared within this invocation; scanning the entire installed catalogue
+        # again for every filter needlessly exhausts the observation deadline.
+        root = self.parent()
+        self.target('Search installed apps', ('text', 'entry'), root=root, sensitive=True)
+        print('ui:parent-page=search-ready', file=sys.stderr, flush=True)
+        self.reveal('Filter Access Rule', ('button', 'push button'), root=root)
+        self.reveal('Filter Match Rule', ('button', 'push button'), root=root)
+        print('ui:parent-page=filters-ready', file=sys.stderr, flush=True)
+
+    def launchable_result(self, product):
+        """SEARCH04's registered launchable branch, without launching."""
+        require(product == PRODUCT, 'ui:search-binding')
+        return self.labelled_button(product)
+
+    def desktop_result(self, account, expected):
+        """GDM06 success on the caller's qualified public desktop connection."""
+        require(account in (PARENT, EXISTING_CHILD) and expected == 'success',
+                'ui:desktop-binding')
+        return self.target('Activities', ('toggle button', 'button', 'push button'))
 
     def greeter_list(self, name=PARENT):
         # GDM01: the positive account surface and absence must be fresh together.
@@ -269,6 +375,18 @@ class AccessibleUI:
 
     def observe_absence(self, surface, target, *, name, mode):
         """UI11's GDM snapshot binding; stable/search scope remains separate."""
+        if surface == 'parent':
+            require(target == 'child-popup' and name in CHILD_IDENTITIES
+                    and mode == 'snapshot', 'ui:absence-binding')
+            def closed():
+                root = self.parent()
+                picker = self.target(roles=('combo box',), root=root, sensitive=True)
+                self.read_label(picker, 'child', expected=name, maximum=80)
+                nodes = list(self.nodes(root, strict=True))
+                return (not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes)
+                        and not any(node.get_role_name() == 'list box' and self.showing(node)
+                                    for node in nodes))
+            return self.wait(closed, 'picker-close')
         require(surface == 'greeter' and target in ('password', 'account')
                 and name in GREETER_IDENTITIES and mode == 'snapshot', 'ui:absence-binding')
 
@@ -302,12 +420,14 @@ class AccessibleUI:
         require(root is not None and type(maximum) is int and 1 <= maximum <= 32
                 and type(cardinality) is tuple and len(cardinality) == 2
                 and 0 <= cardinality[0] <= cardinality[1] <= maximum
-                and identities == GREETER_IDENTITIES
-                and projection == 'greeter-account-order', 'ui:collection-binding')
+                and ((identities == GREETER_IDENTITIES and projection == 'greeter-account-order')
+                     or (identities == CHILD_IDENTITIES and projection == 'child-picker-order')),
+                'ui:collection-binding')
         choices = []
         for node in self.nodes(root, strict=True):
             require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-collection')
-            if node.get_role_name() not in ('button', 'push button'):
+            roles = ('list item',) if projection == 'child-picker-order' else ('button', 'push button')
+            if node.get_role_name() not in roles:
                 continue
             # GDM may put its label on the button or a nested public label.
             labels = {node.get_name()} | {child.get_name() for child in self.nodes(node, strict=True)
@@ -476,11 +596,26 @@ class AccessibleUI:
         No product window is closed, no password is submitted, and no action
         is replayed. Unknown prompts remain blocked for diagnosis.
         """
+        # One fresh public traversal for all registered titles. This check runs
+        # before every wait/input: rescanning a large installed-app catalogue
+        # twice per title made ordinary Parent navigation exceed its deadline.
+        # Nothing is cached across calls, so late/queued prompts remain visible.
+        matches = {title: {'windows': [], 'labels': []} for title in KEYRING_LABELS}
+        for node in self.nodes(strict=True):
+            role = node.get_role_name()
+            if role not in ('frame', 'dialog', 'label') or not self.showing(node):
+                continue
+            title = ' '.join(node.get_name().split())
+            if title in matches:
+                matches[title]['labels' if role == 'label' else 'windows'].append(node)
         for title in KEYRING_LABELS:
-            root = self.find(title, ('frame', 'dialog'))
+            windows = matches[title]['windows']
+            require(len(windows) <= 1, 'ui:ambiguous-target')
+            root = windows[0] if windows else None
             if root is None:
-                label = self.find(title, ('label',))
-                node = label
+                labels = matches[title]['labels']
+                require(len(labels) <= 1, 'ui:ambiguous-target')
+                node = labels[0] if labels else None
                 for _ in range(12):
                     if node is None:
                         break
@@ -596,23 +731,14 @@ class AccessibleUI:
                 self.wait(lambda: self.has_state(self.greeter_list(name), self.api.StateType.FOCUSED),
                           'gdm-account-focus')
             elif operation in GREETER_NAVIGATION:
-                if operation == 'gdm-list':
-                    result['navigation'] = self.greeter_navigation(PARENT)
-                    return result
                 name = OTHER_PARENT if operation == 'gdm-other-list' else PARENT
                 if operation == 'gdm-standard-list':
                     name = EXISTING_CHILD
-                button = self.greeter_list(name)
-                container = button.get_parent()
-                require(container is not None, 'ui:gdm-account-list')
-                rows = [node for node in self.nodes(container)
-                        if node.get_role_name() in ('button', 'push button')]
-                require(0 < len(rows) <= 32 and rows.count(button) == 1, 'ui:gdm-account-list')
-                result['navigation'] = ['home'] + ['down'] * rows.index(button)
+                result['navigation'] = self.greeter_navigation(name)
             else:
                 self.greeter_list()
         elif operation in ('desktop', 'standard-desktop'):
-            self.target('Activities', ('toggle button', 'button', 'push button'))
+            self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
         elif operation == 'standard-system-prompt':
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
         elif operation == 'standard-app-grid':
@@ -641,7 +767,9 @@ class AccessibleUI:
         elif operation == 'app-grid':
             # The worker entered the product query with real keyboard input.
             # Verify a launchable result, not GNOME's grid geometry or tiles.
-            self.labelled_button(PRODUCT)
+            self.launchable_result(PRODUCT)
+        elif operation == 'parent-window':
+            self.parent()
         elif operation == 'parent-empty':
             def empty():
                 root = self.find(PRODUCT, ('frame',))
@@ -659,57 +787,18 @@ class AccessibleUI:
                 return labels == ['(None)']
             self.wait(empty, 'parent-empty')
         elif operation in PICKER_OPERATIONS:
-            child = PICKER_OPERATIONS[operation]
-            root = self.parent()
-            picker = self.target(roles=('combo box',), root=root, sensitive=True)
-            self.activate(self.target(roles=('toggle button',), root=picker, sensitive=True))
-            def navigation():
-                current = self.find(PRODUCT, ('frame',))
-                if current is None:
-                    return None
-                listing = self.find(roles=('list box',), root=current)
-                if listing is None or self.find(child, ('label',), root=listing) is None:
-                    return None
-                rows = [node for node in self.nodes(listing) if node.get_role_name() == 'list item']
-                require(0 < len(rows) <= 32, 'ui:choice-bound')
-                choices = [index for index, row in enumerate(rows)
-                           if self.find(child, ('label',), root=row) is not None]
-                require(len(choices) == 1, 'ui:choice-identity')
-                require(self.has_state(rows[choices[0]], self.api.StateType.SENSITIVE),
-                        'ui:unusable-choice')
-                return ['home'] + ['down'] * choices[0]
-            result['navigation'] = self.wait(navigation, 'child-choice')
+            result['navigation'] = self.open_child_picker(PICKER_OPERATIONS[operation])
         elif operation in HIGHLIGHT_OPERATIONS:
-            def highlighted():
-                root = self.find(PRODUCT, ('frame',))
-                if root is None:
-                    return False
-                listing = self.find(roles=('list box',), root=root)
-                if listing is None:
-                    return False
-                row = self.find(HIGHLIGHT_OPERATIONS[operation], ('label',), root=listing)
-                for _ in range(16):
-                    if row is None or row == root:
-                        return False
-                    if row.get_role_name() == 'list item':
-                        return (self.showing(row) and self.has_state(row, self.api.StateType.SENSITIVE)
-                                and self.has_state(row, self.api.StateType.SELECTED))
-                    row = row.get_parent()
-                return False
-            self.wait(highlighted, 'choice-highlight')
+            self.child_highlighted(HIGHLIGHT_OPERATIONS[operation])
         elif operation in ('existing-apps', 'new-child-apps'):
             child = EXISTING_CHILD if operation == 'existing-apps' else NEW_CHILD
-            self.settings(child)
-            self.activate(self.target('App Limits', ('page tab',), root=self.parent(), sensitive=True))
-            self.target('Search installed apps', ('text', 'entry'), root=self.parent(), sensitive=True)
-            self.reveal('Filter Access Rule', ('button', 'push button'), root=self.parent())
-            self.reveal('Filter Match Rule', ('button', 'push button'), root=self.parent())
+            self.parent_page(child, 'App Limits')
         elif operation in SETTINGS_OPERATIONS and operation != 'parent-returned':
+            child = SETTINGS_OPERATIONS[operation]
             if operation in ('discovery-ready', 'new-child-screen'):
-                self.activate(self.target('Screen Limits', ('page tab',), root=self.parent(), sensitive=True))
-            self.wait(lambda: self.find(roles=('list box',), root=self.parent()) is None,
-                      'picker-close')
-            result['settings'] = self.settings(SETTINGS_OPERATIONS[operation])
+                result['settings'] = self.parent_page(child, 'Screen Limits')
+            else:
+                result['settings'] = self.selected_child(child)
         elif operation == 'about':
             self.activate(self.target('Parent app menu', ('toggle button',),
                                       root=self.parent(), sensitive=True))

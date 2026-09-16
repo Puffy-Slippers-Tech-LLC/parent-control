@@ -4,33 +4,23 @@ use warnings;
 use testapi ();
 use onpc_journey ();
 use onpc_parent ();
+use onpc_gdm ();
 
 sub run {
     my ($exchange) = @_;
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-discovery', review => 0,
     );
-    onpc_parent::login_functional($journey);
-    testapi::send_key('super-a');
-    testapi::type_string('Oh No! Parent Control');
-    $journey->seen('app-grid');
-    testapi::send_key('ret');
-    $journey->navigate_choice($journey->seen('child-picker-opened'));
-    $journey->seen('child-choice-highlighted');
-    testapi::send_key('ret');
-    $journey->seen('parent-selected');
+    onpc_gdm::reattach_functional();
+    onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing');
     $journey->seen('existing-apps');
     $journey->seen('fixture-requested');
-    $journey->navigate_choice($journey->seen('new-child-visible'));
-    $journey->seen('new-child-choice-highlighted');
-    testapi::send_key('ret');
-    $journey->seen('new-child-selected');
+    onpc_parent::select_child($journey, 'new', $journey->seen('new-child-visible'),
+        'new-child-visible', 'new-child-choice-highlighted', 'new-child-selected');
     $journey->seen('new-child-apps');
     $journey->seen('new-child-screen');
-    $journey->navigate_choice($journey->seen('existing-child-picker-opened'));
-    $journey->seen('existing-child-choice-highlighted');
-    testapi::send_key('ret');
-    $journey->seen('existing-returned');
+    onpc_parent::select_child($journey, 'returned', $journey->seen('existing-child-picker-opened'),
+        'existing-child-picker-opened', 'existing-child-choice-highlighted', 'existing-returned');
     $journey->finish();
 }
 

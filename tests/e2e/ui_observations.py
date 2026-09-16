@@ -1,17 +1,49 @@
 """Guarded controller for public UI operations, with sanitized evidence."""
 
 import json
+from dataclasses import dataclass
 
 import accessible_ui
 from private_artifacts import require
 import system_runner as system
 
 
+@dataclass(frozen=True)
+class SettingsObservation:
+    """Immutable, sanitized UI values owned explicitly by a scenario."""
+
+    child: str
+    limit_enabled: bool
+    allowance: tuple
+
+    @classmethod
+    def from_settings(cls, settings):
+        require(type(settings) is dict and set(settings) == {'child', 'limit_enabled', 'allowance'}
+                and settings['child'] in accessible_ui.CHILD_IDENTITIES.values()
+                and type(settings['limit_enabled']) is bool
+                and type(settings['allowance']) is list and 1 <= len(settings['allowance']) <= 2,
+                'ui:settings')
+        import re
+        require(all(type(value) is str and re.fullmatch(
+            r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', value)
+            for value in settings['allowance']), 'ui:settings')
+        return cls(settings['child'], settings['limit_enabled'], tuple(settings['allowance']))
+
+
+def compare_settings(observed, expected):
+    """UI12: pure comparison; diagnostics contain only approved field names."""
+    require(type(observed) is SettingsObservation and type(expected) is SettingsObservation,
+            'ui:comparison-binding')
+    different = [field for field in ('child', 'limit_enabled', 'allowance')
+                 if getattr(observed, field) != getattr(expected, field)]
+    require(not different, 'ui:settings-changed:' + ','.join(different))
+    return {'fields': ['child', 'limit_enabled', 'allowance'], 'outcome': 'passed'}
+
+
 class UiObservations:
     def __init__(self, transport, *, system_prompt=None):
         self.transport = transport
         self.initial_settings = None
-        self.new_settings = None
         self.last_operation = None
         self.wrong_recipient_refused = False
         self.standard_wrong_recipient_refused = False
@@ -98,20 +130,12 @@ class UiObservations:
                 r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', value)
                         for value in settings['allowance']), 'ui:settings')
             expected['settings'] = settings
-            if operation in ('parent-selected', 'discovery-selected'):
+            # Retained About adapter only. Discovery's recipe now owns explicit
+            # immutable observations and comparisons in InstalledJourney.
+            if operation == 'parent-selected':
                 require(self.initial_settings is None, 'ui:selection-replay')
-                if operation == 'discovery-selected':
-                    require(settings['limit_enabled'] is False and settings['allowance'] == ['0 minutes'],
-                            'ui:initial-settings')
                 self.initial_settings = settings
-            elif operation == 'new-child-selected':
-                require(self.initial_settings is not None and self.new_settings is None,
-                        'ui:selection-replay')
-                self.new_settings = settings
-            elif operation == 'new-child-screen':
-                require(self.new_settings is not None and settings == self.new_settings,
-                        'ui:settings-changed')
-            else:
+            elif operation == 'parent-returned':
                 require(self.initial_settings is not None and settings == self.initial_settings,
                         'ui:settings-changed')
         require(result == expected, 'ui:response')

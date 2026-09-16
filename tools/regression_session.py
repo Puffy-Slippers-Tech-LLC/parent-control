@@ -77,8 +77,16 @@ def select(root, argv):
             run = directory / name
             with lock(run / 'owner') as owner:
                 active = busy(owner)
-            if active or not (run / 'delivered').exists():
+            result = run / 'result'
+            try:
+                broken = not result.exists() or int(result.read_text()) != 0
+            except (ValueError, OSError):
+                broken = True
+            if active or (not (run / 'delivered').exists() and (not argv or not broken)):
                 return run, False
+            if broken and not (run / 'delivered').exists():
+                print(f'Previous test owner is idle; preserving its incomplete/failed output in {run}.',
+                      file=sys.stderr, flush=True)
         # Reconnection wins over all new arguments, including help and invalid
         # selections. Validate only when starting a new run, under the same gate.
         from test_commands import validate
@@ -184,6 +192,8 @@ def worker(root, argv, run, owner):
     try:
         from test_commands import _main
         with test_activity.activity(root):
+            from test_recovery import before_run
+            before_run(root, argv)
             status = _main(argv, detached=True)
     finally:
         finished.set()

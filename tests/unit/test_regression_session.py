@@ -80,8 +80,9 @@ def test_lost_terminal_reconnects_and_preserves_summary_status(tmp_path, workers
             pass
     (tmp_path / 'release').touch()
     assert workers[0].wait(timeout=10) == 7
-    # Completion while detached must still replay, rather than start over.
-    assert session.select(tmp_path, ['all-verify']) == (run, False)
+    # No new selection still replays a completed detached run. An explicit
+    # selection may replace an idle failed owner without an extra attach step.
+    assert session.select(tmp_path, []) == (run, False)
     output = io.StringIO()
     assert session.follow(run, output) == 7
     assert 'usual final summary' in output.getvalue()
@@ -171,6 +172,22 @@ def test_dead_owner_is_incomplete_not_a_fabricated_pass(tmp_path):
     output = io.StringIO()
     assert session.follow(run, output) == 1
     assert 'incomplete' in output.getvalue()
+
+
+@pytest.mark.parametrize('result', [None, '1', '130'])
+def test_explicit_selection_replaces_idle_failed_owner_without_erasing_output(tmp_path, workers, result):
+    directory = session.prepare(tmp_path)
+    old = directory / ('a' * 32)
+    old.mkdir(mode=0o700)
+    (old / 'output').write_text('failed evidence')
+    if result is not None:
+        (old / 'result').write_text(result)
+    (directory / 'current.json').write_text(json.dumps({'run': old.name, 'argv': ['all']}))
+    run, started = session.select(tmp_path, ['unit'])
+    assert started and run != old
+    assert (old / 'output').read_text() == 'failed evidence'
+    (tmp_path / 'release').touch()
+    assert session.follow(run, io.StringIO()) == 7
 
 
 def test_legacy_activity_refuses_duplicate_without_starting_worker(tmp_path, workers):

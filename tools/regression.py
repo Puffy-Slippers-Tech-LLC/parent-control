@@ -988,7 +988,7 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
               f'{(report.directory / "report.md").resolve()}. '
               'Read the adjacent progress.json for category results and follow '
               'any detailed evidence paths in the report. Fix the root causes, '
-              'rerun the relevant checks, and report anything still unresolved. '
+              'ONLY rerun the relevant checks, do NOT run more tests than necessary to validate the fixes, and report anything still unresolved. '
               'If the run was manually interrupted, ignore the interruption, and just fix the recorded failures. '
               'Do necessary clean-up of the garbage of the interrupted / failed run, so next run would not be blocked.')
     return status

@@ -250,10 +250,13 @@ accepts `--serial-builds` alongside this flag.
 
 Every `tools/run-tests` category runs in a terminal-independent session. Closing
 the terminal detaches; Ctrl+C requests owned cancellation and cleanup. While a
-session is active or its final result remains unread, any new invocation warns
+session is active or its successful final result remains unread, any new invocation warns
 and attaches to it before interpreting arguments. All new arguments, including
 help, listing, different categories and invalid selections, are ignored. After
 the result is delivered, the next invocation validates and starts fresh work.
+An explicit selection can replace an idle failed/incomplete session immediately,
+preserving its output and reconciling residual state before starting tests.
+An invocation without arguments still replays its unread result.
 Internal workers inherit the verified checkout activity lock and execute their
 assigned work without reattaching to their own session. Older runs without
 session metadata still refuse competing launches through that lock.
@@ -321,6 +324,11 @@ Use the installed/graphical runner for ordinary tests. These maintenance
 commands do not produce complete customer-journey evidence. The existing
 `integration check_graphical_recovery` remains the separate narrow recovery
 route for an interrupted graphical runner, under its recorded identity checks.
+`tools/run-tests` invokes `integration check_test_recovery` automatically for
+idle unfinished retention or before a new VM category. This uses the same
+identity-checked recovery, mandatory cleanup prerequisites and exclusive leases;
+it archives recovery markers after validation and leaves evidence in normal
+retention. It never signals an unrecorded process or bypasses a failed VM audit.
 
 ## System reads
 

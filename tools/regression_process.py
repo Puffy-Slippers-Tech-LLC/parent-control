@@ -130,7 +130,7 @@ def safety_command(root):
     import test_launcher as host
     targets = host.selection(root, ['tests/unit/test_*cleanup_safety.py',
                                     'tests/unit/test_graphical_lease.py'])
-    return ['/usr/bin/python3', '-B', '-m', 'pytest', '-p', 'no:cacheprovider', '-q', '--', *targets]
+    return ['/usr/bin/python3', '-B', '-m', 'pytest', '-p', 'no:cacheprovider', '-v', '--', *targets]
 
 
 def host_run(root, category, argv, *, pipe=True):
@@ -216,7 +216,7 @@ def category_run(root, category, argv, *, pipe=True):
                 check(command[1])
                 command = [command[0], '--disable-internal-agent', command[1],
                            '--unattended', *command[2:]]
-                if test_retention.token() is not None:
+                if category in ('system', 'e2e') and test_retention.token() is not None:
                     command.insert(3, '--retention-run=' + test_retention.token())
             status = control.run(command, cwd=root, env=env, cooperative=privileged)
             if status:

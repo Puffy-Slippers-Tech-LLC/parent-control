@@ -224,7 +224,7 @@ def _main(argv=None, *, detached=False):
                 return host_run(root, category, args[1:])
             if category not in ('child-node', 'child-gjs', 'static', 'backend',
                                 'traceability', 'fixtures', 'fixture-runtime', 'source',
-                                'artifacts', 'system', 'e2e', 'publish'):
+                                'artifacts', 'integration', 'system', 'e2e', 'publish'):
                 raise ValueError('unsupported unattended category')
             return category_run(root, category, args[1:])
         if category in ('unit', 'component'):

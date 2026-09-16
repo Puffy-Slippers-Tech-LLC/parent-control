@@ -1,0 +1,41 @@
+"""Automatic idle-run reconciliation for the public test launcher."""
+
+import os
+
+import test_activity
+import test_retention
+
+
+def before_run(root, argv):
+    # Help/collection and owned aggregate children must remain read-only here.
+    if not argv or argv[0].startswith('-') or '--list' in argv or '--help' in argv:
+        return 0
+    if not test_activity.descriptors():
+        raise ValueError('retention: checkout activity ownership required')
+    store = test_retention.Store(root / 'artifacts/test-retention')
+    pending = False
+    if store.path.exists():
+        with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+            with store.locked(fd, 'writer.lock'):
+                state = store.read(fd)
+                pending = ('recovery-required' in os.listdir(fd) or
+                           bool(state and not state['finished']))
+    vm = argv[0] in ('all', 'all-verify', 'system', 'e2e', 'integration')
+    if not pending and not vm:
+        return 0
+    # This runs only recovery plus its mandatory cleanup-safety prerequisite;
+    # it does not rerun a product category or create another detached session.
+    from regression_process import category_run
+    def guard():
+        print('Automatic recovery: checking cleanup safety, the recorded VM and retained evidence.',
+              flush=True)
+        status = category_run(root, 'integration', ['check_test_recovery'], pipe=False)
+        if status:
+            raise ValueError(f'retention: automatic recovery failed (status={status}); '
+                             'see diagnostics above; previous evidence preserved')
+    if pending:
+        store.reconcile(guard)
+    else:
+        guard()
+    print('Automatic recovery: ready; previous evidence preserved.', flush=True)
+    return 0

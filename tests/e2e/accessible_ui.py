@@ -264,10 +264,24 @@ class AccessibleUI:
                 'allowance': labels}
 
     def read_label(self, root, projection, *, maximum, expected=None):
-        """UI03: bounded showing child/duration labels; never a Text interface."""
-        require(projection in ('child', 'allowance') and type(maximum) is int
+        """UI03: registered showing labels; never a Text interface."""
+        require(projection in ('child', 'allowance', 'empty-explanation', 'empty-picker')
+                and type(maximum) is int
                 and 1 <= maximum <= 80, 'ui:text-binding')
         require(root.get_role_name() != 'password text', 'ui:masked-text')
+        if projection == 'empty-explanation':
+            text = 'No interactive non-administrator account was found.'
+            require(len(text) <= maximum, 'ui:text-bound')
+            return self.find(text, ('label',), root=root) is not None
+        if projection == 'empty-picker':
+            labels = []
+            for node in self.nodes(root, strict=True):
+                require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-picker')
+                if node.get_role_name() == 'label' and self.showing(node):
+                    text = node.get_name().strip()
+                    require(len(text) <= maximum, 'ui:text-bound')
+                    labels.append(text)
+            return labels == ['(None)']
         if projection == 'child':
             require(expected in CHILD_IDENTITIES and len(expected) <= maximum, 'ui:child-binding')
             self.target(expected, ('label',), root=root)
@@ -279,6 +293,18 @@ class AccessibleUI:
             r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', text) for text in labels),
             'ui:allowance-label')
         return labels
+
+    def parent_empty(self):
+        """PARENT19: fresh explanation and sole empty picker label, without input."""
+        def empty():
+            root = self.find(PRODUCT, ('frame',))
+            if root is None:
+                return False
+            picker = self.find(roles=('combo box',), root=root)
+            return (picker is not None
+                    and self.read_label(root, 'empty-explanation', maximum=80)
+                    and self.read_label(picker, 'empty-picker', maximum=80))
+        self.wait(empty, 'parent-empty')
 
     def open_child_picker(self, child):
         """UI15 opening: activate once, then independently collect current order."""
@@ -771,21 +797,7 @@ class AccessibleUI:
         elif operation == 'parent-window':
             self.parent()
         elif operation == 'parent-empty':
-            def empty():
-                root = self.find(PRODUCT, ('frame',))
-                if root is None:
-                    return False
-                explanation = self.find('No interactive non-administrator account was found.',
-                                        ('label',), root=root)
-                picker = self.find(roles=('combo box',), root=root)
-                if explanation is None or picker is None:
-                    return False
-                # A visible explanation alone must not hide a selected child.
-                # Read the public picker even when disabled; never activate it.
-                labels = [node.get_name().strip() for node in self.nodes(picker)
-                          if node.get_role_name() == 'label' and self.showing(node)]
-                return labels == ['(None)']
-            self.wait(empty, 'parent-empty')
+            self.parent_empty()
         elif operation in PICKER_OPERATIONS:
             result['navigation'] = self.open_child_picker(PICKER_OPERATIONS[operation])
         elif operation in HIGHLIGHT_OPERATIONS:

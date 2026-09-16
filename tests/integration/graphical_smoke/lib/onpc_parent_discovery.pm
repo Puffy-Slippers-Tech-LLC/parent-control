@@ -29,13 +29,13 @@ sub run_none {
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-empty', review => 0,
     );
-    onpc_parent::login_functional($journey);
-    testapi::send_key('super-a');
-    testapi::type_string('Oh No! Parent Control');
-    $journey->seen('app-grid');
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_parent::sign_in($journey, 'parent', 'other-parent', 'success');
+    onpc_parent::search_whole_query($journey, $desktop, 'Oh No! Parent Control', 'app-grid');
     # Pause before launching Parent so the fixed fixture state is complete and
     # durably recorded before the customer-visible result can be produced.
-    $journey->seen('fixture-requested');
+    my $prepared = $journey->seen('fixture-requested');
+    $journey->consume_observation('fixture-requested', $prepared);
     testapi::send_key('ret');
     $journey->seen('empty');
     $journey->finish();

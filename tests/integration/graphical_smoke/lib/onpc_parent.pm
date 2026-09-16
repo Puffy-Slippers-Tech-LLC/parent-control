@@ -98,7 +98,7 @@ sub enter_desktop {
 sub open_for_child {
     my ($journey, $source, $entry, $window, $child) = @_;
     die 'parent:flow-binding' unless @_ == 5 && $source eq 'gdm' && $entry eq 'fresh'
-        && $window eq 'new' && $child eq 'existing';
+        && $window eq 'new' && ($child eq 'existing' || $child eq 'child');
     my $desktop = enter_desktop($journey, $source, 'parent', $entry, 'success');
     open_management($journey, $desktop, 'whole-query');
     return select_child($journey, $child, $journey->seen('child-picker-opened'),
@@ -110,6 +110,7 @@ sub open_for_child {
 sub select_child {
     my ($journey, $child, $opened, $list_stage, $highlight_stage, $selected_stage) = @_;
     my %bindings = (
+        child => 'child-picker-opened/child-choice-highlighted/parent-selected',
         existing => 'child-picker-opened/child-choice-highlighted/parent-selected',
         new => 'new-child-visible/new-child-choice-highlighted/new-child-selected',
         returned => 'existing-child-picker-opened/existing-child-choice-highlighted/existing-returned',

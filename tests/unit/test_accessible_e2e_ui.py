@@ -39,7 +39,8 @@ def ui_for(root):
         get_action_name=lambda action, index: action.get_action_name(index),
         do_action=lambda action, index: action.do_action(index)), StateType=SimpleNamespace(
         SHOWING='showing', VISIBLE='visible', SENSITIVE='sensitive', DEFUNCT='defunct',
-        FOCUSED='focused', SELECTED='selected', CHECKED='checked', EDITABLE='editable', MODAL='modal'),
+        FOCUSED='focused', SELECTED='selected', CHECKED='checked', EDITABLE='editable', MODAL='modal',
+        ACTIVE='active'),
         CoordType=SimpleNamespace(SCREEN='screen')), timeout=0)
 
 
@@ -357,16 +358,18 @@ def test_empty_parent_waits_for_fresh_state_without_replaying_input():
     assert calls.count((PRODUCT, ('frame',))) == 2
 
 
-@pytest.mark.parametrize('operation', ['about-returned', 'parent-returned'])
+@pytest.mark.parametrize('operation', ['license-closed', 'parent-returned'])
 def test_return_waits_for_the_window_to_finish_closing(operation):
+    from accessible_ui import PRODUCT
+    closing, destination = (('LICENSE', 'About') if operation == 'license-closed' else ('About', PRODUCT))
+    old = Node(closing)
+    underlying = Node(destination)
     ui = ui_for(Node())
     ui.timeout = .5
-    ui.find = Mock(side_effect=[Node(), None])
-    ui.about = Mock(return_value=Node())
-    ui.reveal = Mock()
+    ui.nodes = Mock(side_effect=[iter([old, underlying]), iter([underlying])])
     ui.settings = Mock(return_value={'child': 'fixture-child'})
     assert ui.run(operation, '1.1')['outcome'] == 'passed'
-    assert ui.find.call_count == 2
+    assert ui.nodes.call_count == 2
 
 
 @pytest.mark.parametrize('fault', [None, 'wrong-document', 'hidden', 'password'])
@@ -377,7 +380,8 @@ def test_license_reads_the_text_interface_and_requires_actual_visible_content(fa
     document.get_text_iface = lambda: document
     document.get_text = Mock(side_effect=AssertionError('wrong Accessible interface'))
     root = Node(children=[Node('About', 'frame', children=[link]),
-                          Node('LICENSE', 'frame', children=[document])])
+                          Node('LICENSE', 'frame', children=[document],
+                               states=('showing', 'visible', 'sensitive', 'active'))])
     ui = ui_for(root)
     content = ('An unrelated document' if fault == 'wrong-document' else
                'GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n' + 'x' * 2000)
@@ -393,6 +397,67 @@ def test_license_reads_the_text_interface_and_requires_actual_visible_content(fa
     document.get_text.assert_not_called()
     if fault in ('hidden', 'password'):
         ui.api.Text.get_text.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'inactive', 'hidden', 'missing', 'duplicate'])
+@pytest.mark.parametrize('window', ['license', 'about'])
+def test_keyboard_close_requires_a_fresh_active_unique_window(window, fault):
+    node = Node('LICENSE' if window == 'license' else 'About', states=(
+        'showing', 'visible', 'sensitive', 'active'))
+    if fault == 'inactive': node.states.remove('active')
+    if fault == 'hidden': node.states.remove('showing')
+    nodes = [] if fault == 'missing' else [node]
+    if fault == 'duplicate': nodes.append(Node(node.name))
+    ui = ui_for(Node(children=nodes))
+    if fault:
+        with pytest.raises(UiError): ui.window_ready_to_close(window)
+    else:
+        ui.window_ready_to_close(window)
+    node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'still-open', 'missing-destination', 'stale', 'defunct'])
+def test_closed_window_requires_complete_reads_and_recognized_destination(fault):
+    nodes = [Node('About')]
+    if fault == 'still-open': nodes.append(Node('LICENSE'))
+    if fault == 'missing-destination': nodes = []
+    if fault == 'defunct': nodes[0].states.add('defunct')
+    if fault == 'stale': nodes[0].get_child_count = Mock(side_effect=LookupError('stale'))
+    ui = ui_for(Node(children=nodes))
+    ui.query_errors = (LookupError,)
+    if fault:
+        with pytest.raises(UiError): ui.window_closed('license', 'about')
+    else:
+        ui.window_closed('license', 'about')
+
+
+@pytest.mark.parametrize('fault', ['projection', 'bound', 'masked', 'hidden', 'oversized'])
+def test_document_projection_rejects_unregistered_or_unsafe_reads(fault):
+    node = Node(role='password text' if fault == 'masked' else 'text')
+    if fault == 'hidden': node.states.remove('showing')
+    node.get_text_iface = Mock(return_value=node)
+    ui = ui_for(node)
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: 2000,
+        get_text=Mock(return_value='x' * 1025))
+    with pytest.raises(UiError):
+        ui.read_document(node, 'unknown' if fault == 'projection' else 'gpl-heading',
+                         maximum=2048 if fault == 'bound' else 1024)
+    if fault != 'oversized':
+        node.get_text_iface.assert_not_called()
+        ui.api.Text.get_text.assert_not_called()
+
+
+@pytest.mark.parametrize('projection,label', [
+    ('about-product', 'Oh No! Parent Control'), ('about-version', 'Version 1.1'),
+    ('about-footer', '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'),
+])
+def test_about_text_projections_require_the_exact_showing_label(projection, label):
+    node = Node(label, 'label')
+    ui = ui_for(Node(children=[node]))
+    assert ui.read_label(ui.api.get_desktop(0), projection, maximum=80, expected='1.1')
+    node.states.remove('showing')
+    with pytest.raises(UiError):
+        ui.read_label(ui.api.get_desktop(0), projection, maximum=80, expected='1.1')
 
 
 @pytest.mark.parametrize('operation', ['child-picker-opened', 'discovery-child-picker-opened', 'new-child-picker-opened',
@@ -419,23 +484,18 @@ def test_password_widget_contents_are_never_traversed():
     assert list(ui_for(secret).nodes()) == [secret]
 
 
-@pytest.mark.parametrize('fault', [None, 'changed-child', 'changed-toggle', 'changed-allowance',
-                                  'unreviewed-text', 'replay', 'no-selection'])
-def test_return_compares_actual_displayed_settings(fault):
+@pytest.mark.parametrize('fault', [None, 'changed-child', 'unreviewed-text'])
+def test_return_exports_only_sanitized_settings_without_hidden_prior_selection(fault):
     settings = {'child': 'fixture-child', 'limit_enabled': False, 'allowance': ['30 minutes']}
     def response(operation, values):
         return json.dumps({'operation': operation, 'outcome': 'passed',
                            'interface': 'AT-SPI', 'settings': values}).encode()
     transport = SimpleNamespace(call=Mock(return_value=response('parent-selected', settings)))
     session = UiObservations(transport)
-    if fault != 'no-selection':
-        session.observe('parent-selected')
     returned = dict(settings)
     if fault == 'changed-child': returned['child'] = 'another-child'
-    if fault == 'changed-toggle': returned['limit_enabled'] = True
-    if fault == 'changed-allowance': returned['allowance'] = ['45 minutes']
     if fault == 'unreviewed-text': returned['allowance'] = ['private unexpected data']
-    operation = 'parent-selected' if fault == 'replay' else 'parent-returned'
+    operation = 'parent-returned'
     transport.call.return_value = response(operation, returned)
     if fault:
         with pytest.raises(EvidenceError): session.observe(operation)

@@ -278,8 +278,9 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'reused', 'reordered', 'wrong-operation'])
-@pytest.mark.parametrize('plan', [parent_discovery.PLAN, parent_discovery.EMPTY_PLAN, parent_access.PLAN],
-                         ids=['discovery', 'empty', 'standard-access'])
+@pytest.mark.parametrize('plan', [parent_discovery.PLAN, parent_discovery.EMPTY_PLAN, parent_access.PLAN,
+                                 parent_about.PLAN],
+                         ids=['discovery', 'empty', 'standard-access', 'about'])
 def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault, plan):
     details, observations = [], []
     for stage, tag in plan.screen_tags.items():

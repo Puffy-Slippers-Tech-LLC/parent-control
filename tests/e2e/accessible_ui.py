@@ -18,7 +18,7 @@ import time
 OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'parent-window', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
-    'about', 'license', 'about-returned', 'parent-returned',
+    'about', 'license', 'license-closed', 'about-returned', 'parent-returned',
     'discovery-ready', 'new-child-picker-opened', 'new-child-choice-highlighted',
     'new-child-selected', 'existing-child-picker-opened', 'existing-child-choice-highlighted',
     'existing-returned', 'existing-apps', 'new-child-apps', 'new-child-screen',
@@ -33,6 +33,8 @@ STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
 })
 PRODUCT = 'Oh No! Parent Control'
+LICENSE_LINK = 'GNU General Public License v3.0'
+ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
 CHILD = 'Riley (Child)'
 EXISTING_CHILD = 'Jordan (Child)'
 NEW_CHILD = 'Morgan (Child)'
@@ -247,6 +249,82 @@ class AccessibleUI:
     def about(self):
         return self.target('About', ('frame', 'dialog'))
 
+    def open_about(self, version):
+        """ABOUT01: independent Parent entry; menu, About, text and license link."""
+        self.activate(self.target('Parent app menu', ('toggle button',),
+                                  root=self.parent(), sensitive=True))
+        self.activate(self.target('About', ('button', 'push button'),
+                                  root=self.parent(), sensitive=True))
+        root = self.about()
+        self.read_label(root, 'about-product', maximum=80)
+        self.read_label(root, 'about-version', maximum=80, expected=version)
+        self.reveal(LICENSE_LINK, ('link',), root=root)
+
+    def read_document(self, root, projection, *, maximum):
+        """UI03: only the bounded GPL heading projection; never return raw text."""
+        require(projection == 'gpl-heading' and type(maximum) is int
+                and 64 <= maximum <= 1024, 'ui:document-binding')
+        require(root.get_role_name() in ('text', 'document text') and self.showing(root),
+                'ui:document-surface')
+        text = root.get_text_iface()
+        if text is None:
+            return False
+        count = self.api.Text.get_character_count(text)
+        require(type(count) is int and count >= 0, 'ui:document-bound')
+        value = self.api.Text.get_text(text, 0, min(count, maximum))
+        require(type(value) is str and len(value) <= maximum, 'ui:document-bound')
+        return 'GNU GENERAL PUBLIC LICENSE' in value and 'Version 3, 29 June 2007' in value
+
+    def license_content(self):
+        """Read the actual named viewer, without opening or repairing it."""
+        def document():
+            frame = self.find(roles=('frame',), contains='LICENSE')
+            if frame is None:
+                return False
+            return any(self.read_document(node, 'gpl-heading', maximum=1024)
+                       for node in self.nodes(frame)
+                       if self.showing(node) and node.get_role_name() in ('text', 'document text'))
+        return self.wait(document, 'license-content')
+
+    def open_license(self):
+        """ABOUT02: one link action followed by actual viewer content."""
+        self.activate(self.target(LICENSE_LINK, ('link',), root=self.about(), sensitive=True))
+        self.license_content()
+
+    def window_ready_to_close(self, window):
+        """UI01/02: fresh active named window before a worker's Alt-F4."""
+        require(window in ('license', 'about'), 'ui:window-binding')
+        def active():
+            root = (self.find(roles=('frame',), contains='LICENSE') if window == 'license'
+                    else self.find('About', ('frame', 'dialog')))
+            return root is not None and self.has_state(root, self.api.StateType.ACTIVE)
+        self.wait(active, 'active-' + window)
+
+    def window_closed(self, window, destination):
+        """UI11: complete fresh absence within the positively recognized return UI."""
+        require((window, destination) in (('license', 'about'), ('about', 'parent')),
+                'ui:window-binding')
+        def closed():
+            nodes = list(self.nodes(strict=True))
+            if not nodes:
+                return False
+            present = False
+            underlying = False
+            for node in nodes:
+                require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-window')
+                if node.get_role_name() not in ('frame', 'dialog') or not self.showing(node):
+                    continue
+                name = node.get_name()
+                present |= ('LICENSE' in name if window == 'license' else name == 'About')
+                underlying |= name == ('About' if destination == 'about' else PRODUCT)
+            return underlying and not present
+        self.wait(closed, window + '-close')
+
+    def about_footer(self):
+        """ABOUT04's public reveal/read, in an independently opened About window."""
+        self.reveal(ABOUT_FOOTER, ('label',), root=self.about())
+        self.read_label(self.about(), 'about-footer', maximum=80)
+
     def settings(self, child=CHILD):
         """PARENT03: explicit child, public settings; no scenario expectations."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
@@ -266,10 +344,22 @@ class AccessibleUI:
     def read_label(self, root, projection, *, maximum, expected=None):
         """UI03: bounded registered nonsecret projections; no arbitrary text."""
         require(projection in ('child', 'allowance', 'empty-explanation', 'empty-picker',
-                               'search-query', 'web-suggestion')
+                               'search-query', 'web-suggestion', 'about-product',
+                               'about-version', 'about-footer')
                 and type(maximum) is int
                 and 1 <= maximum <= 80, 'ui:text-binding')
         require(root.get_role_name() != 'password text', 'ui:masked-text')
+        if projection.startswith('about-'):
+            if projection == 'about-version':
+                import re
+                require(type(expected) is str and re.fullmatch(r'[0-9][0-9A-Za-z.+:~\-]{0,63}', expected),
+                        'ui:version-binding')
+                label = 'Version ' + expected
+            else:
+                label = PRODUCT if projection == 'about-product' else ABOUT_FOOTER
+            require(len(label) <= maximum, 'ui:text-bound')
+            self.target(label, ('label',), root=root)
+            return True
         if projection == 'search-query':
             require(expected in ('', PRODUCT[:1], PRODUCT) and len(expected) <= maximum,
                     'ui:search-binding')
@@ -850,42 +940,18 @@ class AccessibleUI:
             else:
                 result['settings'] = self.selected_child(child)
         elif operation == 'about':
-            self.activate(self.target('Parent app menu', ('toggle button',),
-                                      root=self.parent(), sensitive=True))
-            self.activate(self.target('About', ('button', 'push button'),
-                                      root=self.parent(), sensitive=True))
-            root = self.about()
-            self.target(PRODUCT, ('label',), root=root)
-            self.target('Version ' + version, ('label',), root=root)
-            self.reveal('GNU General Public License v3.0', ('link',), root=root)
+            self.open_about(version)
         elif operation == 'license':
-            self.activate(self.target('GNU General Public License v3.0', ('link',),
-                                      root=self.about(), sensitive=True))
-            def document():
-                # Read only the foreground LICENSE viewer's public text surface.
-                frame = self.find(roles=('frame',), contains='LICENSE')
-                if frame is None:
-                    return False
-                for node in self.nodes(frame):
-                    if not self.showing(node) or node.get_role_name() not in ('text', 'document text'):
-                        continue
-                    text = node.get_text_iface()
-                    if text is not None:
-                        # Accessible.get_text is a different (deprecated)
-                        # interface accessor on the same GI object.
-                        value = self.api.Text.get_text(
-                            text, 0, min(self.api.Text.get_character_count(text), 1024))
-                        if 'GNU GENERAL PUBLIC LICENSE' in value and 'Version 3, 29 June 2007' in value:
-                            return True
-                return False
-            self.wait(document, 'license-content')
+            self.open_license()
+            self.window_ready_to_close('license')
+        elif operation == 'license-closed':
+            self.window_closed('license', 'about')
         elif operation == 'about-returned':
-            self.wait(lambda: self.find(roles=('frame',), contains='LICENSE') is None,
-                      'license-close')
-            self.reveal('© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.',
-                        ('label',), root=self.about())
+            self.window_closed('license', 'about')
+            self.about_footer()
+            self.window_ready_to_close('about')
         elif operation == 'parent-returned':
-            self.wait(lambda: self.find('About', ('frame', 'dialog')) is None, 'about-close')
+            self.window_closed('about', 'parent')
             result['settings'] = self.settings()
         return result
 

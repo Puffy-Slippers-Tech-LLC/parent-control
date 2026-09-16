@@ -97,8 +97,10 @@ def test_parent_functional_adapter_at_display_scales(
         assert not disabled['limit_enabled']
         assert disabled['allowance'] == selected['settings']['allowance']
         ui.run('about', version)
-        ui.reveal('© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.',
-                  ('label',), root=ui.about())
+        ui.about_footer()
+        ui.window_ready_to_close('about')
+        rawinput.keyCombo('<Alt>F4')
+        assert ui.run('parent-returned', version)['settings'] == disabled
     except Exception:
         from dogtail.hermetic.session import dump_tree
         print(dump_tree(application, max_depth=24))

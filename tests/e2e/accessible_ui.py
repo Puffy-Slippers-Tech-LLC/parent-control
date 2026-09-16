@@ -25,12 +25,12 @@ OPERATIONS = frozenset({
     'discovery-child-picker-opened', 'discovery-child-choice-highlighted', 'discovery-selected',
     'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
-    'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-parent-unavailable',
+    'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
     'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
 })
 STANDARD_OPERATIONS = frozenset({
-    'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-parent-unavailable',
+    'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
 })
 PRODUCT = 'Oh No! Parent Control'
 CHILD = 'Riley (Child)'
@@ -264,11 +264,29 @@ class AccessibleUI:
                 'allowance': labels}
 
     def read_label(self, root, projection, *, maximum, expected=None):
-        """UI03: registered showing labels; never a Text interface."""
-        require(projection in ('child', 'allowance', 'empty-explanation', 'empty-picker')
+        """UI03: bounded registered nonsecret projections; no arbitrary text."""
+        require(projection in ('child', 'allowance', 'empty-explanation', 'empty-picker',
+                               'search-query', 'web-suggestion')
                 and type(maximum) is int
                 and 1 <= maximum <= 80, 'ui:text-binding')
         require(root.get_role_name() != 'password text', 'ui:masked-text')
+        if projection == 'search-query':
+            require(expected in ('', PRODUCT[:1], PRODUCT) and len(expected) <= maximum,
+                    'ui:search-binding')
+            require(root.get_role_name() in ('text', 'entry') and self.showing(root)
+                    and self.has_state(root, self.api.StateType.EDITABLE), 'ui:search-field')
+            text = root.get_text_iface()
+            count = self.api.Text.get_character_count(text) if text is not None else -1
+            matches = (count == len(expected)
+                       and self.api.Text.get_text(text, 0, count) == expected)
+            self.search_status = ('query-matched' if matches else
+                                  'query-mismatch-length=' + str(min(count, 256)))
+            return matches
+        if projection == 'web-suggestion':
+            require(expected == PRODUCT, 'ui:search-binding')
+            label = 'Search "' + expected + '" on the web'
+            require(len(label) <= maximum, 'ui:text-bound')
+            return self.find(label, ('label',), root=root) is not None
         if projection == 'empty-explanation':
             text = 'No interactive non-administrator account was found.'
             require(len(text) <= maximum, 'ui:text-bound')
@@ -388,6 +406,15 @@ class AccessibleUI:
         require(product == PRODUCT, 'ui:search-binding')
         return self.labelled_button(product)
 
+    def search_result(self, product, expected, *, stable_seconds=2):
+        """SEARCH04: observe the explicit registered result, without launching."""
+        require(product == PRODUCT and expected in ('launchable', 'unavailable'),
+                'ui:search-binding')
+        if expected == 'launchable':
+            return self.launchable_result(product)
+        return self.observe_absence('overview', 'launcher-and-window', name=product,
+                                    mode='stable', stable_seconds=stable_seconds)
+
     def desktop_result(self, account, expected):
         """GDM06 success on the caller's qualified public desktop connection."""
         require(account in (PARENT, EXISTING_CHILD) and expected == 'success',
@@ -399,8 +426,14 @@ class AccessibleUI:
         self.observe_absence('greeter', 'password', name=name, mode='snapshot')
         return self.labelled_button(name)
 
-    def observe_absence(self, surface, target, *, name, mode):
-        """UI11's GDM snapshot binding; stable/search scope remains separate."""
+    def observe_absence(self, surface, target, *, name, mode, stable_seconds=None):
+        """UI11: registered positive surfaces and complete fresh exclusion reads."""
+        if surface == 'overview':
+            require(target == 'launcher-and-window' and name == PRODUCT and mode == 'stable'
+                    and type(stable_seconds) in (int, float) and 0 < stable_seconds <= 10,
+                    'ui:absence-binding')
+            return self.search_absence(name, stable_seconds=stable_seconds)
+        require(stable_seconds is None, 'ui:absence-binding')
         if surface == 'parent':
             require(target == 'child-popup' and name in CHILD_IDENTITIES
                     and mode == 'snapshot', 'ui:absence-binding')
@@ -509,6 +542,7 @@ class AccessibleUI:
 
     def search_query(self, expected):
         """Read only the overview's public search field; never arbitrary text."""
+        require(expected in ('', PRODUCT[:1], PRODUCT), 'ui:search-binding')
         overview = self.find('Overview')
         self.search_status = 'overview-missing'
         if overview is None:
@@ -517,14 +551,21 @@ class AccessibleUI:
         self.search_status = 'field-missing'
         if field is None:
             return False
-        text = field.get_text_iface()
-        count = self.api.Text.get_character_count(text) if text is not None else -1
-        matches = (count == len(expected)
-                and self.api.Text.get_text(text, 0, len(expected)) == expected)
-        self.search_status = 'query-matched' if matches else 'query-mismatch-length=' + str(min(count, 256))
-        return matches
+        return self.read_label(field, 'search-query', expected=expected, maximum=80)
 
-    def standard_parent_unavailable(self):
+    def search_ready(self, surface, *, focused=False):
+        """SEARCH01/UI21: read the empty field, optionally its independent focus."""
+        require(surface == 'overview' and type(focused) is bool, 'ui:search-binding')
+        def ready():
+            if not self.search_query(''):
+                return False
+            field = self.find(roles=('text', 'entry'), root=self.find('Overview'),
+                              sensitive=True, editable=True)
+            return field if field is not None and (not focused or self.has_state(
+                field, self.api.StateType.FOCUSED)) else False
+        return self.wait_search(ready, 'standard-search-focus' if focused else 'standard-search-ready')
+
+    def search_absence(self, product, *, stable_seconds):
         """Positive query/result witnesses plus fresh, complete absence reads.
 
         A missing tree, unfinished query, stale subtree or failed read cannot
@@ -535,22 +576,25 @@ class AccessibleUI:
         def observed():
             nonlocal stable_since
             try:
-                ready = self.search_query(PRODUCT)
+                root = self.api.get_desktop(0)
+                ready = root is not None and self.search_query(product)
                 if ready:
                     suggestion = self.find_labelled_button('Search online', root=self.find('Overview'))
                     ready = suggestion is not None
                     self.search_status = 'suggestion-matched' if ready else 'suggestion-missing'
                 if ready:
-                    ready = self.find('Search "' + PRODUCT + '" on the web', ('label',),
-                                      root=suggestion) is not None
+                    ready = self.read_label(suggestion, 'web-suggestion', expected=product, maximum=80)
                     self.search_status = 'description-matched' if ready else 'description-missing'
                 # This negative assertion must not skip inaccessible subtrees.
                 # Product labels include launch results even if their enclosing
                 # button has a missing/wrong accessible name.
-                for node in self.nodes(strict=True):
+                for node in self.nodes(root, strict=True) if root is not None else ():
+                    if self.has_state(node, self.api.StateType.DEFUNCT):
+                        ready = False
+                        self.search_status = 'incomplete-read'
                     if (self.showing(node) and node.get_role_name() in
                             ('button', 'push button', 'label', 'frame', 'dialog')
-                            and ' '.join(node.get_name().split()) == PRODUCT):
+                            and ' '.join(node.get_name().split()) == product):
                         ready = False
                         self.search_status = 'parent-available'
                 if not ready:
@@ -559,12 +603,12 @@ class AccessibleUI:
                 now = time.monotonic()
                 if stable_since is None:
                     stable_since = now
-                return now - stable_since >= 2
+                return now - stable_since >= stable_seconds
             except self.query_errors:
                 stable_since = None
                 self.search_status = 'incomplete-read'
                 raise
-        self.wait_search(observed, 'standard-parent-unavailable')
+        return self.wait_search(observed, 'standard-parent-unavailable')
 
     def wait_search(self, predicate, code):
         try:
@@ -769,27 +813,21 @@ class AccessibleUI:
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
         elif operation == 'standard-app-grid':
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
-            self.wait_search(lambda: self.search_query(''), 'standard-search-ready')
-            field = self.target(roles=('text', 'entry'), root=self.target('Overview'),
-                                sensitive=True, editable=True)
+            field = self.search_ready('overview')
             # Public screen coordinates route ordinary pointer input only.
             # They are never compared to a reference layout or used as an
             # outcome: the next checkpoint must independently observe focus.
             result['pointer'] = self.pointer_target(field)
         elif operation == 'standard-search-focused':
-            def focused():
-                root = self.find('Overview')
-                if root is None or not self.search_query(''):
-                    return False
-                field = self.find(roles=('text', 'entry'), root=root, sensitive=True, editable=True)
-                return field is not None and self.has_state(field, self.api.StateType.FOCUSED)
-            self.wait(focused, 'standard-search-focus')
+            self.search_ready('overview', focused=True)
         elif operation == 'standard-search-started':
             # GNOME's public overview supports type-to-search without manually
             # focusing the entry. Observe the first character before continuing.
             self.wait_search(lambda: self.search_query(PRODUCT[:1]), 'standard-search-started')
+        elif operation == 'standard-search-entered':
+            self.wait_search(lambda: self.search_query(PRODUCT), 'standard-search-entered')
         elif operation == 'standard-parent-unavailable':
-            self.standard_parent_unavailable()
+            self.search_result(PRODUCT, 'unavailable', stable_seconds=2)
         elif operation == 'app-grid':
             # The worker entered the product query with real keyboard input.
             # Verify a launchable result, not GNOME's grid geometry or tiles.

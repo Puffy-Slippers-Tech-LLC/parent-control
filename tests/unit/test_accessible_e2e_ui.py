@@ -649,7 +649,8 @@ def test_controller_requires_ordered_wrong_recipient_then_fresh_parent_recheck(f
 @pytest.mark.parametrize('fault', [None, 'wrong-query', 'missing-field', 'hidden-field',
     'disabled-field', 'missing-overview', 'missing-suggestion', 'hidden-description',
     'wrong-description', 'launcher', 'unnamed-launcher', 'management', 'stale-subtree',
-    'delayed-launcher', 'labelled-result', 'disabled-suggestion', 'unrelated-description'])
+    'delayed-launcher', 'labelled-result', 'disabled-suggestion', 'unrelated-description',
+    'defunct-subtree', 'transient-stale'])
 def test_standard_search_requires_query_web_result_and_stable_complete_absence(monkeypatch, fault):
     import accessible_ui
     product = accessible_ui.PRODUCT
@@ -662,6 +663,7 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
     overview = Node('Overview', 'panel', children=[field, suggestion],
                     appearance={'scale': 2.5, 'font': 'ugly', 'misaligned': True})
     root = Node(children=[overview])
+    if fault == 'defunct-subtree': root.children.append(Node('private-canary', states=('defunct',)))
     if fault == 'missing-field': overview.children.remove(field)
     if fault == 'hidden-field': field.states.remove('showing')
     if fault == 'disabled-field': field.states.remove('sensitive')
@@ -688,27 +690,30 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
         overview.children.append(stale)
     ui = ui_for(root)
     ui.query_errors = (LookupError,)
-    ui.timeout = 4
+    ui.timeout = 5
     ui.api.Text = SimpleNamespace(get_character_count=lambda text: len(text.value),
                                  get_text=lambda text, start, end: text.value[start:end])
     now = [0.0]
     monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
     def tick(seconds):
         now[0] += seconds
+        if fault == 'transient-stale':
+            root.states = {'defunct'} if 1 <= now[0] < 2 else {'showing', 'visible'}
         if fault == 'delayed-launcher' and now[0] >= 1:
             overview.children.append(Node(product, 'push button'))
     monkeypatch.setattr(accessible_ui.time, 'sleep', tick)
-    if fault not in (None, 'labelled-result'):
+    if fault not in (None, 'labelled-result', 'transient-stale'):
         with pytest.raises(UiError, match='standard-parent-unavailable'):
             ui.run('standard-parent-unavailable', '')
     else:
         assert ui.run('standard-parent-unavailable', '') == {
             'operation': 'standard-parent-unavailable', 'outcome': 'passed', 'interface': 'AT-SPI'}
         assert now[0] >= 2
+        if fault == 'transient-stale': assert now[0] >= 4
     suggestion.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('operation', ['standard-desktop', 'standard-app-grid',
+@pytest.mark.parametrize('operation', ['standard-desktop', 'standard-app-grid', 'standard-search-entered',
                                       'standard-parent-unavailable'])
 def test_standard_controller_rejects_private_text_and_wrong_operation(operation):
     result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
@@ -752,6 +757,43 @@ def test_typeahead_requires_actual_first_character_before_remaining_input(value)
     else:
         with pytest.raises(UiError, match='standard-search-started'):
             ui.run('standard-search-started', '')
+
+
+@pytest.mark.parametrize('value', ['', 'O', 'Oh No! Parent Control', 'Oh No! Parent Controls'])
+def test_full_query_checkpoint_reads_exact_value_before_result(value):
+    from accessible_ui import PRODUCT
+    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    field.get_text_iface = lambda: field
+    ui = ui_for(Node(children=[Node('Overview', 'panel', children=[field])]))
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value), get_text=lambda *_: value)
+    if value == PRODUCT:
+        assert ui.run('standard-search-entered', '')['outcome'] == 'passed'
+    else:
+        with pytest.raises(UiError, match='standard-search-entered'):
+            ui.run('standard-search-entered', '')
+
+
+@pytest.mark.parametrize('fault', ['', 'masked', 'hidden', 'unregistered', 'bound', 'too-long'])
+def test_text_projection_uses_independent_field_and_never_reads_masked_or_unbounded_text(fault):
+    from accessible_ui import PRODUCT
+    field = Node('', 'password text' if fault == 'masked' else 'text',
+                 states=('visible', 'editable') if fault == 'hidden' else ('showing', 'visible', 'editable'))
+    field.get_text_iface = Mock(return_value=field)
+    ui = ui_for(Node())
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: 10000 if fault == 'too-long' else len(PRODUCT),
+                                 get_text=Mock(return_value=PRODUCT))
+    def read():
+        return ui.read_label(field, 'search-query', expected='private-canary' if fault == 'unregistered'
+                             else PRODUCT, maximum=1 if fault == 'bound' else 80)
+    if fault == 'too-long':
+        assert not read()
+        ui.api.Text.get_text.assert_not_called()
+    elif fault:
+        with pytest.raises(UiError): read()
+        field.get_text_iface.assert_not_called()
+    else:
+        assert read()
+        ui.api.Text.get_text.assert_called_once_with(field, 0, len(PRODUCT))
 
 
 def test_accessibility_wait_delivers_pending_events_before_fresh_read():

@@ -11,6 +11,7 @@ sub choose_account {
     my %bindings = (
         parent => 'parent-list/parent-focused',
         'other-parent' => 'installed-greeter/other-parent-focused',
+        'other-child' => 'standard-list/standard-focused',
     );
     die 'gdm:selection-binding' unless @_ == 5 && ref($journey) eq 'onpc_journey'
         && exists($bindings{$account}) && join('/', $list_stage, $focused_stage) eq $bindings{$account};
@@ -25,13 +26,13 @@ sub choose_account {
 sub refuse_wrong_recipient {
     my ($journey, $wrong, $intended) = @_;
     die 'gdm:recipient-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && $wrong eq 'other-parent' && $intended eq 'parent';
+        && $wrong eq 'other-parent' && ($intended eq 'parent' || $intended eq 'other-child');
     choose_account($journey, $wrong, $journey->seen('installed-greeter'),
                    'installed-greeter', 'other-parent-focused');
     my $proof = $journey->seen('wrong-recipient-refused');
     $journey->consume_observation('wrong-recipient-refused', $proof);
     testapi::send_key('esc');
-    return $journey->seen('parent-list');
+    return $journey->seen($intended eq 'parent' ? 'parent-list' : 'standard-list');
 }
 
 sub functional_selection {

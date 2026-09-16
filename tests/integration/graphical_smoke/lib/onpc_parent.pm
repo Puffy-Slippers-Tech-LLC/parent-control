@@ -13,17 +13,56 @@ sub login_functional {
     return sign_in($journey, 'parent', 'other-parent', 'success');
 }
 
-# GDM07: fixed fresh Parent binding; setup reattachment belongs to the envelope.
+# GDM07: registered fresh accounts; setup reattachment belongs to the envelope.
 sub sign_in {
     my ($journey, $account, $wrong_account, $expected) = @_;
     die 'parent:entry-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
-        && $account eq 'parent' && $wrong_account eq 'other-parent' && $expected eq 'success';
+        && ($account eq 'parent' || $account eq 'other-child')
+        && $wrong_account eq 'other-parent' && $expected eq 'success';
     my $list = onpc_gdm::refuse_wrong_recipient($journey, $wrong_account, $account);
-    onpc_gdm::choose_account($journey, $account, $list, 'parent-list', 'parent-focused');
+    my $prefix = $account eq 'parent' ? 'parent' : 'standard';
+    onpc_gdm::choose_account($journey, $account, $list, "$prefix-list", "$prefix-focused");
     # GDM05 keeps both fresh controller recipient checks and the sealed UI19 API.
-    onpc_password::enter_parent_gdm_password($journey);
+    $account eq 'parent' ? onpc_password::enter_parent_gdm_password($journey)
+        : onpc_password::enter_standard_gdm_password($journey);
     testapi::send_key('ret');
     return $journey->seen('desktop');
+}
+
+# SEARCH01: consume an independently observed desktop; return the empty field.
+sub open_search {
+    my ($journey, $desktop, $surface) = @_;
+    die 'parent:search-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && $surface eq 'overview';
+    $journey->consume_observation('desktop', $desktop);
+    # A login-keyring modal can consume Super-A. Dismiss it before the single
+    # opening gesture, rather than repairing an Overview that never opened.
+    $journey->seen('system-prompt');
+    testapi::send_key('super-a');
+    return $journey->seen('app-grid');
+}
+
+# UI21: a fresh public target routes one click; a separate read proves focus.
+sub focus_search {
+    my ($journey, $field, $surface) = @_;
+    die 'parent:search-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && $surface eq 'overview';
+    $journey->consume_observation('app-grid', $field);
+    $journey->click_target($field);
+    return $journey->seen('search-focused');
+}
+
+# SEARCH03: two paced inputs, each independently read, without input repair.
+sub enter_search_query {
+    my ($journey, $focused, $product) = @_;
+    die 'parent:search-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && $product eq 'Oh No! Parent Control';
+    $journey->consume_observation('search-focused', $focused);
+    testapi::type_string(substr($product, 0, 1), max_interval => 20);
+    my $started = $journey->seen('search-started');
+    $journey->consume_observation('search-started', $started);
+    testapi::type_string(substr($product, 1), max_interval => 20);
+    return $journey->seen('search-entered');
 }
 
 # SEARCH06: explicit observed desktop; stop at the launchable result, before Enter.
@@ -88,17 +127,7 @@ sub login_standard_functional {
     my ($journey) = @_;
     die 'parent:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::reattach_functional();
-    $journey->navigate_choice($journey->seen('installed-greeter'));
-    $journey->seen('other-parent-focused');
-    testapi::send_key('ret');
-    $journey->seen('wrong-recipient-refused');
-    testapi::send_key('esc');
-    $journey->navigate_choice($journey->seen('standard-list'));
-    $journey->seen('standard-focused');
-    testapi::send_key('ret');
-    onpc_password::enter_standard_gdm_password($journey);
-    testapi::send_key('ret');
-    $journey->seen('desktop');
+    return sign_in($journey, 'other-child', 'other-parent', 'success');
 }
 
 # Installed account pixels and negative recipient qualification are shared by

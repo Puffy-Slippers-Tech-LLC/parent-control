@@ -19,6 +19,7 @@ PLAN = JourneyPlan(
         "app-grid": "ui:standard-app-grid",
         "search-focused": "ui:standard-search-focused",
         "search-started": "ui:standard-search-started",
+        "search-entered": "ui:standard-search-entered",
         "unavailable": "ui:standard-parent-unavailable",
     },
     phases={
@@ -30,6 +31,7 @@ PLAN = JourneyPlan(
         "desktop": "step-1", "system-prompt": "step-1", "app-grid": "step-1",
         "search-focused": "step-2",
         "search-started": "step-2",
+        "search-entered": "step-2",
         "unavailable": "step-2",
     },
     advance_after={"app-grid": "step-2"},

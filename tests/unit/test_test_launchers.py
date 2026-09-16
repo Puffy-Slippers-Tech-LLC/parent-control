@@ -12,6 +12,37 @@ import test_launcher as host
 import test_commands as commands
 
 
+def test_retention_permission_failure_identifies_allocation_without_starting_tests(
+        tmp_path, monkeypatch, capsys):
+    import regression
+    import test_retention
+
+    store = test_retention.Store(tmp_path / 'artifacts/test-retention')
+    with store.session():
+        scratch = tmp_path / 'sbuild-scratch'
+        scratch.mkdir(mode=0o711)
+        test_retention.retain(scratch, mode=0o711)
+        private = scratch / 'private-chroot'
+        private.mkdir(mode=0)
+    journal = store.path / 'current.json'
+    original = journal.read_bytes()
+    monkeypatch.setattr(commands, '__file__', str(tmp_path / 'tools/test_commands.py'))
+    monkeypatch.setattr(regression, 'retained_main',
+                        lambda *args, **kwargs: pytest.fail('tests started despite inaccessible storage'))
+    try:
+        assert commands._main(['all']) == 2
+        diagnostic = capsys.readouterr().err
+        assert 'PermissionError' in diagnostic
+        assert 'retention: cannot inspect registered allocation' in diagnostic
+        assert repr(str(scratch)) in diagnostic
+        assert 'startup refused' in diagnostic
+        assert 'filesystem or execution failure' not in diagnostic
+        assert journal.read_bytes() == original
+        assert private.exists()
+    finally:
+        private.chmod(0o700)
+
+
 @pytest.mark.parametrize('argv', [[], ['--help'], ['--list'], ['e2e', '--list'],
                                   ['unknown', '--invalid'], ['unit', '-q']])
 def test_external_invocation_reaches_session_before_argument_validation(monkeypatch, argv):

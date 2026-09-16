@@ -161,10 +161,14 @@ class Dashboard:
                     rendered.add(item.phase)
                     if lines:
                         lines.append('│')
+                    phase_items = [other for other in hosts if other.phase == item.phase]
                     if item.phase == 'cleanup':
-                        lines.append('Cleanup safety prerequisites')
-                    lines.extend(self.branches([other for other in hosts if other.phase == item.phase],
-                                               now, item.phase))
+                        heading = 'Cleanup safety prerequisites'
+                        if self.cleanup_elapsed is not None and all(
+                                other.state == 'Passed' for other in phase_items):
+                            heading = f'\033[32m{heading}\033[0m'
+                        lines.append(heading)
+                    lines.extend(self.branches(phase_items, now, item.phase))
             else:
                 lines.append(('│  ' if hosts else '') + self.category(item, now))
         done = sum(item.done for item in self.categories)

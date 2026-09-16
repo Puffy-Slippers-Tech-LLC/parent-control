@@ -89,7 +89,8 @@ def check_build(root):
     attempt = Path(allocate(tempfile.mkdtemp, prefix='onpc-ppa-check-', dir='/tmp'))
     # sbuild can fail before recording its unpack directory for end_session().
     # Confine those leftovers too. Its subordinate user requires world traversal
-    # of ancestors; keep listing private and leave cleanup to sbuild itself.
+    # of ancestors; keep listing private. Retention audits any leftovers in a
+    # user namespace with the caller's subordinate IDs and rotates expired trees.
     scratch = Path(allocate(tempfile.mkdtemp, prefix='onpc-sbuild-scratch-', dir='/var/tmp', mode=0o711))
     source = attempt / 'input'
     output = attempt / 'output'

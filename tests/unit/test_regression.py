@@ -278,9 +278,12 @@ def test_branch_totals_and_join_time_freeze_before_later_work():
     dashboard.cleanup_elapsed = 48
     cleanup = regression.Category('Cleanup', 1, 1, 'Passed', host=True, branch=1,
                                   phase='cleanup')
+    dashboard.categories = [cleanup]
+    assert '\033[32mCleanup safety prerequisites\033[0m' in dashboard.render(340)
     assert ('\033[32m└─ Join cleanup prerequisites — passed — 0.8m wall time\033[0m'
             in '\n'.join(dashboard.branches([cleanup], 340, 'cleanup')))
     cleanup.state = 'Failed'
+    assert '\033[32mCleanup safety prerequisites\033[0m' not in dashboard.render(340)
     failed = '\n'.join(dashboard.branches([cleanup], 340, 'cleanup'))
     assert '\033[1;31m├─ Host branch 1 — finished - 0.0m\033[0m' in failed
     assert '\033[32m└─ Join cleanup prerequisites' not in failed

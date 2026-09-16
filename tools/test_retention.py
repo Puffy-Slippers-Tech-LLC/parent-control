@@ -12,10 +12,13 @@ import os
 from pathlib import Path
 import signal
 import stat
+import subprocess
+import sys
 import uuid
 
 VARIABLE = 'ONPC_TEST_RETENTION'
 RUNS_TO_KEEP = 3
+_locks = set()
 
 
 def directory(path):
@@ -118,8 +121,10 @@ class Store:
                 fcntl.flock(lock, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
             except BlockingIOError as error:
                 raise ValueError('retention: another owner is active') from error
+            _locks.add(lock)
             yield
         finally:
+            _locks.discard(lock)
             os.close(lock)
 
     def read(self, fd):
@@ -367,6 +372,9 @@ def remove(record, *, validate_only=False):
                 raise ValueError('retention: recorded allocation was replaced')
             if mount_id(target) != mount_id(parent):
                 raise ValueError('retention: mounted storage is not disposable')
+            if os.geteuid() != 0 and sbuild_scratch(record):
+                namespace_remove(record, validate_only=validate_only)
+                return
             check_tree(target, info.st_dev)
             if validate_only:
                 return
@@ -380,8 +388,59 @@ def remove(record, *, validate_only=False):
             os.rmdir(path.name, dir_fd=parent)
         finally:
             os.close(target)
+    except OSError as error:
+        operation = 'inspect' if validate_only else 'clean'
+        error.add_note(
+            f'retention: cannot {operation} registered allocation {str(path)!r}; '
+            'startup refused; preserve the journal and evidence until its cleanup is repaired')
+        raise
     finally:
         os.close(parent)
+
+
+def sbuild_scratch(record):
+    path = Path(record['path'])
+    return (path.parent == Path('/var/tmp')
+            and path.name.startswith('onpc-sbuild-scratch-')
+            and record.get('mode') == 0o711)
+
+
+def namespace_remove(record, *, validate_only):
+    # Map only the caller and its configured subordinate IDs, never host root.
+    # Identity mapping keeps the complete subordinate range (map-auto plus
+    # map-root-user drops one ID). No mount namespace: bind mounts remain visible
+    # to the same descriptor-based audit used by ordinary retention.
+    command = ['/usr/bin/unshare', '--user', '--map-users=subids',
+               '--map-groups=subids', '--map-root-user', '--',
+               '/usr/bin/python3', '-I', '-B', str(Path(__file__).resolve()),
+               '--sbuild-retention', 'inspect' if validate_only else 'remove']
+    try:
+        result = subprocess.run(command, input=json.dumps(record), text=True,
+                                cwd='/', env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+                                              'LANG': 'C.UTF-8'},
+                                pass_fds=tuple(_locks), timeout=300, check=False)
+    except subprocess.TimeoutExpired as error:
+        raise ValueError(f'retention: sbuild namespace operation timed out for {record["path"]!r}; '
+                         'preserve the journal and evidence') from error
+    if result.returncode:
+        raise ValueError(f'retention: sbuild namespace operation failed for {record["path"]!r} '
+                         f'(status={result.returncode}); preserve the journal and evidence')
+
+
+def namespace_main(argv):
+    if (argv not in (['--sbuild-retention', 'inspect'], ['--sbuild-retention', 'remove'])
+            or os.geteuid() != 0):
+        raise ValueError('retention: invalid sbuild namespace invocation')
+    # Refuse invocation as real host root; this worker is only for caller-owned
+    # scratch, with the caller mapped to namespace root by unshare.
+    mapping = [line.split() for line in Path('/proc/self/uid_map').read_text().splitlines()]
+    if not any(inner == '0' and outer != '0' and count == '1'
+               for inner, outer, count in mapping):
+        raise ValueError('retention: caller user namespace required')
+    record = json.load(sys.stdin)
+    if not sbuild_scratch(record):
+        raise ValueError('retention: invalid sbuild scratch record')
+    remove(record, validate_only=argv[1] == 'inspect')
 
 
 def check_tree(fd, device):
@@ -440,3 +499,10 @@ def allocation_identity(info, mode):
     if (mode not in (0o700, 0o711) or not stat.S_ISDIR(info.st_mode)
             or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != mode):
         raise ValueError('retention: unsafe allocation ownership or mode')
+
+
+if __name__ == '__main__':
+    try:
+        namespace_main(sys.argv[1:])
+    except (ValueError, OSError) as error:
+        sys.exit(str(error))

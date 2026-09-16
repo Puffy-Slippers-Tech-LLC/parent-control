@@ -263,9 +263,16 @@ Fixture setup/teardown or pytest infrastructure failures pin host evidence with
 Deletion failures also stop the next run instead of silently accumulating output.
 Sbuild scratch uses its supported `unshare_tmpdir_template` inside a registered
 `/var/tmp/onpc-sbuild-scratch-*` parent with mode 0711 (traversable by the
-subordinate build user, not publicly listable). Sbuild still owns chroot cleanup;
-inaccessible leftovers from failed namespace cleanup stop rotation and further
-builds instead of creating another untracked `/tmp/tmp.sbuild.*` tree.
+subordinate build user, not publicly listable). Sbuild normally cleans its chroot.
+Retention inspects registered scratch and removes expired scratch in a user
+namespace mapping the caller and its configured subordinate IDs, so interrupted
+builds cannot strand rotation on subordinate-owned private directories. The
+namespace worker inherits the storage leases and repeats ownership, inode and
+mount checks; it does not change file permissions or ownership. Inspection keeps
+evidence intact, and deletion follows the same three-run rotation. Missing ID
+mapping prerequisites or failed audits refuse startup and preserve the journal.
+This development-tool change activates on invocation, with no product migration
+or service restart.
 
 Historical directories created before registration, standalone command outputs,
 curated evidence, logs outside registered test directories and operator exports

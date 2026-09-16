@@ -1,7 +1,6 @@
 # Test maintenance
 
-Start with the [daily testing guide](../docs/Test-Automation.md) for current and
-planned commands. This document describes how to select and maintain tests;
+Start with the [E2E building blocks](../docs/TestAutomation/E2E-Building-Blocks.md) for customer validation design. This document describes how to select and maintain tests;
 it does not repeat completed setup tasks or historical acceptance results.
 
 Use the [shared support guide](support/README.md) before adding fixture code.
@@ -9,9 +8,9 @@ It maps existing broker, D-Bus, preview, package, VM and E2E helpers to their
 contracts. Reusable code belongs in support modules, not collected case files.
 
 For unfinished implementation, follow the
-[bounded workflow](../docs/TestAutomation/Implementation-Workflow.md): read the
+[E2E building blocks](../docs/TestAutomation/E2E-Building-Blocks.md): read the
 active problem and relevant code, prove one real helper path, then batch its
-cases. Preserve a short handoff and clear solved context before a different
+cases. Report results and retain runner artifacts before moving to a different
 problem. A fresh chat does not require rerunning unaffected tests.
 
 ## All established regressions
@@ -94,9 +93,7 @@ Artifact operations may overlap known parallel host categories and each other.
 Every VM attempt remains exclusive after the host/build join. Resource shortages
 defer launches, and already-running tests finish normally when load rises.
 
-The [scheduling contract](../docs/TestAutomation/Test-All-Parallelism-Design.md)
-owns companion isolation, cleanup barriers, admission budgets and recovery,
-queue ordering and qualification requirements. Private `resources.jsonl` and
+Private `resources.jsonl` and
 `schedule.jsonl` retain sampled host load, dependencies, admitted companions and
 wait reasons. Estimates guide ordering without relaxing resource or test limits.
 
@@ -143,8 +140,7 @@ full selection together. E2E retains independent attempts: the current sole
 ready case requires a product-free boot. Pending customer journeys are not
 made runnable or silently combined. Future explicit shared-setup groups must
 declare compatible starting states, boundary checks, individual evidence and
-group cleanup before reducing those attempts. See the
-[scheduling design and implementation scope](../docs/TestAutomation/Test-All-Parallelism-Design.md).
+group cleanup before reducing those attempts.
 
 The command collects current unit/contract, private-D-Bus, UI and fixture runtime
 cases; runs cleanup prerequisites in isolation before protected operations;
@@ -263,7 +259,7 @@ release-acceptance roadmap.
 
 ## Test layers
 
-The [2026-09-14 customer scope](../docs/TestAutomation/E2E-Coverage.md) changes
+The [2026-09-14 customer scope](../docs/TestAutomation/E2E-Building-Blocks.md) changes
 unfinished E2E plans, not completed lower-level tests. Keep all established
 regressions and applicable safety execution intact. Customer E2E uses real
 actions and visible results; mechanical installation/upgrade/removal retains
@@ -293,7 +289,7 @@ guest. Do not use generic `check-marker`/`check-coverage` as an E2E launcher.
 
 ### Approved test and diagnostic categories
 
-Use the [approval tools guide](../docs/TestAutomation/Approval-Tools.md) for the
+Use the [repository approval tools guide](../docs/Approval-Tools.md) for the
 complete current/future category matrix, validated options, targeted VM control,
 read-only system diagnostics, and trust boundaries. Stable entry points are:
 
@@ -567,7 +563,7 @@ layers actually measured and include the separate child-language results.
 
 1. Identify the changed behavior and its authoritative specification/design
    requirement, or the necessary harness safety guarantee. Follow the
-   [app scope and prerequisite rules](../docs/TestAutomation/E2E-Coverage.md#scope-tests-around-the-app).
+   [app scope and prerequisite rules](../docs/TestAutomation/E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope).
    Use supported fixture helpers for unrelated OS/account/asset setup. Add
    regression cases at the lowest effective layer; exhaustive independent form
    values belong in local tests, with real installed/customer coverage for the
@@ -582,9 +578,11 @@ layers actually measured and include the separate child-language results.
    actual executable evidence justifies `covered`. Supporting contracts cannot
    satisfy a required runtime layer.
 4. For graphical work, enumerate and implement the applicable variants under
-   [E2E-Coverage.md](../docs/TestAutomation/E2E-Coverage.md). Record the complete
-   journey, real actions, visible/backend/other-user assertions, and any declared
-   fault or environment intervention. A passing fragment is not a full journey.
+   [scenario decomposition](../docs/TestAutomation/E2E-Building-Blocks.md#complete-scenario-decomposition)
+   and [scenario inventory](e2e/scenarios.json). Record the complete journey,
+   real actions and visible results, including other-user surfaces when applicable.
+   Keep internal fault qualification in its separate test layer.
+   A passing fragment is not a full journey.
 5. Run the relevant verification once per ordinary attempt, with bounded waits
    and preserved first failures. Repeated harness qualification is explicit
    maintenance work, not a permanent multiplier in daily commands.
@@ -602,5 +600,5 @@ state this boundary explicitly rather than hiding missing external evidence.
 
 Reusable VM/package fixture interfaces are in the
 [installed runner guide](integration/README.md). The
-[implementation backlog](../docs/TestAutomation/Test-Automation.md) tracks
+[E2E building blocks](../docs/TestAutomation/E2E-Building-Blocks.md) track
 unfinished automation, not daily procedures.

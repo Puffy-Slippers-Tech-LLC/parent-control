@@ -99,8 +99,8 @@ of the account-policy file. If implemented as a separate generated file, it
 must be removed before `postrm` tests whether administrator rules remain;
 otherwise it changes the empty-directory/baseline branch. Ship its ownership,
 retry and cleanup handling with the witness, and qualify final baseline
-restoration separately. The [audit](../TestAutomation/Evidence/15A-Kernel-Witness-Audit-20260911.md)
-does not qualify removal or change the current file layout.
+restoration separately. This design does not qualify removal or change the
+current file layout.
 
 ## Remove, purge, and retry
 

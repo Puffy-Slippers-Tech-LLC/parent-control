@@ -2,14 +2,14 @@
 
 **Scope — 2026-09-14:** preserve established installed, unit/component and
 runner regressions. Mechanical installation, upgrade, migration, removal and
-startup recovery still require their internal checks under Tasks 18/20.
+startup recovery still require their internal checks in package/system qualification.
 Customer E2E instead follows the
-[surface-only contract](../../docs/TestAutomation/E2E-Coverage.md) and is
-prioritized in the [active plan](../../docs/TestAutomation/Test-Automation.md).
+[surface-only contract](../../docs/TestAutomation/E2E-Building-Blocks.md) and is
+prioritized in the [E2E building blocks](../../docs/TestAutomation/E2E-Building-Blocks.md).
 Accepted installed setup can provision its prerequisites; internal product
 assertions and the deferred policy probe are not customer dependencies.
 
-Use the [daily guide](../../docs/Test-Automation.md) for command scope and the
+Use the [E2E building blocks](../../docs/TestAutomation/E2E-Building-Blocks.md) for command scope and the
 [test contributor guide](../README.md) for local layers and safety prerequisites.
 This document retains the implemented runner and artifact contracts. Initial
 setup tasks, historical test counts, and dated acceptance directories are not
@@ -43,22 +43,6 @@ and the [prepared guest tool inventory](guest_test_dependencies.py). Record actu
 versions in each result; do not use a dated development-workstation package
 table as evidence of the installed guest's environment.
 
-## Graphical backend prerequisite
-
-Task 19P's candidate backend is the pinned os-autoinst `generalhw` package.
-After the isolated `test_system_runner_cleanup_safety.py` prerequisites, run
-`tools/run-tests backend` for a read-only
-package/API/dependency check. It requires neither root nor VM access and reports
-tooling readiness only. `setup.sh` includes the Perl dependency missing from
-the backend package's dependency declaration. The
-[19P completion handoff](../../docs/TestAutomation/Task-19.md#completion-handoff--2026-09-06-19p-accepted)
-records the qualified lease adapter and live smoke. Run its credential-free
-feasibility check with
-`pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_smoke`;
-the dispatcher supplies isolated cleanup/lease prerequisites. This establishes
-graphical compatibility, while the full E2E runner and customer coverage remain
-under development. Preflight alone establishes only tooling readiness.
-
 ## Package and fixture inputs
 
 `tools/build_test_artifacts.py` builds without installing the product on the
@@ -75,29 +59,9 @@ source revision/content digest, source date epoch, architecture, build inputs,
 tool versions, and package/stable-fixture digests.
 
 **Source selection (2026-09-13):** `build_test_artifacts._source_paths` and
-`e2e.provenance.source_paths` exclude only the repository-relative path named by
-`build_test_artifacts.OPERATOR_LOG_PATH`, the supervisor-owned operator output.
-Both Git commands use an exact top-level literal exclusion, with a second filter
-before filesystem inspection. All other tracked/nonignored inputs, including
-documentation and similarly named files, remain bound to current bytes/modes.
-Both readers use NUL-delimited paths and the same Path ordering.
-
-`tests/unit/test_e2e_provenance.py` qualifies no-open/no-copy behavior for tracked
-and untracked operator output, matching builder/controller digests, and preserved
-refusal of other source additions/edits/removals. Its
-`test_operator_output_is_never_read_copied_or_bound_to_inputs`,
-`test_operator_output_exception_does_not_hide_other_source_changes` and
-`test_source_filename_bytes_match_between_collectors` run against synthetic Git
-fixtures, never the actual operator log. Together with the artifact-builder
-suite, **78 focused tests passed**. Fresh artifact build/verification and the
-guarded installed lifecycle subsequently passed at
-`/tmp/onpc-system-jq_9bl4m/evidence/result.json`; all five selected executions,
-source validation, collection and restored-baseline verification passed.
-This qualifies use by that installed consumer, not a graphical controller run.
-No retained manifest was changed. Ordinary documentation still invalidates old
-artifacts; this exception supplies neither a stable source window nor Task 20 R1
-ownership/validation-timing qualification. See the
-[active 15A handoff](../../docs/TestAutomation/Task-15.md#task-15a-continuation--2026-09-08).
+`e2e.provenance.source_paths` bind all tracked/nonignored inputs, including
+documentation, to current bytes/modes. Both readers use NUL-delimited paths
+and the same Path ordering.
 
 `tests/fixtures/build_test_applications.py` supplies real long-running native
 executables, path/space/version-pattern variants, desktop entries and a minimal
@@ -130,7 +94,7 @@ coordinates host results and VM artifacts for the same source content.
 
 ## Running the current installed suite
 
-For implementation, use the [bounded diagnostic workflow](../../docs/TestAutomation/Implementation-Workflow.md).
+For implementation, use the [E2E building blocks](../../docs/TestAutomation/E2E-Building-Blocks.md).
 The current controller executes the registered installed/reboot/authorization/
 enforcement/session scope when unselected. F1 can list the registered `package`, `authorization`, `enforcement`, and `session`
 cases and their explicit prerequisite closure without artifacts, root access,
@@ -163,39 +127,6 @@ for the selected new payload. Identical package digests are refused. The update
 must request a new product reboot, and normal installed/reboot assertions run
 against the new bytes. `update-activation.json` records both package digests and
 the same-version reinstall observation. Neither package is installed on the host.
-
-Task 15A's first registered enforcement case is
-`test_native_command_policy_is_uid_scoped`. Inspect it with
-`tools/run-tests system --list --area enforcement --test test_native_command_policy_is_uid_scoped`.
-Each native transition case now records validated fapolicyd package version and
-installed executable digest before policy access, using
-`system_enforcement.record_execution_backend`. The
-[interface audit](../../docs/TestAutomation/Evidence/15A-Activation-Interface-Audit-20260911.md)
-owns the missing historical dependency identity and local verification. This
-capture now has live evidence from the retained native-probe compositions described
-in the [admission contract](../../docs/SystemDesign/Applications.md#pre-exec-admission-for-a-causal-witness);
-it does not witness daemon activation. In particular, the upstream ruleset journal digest is emitted before
-parsing and must not replace the runtime launch assertions below.
-It requires the four package/reboot executions, then tests native command allow,
-hard denial, restored allow, soft denial, and restored allow again with screen-time
-control disabled, then repeats those transitions with screen-time control enabled
-through `SetParentControl`, retaining the original daily allowance. Intermediate
-allow rules and launch witnesses prevent stale hard rules from satisfying the
-soft assertion. Each save reads back the selected policy, screen-time setting
-and daily allowance before examining rules and launches. The second child
-launches the same target at every step. Source/compiled rules and launch
-witnesses use existing private diagnostics; public properties contain role
-labels and digests. Final restoration disables screen-time control through its
-dedicated API and restores original preferences, even after a failed enable reply;
-restoration failures fail the case without replacing an earlier scenario failure.
-The probe drops and verifies credentials, then replaces its
-own pinned process with the one-shot fixture. Fixture files remain inside the
-guest until outer baseline cleanup. Host contracts and all five implemented
-native cases passed the full installed run recorded in the
-[refactor evidence](../../docs/TestAutomation/Evidence/Test-Support-Refactor-20260908.md#guarded-installed-and-graphical-evidence).
-Remaining [Task 15A](../../docs/TestAutomation/Task-15.md#task-15a) coverage stays pending.
-This registration does not establish Snap, Flatpak, graphical-route, or full
-application requirement coverage.
 
 `test_native_whitespace_policy_is_uid_scoped` runs the same transitions and
 other-child assertions using a fixed executable filename containing a space.
@@ -261,20 +192,6 @@ files and symlinked directories, preserves existing account/system directory mod
 and ownership, and leaves fixture cleanup to the outer guest baseline.
 Host tests exercise real filesystem discovery and deliberate assertion faults;
 the full installed run linked above also passed this case.
-
-The listing uses pytest's public collection-only mode with project and third-party
-plugins disabled; it imports the test definitions but never executes guest
-fixtures. A non-listing selection forwards only its exact cases plus registered
-package/reboot prerequisites through the same guarded VM controller. It labels
-the result partial and records expected and observed JUnit case identities;
-missing, additional, duplicate, failed, or skipped identities fail the run.
-The controller freezes only the test modules and guest helpers required by that
-resolved execution closure. `selected-inputs.json` binds their byte digests to
-the exact phases/case IDs, and its SHA-256 is carried independently through the
-guest marker, guest result, and aggregate result. Arbitrary guest pytest
-arguments remain unsupported. F1's selected and unselected runner qualification
-is complete; its [acceptance evidence](../../docs/TestAutomation/Evidence/F1-Qualification-2026-09-06.md)
-preserves the known Task 14 authentication failures as product/helper failures.
 
 For fixed harness qualification only, add `QUALIFICATION_FAILURE=1` to
 `make check-system` with `AREA=authorization` and
@@ -343,14 +260,6 @@ APT install the exact package. The runner waits for systemd boot completion
 before service assertions; SSH alone is insufficient. A degraded boot does not
 skip the service assertions. Readiness waits never retry installation or a
 failed test assertion.
-
-The installed suite covers real package content/ownership, service and D-Bus
-readiness, PAM/Polkit/session integration, execution policy and actual reboot.
-Installed authorization coverage is being extended; the
-[Task 14 handoff](../../docs/TestAutomation/Task-14.md#continuation-handoff--2026-09-06-incomplete)
-owns its current status. These tests are not complete graphical E2E acceptance.
-The future E2E runner must obey the
-[real customer-operations contract](../../docs/TestAutomation/E2E-Coverage.md).
 
 ## Reusable implementation contracts
 
@@ -510,7 +419,7 @@ of historical evidence or logs.
 
 ## Graphical adapter under development
 
-Task 19P now has controller plumbing in `graphical_lease.py`: public generalhw
+The runner has controller plumbing in `graphical_lease.py`: public generalhw
 lifecycle command variables, a private Unix callback service, and revocable
 graphics descriptors from a `Lease(..., graphics_type='vnc')`. `Lease.stop()`
 stops the recorded instance without restoring within a backend attempt; the
@@ -565,12 +474,6 @@ covers orphaned backend children. This contains trusted tooling; it is not a
 security sandbox for hostile root code. Working files and raw backend output
 remain root-private and are not safe evidence exports.
 
-The fixed non-VM qualification is
-`pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_worker`.
-The dispatcher runs the isolated cleanup prerequisites first. See the
-[worker evidence](../../docs/TestAutomation/Evidence/19P-Worker-Bridge-2026-09-06.md)
-for its success/failure scope.
-
 The fixed live feasibility invocation is now
 `pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_smoke`.
 It accepts no arguments and uses the same isolated safety prerequisites and
@@ -587,7 +490,7 @@ requiring both screen changes. It explicitly selects the backend's documented
 32-bit VNC depth. The default 16-bit path can decode QEMU's initial full frame
 but the pinned client's ZRLE decoder rejects a subsequent changed rectangle.
 The large fixed-baseline tile proves input transport without depending on small,
-theme-sensitive status icons; Task 19B owns needle-based interaction helpers. The
+theme-sensitive status icons; the graphical runner owns credential-recipient matching helpers. The
 controller independently checks the active greeter and absence of logged-in
 user sessions through fixed read-only SSH observations at each stage. Bootstrap
 uses the existing offline SSH provisioning with `observation_only=True`; no
@@ -599,6 +502,6 @@ stage labels, dimensions, digests and classified outcomes appear in the summary.
 Retaining private images does not approve them for export or prove their
 semantic content; reviewed/redacted screen evidence remains an acceptance
 obligation. No credentials are entered, serial capture is disabled, and no
-customer E2E claim is made. The task's active handoff owns live qualification
+customer E2E claim is made. Runner artifacts retain live qualification
 status. These are development-only test changes, activated on next invocation
 (`none`); no host tools, product services or saved-data schema change.

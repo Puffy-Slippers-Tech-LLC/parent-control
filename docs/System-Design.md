@@ -82,6 +82,6 @@ build and installation map.
 
 Follow [Package update](Publishing.md#package-update-activation) for changed system integration and
 [Data migration](SystemDesign/Data-Migration.md) before incompatible saved-data changes.
-Consult [Test automation](Test-Automation.md) for validation workflows and the
+Consult [E2E building blocks](TestAutomation/E2E-Building-Blocks.md) for validation workflows and the
 [threat model](Threat-Model.md) for security targets and remaining verification;
 those targets are distinct from the current implementation described here.

@@ -104,8 +104,7 @@ recreate its named snapshot to bypass a mismatch. Replacing an accepted baseline
 requires a separately authorized, ownership-checked maintenance operation. This
 change does not automatically replace the current baseline. Local preparation,
 bootstrap and refusal tests cover the new contract; live qualification and
-wall-time comparison remain pending a prepared baseline. See the
-[active follow-up](../../docs/TestAutomation/Test-All-Runtime-Optimization-Handoff.md#guest-preparation-implementation).
+wall-time comparison remain pending a prepared baseline.
 
 For an explicitly requested replacement environment, consult the maintained
 `prepare_vm.py` and `prepare_host.py` guards before provisioning. Existing
@@ -129,7 +128,7 @@ replacement of a resource requires a deliberate ownership-reviewed operation.
 ## Reset boundary and host preservation
 
 For explicitly authorized maintenance, use the
-[pinned VM commands](../../docs/TestAutomation/Approval-Tools.md#the-one-test-vm)
+[pinned VM commands](../../docs/Approval-Tools.md#the-one-test-vm)
 (`tools/test-vm status`, `start`, `reboot`, `send-key`, `screenshot`, `stop`,
 `reset`). They share this controller's lock and provenance and never accept
 another domain, URI, disk, XML or snapshot. A maintenance attempt must be stopped
@@ -209,4 +208,4 @@ Read product logs at
 `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log` and journals without
 editing or deleting them. If sandbox access is denied, request the minimum
 read-only escalation. See [README.md](README.md) for runtime artifact locations
-and [the daily guide](../../docs/Test-Automation.md) for command scope.
+and [E2E building blocks](../../docs/TestAutomation/E2E-Building-Blocks.md) for command scope.

@@ -32,7 +32,7 @@ CATEGORIES = {
     'integration': 'installed dispatcher for check_* basenames; no script arguments',
     'system': 'guarded installed runner; --artifacts, --previous-artifacts, --area, --test, --list',
     'e2e': 'all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)',
-    'fast': 'reserved for the Task 28 make test-fast target',
+    'fast': 'reserved for the make test-fast target',
     'all': 'all established regression suites without backing-file byte scans',
     'all-verify': 'all established regression suites with full backing-file verification',
     'host': 'discovery, cleanup prerequisites and host jobs; stop after joining host branches',

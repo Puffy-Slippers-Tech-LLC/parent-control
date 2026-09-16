@@ -28,7 +28,7 @@ def attempt(tmp_path):
     document['scenarios'] = document['scenarios'][:1]
     document['scenarios'][0]['duration_seconds'] = 600
     document['scenarios'][0]['preconditions'].remove('fixture-credentials-via-secret-api')
-    for relative in ('tests/requirements.json', 'docs/TestAutomation/E2E-Coverage.md'):
+    for relative in ('tests/requirements.json', 'docs/TestAutomation/E2E-Building-Blocks.md'):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / relative).read_bytes())

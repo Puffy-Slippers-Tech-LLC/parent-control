@@ -1,7 +1,7 @@
 """Filesystem-backed selected-account catalog precedence regressions.
 
 These host checks never install or launch applications. Installed discovery and
-enforcement qualification remains in Task 15A's guarded system selection.
+enforcement qualification remains in the guarded system suite.
 """
 
 from types import SimpleNamespace

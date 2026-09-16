@@ -111,7 +111,7 @@ def _validate_inventory(document, *, root):
                 'scenario:category')
         for key in ('owners', 'contract_refs', 'components', 'preconditions', 'expected_evidence'):
             strings(scenario[key], 'scenario:' + key)
-        require(all(re.fullmatch(r'[0-9]{2}[ABC]?', owner) for owner in scenario['owners']),
+        require(all(re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', owner) for owner in scenario['owners']),
                 'scenario:owner')
         strings(scenario['requirements'], 'scenario:requirements', empty=True)
         require(set(scenario['requirements']) <= known_requirements, 'scenario:unknown-requirement')

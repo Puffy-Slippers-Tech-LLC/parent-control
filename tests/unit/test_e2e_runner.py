@@ -23,7 +23,7 @@ def checkout(tmp_path):
                      'tests/e2e/scenarios.json', 'tests/e2e/controller_qualification.py',
                      'tests/e2e/parent_about.py', 'tests/e2e/parent_discovery.py',
                      'tests/requirements.json',
-                     'docs/TestAutomation/E2E-Coverage.md'):
+                     'docs/TestAutomation/E2E-Building-Blocks.md'):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / relative).read_bytes())

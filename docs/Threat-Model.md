@@ -93,9 +93,8 @@ The following are release blockers, not acceptable limitations:
 CVE-2026-44931 is retained as a reference for supported-package security review,
 not as a standalone release blocker.
 
-The guarded installed-system runner and local regression suites exist. Installed
-authorization work remains in Task 14, and graphical customer coverage and the
-comprehensive gate remain unfinished. Use the [automation backlog](TestAutomation/Test-Automation.md)
+The guarded installed-system runner and local regression suites exist. Graphical customer coverage and the
+comprehensive gate remain unfinished. Use the [E2E building blocks](TestAutomation/E2E-Building-Blocks.md)
 and current-run evidence for status; historical hardening task numbers or an
 old pass count do not establish a present guarantee. The [system design](System-Design.md)
 and [specification](Specification.md) define current supported behavior; resolve
@@ -106,38 +105,37 @@ conflicts with earlier target proposals before claiming their acceptance.
 `Unit` means local unit/property or supporting source-contract evidence. `System`
 means real installed OS/caller tests in the guarded existing VM; `E2E` means a
 continuous real graphical customer journey. Source contracts and local doubles
-cannot fulfill installed or E2E requirements. The owners below refer to the
-[remaining automation tasks](TestAutomation/Test-Automation.md#unfinished-tasks);
-they are coverage destinations, not completion claims. Task 28B audits the
-scope and current-run evidence, including unresolved security requirements.
+cannot fulfill installed or E2E requirements. Customer E2E follows the
+[E2E building blocks](TestAutomation/E2E-Building-Blocks.md); internal security
+qualification remains separate. Audit current run evidence before claiming coverage.
 
-| ID | In-scope bypass or requirement | Required evidence | Automation owner / scope |
-| --- | --- | --- | --- |
-| TM-01 | Child or kiosk forges a target UID, caller role, or eligibility. | Unit caller/role/target cases; VM raw D-Bus calls from each account role. | Task 14; graphical targeting in Tasks 21/23/24. |
-| TM-02 | Child selects a non-admin, remote, locked, changed, or fabricated approver. | Unit fresh-account and selected-approver checks; VM account mutation during prompt. | Tasks 14, 23A and 24B; stale selection in 26A. |
-| TM-03 | Child invokes the product Polkit action directly or spoofs action details. | Unit policy/detail/subject tests; VM direct `CheckAuthorization` and raw broker-call tests. | Task 14; actual prompt and post-approval checks in 23A/24B. |
-| TM-04 | Retained or replayed authorization permits direct `AppFilter` or `ActiveExtension` writes. | Source contract proving no child write/imply path; VM write attempt before and after one request. | Task 14 and Tasks 23A/24B. |
-| TM-05 | Denial, cancellation, wrong password, timeout, agent loss, or disconnect still changes state. | Unit no-write failure injection; VM authentication lifecycle matrix. | Tasks 14, 23/24 and 26A. |
-| TM-06 | Caller, child, or approver identity/role changes between validation, authorization, usage query, and write. | Unit mutation at every boundary; VM promotion, deletion, lock, UID-reuse, and bus-disconnect cases. | Task 14; account lifecycle/approval races in 26A. |
-| TM-07 | Concurrent, repeated, or duplicate-completion requests produce double grants or stale relaxation. | Unit state-machine concurrency/replay tests; VM simultaneous child/kiosk requests. | Task 17A and Tasks 23A/24B/26A. |
-| TM-08 | Forged, malformed, excessive, busy, or wrong-identity usage data changes a grant. | Unit helper bounds/validation and grant arithmetic; VM daemon busy/failure/identity cases. | Tasks 14, 16A and 26A. |
-| TM-09 | Grant accumulation, expiry, or rest-of-day arithmetic creates unintended access. | Unit boundary, overflow, DST, and formula tests; VM accumulated, expiry, midnight, and rest-of-day flows. | Tasks 16A/17 and 22/23/24/26C. |
-| TM-10 | Failure before/after a write or read-back reports approval or leaves partial time/app state. | Unit failure at every transaction transition and rollback; VM service interruption at each writable stage. | Tasks 15B/17A and 21B/26A. |
-| TM-11 | A failed conditional request relaxes a permanent block. | Unit old/desired-state invariants at every failure point; VM denial and injected-backend cases. | Tasks 15B/17 and 23A/25B/26A. |
-| TM-12 | External AccountsService state becomes canonical or backend drift persists. | Unit idempotence, drift, deletion, and signal-storm tests; VM external mutation/restart tests. | Tasks 17/18 and 26A/26B; reconcile expectations with current system design. |
-| TM-13 | fapolicyd outage permits unverified enforcement or a successful app mutation/relaxation. | Unit startup/runtime failure, timeout, rollback and recovery cases; real VM daemon-stop/recovery and readiness checks. | Tasks 15B/20/26A; distinguish fail-closed startup from live failure. |
-| TM-14 | Launcher hiding is mistaken for native execution denial. | VM direct executable and direct desktop-file launches, with visible state and derived rules asserted separately. | Tasks 15A and 25A. |
-| TM-15 | Copy, hard link, rename, identical copy, executable replacement, whitespace/comma path, script, or interpreter bypasses an advertised native block. | Identity fixtures plus positive and negative VM execution tests under managed/admin/unrelated UIDs. | Tasks 15A/25A; assert documented support limits rather than inventing broader enforcement. |
-| TM-16 | Shared wrappers or Snap, Steam, or Waydroid launchers are presented with false per-app isolation. | ADR classification, collision-state unit tests, and VM group/unsupported behavior. | Tasks 15/25 and final scope review in 28B. |
-| TM-17 | Flatpak alternate launch bypasses an advertised Flatpak block. | Unit application-ID projection plus VM desktop, CLI, approved-relaxation, expiry, and unrelated-user tests. | Tasks 15A/25A/25B. |
-| TM-18 | Missing/uninstalled targets, app updates, or identity collisions silently discard or misapply saved policy. | Unit catalog/migration/reconciliation fixtures; VM uninstall/reinstall/update flows. | Tasks 15A/18/25A/26B. |
-| TM-19 | Exhausted child logs in through timer/PAM startup, crash, corrupt store, or read-only-store behavior. | Guarded-VM fresh-login matrix with service and store faults. | Task 16B and Tasks 20/22A/26A. |
-| TM-20 | Clock adjustment, DST, midnight, suspend/resume, idle time, or concurrent sessions yields extra time. | Unit time-boundary logic where pure; VM observed timer/session matrix. | Tasks 16 and 22/26B; controlled clocks are separately labeled. |
-| TM-21 | Ordinary local user causes unbounded Malcontent timer storage growth. | Guarded-VM abuse bound and legitimate high-volume regression tests. | Task 16B security-boundary review; unresolved exposure blocks applicable acceptance. |
-| TM-22 | Child reads/writes preferences, unsafe records are accepted, or policy follows a reused UID. | Unit ownership/schema/migration/UID-lifecycle tests; VM filesystem permission and account-reuse tests. | Tasks 14/18B/26A. |
-| TM-23 | Front end writes another component's logs, injects sensitive fields, or grows logs without bound. | Unit role/redaction/retention tests; VM permission and raw D-Bus logging attempts. | Task 14 and Task 27; log-source permissions and export redaction are distinct. |
-| TM-24 | Private GNOME APIs create an unsupported lock-screen or session guarantee. | Source-contract rejection plus supported-image VM behavior. | Local source guards and Tasks 19/22/24. |
-| TM-25 | Install, upgrade, activation, migration, or uninstall leaves unsafe/stale policy. | Unit installer/migration/activation/uninstall tests; clean-install and upgrade VM jobs. | Tasks 18/20/26C; final gate in 28. |
+| ID | In-scope bypass or requirement | Required evidence |
+| --- | --- | --- |
+| TM-01 | Child or kiosk forges a target UID, caller role, or eligibility. | Unit caller/role/target cases; VM raw D-Bus calls from each account role. |
+| TM-02 | Child selects a non-admin, remote, locked, changed, or fabricated approver. | Unit fresh-account and selected-approver checks; VM account mutation during prompt. |
+| TM-03 | Child invokes the product Polkit action directly or spoofs action details. | Unit policy/detail/subject tests; VM direct `CheckAuthorization` and raw broker-call tests. |
+| TM-04 | Retained or replayed authorization permits direct `AppFilter` or `ActiveExtension` writes. | Source contract proving no child write/imply path; VM write attempt before and after one request. |
+| TM-05 | Denial, cancellation, wrong password, timeout, agent loss, or disconnect still changes state. | Unit no-write failure injection; VM authentication lifecycle matrix. |
+| TM-06 | Caller, child, or approver identity/role changes between validation, authorization, usage query, and write. | Unit mutation at every boundary; VM promotion, deletion, lock, UID-reuse, and bus-disconnect cases. |
+| TM-07 | Concurrent, repeated, or duplicate-completion requests produce double grants or stale relaxation. | Unit state-machine concurrency/replay tests; VM simultaneous child/kiosk requests. |
+| TM-08 | Forged, malformed, excessive, busy, or wrong-identity usage data changes a grant. | Unit helper bounds/validation and grant arithmetic; VM daemon busy/failure/identity cases. |
+| TM-09 | Grant accumulation, expiry, or rest-of-day arithmetic creates unintended access. | Unit boundary, overflow, DST, and formula tests; VM accumulated, expiry, midnight, and rest-of-day flows. |
+| TM-10 | Failure before/after a write or read-back reports approval or leaves partial time/app state. | Unit failure at every transaction transition and rollback; VM service interruption at each writable stage. |
+| TM-11 | A failed conditional request relaxes a permanent block. | Unit old/desired-state invariants at every failure point; VM denial and injected-backend cases. |
+| TM-12 | External AccountsService state becomes canonical or backend drift persists. | Unit idempotence, drift, deletion, and signal-storm tests; VM external mutation/restart tests. |
+| TM-13 | fapolicyd outage permits unverified enforcement or a successful app mutation/relaxation. | Unit startup/runtime failure, timeout, rollback and recovery cases; real VM daemon-stop/recovery and readiness checks. |
+| TM-14 | Launcher hiding is mistaken for native execution denial. | VM direct executable and direct desktop-file launches, with visible state and derived rules asserted separately. |
+| TM-15 | Copy, hard link, rename, identical copy, executable replacement, whitespace/comma path, script, or interpreter bypasses an advertised native block. | Identity fixtures plus positive and negative VM execution tests under managed/admin/unrelated UIDs. |
+| TM-16 | Shared wrappers or Snap, Steam, or Waydroid launchers are presented with false per-app isolation. | ADR classification, collision-state unit tests, and VM group/unsupported behavior. |
+| TM-17 | Flatpak alternate launch bypasses an advertised Flatpak block. | Unit application-ID projection plus VM desktop, CLI, approved-relaxation, expiry, and unrelated-user tests. |
+| TM-18 | Missing/uninstalled targets, app updates, or identity collisions silently discard or misapply saved policy. | Unit catalog/migration/reconciliation fixtures; VM uninstall/reinstall/update flows. |
+| TM-19 | Exhausted child logs in through timer/PAM startup, crash, corrupt store, or read-only-store behavior. | Guarded-VM fresh-login matrix with service and store faults. |
+| TM-20 | Clock adjustment, DST, midnight, suspend/resume, idle time, or concurrent sessions yields extra time. | Unit time-boundary logic where pure; VM observed timer/session matrix. |
+| TM-21 | Ordinary local user causes unbounded Malcontent timer storage growth. | Guarded-VM abuse bound and legitimate high-volume regression tests. |
+| TM-22 | Child reads/writes preferences, unsafe records are accepted, or policy follows a reused UID. | Unit ownership/schema/migration/UID-lifecycle tests; VM filesystem permission and account-reuse tests. |
+| TM-23 | Front end writes another component's logs, injects sensitive fields, or grows logs without bound. | Unit role/redaction/retention tests; VM permission and raw D-Bus logging attempts. |
+| TM-24 | Private GNOME APIs create an unsupported lock-screen or session guarantee. | Source-contract rejection plus supported-image VM behavior. |
+| TM-25 | Install, upgrade, activation, migration, or uninstall leaves unsafe/stale policy. | Unit installer/migration/activation/uninstall tests; clean-install and upgrade VM jobs. |
 
 Each applicable threat must map to executable tests and accepted evidence in
 the declared supported environment. A documentation owner or an existing file

@@ -3,7 +3,7 @@
 
 The output is an input to the guarded installed-system runner. This builder
 never installs the product: package construction happens in a private source
-copy and Task 11 fixtures are emitted as an ordinary payload directory.
+copy and application fixtures are emitted as an ordinary payload directory.
 """
 
 from __future__ import annotations
@@ -27,9 +27,6 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 FIXTURE_BUILDER = REPOSITORY / "tests/fixtures/build_test_applications.py"
 MANIFEST_NAME = "artifact-manifest.json"
 SCHEMA_VERSION = 1
-# Supervisor-owned operator output is never a build or execution input. Keep
-# this exact repository-relative exception shared with controller provenance.
-OPERATOR_LOG_PATH = "docs/Test-Automation-Slice-Summary.md"
 
 
 class ArtifactError(RuntimeError):
@@ -75,9 +72,9 @@ def _require_empty_output(output: Path) -> Path:
 
 def _source_paths() -> list[Path]:
     result = _run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z",
-                   "--", ".", f":(top,exclude,literal){OPERATOR_LOG_PATH}"], cwd=REPOSITORY)
+                   "--", "."], cwd=REPOSITORY)
     paths = sorted({Path(name) for name in result.stdout.split("\0")
-                    if name and name != OPERATOR_LOG_PATH})
+                    if name})
     if not paths or any(path.is_absolute() or ".." in path.parts for path in paths):
         raise ArtifactError("source input list is invalid")
     present = []

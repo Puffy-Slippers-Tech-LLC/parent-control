@@ -17,10 +17,10 @@ BASELINE_SEARCH = [
     '--glob', '/tests/integration/baseline*', '--glob', '/tests/integration/baseline*/**',
     '.',
 ]
-SETUP_PATTERN = 'codex_slices|codex-slices|apply_patch|execpolicy|codex-rules'
+SETUP_PATTERN = 'apply_patch|execpolicy|codex-rules'
 SETUP_PATHS = [
-    'setup.sh', 'docs/TestAutomation/Unattended-Sessions.md',
-    'docs/TestAutomation/Unattended-Prompt.md', 'tests/unit/test_codex_slices.py',
+    'setup.sh', 'docs/Approval-Tools.md',
+    'tests/unit/test_codex_test_rules.py',
 ]
 SETUP_SEARCH = [
     'tools/read-only', 'search', '--path-glob', 'tools/setup*',
@@ -51,24 +51,9 @@ def matches(pattern, argv):
                                             else value == token for token, value in zip(pattern, argv))
 
 
-@pytest.mark.parametrize('entrypoint', [
-    'tools/codex_slices.py', './tools/codex_slices.py', str(ROOT / 'tools/codex_slices.py'),
-])
-@pytest.mark.parametrize('args', [
-    ['--help'], ['-h'], ['status'], ['start'], ['run', '--max-slices', '1'],
-    ['stop'], ['restart'], ['kill'], ['--max-slices=1', 'start'],
-    ['--reconciled', 'run'], ['--max-api-retries', '2', 'run'], [],
-    ['--command', 'invalid-options-remain-the-launchers-responsibility'],
-])
-def test_all_slice_commands_have_one_allow_and_no_conflicting_prompt(entrypoint, args):
-    rules = [*entries('codex-read-only.rules'), *entries()]
-    assert [rule['decision'] for rule in rules
-            if matches(rule['pattern'], [entrypoint, *args])] == ['allow']
-
-
 @pytest.mark.parametrize('command', [
-    'python3 tools/codex_slices.py --help', 'python3 -',
-    'python3 -c arbitrary', '/usr/bin/python3 tools/codex_slices.py status',
+    'python3 tools/read-only --help', 'python3 -',
+    'python3 -c arbitrary', '/usr/bin/python3 tools/read-only status',
 ])
 def test_tool_allowance_does_not_cancel_general_interpreter_prompts(command):
     rules = [*entries('codex-read-only.rules'), *entries()]
@@ -77,8 +62,8 @@ def test_tool_allowance_does_not_cancel_general_interpreter_prompts(command):
 
 
 @pytest.mark.parametrize('command', [
-    'tools/random.py --help', '/tmp/tools/codex_slices.py run',
-    'pkexec tools/codex_slices.py status', 'apply_patch arbitrary',
+    'tools/random.py --help', '/tmp/tools/read-only run',
+    'pkexec tools/read-only status', 'apply_patch arbitrary',
 ])
 def test_tool_allowance_does_not_grant_other_programs_or_wrappers(command):
     rules = [*entries('codex-read-only.rules'), *entries()]
@@ -90,7 +75,7 @@ def test_tool_allowance_does_not_grant_other_programs_or_wrappers(command):
     f'rg -n {shlex.quote(SETUP_PATTERN)} setup.sh tools/setup* '
     + shlex.join(SETUP_PATHS[1:]),
     "python3 - <<'PY'\nfrom pathlib import Path\n"
-    "p = Path('docs/TestAutomation/Task-19.md')\np.write_text('updated')\nPY",
+    "p = Path('docs/TestAutomation/E2E-Building-Blocks.md')\np.write_text('updated')\nPY",
 ])
 def test_reported_opaque_scripts_keep_shell_prompt(script):
     # Evaluate the unsplit argv from the actual approval report. Do not claim
@@ -113,9 +98,9 @@ def test_renderer_requires_inspection_launcher_and_preserves_quoted_checkout_pat
     (root / 'config').mkdir()
     (root / 'config/codex-tests.rules').write_bytes((ROOT / 'config/codex-tests.rules').read_bytes())
     for name in ('run-unit-tests', 'run-ui-tests', 'run-tests', 'diagnose', 'test-vm',
-                 'cleanup-screenshots', 'read-only'):
+                 'cleanup-screenshots'):
         (root / 'tools' / name).touch(mode=0o755)
-    launcher = root / 'tools/codex_slices.py'
+    launcher = root / 'tools/read-only'
     if unsafe == 'not-executable':
         launcher.touch(mode=0o644)
     elif unsafe == 'symlink':
@@ -138,8 +123,8 @@ def test_renderer_requires_inspection_launcher_and_preserves_quoted_checkout_pat
     'tools/run-tests artifacts build', 'tools/run-tests fast --type contract',
     'tools/run-tests all', 'tools/run-tests all-verify', 'tools/run-tests e2e --list',
     "tools/read-only search --path-glob 'tests/integration/fixture*' 'password|credential|parent2|child2' tests/fixtures",
-    'tools/read-only links docs/TestAutomation/Continuation.md docs/TestAutomation/Task-19.md tests/e2e/README.md',
-    "tools/read-only words --after '### Task 19B continuation — 2026-09-08' docs/TestAutomation/Task-19.md",
+    'tools/read-only links docs/TestAutomation/E2E-Building-Blocks.md docs/TestAutomation/E2E-Building-Blocks.md tests/e2e/README.md',
+    "tools/read-only words --after '## Ordered building-block catalogue' docs/TestAutomation/E2E-Building-Blocks.md",
     "tools/read-only words --after '### Future task' --before '### Next task' docs/future.md",
     "tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py'",
     'tools/diagnose journal --lines 900', 'tools/test-vm reboot',
@@ -165,7 +150,7 @@ def test_every_executable_project_tool_is_allowed_in_all_direct_forms():
     rules = [*entries('codex-read-only.rules'), *entries()]
     executables = [path for path in (ROOT / 'tools').rglob('*')
                    if path.is_file() and path.stat().st_mode & 0o111]
-    assert ROOT / 'tools/codex_slices.py' in executables
+    assert ROOT / 'tools/read-only' in executables
     assert ROOT / 'tools/publish.py' in executables
     for path in executables:
         relative = path.relative_to(ROOT).as_posix()
@@ -321,7 +306,7 @@ def test_inline_examples_and_no_generic_script_allow():
     'pwd', '/bin/pwd -L', '/usr/bin/pwd -P', 'git status --short',
     'git status --porcelain=v2 --untracked-files=all -- arbitrary/file',
     '/usr/bin/git status --short -- another/path',
-    "rg -n 'evidence|redact|secret|collector|outcomes|first_failure' tests/integration/graphical_worker.py tests/integration/check_graphical_smoke.py docs/TestAutomation/E2E-Coverage.md tests/README.md",
+    "rg -n 'evidence|redact|secret|collector|outcomes|first_failure' tests/integration/graphical_worker.py tests/integration/check_graphical_smoke.py docs/TestAutomation/E2E-Building-Blocks.md tests/README.md",
     "rg -n --glob '*evidence*' 'evidence|redact|secret|collector|outcomes|first_failure' tests/integration",
     "rg -n 'perl|subprocess.run|Test::More' --glob '/tests/unit/test_graphical*' --glob '/tests/unit/test_e2e*' .",
     'rg -n needle /etc /var/log /tmp', '/usr/bin/rg -n pattern arbitrary/repo',

@@ -367,7 +367,7 @@ def validate_private_vnc(root):
 
 
 class SourceView:
-    """Retain Task 12's exact disk checks while allowing our removed file share."""
+    """Retain exact disk checks while allowing our removed file share."""
 
     def __init__(self, source):
         self.source = source
@@ -787,7 +787,7 @@ def stage_assets(source, destination, commands):
                 require(entry.isdir(), 'assets:package-special-file')
     (destination / 'installed-files.json').write_bytes(baseline.encode(entries))
     # Every transferred file, including Flatpak's varying delivery container,
-    # receives an exact run digest in addition to Task 13A's stable payload digest.
+    # receives an exact run digest in addition to the stable payload digest.
     inventory = {str(p.relative_to(destination)): baseline.digest(p)
                  for p in sorted(destination.rglob('*')) if p.is_file()}
     (destination / 'transfer-sha256.json').write_bytes(baseline.encode(inventory))
@@ -1310,7 +1310,7 @@ def evidence(directory, manifest, lease, passed, category, selection,
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--artifacts', type=Path, help='Task 13A artifact directory')
+    parser.add_argument('--artifacts', type=Path, help='Verified package and fixture artifact directory')
     parser.add_argument('--previous-artifacts', type=Path,
                         help='verified prior package to install and reboot before upgrading')
     parser.add_argument('--area')

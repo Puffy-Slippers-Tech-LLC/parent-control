@@ -32,7 +32,7 @@ def source(tmp_path):
     root.mkdir()
     git(root, 'init', '-q')
     for name in ('tests/e2e/scenarios.json', 'tests/e2e/runner.py', 'tests/requirements.json',
-                 'docs/TestAutomation/E2E-Coverage.md',
+                 'docs/TestAutomation/E2E-Building-Blocks.md',
                  'tests/integration/graphical_smoke/main.pm',
                  'tests/integration/graphical_smoke/tests/smoke.pm'):
         target = root / name

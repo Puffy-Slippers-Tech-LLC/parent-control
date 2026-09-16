@@ -62,8 +62,8 @@ def test_link_existence_is_relative_to_each_document(tmp_path, capsys):
 
 
 def test_word_count_matches_source_split_and_exact_handoff_selection(tmp_path):
-    path = tmp_path / 'Task-19.md'
-    marker = '### Task 19B continuation — 2026-09-08'
+    path = tmp_path / 'guide.md'
+    marker = '### Current section'
     source = 'prior handoff\n' + marker + '\n**Solid progress:** first result.\n### Next\nend\n'
     path.write_text(source)
     assert checks.count_words(path) == len(source.split())

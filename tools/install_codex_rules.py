@@ -70,7 +70,7 @@ def project_tool_paths(root):
 
 def render(root):
     for name in ('run-unit-tests', 'run-ui-tests', 'run-tests', 'diagnose', 'test-vm',
-                 'cleanup-screenshots', 'read-only', 'codex_slices.py'):
+                 'cleanup-screenshots', 'read-only'):
         path = root / 'tools' / name
         if not path.is_file() or path.is_symlink() or not os.access(path, os.X_OK):
             raise ValueError('missing or nonexecutable launcher; restore checkout executable modes')

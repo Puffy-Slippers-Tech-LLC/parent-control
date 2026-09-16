@@ -130,7 +130,7 @@ def render(document, counts, *, root=ROOT):
         '',
         'Titles and steps below come directly from the runtime inventory. '
         'Pending declarations may still contain legacy internal checks; customer scope follows '
-        '[E2E coverage](TestAutomation/E2E-Coverage.md). Runner smoke and fault qualification '
+        '[E2E building blocks](TestAutomation/E2E-Building-Blocks.md). Runner smoke and fault qualification '
         'are listed explicitly and do not establish customer coverage.',
         '', '| ID | Scenario | Variant | Status |', '| ---: | --- | --- | --- |',
     ]

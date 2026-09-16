@@ -76,7 +76,7 @@ def test_real_source_and_binary_archives_exclude_internal_files(tmp_path):
 def test_product_only_source_can_check_and_stage_the_complete_payload(tmp_path):
     selected = package_inputs.copy(ROOT, tmp_path)
     assert not {'docs', 'tests', '.agents', '.codex'} & {p.parts[0] for p in selected}
-    assert Path('tools/codex_slices.py') not in selected
+    assert Path('tools/read-only') not in selected
     assert Path('tools/run-tests') not in selected
     assert Path('tools/pam_oh_no_parent_control.c') in selected
     assert Path('tools/provision.py') in selected

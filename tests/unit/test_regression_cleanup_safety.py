@@ -252,6 +252,25 @@ finally:
     assert calls == [b'immediate event\n']
 
 
+def test_nested_prompt_ownership_guard_keeps_each_command_artifact_identity(tmp_path):
+    from owned_commands import Commands
+    commands = Commands()
+    commands.directory = tmp_path
+    calls = []
+    def guard(data):
+        calls.append(data)
+        commands.progress = None
+        try:
+            assert commands.run(['/usr/bin/printf', 'guard-output']) == b'guard-output'
+        finally:
+            commands.progress = guard
+    commands.progress = guard
+    assert commands.run(['/usr/bin/printf', 'prompt-event']) == b'prompt-event'
+    assert calls == [b'prompt-event']
+    assert (tmp_path / 'command-0001.txt').read_bytes() == b'prompt-event'
+    assert (tmp_path / 'command-0002.txt').read_bytes() == b'guard-output'
+
+
 @pytest.mark.parametrize('boundary', ['publish', 'build-a', 'build-b', 'compare'])
 def test_build_chain_cancellation_drains_companion_and_never_starts_successor(tmp_path, boundary):
     script = tmp_path / 'owned-build.py'

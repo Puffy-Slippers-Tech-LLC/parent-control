@@ -111,10 +111,18 @@ class Transport:
         self.commands = commands or Commands()
         self.guard = guard
 
-    def call(self, argv, *, input=None, timeout=120, check=True, attempts=1):
+    def call(self, argv, *, input=None, timeout=120, check=True, attempts=1, on_output=None):
         self.guard(self.config)
-        return self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
-                                 input=input, timeout=timeout, check=check, merge_stderr=False)
+        if on_output is None:
+            return self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
+                                     input=input, timeout=timeout, check=check, merge_stderr=False)
+        previous = self.commands.progress
+        self.commands.progress = on_output
+        try:
+            return self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
+                                     input=input, timeout=timeout, check=check, merge_stderr=False)
+        finally:
+            self.commands.progress = previous
 
     def ready(self):
         self.probe_ready()

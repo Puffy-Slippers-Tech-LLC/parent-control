@@ -56,13 +56,14 @@ def test_controller_fixture_is_single_use_and_guarded(monkeypatch):
 
 
 def test_guest_empty_fixture_changes_complete_finite_eligible_set(monkeypatch):
-    names = (*guest_fixture.FIXED_CHILDREN, "onpc-baseline-standard",
+    names = (*guest_fixture.FIXED_CHILDREN, "onpc-baseline-admin",
              guest_fixture.KIOSK_USERNAME)
     identities = [SimpleNamespace(pw_name=name, pw_uid=index, pw_shell="/bin/bash")
                   for index, name in enumerate(names, 1001)]
     paths = {str(item.pw_uid): f"/org/freedesktop/Accounts/User{item.pw_uid}"
              for item in identities}
     roles = {path: "0" for path in paths.values()}
+    roles[paths['1003']] = '1'
 
     def run(argv):
         if argv[-4:-2] == [guest_fixture.ACCOUNTS_INTERFACE, "FindUserById"]:
@@ -85,23 +86,31 @@ def test_guest_empty_fixture_changes_complete_finite_eligible_set(monkeypatch):
 
     assert roles == {path: ("0" if uid == "1004" else "1")
                      for uid, path in paths.items()}
-    assert guard.call_count == 5
+    assert guard.call_count == 4
 
 
-def test_guest_empty_fixture_refuses_an_incomplete_baseline_before_mutation(monkeypatch):
-    names = (*guest_fixture.FIXED_CHILDREN, guest_fixture.KIOSK_USERNAME)
+@pytest.mark.parametrize('fault', ['missing-child', 'extra-account', 'substituted-account'])
+def test_guest_empty_fixture_refuses_an_unexpected_eligible_set_before_mutation(monkeypatch, fault):
+    names = (*guest_fixture.FIXED_CHILDREN, guest_fixture.KIOSK_USERNAME, 'unrelated-standard')
     identities = [SimpleNamespace(pw_name=name, pw_uid=index, pw_shell="/bin/bash")
                   for index, name in enumerate(names, 1001)]
     monkeypatch.setattr(guest_fixture.pwd, "getpwall", Mock(return_value=identities))
     monkeypatch.setattr(guest_fixture, "account_path", lambda uid: f"/org/freedesktop/Accounts/User{uid}")
-    monkeypatch.setattr(guest_fixture, "property_value", lambda path, name, signature: {
-        "LocalAccount": "true", "SystemAccount": "false", "AccountType": "0",
-    }[name])
+    roles = {1001: '0', 1002: '0', 1003: '0', 1004: '1'}
+    if fault in ('missing-child', 'substituted-account'): roles[1002] = '1'
+    if fault in ('extra-account', 'substituted-account'): roles[1004] = '0'
+    def property_value(path, name, signature):
+        uid = int(path.rsplit('User', 1)[1])
+        return {'LocalAccount': 'true', 'SystemAccount': 'false', 'AccountType': roles[uid]}[name]
+    monkeypatch.setattr(guest_fixture, 'property_value', property_value)
     run = Mock()
     monkeypatch.setattr(guest_fixture.guest, "run", run)
     monkeypatch.setattr(guest_fixture.guest, "guard", Mock())
 
-    with pytest.raises(guest_fixture.guest.GuestError, match="empty-account:baseline"):
+    counts = {'missing-child': (1, 1), 'extra-account': (3, 2), 'substituted-account': (2, 1)}
+    eligible, fixed = counts[fault]
+    with pytest.raises(guest_fixture.guest.GuestError,
+                       match=f'^empty-account:baseline:eligible={eligible}:fixed={fixed}$'):
         guest_fixture.prepare_empty()
 
     run.assert_not_called()
@@ -116,7 +125,7 @@ def test_controller_empty_fixture_is_single_use_and_guarded():
     guard = Mock()
     fixture = account_fixture.EmptyAccountFixture(context)
 
-    assert fixture.prepare(journey, guard) == {"eligible_accounts_removed": 3}
+    assert fixture.prepare(journey, guard) == {"eligible_accounts_removed": 2}
     assert guard.call_count == 2
     argv = transport.call.call_args.args[0]
     assert argv[-2].endswith("/e2e_dynamic_account.py") and argv[-1] == "prepare-empty"

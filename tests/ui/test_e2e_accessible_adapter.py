@@ -10,6 +10,41 @@ from tests.support.paths import ROOT
 pytestmark = pytest.mark.ui
 
 
+@pytest.mark.usefixtures('hermetic_ui_session')
+def test_search_adapter_in_isolated_shell(render_artifacts):
+    import os
+    import sys
+    from tests.ui.test_child_shell_lifecycle import _run_child_shell
+    directory = render_artifacts('onpc-e2e-search-', parent='/tmp', shader_cache=True)
+    result = _run_child_shell({**os.environ,
+        'ONPC_CHILD_SHELL_ARTIFACT_DIR': str(directory),
+        'ONPC_CHILD_SHELL_PYTHON': sys.executable,
+        'ONPC_CHILD_SHELL_SCENARIO': 'e2e-search',
+        'ONPC_PREVIEW_READY_TIMEOUT_SECONDS': '30'}, timeout=90)
+    assert result.returncode == 0, f'{directory}\n{result.stdout}\n{result.stderr}'
+    assert 'e2e-search: typed-query-passed' in result.stdout
+
+
+@pytest.mark.parametrize('dpi_scale', [1.0, 1.25])
+def test_empty_parent_functional_adapter_at_display_scales(
+        launch_ui, request_display_scale, dpi_scale):
+    spec = importlib.util.spec_from_file_location('e2e_accessible_ui', ROOT / 'tests/e2e/accessible_ui.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    application, _log = launch_ui('parent_component_preview', environment_overrides={
+        'ONPC_PARENT_COMPONENT_SCENARIO': 'no-users'})
+    from gi.repository import Atspi, GLib
+    ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,),
+                            dispatch=lambda: GLib.MainContext.default().iteration(False))
+    try:
+        assert ui.run('parent-empty', '') == {
+            'operation': 'parent-empty', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    except Exception:
+        from dogtail.hermetic.session import dump_tree
+        print(dump_tree(application, max_depth=24))
+        raise
+
+
 @pytest.mark.parametrize('dpi_scale', [1.0, 1.25])
 def test_parent_functional_adapter_at_display_scales(
         launch_ui, request_display_scale, dpi_scale):
@@ -18,7 +53,8 @@ def test_parent_functional_adapter_at_display_scales(
     spec.loader.exec_module(module)
     application, _log = launch_ui('parent_component_preview')
     from gi.repository import Atspi, GLib
-    ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,))
+    ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,),
+                            dispatch=lambda: GLib.MainContext.default().iteration(False))
     version = json.loads((ROOT / 'data/app.json').read_text())['version']
     try:
         opened = ui.run('child-picker-opened', version)

@@ -56,7 +56,7 @@ reconciliation. Start there when adding a customer scenario or repairing one of
 these boundaries. The thin About worker is
 [onpc_parent_about.pm](../integration/graphical_smoke/lib/onpc_parent_about.pm).
 
-App-grid readiness matches the active Show Apps button and the grid's page
+Legacy app-grid readiness matches the active Show Apps button and the grid's page
 navigation controls at 100%. It excludes app tiles, whose positions and rendered
 labels depend on the installed application set. Pixel regressions require all
 three controls, allow changed tile contents, and refuse desktop/login screens.
@@ -70,14 +70,19 @@ A customer family's `installed-digest-verified-product` prerequisite selects
 verified package setup before its journey. Mechanical startup/fault assertions
 remain separate. E2E-003/existing-and-new uses a durable controller action to
 create one eligible local account only after the existing child is visible.
-E2E-003/none uses a bounded action after the administrator opens the app grid
-but before Parent launches to make the guarded baseline's finite three-account
-eligible standard-user set ineligible while leaving the package request station
-unchanged;
-outer baseline restoration owns reversal. Its customer uses the unchanged
-administrator login and normal app-grid launch, then observes the visible empty
-explanation. Fixture role/collision checks are setup evidence;
-only the screens are customer assertions. The existing qualification's review
+E2E-003/none uses a bounded action after the administrator finds the launchable
+Parent result through normal app search
+but before Parent launches to make the two canonical child fixtures ineligible.
+It requires that exact eligible set before any mutation, refusing missing,
+substituted or additional standard accounts while leaving the package request station
+unchanged; outer baseline restoration owns reversal. Its customer uses the
+shared functional GDM wrong-recipient refusal and two fresh intended-recipient
+checks before secret input. Enter launches Parent only after fixture preparation
+is durably recorded. `ui:parent-empty` independently requires the showing empty
+explanation and the child picker's `(None)` placeholder; appearance, resolution
+and scale do not gate acceptance. Fixture role/collision checks are setup
+evidence; only the public UI supplies customer assertions. No time policy is
+changed or child-session enforcement claimed. The existing qualification's review
 mode acquires only nonsecret observations and never awards coverage or bypasses
 mandatory input matches.
 
@@ -280,8 +285,26 @@ pending. Readiness does not certify a passing run.
 E2E-004/app-grid composes the shared installed setup, standard-user login,
 app-grid search and ordered screen evidence. The
 [administrator-only launcher](../../docs/SystemDesign/Broker.md#accounts-and-roles)
-is absent for standard users: match the full product query, web-only suggestion
-and empty application results. Do not press Enter on the unrelated suggestion.
+is absent for standard users: case 5 uses public accessibility to read the full
+product query and web-only suggestion, and independently requires no Parent
+launcher or management window over a bounded interval of fresh complete reads.
+The `ui:standard-*` checkpoints connect only to the canonical other-child
+desktop's owned session bus. Missing/stale UI cannot prove absence; cosmetics
+do not gate acceptance. The shared functional GDM gate independently verifies
+wrong-recipient refusal and the intended standard account's empty masked field
+and focus twice through ordered standard-specific checkpoints before secret
+input. One click uses the search field's current public screen extents, followed
+by independent focus observation; geometry has no appearance pass/fail authority.
+The shared desktop wait handler cancels an identified focused login-keyring
+prompt using one normal click derived from Cancel's current public extents.
+It proves that exact dialog disappeared before continuing the same observation
+or independently qualifying a queued replacement. No action or text is replayed;
+unknown prompts cannot authorize input, and no keyring password is read or
+submitted. GDM credential checkpoints remain excluded from automatic dismissal.
+Normal type-to-search independently verifies the first character before
+entering the rest of the query; no uncertain input is repaired or replayed.
+Legacy credential needles and their regressions remain intact. Do not press Enter
+on the unrelated suggestion. No time policy is changed or enforcement claimed.
 Its stale private grant/policy and
 other-user-state witnesses are outside customer scope; existing authorization
 and isolation regressions retain those obligations. This declaration correction

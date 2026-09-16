@@ -23,6 +23,23 @@ sub login_functional {
     $journey->seen('desktop');
 }
 
+sub login_standard_functional {
+    my ($journey) = @_;
+    die 'parent:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    onpc_gdm::reattach_functional();
+    $journey->navigate_choice($journey->seen('installed-greeter'));
+    $journey->seen('other-parent-focused');
+    testapi::send_key('ret');
+    $journey->seen('wrong-recipient-refused');
+    testapi::send_key('esc');
+    $journey->navigate_choice($journey->seen('standard-list'));
+    $journey->seen('standard-focused');
+    testapi::send_key('ret');
+    onpc_password::enter_standard_gdm_password($journey);
+    testapi::send_key('ret');
+    $journey->seen('desktop');
+}
+
 # Installed account pixels and negative recipient qualification are shared by
 # Parent customers. An observation tag alone never authorizes password input.
 sub login {

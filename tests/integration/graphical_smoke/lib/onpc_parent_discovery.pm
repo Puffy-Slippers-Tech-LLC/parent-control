@@ -4,7 +4,6 @@ use warnings;
 use testapi ();
 use onpc_journey ();
 use onpc_parent ();
-use onpc_pointer ();
 
 sub run {
     my ($exchange) = @_;
@@ -40,18 +39,14 @@ sub run_none {
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-empty', review => 0,
     );
-    onpc_parent::login($journey);
+    onpc_parent::login_functional($journey);
     testapi::send_key('super-a');
-    testapi::assert_screen('onpc-parent-app-grid', 30);
+    testapi::type_string('Oh No! Parent Control');
     $journey->seen('app-grid');
     # Pause before launching Parent so the fixed fixture state is complete and
     # durably recorded before the customer-visible result can be produced.
-    $journey->observe('onpc-parent-app-grid', 30);
     $journey->seen('fixture-requested');
-    testapi::type_string('Oh No! Parent Control');
-    testapi::wait_still_screen(1, 10);
     testapi::send_key('ret');
-    $journey->observe('onpc-parent-empty', 60);
     $journey->seen('empty');
     $journey->finish();
 }

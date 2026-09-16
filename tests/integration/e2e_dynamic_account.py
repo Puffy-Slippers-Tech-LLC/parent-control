@@ -17,7 +17,7 @@ ACCOUNTS_INTERFACE = "org.freedesktop.Accounts"
 USER_INTERFACE = "org.freedesktop.Accounts.User"
 FIXED_CHILDREN = ("onpc-child-riley", "onpc-child-jordan")
 KIOSK_USERNAME = "oh-no-parent-control"
-EXPECTED_ELIGIBLE_ACCOUNTS = 3
+EXPECTED_ELIGIBLE_ACCOUNTS = len(FIXED_CHILDREN)
 NONINTERACTIVE_SHELLS = ("", "/bin/false", "/usr/sbin/nologin")
 
 
@@ -75,6 +75,7 @@ def prepare_empty():
     """Make the guarded baseline's finite eligible set ineligible for this boot."""
     guest.guard()
     accounts = []
+    eligible_names = set()
     identities = [entry for entry in pwd.getpwall()
                   if 1000 <= entry.pw_uid <= (1 << 32) - 1
                   and entry.pw_shell not in NONINTERACTIVE_SHELLS]
@@ -96,8 +97,13 @@ def prepare_empty():
             "AccountType": "0",
         }:
             accounts.append(path)
-    guest.require(len(accounts) == EXPECTED_ELIGIBLE_ACCOUNTS,
-                  "empty-account:baseline")
+            eligible_names.add(entry.pw_name)
+    # Only the canonical child fixtures are authorized mutation targets.
+    # A count alone could substitute an unrelated standard account for one.
+    fixed_eligible = len(eligible_names.intersection(FIXED_CHILDREN))
+    guest.require(len(accounts) == EXPECTED_ELIGIBLE_ACCOUNTS
+                  and eligible_names == set(FIXED_CHILDREN),
+                  f"empty-account:baseline:eligible={len(accounts)}:fixed={fixed_eligible}")
     guest.require(len(accounts) == len(set(accounts)), "empty-account:identity")
     for path in accounts:
         guest.guard()

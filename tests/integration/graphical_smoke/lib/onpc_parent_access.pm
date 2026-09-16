@@ -10,14 +10,18 @@ sub run {
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-access', review => $review,
     );
-    onpc_parent::login_standard($journey);
-    onpc_parent::open_app_grid($journey);
-    testapi::type_string('Oh No! Parent Control');
-    testapi::wait_still_screen(1, 10);
-    # The administrator-only launcher is absent for this account. The reviewed
-    # search screen includes the full query, the web-only suggestion and empty
-    # application results. Enter would launch that unrelated web suggestion.
-    $journey->observe('onpc-parent-standard-unavailable', 30);
+    onpc_parent::login_standard_functional($journey);
+    testapi::send_key('super-a');
+    $journey->seen('system-prompt');
+    $journey->click_target($journey->seen('app-grid'));
+    $journey->seen('search-focused');
+    # Use GNOME's normal type-to-search route. Independently observe its first
+    # character before continuing the query; no character is repaired/replayed.
+    testapi::type_string('O', max_interval => 20);
+    $journey->seen('search-started');
+    testapi::type_string('h No! Parent Control', max_interval => 20);
+    # Independently observe the actual query and web-only result through public
+    # accessibility. Enter would launch that unrelated web suggestion.
     $journey->seen('unavailable');
     $journey->finish();
 }

@@ -2,6 +2,8 @@ package onpc_journey;
 use strict;
 use warnings;
 use testapi ();
+use JSON::PP ();
+use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 
 sub new {
     my ($class, %args) = @_;
@@ -43,6 +45,53 @@ sub finish {
     testapi::console('sut')->disable();
     testapi::power('off');
     die 'journey:shutdown-unverified' unless testapi::check_shutdown(0);
+}
+
+sub service_system_prompt {
+    my ($stage, $sequence) = @_;
+    die 'journey:prompt-stage' unless defined($stage) && $stage =~ /\A[a-z][a-z0-9-]*\z/
+        && defined($sequence) && $sequence =~ /\A[1-3]\z/;
+    my $stem = "$stage.prompt-$sequence";
+    return 0 unless -f "$stem.request.json";
+    die 'journey:prompt-replay' if -e "$stem.reply.json" || -e "$stem.reply.tmp"
+        || -e "$stem.input-started";
+    die 'journey:prompt-request' if -l "$stem.request.json" || -s "$stem.request.json" > 1024;
+    open(my $request, '<', "$stem.request.json") or die 'journey:prompt-request';
+    my $value = do { local $/; JSON::PP::decode_json(<$request>) };
+    close($request) or die 'journey:prompt-request-close';
+    die 'journey:prompt-schema' unless ref($value) eq 'HASH' && keys(%$value) == 4
+        && ($value->{stage} // '') eq $stage && ($value->{sequence} // 0) == $sequence
+        && ($value->{kind} // '') eq 'login-keyring';
+    # Reuse the same bounded public-coordinate pointer as customer controls.
+    # An uncertain click throws before acknowledgement and is never repeated.
+    sysopen(my $started, "$stem.input-started", O_WRONLY | O_CREAT | O_EXCL, 0600)
+        or die 'journey:prompt-input-replay';
+    close($started) or die 'journey:prompt-input-record';
+    my $journey = __PACKAGE__->new(exchange => sub {}, prefix => 'system-prompt', review => 0);
+    $journey->click_target($value);
+    open(my $reply, '>', "$stem.reply.tmp") or die 'journey:prompt-reply';
+    print {$reply} JSON::PP::encode_json({stage => $stage, sequence => $sequence,
+        action => 'cancel-click', outcome => 'sent'});
+    close($reply) or die 'journey:prompt-reply-close';
+    rename("$stem.reply.tmp", "$stem.reply.json") or die 'journey:prompt-reply-publish';
+    return 1;
+}
+
+sub click_target {
+    my ($self, $reply) = @_;
+    die 'journey:pointer-console' unless testapi::current_console() eq 'sut';
+    my $point = $reply->{ui_pointer};
+    die 'journey:pointer-response' unless ref($point) eq 'HASH' && keys(%$point) == 2
+        && defined($point->{x}) && defined($point->{y})
+        && $point->{x} =~ /\A[0-9]+\z/ && $point->{y} =~ /\A[0-9]+\z/;
+    my $console = testapi::console('sut');
+    my ($width, $height) = ($console->mouse_width(), $console->mouse_height());
+    die 'journey:pointer-bounds' unless defined($width) && defined($height)
+        && $width > 0 && $height > 0 && $point->{x} < $width && $point->{y} < $height;
+    # AT-SPI SCREEN and the console pointer both use current framebuffer
+    # coordinates. No screenshot normalization or fixed resolution is involved.
+    testapi::mouse_set($point->{x}, $point->{y});
+    testapi::mouse_click('left');
 }
 
 1;

@@ -270,7 +270,11 @@ def _main(argv=None, *, detached=False):
         os.execve(commands[-1][0], commands[-1], env)
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'filesystem or execution failure'
+        if isinstance(error, OSError) and getattr(error, '__notes__', None):
+            detail = f'{type(error).__name__}: {error}'
         print('run-tests: ' + detail, file=sys.stderr)
+        for note in getattr(error, '__notes__', ()):
+            print(note, file=sys.stderr)
         return 2
 
 

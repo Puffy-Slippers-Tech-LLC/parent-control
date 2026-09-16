@@ -48,6 +48,21 @@ def test_long_modules_balance_without_splitting_retention_cases_or_fixtures():
     assert [bucket.paths for bucket in plan] == [bucket.paths for bucket in buckets(list(reversed(nodes)))]
 
 
+def test_installed_and_watcher_cleanup_share_buckets_without_a_serial_tail():
+    names = ('installed_journey', 'e2e_watch', 'parent_about', 'parent_setup',
+             'backing_verification', 'e2e_leased_recording', 'e2e_execution', 'e2e_recording')
+    nodes = [f'tests/unit/test_{name}_cleanup_safety.py::test_case[{variant}]'
+             for name in names for variant in ('a', 'b')]
+    plan = buckets(nodes)
+    assert len(plan) == HOST_WORKERS
+    assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
+    assert all(bucket.kind == 'cleanup' for bucket in plan)
+    assert all(compatible(first.kind, second.kind) for first in plan for second in plan)
+    for name in names:
+        path = f'tests/unit/test_{name}_cleanup_safety.py'
+        assert sum(path in bucket.paths for bucket in plan) == 1
+
+
 def test_unknown_only_scope_is_included_without_parallel_admission():
     nodes = ['tests/unit/test_future_cleanup_safety.py::test_case']
     plan = buckets(nodes)

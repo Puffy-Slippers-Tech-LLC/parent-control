@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 import fcntl
+import io
 import json
 import os
 from pathlib import Path
@@ -479,6 +480,115 @@ def test_sbuild_traversable_scratch_is_registered_and_rotated(tmp_path):
     advance_to_expiry(store)
     with store.session():
         assert not path.exists()
+
+
+@pytest.mark.parametrize('fault', [None, 'identity', 'mode', 'mount', 'namespace'])
+def test_sbuild_namespace_requires_valid_record_and_preserves_failed_rotation(
+        tmp_path, monkeypatch, fault):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        path = Path(retention.allocate(tempfile.mkdtemp, dir=tmp_path, mode=0o711))
+        (path / 'evidence').write_text('keep')
+    advance_to_expiry(store)
+    journal = store.path / 'current.json'
+    original = journal.read_bytes()
+    if fault == 'identity':
+        path.rename(tmp_path / 'original')
+        path.mkdir(mode=0o711)
+    elif fault == 'mode':
+        path.chmod(0o700)
+    elif fault == 'mount':
+        mount_id = retention.mount_id
+        monkeypatch.setattr(retention, 'mount_id', lambda fd:
+                            'mounted' if os.fstat(fd).st_ino == path.stat().st_ino else mount_id(fd))
+    monkeypatch.setattr(retention, 'sbuild_scratch', lambda record: True)
+    calls = []
+    def namespace(record, *, validate_only):
+        calls.append(validate_only)
+        assert record['path'] == str(path)
+        assert len(retention._locks) == 2
+        if fault == 'namespace':
+            raise ValueError('namespace failed')
+        # Emulate only the namespace boundary; keep real identity/tree checks.
+        with monkeypatch.context() as patch:
+            patch.setattr(retention, 'sbuild_scratch', lambda record: False)
+            retention.remove(record, validate_only=validate_only)
+    monkeypatch.setattr(retention, 'namespace_remove', namespace)
+    if fault:
+        with pytest.raises(ValueError):
+            with store.session():
+                pytest.fail('unsafe scratch accepted')
+        assert journal.read_bytes() == original
+        assert path.exists()
+        assert calls == ([True] if fault == 'namespace' else [])
+    else:
+        with store.session():
+            assert not path.exists()
+        assert calls == [True, False]
+
+
+@pytest.mark.parametrize('path,mode,expected', [
+    ('/var/tmp/onpc-sbuild-scratch-example', 0o711, True),
+    ('/var/tmp/onpc-sbuild-scratch-example', 0o700, False),
+    ('/tmp/onpc-sbuild-scratch-example', 0o711, False),
+    ('/var/tmp/other', 0o711, False),
+    ('/var/tmp/onpc-sbuild-scratch-example/child', 0o711, False),
+])
+def test_only_registered_sbuild_parent_uses_namespace(path, mode, expected):
+    assert retention.sbuild_scratch(dict(path=path, mode=mode)) is expected
+
+
+@pytest.mark.parametrize('inspect,status', [(True, 0), (False, 0), (True, 1), (False, 'timeout')])
+def test_namespace_command_inherits_leases_without_host_privilege(
+        tmp_path, monkeypatch, inspect, status):
+    record = dict(path='/var/tmp/onpc-sbuild-scratch-test', mode=0o711, device=1, inode=2)
+    store = retention.Store(tmp_path / 'state')
+    def execute(command, **kwargs):
+        assert command[:7] == ['/usr/bin/unshare', '--user', '--map-users=subids',
+                               '--map-groups=subids', '--map-root-user', '--', '/usr/bin/python3']
+        assert command[7:9] == ['-I', '-B']
+        assert command[-2:] == ['--sbuild-retention', 'inspect' if inspect else 'remove']
+        assert json.loads(kwargs['input']) == record
+        assert kwargs['cwd'] == '/'
+        assert kwargs['env'] == {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
+        assert set(kwargs['pass_fds']) == retention._locks
+        assert retention._locks
+        for fd in kwargs['pass_fds']:
+            os.fstat(fd)
+        if status == 'timeout':
+            raise retention.subprocess.TimeoutExpired(command, 300)
+        return SimpleNamespace(returncode=status)
+    monkeypatch.setattr(retention.subprocess, 'run', execute)
+    with store.session():
+        with pytest.raises(ValueError, match='namespace operation') if status else nullcontext():
+            retention.namespace_remove(record, validate_only=inspect)
+    assert not retention._locks
+
+
+@pytest.mark.parametrize('fault', [None, 'host-root', 'ordinary-user', 'path', 'operation'])
+@pytest.mark.parametrize('operation', ['inspect', 'remove'])
+def test_namespace_worker_refuses_unmapped_root_and_out_of_scope_records(
+        monkeypatch, fault, operation):
+    record = dict(path='/var/tmp/onpc-sbuild-scratch-example', mode=0o711, device=1, inode=2)
+    if fault == 'path':
+        record['path'] = '/var/tmp/unregistered'
+    args = ['--sbuild-retention', operation if fault != 'operation' else 'chmod']
+    monkeypatch.setattr(retention.os, 'geteuid', lambda: 1000 if fault == 'ordinary-user' else 0)
+    read = Path.read_text
+    monkeypatch.setattr(Path, 'read_text', lambda path, *a, **kw:
+                        ('0 0 4294967295\n' if fault == 'host-root' else
+                         '0 1000 1\n100000 100000 65536\n')
+                        if str(path) == '/proc/self/uid_map' else read(path, *a, **kw))
+    monkeypatch.setattr(retention.sys, 'stdin', io.StringIO(json.dumps(record)))
+    calls = []
+    monkeypatch.setattr(retention, 'remove', lambda value, **kw: calls.append((value, kw)))
+    if fault:
+        with pytest.raises(ValueError):
+            retention.namespace_main(args)
+        assert not calls
+    else:
+        retention.namespace_main(args)
+        assert calls == [(record, {'validate_only': operation == 'inspect'})]
 
 
 def test_inaccessible_sbuild_scratch_stops_growth(tmp_path):

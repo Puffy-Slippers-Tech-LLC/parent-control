@@ -15,13 +15,19 @@ from regression_resources import HOST_WORKERS
 REVIEWED = frozenset('''
 backing_verification child_preview dbus_harness e2e_asset_transfer
 e2e_controller_qualification e2e_execution e2e_fixture_credentials
-e2e_leased_recording e2e_recording e2e_worker execution_probe fixture
+e2e_leased_recording e2e_recording e2e_watch e2e_worker execution_probe fixture
 graphical_attachment graphical_serial graphical_smoke graphical_transport
-graphical_worker prepare_host probe_bus_client probe_channel probe_generation
+graphical_worker installed_journey parent_about parent_setup prepare_host
+probe_bus_client probe_channel probe_generation
 regression screen_preview screenshot session_expiry system_accounts system_agent
 system_caller system_enforcement system_probe_sandbox system_runner terminal
 test_retention ui ui_artifacts vm_control
 '''.split())
+
+# Installed journey/setup/About tests write only beneath tmp_path and replace
+# guest operations with process-local doubles. About's matcher reads repository
+# fixtures in its own Perl child; watcher sockets, processes and signals are
+# mocked. These modules therefore share the same isolation as cleanup buckets.
 
 # Measured costs guide packing and dispatch only; never reuse passing results.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 11,

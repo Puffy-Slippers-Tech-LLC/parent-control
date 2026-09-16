@@ -23,10 +23,22 @@ sub observe {
 
 sub seen {
     my ($self, $stage) = @_;
+    delete $self->{last_observation};
     testapi::record_info($self->{prefix} . '-' . $stage, $self->{review}
         ? 'Qualification observation; terminal matching remains required.'
         : 'Installed customer surface observed.');
-    $self->{exchange}->($stage, undef);
+    my $reply = $self->{exchange}->($stage, undef);
+    $self->{last_observation} = {stage => $stage, reply => $reply};
+    return $reply;
+}
+
+sub consume_observation {
+    my ($self, $stage, $reply) = @_;
+    my $last = delete $self->{last_observation};
+    die 'journey:stale-observation' unless !$self->{review} && ref($last) eq 'HASH'
+        && $last->{stage} eq $stage && ref($reply) eq 'HASH'
+        && ref($last->{reply}) eq 'HASH' && $last->{reply} == $reply;
+    return $reply;
 }
 
 sub navigate_choice {
@@ -36,6 +48,17 @@ sub navigate_choice {
         && @$keys <= 32 && $keys->[0] eq 'home'
         && !grep { $_ ne 'down' } @$keys[1 .. $#$keys];
     testapi::send_key($_) for @$keys;
+}
+
+# UI14: an explicit fresh list reply drives navigation; its separate checkpoint
+# must verify identity and focus before a caller may commit the selection.
+sub highlight_choice {
+    my ($self, $choice, $list_stage, $focused_stage) = @_;
+    die 'journey:focus-stage' unless @_ == 4 && defined($focused_stage)
+        && $focused_stage =~ /\A[a-z][a-z0-9-]*\z/;
+    $self->consume_observation($list_stage, $choice);
+    $self->navigate_choice($choice);
+    return $self->seen($focused_stage);
 }
 
 sub finish {

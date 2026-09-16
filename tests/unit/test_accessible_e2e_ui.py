@@ -67,7 +67,7 @@ def test_gdm_selection_requires_independent_identity_prompt_and_focus(fault):
 @pytest.mark.parametrize('index', [0, 1, 3])
 def test_gdm_navigation_uses_public_order_and_independently_requires_focus(index):
     button = Node('Jamie (Parent)', 'push button')
-    rows = [Node('Other fixture ' + str(number), 'push button') for number in range(3)]
+    rows = [Node(name, 'push button') for name in ('Casey (Parent)', 'Riley (Child)', 'Jordan (Child)')]
     rows.insert(index, button)
     ui = ui_for(Node(children=rows))
     assert ui.run('gdm-list', '')['navigation'] == ['home'] + ['down'] * index
@@ -83,6 +83,54 @@ def test_gdm_account_label_cannot_hide_an_undismissed_prompt(operation):
                               Node('Password', 'password text')]))
     with pytest.raises(UiError, match='gdm-prompt-dismissed'):
         ui.run(operation, '')
+
+
+@pytest.mark.parametrize('fault', ['stale-tree', 'defunct', 'missing-root'])
+@pytest.mark.parametrize('surface', ['list', 'prompt'])
+def test_gdm_absence_requires_complete_fresh_positive_surface(fault, surface):
+    positive = Node('Jamie (Parent)', 'push button' if surface == 'list' else 'label')
+    unrelated = Node('private-canary')
+    if fault == 'stale-tree':
+        unrelated.get_child_count = Mock(side_effect=LookupError('private-canary'))
+    if fault == 'defunct': unrelated.states.add('defunct')
+    ui = ui_for(Node(children=[positive, unrelated]))
+    ui.query_errors = (LookupError,)
+    if fault == 'missing-root': ui.api.get_desktop = lambda _: None
+    with pytest.raises(UiError):
+        ui.observe_absence('greeter', 'password' if surface == 'list' else 'account',
+                          name='Jamie (Parent)', mode='snapshot')
+
+
+@pytest.mark.parametrize('fault', [None, 'duplicate', 'unknown', 'unrelated', 'stale', 'bound', 'cardinality'])
+def test_choice_collection_independent_root_and_explicit_bounds(fault):
+    from accessible_ui import GREETER_IDENTITIES
+    rows = [Node('Jordan (Child)', 'push button'), Node('Jamie (Parent)', 'push button')]
+    if fault == 'duplicate': rows.append(Node('Jamie (Parent)', 'push button'))
+    if fault == 'unrelated': rows.append(Node('private-canary', 'push button'))
+    if fault == 'stale': rows[0].get_child_count = Mock(side_effect=LookupError('private-canary'))
+    root = Node(children=rows)
+    ui = ui_for(Node())  # No preceding greeter checkpoint or hidden UI state.
+    ui.query_errors = (LookupError,)
+    def observe():
+        return ui.choice_order(root, identities={} if fault == 'unknown' else GREETER_IDENTITIES,
+            maximum=1 if fault == 'bound' else 32,
+            cardinality=(0, 1) if fault == 'bound' else (0, 0) if fault == 'cardinality' else (1, 32),
+            projection='greeter-account-order')
+    if fault not in (None, 'unrelated'):
+        with pytest.raises((UiError, LookupError)): observe()
+    else:
+        assert observe() == ('other-child', 'parent') + (('unrelated-account-3',) if fault else ())
+
+
+def test_greeter_navigation_preserves_unrelated_account_positions_without_exporting_labels():
+    rows = [Node('private-canary', 'push button'), Node('Jamie (Parent)', 'push button'),
+            Node('Casey (Parent)', 'push button')]
+    ui = ui_for(Node(children=rows))
+    result = ui.run('gdm-list', '')
+    assert result['navigation'] == ['home', 'down']
+    assert 'private-canary' not in json.dumps(result)
+    with pytest.raises(UiError, match='absence-binding'):
+        ui.greeter_navigation('private-canary')
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'symlink', 'regular', 'wrong-owner'])

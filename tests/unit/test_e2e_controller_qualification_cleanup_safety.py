@@ -72,7 +72,8 @@ def finish(harness):
 
 
 @pytest.mark.parametrize('fault', [None, 'missing-ui', 'duplicate-ui', 'wrong-operation',
-                                  'missing-marker', 'reordered-marker', 'early-return', 'no-logout'])
+                                  'missing-marker', 'reordered-marker', 'early-return', 'no-logout',
+                                  'duplicate-logout'])
 def test_semantic_reconciliation_requires_fresh_results_and_logout_order(tmp_path, fault):
     details, observations = [], []
     for stage, tag in qualification.PLAN.screen_tags.items():
@@ -87,6 +88,7 @@ def test_semantic_reconciliation_requires_fresh_results_and_logout_order(tmp_pat
     if fault == 'reordered-marker': details[0], details[1] = details[1], details[0]
     if fault == 'early-return': details[-1], details[-2] = details[-2], details[-1]
     if fault == 'no-logout': details.pop(-2)
+    if fault == 'duplicate-logout': details.insert(-1, {'title': 'serial-logout', 'result': 'ok'})
     directory = tmp_path / 'testresults'
     directory.mkdir()
     (directory / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
@@ -117,6 +119,24 @@ def test_actual_callback_evidence_passes_exact_contract(harness):
         assert stage in {a['artifact_id'] for a in event['record']['artifacts']}
     harness.context.lease.finish.assert_not_called()
     harness.context.lease.release.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'duplicate', 'reordered', 'module', 'shutdown'])
+def test_completion_block_qualifies_independently_supplied_terminal_evidence(tmp_path, fault):
+    directory = tmp_path / 'testresults'
+    directory.mkdir()
+    (directory / 'result-smoke.json').write_text(json.dumps({
+        'result': 'fail' if fault == 'module' else 'ok', 'details': []}))
+    observations = [{'stage': stage} for stage in qualification.SERIAL_STAGES]
+    if fault == 'missing': observations.pop()
+    if fault == 'duplicate': observations.append(observations[-1])
+    if fault == 'reordered': observations[1], observations[2] = observations[2], observations[1]
+    worker = {'shutdown_verified': fault != 'shutdown'}
+    if fault:
+        with pytest.raises((EvidenceError, RuntimeError)):
+            qualification.validate_completion(tmp_path, observations, worker)
+    else:
+        qualification.validate_completion(tmp_path, observations, worker)
 
 
 def test_failed_stage_checkpoint_prevents_next_worker_action(harness):

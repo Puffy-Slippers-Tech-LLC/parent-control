@@ -19,13 +19,14 @@ our $fragments = shift;
 our $screen;
 our @events;
 our $waits = 0;
-our $selected = '';
+our $selected = 'sut';
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub get_var { return $main::mode eq 'video' ? 0 : 1; }
 sub get_required_var { return $main::mode eq 'control' ? "unsafe\n" : 'private-canary'; }
 sub select_console { $main::selected = $_[0]; push @main::events, 'console:' . $_[0]; }
 sub current_console { return $main::mode eq 'console' ? 'sut' : $main::selected; }
+sub send_key { push @main::events, 'key:' . $_[0]; }
 sub assert_screen {
     my $tag = $main::mode =~ /^install/ && $main::mode ne 'install-refusal'
         ? 'onpc-gdm-parent-installed-account' : 'onpc-gdm-parent-account';
@@ -157,6 +158,9 @@ my $exchange = sub {
     die 'private-canary' if $mode eq 'install-reboot-error' && $stage eq 'reboot-observed';
     die 'private-canary' if $mode eq 'install-password-proof-error' && $stage eq 'reboot-password';
     return {serial_login_process_verified => ($mode ne 'process'),
+            active_graphical_greeter => 1, unexpected_user_session => 0,
+            ui_keys => ['home', 'down'],
+            ui => {operation => 'gdm-select-parent', outcome => 'passed', interface => 'AT-SPI'},
             customer_reboot_authorized => ($mode ne 'install-unauthorized'),
             active_local_serial_session => ($mode ne 'install-session'),
             sudo_reboot_process_verified => ($mode ne 'install-recipient'),
@@ -165,10 +169,18 @@ my $exchange = sub {
                 !($mode eq 'install-reboot-echo' && $stage eq 'reboot-password'))};
 };
 my $ok = eval {
+    if ($mode eq 'flow00') {
+        require onpc_flow00;
+        require onpc_journey;
+        $selected = '';
+        my $journey = onpc_journey->new(prefix => 'smokeui', review => 0, exchange => $exchange);
+        onpc_flow00::run($journey, $exchange);
+    } else {
     $mode eq 'install-refusal' ? onpc_serial::run_install_refusal($exchange)
         : $mode =~ /^install/ ? onpc_serial::run_install($exchange)
         : $mode eq 'functional' ? onpc_serial::run_functional($exchange)
         : onpc_serial::run($exchange);
+    }
     1;
 };
 my $error = $@;
@@ -189,6 +201,115 @@ def test_functional_return_keeps_secret_boundary_command_and_logout_without_pixe
     assert events.index('serial-logout') < events.index('console:sut') < events.index('gdm-return')
     assert 'gdm-match' not in events
     assert 'private-canary' not in result.stdout + result.stderr
+
+
+def test_flow00_composes_real_graphical_and_serial_blocks_in_wire_order():
+    result = run_perl(PROBE, 'flow00')
+    data = json.loads(result.stdout)
+    assert data['ok'] and not data['retry'] and not data['capture']
+    stages = ['gdm', 'focused', 'selected', 'dismissed', 'serial-password',
+              'serial-authenticated', 'serial-command', 'serial-logout', 'gdm-return']
+    events = data['events']
+    assert [event for event in events if event in stages] == stages
+    assert [event for event in events if event != 'record'][:9] == ['console:sut', 'gdm', 'key:home', 'key:down', 'focused',
+                          'key:ret', 'selected', 'key:esc', 'dismissed']
+    assert events.count('password') == 1 and 'gdm-match' not in events
+
+
+@pytest.mark.parametrize('arguments', ['none', 'extra', 'wrong-callback'])
+def test_invalid_functional_arguments_still_seal_capture_and_consume_attempt(arguments):
+    probe = r'''
+use JSON::PP;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub get_var { 1 }
+sub select_console { die 'input forbidden'; }
+sub save_screenshot { die 'capture forbidden'; }
+package main;
+require onpc_serial;
+my $mode = shift;
+my $ok = eval {
+    $mode eq 'none' ? onpc_serial::run_functional()
+        : $mode eq 'extra' ? onpc_serial::run_functional(sub {}, 'extra')
+        : onpc_serial::run_functional('invalid');
+    1;
+};
+my $retry = eval { onpc_serial::run_functional(sub {}); 1; };
+my $error = $@;
+my $capture = eval { onpc_password::capture_before_authentication(); 1; };
+print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0,
+    refused => $error =~ /already-attempted/ ? 1 : 0, capture => $capture ? 1 : 0});
+'''
+    assert json.loads(run_perl(probe, arguments).stdout) == {
+        'ok': 0, 'retry': 0, 'refused': 1, 'capture': 0}
+
+
+@pytest.mark.parametrize('fault', ['echo', 'wrong-echo', 'echo-enabled', 'process', 'typing',
+                                 'shell-not-ready', 'probe-error', 'control', 'video', 'console'])
+def test_extracted_functional_composition_keeps_authentication_and_output_refusals(fault):
+    result = run_perl(PROBE.replace("$mode eq 'functional' ?", "1 ?"), fault)
+    data = json.loads(result.stdout)
+    assert not data['ok'] and not data['retry'] and not data['capture']
+    assert 'serial-command' not in data['events'] and 'gdm-return' not in data['events']
+    assert 'private-canary' not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize('block', ['command', 'logout', 'return'])
+@pytest.mark.parametrize('fault', ['', 'wrong-state', 'wrong-console', 'observation', 'missing-output',
+                                 'stale-proof'])
+def test_serial_blocks_accept_independent_entry_and_never_replay(block, fault):
+    probe = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our ($block, $fault) = @ARGV;
+our @events;
+our $console = $fault eq 'wrong-console' ? 'sut' : 'onpc-serial';
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub current_console { $main::console }
+sub select_console { $main::console = $_[0]; push @main::events, 'select'; }
+sub type_string { push @main::events, $_[0] =~ /^printf/ ? 'command' : 'exit'; }
+sub wait_serial {
+    my ($regex, %options) = @_;
+    die 'private output' unless $options{quiet} == 1 && $options{record_output} == 0;
+    return undef if $main::fault eq 'missing-output';
+    my $value = $main::block eq 'command' ? "ONPC-SERIAL-OK\r\n" : 'fixture login: ';
+    return $value =~ $regex;
+}
+sub record_info { push @main::events, $_[0]; }
+sub type_password { die 'no authentication in these blocks'; }
+package main;
+require onpc_serial;
+my $logout = {active_graphical_greeter => 1, unexpected_user_session => 0};
+my $state = {phase => $fault eq 'wrong-state' ? 'new'
+    : $block eq 'command' ? 'authenticated' : $block eq 'logout' ? 'command-observed' : 'logged-out',
+    logout_proof => $logout, exchange => sub {
+        push @events, $_[0];
+        die 'unavailable' if $fault eq 'observation';
+        return {active_graphical_greeter => 1, unexpected_user_session => 0};
+    }};
+$logout = {%$logout} if $fault eq 'stale-proof';
+my $invoke = sub {
+    return $block eq 'command' ? onpc_serial::command($state)
+        : $block eq 'logout' ? onpc_serial::logout($state)
+        : onpc_serial::return_graphics($state, $logout);
+};
+my $ok = eval { $invoke->(); 1; };
+my $before_retry = scalar @events;
+my $retry = eval { $invoke->(); 1; };
+print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0,
+    before_retry => $before_retry, events => \@events});
+'''
+    data = json.loads(run_perl(probe, block, fault).stdout)
+    succeeds = fault == '' or (fault == 'stale-proof' and block != 'return') or (
+        fault == 'missing-output' and block == 'return')
+    assert data['ok'] == succeeds, data
+    assert not data['retry'] and data['before_retry'] == len(data['events'])
+    if fault in ('wrong-state', 'wrong-console') or (fault == 'stale-proof' and block == 'return'):
+        assert not data['events']
+    if fault == 'missing-output' and block != 'return':
+        assert 'serial-command' not in data['events'] and 'serial-logout' not in data['events']
 
 
 @pytest.mark.parametrize('mode', ['ok', 'install', 'install-refusal', 'double-cr', 'ansi-output', 'shell-not-ready', 'video', 'console', 'prompt', 'wrong-echo', 'process',

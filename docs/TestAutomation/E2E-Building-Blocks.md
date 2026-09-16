@@ -5,10 +5,11 @@ It covers all **33 families / 157 variants** in
 [scenarios.json](../../tests/e2e/scenarios.json).
 The inventory currently has five ready variants: cases **1, 3, 4, 5 and 151**.
 Case 1 qualifies the harness; the other four are customer journeys.
-This is a documentation-only design: no executable, inventory status or passing
-evidence changes. Every catalogue row has an implementation status; existing
+Case 1 now composes FLOW00 and its scoped reusable dependencies. The other
+four ready workers retain their existing compositions and inventory statuses.
+Every catalogue row has an implementation status; existing
 behavior that still needs extraction is `pending` even when its scenario is
-already `ready`. There are **153 blocks: 16 ready and 137 pending**, including
+already `ready`. There are **153 blocks: 32 ready and 121 pending**, including
 four fixture operations and explicitly scoped harness/credential-safety blocks.
 
 The review covers every step, variant parameter and assertion in all 33
@@ -20,11 +21,14 @@ assertions cannot be fulfilled by customer UI blocks; their exact disposition
 is recorded under [inventory reconciliation](#inventory-reconciliation).
 Accounting for an assertion is not a claim that it has been implemented.
 
-**First implementation slice: refactor case 1, preserving its passing result.**
+**First implementation slice: case 1 and its dependencies only.**
 Use only its dependency set and the [case-1 stage contract](#case-1-stage-contract).
-The [copy-and-paste implementation prompt](E2E-Case-1-Refactor-Prompt.md) is for
-a separate session in which code changes are authorized. This session performs
-no refactor or live acceptance run.
+The [implementation prompt and completed baseline evidence](E2E-Case-1-Refactor-Prompt.md#completed-baseline-and-resume-point)
+provide the resume point. The preliminary baseline run is complete and must
+not be repeated before extraction. Scope this slice's implementation and live
+E2E validation to case 1 and its dependencies; retain shared-helper regression
+coverage for compatibility with the other ready cases. Runtime baseline-integrity
+guards and final case-1 acceptance remain required.
 
 ## How to implement one block
 
@@ -83,7 +87,7 @@ are called only by the surrounding envelope or at declared recipe checkpoints.
 
 | Order | Consumer and bounded work | Completion gate |
 | --- | --- | --- |
-| 1 | Case **1**: extract UI11/UI13/UI14 and GDM01/02/08/09 as needed for its existing public observations; extract HAR01–HAR10 and the serial-only UI19 binding. Reuse ready leaves and unchanged runtime services. | Baseline case 1 passes before editing code; its final complete attempt passes after extraction with every stage/assertion preserved. Shared-boundary changes also qualify affected ready cases. |
+| 1 | Case **1**: extract UI11/UI13/UI14 and GDM01/02/08/09 as needed for its existing public observations; extract HAR01–HAR10 and the serial-only UI19 binding. Reuse ready leaves and unchanged runtime services. | Pre-refactor baseline passed; resume extraction without repeating it. Require a final complete case-1 pass with every stage/assertion preserved and affected shared-helper regressions. Other ready cases' live runs are outside this slice. |
 | 2 | Cases **3 and 4**: functional sign-in, whole-query search, child selection/settings/navigation, explicit comparison and the two existing fixture checkpoints. | Both complete installed cases pass; creation/empty-fixture timing and each child's own settings survive. |
 | 3 | Case **5**: focus, paced first-character/full-query readback, exact web-only result and stable absence. Generalize UI03 only for the required projections. | Complete installed case 5 passes with no input repair and no Enter on the web suggestion. |
 | 4 | Case **151**: retained credential guards, shared launch/selection, About, bounded license content, footer and unchanged return. | Complete installed case 151 passes; license-close input still belongs to step-2. |
@@ -115,10 +119,10 @@ system-prompt handling and guarded recorder remain middleware for every block.
 | UI07 | A | Resolve a current pointer target from a showing, enabled public control's screen extents. Coordinates only route input. | `AccessibleUI.pointer_target`. | ready |
 | UI08 | A | Perform one normal pointer click at the freshly supplied target, validating console and current framebuffer bounds. Never retry an uncertain click. | `onpc_journey::click_target` in [onpc_journey.pm](../../tests/integration/graphical_smoke/lib/onpc_journey.pm). | ready |
 | UI10 | A | Wait for a read-only public predicate within its deadline, dispatching pending accessibility events and reacquiring stale objects. | `AccessibleUI.wait`; the predicate must contain no input. | ready |
-| UI11 | A | Observe absence of a named window/control within an otherwise positively recognized surface. Bind `snapshot` or `stable` mode explicitly. Both require complete fresh reads; stable mode additionally requires its declared finite interval and deadline. | Extract GDM's current absence observations and generalize the strict-read interval in `standard_parent_unavailable`. Case 5 always uses stable mode. Missing/stale trees cannot prove absence. | pending |
+| UI11 | A | Observe absence of a named window/control within an otherwise positively recognized surface. Bind `snapshot` or `stable` mode explicitly. Both require complete fresh reads; stable mode additionally requires its declared finite interval and deadline. | `AccessibleUI.observe_absence(surface, target, name=..., mode='snapshot')`: GDM password/account exclusion with fresh positive surface and complete strict traversal. Only the GDM snapshot binding is ready; stable/search scope remains pending. See case-1 qualification below. | ready |
 | UI12 | A | Compare explicit sanitized observations with an explicit expected value or earlier observation; report the differing approved fields. No hidden initial/new-child slots. | Extract comparisons from [ui_observations.py](../../tests/e2e/ui_observations.py). | pending |
-| UI13 | A | Observe a bounded public collection: canonical choice identities/order, matching window count, or displayed row set. Inputs declare root, projection, maximum and expected cardinality (including zero). Require complete fresh traversal for exclusion/count claims; reject duplicates and unknown identities. | Extract list traversal from `AccessibleUI.run`. Consumers include REQUEST03 and REQUEST10 for form/prompt counts, PARENT11 for filter results. No raw labels/trees; current navigation bound is 32 choices. | pending |
-| UI19 | A | Type one fixture secret once through the unchanged secret-safe API for one freshly qualified challenge. Accept a registered secret reference and explicit recipient proof, never plaintext in stage data. Do not submit or infer authentication success. Capture remains sealed and uncertainty/failure forbids replay. | First extraction: the existing serial input in `onpc_serial::_run`, retaining its one-attempt latch. Later graphical bindings reuse [onpc_password.pm](../../tests/integration/graphical_smoke/lib/onpc_password.pm). Multiple authentications require separately qualified challenges; never clear a failure latch. Qualify each binding with its own consumer. | pending |
+| UI13 | A | Observe a bounded public collection: canonical choice identities/order, matching window count, or displayed row set. Inputs declare root, projection, maximum and expected cardinality (including zero). Require complete fresh traversal for exclusion/count claims; reject duplicate fixture identities and unknown requested targets. | `AccessibleUI.choice_order(root, identities=..., maximum=32, cardinality=..., projection='greeter-account-order')`: canonical fixture identities and anonymous positions for preserved unrelated accounts; duplicate fixtures, unknown requested identities and stale reads refuse. `greeter_navigation(name)` supplies the existing Home/Down reply. Only case 1's GDM collection is qualified; other projections remain pending. | ready |
+| UI19 | A | Type one fixture secret once through the unchanged secret-safe API for one freshly qualified challenge. Accept a registered secret reference and explicit recipient proof, never plaintext in stage data. Do not submit or infer authentication success. Capture remains sealed and uncertainty/failure forbids replay. | `onpc_serial::type_fixture_secret(state, 'parent-serial', proof)` consumes the attempt's explicit password proof before the unchanged `type_password` call. Serial only; graphical bindings and multiple authentications remain pending. Existing one-attempt latch/capture seal stay in `attempt`. | ready |
 | UI20 | A | Perform one deliberate bounded native double-click gesture on a freshly qualified enabled target. Record it as one intended gesture; no retry or click repair. | Existing normal pointer API; new consumer is E2E-014. A disabled/hidden target cannot authorize a gesture. This is not two separately retried click blocks. | pending |
 | UI22 | A | Observe a bounded trace of registered public status/control states across one declared transition. Start before the triggering input, acknowledge observation readiness, then finish at the explicit terminal predicate/deadline. Return sanitized ordered samples and monotonic offsets. The caller owns the input between start and finish. | New read-only public observation for E2E-005 saving/control inhibition, E2E-014 duplicate submission and E2E-031 collection. Reuse guarded checkpoint transport; missing a required transient state is unproven, never inferred from the final state. No product hooks, fault delays or replay. | pending |
 | UI23 | A | Request one public scroll-to operation for a registered existing offscreen target, only when it is not already showing. Require a visible, nondefunct object and its public Component interface; return input completion only. | Extract the input part of `AccessibleUI.reveal`; no fixed distance, reference geometry or activation of hidden content. | pending |
@@ -126,7 +130,7 @@ system-prompt handling and guarded recorder remain middleware for every block.
 | SEC01 | A | Observe one fixed legacy credential-safety predicate: reviewed needle present/absent, or the existing bounded settling check. Its profile, timeout and expected polarity are explicit; it authorizes no input by itself. | Extract the fixed checks in `onpc_parent::login` and `onpc_password::enter_password` for case 151 only. Preserve tags, thresholds and wrong-recipient exclusions. No new customer appearance gate. | pending |
 | SEC02 | A | Click one registered legacy account-input needle through its existing matched-pointer helper. Require current match and input eligibility; return input completion only. | `onpc_pointer::click` for case 151's two account choices; qualification stays separate from the password recipient. No fixed-coordinate fallback or new needle. | ready |
 | UI09 | C | Reveal a named existing control/content, then independently require a fresh showing target. | UI23 → UI01 → UI02(showing). `AccessibleUI.reveal` is the existing reuse source; its proposed separated callees still need extraction. | pending |
-| UI14 | C | Highlight one choice in an already open list. Derive Home/Down from its observed order, then independently verify the intended identity and focus/selection before committing. | UI13 → UI05 for the derived finite keys → UI01 → UI02; reuse `navigate_choice`. Absent/duplicate targets refuse. | pending |
+| UI14 | C | Highlight one choice in an already open list. Derive Home/Down from its observed order, then independently verify the intended identity and focus/selection before committing. | `onpc_journey::highlight_choice(reply, list_stage, focused_stage)` consumes fresh list evidence, calls `navigate_choice` (UI05), then obtains independent UI01/UI02 focus evidence. Case-1 GDM binding only; other controls remain pending. | ready |
 | UI15 | C | Select one value from a named dropdown/menu or visible choice group. The registered control kind and commit route are explicit; independently verify the resulting selected value. | Dropdown: UI01 → UI04(open) → UI14(choice) → declared UI05(Enter) or UI04(choice) → UI11(popup) → UI01(closed picker) → UI03(selected label). Read the retained picker, not a vanished popup row. Visible group: UI01 → UI04 → UI02 → UI03. | pending |
 | UI21 | C | Focus one named showing, enabled nonsecret field by a normal pointer click; independently require focus. Input: explicit surface/field. | UI01 → UI07 → UI08 → UI02. Generalizes case-5 search focus for fields, terminal input and rich-text editing. | pending |
 | UI16 | C | Replace text in one named nonsecret field: focus, select all, type once, then read the exact result. Empty input explicitly means clear. | UI21 → UI05(Ctrl-A) → UI06(value), or UI05(Backspace) for empty → UI03(exact value, including zero length). Selecting all alone does not clear a field. Register field-specific projections with their consumer. | pending |
@@ -144,9 +148,9 @@ the affected entry block; that connection metadata supplies no product evidence.
 | --- | --- | --- | --- | --- |
 | GDM08 | A | Observe the selected account label, focused showing password role and hidden account list. This is a nonsecret prompt observation only; it cannot authorize password input and never reads password contents. | `AccessibleUI.greeter_prompt()` for the current Parent fixture in case 1. Other identity bindings remain pending with their consumer. Keep this distinct from GDM03's stricter empty-field recipient proof. | ready |
 | GDM03 | A | Read the intended GDM recipient's identity and sole showing, enabled, focused, empty masked field with the account list hidden. Read character count only, never password content. | `AccessibleUI.password_recipient(name)` for the existing four fixture identities. Other surfaces are not covered. | ready |
-| GDM01 | C | Observe the usable greeter and its account list, with no active password prompt. | UI01 → UI11(snapshot); extract `greeter_list` and existing GDM checkpoints. | pending |
-| GDM02 | C | Select a named user on the logon screen. Derive navigation from the current list, verify focus before Enter, then observe the declared password prompt, retained lock or passwordless station. Do not type a password. | GDM01 → UI14 → UI05(Enter) → GDM08 for a prompt, or UI01 → UI02 for the declared lock/station. Reuse [onpc_gdm.pm](../../tests/integration/graphical_smoke/lib/onpc_gdm.pm). Case 1 extracts only the existing Parent/prompt binding. | pending |
-| GDM09 | C | Dismiss an already observed GDM password prompt with one Escape and independently observe the account list again. No secret is typed. | UI01(known prompt) → UI05(Escape) → GDM01. Extract the final part of `onpc_gdm::functional_selection`; reuse for wrong-recipient dismissal. | pending |
+| GDM01 | C | Observe the usable greeter and its account list, with no active password prompt. | `AccessibleUI.greeter_list(name)` → UI11(snapshot) with the fresh UI01 account control. Used at initial list, dismissal and graphical return; case-1 Parent binding qualified. | ready |
+| GDM02 | C | Select a named user on the logon screen. Derive navigation from the current list, verify focus before Enter, then observe the declared password prompt, retained lock or passwordless station. Do not type a password. | `onpc_gdm::select_prompt(journey, 'parent', 'prompt')`: GDM01/UI13 at `gdm` → UI14 → UI05(Enter) → GDM08 at `selected`. Only Parent/prompt is qualified; lock/station bindings remain pending. | ready |
+| GDM09 | C | Dismiss an already observed GDM password prompt with one Escape and independently observe the account list again. No secret is typed. | `onpc_gdm::dismiss_observed_prompt(journey, prompt)` consumes the explicit fresh GDM08 prompt, sends UI05(Escape), then obtains GDM01 at `dismissed`. Missing, stale, replayed and review evidence refuse. Parent/prompt binding only. | ready |
 | GDM04 | C | Observe a different account's empty GDM prompt, prove it is refused as the intended secret recipient, dismiss it, and observe the account list again. The declared wrong account has no retained desktop, so selection reaches a GDM prompt. | GDM02(other, destination=prompt) → GDM03(other) → negative GDM03(intended) → GDM09. | pending |
 | GDM05 | C | Type the intended user's password into the already selected GDM prompt. Require the explicit wrong-recipient evidence and two fresh ordered recipient checks immediately before one secret input. Do not submit. | GDM03 → GDM03 → UI19. Extract the two functional secret helpers without weakening legacy guards. | pending |
 | GDM06 | C | Observe the declared access result at GDM or lock: usable intended desktop, or time-limit rejection with its explanation and no desktop access. A generic failed login is not the expected denial. | Success: UI01 → UI02 on the intended fixture's desktop. Denial: UI01 → UI03(explanation) → UI11(desktop). Qualify the relevant public UI connection. | pending |
@@ -164,16 +168,16 @@ serial latch around the entire composition, including every failure path.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| HAR01 | A | Select one existing public test console, `sut` or `onpc-serial`, once. Require the declared current console and verify the resulting selection. Initial `sut` binding also permits the runner's known unselected state. Do not create/reconnect/reset a console here. | Extract fixed `testapi::select_console` / `current_console` pairs from `smoke.pm` and `onpc_serial.pm`. Ownership remains with the existing runner. | pending |
-| HAR02 | A | Wait for one registered serial text projection within its existing timeout: login prompt, exact fixture echo plus password prompt, shell prompt, or complete harmless-command output. Return a semantic match only. | Extract `testapi::wait_serial` calls in `onpc_serial::_run`: `quiet => 1`, `record_output => 0`; retain the 256-character password-prompt bound, exact LF/CRLF normalization and split-marker output check. No arbitrary regex or terminal output export. | pending |
-| HAR03 | A | Obtain one fresh fixed harness observation: `boot`, `greeter`, `serial-password` or `serial-session`. Require the existing lease, identity, exact result schema and terminal failure latch. | Reuse `ReadOnlyObservations.read` through `Smoke._step` / `progress` in [check_graphical_smoke.py](../../tests/integration/check_graphical_smoke.py). Extract only these existing bindings; they must never assert product policy or readiness. | pending |
+| HAR01 | A | Select one existing public test console, `sut` or `onpc-serial`, once. Require the declared current console and verify the resulting selection. Initial `sut` binding also permits the runner's known unselected state. Do not create/reconnect/reset a console here. | `onpc_harness::select_console(from, to)` supports only initial→sut, sut→onpc-serial and onpc-serial→sut. Source/destination checks and independent entry states are qualified by the real Perl GDM/serial tests. | ready |
+| HAR02 | A | Wait for one registered serial text projection within its existing timeout: login prompt, exact fixture echo plus password prompt, shell prompt, or complete harmless-command output. Return a semantic match only. | `onpc_serial::observe_text(projection)`, closed login/password/shell/command/logout profiles. Retains quiet/private output, fixed deadlines, exact bounded fixture echo, LF/CRLF normalization and split-marker stdout match. | ready |
+| HAR03 | A | Obtain one fresh fixed harness observation: `boot`, `greeter`, `serial-password` or `serial-session`. Require the existing lease, identity, exact result schema and terminal failure latch. | `check_graphical_smoke.harness_observation(observer, projection)` exposes only boot/greeter/serial-password/serial-session through the existing guarded, schema-checked `ReadOnlyObservations.read`; used by `Smoke` and recorder boot middleware. | ready |
 | HAR04 | A | Permanently seal explicit capture before serial authentication preparation. Repeated calls cannot reopen it. | `onpc_password::seal_capture`; the serial worker's existing no-video policy and secret registry remain mandatory. | ready |
-| HAR05 | C | Authenticate the fixed serial fixture once and observe its real session and usable shell. No graphical secret is involved. | HAR04 → HAR01(serial) → HAR02(login) → UI06(registered username plus newline) → HAR02(exact username echo/password prompt) → HAR03(serial-password, durable `serial-password` acknowledgement) → UI19(serial) → UI06(newline) → HAR03(serial-session, `serial-authenticated`) → HAR02(shell). Preserve independent login-process and echo-disabled proofs before input. | pending |
-| HAR06 | C | Submit the existing harmless serial command once and observe actual output, then independently corroborate its session. | UI06(fixed split-marker `printf` plus newline) → HAR02(complete output) → HAR03(serial-session, `serial-command`). Command echo cannot satisfy the output predicate; the marker flag is accepted only after the worker's real output match. | pending |
-| HAR07 | C | Log out the authenticated serial fixture normally and independently observe the session-free greeter before any graphical return. | UI06(fixed `exit` plus newline) → HAR02(fresh login prompt) → HAR03(greeter, `serial-logout`). Emit the existing single successful `serial-logout` worker marker only after acknowledgement. | pending |
-| HAR08 | C | Return from the logged-out serial console to graphics and obtain a fresh public greeter observation. Require HAR07's explicit evidence from this attempt. | HAR01(sut) → HAR03(greeter) → GDM01, jointly recorded at `gdm-return`. The initial list observation cannot substitute for return. | pending |
+| HAR05 | C | Authenticate the fixed serial fixture once and observe its real session and usable shell. No graphical secret is involved. | `onpc_serial::login(state)`: HAR04 → HAR01 → HAR02(login) → UI06(username) → HAR02(password) → HAR03 checkpoint → UI19 → UI06(newline) → HAR03(session) → HAR02(shell). `attempt(exchange, body)` retains the encompassing single-attempt/video/capture/failure boundary. | ready |
+| HAR06 | C | Submit the existing harmless serial command once and observe actual output, then independently corroborate its session. | `onpc_serial::command(state)`: UI06(fixed split-marker command) → HAR02(output) → HAR03(session checkpoint). Explicit authenticated entry; consumes state before input and never replays failures. | ready |
+| HAR07 | C | Log out the authenticated serial fixture normally and independently observe the session-free greeter before any graphical return. | `onpc_serial::logout(state)`: UI06(exit) → HAR02(login) → HAR03(session-free greeter checkpoint). Returns this attempt's explicit logout evidence and emits the existing successful marker exactly once. | ready |
+| HAR08 | C | Return from the logged-out serial console to graphics and obtain a fresh public greeter observation. Require HAR07's explicit evidence from this attempt. | `onpc_serial::return_graphics(state, logout)`: consumes HAR07's evidence → HAR01(sut) → HAR03(greeter) and GDM01 at the existing `gdm-return` checkpoint. Missing/stale/reused or early return refuses. | ready |
 | HAR09 | A | Reconcile all ordered case-1 public-UI results with worker markers, requiring exactly one successful serial logout between dismissed GDM and returned GDM. Read existing evidence; perform no guest action. | `controller_qualification.matched_screens`; [controller reconciliation regressions](../../tests/unit/test_e2e_controller_qualification_cleanup_safety.py). | ready |
-| HAR10 | A | Validate the complete expected stage sequence, actual worker module success and verified shutdown result before terminal assertions. Zero exit alone is insufficient. | Extract `validate` and the shutdown check in [controller_qualification.py](../../tests/e2e/controller_qualification.py), retaining `module_result` and the current worker ownership/cleanup service. | pending |
+| HAR10 | A | Validate the complete expected stage sequence, actual worker module success and verified shutdown result before terminal assertions. Zero exit alone is insufficient. | `controller_qualification.validate_stages(directory, observations)` is the existing pre-shutdown callback; `validate_completion(directory, observations, worker)` repeats complete stage/module validation and requires verified shutdown before reconciliation. | ready |
 
 HAR03(boot) brackets acknowledged stages exactly as the current callback does;
 every value must equal the first boot. Persist observations and any phase change
@@ -316,7 +320,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 
 | ID | Kind | Block and explicit contract | Callees, in order | Status |
 | --- | --- | --- | --- | --- |
-| FLOW00 | C | Run case 1's complete graphical/serial qualification within the unchanged harness envelope. Its step boundaries and terminal assertions are fixed below. | HAR01(initial sut) → GDM02(parent, prompt) → GDM09 → HAR05 → HAR06 → HAR07 → HAR08. After normal worker finish/shutdown: HAR10 → HAR09. HAR03(boot) remains the existing per-stage middleware. | pending |
+| FLOW00 | C | Run case 1's complete graphical/serial qualification within the unchanged harness envelope. Its step boundaries and terminal assertions are fixed below. | `onpc_flow00::run(journey, exchange)` calls HAR01 → GDM02 → GDM09 and its `serial(exchange)` fragment calls HAR05 → HAR06 → HAR07 → HAR08 within `onpc_serial::attempt`. Normal finish/shutdown stays in `smoke.pm`; `controller_qualification.execute` then calls HAR10 → HAR09 with unchanged evidence/phase middleware. | ready |
 | FLOW15 | C | Reach an explicit user's desktop from the declared source surface. `entry=fresh` requires no retained session; `retained` requires an earlier observed desktop; `same` requires the current user already matches. Return the observed desktop or expected time-limit denial. | Source desktop: DESK03; source lock/rejection: DESK11; source GDM: GDM01. Then GDM07 for fresh (GDM10 only for case 151's explicit legacy binding), or GDM02(destination=lock) → DESK08 for retained. Same-user route only DESK01. Never infer a new session after failed unlock. | pending |
 | FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. | FLOW15(parent) → PARENT01 for new window or DESK10(Parent) for retained → PARENT02(child) → PARENT03. To test remembered selection, read PARENT03 before any PARENT02 instead. | pending |
 | FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | UI17(Screen time limit=true) if required → PARENT06 → PARENT08 → UI17(final boolean) → PARENT08 → PARENT03 → PARENT09. Disabling clears a grant; this is not a harmless navigation step. | pending |
@@ -532,7 +536,7 @@ is recipe reuse with every original parameter binding, never sampling.
 
 ### Inventory reconciliation
 
-The JSON inventory is unchanged in this documentation-only session. Its five
+The JSON inventory is unchanged by this design and baseline qualification. Its five
 ready cases have no contract rewrite in this plan. Many pending declarations
 still combine customer actions with internal assertions; implementing only
 their visible recipe must not satisfy the unchanged larger declaration.
@@ -741,18 +745,33 @@ Relevant retained checks are [public UI adapter tests](../../tests/unit/test_acc
 [controller/phase/fixture safety](../../tests/unit/test_installed_journey_cleanup_safety.py),
 [About cleanup and reconciliation](../../tests/unit/test_parent_about_cleanup_safety.py),
 and [real GTK/Shell adapter qualification](../../tests/ui/test_e2e_accessible_adapter.py).
-Run the affected meaningful checks, then each affected ready installed consumer
-once on final unchanged inputs. Changes to shared GDM, secret input, stage
+Run the affected meaningful checks, then the live consumers required by the
+current slice on final unchanged inputs. Changes to shared GDM, secret input, stage
 reconciliation or public-UI routing also require their affected safety/harness
 qualification; do not run the whole future matrix merely for an extraction.
-For the first case-1 extraction, the requested preservation gate is the complete
-ready set `1,3,4,5,151`, including terminal collection and cleanup, on fresh final
-artifacts. Keep all five ready statuses; a documentation plan earns no pass.
+For the first case-1 extraction, the requested preservation gate is case **1**,
+including terminal collection and cleanup, on fresh final artifacts, plus
+affected shared-helper regressions. Do not run cases 3, 4, 5 or 151 as part of
+this slice. Keep all five ready statuses and preserve their compatibility;
+this scoped validation supplies no new live acceptance claim for the other cases.
 
-This is a source-level refactorability review, not execution of a refactor.
-Only implementation and the complete affected installed runs can establish
-that the migrated code works. Preserve the current ready inventory and its
-existing evidence until then.
+Case-1 extraction qualification uses the actual Perl GDM/serial/FLOW00 helpers,
+public-UI adapter, graphical-smoke controller and durable recorder regressions
+linked above. Independently supplied entry states cover list collection, prompt
+dismissal, console selection, serial command/logout/return and terminal evidence;
+missing, stale, duplicate, reordered and failed observations refuse further input.
+The shared worker/recorder regressions preserve cases 3, 4, 5 and 151 without
+running their live journeys. UI11 is qualified only for GDM snapshots, UI13 for
+the fixed GDM collection, UI14 for its highlight route, and UI19 for serial input.
+Unimplemented bindings in those rows remain pending with their named consumers.
+
+The [completed baseline](E2E-Case-1-Refactor-Prompt.md#completed-baseline-and-resume-point)
+retains the original behavior evidence. Final acceptance uses fresh artifacts and
+the unchanged public case-1 command, requiring all ten stages, all three assertions,
+owned shutdown and complete collection/restoration. Per-attempt paths and outcomes
+belong to the existing runner artifacts and invocation report. Block readiness
+does not replace that final complete run. This extraction activates on invocation
+(`none`); it adds no product integration, setup requirement or data migration.
 
 ## Functional validation
 

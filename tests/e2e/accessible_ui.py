@@ -54,6 +54,8 @@ SETTINGS_OPERATIONS = {
 }
 PARENT = 'Jamie (Parent)'
 OTHER_PARENT = 'Casey (Parent)'
+GREETER_IDENTITIES = {PARENT: 'parent', OTHER_PARENT: 'other-parent',
+                      CHILD: 'child', EXISTING_CHILD: 'other-child'}
 GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
     'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
@@ -261,16 +263,80 @@ class AccessibleUI:
                 'allowance': labels}
 
     def greeter_list(self, name=PARENT):
-        button = self.labelled_button(name)
-        self.wait(lambda: self.find(roles=('password text',)) is None, 'gdm-prompt-dismissed')
-        return button
+        # GDM01: the positive account surface and absence must be fresh together.
+        self.observe_absence('greeter', 'password', name=name, mode='snapshot')
+        return self.labelled_button(name)
+
+    def observe_absence(self, surface, target, *, name, mode):
+        """UI11's GDM snapshot binding; stable/search scope remains separate."""
+        require(surface == 'greeter' and target in ('password', 'account')
+                and name in GREETER_IDENTITIES and mode == 'snapshot', 'ui:absence-binding')
+
+        def absent():
+            positive = (self.find_labelled_button(name) if target == 'password'
+                        else self.find(name, ('label',)))
+            if positive is None:
+                return False
+            root = self.api.get_desktop(0)
+            require(root is not None, 'ui:missing-surface')
+            # Consume the entire traversal, including unrelated subtrees, before
+            # accepting exclusion. A stale read cannot stand in for absence.
+            found = []
+            for node in self.nodes(root, strict=True):
+                role = node.get_role_name()
+                if self.has_state(node, self.api.StateType.DEFUNCT):
+                    return False
+                if self.showing(node) and (role == 'password text' if target == 'password'
+                        else role in ('button', 'push button') and node.get_name() == name):
+                    found.append(node)
+            return not found
+
+        return self.wait(absent, 'gdm-prompt-dismissed' if target == 'password' else 'gdm-list-hidden')
+
+    def choice_order(self, root, *, identities, maximum, cardinality, projection):
+        """UI13: fresh complete collection, returning only canonical identities.
+
+        Rows may be outside the viewport in a scrolling account list. Their
+        order is readable; the separate focus checkpoint qualifies the input.
+        """
+        require(root is not None and type(maximum) is int and 1 <= maximum <= 32
+                and type(cardinality) is tuple and len(cardinality) == 2
+                and 0 <= cardinality[0] <= cardinality[1] <= maximum
+                and identities == GREETER_IDENTITIES
+                and projection == 'greeter-account-order', 'ui:collection-binding')
+        choices = []
+        for node in self.nodes(root, strict=True):
+            require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-collection')
+            if node.get_role_name() not in ('button', 'push button'):
+                continue
+            # GDM may put its label on the button or a nested public label.
+            labels = {node.get_name()} | {child.get_name() for child in self.nodes(node, strict=True)
+                                        if child.get_role_name() == 'label'}
+            matches = [identity for label, identity in identities.items() if label in labels]
+            require(len(matches) <= 1, 'ui:ambiguous-choice-identity')
+            # The accepted baseline preserves unrelated accounts. They occupy
+            # real Home/Down positions but are never selectable fixture targets.
+            # Keep their labels private and represent only their list positions.
+            identity = matches[0] if matches else f'unrelated-account-{len(choices) + 1}'
+            require(identity not in choices, 'ui:duplicate-choice-identity')
+            choices.append(identity)
+            require(len(choices) <= maximum, 'ui:collection-bound')
+        require(cardinality[0] <= len(choices) <= cardinality[1], 'ui:collection-cardinality')
+        return tuple(choices)
+
+    def greeter_navigation(self, name):
+        button = self.greeter_list(name)
+        choices = self.choice_order(button.get_parent(), identities=GREETER_IDENTITIES,
+                                    maximum=32, cardinality=(1, 32), projection='greeter-account-order')
+        identity = GREETER_IDENTITIES[name]
+        require(choices.count(identity) == 1, 'ui:gdm-account-list')
+        return ['home'] + ['down'] * choices.index(identity)
 
     def greeter_prompt(self):
         # This observation submits no secret and cannot authorize one. Read
         # only the account label and password role/state, never its contents.
         self.target(PARENT, ('label',))
-        self.wait(lambda: self.find(PARENT, ('button', 'push button')) is None,
-                  'gdm-list-hidden')
+        self.observe_absence('greeter', 'account', name=PARENT, mode='snapshot')
         self.wait(lambda: (field := self.find(roles=('password text',), sensitive=True))
                   is not None and self.has_state(field, self.api.StateType.FOCUSED),
                   'gdm-password-focus')
@@ -530,6 +596,9 @@ class AccessibleUI:
                 self.wait(lambda: self.has_state(self.greeter_list(name), self.api.StateType.FOCUSED),
                           'gdm-account-focus')
             elif operation in GREETER_NAVIGATION:
+                if operation == 'gdm-list':
+                    result['navigation'] = self.greeter_navigation(PARENT)
+                    return result
                 name = OTHER_PARENT if operation == 'gdm-other-list' else PARENT
                 if operation == 'gdm-standard-list':
                     name = EXISTING_CHILD

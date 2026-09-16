@@ -186,7 +186,8 @@ require onpc_journey;
 my $journey = onpc_journey->new(prefix => 'smokeui', review => 0, exchange => sub {
     push @events, $_[0];
     die 'unavailable' if $_[0] eq $failure;
-    return {ui_keys => ['home', 'down']};
+    return {ui_keys => ['home', 'down'], ui => {
+        operation => 'gdm-select-parent', outcome => 'passed', interface => 'AT-SPI'}};
 });
 my $ok = eval { onpc_gdm::functional_selection($journey); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
@@ -195,3 +196,65 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     expected = ['gdm', 'key:home', 'key:down', 'focused', 'key:ret', 'selected', 'key:esc', 'dismissed']
     assert data['ok'] == (not failure)
     assert data['events'] == (expected[:expected.index(failure) + 1] if failure else expected)
+
+
+@pytest.mark.parametrize('fault', ['', 'missing', 'stale', 'reordered', 'review', 'wrong-identity',
+                                 'observation-failed', 'uncertain-input'])
+def test_dismissal_accepts_independent_prompt_and_consumes_evidence_before_input(fault):
+    probe = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our $fault = shift;
+our @keys;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub current_console { 'sut' }
+sub send_key { push @main::keys, $_[0]; die 'uncertain' if $main::fault eq 'uncertain-input'; }
+sub record_info { }
+package main;
+require onpc_gdm;
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'independent', review => ($fault eq 'review' ? 1 : 0),
+    exchange => sub {
+        die 'unavailable' if $_[0] eq 'dismissed' && $fault eq 'observation-failed';
+        return {ui => {operation => $fault eq 'wrong-identity' ? 'gdm-list' : 'gdm-select-parent',
+                       interface => 'AT-SPI', outcome => 'passed'}};
+    });
+my $prompt = $journey->seen('selected');
+if ($fault eq 'stale') { $prompt = {%$prompt}; }
+if ($fault eq 'missing') { $prompt = undef; }
+$journey->seen('gdm') if $fault eq 'reordered';
+my $ok = eval { onpc_gdm::dismiss_observed_prompt($journey, $prompt); 1; };
+my $retry = eval { onpc_gdm::dismiss_observed_prompt($journey, $prompt); 1; };
+print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0, keys => \@keys});
+'''
+    result = json.loads(run_perl(probe, fault).stdout)
+    assert result['ok'] == (not fault)
+    assert not result['retry']
+    assert result['keys'] == (['esc'] if fault in ('', 'observation-failed', 'uncertain-input') else [])
+
+
+@pytest.mark.parametrize(('source', 'destination', 'current', 'succeeds'), [
+    ('initial', 'sut', '', True), ('initial', 'sut', 'sut', True),
+    ('sut', 'onpc-serial', 'sut', True), ('onpc-serial', 'sut', 'onpc-serial', True),
+    ('initial', 'sut', 'other', False), ('sut', 'onpc-serial', '', False),
+    ('onpc-serial', 'sut', 'sut', False), ('sut', 'other', 'sut', False),
+])
+def test_console_leaf_requires_explicit_source_and_supported_destination(source, destination, current, succeeds):
+    probe = r'''
+use JSON::PP;
+our ($source, $destination, $current) = @ARGV;
+our @selected;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub current_console { $main::current }
+sub select_console { push @main::selected, $_[0]; $main::current = $_[0]; }
+sub reset_consoles { die 'reconnect forbidden'; }
+package main;
+require onpc_harness;
+my $ok = eval { onpc_harness::select_console($source, $destination); 1; };
+print encode_json({ok => $ok ? 1 : 0, selected => \@selected});
+'''
+    result = json.loads(run_perl(probe, source, destination, current).stdout)
+    assert result == {'ok': int(succeeds), 'selected': [destination] if succeeds else []}

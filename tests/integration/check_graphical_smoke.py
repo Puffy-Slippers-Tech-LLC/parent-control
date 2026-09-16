@@ -94,6 +94,13 @@ def module_result(directory):
             'smoke:module-not-passed')
 
 
+def harness_observation(observer, projection):
+    """HAR03's closed harness bindings; the observer owns guards/schema/latch."""
+    require(projection in ('boot', 'greeter', 'serial-password', 'serial-session'),
+            'smoke:harness-projection')
+    return observer.read(projection)
+
+
 def screenshot(directory, name):
     require(isinstance(name, str) and re.fullmatch(r'smoke-[0-9]+\.png', name),
             'smoke:invalid-screenshot-name')
@@ -301,7 +308,7 @@ class Smoke:
             # The match's automatic screenshot stays private. The callback
             # reconciles it from the completed module, never reopening capture.
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
-            reply = self.vm.read('greeter')
+            reply = harness_observation(self.vm, 'greeter')
             if self.functional:
                 reply['ui'] = self.ui.observe('gdm-returned')
             if self._reboot_boot is not None:
@@ -319,11 +326,11 @@ class Smoke:
         elif stage.startswith('serial-'):
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
             if stage == 'serial-password':
-                reply = self.vm.read('serial-password')
+                reply = harness_observation(self.vm, 'serial-password')
             elif stage == 'serial-logout':
-                reply = self.vm.read('greeter')
+                reply = harness_observation(self.vm, 'greeter')
             else:
-                reply = self.vm.read('serial-session')
+                reply = harness_observation(self.vm, 'serial-session')
                 if stage == 'serial-command':
                     reply['command_marker_verified'] = True
         elif stage == 'authenticated':
@@ -345,7 +352,7 @@ class Smoke:
                         and reply['sha256'] != previous['sha256'], 'smoke:unchanged-screen')
         # Corroborate each captured stage, not just SSH availability at boot.
         if stage not in ('authenticated', 'gdm-return') and not stage.startswith(('serial-', 'install-', 'reboot-', 'vt6-')):
-            self.vm.read('greeter')
+            harness_observation(self.vm, 'greeter')
         self.steps.append({'stage': stage, **reply})
         if self.vt6_auth:
             self.steps[-1]['input_provenance'] = {

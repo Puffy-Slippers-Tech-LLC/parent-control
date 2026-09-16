@@ -85,7 +85,12 @@ onpc_preview_start_pipewire
 onpc_preview_enable_host_devkit_viewer
 onpc_preview_start 1
 
-if [[ $scenario == indicator-interaction ]]; then
+if [[ $scenario == e2e-search ]]; then
+    onpc_preview_wait_for_bus_name org.gnome.Mutter.RemoteDesktop \
+        "$onpc_preview_log_path"
+    "${ONPC_CHILD_SHELL_PYTHON:-python3}" "$repo_root/tests/ui/e2e_search_probe.py"
+    record_stage startup success none
+elif [[ $scenario == indicator-interaction ]]; then
     onpc_preview_wait_for_bus_name org.gnome.Mutter.RemoteDesktop \
         "$onpc_preview_log_path"
     if ! "${ONPC_CHILD_SHELL_PYTHON:-python3}" \

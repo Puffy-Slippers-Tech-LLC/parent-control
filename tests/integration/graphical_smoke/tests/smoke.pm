@@ -22,8 +22,12 @@ sub exchange {
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage eq 'setup-detached' ? 1500 : 420);
+    my $prompt_sequence = 1;
     while (!-f "$stage.reply.json") {
         die 'smoke:controller-timeout' if time >= $deadline;
+        if ($prompt_sequence <= 3 && onpc_journey::service_system_prompt($stage, $prompt_sequence)) {
+            $prompt_sequence++;
+        }
         sleep 0.1;
     }
     open(my $reply, '<', "$stage.reply.json") or die 'smoke:reply';

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import json
 import os
 import sys
+import time
 
 from check_graphical_smoke import module_result, screenshot
 from installed_setup import InstalledSetup
@@ -99,6 +100,37 @@ class InstalledJourney:
         self.ui = None
         self.boot = None
         self.failed = False
+        self.prompt_counts = {}
+
+    def dismiss_system_prompt(self, stage, point, guard):
+        """One ordered pointer request within the worker's existing rendezvous."""
+        require(not self.review, 'ui:system-prompt-review')
+        sequence = self.prompt_counts.get(stage, 0) + 1
+        require(sequence <= 3, 'ui:system-prompt-limit')
+        self.prompt_counts[stage] = sequence  # Never reuse an uncertain request.
+        directory = self.context.directory
+        stem = stage + '.prompt-' + str(sequence)
+        pending = directory / (stem + '.request.tmp')
+        request = directory / (stem + '.request.json')
+        reply = directory / (stem + '.reply.json')
+        require(not any(os.path.lexists(path) for path in (pending, request, reply)),
+                'ui:system-prompt-replay')
+        guard()
+        with pending.open('x') as stream:
+            json.dump({'stage': stage, 'sequence': sequence, 'kind': 'login-keyring',
+                       'ui_pointer': UiObservations.point(point)}, stream)
+        pending.rename(request)
+        deadline = time.monotonic() + 15
+        while not reply.exists():
+            require(time.monotonic() < deadline, 'ui:system-prompt-input-timeout')
+            guard(service=True)
+            time.sleep(.1)
+        require(not reply.is_symlink() and reply.stat().st_size <= 1024,
+                'ui:system-prompt-reply')
+        require(json.loads(reply.read_bytes()) == {'stage': stage, 'sequence': sequence,
+                'action': 'cancel-click', 'outcome': 'sent'}, 'ui:system-prompt-reply')
+        guard()
+        print(self.plan.prefix + ':system-prompt-cancel-sent=' + stage, file=sys.stderr, flush=True)
 
     def step(self, guard):
         require(not self.failed, self.plan.prefix + ':previous-failure')
@@ -152,10 +184,13 @@ class InstalledJourney:
             if tag.startswith('ui:'):
                 if self.ui is None:
                     self.ui = UiObservations(self.transport)
+                self.ui.system_prompt = lambda point: self.dismiss_system_prompt(stage, point, guard)
                 observed['ui'] = self.ui.observe(tag[3:])
             reply = {'observed': stage}
             if 'navigation' in observed.get('ui', {}):
                 reply['ui_keys'] = observed['ui']['navigation']
+            if 'pointer' in observed.get('ui', {}):
+                reply['ui_pointer'] = observed['ui']['pointer']
         if stage in plan.stage_actions:
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)

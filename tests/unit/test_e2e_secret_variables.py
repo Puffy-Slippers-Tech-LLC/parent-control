@@ -165,7 +165,7 @@ my $journey = onpc_journey->new(prefix => 'unit', review => $mode eq 'review' ? 
     exchange => sub {
         my ($stage) = @_;
         push @events, 'checkpoint:' . $stage;
-        die $canary if $mode eq 'prompt-error' || ($mode eq 'recheck-error' && $stage eq 'recipient-rechecked');
+        die $canary if $mode eq 'prompt-error' || ($mode eq 'recheck-error' && $stage =~ /recipient-rechecked$/);
         return {observed => 'wrong-stage'} if $mode eq 'wrong-ack';
         return {observed => $stage, extra => 1} if $mode eq 'extra-ack';
         return {observed => $stage};
@@ -173,13 +173,14 @@ my $journey = onpc_journey->new(prefix => 'unit', review => $mode eq 'review' ? 
 my $capture_first = $mode =~ /^capture-/;
 my $ok = eval {
     onpc_password::capture_before_authentication() if $capture_first;
-    $surface eq 'functional' ? onpc_password::enter_parent_gdm_password($journey)
+    $surface eq 'standard-functional' ? onpc_password::enter_standard_gdm_password($journey)
+        : $surface eq 'functional' ? onpc_password::enter_parent_gdm_password($journey)
         : onpc_password::enter_password($role, $surface);
     1;
 };
 my $error = $ok ? '' : "$@";
 my @first = @events;
-my $functional_retried = $surface eq 'functional'
+my $functional_retried = $surface =~ /functional$/
     ? eval { onpc_password::enter_parent_gdm_password($journey); 1; } : 0;
 my $captured = eval { onpc_password::capture_before_authentication(); 1; };
 my $capture_error = "$@";
@@ -236,14 +237,18 @@ def test_credential_free_capture_works_but_is_closed_before_password_input():
 
 @pytest.mark.parametrize('mode', ['success', 'video', 'missing', 'control', 'wrong-console',
     'review', 'prompt-error', 'recheck-error', 'wrong-ack', 'extra-ack', 'typing-error'])
-def test_functional_secret_input_requires_two_fresh_checks_and_is_single_use(mode):
-    result = probe(mode, surface='functional')
+@pytest.mark.parametrize('surface', ['functional', 'standard-functional'])
+def test_functional_secret_input_requires_two_fresh_checks_and_is_single_use(mode, surface):
+    result = probe(mode, surface=surface)
     assert result['ok'] == (mode == 'success')
     assert result['captured'] == result['retried'] == result['functional_retried'] == 0
     assert result['events'] == result['first']
     assert ('password' in result['events']) == (mode in ('success', 'typing-error'))
     if mode == 'success':
-        assert result['events'] == ['policy', 'variable:_SECRET_ONPC_PARENT_PASSWORD',
-            'checkpoint:recipient-qualified', 'checkpoint:recipient-rechecked', 'password']
+        variable = 'OTHER_CHILD' if surface == 'standard-functional' else 'PARENT'
+        prefix = 'standard-' if surface == 'standard-functional' else ''
+        assert result['events'] == ['policy', 'variable:_SECRET_ONPC_' + variable + '_PASSWORD',
+            'checkpoint:' + prefix + 'recipient-qualified',
+            'checkpoint:' + prefix + 'recipient-rechecked', 'password']
     else:
         assert result['error'] == 'secret:input-failed\n'

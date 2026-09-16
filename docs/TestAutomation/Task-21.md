@@ -57,24 +57,31 @@ route verifies wrong-recipient refusal and twice checks the intended identity
 and empty masked field's focus before single-use secret input. Each selected child is
 observed independently after keyboard selection; switch and allowance values are
 compared on return. No time policy changes or enforcement claims occur here.
-None pauses at the normal app grid, requires
-the guarded baseline's exact three eligible standard-account fixtures, preserves
+Case 4 (none) now uses the same functional GDM credential gate, pauses at a
+fresh launchable Parent search result, requires
+the guarded baseline's exact two eligible canonical child fixtures, preserves
 the package request station, makes only that finite set ineligible, launches
-Parent and matches the visible empty explanation. Fixture identities and role
-changes remain setup evidence; ordered screens alone supply customer acceptance.
+Parent and independently reads the showing empty explanation and empty child
+picker through public accessibility. There are no application needles or fixed
+coordinates in this journey. Fixture identities and role changes remain setup
+evidence; ordered semantic UI checkpoints supply customer acceptance. The
+functional migration's complete passing run is recorded below.
 The [composition contract](../../tests/e2e/README.md#parent-consumer-composition-limits),
 [building blocks](E2E-Building-Blocks.md) and [reuse row](Reuse-Map.md#customer-scenario-work)
 own the bounded action, refusal, matcher and cleanup limits.
 
-E2E-003/none public acceptance `scenario-5eaf88431a4a410d8c851acc266ad172`
-passed every declared phase and all four outcome domains. Case evidence is
-`/tmp/onpc-e2e-evidence-ydumn7i0`, invocation evidence
-`/tmp/onpc-e2e-evidence-7mu8l2oe`, worker evidence
-`/tmp/onpc-e2e-evidence-cfpnrur8`, ordered matches
-`/tmp/onpc-graphical-smoke-nsebkdir/testresults`, and artifacts
-`/tmp/onpc-test-artifacts-ws32mits`. Passing source is
-`9db43a1776e96a1eebd3a324d629e60210d1500fabd45e18da61e60ff75dcc8d`;
-inventory is `16ed590ee9fd7be782625c741fddd94d7c147a5103482efde6017134e614c3d8`.
+Case 4 functional public acceptance `scenario-37e11b1362104b3290bba31ce28f630e`
+passed `tools/run-tests e2e --id 4`, every declared phase and all four outcome
+domains. Case evidence is `/tmp/onpc-e2e-evidence-1t7cymxc`, invocation evidence
+`/tmp/onpc-e2e-evidence-kcvntm3k`, worker evidence
+`/tmp/onpc-e2e-evidence-3mqjfpb1`, and artifacts
+`/tmp/onpc-test-artifacts-xdfh384u`. Passing source is
+`c29da50e850bd3abbaf389dc93c524eac670d77e1c78f179f5f51297fd5fb373`;
+inventory is `f75e8e8952ea41c0310e73bdc1194ed35b13249760f1081551150911afcbfaf0`.
+The 328 focused regressions, real GTK empty-state adapter at 100%/125% scale,
+and the runner's 1,235 cleanup-safety tests plus 3 subtests passed. This is the
+no-eligible-child journey only; it changes no time limits. This post-pass handoff
+edit preserves the recorded runtime result's original source identity.
 E2E-003/existing-and-new remains `scenario-117ce953fa404067aef01072bbce5b6b`;
 E2E-030's current passing attempt is `scenario-c2585a481eca4cf9b2b9021f502eaf42`,
 with all customer steps and cleanup passed; invocation evidence is
@@ -92,7 +99,37 @@ cleanup passed and no demonstrated product failure. The invocation stopped
 before cases 4/5. Case 3's functional migration removes the application image
 dependency: a notification matters only when it blocks required interaction or
 information. Validate case 3 through its full public selector and retain the
-new invocation evidence. Cases 4/5 remain separate legacy consumers.
+new invocation evidence. Case 4's migration is described above. Case 5 now uses
+functional public accessibility for the standard-user desktop, app-grid search
+field, exact product query and web-only result, with fresh complete reads proving
+no Parent launcher or management window. Its credential gate now reuses the
+functional wrong-recipient refusal and two fresh identity/masked/focus checks
+with standard-specific acknowledgements; legacy credential needles remain intact.
+The functional migration passed the full public selector and cleanup in
+`scenario-9bf9dd14b42045e8a902b9177688b3aa` (`tools/run-tests e2e --id 5`).
+All declared checkpoints and all four outcome domains passed, including full
+baseline restoration. Invocation evidence is `/tmp/onpc-e2e-evidence-xy712c88`,
+case evidence `/tmp/onpc-e2e-evidence-fpdkzh3m`, worker evidence
+`/tmp/onpc-e2e-evidence-d2oe7frs`, raw artifacts
+`/tmp/onpc-graphical-smoke-1ugnpkf0`, and build artifacts
+`/tmp/onpc-test-artifacts-fy5qwyk2`. Passing source is
+`27a21c8c56898555c005eaf53542c0afe87ff255640601896806cbd625b1551a`;
+inventory is `f9611705d978097a1be3d11068b8ce6cafb977fe05fbfb9a48195d9edb8c03a3`.
+The inventory listing confirms case 5 remains `ready` at
+`tests/e2e/parent_access.py::app-grid`.
+
+The shared desktop wait handler cancelled three successive login-keyring
+dialogs through normal pointer input, independently proving each specific
+dialog disappeared before handling its replacement. It resumes the pending
+observation without replaying earlier actions; GDM and unknown prompts remain
+excluded. The web-only result uses the shared label-to-button lookup and requires
+its query-specific description within the same result. Guidance and regressions
+cover these reusable operations. The 309 final focused accessibility/discovery/
+access regressions, transport/worker safety checks, isolated Shell query test
+(`/tmp/onpc-e2e-search-unu7npxr`), source validation, and the installed runner's
+1,251 cleanup prerequisites plus 3 subtests passed. This post-pass documentation
+edit preserves the passing run's source identity. No time policy changed:
+E2E-005 enforcement and E2E-004/terminal remain outside this case's proof.
 
 Four failed acquisition runs remain retained and fully restored: the first
 exposed a missing declared step-2 transition (`/tmp/onpc-e2e-evidence-z2nkqg2x`);

@@ -11,6 +11,7 @@ import pytest
 import evidence
 import installed_journey as journeys
 import parent_about
+import parent_access
 import parent_discovery
 from private_artifacts import EvidenceError, PrivateCollector
 from recording import ScenarioRecorder
@@ -27,8 +28,39 @@ SYNTHETIC = journeys.JourneyPlan(
 )
 
 
-@pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN],
-                         ids=['parent', 'different-consumer', 'discovery'])
+@pytest.mark.parametrize('fault', [None, 'wrong-reply', 'timeout', 'lost-worker', 'review', 'replay'])
+def test_shared_system_prompt_rendezvous_retains_request_and_refuses_uncertain_input(tmp_path, monkeypatch, fault):
+    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), parent_access.PLAN,
+                                        review=fault == 'review')
+    request = tmp_path / 'app-grid.prompt-1.request.json'
+    reply = tmp_path / 'app-grid.prompt-1.reply.json'
+    if fault == 'replay': request.write_text('{}')
+    guard = Mock(side_effect=RuntimeError('lost worker') if fault == 'lost-worker' else None)
+    ticks = iter([0, 16])
+    if fault == 'timeout': monkeypatch.setattr(journeys.time, 'monotonic', lambda: next(ticks))
+    def worker(_):
+        assert request.exists()
+        assert not (tmp_path / 'app-grid.reply.json').exists()
+        assert guard.call_count == 2
+        assert guard.call_args.kwargs == {'service': True}
+        assert json.loads(request.read_text()) == {'stage': 'app-grid', 'sequence': 1,
+            'kind': 'login-keyring', 'ui_pointer': {'x': 200, 'y': 330}}
+        value = {'stage': 'app-grid', 'sequence': 1, 'action': 'cancel-click', 'outcome': 'sent'}
+        if fault == 'wrong-reply': value['sequence'] = 2
+        reply.write_text(json.dumps(value))
+    monkeypatch.setattr(journeys.time, 'sleep', worker)
+    if fault:
+        with pytest.raises((EvidenceError, RuntimeError)):
+            journey.dismiss_system_prompt('app-grid', {'x': 200, 'y': 330}, guard)
+    else:
+        journey.dismiss_system_prompt('app-grid', {'x': 200, 'y': 330}, guard)
+        assert guard.call_count == 3
+    assert not (tmp_path / 'app-grid.reply.json').exists()
+
+
+@pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN,
+                                 parent_discovery.EMPTY_PLAN, parent_access.PLAN],
+                         ids=['parent', 'different-consumer', 'discovery', 'empty', 'standard-access'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -39,6 +71,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     inputs.update(inventory_sha256=hashlib.sha256(inventory.read_bytes()).hexdigest(),
                   environment_id='ubuntu26-04-pinned')
     selector = ('E2E-003/existing-and-new' if plan is parent_discovery.PLAN else 'E2E-030/parent')
+    if plan is parent_discovery.EMPTY_PLAN:
+        selector = 'E2E-003/none'
+    if plan is parent_access.PLAN:
+        selector = 'E2E-004/app-grid'
     contract = evidence.EvidenceContract(inventory_path=inventory, root=ROOT,
         selector=selector, run_id='shared-controller-test', inputs=inputs)
     directory = tmp_path / 'raw'
@@ -60,7 +96,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     boot = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock(return_value=boot))
     monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=SimpleNamespace(
-        observe=lambda operation: {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'})))
+        observe=lambda operation: {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+            **({'pointer': {'x': 700, 'y': 80}} if operation == 'standard-app-grid' else {})})))
     boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')
     state = {'stage': None, 'stored': False}
     context = SimpleNamespace(directory=directory, host_key='fixture-key', commands=Mock(),
@@ -113,6 +150,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 reply = json.loads((directory / (stage + '.reply.json')).read_bytes())
                 if stage == 'ready':
                     assert reply == {plan.worker_mode: True}
+                if plan is parent_access.PLAN and stage == 'app-grid':
+                    assert reply == {'observed': stage, 'ui_pointer': {'x': 700, 'y': 80}}
+                if plan is parent_access.PLAN and stage == 'system-prompt':
+                    assert reply == {'observed': stage}
                 acknowledged.append(stage)
             assert [s['stage'] for s in options['validate']()] == list(plan.screen_tags)
             return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)
@@ -133,6 +174,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             if plan is parent_discovery.PLAN:
                 expected_steps.append('step-3')
                 actions['create-account'].assert_called_once()
+            elif plan is parent_discovery.EMPTY_PLAN:
+                expected_steps.append('step-3')
+                actions['prepare-empty'].assert_called_once()
             assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
             assert all(s['outcome'] == 'passed' for s in steps)
             assert steps[-2]['assertion_ids'] == ['visible-result']
@@ -202,8 +246,9 @@ def test_stage_action_registry_refuses_missing_or_extra_actions(tmp_path):
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'reused', 'reordered', 'wrong-operation'])
-def test_discovery_requires_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault):
-    plan = parent_discovery.PLAN
+@pytest.mark.parametrize('plan', [parent_discovery.PLAN, parent_discovery.EMPTY_PLAN, parent_access.PLAN],
+                         ids=['discovery', 'empty', 'standard-access'])
+def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault, plan):
     details, observations = [], []
     for stage, tag in plan.screen_tags.items():
         if tag.startswith('ui:'):

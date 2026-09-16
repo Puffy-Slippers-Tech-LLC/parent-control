@@ -140,9 +140,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Log in as Parent through the qualified password recipient. For existing-and-new, reject the wrong-account prompt, qualify and freshly recheck the intended empty masked focused field before secret input, launch from the public app-search result, expand the child picker, navigate its public list order, verify the intended highlight and independently observe the selected existing child's limits-off/zero-minute settings, remaining-time section and App Limits controls. For none, reach the normal app grid."},
+          {"id": "step-1", "operation": "ui", "description": "For both variants, reject the wrong-account prompt, qualify and freshly recheck the intended empty masked focused field before secret input, and find the launchable Parent result through public app search. For existing-and-new, launch Parent, expand the child picker, navigate its public list order, verify the intended highlight and independently observe the selected existing child's limits-off/zero-minute settings, remaining-time section and App Limits controls. For none, pause at the launchable search result before launching Parent."},
           {"id": "step-2", "operation": "ui", "description": "For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe it appear without restarting Parent. For none, pause before launching Parent while the fixed fixture makes only the child accounts ineligible."},
-          {"id": "step-3", "operation": "observe", "description": "For existing-and-new, verify the new child's highlight before Enter, then independently observe its selected identity and displayed settings. Navigate App Limits search and rule-filter controls, return to Screen Limits and verify preserved values, then select the original child and compare its displayed settings with the initial observation. Use fresh public UI state without application image assertions or fixed coordinates. No time policy is changed. For none, observe the explained empty state."}
+          {"id": "step-3", "operation": "observe", "description": "For existing-and-new, verify the new child's highlight before Enter, then independently observe its selected identity and displayed settings. Navigate App Limits search and rule-filter controls, return to Screen Limits and verify preserved values, then select the original child and compare its displayed settings with the initial observation. For none, launch Parent with Enter after durable fixture preparation and independently require its showing no-eligible-account explanation and empty public child picker. Both variants use fresh public UI state without application image assertions or fixed coordinates. No time policy is changed or child-session enforcement claimed."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -154,7 +154,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "For existing-and-new, the existing and newly provisioned child both appear without restarting Parent; each selection independently shows the intended child, readable settings and reachable App Limits controls, and return preserves each child's settings despite cosmetic differences. For none, the empty state visibly explains the absence of eligible children."}
+          {"id": "visible-result", "step_id": "step-3", "description": "For existing-and-new, the existing and newly provisioned child both appear without restarting Parent; each selection independently shows the intended child, readable settings and reachable App Limits controls, and return preserves each child's settings despite cosmetic differences. For none, Parent visibly explains the absence of eligible children and its public child picker shows the (None) placeholder. Both variants tolerate cosmetic differences while failing unavailable required information or incorrect results."}
         ],
         "backend": [],
         "other_user": []
@@ -193,7 +193,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Log in as a standard user and open the selected customer launch surface: app grid or terminal."},
-          {"id": "step-2", "operation": "ui", "description": "For app-grid, search the full product name and observe that no Parent application is available, with only the web-search suggestion and empty application results. For terminal, invoke the executable and observe denial. No management controls become available through either route."}
+          {"id": "step-2", "operation": "ui", "description": "For app-grid, type the full product name through normal input; independently read the exact query and web-only suggestion through public accessibility, and require fresh stable absence of the Parent launcher and management window. Appearance, resolution and scale do not gate acceptance. For terminal, invoke the executable and observe denial. No management controls become available through either route."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}

@@ -98,9 +98,26 @@ def test_empty_worker_observes_explanation_without_child_input():
     result = json.loads(run_perl(PROBE, "none", "").stdout)
     assert result["ok"], result
     stages = [event[1] for event in result["events"] if event[0] == "stage"]
-    assert stages[-5:] == [
-        "recipient-qualified", "desktop", "app-grid", "fixture-requested", "empty",
-    ]
-    assert not any(event == ["click", "onpc-parent-child-picker"]
-                   for event in result["events"])
+    from parent_discovery import EMPTY_PLAN
+    assert stages == list(EMPTY_PLAN.screen_tags)
+    assert all(tag.startswith('ui:') for tag in EMPTY_PLAN.screen_tags.values())
+    assert not any(event[0] in ('assert', 'click') for event in result['events'])
+    events = result['events']
+    query = events.index(['text', 'Oh No! Parent Control'])
+    fixture = events.index(['stage', 'fixture-requested'])
+    assert query < events.index(['stage', 'app-grid']) < fixture
+    assert events[fixture + 1:fixture + 3] == [['key', 'ret'], ['stage', 'empty']]
+    assert events.count(['secret']) == 1
     assert result["events"][-1] == ["power", "off"]
+
+
+@pytest.mark.parametrize('stage', [
+    'installed-greeter', 'other-parent-focused', 'wrong-recipient-refused',
+    'parent-list', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
+    'desktop', 'app-grid', 'fixture-requested', 'empty',
+])
+def test_empty_worker_never_continues_after_an_uncertain_observation(stage):
+    result = json.loads(run_perl(PROBE, 'none', stage).stdout)
+    assert not result['ok']
+    assert result['events'][-1] == ['stage', stage]
+    assert ['power', 'off'] not in result['events']

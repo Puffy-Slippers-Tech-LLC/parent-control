@@ -50,6 +50,26 @@ Use explicitly qualified interface methods when GI method names collide, such
 as `Atspi.Text.get_text(text, start, end)`, rather than the different
 `Accessible.get_text` accessor. Read-only lookups may retry stale objects within
 their deadline; never replay an action whose effect is uncertain.
+Fresh waits also dispatch a bounded batch of pending public accessibility events
+before each read, so queued focus/text/registry changes can be delivered.
+Functional desktop waits share `AccessibleUI.handle_system_prompt`: a recognized
+login-keyring dialog pauses the current operation, requests one normal click on
+its enabled Cancel control, and independently waits for complete public reads
+to prove that specific dialog disappeared. Queued requests can replace it with
+an identical-looking dialog: qualify that new public UI object independently
+only after proving the previous one disappeared, never repeat a click on the
+original. This applies before operations and during waits, including
+after an earlier customer action. It never restarts that operation or replays
+its input. The controller streams the fixed, secret-free pointer request through
+the existing guarded worker rendezvous; `onpc_journey::service_system_prompt`
+reuses `click_target`, records input before clicking, and acknowledges only
+completed input. Missing acknowledgements, uncertain clicks, stale absence reads,
+or a prompt that stays open fail; at most three fresh prompts per checkpoint are
+handled. Prompt appearance during text input does not authorize repairing or
+retyping the query. GDM credential checkpoints and unknown authentication dialogs
+are excluded. No password content is read or supplied, and no keyring is reset.
+Use this shared path for later consumers instead of adding scenario-specific
+Escape keys, fixed coordinates or prompt needles.
 The [real GTK adapter checks](../../tests/ui/test_e2e_accessible_adapter.py)
 exercise selection, disabled-setting reads, About and footer access at 100%
 and 125% display scale. These are adapter qualification; the installed case
@@ -89,8 +109,20 @@ Both children expose App Limits search and rule-filter controls through normal
 tab navigation. Returning to Screen Limits and the original child must preserve
 their independently recorded switch and allowance values, including disabled
 allowance reads. This case changes no time policy and claims no child-session
-enforcement; E2E-005 owns settings changes followed by child use. Case 4 retains
-its legacy empty-state path until separately migrated.
+enforcement; E2E-005 owns settings changes followed by child use.
+
+Case **4 / E2E-003/none** uses the same functional GDM credential gate and
+app-search checkpoints. Before Enter launches Parent, a fresh launchable search
+result and durable phase boundary authorize the finite empty-account fixture.
+It requires exactly the two canonical eligible child identities before mutation;
+missing, substituted or additional standard accounts refuse. The final
+`ui:parent-empty` checkpoint independently requires the
+showing explanation, “No interactive non-administrator account was found.”,
+inside Parent and the public child picker's `(None)` placeholder. Disabled picker state may be
+read; no picker input is attempted. Missing/hidden explanations, a selected
+child, stale/reordered evidence or failed fixture preparation refuse. Appearance
+has no acceptance authority. This case changes no time policy and makes no
+child-login enforcement claim. Outer cleanup restores the account fixture.
 
 Case 3 also uses functional GDM account navigation. Its credential gate is
 separate from ordinary observations: select the other parent, positively verify
@@ -103,6 +135,50 @@ immediately precedes the existing `type_password` API with fixed secret options.
 Wrong order/identity, nonempty or unmasked fields, review mode, uncertain typing,
 capture and replay refuse. The active local greeter and owned session socket
 remain qualified; no screenshot threshold or legacy credential gate is weakened.
+
+Case **5 / E2E-004/app-grid** connects the registered standard-user operations
+to the canonical other-child desktop's owned accessibility bus. Its functional
+GDM gate derives navigation from the public list, independently verifies focus,
+positively observes and refuses the wrong parent's empty masked prompt, then
+checks the intended standard account's identity and sole empty, masked, showing,
+enabled, focused field twice before secret input. Standard-specific ordered
+checkpoints cannot reuse the Parent acknowledgement; review mode, uncertain
+typing, capture and replay refuse. Legacy recipient needles stay unchanged.
+After normal
+Super-A input, a fresh public Overview search field must be showing, enabled,
+editable and empty. Its public screen extents supply a current pointer target
+for one normal click; `ui:standard-search-focused` independently verifies focus.
+Coordinates route input only, with no reference positions, image comparison or
+fixed resolution. A blocked click fails, and an uncertain click is never replayed.
+The shared system-prompt handler automatically cancels recognized login-keyring
+prompts during desktop observations, including late arrivals. Its public Cancel
+control must be showing and enabled, with a focused masked field in the same
+identified dialog. `ui:standard-system-prompt` and the subsequent app-grid
+checkpoint require dismissal before search input. Parent and unknown dialogs
+are never closed. Use the shared pointer request and independently verify each
+dialog's dismissal; checking only for the absence of every keyring prompt can
+confuse queued, identical-looking requests with a failed Cancel action.
+Shell's keyring prompt may expose its full login-keyring explanation instead
+of the legacy window title; require that exact explanation, authentication
+heading, masked field and Unlock control together before cancelling. Never read
+or supply a keyring password.
+GNOME's normal type-to-search route submits the first
+character once; `ui:standard-search-started` independently reads it before the
+remaining query is entered once at a bounded pace. No focus API, uncertain input
+repair or replay is used. The result checkpoint reads that exact query, the showing web-search
+suggestion and its query-specific explanation, and requires the absence of a
+Parent launcher or management window across fresh complete accessibility reads
+for a bounded stable interval. Stale subtrees cannot establish absence; missing
+search UI, wrong text or a delayed Parent result fail. No Enter activates the
+web suggestion. Reuse `find_labelled_button` for search results whose visible
+label identifies an enclosing button, and require the query-specific description
+inside that same result. Application pixels and fixed coordinates have no acceptance
+authority. This preserves standard-user launcher unavailability only; it changes
+no time policy and makes no child-session enforcement or terminal-denial claim.
+The [isolated Shell search qualification](../../tests/ui/e2e_search_probe.py)
+reuses the owned nested desktop launcher and normal Super-A/keyboard input to
+exercise type-to-search and exact query readback. It is adapter qualification; only the
+complete installed case and cleanup earn customer acceptance.
 
 Case **1 / E2E-001/gdm-observation** uses the same `ui:` checkpoints for
 GDM account selection, the intended account's focused password prompt, Escape
@@ -132,7 +208,7 @@ marker, and case 1 additionally requires logout before graphical return.
 | Worker stage reporting | [onpc_journey.pm](../../tests/integration/graphical_smoke/lib/onpc_journey.pm): `seen`, `observe`, `finish` | Emit the named screen stage and wait for its acknowledgement. Keep automatic captures private and verify shutdown. |
 | Interrupted pre-start setup | [system_runner.py](../../tests/integration/system_runner.py): `recover_graphical_cleanup`, through `tools/run-tests integration check_graphical_recovery` | Restore a recorded `isolated` attempt only with a null instance ID, powered-off pinned guest, matching run tag, original disk identities, no host sharing and a full baseline proof under the exclusive lease. Reuse outer cleanup; never start the guest or replace the baseline. |
 | Parent entry and navigation | [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm), [onpc_parent.pm](../../tests/integration/graphical_smoke/lib/onpc_parent.pm): `login(journey, 1)` | Qualified GDM entry followed by functional app search and child selection. Older `launch_from_app_grid`/`select_existing_child` helpers remain for unmigrated cases. |
-| Standard-user Parent access | [parent_access.py](../../tests/e2e/parent_access.py), [onpc_parent_access.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_access.pm) | `login_standard` qualifies the canonical `other-child` GDM recipient, then `open_app_grid` supplies the normal discovery route. Match the full product query, web-only suggestion and empty application results to establish the administrator-only launcher's unavailability. No product backend or other-user-state assertion is collected. |
+| Standard-user Parent access | [parent_access.py](../../tests/e2e/parent_access.py), [onpc_parent_access.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_access.pm) | `login_standard_functional(journey)` qualifies the canonical `other-child` GDM recipient with wrong-recipient refusal and two fresh standard-specific checks. Normal Super-A and typing use `ui:standard-app-grid` and `ui:standard-parent-unavailable` to independently observe the query and web-only result. No product backend or other-user-state assertion is collected. |
 | Parent account fixtures | [account_fixture.py](../../tests/e2e/account_fixture.py), [e2e_dynamic_account.py](../../tests/integration/e2e_dynamic_account.py) | One fixed action creates a collision-free eligible account while Parent is open; another requires the guarded baseline's finite eligible set, preserves the package request station and makes that set ineligible before Parent launches. Fixture checks are setup evidence; only visible refresh/selection or the empty explanation supplies customer acceptance. |
 | Reviewed image preparation | [parent_needles.py](../../tests/e2e/parent_needles.py), via [prepare-e2e-needle](../../tools/prepare-e2e-needle) | Fixed registered nonsecret tags, inspected source pixels, reviewed regions, 16-pixel matcher context, bounded destinations. |
 
@@ -269,8 +345,8 @@ named temporary exports with `tools/cleanup-screenshots` when finished.
 E2E-003 reuses installed Parent login, launch and evidence handling. Its two
 scoped fixture actions cover dynamic eligible-account creation after an existing
 child is visible and a finite no-eligible-account state before Parent launches.
-The latter requires exactly the guarded baseline's three eligible standard
-accounts, preserves the fixed package request station and refuses unexpected
+The latter requires exactly the two canonical child accounts to be eligible,
+preserves the fixed package request station and refuses unexpected
 identity/object sets before mutation. A stage action executes only while the
 worker is fresh and before its durable reply; failed workers retain owned
 process/callback cleanup for outer restoration. Visible refresh/selection or the

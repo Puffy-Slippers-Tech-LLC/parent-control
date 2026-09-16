@@ -24,6 +24,30 @@ def client():
     return transport.Transport(config(), commands, guard=Mock())
 
 
+@pytest.mark.parametrize('failure', [None, 'guard', 'command'])
+def test_ui_stream_parser_is_scoped_after_ownership_guard_and_always_restored(failure):
+    value = client()
+    previous, parser = Mock(), Mock()
+    value.commands.progress = previous
+    def guard(_):
+        assert value.commands.progress is previous
+        if failure == 'guard': raise RuntimeError('guard failed')
+    def run(*_, **__):
+        assert value.commands.progress is parser
+        if failure == 'command': raise RuntimeError('command failed')
+        parser(b'fixed event\n')
+        return b'fixed event\n'
+    value.guard.side_effect = guard
+    value.commands.run.side_effect = run
+    if failure:
+        with pytest.raises(RuntimeError): value.call(['true'], on_output=parser)
+    else:
+        assert value.call(['true'], on_output=parser) == b'fixed event\n'
+        parser.assert_called_once_with(b'fixed event\n')
+    assert value.commands.progress is previous
+    assert value.commands.run.call_count == (0 if failure == 'guard' else 1)
+
+
 @pytest.mark.parametrize('fault', [None, 'name', 'instance', 'connection', 'shares', 'run'])
 def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch, fault):
     configured = Mock(name='configuration')

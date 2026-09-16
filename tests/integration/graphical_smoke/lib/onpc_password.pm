@@ -22,23 +22,33 @@ my $authentication_started = 0;
 my $functional_started = 0;
 
 sub enter_parent_gdm_password {
-    my ($journey) = @_;
+    return _enter_functional_gdm_password('parent', @_);
+}
+
+sub enter_standard_gdm_password {
+    return _enter_functional_gdm_password('other-child', @_);
+}
+
+sub _enter_functional_gdm_password {
+    my ($role, $journey) = @_;
     die "secret:input-refused\n" if $failed || $functional_started;
     $authentication_started = 1;
     $functional_started = 1;
     my $ok = eval {
-        die "secret:arguments\n" unless @_ == 1 && ref($journey) eq 'onpc_journey'
+        die "secret:arguments\n" unless @_ == 2 && ($role eq 'parent' || $role eq 'other-child')
+            && ref($journey) eq 'onpc_journey'
             && !$journey->{review};
         die "secret:console\n" unless testapi::current_console() eq 'sut';
         die "secret:video-policy\n" unless testapi::get_var('NOVIDEO', 0) eq '1';
-        my $password = testapi::get_required_var($variables{parent});
+        my $password = testapi::get_required_var($variables{$role});
         die "secret:value\n" unless defined($password) && !ref($password)
             && $password =~ /\A[\x20-\x7e]{1,256}\z/;
         # Each fixed controller checkpoint freshly requires the intended
         # identity and sole empty, masked, showing, enabled, focused field.
         # The controller also requires the preceding wrong-recipient refusal.
         # No input, action replay or capture occurs between these checks.
-        for my $stage ('recipient-qualified', 'recipient-rechecked') {
+        my $prefix = $role eq 'parent' ? '' : 'standard-';
+        for my $stage ($prefix . 'recipient-qualified', $prefix . 'recipient-rechecked') {
             my $reply = $journey->seen($stage);
             die "secret:recipient\n" unless ref($reply) eq 'HASH' && keys(%$reply) == 1
                 && defined($reply->{observed}) && $reply->{observed} eq $stage;

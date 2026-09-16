@@ -31,6 +31,7 @@ class Commands:
 
     def run(self, args, *, timeout=120, check=True, input=None, merge_stderr=True):
         self.sequence += 1
+        sequence = self.sequence
         # Command diagnostics stay private; only fixed categories reach the console.
         with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
             child = subprocess.Popen(args, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
@@ -88,12 +89,12 @@ class Commands:
                 errors.seek(0)
                 error_bytes = errors.read()
                 if self.directory:
-                    path = self.directory / f'command-{self.sequence:04d}.txt'
+                    path = self.directory / f'command-{sequence:04d}.txt'
                     with path.open('xb') as stream:
                         stream.write(raw)
                     path.chmod(0o600)
                     if error_bytes:
-                        path = self.directory / f'command-{self.sequence:04d}-stderr.txt'
+                        path = self.directory / f'command-{sequence:04d}-stderr.txt'
                         with path.open('xb') as stream:
                             stream.write(error_bytes)
                         path.chmod(0o600)

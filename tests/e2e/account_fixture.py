@@ -50,4 +50,4 @@ class EmptyAccountFixture:
         require(result == b"onpc-e2e: stage=empty-account outcome=prepared\n",
                 "empty-account:unexpected-result")
         guard()
-        return {"eligible_accounts_removed": 3}
+        return {"eligible_accounts_removed": 2}

@@ -35,7 +35,10 @@ sub mouse_hide { }
 sub get_var { $_[0] eq 'NOVIDEO' ? '1' : $_[1] }
 sub get_required_var { 'unit-fixture-value' }
 sub type_password { push @main::events, ['secret']; }
-sub type_string { push @main::events, ['text', $_[0]]; }
+sub type_string {
+    push @main::events, ['text', $_[0]];
+    die 'uncertain query input' if $main::fault eq 'query-input';
+}
 sub send_key { push @main::events, ['key', $_[0]]; }
 sub save_screenshot { die 'explicit capture forbidden'; }
 sub wait_still_screen { }
@@ -123,6 +126,14 @@ def test_empty_worker_never_continues_after_an_uncertain_observation(stage):
     assert not result['ok']
     assert result['events'][-1] == ['stage', stage]
     assert ['power', 'off'] not in result['events']
+
+
+def test_empty_worker_never_retypes_an_uncertain_query_or_prepares_the_fixture():
+    result = json.loads(run_perl(PROBE, 'none', 'query-input').stdout)
+    assert not result['ok']
+    assert result['events'][-1] == ['text', 'Oh No! Parent Control']
+    assert result['events'].count(['text', 'Oh No! Parent Control']) == 1
+    assert ['stage', 'fixture-requested'] not in result['events']
 
 
 @pytest.mark.parametrize('fault', ['', 'stale', 'uncertain', 'wrong-binding'])

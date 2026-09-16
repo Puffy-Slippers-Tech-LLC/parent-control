@@ -301,8 +301,10 @@ def test_search_text_without_a_launchable_control_is_not_a_result():
 
 
 @pytest.mark.parametrize('fault', [None, 'hidden', 'missing', 'wrong-text', 'other-window',
-                                  'selected-child', 'missing-picker', 'missing-placeholder', 'ambiguous'])
-def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault):
+                                  'selected-child', 'missing-picker', 'missing-placeholder', 'ambiguous',
+                                  'stale-picker', 'defunct-picker-child', 'hidden-placeholder'])
+@pytest.mark.parametrize('entry', ['checkpoint', 'independent-block'])
+def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault, entry):
     from accessible_ui import PRODUCT
     explanation = Node('No interactive\n non-administrator account was found.', 'label',
                        appearance={'scale': 2.5, 'font': 'huge', 'misaligned': True})
@@ -317,11 +319,24 @@ def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault)
     if fault == 'missing-picker': root.children.remove(picker)
     if fault == 'missing-placeholder': picker.children.clear()
     if fault == 'ambiguous': root.children.append(Node(explanation.name, 'label'))
+    if fault == 'hidden-placeholder': picker.children[0].states.remove('showing')
+    if fault in ('stale-picker', 'defunct-picker-child'):
+        stale = Node('private-canary')
+        if fault == 'stale-picker':
+            stale.get_child_count = Mock(side_effect=LookupError('private-canary'))
+        else:
+            stale.states.add('defunct')
+        picker.children.append(stale)
     ui = ui_for(root)
+    ui.query_errors = (LookupError,)
+    def observe():
+        return ui.parent_empty() if entry == 'independent-block' else ui.run('parent-empty', '')
     if fault:
-        with pytest.raises(UiError): ui.run('parent-empty', '')
+        with pytest.raises(UiError): observe()
+    elif entry == 'independent-block':
+        assert observe() is None
     else:
-        assert ui.run('parent-empty', '') == {
+        assert observe() == {
             'operation': 'parent-empty', 'outcome': 'passed', 'interface': 'AT-SPI'}
     picker.action.do_action.assert_not_called()
 

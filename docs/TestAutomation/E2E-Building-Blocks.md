@@ -7,7 +7,7 @@ The inventory currently has five ready variants: cases **1, 3, 4, 5 and 151**.
 Case 1 qualifies the harness; the other four are customer journeys.
 Every catalogue row has an implementation status; existing
 behavior that still needs extraction is `pending` even when its scenario is
-already `ready`. There are **153 blocks: 51 ready and 102 pending**, including
+already `ready`. There are **153 blocks: 52 ready and 101 pending**, including
 four fixture operations and explicitly scoped harness/credential-safety blocks.
 
 The review covers every step, variant parameter and assertion in all 33
@@ -78,10 +78,9 @@ are called only by the surrounding envelope or at declared recipe checkpoints.
 
 | Order | Consumer and bounded work | Completion gate |
 | --- | --- | --- |
-| 1 | Case **4**: functional sign-in, whole-query search and the no-eligible-account fixture checkpoint. | Complete installed acceptance and cleanup pass, preserving FIX02 before launch and the visible empty-state explanation. |
-| 2 | Case **5**: focus, paced first-character/full-query readback, exact web-only result and stable absence. Generalize UI03 only for the required projections. | Complete installed case 5 passes with no input repair and no Enter on the web suggestion. |
-| 3 | Case **151**: retained credential guards, shared launch/selection, About, bounded license content, footer and unchanged return. | Complete installed case 151 passes; license-close input still belongs to step-2. |
-| 4 | Pending customer cases in numeric order, selecting their transitive dependencies in catalogue order. Extend only the scopes their named consumer needs. | Full declared journey and assertions pass after any explicit inventory reconciliation; no partial pass. |
+| 1 | Case **5**: focus, paced first-character/full-query readback, exact web-only result and stable absence. Generalize UI03 only for the required projections. | Complete installed case 5 passes with no input repair and no Enter on the web suggestion. |
+| 2 | Case **151**: retained credential guards, shared launch/selection, About, bounded license content, footer and unchanged return. | Complete installed case 151 passes; license-close input still belongs to step-2. |
+| 3 | Pending customer cases in numeric order, selecting their transitive dependencies in catalogue order. Extend only the scopes their named consumer needs. | Full declared journey and assertions pass after any explicit inventory reconciliation; no partial pass. |
 
 A slice implements its dependency set, not every earlier unrelated pending row.
 Preserve adapters used by other ready cases until their
@@ -101,7 +100,7 @@ system-prompt handling and guarded recorder remain middleware for every block.
 | --- | --- | --- | --- | --- |
 | UI01 | A | Find one control by public surface, name and role. Require showing state; require enabled state only for input. Reject ambiguity; return a fresh local target. | `AccessibleUI.target`, `find`, `labelled_button` in [accessible_ui.py](../../tests/e2e/accessible_ui.py). | ready |
 | UI02 | A | Read one declared public boolean state through the state interface, such as selected, checked, focused, enabled or showing. Disabled settings remain readable. New surface/state bindings need their consumer's qualification. | `AccessibleUI.has_state`, `showing`; existing selector scope only. | ready |
-| UI03 | A | Read one registered nonsecret text projection from a showing label, field or document. Inputs: surface/selector, maximum characters, expected projection and deadline. Return a bounded semantic value or match result, never arbitrary document text. Reject masked fields before accessing Text. | `AccessibleUI.read_label(root, projection, maximum=80, expected=child)` returns only canonical child identities or bounded duration labels. Parent labels only; search/document projections remain pending. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
+| UI03 | A | Read one registered nonsecret text projection from a showing label, field or document. Inputs: surface/selector, maximum characters, expected projection and deadline. Return a bounded semantic value or match result, never arbitrary document text. Reject masked fields before accessing Text. | `AccessibleUI.read_label(root, projection, maximum=80, expected=child)` returns canonical child identities, bounded duration labels or fixed empty-explanation/empty-picker match results. Empty-picker exclusion requires complete fresh reads and rejects defunct nodes. Parent labels only; search/document projections remain pending. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI04 | A | Activate one fresh showing, enabled control through its sole public action once. Return input completion, not the claimed customer result. | `AccessibleUI.activate`. | ready |
 | UI05 | A | Send one declared normal key/chord to an already qualified recipient, such as Enter, Escape, Tab, Home, Down or Super-A. | Existing workers' `testapi::send_key`; secret entry is excluded. | ready |
 | UI06 | A | Type one nonsecret string once at a declared bounded pace into the intended input surface. | Existing workers' `testapi::type_string`; case 5 demonstrates paced input. | ready |
@@ -216,7 +215,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | PARENT16 | C | Choose Allowed, Hard blocked or Soft blocked for one displayed app; observe save and displayed choice. | UI15(access choice group) → PARENT08 → PARENT12. | pending |
 | PARENT17 | C | Open revocation confirmation and read its target and warning about time, blocked apps and daily allowance. | UI01 → UI04 → UI01 → UI03. | pending |
 | PARENT18 | C | Cancel or confirm the open revocation dialog and observe its closure and displayed time/settings. Child effects are checked by later app/access blocks. | UI04 → UI11 → PARENT08 → PARENT03. | pending |
-| PARENT19 | C | Observe Parent's no-eligible-child explanation together with the `(None)` picker placeholder. Never activate the disabled picker. | UI01 → UI03 → UI02; extract `parent-empty` without weakening either assertion. | pending |
+| PARENT19 | C | Observe Parent's no-eligible-child explanation together with the `(None)` picker placeholder. Never activate the disabled picker. | `AccessibleUI.parent_empty()` reacquires the Parent window and showing picker, then uses UI03's registered projections for the explanation and sole `(None)` label in one bounded read-only wait. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 
 ### Kiosk, child overlay and the shared request form
 
@@ -767,6 +766,21 @@ action and acknowledgement and latches the existing controller failure state.
 FIX01 remains after the initial visible settings and App Limits checks while
 Parent stays open. The new child must appear without restarting Parent.
 
+The empty-account recipe composes GDM07 and SEARCH06, consuming the explicit
+fresh desktop observation before whole-query input. SEARCH06 stops at the
+launchable result. A second fresh SEARCH04 observation and the durable step-2
+boundary precede FIX02; only its successful acknowledgement opens step-3 and
+permits Enter. The worker consumes that acknowledgement before launch. FIX02
+requires exactly the two canonical eligible children, preserves the request
+station and refuses missing, substituted or additional accounts.
+PARENT19 independently requires the showing explanation,
+“No interactive non-administrator account was found.”, inside Parent and the
+picker's sole showing `(None)` label. Disabled picker state remains readable;
+no picker input occurs. Missing/hidden text, a selected child, stale or defunct
+picker reads and failed fixture preparation refuse. Outer cleanup restores the
+fixture. Neither discovery recipe changes time policy or claims child-login
+enforcement.
+
 The [adapter](../../tests/e2e/accessible_ui.py) exposes scoped label reading,
 complete child-list collection, popup absence, highlight, selection, settings,
 page navigation and scroll/reveal callables. Local roots may be reused within
@@ -784,8 +798,10 @@ Qualification includes the actual [Perl discovery worker](../../tests/unit/test_
 [durable recorder/fixture safety](../../tests/unit/test_installed_journey_cleanup_safety.py),
 and [real GTK/Shell adapter checks](../../tests/ui/test_e2e_accessible_adapter.py).
 Independent opened-list and immutable-observation tests cover reuse without
-prior scenario execution; failed/missing/stale/replayed observations prevent
-further input. Shared harness, access and About regressions preserve compatibility.
+prior scenario execution; the empty-state block also accepts an independently
+supplied Parent window. Failed/missing/stale/replayed observations prevent
+further input, and uncertain whole-query input cannot be retried or reach FIX02.
+Shared harness, access and About regressions preserve compatibility.
 
 ## Functional validation
 
@@ -892,19 +908,6 @@ tab navigation. Returning to Screen Limits and the original child must preserve
 their independently recorded switch and allowance values, including disabled
 allowance reads. This case changes no time policy and claims no child-session
 enforcement; E2E-005 owns settings changes followed by child use.
-
-Case **4 / E2E-003/none** uses the same functional GDM credential gate and
-app-search checkpoints. Before Enter launches Parent, a fresh launchable search
-result and durable phase boundary authorize the finite empty-account fixture.
-It requires exactly the two canonical eligible child identities before mutation;
-missing, substituted or additional standard accounts refuse. The final
-`ui:parent-empty` checkpoint independently requires the
-showing explanation, “No interactive non-administrator account was found.”,
-inside Parent and the public child picker's `(None)` placeholder. Disabled picker state may be
-read; no picker input is attempted. Missing/hidden explanations, a selected
-child, stale/reordered evidence or failed fixture preparation refuse. Appearance
-has no acceptance authority. This case changes no time policy and makes no
-child-login enforcement claim. Outer cleanup restores the account fixture.
 
 Case 3 also uses functional GDM account navigation. Its credential gate is
 separate from ordinary observations: select the other parent, positively verify

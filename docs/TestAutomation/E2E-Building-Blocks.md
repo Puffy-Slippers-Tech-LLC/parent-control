@@ -1,8 +1,12 @@
 # Reusable customer E2E building blocks
 
-This is the ordered implementation backlog for composing customer scenarios.
+This is the contract catalogue for composing customer scenarios.
 It covers all **33 families / 157 variants** in
 [scenarios.json](../../tests/e2e/scenarios.json).
+Use the [execution plan](E2E-Execution-Plan.md) for the dependency-ordered session
+queue and individual task files. A new session can start with “Implement the
+next task in docs/TestAutomation/E2E-Execution-Plan.md”. This catalogue remains
+the source of block contracts and current qualification status.
 The inventory currently has five ready variants: cases **1, 3, 4, 5 and 151**.
 Case 1 qualifies the harness; the other four are customer journeys.
 Every catalogue row has an implementation status; existing
@@ -68,17 +72,51 @@ the deadline; never replay uncertain input. Repeated submission is a deliberate
 customer gesture with its own finite contract. All waits have a named result
 and a timeout; elapsed time alone cannot establish enforcement.
 
-Tables are in dependency order: leaves, small control composites, GDM and the
-case-1 harness, desktop entry, application surfaces, then journey fragments.
-Each composite calls only earlier IDs; row order, not numeric ID, determines
-implementation order. Fixture operations have their own preparation order and
-are called only by the surrounding envelope or at declared recipe checkpoints.
+Tables define callees before composites: leaves, small control composites, GDM
+and the case-1 harness, desktop entry, application surfaces, then journey fragments.
+The master execution queue schedules scoped work across these families and places
+each eligible scenario after its prerequisites. Catalogue order is not a mandate
+to implement every block before starting scenarios. Fixture operations have their
+own preparation order and are called only by the surrounding envelope or at
+declared recipe checkpoints.
 
 ### Implementation slices
 
-| Order | Consumer and bounded work | Completion gate |
-| --- | --- | --- |
-| 1 | Pending customer cases in numeric order, selecting their transitive dependencies in catalogue order. Extend only the scopes their named consumer needs. | Full declared journey and assertions pass after any explicit inventory reconciliation; no partial pass. |
+Follow the [master execution queue](E2E-Execution-Plan.md#ordered-task-queue).
+Implement each scoped prerequisite before its consumer, then run newly eligible
+scenario tasks before adding more blocks. Use numeric case order among eligible
+scenarios; do not delay an executable case for an unrelated lower-numbered case.
+Task IDs, including inserted suffixes, are stable; master table order determines
+execution order. Tasks normally fit a 20–60 minute session; the estimate is not
+a stop timer. Split separate implementation work before starting a task that is
+too broad, keeping live acceptance with each slice and continuous journeys intact.
+Qualify only the branch a consumer needs: kiosk account availability before duration editing,
+validation snapshots before collection tracing, dialog persistence before app-exit
+reset, file selection before export saving, desktop countdown before lock/GDM
+absence and tick measurement, native activity capture before retained-user visits,
+and each native launch route separately. Fullscreen expiry does not require a fullscreen request-panel
+route. Entry-state operations are dependencies too: enable a child's controls
+through Parent and observe saving before qualifying its allowance or kiosk inputs.
+Allowed/blocked app assertions require public policy setup and qualified denial
+bindings before their scenario. Cases 7–12 therefore follow that scope as well as
+their allowance validation. Qualifying ordinary valid allowances does not settle
+the disputed maximum boundary; that separate task cannot block unrelated time
+preparation.
+
+A block task requires live VM qualification of its stated scope. Its catalogue
+row stays `pending` until its complete first installed consumer passes; a
+diagnostic slice is not scenario coverage. After every completed E2E consumer and
+successful cleanup, run `tools/generate_test_coverage.sh`, the approved launcher
+for [generate_test_coverage.py](../../tools/generate_test_coverage.py), even when
+declarations did not change. For a grouped scenario task, run each variant
+separately and refresh after its successful cleanup before starting the next.
+Generation is required close-out, not proof of a run.
+Update the callable, exact qualification scope and current status here, then
+check the completed task in the master. Retain only current blockers and remaining
+scope. Delete completed task files once enduring context is in maintained source
+or contracts, replacing master links with plain text. No later task may require
+a deleted task document or a previous attempt's VM state. No new evidence document
+or accumulated history is required.
 
 A slice implements its dependency set, not every earlier unrelated pending row.
 Preserve adapters used by other ready cases until their
@@ -359,7 +397,8 @@ wait for its readiness acknowledgement, perform the action once, then collect
 the trace. The observer must be able to see public UI events during input;
 post-action polling cannot establish that Saving appeared or a button was
 inhibited. Missing samples fail that assertion. This needs a scoped extension
-of the existing guarded rendezvous with E2E-005, not another runner.
+of the existing guarded rendezvous for the first named transition consumer
+(feedback collection or Parent saving), not another runner.
 
 A row becomes `ready` only when its implemented projection/selector scope is
 explicit, source callable and meaningful qualification are recorded, and its
@@ -442,7 +481,11 @@ Notation expands to catalogue calls; it adds no implementation:
   unavailable-launcher recipes use SEARCH01 → UI21 → SEARCH03 → SEARCH04.
 
 Preconditions in a row are mandatory recipe prefixes, not fixtures that set
-product policy. For each claimed continuing other-user activity, start at GDM
+product policy. Fresh fixture children have limits off: before a kiosk recipe
+edits duration/approver/soft-app choices or requests approval, use
+P0 → UI17(true) → PARENT08(saved) → DESK03 for its declared target. Keep empty
+and disabled-child branches in their explicitly unavailable state. REQUEST01
+and FLOW04 never enable policy implicitly. For each claimed continuing other-user activity, start at GDM
 with FLOW14 for the finite named users. If Parent's desktop exists but its
 management window does not, first use FLOW01(parent retained, window=new);
 P is valid only after both have been observed. Return with FLOW09 for each same
@@ -470,7 +513,7 @@ is recipe reuse with every original parameter binding, never sampling.
 | E2E-003 / **3** / `existing-and-new` | 1: FLOW01(existing child, functional login, whole-query search) → PARENT04(App Limits), checking search and both filters; retain the initial limits-off/zero-minute observation. 2: PARENT04(Screen Limits) → PARENT03 → FIX01 while Parent stays open → UI01(picker) → UI04(open) → UI13(new child). 3: UI14(new child) → UI05(Enter) → PARENT03 → PARENT04(App Limits) → PARENT04(Screen Limits) → PARENT03 → UI12(new child's own earlier values) → PARENT02(original child) → PARENT03 → UI12(original values). No time-policy change. |
 | E2E-003 / **4** / `none` | 1: GDM07(parent) → SEARCH06(Parent, whole query), stopping at the fresh launchable result before Enter. 2: FIX02 at the durable boundary, with a fresh SEARCH04(launchable) observation as in the existing fixture-requested checkpoint. 3: UI05(Enter) → PARENT19. The showing explanation and `(None)` picker must both be observed. |
 | E2E-004 / **5–6** / `app-grid`, `terminal` | 1: GDM07(standard user) → SEARCH01 for grid, or FILE01 for terminal. 2: grid: UI21 → SEARCH03 → SEARCH04(unavailable), preserving full query, web-only suggestion and stable absence; never Enter. Terminal: FILE02(Parent executable) → FILE06(expected management-denial output) → UI11(management window). No alternate-user state probe. |
-| E2E-005 / **7–12** / `{daily-only, grant-only, combined}` × `{new, retained}` | 1–2: P0 → FLOW02(enabled) → repeat(daily validation set below) { watch(PARENT08) { PARENT06(value) } → PARENT03 → PARENT09 }; after invalid input reopen the picker and UI12(last accepted value). Set the profile allowance → UI17(false) → PARENT08. Retained variant now V(child, fresh) → FLOW08 → APP04(capture) → P. 3–4: execute the finite transition plan below: enable, change allowance while enabled, disable, re-enable. Each action uses watch(PARENT08), then PARENT03 → PARENT09, V(child, variant entry, expected result), and FLOW08 when admitted. After each successful visit use DESK04 for new-session variants or DESK03 for retained; denied entry uses DESK11. Return via P. Grant-only/combined explicitly use DESK03 → FLOW06 → P after the enable check and before allowance edits. Reconcile the pending phase declaration to this reachable order; an already-enabled no-op earns no enable-transition credit. |
+| E2E-005 / **7–12** / `{daily-only, grant-only, combined}` × `{new, retained}` | Prerequisite: qualified FLOW03 and native usable/denied FLOW08; prepare explicit Allowed and Hard blocked targets through Parent, preserving the declared isolation activities. 1–2: P0 → FLOW03(each target's policy) → FLOW02(enabled) → repeat(daily validation set below) { watch(PARENT08) { PARENT06(value) } → PARENT03 → PARENT09 }; after invalid input reopen the picker and UI12(last accepted value). Set the profile allowance → UI17(false) → PARENT08. Retained variant now V(child, fresh) → FLOW08 → APP04(capture) → P. 3–4: execute the finite transition plan below: enable, change allowance while enabled, disable, re-enable. Each action uses watch(PARENT08), then PARENT03 → PARENT09, V(child, variant entry, expected result), and FLOW08 for both declared targets when admitted (allowed usable, hard blocked denied). After each successful visit use DESK04 for new-session variants or DESK03 for retained; denied entry uses DESK11. Return via P. Grant-only/combined explicitly use DESK03 → FLOW06 → P after the enable check and before allowance edits. Reconcile the pending phase declaration to this reachable order; an already-enabled no-op earns no enable-transition credit. |
 | E2E-006 / **13–16** / `{enabled, disabled}` × `{precise, pattern}` | Prerequisite: permissive policy/usable child time, then FLOW14(child and named other-user apps). 1: P → UI17(control) → PARENT10 → PARENT11 → PARENT13 → UI16(match draft) → PARENT15(save). 2–3: repeat(Allowed, Hard blocked, Soft blocked) { P → PARENT16 → V(child, retained) → APP02(existing window result) → FLOW08(matching/nonmatching targets) → FLOW09(each other user's activity) }. Reopen test apps normally under a permissive rule before any later transition whose assertion requires an already-open app. |
 | E2E-007 / **17–20** / `{zero, remaining}` daily × `{single, multiple}` retained sessions | 1: FLOW13(real grant plus selected daily time) → FLOW14(child and other-user activities) → P. 2: PARENT03(before) → PARENT17 → PARENT18(cancel) → UI12(unchanged settings/time allowing elapsed time) → FLOW09(child and other users). 3: P → PARENT17 → PARENT18(confirm) → PARENT09. With daily time remaining, V(each supported child desktop, retained) → APP02(blocked windows closed) → FLOW08. With zero time, V(child, retained, time-limit denial) → DESK11; no invisible closure claim. FLOW09(other users). Multiple-same-child applicability is below. |
 | E2E-008 / **21** / `retained-unlock` | 1: FLOW13(short daily-only) → V(child, fresh) → FLOW08(usable app). 2: TIME04 natural exhaustion. 3: DESK08(correct password, time-limit denial). No Lock input creates expiry. |
@@ -609,7 +652,7 @@ currently prevents execution.
 
 | Area | Data or implementation constraint |
 | --- | --- |
-| Daily allowance | E2E-005's old text names 0 and 1440 plus out-of-range/invalid input. Current Parent custom entry accepts whole minutes **0–1439** and its presets stop below 1440. Use 0, preset 15, 1439, 1440, −1, 1441, empty and `abc` as the finite review set. The current UI accepts the first three and rejects the rest. Reconcile the 1440 expectation against the current customer contract before implementation; do not declare 1440 valid or silently remove its case. [Current UI](../../parent/oh_no_parent_control_parent/main.py) owns the displayed range. |
+| Daily allowance | The [screen-time model](../SystemDesign/Screen-Time.md#screen-time-model) states 0–1440 minutes and E2E-005 names 1440 as a boundary; the [current Parent editor](../../parent/oh_no_parent_control_parent/main.py) says **0–1439**. This is an unresolved public-contract discrepancy, not permission to set the expected maximum from implementation. Ordinary time preparation can qualify 0, preset 15 and custom 1439 independently. The separate boundary task retains 0, preset 15, 1439, 1440, −1, 1441, empty and `abc`, resolves whether the UI/model ranges are intentionally different, and records the authorized expectation here before live acceptance. Reuse an explicit developer decision; otherwise follow the failure contract before accepting changed behavior or expectations. Keep cases 7–12 pending until the complete resolved set passes. |
 | Request durations | Predefined values are 5, 15, 30, 60, 120 and 240 minutes from [request-options.json](../../child/request-options.json); Rest of the day and Custom value belong to their separate variants. Custom valid values 0.1, 0.5, 1.25, 1440; invalid 0.09, 1440.1, empty and `abc`; rest-of-day's displayed until-midnight meaning. Invalid cases stop before authentication. Large valid grants test form/result behavior, not a 24-hour expiry wait. |
 | Time profiles and deadlines | Daily-only starts without a grant; grant-only sets daily to zero; combined/dominant profiles use actual UI approval and observed balances. Choose short supported values for expiry and adequate values for active-return cases. Carry elapsed time/tolerance explicitly; keep every recipe within its declared duration (currently 1800 seconds) or reconcile a justified duration before registration. Never change the guest clock. |
 | App expectations | Allowed/nonmatching targets must be usable. Hard blocks remain denied; soft blocks follow the explicitly approved choice. Screen-time enablement and app rules are separate customer controls. Test update/new-version/space/copy/rename examples using declared assets and actual launches, within the documented matching limits; do not invent universal copied-executable enforcement. Hidden launcher coverage and denied execution are separate observations. |

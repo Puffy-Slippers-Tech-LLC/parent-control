@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import os
 import re
-import signal
 import hashlib
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from tests.support.child_shell import run_child_shell
 
 # The Devkit viewer needs an outer display. Request our private compositor
 # explicitly instead of depending on another module having booted it first.
@@ -26,38 +25,6 @@ EXTENSION_IDENTITY = re.compile(
     rf"(?:{re.escape(UUID)}|gnome-shell/extensions/.+/{re.escape(UUID)})",
     re.IGNORECASE,
 )
-
-
-def _run_child_shell(environment, timeout=90):
-    process = subprocess.Popen(
-        ["bash", str(ROOT / "tests/ui/run-child-shell-lifecycle")],
-        cwd=ROOT,
-        env=environment,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
-    )
-    try:
-        stdout, stderr = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        # Signal only the runner this test explicitly spawned. Its trapped
-        # teardown owns and identity-checks every nested service it stops.
-        os.killpg(process.pid, signal.SIGTERM)
-        try:
-            stdout, stderr = process.communicate(timeout=30)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            stdout, stderr = process.communicate(timeout=10)
-        # Return a failing result so the caller can retain the reviewable
-        # attempt artifacts before presenting this bounded-timeout diagnostic.
-        return subprocess.CompletedProcess(
-            process.args,
-            124,
-            stdout,
-            f"{stderr}\nChild Shell runner exceeded its {timeout}s deadline.",
-        )
-    return subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
 
 
 def _new_artifact_root(scenario: str, render_artifacts) -> Path:
@@ -165,7 +132,7 @@ def test_child_extension_lifecycle_in_isolated_shell(render_artifacts):
         "ONPC_CHILD_SHELL_PYTHON": os.environ.get("PYTHON", sys.executable),
         "ONPC_PREVIEW_READY_TIMEOUT_SECONDS": "30",
     }
-    result = _run_child_shell(environment)
+    result = run_child_shell(environment)
     retained_artifacts = _preserve_attempt_artifacts(artifact_root, "lifecycle")
 
     shell_log_path = artifact_root / "logs/child-preview-generation-1.log"
@@ -203,7 +170,7 @@ def test_child_indicator_opens_one_shared_overlay_and_can_reopen(render_artifact
         "ONPC_CHILD_SHELL_SCENARIO": "indicator-interaction",
         "ONPC_PREVIEW_READY_TIMEOUT_SECONDS": "30",
     }
-    result = _run_child_shell(environment, timeout=105)
+    result = run_child_shell(environment, timeout=105)
     retained_artifacts = _preserve_attempt_artifacts(artifact_root, "interaction")
 
     def artifact(path, missing):
@@ -261,7 +228,7 @@ def test_child_extension_reload_uses_only_a_controlled_copy(render_artifacts):
         "ONPC_CHILD_SHELL_SCENARIO": "reload",
         "ONPC_PREVIEW_READY_TIMEOUT_SECONDS": "30",
     }
-    result = _run_child_shell(environment, timeout=120)
+    result = run_child_shell(environment, timeout=120)
     retained_artifacts = _preserve_attempt_artifacts(artifact_root, "reload")
     logs = [
         (artifact_root / "logs" / f"child-preview-generation-{generation}.log").read_text(

@@ -3,6 +3,7 @@
 import hashlib
 import json
 import runpy
+import shutil
 import subprocess
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -28,6 +29,25 @@ def checkout(tmp_path):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / relative).read_bytes())
     return tmp_path
+
+
+@pytest.fixture
+def cli_checkout(checkout):
+    # Public invocations now attach to the enclosing test session. Exercise
+    # fresh CLI listings in an independent checkout instead of self-attaching.
+    shutil.copytree(ROOT / 'tools', checkout / 'tools',
+                    ignore=shutil.ignore_patterns('__pycache__'))
+    shutil.copy2(ROOT / 'Makefile', checkout / 'Makefile')
+    inventory = json.loads((checkout / 'tests/e2e/scenarios.json').read_text())
+    for scenario in inventory['scenarios']:
+        paths = [reference.split('#', 1)[0] for reference in scenario['contract_refs']]
+        paths.extend(variant['executable']['path'] for variant in scenario['variants']
+                     if variant['executable'] is not None)
+        for relative in paths:
+            target = checkout / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / relative, target)
+    return checkout
 
 
 def test_full_listing_keeps_pending_cases_and_exact_digest():
@@ -110,7 +130,7 @@ def test_refusals_precede_privilege_checks_and_execution(monkeypatch, capsys, op
     monkeypatch.setattr(dev_privileges, 'check', privilege)
     monkeypatch.setattr(commands.os, 'execve', execute)
     monkeypatch.setattr(commands.host, 'prerequisites', safety)
-    assert commands.main(['e2e', *options]) == 2
+    assert commands._main(['e2e', *options], detached=True) == 2
     error = capsys.readouterr().err
     assert code in error
     assert 'private-value' not in error
@@ -182,16 +202,16 @@ def test_ready_declaration_still_requires_valid_artifacts(checkout, artifact, co
     (['LIST=1', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'listing-does-not-use-artifacts'),
     (['SCENARIO=E2E-002', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'selection:pending'),
 ])
-def test_make_target_refusals(assignments, code):
+def test_make_target_refusals(cli_checkout, assignments, code):
     result = subprocess.run(['/usr/bin/make', '--no-print-directory', 'check-e2e', *assignments],
-                            cwd=ROOT, capture_output=True, text=True, timeout=15)
+                            cwd=cli_checkout, capture_output=True, text=True, timeout=15)
     assert result.returncode == 2
     assert code in result.stderr
 
 
-def test_make_listing_matches_category_listing():
-    options = dict(cwd=ROOT, capture_output=True, text=True, timeout=15)
-    direct = subprocess.run([str(ROOT / 'tools/run-tests'), 'e2e', '--list',
+def test_make_listing_matches_category_listing(cli_checkout):
+    options = dict(cwd=cli_checkout, capture_output=True, text=True, timeout=15)
+    direct = subprocess.run([str(cli_checkout / 'tools/run-tests'), 'e2e', '--list',
                              '--scenario=E2E-023/fullscreen'], **options)
     make = subprocess.run(['/usr/bin/make', '--no-print-directory', 'check-e2e',
                            'LIST=1', 'SCENARIO=E2E-023/fullscreen'], **options)
@@ -199,9 +219,9 @@ def test_make_listing_matches_category_listing():
     assert json.loads(direct.stdout) == json.loads(make.stdout)
 
 
-def test_public_ready_listing_and_installed_dispatcher_share_selection():
-    result = subprocess.run([str(ROOT / 'tools/run-tests'), 'e2e', '--list', '--ready'],
-                            cwd=ROOT, capture_output=True, text=True, timeout=15)
+def test_public_ready_listing_and_installed_dispatcher_share_selection(cli_checkout):
+    result = subprocess.run([str(cli_checkout / 'tools/run-tests'), 'e2e', '--list', '--ready'],
+                            cwd=cli_checkout, capture_output=True, text=True, timeout=15)
     assert result.returncode == 0, result.stderr
     listing = json.loads(result.stdout)
     assert listing == runner['preflight'](['--list', '--ready'])
@@ -271,11 +291,11 @@ def test_default_builds_artifacts_then_dispatches_only_e2e(monkeypatch, tmp_path
                 'e2e', '--artifacts=' + directory]
 
 
-def test_make_selector_never_becomes_recipe_shell_code(tmp_path):
+def test_make_selector_never_becomes_recipe_shell_code(tmp_path, cli_checkout):
     marker = tmp_path / 'injected'
     selector = f"E2E-001'; touch {marker}; echo '"
     result = subprocess.run(['/usr/bin/make', '--no-print-directory', 'check-e2e',
-                             'LIST=1', 'SCENARIO=' + selector], cwd=ROOT,
+                             'LIST=1', 'SCENARIO=' + selector], cwd=cli_checkout,
                             capture_output=True, text=True, timeout=15)
     assert result.returncode == 2
     assert 'selection:unknown' in result.stderr

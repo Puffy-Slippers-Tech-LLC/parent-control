@@ -4,30 +4,49 @@ from pathlib import Path
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+
 import regression_session
 from regression_process import Control
 import test_commands
 
+dispatch = test_commands._main
 
-def run(argv):
+
+def run(argv, *, detached=False):
+    assert detached
     root = Path(sys.argv[1])
     (root / 'started').write_text(argv[0])
+    (root / 'arguments').write_text(' '.join(argv))
+    if argv[0] == 'traceability':
+        # Exercise the actual non-aggregate dispatcher and owned subprocess
+        # controller, using a harmless child instead of project tests.
+        test_commands.plan = lambda *_: ([[sys.executable, __file__, '--child', str(root)]], False)
+        return dispatch(argv, detached=detached)
     sys.stdout.frame(['[Running] harmless aggregate'])
+    return wait(root)
+
+
+def wait(root):
     print('worker started', flush=True)
     deadline = time.monotonic() + 15
     control = Control()
-    while not (root / 'release').exists():
-        if control.stopped.is_set():
-            print('owned cleanup finished', flush=True)
-            return 130
-        if time.monotonic() >= deadline:
-            return 2
-        time.sleep(0.02)
+    with control.installed():
+        (root / 'child-ready').touch()
+        while not (root / 'release').exists():
+            if control.stopped.is_set():
+                print('owned cleanup finished', flush=True)
+                return 130
+            if time.monotonic() >= deadline:
+                return 2
+            time.sleep(0.02)
     print('usual final summary', flush=True)
     return 7
 
 
 if __name__ == '__main__':
+    if sys.argv[1] == '--child':
+        sys.exit(wait(Path(sys.argv[2])))
     test_commands._main = run
-    sys.exit(regression_session.worker(Path(sys.argv[1]), sys.argv[2],
-                                      Path(sys.argv[3]), int(sys.argv[4])))
+    sys.exit(regression_session.worker(Path(sys.argv[1]), sys.argv[4:],
+                                      Path(sys.argv[2]), int(sys.argv[3])))

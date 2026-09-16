@@ -107,6 +107,7 @@ class ChildPreviewCleanupSafetyTests(unittest.TestCase):
         lifecycle_test = (
             ROOT / "tests" / "ui" / "test_child_shell_lifecycle.py"
         ).read_text()
+        lifecycle_test += (ROOT / "tests/support/child_shell.py").read_text()
 
         self.assertNotIn("/proc/[0-9]*/environ", source)
         self.assertNotIn("onpc_preview_runtime_helper_pids", source)

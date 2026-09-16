@@ -1015,6 +1015,34 @@ def test_prompt_scan_refuses_an_incomplete_catalogue_read():
     with pytest.raises(LookupError): ui.system_prompt_control()
 
 
+@pytest.mark.parametrize('persistent', [False, True])
+@pytest.mark.parametrize('operation', ['desktop', 'standard-desktop'])
+def test_desktop_entry_retries_only_initial_prompt_reads(operation, persistent):
+    dialog = keyring_dialog()
+    activity = Node('Activities', 'button')
+    root = Node(role='desktop frame', children=[activity, dialog])
+    ui = ui_for(root)
+    ui.query_errors = (LookupError,)
+    ui.timeout = 0 if persistent else 1
+    reads = []
+    def child_count():
+        reads.append(True)
+        if persistent or len(reads) == 1:
+            raise LookupError('desktop accessibility is starting')
+        return len(root.children)
+    root.get_child_count = child_count
+    ui.system_prompt = Mock(side_effect=lambda _: root.children.remove(dialog))
+    if persistent:
+        with pytest.raises(UiError, match='ui:timeout:system-prompt-ready'):
+            ui.run(operation, '')
+        ui.system_prompt.assert_not_called()
+    else:
+        assert ui.run(operation, '')['outcome'] == 'passed'
+        ui.system_prompt.assert_called_once()
+    activity.action.do_action.assert_not_called()
+    dialog.children[1].get_text_iface.assert_not_called()
+
+
 @pytest.mark.parametrize('timing', ['before-operation', 'during-wait', 'after-action'])
 def test_shared_prompt_handler_resumes_same_wait_without_replaying_customer_action(timing):
     dialog = keyring_dialog()

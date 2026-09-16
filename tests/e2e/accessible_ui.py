@@ -871,7 +871,10 @@ class AccessibleUI:
     def run(self, operation, version):
         require(operation in OPERATIONS, 'ui:operation')
         self.prompt_enabled = operation not in GREETER_OPERATIONS
-        self.handle_system_prompt()
+        # The first desktop query can race accessibility startup after login.
+        # Use the same bounded read wait as later observations. The prompt
+        # handler still latches uncertain input/dismissal failures as UiError.
+        self.wait(lambda: True, 'system-prompt-ready')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
         if operation in GREETER_OPERATIONS:
             if operation in ('gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused'):

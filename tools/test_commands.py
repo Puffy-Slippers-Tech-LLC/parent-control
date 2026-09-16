@@ -33,18 +33,19 @@ CATEGORIES = {
     'system': 'guarded installed runner; --artifacts, --previous-artifacts, --area, --test, --list',
     'e2e': 'all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)',
     'fast': 'reserved for the make test-fast target',
-    'all': 'all established regression suites without backing-file byte scans',
-    'all-verify': 'all established regression suites with full backing-file verification',
-    'host': 'discovery, cleanup prerequisites and host jobs; stop after joining host branches',
-    'host-builds': 'host jobs plus publishing and fresh reproducibility builds; --serial-builds for comparison; no VM',
+    'all': 'all established regression suites without backing-file byte scans; --continue-on-errors disables stop on first error',
+    'all-verify': 'all established regression suites with full backing-file verification; --continue-on-errors disables stop on first error',
+    'host': 'discovery, cleanup prerequisites and host jobs; --continue-on-errors disables stop on first error; no VM',
+    'host-builds': 'host jobs plus publishing and fresh reproducibility builds; --serial-builds for comparison; --continue-on-errors disables stop on first error; no VM',
 }
 
 
 def aggregate_arguments(category, args):
-    if category == 'host-builds' and args in ([], ['--serial-builds']):
-        return
-    if args:
-        raise ValueError('aggregate accepts no arguments except host-builds --serial-builds')
+    allowed = {'--continue-on-errors'}
+    if category == 'host-builds':
+        allowed.add('--serial-builds')
+    if len(args) != len(set(args)) or any(arg not in allowed for arg in args):
+        raise ValueError('aggregate accepts --continue-on-errors and host-builds --serial-builds only')
 
 
 def artifact_path(value):
@@ -180,7 +181,7 @@ def plan(root, category, argv):
     raise ValueError('unknown test category; use --list')
 
 
-def _main(argv=None):
+def _main(argv=None, *, detached=False):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv in (['--help'], ['-h'], ['--list']):
         print(json.dumps(CATEGORIES, indent=2))
@@ -193,11 +194,18 @@ def _main(argv=None):
         if category in ('all', 'all-verify', 'host', 'host-builds'):
             aggregate_arguments(category, args)
             from regression import main as regression_main
+            options = {'continue_on_errors': True} if '--continue-on-errors' in args else {}
             if category == 'host':
-                return regression_main(root, host_only=True)
+                return regression_main(root, host_only=True, **options)
             if category == 'host-builds':
-                return regression_main(root, host_builds=True, serial_builds=bool(args))
-            return regression_main(root, verify_backing_bytes=category == 'all-verify')
+                return regression_main(root, host_builds=True, serial_builds='--serial-builds' in args, **options)
+            return regression_main(root, verify_backing_bytes=category == 'all-verify', **options)
+        if detached:
+            from regression_process import host_run, category_run
+            options = args[1:] if args[:1] == ['--unattended'] else args
+            if category in ('unit', 'component', 'ui'):
+                return host_run(root, category, options, pipe=False)
+            return category_run(root, category, options, pipe=False)
         if category == 'e2e' and '--list' not in args:
             options = args[1:] if args[:1] == ['--unattended'] else args
             planned, _ = plan(root, category, options)
@@ -266,31 +274,35 @@ def _main(argv=None):
         return 2
 
 
+def validate(root, argv):
+    if not argv or argv in (['--help'], ['-h'], ['--list']):
+        return
+    category, args = argv[0], argv[1:]
+    if category in ('all', 'all-verify', 'host', 'host-builds'):
+        aggregate_arguments(category, args)
+        return
+    if args[:1] == ['--unattended']:
+        args = args[1:]
+    if category in ('unit', 'component', 'ui'):
+        host.pytest_command(root, args, category)
+    else:
+        plan(root, category, args)
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv or argv in (['--help'], ['-h'], ['--list']) or os.geteuid() == 0:
-        return _main(argv)
-    # Listing declarations does not compete for a running test's resources.
-    if argv[0] in ('system', 'e2e') and '--list' in argv:
+    if os.geteuid() == 0:
         return _main(argv)
     try:
         root = Path(__file__).resolve().parents[1]
-        category, args = argv[0], argv[1:]
-        if args[:1] == ['--unattended']:
-            args = args[1:]
-        # Preserve pending/invalid selection refusal before even acquiring a
-        # lock. Test suites can inspect refusals while another run owns it.
-        if category in ('unit', 'component', 'ui'):
-            host.pytest_command(root, args, category)
-        elif category in ('all', 'all-verify', 'host', 'host-builds'):
-            aggregate_arguments(category, args)
-        else:
-            plan(root, category, args)
-        if category in ('all', 'all-verify'):
-            from regression_session import main as session_main
-            return session_main(root, category)
-        with test_activity.activity(root):
-            return _main(argv)
+        if test_activity.descriptors() or test_activity.VARIABLE in os.environ:
+            # Internal workers inherit a verified lock, and must execute their
+            # assigned category instead of observing their own parent session.
+            with test_activity.activity(root):
+                validate(root, argv)
+                return _main(argv)
+        from regression_session import main as session_main
+        return session_main(root, argv)
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'test activity ownership unavailable'
         print('run-tests: ' + detail, file=sys.stderr)

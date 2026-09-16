@@ -156,7 +156,8 @@ def test_cleanup_warmup_is_bounded_cancellable_and_precedes_dispatch(tmp_path, m
 @pytest.mark.parametrize('fault', ['none', 'assertion', 'missing-completion', 'changed-id',
                                   'missing-inventory', 'teardown', 'infrastructure', 'source', 'cancel'])
 @pytest.mark.parametrize('slots', [1, HOST_WORKERS])
-def test_real_cleanup_phase_joins_before_publishing_gate(tmp_path, monkeypatch, fault, slots):
+@pytest.mark.parametrize('continue_on_errors', [False, True])
+def test_real_cleanup_phase_joins_before_publishing_gate(tmp_path, monkeypatch, fault, slots, continue_on_errors):
     import test_activity
     (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').mkdir(parents=True)
     report = regression.Report(tmp_path)
@@ -188,7 +189,8 @@ def test_real_cleanup_phase_joins_before_publishing_gate(tmp_path, monkeypatch, 
             return (2 if fault == 'infrastructure' else 1) if affected and fault in (
                 'infrastructure', 'assertion', 'teardown') else 0
 
-    run = regression.Run(tmp_path, report, Commands(), host_only=True)
+    run = regression.Run(tmp_path, report, Commands(), host_only=True,
+                         continue_on_errors=continue_on_errors)
     run.inputs = source[0]
     run.dashboard.stream = io.StringIO()
     run.admission = SimpleNamespace(allows=lambda kind, active: len(active) < slots, reason='capacity')
@@ -204,7 +206,8 @@ def test_real_cleanup_phase_joins_before_publishing_gate(tmp_path, monkeypatch, 
         published.append(digest)
     monkeypatch.setattr(test_activity, 'record_cleanup', publish)
     try:
-        if fault in ('none', 'cancel', 'teardown'):
+        if fault in ('none', 'cancel', 'teardown') or (
+                not continue_on_errors and fault in ('assertion', 'missing-completion')):
             # Teardown can latch cancellation before completion processing.
             try:
                 run.cleanup_jobs(safety)

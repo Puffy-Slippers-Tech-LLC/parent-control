@@ -1,0 +1,4 @@
+# Permit repository edits even when Codex starts in a subdirectory such as tools/.
+# Command approvals remain governed by the existing scoped rules.
+[sandbox_workspace_write]
+writable_roots = ["/Data/Code/PST/parent-control"]

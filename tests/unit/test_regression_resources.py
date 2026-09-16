@@ -118,6 +118,21 @@ def test_two_ui_buckets_keep_growth_headroom_and_unreviewed_modules_stay_exclusi
     assert admission.allows('ui', [])
 
 
+@pytest.mark.parametrize('kind', ['ui-accessible', 'ui-watch'])
+def test_reviewed_e2e_ui_modules_keep_resource_and_pairing_limits(kind):
+    state, admission = gate()
+    warm(state, admission, active=('ui-layout', 'ui-feedback'))
+    assert admission.allows(kind, ['ui-layout', 'ui-feedback'])
+    for other in ('ui-shell', 'ui-accessible', 'ui-watch', 'artifacts'):
+        assert compatible(kind, other) and compatible(other, kind)
+    for other in ('publish', 'system', 'e2e', 'ui-exclusive'):
+        assert not compatible(kind, other) and not compatible(other, kind)
+    state.now += 2
+    state.sample = replace(healthy(), available_memory=8 * GIB - 1)
+    assert not admission.allows(kind, ['ui-layout', 'ui-feedback'])
+    assert 'memory headroom' in admission.reason
+
+
 @pytest.mark.parametrize('build', ['publish'])
 @pytest.mark.parametrize('companion', ['unit', 'component', 'ui-screen', 'ui-request'])
 def test_build_pairings_are_symmetric_and_still_require_headroom(build, companion):

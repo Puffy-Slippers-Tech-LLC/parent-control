@@ -8,6 +8,7 @@ import pytest
 from regression_process import Control
 from regression_resources import Admission, GIB, Sample
 from regression_schedule import Job, ordered_jobs, run_jobs
+from regression_ui import buckets
 
 
 class Capacity:
@@ -18,6 +19,39 @@ class Capacity:
 
     def allows(self, candidate, active):
         return len(active) < self.slots
+
+
+def test_reviewed_adapter_and_watch_fill_idle_branches_alongside_layout_and_feedback():
+    nodes = [f'tests/ui/{name}::test_case' for name in (
+        'test_request_layout.py', 'test_parent_feedback.py',
+        'test_e2e_accessible_adapter.py', 'test_e2e_watch.py')]
+    plan = buckets(nodes)
+    release = threading.Event()
+    state = SimpleNamespace(now=0)
+    sample = Sample(20, 2, 32 * GIB, 24 * GIB, 0, 0, 0, False)
+    admission = Admission(SimpleNamespace(sample=lambda: sample), lambda: state.now)
+    started, finished = [], []
+
+    def begin(job):
+        assert not finished
+        started.append(job.kind)
+        if len(started) == 4:
+            release.set()
+        return SimpleNamespace(output=lambda _: None,
+            finish=lambda _: finished.append(job.kind), close=lambda: None)
+
+    def command(argv, emit):
+        assert release.wait(10), 'reviewed UI modules left available branches idle'
+        return 0
+
+    def tick():
+        state.now += 2
+
+    maximum = run_jobs([Job(bucket.kind, None, list(bucket.paths)) for bucket in plan],
+        control=Control(), admission=admission, begin=begin, run_command=command, tick=tick)
+    assert maximum == 4
+    assert started == ['ui-layout', 'ui-feedback', 'ui-accessible', 'ui-watch']
+    assert set(finished) == set(started)
 
 
 def test_cold_admission_starts_companions_promptly_and_keeps_startup_memory_reserved():

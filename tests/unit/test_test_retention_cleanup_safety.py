@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -553,6 +554,32 @@ def test_privileged_guard_reads_the_shared_recovery_journal(tmp_path, monkeypatc
     else:
         with pytest.raises(ValueError, match='recovery is unfinished'):
             dispatcher['retention_guard'](root)
+
+
+def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch):
+    import prepare_host as baseline
+    root = Path(__file__).resolve().parents[2]
+    dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
+    directory = tmp_path / 'named-vm'
+    directory.mkdir(mode=0o700)
+    monkeypatch.setattr(baseline, 'BASELINES', directory)
+    monkeypatch.setattr(baseline.guest_contract.vm_config, 'STATE_ROOT', tmp_path)
+    for name, content in (('phase.json', '{"phase":"finalized"}'),
+                          ('system-run.json', '{"phase":"complete"}')):
+        path = directory / name
+        path.write_text(content)
+        path.chmod(0o600)
+    lock_path = tmp_path / '.lock'
+    lock_path.touch(mode=0o600)
+    # Production has no per-VM lock. A completed journal alone must not
+    # authorize retention while another controller holds the shared lease.
+    dispatcher['retention_guard'](root)
+    with lock_path.open('rb') as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BlockingIOError):
+            dispatcher['retention_guard'](root)
+    dispatcher['retention_guard'](root)
+    assert not (directory / '.lock').exists()
 
 
 @pytest.mark.parametrize('value', ['../outside', '', 'a' * 31, 'g' * 32])

@@ -9,6 +9,12 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 
+# Host collection and execution must select the same runnable inventory.
+# Live spectator acceptance needs an independently active VM attempt and is
+# selected explicitly, outside the aggregate's pre-VM host phase.
+HOST_ARGS = ('--timeout', '1800s', '-m', 'not live_e2e')
+
+
 GROUPS = (
     ('Request behavior', ('test_request_form_component.py',), 6),
     ('Layout and overflow', ('test_request_layout.py', 'test_control_overflow.py'), 6),
@@ -16,11 +22,18 @@ GROUPS = (
     ('Preview and About', ('test_preview_smoke.py', 'test_about_release.py'), 6),
     ('Screen fidelity', ('test_screen_preview.py',), 12),
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
+    ('Accessible adapter', ('test_e2e_accessible_adapter.py',), 12),
+    ('E2E spectator', ('test_e2e_watch.py',), 6),
 )
 
+# The adapter's Shell search has its own artifact/runtime root and outer
+# hermetic compositor; it does not publish Nested Shell's stable latest paths.
+# The spectator fixture uses process-local memfds and per-test output. Its live
+# checks only read a running E2E feed and are excluded from host aggregates.
 # Keep pairing identities separate even when buckets have the same reservation.
 # A qualified build companion must never implicitly authorize other UI fixtures.
-KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell')
+KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
+         'ui-accessible', 'ui-watch')
 
 
 @dataclass(frozen=True)

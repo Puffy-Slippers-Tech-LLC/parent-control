@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">9705</span>/<span style="color: gray">0</span>/9705 | Collected pytest cases, including parameter combinations |
+| Unit, property and contract | <span style="color: green">9438</span>/<span style="color: gray">0</span>/9438 | Collected pytest cases, including parameter combinations |
 | Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
 | UI | <span style="color: green">150</span>/<span style="color: gray">0</span>/150 | Collected pytest cases, including parameter combinations |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
@@ -17,7 +17,7 @@
 | E2E customer-journey | <span style="color: green">4</span>/<span style="color: gray">140</span>/144 | One exact scenario variant |
 | E2E fault-recovery | <span style="color: green">0</span>/<span style="color: gray">12</span>/12 | One exact scenario variant |
 | E2E runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One exact scenario variant |
-| **Total** | **<span style="color: green">10264</span>/<span style="color: gray">152</span>/10416** | All entries above, including pending E2E |
+| **Total** | **<span style="color: green">9997</span>/<span style="color: gray">152</span>/10149** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -27,7 +27,7 @@ Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.
 
 Inspect: `tools/run-tests e2e --list --id 1`. Run: `tools/run-tests e2e --id 1 --artifacts /tmp/onpc-test-artifacts-REPLACE` (use an existing verified package-artifact directory). Pending cases refuse execution. Ready means runnable, not passed.
 
-Titles and steps below come directly from the runtime inventory. Pending declarations may still contain legacy internal checks; customer scope follows [E2E coverage](TestAutomation/E2E-Coverage.md). Runner smoke and fault qualification are listed explicitly and do not establish customer coverage.
+Titles and steps below come directly from the runtime inventory. Pending declarations may still contain legacy internal checks; customer scope follows [E2E building blocks](TestAutomation/E2E-Building-Blocks.md). Runner smoke and fault qualification are listed explicitly and do not establish customer coverage.
 
 | ID | Scenario | Variant | Status |
 | ---: | --- | --- | --- |
@@ -273,7 +273,7 @@ Variant: installation: clean
 - Observe the reboot notice and perform the requested actual machine reboot.
 - Verify usable GDM and enforcement readiness before a managed sign-in.
 
-Pending: Task 20 must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -292,7 +292,7 @@ Variant: launch: terminal
 - Log in as a standard user and open the selected customer launch surface: app grid or terminal.
 - For app-grid, type the full product name through normal input; independently read the exact query and web-only suggestion through public accessibility, and require fresh stable absence of the Parent launcher and management window. Appearance, resolution and scale do not gate acceptance. For terminal, invoke the executable and observe denial. No management controls become available through either route.
 
-Pending: Task 21A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -313,7 +313,7 @@ Variant: session: new; time: daily only
 - Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
 - Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -334,7 +334,7 @@ Variant: session: retained; time: daily only
 - Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
 - Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -355,7 +355,7 @@ Variant: session: new; time: grant only
 - Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
 - Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -376,7 +376,7 @@ Variant: session: retained; time: grant only
 - Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
 - Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -397,7 +397,7 @@ Variant: session: new; time: combined
 - Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
 - Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -418,7 +418,7 @@ Variant: session: retained; time: combined
 - Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
 - Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -438,7 +438,7 @@ Variant: control: enabled; match: precise
 - Sequentially save allowed, hard-blocked and soft-blocked rules while matching child apps and another user apps are open.
 - As the child try matching and nonmatching targets after each save; verify other-user use continues.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -458,7 +458,7 @@ Variant: control: enabled; match: pattern
 - Sequentially save allowed, hard-blocked and soft-blocked rules while matching child apps and another user apps are open.
 - As the child try matching and nonmatching targets after each save; verify other-user use continues.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -478,7 +478,7 @@ Variant: control: disabled; match: precise
 - Sequentially save allowed, hard-blocked and soft-blocked rules while matching child apps and another user apps are open.
 - As the child try matching and nonmatching targets after each save; verify other-user use continues.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -498,7 +498,7 @@ Variant: control: disabled; match: pattern
 - Sequentially save allowed, hard-blocked and soft-blocked rules while matching child apps and another user apps are open.
 - As the child try matching and nonmatching targets after each save; verify other-user use continues.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -518,7 +518,7 @@ Variant: daily: zero; sessions: single
 - Parent opens revocation confirmation, checks its warning, then cancels; confirm state is unchanged.
 - Parent confirms revocation and observes child blocked apps and time across the retained sessions.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -538,7 +538,7 @@ Variant: daily: zero; sessions: multiple
 - Parent opens revocation confirmation, checks its warning, then cancels; confirm state is unchanged.
 - Parent confirms revocation and observes child blocked apps and time across the retained sessions.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -558,7 +558,7 @@ Variant: daily: remaining; sessions: single
 - Parent opens revocation confirmation, checks its warning, then cancels; confirm state is unchanged.
 - Parent confirms revocation and observes child blocked apps and time across the retained sessions.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -578,7 +578,7 @@ Variant: daily: remaining; sessions: multiple
 - Parent opens revocation confirmation, checks its warning, then cancels; confirm state is unchanged.
 - Parent confirms revocation and observes child blocked apps and time across the retained sessions.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -598,7 +598,7 @@ Variant: entry: retained unlock
 - Consume the actual allowance naturally; do not jump clocks, inject usage, or invoke Lock.
 - Verify lock without logout; for fresh-login log out via the normal interface, then attempt the selected entry with the correct password.
 
-Pending: Task 22A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -618,7 +618,7 @@ Variant: entry: fresh login
 - Consume the actual allowance naturally; do not jump clocks, inject usage, or invoke Lock.
 - Verify lock without logout; for fresh-login log out via the normal interface, then attempt the selected entry with the correct password.
 
-Pending: Task 22A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -638,7 +638,7 @@ Variant: soft apps: excluded
 - Let the grant expire naturally and verify retained-session lock.
 - Obtain a replacement kiosk grant with the selected soft-app choice and unlock with the correct child password.
 
-Pending: Task 22A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -658,7 +658,7 @@ Variant: soft apps: included
 - Let the grant expire naturally and verify retained-session lock.
 - Obtain a replacement kiosk grant with the selected soft-app choice and unlock with the correct child password.
 
-Pending: Task 22A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -678,7 +678,7 @@ Variant: foreground: parent
 - Let the retained child grant expire naturally while interacting with the other desktop.
 - Switch back and attempt child unlock without new time.
 
-Pending: Task 22A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -698,7 +698,7 @@ Variant: foreground: other child
 - Let the retained child grant expire naturally while interacting with the other desktop.
 - Switch back and attempt child unlock without new time.
 
-Pending: Task 22A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -718,7 +718,7 @@ Variant: time: daily only
 - Observe actual minute ticks and final-second countdown with measured monotonic intervals.
 - Visit unlocked desktop, lock screen and GDM using normal controls; verify panel visibility and refresh on return.
 
-Pending: Task 22B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -738,7 +738,7 @@ Variant: time: grant only
 - Observe actual minute ticks and final-second countdown with measured monotonic intervals.
 - Visit unlocked desktop, lock screen and GDM using normal controls; verify panel visibility and refresh on return.
 
-Pending: Task 22B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -758,7 +758,7 @@ Variant: time: combined
 - Observe actual minute ticks and final-second countdown with measured monotonic intervals.
 - Visit unlocked desktop, lock screen and GDM using normal controls; verify panel visibility and refresh on return.
 
-Pending: Task 22B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -778,7 +778,7 @@ Variant: approver: first; soft apps: excluded
 - Select the chosen eligible parent, duration and soft-app option; open the real authentication prompt.
 - Enter only that parent credential through secret-safe input and observe atomic success, app effects and overlay closure.
 
-Pending: Task 23A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -798,7 +798,7 @@ Variant: approver: second; soft apps: excluded
 - Select the chosen eligible parent, duration and soft-app option; open the real authentication prompt.
 - Enter only that parent credential through secret-safe input and observe atomic success, app effects and overlay closure.
 
-Pending: Task 23A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -818,7 +818,7 @@ Variant: approver: first; soft apps: included
 - Select the chosen eligible parent, duration and soft-app option; open the real authentication prompt.
 - Enter only that parent credential through secret-safe input and observe atomic success, app effects and overlay closure.
 
-Pending: Task 23A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -838,7 +838,7 @@ Variant: approver: second; soft apps: included
 - Select the chosen eligible parent, duration and soft-app option; open the real authentication prompt.
 - Enter only that parent credential through secret-safe input and observe atomic success, app effects and overlay closure.
 
-Pending: Task 23A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -858,7 +858,7 @@ Variant: outcome: wrong password; surface: child overlay
 - Enter a wrong password or cancel the real authentication prompt as selected; inspect the preserved form and access.
 - Retry from the same form and authenticate successfully.
 
-Pending: Task 23A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -878,7 +878,7 @@ Variant: outcome: cancel; surface: child overlay
 - Enter a wrong password or cancel the real authentication prompt as selected; inspect the preserved form and access.
 - Retry from the same form and authenticate successfully.
 
-Pending: Task 23A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -898,7 +898,7 @@ Variant: outcome: wrong password; surface: kiosk
 - Enter a wrong password or cancel the real authentication prompt as selected; inspect the preserved form and access.
 - Retry from the same form and authenticate successfully.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -918,7 +918,7 @@ Variant: outcome: cancel; surface: kiosk
 - Enter a wrong password or cancel the real authentication prompt as selected; inspect the preserved form and access.
 - Retry from the same form and authenticate successfully.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -938,7 +938,7 @@ Variant: choice: predefined; surface: child overlay
 - Check invalid values are refused before authentication; for valid values compare the footer and request details.
 - Submit valid choices with rapid duplicate clicks and authenticate the one real request.
 
-Pending: Task 23B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -958,7 +958,7 @@ Variant: choice: custom; surface: child overlay
 - Check invalid values are refused before authentication; for valid values compare the footer and request details.
 - Submit valid choices with rapid duplicate clicks and authenticate the one real request.
 
-Pending: Task 23B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -978,7 +978,7 @@ Variant: choice: rest of day; surface: child overlay
 - Check invalid values are refused before authentication; for valid values compare the footer and request details.
 - Submit valid choices with rapid duplicate clicks and authenticate the one real request.
 
-Pending: Task 23B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -998,7 +998,7 @@ Variant: choice: predefined; surface: kiosk
 - Check invalid values are refused before authentication; for valid values compare the footer and request details.
 - Submit valid choices with rapid duplicate clicks and authenticate the one real request.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1018,7 +1018,7 @@ Variant: choice: custom; surface: kiosk
 - Check invalid values are refused before authentication; for valid values compare the footer and request details.
 - Submit valid choices with rapid duplicate clicks and authenticate the one real request.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1038,7 +1038,7 @@ Variant: choice: rest of day; surface: kiosk
 - Check invalid values are refused before authentication; for valid values compare the footer and request details.
 - Submit valid choices with rapid duplicate clicks and authenticate the one real request.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1057,7 +1057,7 @@ Variant: exit: cancel; surface: child overlay
 - Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
 - Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
 
-Pending: Task 23B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1076,7 +1076,7 @@ Variant: exit: escape; surface: child overlay
 - Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
 - Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
 
-Pending: Task 23B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1095,7 +1095,7 @@ Variant: exit: approved; surface: child overlay
 - Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
 - Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
 
-Pending: Task 23B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1114,7 +1114,7 @@ Variant: exit: cancel; surface: kiosk
 - Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
 - Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1133,7 +1133,7 @@ Variant: exit: escape; surface: kiosk
 - Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
 - Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1152,7 +1152,7 @@ Variant: exit: approved; surface: kiosk
 - Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
 - Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1172,7 +1172,7 @@ Variant: request: approved
 - Perform the selected real request outcome and repeat restricted-session checks where the kiosk remains active.
 - Use the normal exit to return to GDM.
 
-Pending: Task 24A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1192,7 +1192,7 @@ Variant: request: denied
 - Perform the selected real request outcome and repeat restricted-session checks where the kiosk remains active.
 - Use the normal exit to return to GDM.
 
-Pending: Task 24A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1212,7 +1212,7 @@ Variant: request: cancelled
 - Perform the selected real request outcome and repeat restricted-session checks where the kiosk remains active.
 - Use the normal exit to return to GDM.
 
-Pending: Task 24A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1232,7 +1232,7 @@ Variant: accounts: multiple
 - Switch among offered children and approvers where available and try to submit a request.
 - Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1252,7 +1252,7 @@ Variant: accounts: no child
 - Switch among offered children and approvers where available and try to submit a request.
 - Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1272,7 +1272,7 @@ Variant: accounts: no parent
 - Switch among offered children and approvers where available and try to submit a request.
 - Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1292,7 +1292,7 @@ Variant: accounts: ineligible parent
 - Switch among offered children and approvers where available and try to submit a request.
 - Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1312,7 +1312,7 @@ Variant: accounts: disabled child
 - Switch among offered children and approvers where available and try to submit a request.
 - Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1332,7 +1332,7 @@ Variant: child: first; direction: overlay to kiosk
 - Exit normally and visit the other request surface for that child; inspect remembered selections and its separately remembered mute.
 - Visit another child and return to verify choices are independent per child and shared only as specified.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1352,7 +1352,7 @@ Variant: child: second; direction: overlay to kiosk
 - Exit normally and visit the other request surface for that child; inspect remembered selections and its separately remembered mute.
 - Visit another child and return to verify choices are independent per child and shared only as specified.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1372,7 +1372,7 @@ Variant: child: first; direction: kiosk to overlay
 - Exit normally and visit the other request surface for that child; inspect remembered selections and its separately remembered mute.
 - Visit another child and return to verify choices are independent per child and shared only as specified.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1392,7 +1392,7 @@ Variant: child: second; direction: kiosk to overlay
 - Exit normally and visit the other request surface for that child; inspect remembered selections and its separately remembered mute.
 - Visit another child and return to verify choices are independent per child and shared only as specified.
 
-Pending: Task 24B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1412,7 +1412,7 @@ Variant: control: enabled; policy: allowed; route: native grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1432,7 +1432,7 @@ Variant: control: disabled; policy: allowed; route: native grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1452,7 +1452,7 @@ Variant: control: enabled; policy: hard blocked; route: native grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1472,7 +1472,7 @@ Variant: control: disabled; policy: hard blocked; route: native grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1492,7 +1492,7 @@ Variant: control: enabled; policy: soft blocked; route: native grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1512,7 +1512,7 @@ Variant: control: disabled; policy: soft blocked; route: native grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1532,7 +1532,7 @@ Variant: control: enabled; policy: allowed; route: native desktop
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1552,7 +1552,7 @@ Variant: control: disabled; policy: allowed; route: native desktop
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1572,7 +1572,7 @@ Variant: control: enabled; policy: hard blocked; route: native desktop
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1592,7 +1592,7 @@ Variant: control: disabled; policy: hard blocked; route: native desktop
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1612,7 +1612,7 @@ Variant: control: enabled; policy: soft blocked; route: native desktop
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1632,7 +1632,7 @@ Variant: control: disabled; policy: soft blocked; route: native desktop
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1652,7 +1652,7 @@ Variant: control: enabled; policy: allowed; route: native file manager
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1672,7 +1672,7 @@ Variant: control: disabled; policy: allowed; route: native file manager
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1692,7 +1692,7 @@ Variant: control: enabled; policy: hard blocked; route: native file manager
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1712,7 +1712,7 @@ Variant: control: disabled; policy: hard blocked; route: native file manager
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1732,7 +1732,7 @@ Variant: control: enabled; policy: soft blocked; route: native file manager
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1752,7 +1752,7 @@ Variant: control: disabled; policy: soft blocked; route: native file manager
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1772,7 +1772,7 @@ Variant: control: enabled; policy: allowed; route: native command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1792,7 +1792,7 @@ Variant: control: disabled; policy: allowed; route: native command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1812,7 +1812,7 @@ Variant: control: enabled; policy: hard blocked; route: native command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1832,7 +1832,7 @@ Variant: control: disabled; policy: hard blocked; route: native command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1852,7 +1852,7 @@ Variant: control: enabled; policy: soft blocked; route: native command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1872,7 +1872,7 @@ Variant: control: disabled; policy: soft blocked; route: native command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1892,7 +1892,7 @@ Variant: control: enabled; policy: allowed; route: snap grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1912,7 +1912,7 @@ Variant: control: disabled; policy: allowed; route: snap grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1932,7 +1932,7 @@ Variant: control: enabled; policy: hard blocked; route: snap grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1952,7 +1952,7 @@ Variant: control: disabled; policy: hard blocked; route: snap grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1972,7 +1972,7 @@ Variant: control: enabled; policy: soft blocked; route: snap grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -1992,7 +1992,7 @@ Variant: control: disabled; policy: soft blocked; route: snap grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2012,7 +2012,7 @@ Variant: control: enabled; policy: allowed; route: snap command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2032,7 +2032,7 @@ Variant: control: disabled; policy: allowed; route: snap command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2052,7 +2052,7 @@ Variant: control: enabled; policy: hard blocked; route: snap command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2072,7 +2072,7 @@ Variant: control: disabled; policy: hard blocked; route: snap command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2092,7 +2092,7 @@ Variant: control: enabled; policy: soft blocked; route: snap command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2112,7 +2112,7 @@ Variant: control: disabled; policy: soft blocked; route: snap command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2132,7 +2132,7 @@ Variant: control: enabled; policy: allowed; route: flatpak grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2152,7 +2152,7 @@ Variant: control: disabled; policy: allowed; route: flatpak grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2172,7 +2172,7 @@ Variant: control: enabled; policy: hard blocked; route: flatpak grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2192,7 +2192,7 @@ Variant: control: disabled; policy: hard blocked; route: flatpak grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2212,7 +2212,7 @@ Variant: control: enabled; policy: soft blocked; route: flatpak grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2232,7 +2232,7 @@ Variant: control: disabled; policy: soft blocked; route: flatpak grid
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2252,7 +2252,7 @@ Variant: control: enabled; policy: allowed; route: flatpak command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2272,7 +2272,7 @@ Variant: control: disabled; policy: allowed; route: flatpak command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2292,7 +2292,7 @@ Variant: control: enabled; policy: hard blocked; route: flatpak command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2312,7 +2312,7 @@ Variant: control: disabled; policy: hard blocked; route: flatpak command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2332,7 +2332,7 @@ Variant: control: enabled; policy: soft blocked; route: flatpak command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2352,7 +2352,7 @@ Variant: control: disabled; policy: soft blocked; route: flatpak command
 - As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
 - Repeat the corresponding launch as another user and verify continued use.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2372,7 +2372,7 @@ Variant: change: update
 - Use a real supported package operation in another administrator terminal to update or remove the application.
 - Complete the rule edit and inspect the catalog; attempt the updated app when present.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2392,7 +2392,7 @@ Variant: change: remove
 - Use a real supported package operation in another administrator terminal to update or remove the application.
 - Complete the rule edit and inspect the catalog; attempt the updated app when present.
 
-Pending: Task 25A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2412,7 +2412,7 @@ Variant: transaction: save
 - Perform the selected Parent save, real approval or confirmed revocation through its customer interface.
 - Visit each retained desktop to inspect required process closure/preservation and continued other-user use.
 
-Pending: Task 25B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2432,7 +2432,7 @@ Variant: transaction: approve without soft
 - Perform the selected Parent save, real approval or confirmed revocation through its customer interface.
 - Visit each retained desktop to inspect required process closure/preservation and continued other-user use.
 
-Pending: Task 25B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2452,7 +2452,7 @@ Variant: transaction: approve with soft
 - Perform the selected Parent save, real approval or confirmed revocation through its customer interface.
 - Visit each retained desktop to inspect required process closure/preservation and continued other-user use.
 
-Pending: Task 25B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2472,7 +2472,7 @@ Variant: transaction: revoke
 - Perform the selected Parent save, real approval or confirmed revocation through its customer interface.
 - Visit each retained desktop to inspect required process closure/preservation and continued other-user use.
 
-Pending: Task 25B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2493,7 +2493,7 @@ Variant: boundary: app restart; grant: active
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2514,7 +2514,7 @@ Variant: boundary: app restart; grant: expired
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2535,7 +2535,7 @@ Variant: boundary: sign out in; grant: active
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2556,7 +2556,7 @@ Variant: boundary: sign out in; grant: expired
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2577,7 +2577,7 @@ Variant: boundary: reboot; grant: active
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2598,7 +2598,7 @@ Variant: boundary: reboot; grant: expired
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2619,7 +2619,7 @@ Variant: boundary: idle; grant: active
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2640,7 +2640,7 @@ Variant: boundary: idle; grant: expired
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2661,7 +2661,7 @@ Variant: boundary: suspend wake; grant: active
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2682,7 +2682,7 @@ Variant: boundary: suspend wake; grant: expired
 - Where expiry is selected, wait the real remaining duration without changing the guest clock.
 - Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
 
-Pending: Task 26B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2705,7 +2705,7 @@ Variant: gameplay: windowed
 - Continue gameplay until the real grant expires; verify lock, inaccessible game input, surviving child session/game and uninterrupted parent/other-user sessions.
 - Attempt unlock with the correct password and verify zero-time denial before ending and collecting the attempt.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2728,7 +2728,7 @@ Variant: gameplay: fullscreen
 - Continue gameplay until the real grant expires; verify lock, inaccessible game input, surviving child session/game and uninterrupted parent/other-user sessions.
 - Attempt unlock with the correct password and verify zero-time denial before ending and collecting the attempt.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2748,7 +2748,7 @@ Variant: gameplay: windowed; time: daily dominant
 - While time remains request additional time in the child overlay and authenticate successfully.
 - Resume actual gameplay through the extended interval and observe eventual natural expiry and lock.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2768,7 +2768,7 @@ Variant: gameplay: fullscreen; time: daily dominant
 - While time remains request additional time in the child overlay and authenticate successfully.
 - Resume actual gameplay through the extended interval and observe eventual natural expiry and lock.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2788,7 +2788,7 @@ Variant: gameplay: windowed; time: grant dominant
 - While time remains request additional time in the child overlay and authenticate successfully.
 - Resume actual gameplay through the extended interval and observe eventual natural expiry and lock.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2808,7 +2808,7 @@ Variant: gameplay: fullscreen; time: grant dominant
 - While time remains request additional time in the child overlay and authenticate successfully.
 - Resume actual gameplay through the extended interval and observe eventual natural expiry and lock.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2828,7 +2828,7 @@ Variant: entry: new login; soft apps: excluded
 - Let that grant expire naturally and observe lock with retained apps alive.
 - Before the selected session entry obtain a real replacement grant with the selected soft-app choice, then enter through GDM/unlock normally.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2848,7 +2848,7 @@ Variant: entry: retained unlock; soft apps: excluded
 - Let that grant expire naturally and observe lock with retained apps alive.
 - Before the selected session entry obtain a real replacement grant with the selected soft-app choice, then enter through GDM/unlock normally.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2868,7 +2868,7 @@ Variant: entry: new login; soft apps: included
 - Let that grant expire naturally and observe lock with retained apps alive.
 - Before the selected session entry obtain a real replacement grant with the selected soft-app choice, then enter through GDM/unlock normally.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2888,7 +2888,7 @@ Variant: entry: retained unlock; soft apps: included
 - Let that grant expire naturally and observe lock with retained apps alive.
 - Before the selected session entry obtain a real replacement grant with the selected soft-app choice, then enter through GDM/unlock normally.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2908,7 +2908,7 @@ Variant: activation: process
 - Use the documented real package update operation and follow its required process, session or reboot activation notice.
 - Log in or resume as required and use the installed product with preserved settings and enforced rules.
 
-Pending: Task 18A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2928,7 +2928,7 @@ Variant: activation: session
 - Use the documented real package update operation and follow its required process, session or reboot activation notice.
 - Log in or resume as required and use the installed product with preserved settings and enforced rules.
 
-Pending: Task 18A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2948,7 +2948,7 @@ Variant: activation: reboot
 - Use the documented real package update operation and follow its required process, session or reboot activation notice.
 - Log in or resume as required and use the installed product with preserved settings and enforced rules.
 
-Pending: Task 18A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2969,7 +2969,7 @@ Variant: lifecycle: continuous
 - Remove through the real package command, reboot and verify ordinary usable login.
 - Reinstall and use retained settings, then purge through the actual package command and verify the documented clean state.
 
-Pending: Task 18C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -2991,7 +2991,7 @@ Variant: fault: startup enforcement
 - Remove the declared fault using supported service/environment recovery and record actual recovery.
 - Retry the original customer operation and verify recovery without new hidden policy or time state.
 
-Pending: Task 20 must implement a guarded fapolicyd readiness failure, prove managed GDM startup is denied, then recover in the same attempt.
+Pending: Implementation must implement a guarded fapolicyd readiness failure, prove managed GDM startup is denied, then recover in the same attempt.
 
 </div>
 
@@ -3013,7 +3013,7 @@ Variant: fault: startup broker
 - Remove the declared fault using supported service/environment recovery and record actual recovery.
 - Retry the original customer operation and verify recovery without new hidden policy or time state.
 
-Pending: Task 20 must implement a guarded broker execution-policy reconciliation failure, prove its D-Bus object remains unpublished, then recover in the same attempt.
+Pending: Implementation must implement a guarded broker execution-policy reconciliation failure, prove its D-Bus object remains unpublished, then recover in the same attempt.
 
 </div>
 
@@ -3035,7 +3035,7 @@ Variant: fault: zero time exposure
 - Remove the declared fault using supported service/environment recovery and record actual recovery.
 - Retry the original customer operation and verify recovery without new hidden policy or time state.
 
-Pending: Task 22A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3057,7 +3057,7 @@ Variant: fault: usage read
 - Remove the declared fault using supported service/environment recovery and record actual recovery.
 - Retry the original customer operation and verify recovery without new hidden policy or time state.
 
-Pending: Task 22B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3079,7 +3079,7 @@ Variant: fault: kiosk auth agent
 - Remove the declared fault using supported service/environment recovery and record actual recovery.
 - Retry the original customer operation and verify recovery without new hidden policy or time state.
 
-Pending: Task 24A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3101,7 +3101,7 @@ Variant: fault: failed save
 - Remove the declared cause through supported controls and record recovery.
 - Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
 
-Pending: Task 21B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3123,7 +3123,7 @@ Variant: fault: stale identity
 - Remove the declared cause through supported controls and record recovery.
 - Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
 
-Pending: Task 26A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3145,7 +3145,7 @@ Variant: fault: disconnect
 - Remove the declared cause through supported controls and record recovery.
 - Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
 
-Pending: Task 26A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3167,7 +3167,7 @@ Variant: fault: concurrent transaction
 - Remove the declared cause through supported controls and record recovery.
 - Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
 
-Pending: Task 26A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3189,7 +3189,7 @@ Variant: fault: policy reload
 - Remove the declared cause through supported controls and record recovery.
 - Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
 
-Pending: Task 26A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3211,7 +3211,7 @@ Variant: fault: partial termination
 - Remove the declared cause through supported controls and record recovery.
 - Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
 
-Pending: Task 25B must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3230,7 +3230,7 @@ Variant: flow: draft reopen
 - Open installed Parent feedback with synthetic nonpersonal test content; exercise the selected draft, validation, attachment review/removal or explicit diagnostic export flow.
 - Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case.
 
-Pending: Task 21A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3249,7 +3249,7 @@ Variant: flow: validation
 - Open installed Parent feedback with synthetic nonpersonal test content; exercise the selected draft, validation, attachment review/removal or explicit diagnostic export flow.
 - Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case.
 
-Pending: Task 21A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3268,7 +3268,7 @@ Variant: flow: attachments
 - Open installed Parent feedback with synthetic nonpersonal test content; exercise the selected draft, validation, attachment review/removal or explicit diagnostic export flow.
 - Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case.
 
-Pending: Task 21A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3287,7 +3287,7 @@ Variant: flow: diagnostic export
 - Open installed Parent feedback with synthetic nonpersonal test content; exercise the selected draft, validation, attachment review/removal or explicit diagnostic export flow.
 - Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case.
 
-Pending: Task 21A must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3306,7 +3306,7 @@ Variant: delivery: success
 - Open installed feedback, compose synthetic content, review attachments/privacy disclosure and explicitly send to the authorized dedicated test recipient on the supported real service.
 - Observe the actual service confirmation and corroborate the dedicated recipient receipt without substituting a mock transport.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 
@@ -3328,6 +3328,6 @@ Variant: delivery: retry
 - Restore the real network connection within the documented retry window and record recovery.
 - Observe bounded automatic retry, confirmed success and the dedicated recipient receipt for the frozen submission.
 
-Pending: Task 26C must implement this complete journey and its assertions.
+Pending: Implementation must implement this complete journey and its assertions.
 
 </div>

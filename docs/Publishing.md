@@ -225,7 +225,7 @@ Before every upload, verify a clean binary build with its declared tests,
 inspect the final installed licenses/notices and both front-end About displays,
 and confirm that the public privacy page matches the feedback disclosure in
 [Compliance.md](Compliance.md). Determine current host/UI/VM acceptance from
-[Test-Automation.md](Test-Automation.md), recording unresolved coverage rather
+[E2E building blocks](TestAutomation/E2E-Building-Blocks.md), recording unresolved coverage rather
 than treating historical rehearsal results as acceptance.
 
 ## Upgrade acceptance
@@ -404,8 +404,7 @@ only at install time produced digests for unstripped native probe binaries,
 not the shipped bytes. `test_final_package_hook_refreshes_stripped_binary_digests`
 exercises real stripping, the final hook and its declared debhelper ordering.
 Qualification also compares every activation digest against files extracted
-from the final Debian package; the [15A handoff](TestAutomation/Task-15.md#task-15a-continuation--2026-09-08)
-retains the corrected build identity and original mismatch. This package
+from the final Debian package. This package
 activation manifest is separate from test-artifact source provenance.
 
 During an APT install or upgrade, `debian/preinst` records that an activation comparison is pending and, for upgrades, saves the manifest from the currently installed package. After unpacking, `debian/postinst` compares that saved manifest with the new one. Added, changed, and removed files all count. The pending marker prevents a later `dpkg --configure` retry from inventing a reboot requirement. A package without a prior manifest is treated as a first installation and requires a reboot, which is conservative for migrations from releases that predate this mechanism.

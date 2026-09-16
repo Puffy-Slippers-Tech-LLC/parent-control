@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Reusable lifecycle helpers for the isolated child-extension preview.  This
-# file is intentionally sourceable: Task 10B supplies a real Shell readiness
+# file is intentionally sourceable so consumers can supply a Shell readiness
 # probe without duplicating preview setup or teardown.
 
 onpc_preview_configure() {

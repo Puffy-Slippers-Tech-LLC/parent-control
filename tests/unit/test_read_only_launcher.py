@@ -101,20 +101,20 @@ def test_literal_wildcard_path_is_not_implicitly_expanded(tmp_path, monkeypatch)
 def test_reported_setup_search_preserves_mixed_literal_paths_and_glob_scope(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     literal = [
-        'setup.sh', 'docs/TestAutomation/Unattended-Sessions.md',
-        'docs/TestAutomation/Unattended-Prompt.md', 'tests/unit/test_codex_slices.py',
+        'setup.sh', 'docs/Approval-Tools.md',
+        'docs/TestAutomation/E2E-Building-Blocks.md', 'tests/unit/test_codex_test_rules.py',
     ]
     selected = [*literal, 'tools/setup_checkout.sh', 'tools/setup_privileges.py',
                 'tools/setup future/nested/implementation.py']
     excluded = ['tools/other.py', 'tools/other/setup.py', 'other/setup.sh',
-                'docs/TestAutomation/Task-19.md']
+                'docs/TestAutomation/E2E-Building-Blocks.md']
     for name in [*selected, *excluded]:
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text('apply_patch\n')
     result = subprocess.run(reader['command']([
         'search', '--path-glob', 'tools/setup*',
-        'codex_slices|codex-slices|apply_patch|execpolicy|codex-rules', *literal,
+        'apply_patch|execpolicy|codex-rules', *literal,
     ]), capture_output=True, text=True, check=True, timeout=10)
     assert set(result.stdout.splitlines()) == {f'{name}:1:apply_patch' for name in selected}
     assert not result.stderr

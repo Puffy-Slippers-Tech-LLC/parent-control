@@ -86,7 +86,7 @@ The publishing module runs unprivileged on a configured host; namespace support 
 dependency downloads can require execution outside an assistant's sandbox.
 An assistant needs separate authorization for publication through `make publish`.
 Local test permissions do not grant signing, pushing or uploading.
-See [Approval tools](TestAutomation/Approval-Tools.md#publishing).
+See [Approval tools](Approval-Tools.md#publishing).
 
 This development tooling has activation `none`: no installed service change,
 customer data migration or reboot is introduced.

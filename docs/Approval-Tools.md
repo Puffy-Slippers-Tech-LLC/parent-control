@@ -1,10 +1,45 @@
-# Test and diagnostic approval tools
+# Repository approval tools and unattended execution
 
-This is the maintained approval contract for current tests and the remaining
-[test roadmap](../Test-Automation.md). It changes development tooling, not the
-product's authorization or the roadmap's acceptance criteria. For roadmap continuation, use the authorized
-[model policy](Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff);
-routine approved commands need no model-selection pause.
+This is the maintained approval contract for the whole repository: research,
+source and documentation edits, builds, tests, diagnostics, development setup,
+VM maintenance and authorized publishing. Routine authorized work runs fully
+unattended through existing grants and validated tools. The contract governs
+development operations; product authorization remains in the
+[system design](System-Design.md).
+
+## Default workflow and rare exceptions
+
+Carry authorized work through implementation and verification without repeated
+permission requests. Reuse authorization already given in the session; routine
+implementation choices, file names and tests within an established category do
+not require separate approval.
+
+| Work | Unattended route |
+| --- | --- |
+| Repository reads and public research | Direct quoted reads under existing grants; `tools/read-only` for validated search, filters and fetches |
+| Source and documentation edits | Native `apply_patch` within workspace permissions; `tools/read-only links` for Markdown |
+| Builds and checks | Approved plain Make targets or validated `tools/run-tests`, `tools/run-unit-tests` and `tools/run-ui-tests` selections |
+| Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
+| Setup refresh and VM maintenance | `./setup.sh` modes and `tools/test-vm` within their existing grants and authorized scope |
+| Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
+
+Invoke approved commands directly. Correct quoting and command shape before
+interpreting a failure as missing authorization. When local sockets or ownership
+metadata require execution outside the sandbox, use the existing scoped helper
+grant. Do not add duplicate rules, broad shell/interpreter grants or permission
+prompts to work around restrictive policy.
+
+Human authorization is exceptional: initial administrator bootstrap, repair of
+a denied installation from an administrator-authorized root session, an operation
+outside the user's authorized scope, or a capability blocked by applicable policy.
+An executable grant does not itself authorize a release, baseline replacement or
+unrelated destructive action. Missing prerequisites or grants are blockers, not
+invitations to bypass controls or retry authentication. Report the exact blocker
+and required setup or scope decision; continue independent authorized work.
+
+New recurring operations should use an existing validated route where possible.
+If a new privileged capability is needed, maintain a scoped helper with argument
+validation and regression coverage. Do not normalize per-command approvals.
 
 ## One-time setup
 
@@ -21,16 +56,16 @@ checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
 dependencies and host policies. Explicit baseline preparation is also routed
 through the master: `./setup.sh --prepare-host`; see
-[VM prerequisites](../../tests/integration/Environment.md).
+[VM prerequisites](../tests/integration/Environment.md).
 The tools-only refresh also fills missing `curl`, `ripgrep` and Python coverage
 plugin packages without requesting package upgrades; ordinary test commands
 never install dependencies. Full setup includes these prerequisites too.
 
-The [rules renderer](../../tools/install_codex_rules.py) validates its required
+The [rules renderer](../tools/install_codex_rules.py) validates its required
 launcher inventory, then discovers every regular executable under `tools/`
 without following symlinks. The user preapproves direct project-tool execution;
 setup renders one allow rule containing the exact `tools/`, `./tools/` and
-checkout-absolute executable paths. This includes all slice-launcher actions and
+checkout-absolute executable paths. This includes validated launcher actions and
 argument orders. A new executable joins the grant at the next rules refresh;
 removed or nonexecutable tools leave it. Codex matches literal argument tokens,
 so a `tools/*` string is not a directory-wide grant. General shells/interpreters
@@ -38,7 +73,7 @@ and arbitrary privileged wrappers retain their restrictions. The tools' own
 argument validation, task authorization and VM/Polkit guards still apply.
 Simulated checkouts must copy that complete inventory too:
 `test_rules_render_for_a_checkout_with_spaces` in the
-[installation regressions](../../tests/unit/test_dev_tool_installation.py)
+[installation regressions](../tests/unit/test_dev_tool_installation.py)
 covers this. A missing fixture launcher is a test-fixture failure, not a reason
 to weaken rendering validation or refresh host permissions.
 
@@ -74,7 +109,7 @@ or repository; select a repository with the command tool's working directory.
 
 ## Publishing
 
-Run `make publish` to invoke the single [publisher](../../tools/publish.py).
+Run `make publish` to invoke the single [publisher](../tools/publish.py).
 It validates `docs/VersionHistory.md`, signs, pushes
 the source and tags, uploads to Launchpad, and verifies binary publication.
 Its supporting modules are under `tools/publishing/`; they are not separate
@@ -91,7 +126,7 @@ uses the project-tool command grant. `make publish` still needs command approval
 if platform policy requires it. Tool execution approval alone does not request
 publication. The old preparation-only
 launcher and its maintained allow rule have been removed.
-See [unattended publishing](../Publishing.md#unattended-operation-and-approvals).
+See [unattended publishing](Publishing.md#unattended-operation-and-approvals).
 
 No setup, privilege-policy change or general interpreter/shell allowance is
 needed for this refactoring. Development activation is `none`: it changes no
@@ -100,26 +135,8 @@ installed services or saved data. The Debian activation helper moved to
 
 ## Launcher inspection and workspace edits
 
-Inspect the slice launcher directly:
-
-```sh
-tools/codex_slices.py --help
-tools/codex_slices.py status
-```
-
-Maintained rules cover every direct slice-launcher invocation through `tools/`,
-`./tools/` and the rendered absolute checkout path, including
-`tools/codex_slices.py run --max-slices 1`, `restart` and `kill`. There is no
-conflicting project prompt for its control actions. Isolated Python writes no
-bytecode; help exits during argument parsing and status only reads fixed saved
-state. Starting/stopping/reconciling work must still serve the authorized task.
-Activation is `none`; changed rules need `./setup.sh --codex-rules-only` and
-Codex restart.
-
-Do not substitute `python3 tools/codex_slices.py --help`: it matches the
-general interpreter prompt, which a longer allow cannot override. Arbitrary
-scripts are not safe merely because they accept `--help`; maintain the tools'
-argument boundaries even though their direct invocation is preapproved.
+Inspect validated launchers directly with their documented help and listing
+commands. General interpreter and shell grants remain restricted.
 
 After a rules refresh, restart the Codex process and resume the saved chat to
 load the trusted project rules. Merely switching chats inside an existing
@@ -137,8 +154,8 @@ grants for document edits.
 Use the existing document-check allowance, without per-file rules or refresh:
 
 ```sh
-tools/read-only links 'docs/TestAutomation/Continuation.md' 'docs/TestAutomation/Task-19.md' 'tests/e2e/README.md'
-tools/read-only words --after '### Task 19B continuation — 2026-09-08' 'docs/TestAutomation/Task-19.md'
+tools/read-only links 'docs/Approval-Tools.md' 'README.md' 'AGENTS.md'
+tools/read-only words --after '## Ordered building-block catalogue' 'docs/TestAutomation/E2E-Building-Blocks.md'
 ```
 
 | Check | Contract |
@@ -195,14 +212,14 @@ argument; the launcher expands file patterns without a shell.
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify /tmp/onpc-...` / `compare /tmp/onpc-first /tmp/onpc-second` | Fixed builder; explicit existing project artifact inputs |
 | Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
-| Graphical journeys and harness scenarios | `tools/run-tests e2e` / `tools/run-tests e2e --id 1,3,4` / `tools/run-tests e2e --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Guarded cleanup-safety prerequisites remain mandatory. See [commands and prerequisites](../../tests/e2e/README.md#run-e2e-scenarios). |
+| Graphical journeys and harness scenarios | `tools/run-tests e2e` / `tools/run-tests e2e --id 1,3,4` / `tools/run-tests e2e --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Guarded cleanup-safety prerequisites remain mandatory. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
 | Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
 | Established regressions | `make test-all` / `tools/run-tests all` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors |
 | Host regression branches | `tools/run-tests host` | Same discovery, cleanup gate and host queue; stops after joining branches, without VM discovery/authorization, publishing or package builds; no arguments |
 | Host and build qualification | `tools/run-tests host-builds [--serial-builds]` | Same host tests plus publishing, two fresh builds and comparison; no VM discovery/authorization or execution; the sole optional flag retains builds after the host join for a serial comparison |
 | Local publishing checks | `tools/run-tests publish` | Shared source/sbuild/Lintian module included in `test-all` and `test-all-verify`; no selectors or publication |
-| Future fast suite (Task 28A) | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
+| Future fast suite | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
 
 Routine `make check`, `make build`, `make check-release-version`, `make check-unit`,
 `make check-component`, `make check-test-fixtures`, `make check-child-node`,
@@ -226,7 +243,7 @@ machines without changing personal user rules.
 System and E2E listings run as the ordinary user without safety tests, privilege
 or VM mutation. `fast --list` forwards `LIST=1` once its target exists. `all`
 accepts no narrowing arguments. Reserved entry points do not claim that the
-corresponding suite is implemented or passing. Task 28 must reuse these routes
+corresponding suite is implemented or passing. Future aggregate work must reuse these routes
 and the existing inventory/lease, including internally invoking the validated
 system/E2E dispatcher. It must not introduce unrestricted Make arguments or a
 second suite inventory. Future E2E execution accepts `--artifacts` and
@@ -238,7 +255,7 @@ collection, warnings, `-k`, `-m`, maxfail, durations and traceback style. A scop
 Configuration, plugins, arbitrary output paths and response files are refused.
 Interpreter/plugin/loader/compiler/Make environment overrides are removed.
 Coverage and build outputs are generated under `/tmp/onpc-*`; keep future test
-artifacts under the [shared storage roots](../../tests/README.md#prompt-free-test-artifact-access).
+artifacts under the [shared storage roots](../tests/README.md#prompt-free-test-artifact-access).
 
 Host-integrated categories run all `test_*cleanup_safety.py` and
 `test_graphical_lease.py` in isolation before the protected operation. The
@@ -256,7 +273,7 @@ Collection/listing does not run cleanup or claim passing test coverage.
 
 `tools/test-vm` has no domain, URI, disk, XML, snapshot-name or arbitrary-command
 argument. It uses `qemu:///system`, the name in
-[config/test-vm.json](../../config/test-vm.json), and the UUID pinned
+[config/test-vm.json](../config/test-vm.json), and the UUID pinned
 from that name's root-private finalized baseline provenance during setup. A missing baseline
 disables this route until preparation and a tools refresh; it never selects a
 replacement by name alone.

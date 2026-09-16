@@ -87,7 +87,7 @@ def source_paths(root):
             # never change global Git configuration or allow every directory.
             ['git', '-c', 'safe.directory=' + str(root),
              'ls-files', '--cached', '--others', '--exclude-standard', '-z',
-             '--', '.', f':(top,exclude,literal){build_test_artifacts.OPERATOR_LOG_PATH}'],
+             '--', '.'],
             cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
         # The artifact builder sorts Path components, not whole path strings.
         # E.g. .codex/rules precedes .codex-staged with Path ordering; reversing
@@ -99,8 +99,6 @@ def source_paths(root):
                           for p in paths), 'provenance:source-path')
     present = []
     for relative in paths:
-        if relative == build_test_artifacts.OPERATOR_LOG_PATH:
-            continue
         try:
             # Match the artifact builder's current working-tree inputs. lstat
             # keeps dangling links and special files visible to safety checks.

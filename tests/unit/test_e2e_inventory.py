@@ -26,12 +26,10 @@ def family(document, sid='E2E-012'):
 
 def test_starting_families_and_owners_match_required_coverage(document):
     inventory.validate_inventory(document)
-    required = dict(re.findall(r'^\| (E2E-\d{3}) \| ([0-9A-Z/]+) \|',
-                               (ROOT / 'docs/TestAutomation/E2E-Coverage.md').read_text(), re.M))
+    required = set(re.findall(r'^\| (E2E-\d{3}) /',
+                              (ROOT / 'docs/TestAutomation/E2E-Building-Blocks.md').read_text(), re.M))
     actual = {item['id']: item for item in document['scenarios']}
-    assert set(required) <= actual.keys()
-    for sid, owners in required.items():
-        assert actual[sid]['owners'] == owners.split('/')
+    assert required == actual.keys()
     assert actual['E2E-001']['category'] == 'runner-smoke'
     assert actual['E2E-028']['category'] == actual['E2E-029']['category'] == 'fault-recovery'
 
@@ -127,7 +125,7 @@ def test_startup_selection_keeps_independent_failure_boundaries(document):
     assert clean['requirement_gap'] is None
     assert set(clean['requirements']) == {'ONPC-CORE-INSTALL-001', 'ONPC-COMP-BROKER-010'}
     faults = inventory.resolve_selection(document, 'E2E-028')['cases']
-    assert {case['case_id'] for case in faults if case['owner'] == '20'} == {
+    assert {case['case_id'] for case in faults if case['owner'] == 'installation'} == {
         'E2E-028/startup-enforcement', 'E2E-028/startup-broker'}
     # A recovered final state cannot substitute for observing the failed gate.
     for case in faults:
@@ -211,7 +209,7 @@ def test_unknown_requirement_and_unowned_variant_refused(document):
     with pytest.raises(inventory.InventoryError, match='unknown-requirement'):
         inventory.validate_inventory(document)
     chosen['requirements'].pop()
-    chosen['variants'][0]['owner'] = '28B'
+    chosen['variants'][0]['owner'] = 'unrelated-owner'
     with pytest.raises(inventory.InventoryError, match='variant:owner'):
         inventory.validate_inventory(document)
 
@@ -276,7 +274,7 @@ def test_expected_screen_evidence_cannot_be_replaced_by_backend_only(document):
 def ready_document(document, tmp_path):
     """A declared executable is only inspected, never imported or executed."""
     document['scenarios'] = [family(document)]
-    for relative in ['tests/requirements.json', 'docs/TestAutomation/E2E-Coverage.md']:
+    for relative in ['tests/requirements.json', 'docs/TestAutomation/E2E-Building-Blocks.md']:
         destination = tmp_path / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes((ROOT / relative).read_bytes())

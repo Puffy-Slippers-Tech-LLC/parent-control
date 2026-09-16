@@ -85,4 +85,4 @@ Before releasing a source archive, Debian package, extension archive, or other b
 4. Confirm the About dialog still offers the local License and Legal notices entries and displays the GPL/no-warranty and Malcontent disclosure.
 5. Reconfirm that all Malcontent interaction uses public supported APIs and that no Malcontent source, library, private API, branding, or endorsement claim was added.
 6. Review `Threat-Model.md` for any changed enforcement claim and update a separate privacy notice for any changed collection, storage, retention, or disclosure of personal data.
-7. Follow the [test automation guide](Test-Automation.md) for required regression evidence and verify installed documentation paths in the guarded test VM. Local `make check` alone is not comprehensive release acceptance.
+7. Follow the [E2E building blocks](TestAutomation/E2E-Building-Blocks.md) for required regression evidence and verify installed documentation paths in the guarded test VM. Local `make check` alone is not comprehensive release acceptance.

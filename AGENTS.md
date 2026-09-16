@@ -1,5 +1,9 @@
 # Unattended execution
 
+- Apply the repository-wide [approval contract](docs/Approval-Tools.md) to all
+  work, including research, edits, builds, diagnostics, setup and publishing.
+  Reuse session authorization; routine implementation decisions need no renewed
+  approval. Human authorization is reserved for the contract's rare exceptions.
 - Run authorized work fully unattended through existing agent rules, approved
   command prefixes and validated harnesses. Do not prompt for Codex or Polkit
   approvals. Correct quoting/command-shape problems; if required grants or
@@ -8,8 +12,8 @@
   shell/interpreter/Git/Make/libvirt grants or prompts overriding global allows.
   Prefixes do not validate trailing arguments or environments. Honor denials and
   restrictive project/organization policy over older broad grants.
-- Direct execution of executable project `tools/` commands, including all
-  `tools/codex_slices.py` actions, is preapproved within authorized task scope.
+- Direct execution of executable project `tools/` commands is preapproved within
+  authorized task scope.
   Invoke launchers directly; this grants no generic wrappers or additional scope.
 - Use approved helpers outside the sandbox when sockets, Polkit or real ownership
   metadata require it. Check execution context before reinstalling tools; never
@@ -30,7 +34,7 @@
 - Classify new integrations under [package update activation](docs/Publishing.md#package-update-activation).
   Ship required [migrations](docs/SystemDesign/Data-Migration.md) before
   incompatible saved-data readers/writers.
-- Follow the [model policy](docs/TestAutomation/Implementation-Workflow.md#reassess-model-and-effort-at-every-handoff):
+- Choose implementation models by scope:
   quality first, weekly allowance second. Reassess each slice: Sol high/Standard
   for settled implementation; Astra for unresolved security, concurrency,
   ownership, difficult diagnosis or broad correctness review. No blanket
@@ -38,10 +42,11 @@
 
 # Customer acceptance
 
-- Follow [E2E coverage](docs/TestAutomation/E2E-Coverage.md): operate and observe
+- Follow [E2E building blocks](docs/TestAutomation/E2E-Building-Blocks.md) and
+  [E2E scenarios](tests/e2e/scenarios.json): operate and observe
   the installed app as a customer across all surfaces, without backend product
   probes or internal fault injection. Preserve completed unit/component/system
-  tests; Tasks 18/20 retain mechanical install/upgrade/migration/removal checks.
+  tests, including mechanical install/upgrade/migration/removal checks.
 - Prioritize the customer queue; deferred policy-acknowledgement design is no
   dependency. Add infrastructure only for a named blocked consumer. Measure
   completed scenarios and shrinking frozen remaining scope.
@@ -67,7 +72,7 @@
 - For untrusted arguments or repeated escalated reads beyond ordinary
   `rg -n`/`sed -n`/`curl -fsSL`, use
   `tools/read-only <search|files|slice|sort|unique|gzip|fetch>` instead of broad
-  saved utility grants. See [Approval-Tools.md](docs/TestAutomation/Approval-Tools.md).
+  saved utility grants. See [Approval-Tools.md](docs/Approval-Tools.md).
 - Troubleshoot `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log` with
   ordinary readers or `tools/diagnose`; never modify/delete logs or use raw
   privileged systemctl/journalctl. Use minimum necessary read-only escalation
@@ -76,7 +81,7 @@
 - Edit text with native `apply_patch`. Validate Markdown with
   `tools/read-only links '<file.md>'`; count with `tools/read-only words '<file.md>'`.
   No inline Python, heredocs or unrestricted shells as substitutes.
-- Follow [evidence retention](docs/TestAutomation/Implementation-Workflow.md#retain-useful-evidence-without-one-off-reports):
+- Retain useful evidence without one-off reports:
   report routine failures/fixes/verification in conversation or PR; keep run
   history in runner artifacts. Preserve useful reports/logs/artifacts. Revise
   current contracts and needed active handoffs, not incident histories in design

@@ -124,6 +124,6 @@ If implementation is commissioned, budget the first 3–5 engineering days withi
 3. Demonstrate that an exhausted child cannot obtain a usable session through the supported login and unlock paths, while a valid grant restores access.
 4. Demonstrate the dedicated kiosk under LightDM, including account confinement, parent authentication, failed startup, cancellation, and return to greeter.
 
-These results would narrow the integration estimate. Full acceptance would add midnight/time-change cases, concurrent sessions, reporting interruption, backend failure, application enforcement, other-user isolation, package lifecycle tests, and verification of the Malcontent security fix. The existing [threat model](Threat-Model.md) and [test automation](Test-Automation.md) define the required level of evidence.
+These results would narrow the integration estimate. Full acceptance would add midnight/time-change cases, concurrent sessions, reporting interruption, backend failure, application enforcement, other-user isolation, package lifecycle tests, and verification of the Malcontent security fix. The existing [threat model](Threat-Model.md) and [E2E building blocks](TestAutomation/E2E-Building-Blocks.md) define the required level of evidence.
 
 The recommended implementation direction is to retain a maintained Malcontent backend, add supported Cinnamon and LightDM integration, and qualify an explicit Mint configuration before declaring support.

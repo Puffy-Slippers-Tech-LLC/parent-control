@@ -76,69 +76,11 @@ def test_package_preflight_ignores_development_edits_but_rejects_product_edits(s
 
 
 
-@pytest.mark.parametrize('tracked', [False, True])
-@pytest.mark.parametrize('mutation', ['edit', 'remove', 'replace'])
-def test_operator_output_is_never_read_copied_or_bound_to_inputs(
-        source, lease, monkeypatch, tmp_path, tracked, mutation):
-    builder = provenance.build_test_artifacts
-    monkeypatch.setattr(builder, 'REPOSITORY', source)
-    excluded = source / builder.OPERATOR_LOG_PATH
-    excluded.write_text('synthetic operator output')
-    if tracked:
-        git(source, 'add', builder.OPERATOR_LOG_PATH)
-
-    # Refuse metadata inspection as well as both Python file-opening routes.
-    # This covers hashing, copying and descriptor-based controller capture.
-    original_lstat, original_open, original_os_open = Path.lstat, Path.open, os.open
-
-    def guarded_lstat(path, *args, **kwargs):
-        assert path != excluded
-        return original_lstat(path, *args, **kwargs)
-
-    def guarded_open(path, *args, **kwargs):
-        assert path != excluded
-        return original_open(path, *args, **kwargs)
-
-    def guarded_os_open(path, *args, **kwargs):
-        assert os.fspath(path) not in (str(excluded), excluded.name)
-        return original_os_open(path, *args, **kwargs)
-
-    with monkeypatch.context() as guard:
-        guard.setattr(Path, 'lstat', guarded_lstat)
-        guard.setattr(Path, 'open', guarded_open)
-        guard.setattr(os, 'open', guarded_os_open)
-        paths = builder._source_paths()
-        captured = provenance.VerifiedInputs(root=source, lease=lease)
-        assert builder.OPERATOR_LOG_PATH not in captured.source_files
-        assert captured.inputs['source_sha256'] == builder._source_digest(paths)
-        destination = tmp_path / 'source-copy'
-        builder._copy_source(paths, destination)
-        assert not (destination / builder.OPERATOR_LOG_PATH).exists()
-        assert sorted(p.relative_to(destination) for p in destination.rglob('*')
-                      if p.is_file()) == paths
-
-    if mutation == 'edit':
-        excluded.write_text('changed synthetic output')
-    elif mutation == 'remove':
-        excluded.unlink()
-    else:
-        excluded.unlink()
-        excluded.write_text('replacement synthetic output')
-    with monkeypatch.context() as guard:
-        guard.setattr(Path, 'lstat', guarded_lstat)
-        guard.setattr(Path, 'open', guarded_open)
-        guard.setattr(os, 'open', guarded_os_open)
-        captured.recheck()
-        assert builder._source_paths() == paths
-        assert builder._source_digest(paths) == captured.inputs['source_sha256']
-
-
 @pytest.mark.parametrize('name', [
-    'docs/Test-Automation.md', 'docs/Test-Automation-Slice-Summary.md.extra',
-    'nested/docs/Test-Automation-Slice-Summary.md',
+    'docs/guide.md', 'docs/guide.md.extra', 'nested/docs/guide.md',
 ])
 @pytest.mark.parametrize('mutation', ['add', 'edit', 'remove'])
-def test_operator_output_exception_does_not_hide_other_source_changes(
+def test_document_changes_remain_bound_to_source_inputs(
         source, lease, monkeypatch, name, mutation):
     builder = provenance.build_test_artifacts
     monkeypatch.setattr(builder, 'REPOSITORY', source)

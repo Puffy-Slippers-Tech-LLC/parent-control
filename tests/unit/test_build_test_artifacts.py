@@ -1,4 +1,4 @@
-"""Contract tests for the Task 13 package and fixture artifact boundary."""
+"""Contract tests for the package and fixture artifact boundary."""
 
 from tests.support.modules import load_module
 import json

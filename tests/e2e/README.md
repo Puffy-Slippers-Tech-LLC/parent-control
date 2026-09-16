@@ -21,11 +21,11 @@ continually adding new reference images.
 
 ## Customer scope and runtime transition — 2026-09-14
 
-The [current customer contract](../../docs/TestAutomation/E2E-Coverage.md)
+The [current customer contract](../../docs/TestAutomation/E2E-Building-Blocks.md)
 requires real customer actions and visible observations only, across all app
 surfaces. Internal product probes, transaction witnesses and induced backend
 faults are outside customer acceptance. Completed unit/component/system and
-harness tests remain unchanged. Mechanical Tasks 18/20 retain necessary
+harness tests remain unchanged. Mechanical package/system tests retain necessary
 internal installation, migration, removal and recovery checks as separate
 package/system qualification.
 
@@ -41,12 +41,6 @@ not fabricate backend fields, rewrite unrelated tests or build a replacement
 evidence framework. Pending selectors still provide no customer coverage.
 
 ### Parent consumer composition limits
-
-[The registered Parent callback](parent_about.py) implements `E2E-030/parent`:
-installed Parent login, app-grid launch, existing fixture-child selection, About
-product/version, the installed GPL license in its normal viewer, copyright/footer
-access and return to the same child/settings. Its public acceptance evidence is
-in [Task 21](../../docs/TestAutomation/Task-21.md#current-handoff--2026-09-15).
 
 The [building-block guide](../../docs/TestAutomation/E2E-Building-Blocks.md) owns
 the reusable APIs, composition recipe and lessons: installed setup and fresh VNC
@@ -91,20 +85,6 @@ mandatory input matches.
 Host-only regressions reuse the [shared support library](../support/README.md)
 for evidence, provenance, recording, credentials and private metadata fixtures.
 Those synthetic fixtures are separate from the live helpers described below.
-
-`scenarios.json` is the versioned inventory for
-[E2E coverage](../../docs/TestAutomation/E2E-Coverage.md): 33 families and
-157 variants. `E2E-001/gdm-observation`, `E2E-003/existing-and-new`,
-`E2E-003/none` and `E2E-030/parent` are registered for public execution; the other 153 variants
-remain **pending**.
-[Task 19B is accepted](../../docs/TestAutomation/Evidence/19B-Acceptance-20260908.md)
-after three complete, visually reviewed public qualifications. This establishes
-runner-smoke behavior, not customer acceptance.
-[Task 19A is accepted](../../docs/TestAutomation/Evidence/19A-Controller-Acceptance-20260907.md).
-Its former E2E-034/serial-controller declaration is superseded by E2E-001,
-which retains controller preparation, credentials/assets, command, continuity
-and final evidence assertions and adds stable screen proof. Historical E2E-034
-results retain their original identities; ordinary suites execute one smoke.
 
 The shared worker has guarded live evidence for graphical input, fixture
 credentials, asset transfer, GDM authentication and a real serial command.
@@ -383,21 +363,6 @@ the ordered steps and the matrix rationale. Owning tasks must audit and expand
 this starting matrix before acceptance; declared matrix closure is not proof
 that every product requirement or transition has been enumerated.
 
-The first 29 families come from the required coverage table. E2E-030 adds
-installed About/license access; E2E-031 covers feedback drafts, validation and
-attachment/diagnostic review; E2E-032 covers authorized real delivery; E2E-033
-covers retry after a declared real transport fault. Delivery prerequisites are
-explicit authorization, a dedicated test recipient and the actual supported
-service profile. Inventory registration grants no delivery permission.
-About maps to `ONPC-CORE-ABOUT-001`. Feedback requirement-mapping gaps remain
-explicit pending work with owners and authoritative contract references; map
-them before those cases become ready.
-Task 20's [startup audit](../../docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md)
-maps clean installation to `ONPC-CORE-INSTALL-001` and startup gates to
-`ONPC-COMP-BROKER-010`. The retained `startup-enforcement` variant owns the
-fapolicyd/GDM failure; `startup-broker` independently owns broker reconciliation
-failure. All three Task 20 cases remain pending implementation and execution.
-
 `pending` requires a reason and a null executable. `ready` requires no pending
 reason or requirement gap and an existing `tests/e2e/*.py` or `*.pm` reference
 (including subdirectories) plus its unique executable test ID. Validation never
@@ -443,7 +408,7 @@ families cannot declare backend evidence, and customer other-user assertions
 also require screen evidence. Declared faults require intervention evidence,
 and external-delivery scenarios require delivery evidence. Missing, extra,
 duplicate, skipped, failed or stale required results, unsafe artifacts and
-failed cleanup prevent a runtime pass. Task 27 extends this minimum contract
+failed cleanup prevent a runtime pass. Future evidence adapters extend this minimum contract
 and connects evidence across all layers.
 
 ## Runtime gate and private collector
@@ -627,104 +592,9 @@ baseline, snapshot and persisted schemas are unchanged. Update activation is
 actually read, elapsed seconds and outcome. Totals are retained in installed and
 public E2E results; the ledger now measures finalization separately from cleanup.
 The [kernel/refusal regressions](../unit/test_backing_verification_cleanup_safety.py)
-also join the automatic isolated safety prerequisites. Measured qualification and
-remaining runtime limits belong to the
-[runtime handoff](../../docs/TestAutomation/Test-All-Runtime-Optimization-Handoff.md#implementation-results).
+also join the automatic isolated safety prerequisites.
 
 ### Earlier provenance qualifications
-
-`Qualification._recheck_final_inputs` now preserves the first fixed
-`final_provenance_refusal` in both early and late finalization failure reports.
-`provenance.refusal_code` admits only explicit source, asset, metadata and baseline
-categories; unknown exceptions become `provenance:recheck-failed`. The preservation
-flag stays false, the original exception survives, and outer cleanup still releases
-the lease. [Cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py)
-cover both boundaries and private-text refusal; the
-[startup observation evidence](../../docs/TestAutomation/Evidence/20-Startup-Enforcement-Observation-20260909.md)
-records its initial local scope. The first
-[integrated VT6 authentication attempt](../../docs/TestAutomation/Evidence/20-VT6-Authentication-Attempt-20260910.md)
-now qualifies live retention of `provenance:source-changed` through failed
-finalization and successful guarded cleanup. It refused at the first VT6
-authorization stage, before input. All nine changed runtime-file byte digests
-still matched the captured map after cleanup; the changed checkout input or
-metadata remains unknown. The [second VT6 attempt](../../docs/TestAutomation/Evidence/20-VT6-Password-Recipient-20260910.md)
-passed final source/host preservation and the getty authorization, then refused
-the password recipient. This does not explain or erase the first source change.
-Its 138.845-second getty stage and 68.995-second password-stage failure expose
-an unqualified latency interaction: each `Authentication.observe` brackets its
-proof with `VerifiedInputs.recheck`, which also calls `baseline_inputs` and
-`Capture.verify_snapshot` (including backing-chain digests). Component timing
-is now available through `VerifiedInputs.recheck_milliseconds`, including failed
-components. The [third VT6 attempt](../../docs/TestAutomation/Evidence/20-VT6-Revalidation-Timing-20260910.md)
-isolated 69.027 seconds in baseline verification and 0.091 seconds in source
-capture during the password-stage recheck. Guest `login` had a configured
-60-second lifetime and the selected executable changed from `login` to `agetty`
-across this wait. At that point full backing reads remained mandatory. The
-attempt-local kernel proof above changes the backing-read implementation while
-retaining these checks. Finite fixture login preparation and password readiness are
-now live-qualified in attempt 6 under the VT6 contract below. Subsequent
-[attempt 10](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
-completes authentication/command stages but demonstrates insufficient worker
-budget through normal shutdown; the [worker contract](#shared-guarded-worker)
-owns its correction and attempt 11's passing worker result. Timing/privacy/failure regressions are in
-[test_e2e_provenance.py](../unit/test_e2e_provenance.py) and
-[test_e2e_vt6_controller.py](../unit/test_e2e_vt6_controller.py).
-Worker wrappers can still collapse the initial error.
-`VerifiedInputs.recheck` now emits `e2e:source-change` with fixed integer counts
-for added/removed files, changed content, root-directory identity, and each
-compared metadata field (device, inode, mode, links, size, mtime, ctime). It
-exports no filenames, contents, hashes or raw metadata and preserves the original
-`provenance:source-changed` latch. The parameterized
-`test_source_change_diagnostic_counts_without_private_data` regression covers
-addition, removal, content, mode and timestamp mutations plus privacy and latching.
-Counts improve future diagnosis but do not identify the writer. Historical
-source-change refusals whose comparisons were not retained remain unattributed;
-a successful settled-input rerun cannot establish their cause or exclude
-intermittency. The diagnostic counts have local refusal/privacy coverage, not
-an induced live-failure result.
-This does not close
-historical provenance failures or qualify authentication. A historical false
-source-preservation flag alone cannot identify
-the changed input or exclude assets/baseline failure. The [refused reboot-wiring attempt](../../docs/TestAutomation/Evidence/20-Customer-Reboot-Wiring-20260909.md)
-retains actual concurrent checkout modifications between artifact creation and
-installation preflight, together with the live provenance refusal and successful
-guarded cleanup. Preserve that failed result; build fresh inputs for required
-work without weakening the latch or restoring the historical VM hold.
-[Provenance regressions](../unit/test_e2e_provenance.py) own local source, metadata,
-assets and baseline refusal coverage.
-
-[VT6 attempt 8](../../docs/TestAutomation/Evidence/20-VT6-Joined-Flow-20260910.md)
-retained `provenance:source-changed` during credential preparation, before worker
-startup. New Parent UI changes appeared during the attempt while this session
-made no checkout writes. The first differing path/field was not retained, so
-the evidence supports current concurrent source activity without attributing a
-specific comparison. Baseline restoration and host preservation passed; source
-preservation failed. Reuse unchanged-input capture and its existing refusal
-latch after that current writer finishes; no source exclusion, digest cache,
-permission change or blanket VM hold is warranted.
-
-[Attempt 11](../../docs/TestAutomation/Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
-passes all authentication stages and normal worker shutdown, then refuses final
-`provenance:source-changed`. A new nonignored `docs/VersionHistory.md` appeared
-after the command receipt and before finalization while this session made no
-checkout writes. The addition is sufficient to invalidate `source_paths` and
-`snapshot`; `test_new_source_file_is_detected` in the provenance regressions
-covers this boundary. No full differing snapshot was exported, so the sole
-changed field and historical failures remain unproven. Preserve the unrelated
-file and capture fresh inputs. Baseline restoration, host preservation and owned
-cleanup passed; complete authenticated qualification still requires final source
-preservation. The existing refusal latch remains mandatory.
-
-[Attempt 12](../../docs/TestAutomation/Evidence/20-VT6-Fresh-Input-Refusal-20260911.md)
-captured the checkout including that prior addition, then refused during
-preparation before worker startup when three new nonignored release-tool files
-appeared. Their joint creation after pre-attempt status is sufficient to change
-`source_paths`; the controller still does not export a full differing snapshot,
-so no sole-field or historical attribution is claimed. Cleanup, baseline
-restoration and host preservation passed. Preserve the files, reconcile current
-inputs, and reuse the unchanged refusal latch; this attempt adds no worker or
-authentication qualification. Release-tool edits continued after cleanup, so a
-later preflight must establish a settled input set before another Task 20 attempt.
 
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
@@ -839,25 +709,6 @@ private copies, tampering, secret exclusion and file/directory replacement.
 
 ### Installation findings to carry forward
 
-Use this record through the selected task's
-[reuse-map entry](../../docs/TestAutomation/Reuse-Map.md#installation-helper-and-open-limits).
-The canonical implementations are [onpc_install.pm](../integration/graphical_smoke/lib/onpc_install.pm),
-[InstallationBoundary](installation_boundary.py), and
-[installation observations](installation_observations.py) through
-[ReadOnlyObservations](observation_transport.py). Extend these implementations;
-keep the linked regressions when adding consumers. Evidence describes the exact
-qualified scope; historical next-step instructions are superseded by the
-[current handoff](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08).
-
-| Problem or boundary | Established behavior to preserve | Regression and evidence |
-| --- | --- | --- |
-| Prompt framing and fragmented serial delivery | Supply the newline in the supported sudo prompt and require the complete fixed suffix. Match through the maintained serial reader; command echo and partial/private suffixes never authorize input. A marker absent from the observed buffer does not prove sudo emitted nothing. | [Helper tests](../unit/test_e2e_install_helper.py), especially `test_installed_serial_parser_reassembles_every_prompt_boundary`; [live prompt qualification](../../docs/TestAutomation/Evidence/20-Install-Explicit-Newline-20260908.md). |
-| Password characters versus newline echo | Require ECHO off; ECHONL alone may remain on for the validated printable password with Enter sent separately. Keep independent recipient, argv, process continuity and sealed-capture checks. | [Password tests](../unit/test_e2e_install_password_observation.py), including `test_kernel_newline_echo_does_not_echo_password_characters`; same live prompt qualification. |
-| Cancellation on the pipe-backed serial console | The graphical Ctrl+C path failed. `run_refusal` sends the fixed interrupt byte through `type_string` after one rejected password, then proves shell return and installer/package/marker absence without retry. | [Helper tests](../unit/test_e2e_install_helper.py), [refusal observations](../unit/test_e2e_installation_observations.py); [failed attempt and correction](../../docs/TestAutomation/Evidence/20-Install-Refusal-Attempt-20260908.md), [live corrected refusal](../../docs/TestAutomation/Evidence/20-Install-Refusal-Corrected-20260908.md). |
-| Exact final reboot notice | `_verify_notice` checks the private serial tail for exact text, bold-red ANSI bytes and final position before the split success marker. This assertion passed live; it establishes emitted bytes, not graphical rendering or reboot. | [Helper tests](../unit/test_e2e_install_helper.py), including fragmented notice and ring-buffer cases; [live notice qualification](../../docs/TestAutomation/Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md). |
-| Installed package layout after reboot | `INSTALLED_LAYOUT` reuses the package-derived transferred inventory and checks installed file/symlink ownership, mode and target, package verification, private configuration, PAM hooks, Polkit actions/rule and session descriptors without returning paths or package output. `InstallationBoundary.observe_installed_layout` binds the returned inventory digest to controller-held `VerifiedInputs` and latches every failure. The GDM-return callback composes it with both startup witnesses and an unchanged boot. | [Guest/transport/boundary/controller tests](../unit/test_e2e_installation_observations.py); [local evidence](../../docs/TestAutomation/Evidence/20-Installed-Layout-Observation-20260909.md). Locally tested only; complete live E2E-002 qualification remains pending. |
-| Intermittent `getty-*-exe-resolve` refusal — open | Cause remains unknown. Fixed errno, link/target, selected-process/leader continuity and effective-root/ptrace categories distinguish future failures. They are sequential observations after refusal, not atomic causal proof. A successful reread cannot clear refusal or authorize input. Use them if the failure recurs in required work; do not repeat installation solely to reproduce it. | [Resolution diagnostics tests](../unit/test_e2e_install_password_observation.py), [transport refusal/redaction tests](../unit/test_e2e_observation_transport.py); [diagnostic scope and limits](../../docs/TestAutomation/Evidence/20-Recipient-Diagnostics-Notice-Qualified-20260909.md). Diagnostics passed locally; this failure did not recur in that live attempt. |
-
 The missing customer-visible notice cannot be added as another match or capture
 on the current installation console. `onpc_serial::run_install` selects the
 pinned os-autoinst `virtio-terminal`; that console constructs a text-only
@@ -868,29 +719,7 @@ so selecting it would capture the greeter rather than the package notice.
 controller rejects every screenshot field on install/reboot stages. These are
 necessary privacy boundaries, not missing calls to `assert_screen`.
 
-Task 20 therefore needs a genuine graphical terminal path with a fixed command,
-a separately reviewed prompt/recipient and notice-pixel contract, and the same
-private artifact handling before graphical visibility can be claimed. Replaying
-serial output, invoking the notice helper after installation, rendering ANSI
-bytes on the controller, or matching the unchanged GDM display does not prove
-that the parent saw the documented package command's final output. The
-[boundary evidence](../../docs/TestAutomation/Evidence/20-Graphical-Notice-Boundary-20260909.md)
-records the pinned implementation and focused verification. This is an
-partially implemented authentication-adjacent boundary; it is not qualified
-reuse of the existing GDM capture helper. The fixed VT6 route below now resolves
-the launch-surface question; its complete input/pixel path is still pending.
-
 ### Visible VT6 installation terminal
-
-The accepted baseline has a real kernel-rendered VT6 login surface on VNC.
-One guarded, credential-free maintenance inspection switched with Ctrl+Alt+F6
-and retained a reviewed 1280×800 login screen. See the
-[VT6 evidence](../../docs/TestAutomation/Evidence/20-Visible-VT6-20260909.md).
-This establishes surface availability only: it is not an os-autoinst scenario,
-authentication, red-notice or E2E-002 pass. No desktop terminal package, baseline
-change, serial replay or controller renderer is needed for the selected route.
-[systemd's reserved-VT contract](https://github.com/systemd/systemd/blob/main/man/logind.conf.xml)
-describes activation; the live image establishes this baseline's actual behavior.
 
 Reuse the public os-autoinst VNC `sut` console and `send_key('ctrl-alt-f6')`,
 then reviewed terminal-specific screen assertions and `type_password`. Keep
@@ -910,19 +739,6 @@ to remain `tty6` at repeated checkpoints. Only the selected getty/login lineage
 is followed; no process scan, guest write or signal is added. The shared
 executable-resolution diagnostic now rechecks that same selected getty unit.
 It never clears a refusal. Serial constants keep their existing output tokens.
-
-`ReadOnlyObservations.read` exposes only fixed `vt6-password`,
-`vt6-install-password` and `vt6-reboot-password` probes. Their exact safe tokens
-are distinct from serial and from one another. Wrong tokens, private output,
-foreground loss, ownership failure or transport errors latch refusal. Reuse
-the [login](../unit/test_e2e_serial_observation.py),
-[sudo](../unit/test_e2e_install_password_observation.py) and
-[transport](../unit/test_e2e_observation_transport.py) regressions. These probes
-have local refusal coverage. The fixed getty and login password probes also
-passed live in the [credential-free prompt qualification](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md);
-the sudo probes remain **locally tested only**. Repeated foreground checks are
-not an atomic observation-to-keyboard guarantee, and this collection pass does
-not qualify password input or authenticated session continuity.
 
 **Cross-observation recipient gate — local regressions and live stage evidence:**
 `VT6_GETTY_IDENTITY` and `VT6_PASSWORD_IDENTITY` in
@@ -950,37 +766,6 @@ ownership loss or transport failure latch refusal. A later boot read cannot
 repin the original recipient. This sequence is single-use per observer. Its
 fourth and final read is now `vt6-shell-identity`, described below; it compares
 the detached login parent to the same pinned recipient and boot.
-
-Regressions execute the real guest programs in
-[test_e2e_serial_observation.py](../unit/test_e2e_serial_observation.py), including
-late unit/executable/start-time replacement, credentials, boot changes and
-unchanged serial/prompt behavior. [test_e2e_vt6_recipient.py](../unit/test_e2e_vt6_recipient.py)
-covers ordered fresh dispatch, proof-only output and all parser/ownership/replay
-refusals. [Recipient-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Recipient-Gate-20260910.md)
-records the initial verification. These reads are now connected to `Smoke`
-through `vt6_authentication.Authentication`, with the current worker, capture,
-provenance and durable-receipt gates below. Matching digests alone cannot
-authorize password input or prove empty
-invisible input or fresh pixels; do not repeat prompt-only collection to qualify
-these missing boundaries.
-
-`VT6_SESSION` now reuses the shared graphical/serial session predicate through
-fixed surface adapters, exposed as `ReadOnlyObservations.read('vt6-session')`.
-It requires the selected parent fixture's sole active local `login` session on
-`tty6`, rechecking active VT before each logind command and immediately before
-success. The exact `vt6-session-ready` token maps to fixed role/boolean evidence;
-foreign tokens, private output and ownership/transport failures latch refusal.
-The canonical regressions are `test_actual_guest_authentication_probe_rejects_wrong_sessions`,
-`test_fixed_probe_checks_ownership_before_and_after_output` and
-`test_vt6_proofs_refuse_other_surfaces_private_output_and_latch` in the
-[transport tests](../unit/test_e2e_observation_transport.py). The
-[session-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Session-Gate-20260910.md)
-records local verification, including the unchanged graphical/serial contracts.
-This probe has live stage evidence in authenticated attempts 9/10 below; complete
-qualification still requires normal worker shutdown. It proves neither shell
-readiness nor continuity from an earlier login
-recipient. Worker/controller boot and one-shot input gates remain necessary;
-repeated active-VT checks cannot make observation and keyboard input atomic.
 
 **Shell lineage — local regressions and live stage evidence:** `VT6_SHELL_IDENTITY`
 in [guest_observations.py](guest_observations.py) now reuses the direct-child
@@ -1022,34 +807,6 @@ boundary; [vt6_command.py](vt6_command.py) now has local regression coverage and
 completed live stage evidence in attempt 10 below. Do not replace it with syscall/wait-channel
 heuristics or synthesize readiness from the lineage booleans.
 
-[test_e2e_vt6_shell.py](../unit/test_e2e_vt6_shell.py) executes the actual probe
-against explicit process/terminal fixtures, including late replacement,
-credentials, ancestry, session/foreground, descriptor and cleanup refusals.
-[test_e2e_vt6_recipient.py](../unit/test_e2e_vt6_recipient.py) extends its strict
-parser, ordering, replay, ownership and privacy cases to the fourth read.
-[Shell-lineage evidence](../../docs/TestAutomation/Evidence/20-VT6-Shell-Lineage-20260910.md)
-records its original local inputs and verification. No live authentication or
-command readiness is qualified by these tests. Dispatch is now connected only
-through the guarded qualification described below.
-
-**Command round trip — locally tested; live stage passed in attempt 10:**
-`ReadOnlyObservations.vt6_command_boundary`
-can be acquired once after the fourth identity read. `CommandRoundTrip.prepare`
-rechecks pinned lineage and absence of a fresh nonce-named marker before issuing
-the fixed nonsecret command challenge. The worker constructs the command from
-that exact 64-hex challenge; it accepts no command text or path. A noclobber
-subshell writes only the nonce and original shell PID to a mode-0600 temporary
-file. `complete` waits at most 30 seconds for the marker and subshell exit,
-then rechecks the complete pinned lineage, foreground VT, boot and stable safe
-file metadata/content. The SSH timeout bounds the whole program. No output
-capture is reopened. A consumed/partial line, stale marker, replacement, timeout
-or ownership failure permanently refuses; typing never retries. These guest
-probes only read. Outer baseline restoration removes the visible command's
-marker, including in failed attempt 10 below. [Command regressions](../unit/test_e2e_vt6_command.py)
-execute the real Bash grammar, marker reader and bounded wait, and cover
-transport/ordering/privacy refusals. See
-[integrated evidence](../../docs/TestAutomation/Evidence/20-VT6-Authentication-Attempt-20260910.md).
-
 The joined authentication review found the capture reader's whole-stat defect
 also in `vt6_command.READ_MARKER`. A delayed first read on `/tmp` reproduces a
 false refusal locally. The guest's `marker_identity` now compares the stable
@@ -1058,34 +815,6 @@ preserving nanosecond mtime/ctime. The delayed-read regression and per-field
 descriptor/path mutations in `test_e2e_vt6_command.py` protect that boundary.
 This correction now has completed live command-stage evidence in attempt 10;
 normal worker shutdown remains unqualified for that integrated route.
-
-The selected fixture echo and empty login challenge now have a
-[reviewed image contract](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md#direct-image-review-and-needle-contract).
-The maintained `onpc-vt6-parent-password` PNG is the unchanged native 1024×768
-capture; do not substitute the 1280×800 maintenance image. Its fixed needle
-matches the full frame, the joint selected-login/challenge rectangle
-`(0,48,228,32)` and VT label `(198,16,30,16)`, excluding only the cursor cell
-`(60,64,6,16)`. `e2e_worker.validate_needles` permits precisely this layout;
-generic secret needles still forbid exclusions.
-
-**The needle is not an exact blank-screen proof.** Local installed-matcher
-verification found full-frame similarity 1 despite single-glyph changes.
-Tight text regions reject the selected-account/prompt mutations, but sparse
-extra output can still pass. Authentication must additionally call
-[vt6_prompt_pixels.verify_prompt_pixels](vt6_prompt_pixels.py) with a fresh
-private capture and provenance-bound reference bytes. This fixed GdkPixbuf
-comparison validates the reviewed reference digest, bounds native RGB decoding,
-and refuses every pixel difference outside the cursor cell. It exports only a
-fixed proof/refusal. The decoder uses existing GTK/GI host prerequisites.
-`test_needle_similarity_cannot_replace_exact_blank_screen_gate` retains the
-counterexample; [pixel regressions](../unit/test_e2e_vt6_pixels.py) also cover
-wrong identity, missing/moved prompts, visible input, cursor blink, stale output,
-single-pixel differences and invalid inputs. The
-[staging tests](../unit/test_e2e_needle_inputs.py) pin the exception's exact scope.
-GDM/VT6 tests share the installed matcher through
-[needle_matcher.py](../support/needle_matcher.py).
-See [pixel-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Pixel-Gate-20260910.md)
-for the failed initial matcher checks, correction and common-check recovery.
 
 `onpc_vt6::authenticate(exchange)` implements the locally tested worker
 side of one-shot parent login and command completion. `smoke.pm` selects it only
@@ -1147,38 +876,6 @@ gates and checkpoint failure; `test_input_guard_binds_live_worker_and_staged_byt
 in [cleanup tests](../unit/test_graphical_smoke_cleanup_safety.py) covers current
 worker/distribution refusal and resource closure.
 
-The fixed route is `tools/run-tests integration check_graphical_vt6_authentication`.
-Its [first guarded attempt](../../docs/TestAutomation/Evidence/20-VT6-Authentication-Attempt-20260910.md)
-passed GDM stages, then refused with `provenance:source-changed` at the first
-VT6 receipt. No getty identity read or VT6 fixture/password/command input was
-authorized. Outer baseline restoration and host preservation passed, while
-source preservation failed and normal worker shutdown was not qualified.
-The [second guarded attempt](../../docs/TestAutomation/Evidence/20-VT6-Password-Recipient-20260910.md)
-passed source/host preservation, the first durable getty authorization and the
-negative needle on the login screen. It submitted the fixture name, then
-refused at `vt6-password-ready` before password authorization. The retained
-guest traceback maps to the first selected-unit executable check: the recipient
-was not `/usr/bin/login`. Its actual executable and transition cause
-were not retained in that attempt; cross-observation continuity, password input,
-capture/command proofs and normal shutdown remain unqualified. Its 68.995-second
-request-to-refusal interval motivated the discriminator below. Reuse the existing
-recipient probes and provenance contract; do not weaken checks, repeat unchanged,
-or restore the old VM hold. The earlier failed attempt remains failed.
-
-The [third guarded attempt](../../docs/TestAutomation/Evidence/20-VT6-Revalidation-Timing-20260910.md)
-now qualifies the bounded executable/configuration/timing discriminator:
-`VT6_LOGIN_DIAGNOSTIC` observes only the selected unit and fixed login config,
-never terminal content, argv or account records. `ReadOnlyObservations` validates
-its exact safe output, retains no new recipient pin, and cannot advance the
-authorization sequence with a diagnostic. `Authentication` obtains early/late
-reads around the full recheck; `Qualification.progress` retains these and fixed
-component durations as `terminal-diagnostic` checkpoints, never completed proof
-steps. The guest was running util-linux 2.41.3 with `LOGIN_TIMEOUT=60`; the
-executable changed from `login` to `agetty` across 69.027 seconds of baseline
-verification. This supports prompt expiry during revalidation; no exit signal
-was traced. Source/host preservation and outer cleanup passed, but password
-authorization and live authentication remain unqualified.
-
 Both `matches_pinned_recipient` Booleans in that run are **invalid**: the initial
 parser compared a digest with the stored `(boot, recipient)` tuple. The corrected
 parser compares with its recipient member; the digest already binds the boot.
@@ -1204,46 +901,6 @@ worker limit for VT6 auth; other modes are unchanged. No authentication, retry,
 provenance, recipient or capture guard is relaxed. The
 [login manual](https://raw.githubusercontent.com/util-linux/util-linux/v2.41/login-utils/login.1.adoc)
 documents this configuration; the measured revalidation cost motivates it.
-
-The [fourth attempt](../../docs/TestAutomation/Evidence/20-VT6-Login-Window-20260910.md)
-failed with `credential:login-window-failed` during preparation, after credential
-verification and before worker startup or any authentication input. Exact cause
-and partial-write state are unknown because the first wrapper discarded the
-specific error. Baseline restoration and final source/host preservation passed.
-After cleanup, the helper was corrected to retain a finite allowlist of its
-fixed predicate codes, otherwise only a fixed operation-boundary category;
-private exception text is never published. This diagnostic correction is locally
-tested at that point. Neither the new budgets nor live authentication/advisory continuity
-are qualified by that old run. Do not rerun the old timing experiment or relax a
-configuration/ownership guard without evidence. The
-[cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py) cover
-preservation/idempotence, unsafe/partial preparation, closure/interruption,
-worker gating, outer restoration and exact safe error categories. The
-[active handoff](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08)
-owns the next discriminating integrated attempt and milestone review.
-
-The [fifth and sixth attempts](../../docs/TestAutomation/Evidence/20-VT6-Offline-Guard-20260910.md)
-resolve preparation: the helper's redundant in-mount `Lease.guard` invoked
-locking `qemu-img info` against its own libguestfs writer. Reuse the established
-`mounted_guest` full checks before opening and after closing the appliance;
-do not call disk inventory while it holds the disk or weaken disk locking.
-Pre-write/readback metadata validation remains. The cleanup regressions now
-exercise occupied-disk refusal of incompatible guard placement, pre-write
-metadata replacement and post-close guard loss. Attempt 6 passes readback,
-observes effective timeout 600 and matching `login` identity across full baseline
-revalidation, and issues durable login/password-ready proofs. Full worker-budget
-adequacy, credential submission and command readiness remain unqualified.
-
-Attempt 6 then refuses at `vt6-password-screen`; its generic worker wrapper
-retains no exact predicate. Its pre-password PNG is byte-identical to the pinned
-reference. The [seventh attempt and local correction](../../docs/TestAutomation/Evidence/20-VT6-Capture-Identity-20260910.md)
-now qualify safe durable `vt6_refusal` checkpoints: `Authentication.refusal`
-retains a finite controller-owned code, and `Qualification.progress` validates
-`REFUSALS` before saving a rejected stage without an authorization reply.
-Unknown exception text, paths and metadata values are never exported.
-Attempt 7 reaches `capture-changed-refused` after the initial metadata and exact
-pixel checks. It passes outer cleanup and preservation, but still authorizes no
-password. The generic worker failure remains a failed infrastructure outcome.
 
 **Stable capture identity — corrected; live stage proof in attempts 9/10:**
 The installed `basetest::_result_add_screenshot` calls tinycv's
@@ -1271,73 +928,6 @@ shutdown; complete qualification still requires final source preservation.
 Sudo/notice pixels remain unqualified; no new prompt collection is needed for
 the corrected worker deadline.
 
-**Joined review and attempt 8 — historical source drift:**
-The [joined-flow evidence](../../docs/TestAutomation/Evidence/20-VT6-Joined-Flow-20260910.md)
-records the marker atime and noncontrolling-terminal ioctl reproductions and
-corrections above. Attempt 8 then refused `provenance:source-changed` during
-credential preparation, before worker startup or any VT6 input. New Parent UI
-changes appeared during the attempt while this session made no checkout writes.
-The exact first differing source path/field was not retained. Baseline restoration,
-lease completion and host preservation passed; source preservation failed.
-This attempt does not qualify either correction, the earlier screenshot fix,
-password submission or shell/command readiness. Current source-bound live work
-needs unchanged checkout inputs; do not weaken provenance or reinstate the old
-VM-authorization hold. The operator subsequently cleared that deferral; the
-active Task 20 handoff records current selection. That failed attempt remains failed.
-
-**Attempts 9/10 — command proof reached; normal shutdown hit the deadline:**
-The [command and shutdown evidence](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
-records fresh stable inputs, both failures and completed outer cleanup. Attempt
-9 passed password authorization and observed authenticated session/shell lineage,
-then refused command preparation. The standalone controller had restored its
-temporary E2E import path before `vt6_command_boundary` tried to import
-`vt6_command`. Pytest's permanent path/cache concealed this late dependency.
-`ReadOnlyObservations` now imports `CommandRoundTrip` with its other module
-dependencies. `test_command_boundary_survives_launcher_import_path_restoration`
-in [command regressions](../unit/test_e2e_vt6_command.py) reproduces the old
-`ModuleNotFoundError` and passes after correction without a transport/path fallback.
-
-Attempt 10 durably records all five stages, including command authorization and
-fresh boot/shell/attempt-bound completion. This is live evidence for the capture,
-shell and marker corrections, not a complete qualification: it then fails
-`e2e:deadline` after power-off, with no backend exit status or `status-off` event
-and `shutdown_verified=false`. Its ten baseline rechecks consume 802.363 seconds;
-the worker finishes its failed attempt after 1036.426 seconds against a 960-second
-loop budget. The [worker contract](#shared-guarded-worker) owns the subsequent
-deadline correction and shutdown proof. Both attempts pass baseline restoration, source/host
-preservation and owned cleanup; product/collection remain `not-run`. Do not
-repeat the unchanged budget, rediscover prompt gates, skip provenance checks or
-use this failed run as accepted authentication infrastructure. The active
-[handoff](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08)
-owns the remaining guarded qualification.
-
-**Attempt 11 — worker shutdown passes; final source preservation fails:**
-The [retained evidence](../../docs/TestAutomation/Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
-records all five VT6 receipts, backend exit 0, no fatal artifact, ordered off-state
-observations and verified worker shutdown with the corrected 1800-second budget.
-Worker duration is 926.879 seconds. The outer attempt still fails final
-`provenance:source-changed` after a concurrent source-file addition; see the
-[provenance contract](#controller-owned-provenance). Baseline restoration, host
-preservation and cleanup pass. This is passing worker evidence within a failed
-qualification, not accepted authentication infrastructure or E2E-002. Reuse the
-corrected flow with fresh inputs through final preservation before installation.
-
-The canonical worker regressions are
-[test_e2e_vt6_authentication.py](../unit/test_e2e_vt6_authentication.py), executing
-the actual Perl helper with public API/controller doubles. They verify sealing
-before receipt/secret access, all mandatory proofs, malformed/reordered receipts,
-changed boot, API/credential failures, partial-input refusal, late console/policy
-changes, and the shared inspector/authentication no-retry latch. See
-[worker-gate evidence](../../docs/TestAutomation/Evidence/20-VT6-Worker-Gate-20260910.md).
-These local regressions supplement the live stage evidence above. Identical stale pixels, the excluded
-cursor cell and invisible input still require independent input and capture
-provenance. Complete the integrated controller's final source-preservation qualification
-before using this worker for installation. Sudo challenge and final
-red-notice pixels remain uncollected. A prompt image alone
-cannot identify the password consumer. Only after that boundary is qualified
-should E2E-002 type the documented package/reboot commands on this surface and
-combine their real notice pixels with the installed-layout/startup observers.
-
 The existing credential-free collection route is
 `tools/run-tests integration check_graphical_vt6_prompt`. It reuses
 `onpc_vt6::inspect_prompt`, `Smoke.VT6_PROMPT_STAGES` and `VT6_GETTY`; it cannot
@@ -1348,39 +938,6 @@ maintenance or collector is needed. Regressions are
 [test_e2e_vt6_prompt.py](../unit/test_e2e_vt6_prompt.py) and the login/probe tests
 above. These checks establish local ordering/refusal behavior. The retained
 prompt pass qualifies live collection, not secret input.
-
-The [first worker prompt attempt and correction](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Readiness-20260909.md)
-records refusal at `vt6-ready`, specifically the getty canonical/echo predicate,
-before fixture text or terminal capture acknowledgement. The preceding active-VT,
-agetty identity and device checks passed. Individual live flag values remain
-unknown. `VT6_GETTY` now permits both supported agetty prompt modes: canonical
-input/kernel echo or raw input/userspace echo; mixed pairs refuse. This applies
-only before the fixed nonsecret fixture name. The later canonical/no-echo
-login password proof is unchanged. The correction passes local raw/canonical
-fixtures and refusal regressions. The
-[corrected guarded attempt](../../docs/TestAutomation/Evidence/20-VT6-Prompt-Qualification-20260910.md)
-passed both recipient-bound captures, with directly reviewed login/challenge
-pixels, normal worker shutdown, baseline restoration and source/host preservation.
-The original failed attempt remains failed. Individual getty flag values remain
-unknown; this pass establishes acceptance by the corrected predicate, not which
-allowed mode was observed. No credentials were provisioned/read/submitted and no
-needle asset was added. Reuse the retained pixels and collector for authenticated
-VT6 implementation; do not repeat credential-free discovery without new evidence.
-
-The complete readiness journey and two independent startup-fault cases remain
-unfinished; the [reboot observation boundary](#customer-reboot-observation-boundary)
-has live changed-boot and serial-return evidence. Its complete graphical-return
-acknowledgement and final preservation still require a passing complete run.
-See the [startup audit](../../docs/TestAutomation/Evidence/20-Startup-Audit-20260908.md).
-Ordinary E2E-001 smoke requires an unchanged boot. Installation qualification
-does not prove graphical PAM/Polkit approval or complete E2E-002 acceptance.
-Tasks 18A/18C and 26C can extend the relevant package/terminal assertions;
-other installed graphical tasks may use verified installation as prerequisite
-setup under [Task 20's scope](../../docs/TestAutomation/Task-20.md).
-Reopen a solved boundary only for an applicable change, contradictory evidence
-or uncovered case under the [verification reuse rules](../../docs/TestAutomation/Implementation-Workflow.md#decide-what-invalidates-earlier-verification).
-Fresh artifacts may still be required after documentation edits; retained
-qualification evidence never permits bypassing current provenance checks.
 
 ## Ordered controller records
 
@@ -1452,18 +1009,6 @@ An `acceptance.json` file alone never establishes success. A failed report write
 preserves earlier checkpoints and raises the original error; it cannot promise
 new durable evidence when storage itself is unavailable.
 
-Host regressions execute the real recorder, collector, evidence gate and
-`Lease.__exit__`, substituting only VM operations/provenance observations.
-They cover real private copies, action interruption, replacement identities,
-checkpoint errors, cleanup failure, late validation and release failure.
-The serial transport has separate live qualification, and E2E-034 now proves
-this adapter within the public controller. Public dispatch and preparation/
-terminal failure reporting are connected as described below.
-E2E-001 public stability qualification is accepted in
-[Task 19B evidence](../../docs/TestAutomation/Evidence/19B-Acceptance-20260908.md).
-Test-tool activation is `none` (next
-invocation); no product data or installation changes.
-
 ### Public execution and terminal reporting
 
 `runner.main` imports `execution` only after host-safe preflight selects entirely
@@ -1506,20 +1051,7 @@ Callbacks may use the existing bounded asset and credential provisioners with
 the context's verified inputs, guestfs, credentials, commands and lease, inside
 their declared setup steps. Credential provisioning and serial-getty setup
 must precede authenticated worker startup. The fixed worker distribution is
-still the qualified smoke; 19B owns stable screen matching and scenario work.
-
-`invocation-*.json` checkpoints retain preparation and post-restoration outcomes
-alongside the recorder's separate `event-*.json` stream. Host preservation and
-connection close run even after an earlier failure. Collection verifies the
-exact recorded artifact manifest, including failed-attempt copies. Errors use
-fixed codes, never exception text. The invocation collector retains expected
-case IDs, each completed attempt, and a terminal candidate. Per-case
-`acceptance.json` and terminal-candidate files are **not standalone passes**:
-the final JSON output and successful controller exit are required after all
-collector closes. A close or output/report failure cannot return success;
-storage failure may leave only earlier checkpoints. Host tests establish the
-failure behavior; the [19A acceptance audit](../../docs/TestAutomation/Evidence/19A-Controller-Acceptance-20260907.md)
-retains the separate live success and preparation-failure evidence.
+still the qualified smoke; the graphical runner owns screen matching and scenario execution.
 
 ## Shared guarded worker
 
@@ -1529,7 +1061,7 @@ through `tools/run-tests integration check_graphical_smoke`; the dispatcher runs
 isolated cleanup prerequisites before entering the existing VM lease. This is
 worker integration evidence, not an executed E2E-001 variant. The distribution's
 Perl sources still live in `tests/integration/graphical_smoke`; this extraction
-does not replace its feasibility geometry with Task 19B's stable matching.
+does not replace its feasibility geometry with the graphical runner's stable matching.
 
 The outer controller supplies its previously recorded source digest map. The
 worker freezes distribution bytes, rejects changed/extra/missing inputs and
@@ -1557,18 +1089,6 @@ Leaving VNC active after display revocation allows its background stall handler
 to attempt reconnection to a stopped guest. Graphics ownership must still refuse
 that request. Disabling the console ends observation; it does not change VM state.
 
-**VT6 finite budget and delayed callbacks:** [authenticated attempt 10](../../docs/TestAutomation/Evidence/20-VT6-Command-and-Shutdown-20260911.md)
-completed every authentication/command receipt and reached `poweroff`, then
-failed with the original `e2e:deadline` at finalization. Its worker report retains
-the generic `worker-execution-failed`, null backend status, no `status-off` event
-and false shutdown verification. The 960-second `run_distribution` budget was
-insufficient for that joined execution: ten mandatory baseline rechecks used
-802.363 seconds, and the worker report reached 1036.426 seconds. Synchronous
-`CallbackServer.serve_once` work can cross the outer loop deadline before another
-poll/off observation; preserve that fact when correcting the finite budget.
-Outer baseline restoration and source/host preservation passed; that failed
-attempt did not establish normal worker shutdown.
-
 `check_graphical_smoke.run_backend` now selects 1800 seconds for VT6 authentication:
 1200 for the ten full rechecks plus the existing 600-second smoke allowance,
 including synchronous `Lease.stop` and backend exit. Other selections retain
@@ -1587,16 +1107,6 @@ Reuse `test_timeout_refuses_and_cleans_up`, `Adapter`, `Lease.stop` and
 `test_vt6_worker_uses_existing_finite_extended_budget` in
 [smoke cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py) covers
 selection without changing other flows.
-
-[Attempt 11](../../docs/TestAutomation/Evidence/20-VT6-Shutdown-and-Source-Preservation-20260911.md)
-passes the worker with exit 0, no fatal artifact, all authentication receipts,
-off observations and `shutdown_verified=true`. Its 926.879-second worker duration
-also fits the old budget because baseline reads were faster; the local regression
-supplies the delayed-budget counterexample. The outer attempt fails final source
-preservation after a new source file appeared. Baseline restoration, host
-preservation and cleanup pass. Normal worker shutdown now has live evidence;
-complete integrated qualification still requires final source preservation.
-No new generic diagnostic layer, prompt collection or shutdown redesign is needed.
 
 Private `worker-before-cleanup.json` and `worker-result.json` reports contain
 only fixed diagnostic fields, distribution digest, timing, failure history and
@@ -1672,20 +1182,6 @@ Failures expose fixed codes, invalidate worker access, and leave restoration to
 the outer lease. Private password files and raw backend output are not exportable
 evidence; their values are registered before provisioning and capture.
 
-Run `tools/run-tests integration check_graphical_credentials` for its guarded
-qualification: provision and verify all four passwords, stage the worker secrets,
-select the fixture parent by its reviewed label, reject the parent password
-needle on both the account list and the other fixture parent's prompt, then
-authenticate the intended parent through the secret-safe password API. The
-controller requires an independently verified active local GDM session for the
-canonical fixture before accepting the `authenticated` stage. It refuses explicit
-post-password screenshot uploads. The outer owner restores the baseline.
-This route has no arguments and does not open customer scenario dispatch.
-The [authentication evidence](../../docs/TestAutomation/Evidence/19A-Authentication-20260907.md)
-records the complete positive/negative live pass. The earlier
-[credential/transfer evidence](../../docs/TestAutomation/Evidence/19A-Fixture-Credentials-20260907.md)
-remains available with its original input identities.
-
 Distribution staging now accepts strictly paired PNG/JSON needles under
 `needles/onpc-<surface>-<role>-{account,masked-password}.*`, with matching tags, bounded
 dimensions/rectangles and 99–100% match thresholds. Both files enter the same
@@ -1759,20 +1255,6 @@ documents `assert_screen`, `assert_and_click` and console selection; the install
 pinned API is also checked locally. Existing pixels, 100% thresholds, clock and
 animation exclusions remain unchanged.
 
-Each public match retains its screenshot and match details in the private
-`testresults/result-smoke.json`; missing screens fail at the declared deadline
-and leave private failure artifacts. Post-authentication explicit captures stay
-sealed, including after graphical return. Never export automatic captures or
-terminal logs as reviewed evidence without inspecting and redacting them.
-Run `tools/run-tests integration check_graphical_serial` for the smallest live
-helper qualification. Its live result is already retained; do not repeat it
-to resume implementation. E2E-001 now records the complete ordered evidence;
-Task 19B's three complete public qualifications are
-[accepted](../../docs/TestAutomation/Evidence/19B-Acceptance-20260908.md).
-The [helper qualification](../../docs/TestAutomation/Evidence/19B-GDM-Matching-20260908.md)
-retains the corrected live success, deliberate negative match, original failure
-and source identities; do not repeat it merely to resume implementation.
-
 Host regressions execute the real Perl helper with stubbed public testapi calls,
 and cover provisioning ownership, password verification, private storage,
 secret-scanned evidence, needle inputs and interrupted staging/worker cleanup.
@@ -1786,7 +1268,7 @@ Run `tools/run-tests integration check_graphical_serial` through the existing
 guarded dispatcher. This fixed qualification takes no arguments. It reuses
 fixture credentials and GDM checks, then performs serial login, a harmless
 `printf`, real logout and public graphical-console selection. It never opens
-pending customer scenario dispatch or claims full 19A acceptance.
+pending customer scenario dispatch or claims full controller acceptance.
 
 `graphical_serial.SerialConsole` connects the lease-validated running VM's
 existing `serial0` through libvirt's public `openConsole` and a nonblocking
@@ -1825,14 +1307,6 @@ All explicit post-authentication captures remain sealed and raw worker output
 stays private. These helpers activate on invocation (`none`), with no product,
 host setup or saved-data migration change.
 
-The [retained serial result](../../docs/TestAutomation/Evidence/19A-Serial-20260907.md)
-proves the command. The subsequent
-[shutdown qualification](../../docs/TestAutomation/Evidence/19A-Shutdown-20260907.md)
-also proves clean backend completion, truthful off-state checking and restored
-baseline with the stricter worker outcome gate. E2E-034 subsequently passed
-public scenario dispatch and evidence integration. These selected harness
-qualifications are not customer coverage.
-
 ### Startup enforcement observation
 
 `ReadOnlyObservations.read('startup-enforcement')` uses the fixed
@@ -1851,22 +1325,6 @@ Only the boot digest and six timestamps leave the guest; failure exports a fixed
 stage. Canonical serialization, timestamp types/order and the observer's existing
 failure latch reject malformed or premature evidence. Boot hashing includes the
 kernel file's newline, matching `BOOT_SHA256_PROBE`.
-
-For authenticated installation only, `Smoke` now requires this proof in the
-`gdm-return` acknowledgement, correlated with the observed customer reboot and
-fresh boot reads. The reviewed pixel match remains independently required.
-The original smoke and deliberate installation refusal do not use this probe.
-[Executable guest/decoder tests](../unit/test_e2e_startup_observations.py) and
-[acknowledgement regressions](../unit/test_graphical_smoke.py) cover success,
-denial, changed boot/invocations, stale canary and premature GDM. They use OS
-fixtures and real GLib variants; live qualification is pending. The proof
-describes the current activation pair, not a monitor of every earlier unit start
-or continuous enforcement. It cannot replace the independent E2E-028 fault
-case. The independent [broker observer](#broker-startup-observation) is locally
-tested. Complete installed-layout checks and customer graphical notice rendering remain unfinished under
-[Task 20](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08).
-Tasks 24A and 26B may reuse this probe after live qualification; it does not
-establish their session/recovery acceptance.
 
 ### Broker startup observation
 
@@ -1904,17 +1362,6 @@ identity observations remain separate from automatic feedback diagnostics.
 For authenticated installation, `gdm-return` now requires both startup probes
 to match the actual customer reboot and fresh boot reads; pixels remain separate.
 
-[Private-bus tests](../component/test_broker_startup.py) execute the real object
-registration boundary with successful startup, mandatory phase failure,
-tolerated cap failure, registration failure and logging failure. They replace
-the former source-order assertion. [Guest-program and decoder tests](../unit/test_e2e_broker_startup_observations.py)
-use strict timing replies and GLib variants; [controller tests](../unit/test_graphical_smoke.py)
-exercise stale boot and failed broker proof. These checks are local, with
-[retained slice evidence](../../docs/TestAutomation/Evidence/20-Broker-Startup-Witness-20260909.md);
-live qualification remains pending. Tasks 20, 24A and 26B share this contract
-after that qualification. The requirement remains planned until installed and
-fault evidence pass. The timing method is additive; no service dependency was added.
-
 ### Customer reboot observation boundary
 
 `ReadOnlyObservations.wait_boot_change(previous_boot_sha256)` reuses
@@ -1922,19 +1369,6 @@ fault evidence pass. The timing method is additive; no service dependency was ad
 event-driven readiness loop. It requires a boot digest already obtained by this
 observer. The fixed `BOOT_SHA256_PROBE`, also used by ordinary `read('boot')`,
 hashes the complete kernel boot-id file in the guest; raw identity stays there.
-
-`Transport._probe_ready` captures the SSH exit status before the post-probe
-ownership check. The real `Lease.guard` calls `Capture.revalidate`, whose
-`qemu-img` calls use the same `Commands` object and overwrite `last_returncode`.
-Reading that mutable field afterward misclassified a disconnect as successful
-empty output, and could accept valid-looking output from a failed guest command.
-The [transport regression](../unit/test_vm_transport.py) exercises guard-induced
-status replacement with both empty and valid-looking output. Ownership checks
-still run before accepting or retrying a probe; only SSH status 255 is transient.
-The corrected wait passed live in the
-[unblock intervention](../../docs/TestAutomation/Evidence/20-Reboot-Unblock-20260909.md):
-eleven SSH-255 probes preceded the changed boot and fresh confirmation. That
-attempt later failed graphical matching and final preservation; it remains failed.
 
 The missing case was SSH answering from the old boot after customer input.
 The new wait accepts neither initial SSH readiness nor an old boot as reboot
@@ -1947,53 +1381,6 @@ rejecting another boot change between those two observations. Failure latches
 the observer against both subsequent reads and a second wait. Only fixed failure
 codes and digest fields leave this capability.
 
-`Smoke` now checkpoints `reboot-ready` only after the installed digest, identity,
-reboot marker, unchanged boot and real serial session are verified.
-`onpc_serial::run_install` then submits exactly
-`/usr/bin/sudo -k -p $'\nONPC-REBOOT-PASSWORD: ' -- /usr/bin/systemctl --no-ask-password reboot`
-in that authenticated local shell,
-followed by a split `printf` marker of its exit status.
-The fixed explicit-newline sudo-rs challenge must match in full before the new
-`reboot-password` acknowledgement. `installation_observations.REBOOT_PASSWORD`
-reuses the installer's getty-derived recipient, exact argv, foreground terminal,
-process-continuity and disabled-character-echo proof. Its separate output marker
-cannot be replaced by an installation proof. The controller checks provenance
-and the unchanged boot around that observation before acknowledging one fresh
-password submission. A repeated password prompt is a terminal refusal. Fixed
-`reboot-failed-stage` evidence distinguishes prompt, recipient, password, command,
-boot and graphical-return failures without exposing private text.
-The command retains normal inhibitor checks, with no force, cached authentication,
-policy change or host lifecycle action. The helper privately waits up to
-15 seconds for the marker and records only `returned-zero`, `returned-nonzero`
-or `unobserved`. A nonzero return fails without a second command or boot wait;
-missing output stays unknown and still requires the changed-boot proof.
-On nonzero return, `_reboot_failure_diagnostic` inspects only that private
-matched tail and emits seven fixed Boolean token observations: authentication
-required, access denied, inhibitor, other session, combined session/inhibitor
-refusal, shell permission denied and missing executable. Unknown output yields
-all zeroes, not an invented reason. Diagnostic failure cannot change the terminal
-command failure. No extra serial read, guest action or raw terminal export is
-added. [Serial regressions](../unit/test_e2e_serial_helper.py) cover known/unknown
-messages, command echo, private canaries and diagnostic failure. The
-[instrumented access diagnostic](../../docs/TestAutomation/Evidence/20-Reboot-Access-Diagnostic-20260909.md)
-live-qualified fixed access-denied reporting: the command returned nonzero and
-that token was observed; the other six flags were zero. The exact denied method,
-Polkit action and policy cause remain unknown. The classifier cannot distinguish
-a wall-message warning from the reboot method's error. Its original short-form
-authentication match also missed a possible longer systemd challenge message.
-The final helper recognizes both forms (including `requires interactive
-authentication`); that extension is locally tested only. The retained zero
-authentication flag cannot exclude a challenge. No raw private tail was inspected
-to infer the missing detail, and no second command was submitted.
-[Upstream systemd's local precheck](https://github.com/systemd/systemd/blob/v259/src/systemctl/systemctl-logind.c)
-can reject inhibitors or other sessions before logind authorization; nonzero
-status alone therefore cannot identify Polkit as the cause.
-`reboot-observed` pumps submitted input and defers while bytes remain pending;
-it records `reboot-input-drained` before waiting. Only its durable acknowledgement
-allows the fresh serial login-prompt match and GDM return. The final greeter probe
-requires the same new boot; capture stays sealed. Any controller exception latches
-failure, including checkpoint failure, so it cannot authorize a retry.
-
 The same held domain ID, serial stream and display remain subject to existing
 lease guards; no reattachment, replacement adoption or in-journey restore was
 added. The installation worker budget is 960 seconds: the existing 600 seconds
@@ -2003,68 +1390,12 @@ the held display. The corrected GDM match and backend return acknowledgement,
 final preservation and product readiness still require a passing complete run.
 `SerialConsole.step()` preserves partial sends and
 backpressure; the existing controller returns to its event loop when input
-remains buffered. The prior handoff overlooked this gate: incomplete delivery
+remains buffered. Incomplete delivery
 was a hypothesis, not a demonstrated defect. The new checkpoint records that
 gate; it does not prove guest execution. Do not
 clear an ordinary observation failure or recreate its observer to reconnect.
 Ordinary E2E-001 keeps its unchanged-boot assertion; the installed-system
 `Transport.reboot()` route retains its existing behavior.
-
-Live changed-boot evidence is linked above; [transport regressions](../unit/test_vm_transport.py)
-cover transient versus terminal failures, old boot, deadline and ownership loss;
-[observation regressions](../unit/test_e2e_observation_transport.py) exercise the
-real readiness loop, kernel digest probe, stale/mismatched identity, second boot
-and failure latching. [Retained evidence](../../docs/TestAutomation/Evidence/20-Reboot-Observation-20260909.md)
-records the observation checks. Stage/input regressions are in
-[smoke controller tests](../unit/test_graphical_smoke.py) and
-[serial helper tests](../unit/test_e2e_serial_helper.py), including failed proofs,
-input-pump invocation, checkpoint refusal, missing new prompt and no retry. Wiring is
-locally tested; [the first wired live attempt](../../docs/TestAutomation/Evidence/20-Customer-Reboot-Wiring-20260909.md)
-refused provenance before installation input. No customer reboot occurred in
-that attempt. Its concurrent
-checkout changes and reporting limitation are under the
-[provenance contract](#controller-owned-provenance).
-The [next live attempt](../../docs/TestAutomation/Evidence/20-Customer-Reboot-Attempt-20260909.md)
-passed provenance and installation, submitted customer input and entered
-`reboot-observed`, but failed 330.085 seconds later without an acknowledgement.
-Source/host preservation and outer cleanup passed. This does not establish
-whether the command was denied or followed by lost SSH readiness. That attempt
-lacks fixed command results, drain checkpoints and old-boot versus SSH-255
-counts. Cause remains unknown. The existing transport now reports these probe
-counts and one allowlisted terminal outcome through `on_diagnostic`, including
-unknown error and interruption without raw exception/guest text. `Qualification`
-validates and checkpoints the report without completing a stage. Observation
-failure still latches. Local transport, observer, controller and Perl regressions
-cover these diagnostics, nonzero/unknown command results and checkpoint refusal;
-[next instrumented attempt](../../docs/TestAutomation/Evidence/20-Reboot-Command-Result-20260909.md)
-passed installation and matched a nonzero command-result marker, then failed
-without entering the boot wait. This live-qualifies the command-result refusal
-and proves execution in that attempt; its rejection reason remains unknown,
-and it does not retrospectively establish the previous timeout's cause.
-The drain/probe checkpoints were not reached in those nonzero-command attempts.
-The subsequent unblock intervention passed explicit administrator authentication,
-command return zero, complete input drain, changed-boot observation and a fresh
-serial login prompt. The installed serial parser is also exercised locally with
-every prompt split, and a missing-result timeout retains the new login prompt
-for the subsequent changed-boot acknowledgement. Both fixed sudo commands run
-through the same process/terminal refusal regressions; wrong-purpose markers,
-extra force options, cached authentication and private output refuse.
-The remaining GDM matcher correction passes locally against the retained failed
-image at 100%; its live acknowledgement, final preservation and readiness remain
-unqualified. The original attempt has `preservation.source=false`; the final
-source/asset/baseline refusal's precise cause was not retained. No checkout edits
-were made by the intervention worker during that run, so do not attribute it to
-that worker or infer a particular concurrent editor without evidence.
-No sudo-cache assumption, force or ignore-inhibitor option, policy change or
-host reboot is a supported shortcut.
-Do not infer authorization from session activity or clear the failure latch. The
-[active handoff](../../docs/TestAutomation/Task-20.md#task-20-continuation--2026-09-08)
-owns attempt counts and the next result. Include the corrected return in the
-minimum complete readiness journey instead of rerunning installation solely to
-refine a failure label. Preserve the original failed outcomes and rebuild inputs.
-Tasks 20, 18A/18C and 26C can reuse this boundary when implementing their distinct
-customer lifecycle actions. Test-tool activation is `none` (next invocation);
-no host setup, product integration or saved-data migration changed.
 
 ### Read-only observation capability
 
@@ -2098,14 +1429,6 @@ logic, routing, refusal, output and interruption behavior. This SSH observation
 interface corroborates the public serial-command smoke; it does not establish full
 scenario evidence/capture acceptance. The helpers are development-only,
 activate on next invocation (`none`), and change no product data or setup policy.
-
-`tests/unit/test_e2e_worker_cleanup_safety.py` covers ownership refusal, stale
-inputs, identity replacement, timeout, nonzero status, interruption at each
-execution boundary, report failure and combined cleanup/original failures. It
-is automatically included in the dispatcher's isolated safety prerequisites.
-The [worker integration evidence](../../docs/TestAutomation/Evidence/19A-Worker-Integration-20260907.md)
-records the real run. The launcher, actual scenario recording and public
-execution now have E2E-034 live acceptance.
 
 The smoke's `Qualification` controller captures `VerifiedInputs` after offline
 bootstrap, rechecks before worker startup, and supplies its `source_files` map.

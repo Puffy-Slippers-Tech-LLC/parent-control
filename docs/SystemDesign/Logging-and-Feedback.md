@@ -344,8 +344,6 @@ Regression coverage: [dated reports and archive privacy](../../tests/unit/test_d
 [Parent](../../tests/ui/test_parent_feedback.py)/[Child and Kiosk](../../tests/ui/test_error_feedback.py)
 feedback UI checks. These are local collector/component checks, not qualification
 of installed VM collection or remote delivery.
-See the [2026-09-12 implementation evidence](../TestAutomation/Evidence/Feedback-System-Info-20260912.md)
-for the checked source scope, test results, and isolated package build.
 
 The additive D-Bus contract and broker collector activate with `process-restart`.
 New app processes load the updated export client; kiosk/shared request payloads

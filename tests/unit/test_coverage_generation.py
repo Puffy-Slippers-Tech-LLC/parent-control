@@ -128,7 +128,7 @@ def test_numeric_execution_forwards_exact_case_to_existing_installed_dispatcher(
 def checkout(tmp_path, document):
     document['scenarios'] = document['scenarios'][:1]
     for relative in ('tests/e2e/inventory.py', 'tests/requirements.json',
-                     'docs/TestAutomation/E2E-Coverage.md',
+                     'docs/TestAutomation/E2E-Building-Blocks.md',
                      'tests/e2e/controller_qualification.py'):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)

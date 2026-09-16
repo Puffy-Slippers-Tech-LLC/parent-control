@@ -6,6 +6,11 @@
 
 Run commands from the repository root on Ubuntu 26.04 Desktop.
 
+Routine authorized work runs unattended after setup. The repository-wide
+[approval tools guide](docs/Approval-Tools.md) covers reads, edits, builds,
+tests, diagnostics, setup and publishing, including the rare cases that need
+human authorization.
+
 ## Set up a development machine
 
 ```sh
@@ -161,7 +166,7 @@ make publish-status
 
 Logs: `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log`.
 
-Use `tools/diagnose`; see [diagnostic commands](docs/TestAutomation/Approval-Tools.md). Preserve logs and failed artifacts. Redact personal information before sharing reports.
+Use `tools/diagnose`; see [diagnostic commands](docs/Approval-Tools.md#system-reads). Preserve logs and failed artifacts. Redact personal information before sharing reports.
 
 Check documentation edits with:
 

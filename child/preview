@@ -46,8 +46,8 @@ echo 'Starting child preview in a nested GNOME Shell. Edit child files to reload
 while true; do
     onpc_preview_generation=$((onpc_preview_generation + 1))
     onpc_preview_start "$onpc_preview_generation"
-    # Task 10A's interactive wrapper uses the process-liveness readiness
-    # contract. Task 10B replaces it with an observable Shell readiness probe.
+    # The interactive wrapper uses process-liveness readiness. Other consumers
+    # may supply a Shell readiness probe through the shared helper.
     ONPC_PREVIEW_READY_PROBE=onpc_preview_process_is_running \
         onpc_preview_wait_for_readiness "$onpc_preview_shell_pid" "$onpc_preview_generation"
     onpc_preview_record_mutter_devkit

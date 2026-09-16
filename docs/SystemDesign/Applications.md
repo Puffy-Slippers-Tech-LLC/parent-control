@@ -57,13 +57,8 @@ to apply. These runtime identities are derived; they are not stored in preferenc
 
 ## Live filter and execution rules
 
-**Testing scope — 2026-09-14:** the unresolved acknowledgement/probe work below
-is owned by the [separate product-design handoff](../TestAutomation/Policy-Acknowledgement.md).
-References to Task 15A in retained engineering notes describe that historical
-work, not a prerequisite for customer E2E. Customer tests observe app behavior
-under the [surface-only contract](../TestAutomation/E2E-Coverage.md); this changes
-no production guarantee or existing regression. Mechanical installation and
-removal qualification retains its necessary internal checks.
+Customer E2E follows the [surface-only contract](../TestAutomation/E2E-Building-Blocks.md).
+Internal policy qualification remains separate from customer acceptance.
 
 Broker-written AccountsService `AppFilter` values are blocklists. The complete form
 contains hard and soft targets. An approved request that allows soft blocked
@@ -89,7 +84,7 @@ the public rules-only reload interface: it compiles with `fagenrules` and
 notifies with `fapolicyd-cli --reload-rules`, avoiding the trust-database refresh
 triggered by `fagenrules --load` (SIGHUP). Command success alone does not
 acknowledge daemon activation; installed transition qualification is separate
-from the deferred [active-policy acknowledgement design](../TestAutomation/Policy-Acknowledgement.md).
+from the deferred active-policy acknowledgement design.
 The broker subscribes
 to AccountsService
 `PropertiesChanged` and rescans every 30 seconds so supported external changes
@@ -113,13 +108,13 @@ policy lock; rollback logs contain operation and exception type only.
 This record establishes command completion, **not active daemon policy**.
 Successful notification followed by asynchronous daemon rejection/restart or
 external rule changes is not detected by this cache. Generation-specific bounded
-acknowledgement, including rollback, remains [separate product-design work](../TestAutomation/Policy-Acknowledgement.md).
+acknowledgement, including rollback, remains separate product-design work.
 The boot canary proves initial enforcement only. The existing public
 [`--reload-rules` contract](https://github.com/linux-application-whitelisting/fapolicyd/blob/v1.4.5/doc/fapolicyd-cli.8)
 describes notification; disk rule listings and performance statistics cannot
 be assumed to acknowledge a requested generation.
 
-The [activation interface audit](../TestAutomation/Evidence/15A-Activation-Interface-Audit-20260911.md)
+The activation interface audit
 also rejects the journal's ruleset digest as an activation receipt: released
 v1.4.5 `open_file` emits it before `_load_rules` parses the file. Its public
 status report has no requested-generation receipt. These are audited upstream
@@ -135,7 +130,7 @@ active daemon rules. The next witness design must distinguish stale rules and
 absent/permissive enforcement, bound its operations, and acknowledge rollback
 and removal; a single allow/deny canary is insufficient.
 
-[Local recovery evidence](../TestAutomation/Evidence/15A-Notification-Recovery-20260911.md)
+Local recovery evidence
 retains failing-before/passing-after checks in
 `tests/unit/test_execution_policy.py`: separate disk/compiled/daemon doubles,
 failed forward and rollback notifications for reconciliation/removal, repeated
@@ -143,12 +138,12 @@ failure, eventual recovery, new-adapter recovery and successful-rollback reuse.
 This increment is locally tested, not installed-qualified. It uses the existing
 `process-restart` activation class and changes no persistent schema. Downstream
 policy-save, grant/session and removal transactions reuse this adapter; the
-[rules-only live evidence](../TestAutomation/Evidence/15A-Rules-Only-Reload-20260908.md)
+rules-only live evidence
 retains its original scope and does not qualify this new recovery behavior.
 
 ### Generation witness design gate
 
-The [kernel-witness audit](../TestAutomation/Evidence/15A-Kernel-Witness-Audit-20260911.md)
+The kernel-witness audit
 adds two concrete constraints: upstream v1.4.5 reload ignores the parser's
 failure return, and queue overflow can produce a denial without evaluating
 any rule. A marker before product rules, or a nonce denial with an adjacent
@@ -228,8 +223,7 @@ administrator rules parsed completely. Installed logging, a rule-attributed
 deny control with native outcome, writer exclusion/detection, full-input binding,
 rollback/removal and broker integration remain open. Reuse the native collector
 for the first guarded fixture; do not treat these synthetic regressions as live
-qualification. The [active handoff](../TestAutomation/Task-15.md#task-15a-continuation--2026-09-08)
-owns the next bounded observation and retained attempts.
+qualification.
 
 ### Bounded probe transport and open limits
 
@@ -261,7 +255,7 @@ confirmed collection and completed owned-client closure. `client_closed`
 records that separate lifecycle result. Exit 203 is an execution failure,
 never a deny receipt.
 
-The [transport evidence](../TestAutomation/Evidence/15A-Bounded-Probe-Transport-20260911.md)
+The transport evidence
 links the public systemd interfaces/source and
 `tests/unit/test_execution_probe_cleanup_safety.py` regression matrix. This is
 **local double coverage, not live qualification or a generation receipt**.
@@ -283,12 +277,12 @@ been copied; absence or an observation deadline never authorizes dropping the
 pin. `reference_released` describes that release check. After dispatch,
 only terminal evidence followed by absence and completed client closure clears
 `pending`. Before dispatch, client closure suffices. The
-[recovery evidence](../TestAutomation/Evidence/15A-Probe-Recovery-20260911.md)
+recovery evidence
 records the corrected public error name, delayed dispatch, interrupted release,
 concurrency and non-promotion regressions in the same cleanup-safety module.
 This remains **local double coverage only**.
 
-The [evidence-retention correction](../TestAutomation/Evidence/15A-Probe-Evidence-Retention-20260911.md)
+The evidence-retention correction
 supersedes the earlier recovery qualification for late exit, failed property
 reads and creation between the final absence read and release. `_release`
 previously dropped the reference even without terminal evidence, allowing GC
@@ -318,14 +312,14 @@ closed flag alone cannot retire a pending callback. A failed or interrupted open
 cannot expose a usable connection. Close failure retains the same owned client.
 No broker default-context callbacks are dispatched by these waits.
 
-The [client-lifecycle evidence](../TestAutomation/Evidence/15A-Probe-Client-Lifecycle-20260911.md)
+The client-lifecycle evidence
 records local late-completion/interruption/refusal regressions in
 `tests/unit/test_probe_bus_client_cleanup_safety.py` and real private-bus
 creation, separate sender identity, observer survival, connection refusal and
 stalled-authentication cancellation/EOF in
 `tests/component/test_probe_bus_client.py`. This qualifies the Gio lifecycle on
 the development host, **not systemd dispatch/reference or installed execution**.
-The [integration evidence](../TestAutomation/Evidence/15A-Probe-Client-Integration-20260911.md)
+The integration evidence
 records the lifecycle's integration into `ExecutionProbe`: retain the adapter
 through pre-dispatch open failure, interrupted/failed closure and ambiguous
 dispatch. Unit collection is retained separately so close-only recovery does
@@ -363,7 +357,7 @@ attempt outcome. A collected job is copied before reference release. Recovery
 preserves the original failure when a reply arrives late; it never replays
 creation or promotes that attempt to success.
 
-The [retained-reply evidence](../TestAutomation/Evidence/15A-Probe-Retained-Reply-20260911.md)
+The retained-reply evidence
 qualifies late success/error replies and sender survival on a real private bus,
 plus interrupted dispatch/polling, concurrency refusal and default-context
 isolation with local doubles. Regressions extend the existing
@@ -419,12 +413,11 @@ confirmed sender loss, and both collected their generation with effective
 4,000,000 µs job timeout. Outer collection, cleanup and full restored-baseline
 byte verification passed. This qualifies the terminal-evidence loss path;
 pre-terminal loss refusal remains local evidence, not guaranteed finite
-settlement. The [active handoff](../TestAutomation/Task-15.md#task-15a-continuation--2026-09-08)
-retains input identities and the exact selection. This changes
+settlement. This changes
 the existing broker module (`process-restart` activation), adds no system
 integration or saved-data format, and leaves policy callers unchanged.
 
-The [reply-integration evidence](../TestAutomation/Evidence/15A-Probe-Reply-Integration-20260911.md)
+The reply-integration evidence
 qualifies these run/recovery gates locally: pending success/collision replies,
 interrupted polling, late job copying, outcome non-promotion and separate
 terminal/reference/client settlement. A real private-bus collision also proves
@@ -433,7 +426,7 @@ sender while leaving the observer alive. The fake manager launches no unit;
 installed dispatch/reference settlement is qualified separately by the native
 lifecycle below, without extending that pass to every retained-reply fault.
 Client closure after a collected reply still requires the unit-settlement gate.
-The [job-identity audit and refusal regressions](../TestAutomation/Evidence/15A-Probe-Job-Identity-20260911.md)
+The job-identity audit and refusal regressions
 supersede earlier positive snapshot qualification. Systemd can merge a restart
 and rerun the existing job ID; even a running/start job bracket cannot certify
 the first invocation. A restart can overwrite invocation/status before the
@@ -459,7 +452,7 @@ The adapter does not yet provide fresh executable paths, decision records,
 compiled-input/daemon binding or forward/rollback/removal acknowledgement.
 External privileged mutation before the first invocation observation is not
 qualified as original-job evidence; downstream receipts must resolve that
-binding too. All 15A/15B, grant/session and removal consumers retain these limits.
+binding too. All enforcement, grant/session and removal consumers retain these limits.
 
 ### Pre-exec admission for a causal witness
 
@@ -469,7 +462,7 @@ owned cleanup. Broker mount access, stop/restart storage retention and native
 execution under the packaged service sandbox are qualified separately below;
 broker ownership recovery and policy receipts
 remain open.** The
-[design audit](../TestAutomation/Evidence/15A-Probe-Admission-Design-20260911.md)
+design audit
 resolves where to obtain the missing causal binding: authorize the tested exec
 only after binding a waiting helper's invocation and private connection. Do not
 try to reconstruct the first service invocation from terminal properties.
@@ -482,14 +475,14 @@ The native implementation is `tools/execution_probe_gate.c`,
 The production install map now compiles and installs both fixed executables,
 along with `execution_probe.py`, `probe_channel.py` and `probe_generation.py`.
 They are not invoked by policy activation yet. The
-[native protocol evidence](../TestAutomation/Evidence/15A-Probe-Native-Admission-20260911.md)
+native protocol evidence
 qualifies real local exec, failure/EOF, timeout, framing and ancillary refusal
 through `tests/component/test_execution_probe_native.py`; it does not qualify
 manager/peer binding, broker single-use state or installed policy decisions.
 Reuse these payloads and `tests.support.terminal.capture` for integration.
 
 `probe_channel.ProbeChannel` now owns the local socket portion; its
-[channel evidence](../TestAutomation/Evidence/15A-Probe-Broker-Channel-20260911.md)
+channel evidence
 qualifies one-candidate selection, kernel credential capture, supplied binding
 comparison, consumed-before-send admission, interrupted-send refusal, retained
 bounded results, ancillary rejection and socket cleanup. Regressions live in
@@ -534,9 +527,7 @@ pending ownership retained. These use a synthetic manager, not real systemd.
 The helper is called by `run_native()` before one admission. The ordinary `run()`
 canary stays unchanged. The installed lifecycle below qualifies real systemd
 binding in its selected scenario; matching native observations still retain the
-`identity-unproven` refusal. See the
-[active handoff](../TestAutomation/Task-15.md#task-15a-continuation--2026-09-08)
-for verification scope and the next integration boundary.
+`identity-unproven` refusal.
 
 The generation owner supplies a private 0700 directory and retains its witness.
 The adapter pins that directory without following a final symlink, creates
@@ -587,8 +578,6 @@ synthetic; it does not qualify systemd, policy attribution or lifecycle recovery
 Payload staging and the runtime provisioning declaration are implemented below;
 installed private-root provisioning and broker mount access/storage retention
 are qualified below; broker ownership recovery remains unqualified.
-The [active handoff](../TestAutomation/Task-15.md#task-15a-continuation--2026-09-08)
-records current verification and source identities.
 
 The broker unit declares `RuntimeDirectory=oh-no-parent-control/probes`, mode
 0700 and `RuntimeDirectoryPreserve=yes`. Systemd creates the directory before
@@ -642,8 +631,7 @@ The first storage qualification, 2026-09-14, passed in
 `../guest-results/enforcement.xml`: all four package/reboot prerequisites and
 the selected storage case passed, with no failures/skips; collection, cleanup
 and full restored backing-byte verification passed. The
-[active handoff](../TestAutomation/Task-15.md#task-15a-continuation--2026-09-08)
-retains source/artifact identities and commands. This qualifies mount access and
+ This qualifies mount access and
 unchanged-identity runtime-directory preservation, not all broker capabilities/
 seccomp restrictions, pre-terminal loss settlement, restart adoption, in-flight
 dispatch across broker death or policy attribution. The original owner survives
@@ -682,8 +670,7 @@ Sandbox attempt 1 passed on 2026-09-14 at
 no failures/skips. Every native stage settled with the effective 4,000,000 µs
 job timeout; both positive stages remained `identity-unproven`. Drop-in
 restoration, outer collection/cleanup and full restored-baseline byte verification
-passed. The [active handoff](../TestAutomation/Task-15.md#task-15a-continuation--2026-09-08)
-retains exact input identities and commands. This qualifies the adapter in a
+passed. This qualifies the adapter in a
 separate service start-post process, not broker event-loop integration, restart
 adoption/in-flight recovery, earlier sender-loss settlement or rule attribution.
 The new fixture integration has activation `none` and no saved-data change.
@@ -811,8 +798,6 @@ restart storage preservation. The [sender-loss case](#settlement-after-permanent
 now qualifies settlement after terminal evidence; earlier loss, broker ownership
 recovery and policy attribution remain unqualified; do not extend either
 selected result to those boundaries.
-The [active handoff](../TestAutomation/Task-15.md#task-15a-continuation--2026-09-08)
-owns artifact identities, attempt count and next observations.
 
 The wire frame is exactly 40 bytes: `ONP1`, one stage byte (`H` hello, `A`
 admission, `X` executed, `F` exec failed), three zero reserved bytes and the

@@ -6,6 +6,7 @@ import json
 import pytest
 
 from tests.support.paths import ROOT
+from tests.support.child_shell import run_child_shell
 
 pytestmark = pytest.mark.ui
 
@@ -14,9 +15,8 @@ pytestmark = pytest.mark.ui
 def test_search_adapter_in_isolated_shell(render_artifacts):
     import os
     import sys
-    from tests.ui.test_child_shell_lifecycle import _run_child_shell
     directory = render_artifacts('onpc-e2e-search-', parent='/tmp', shader_cache=True)
-    result = _run_child_shell({**os.environ,
+    result = run_child_shell({**os.environ,
         'ONPC_CHILD_SHELL_ARTIFACT_DIR': str(directory),
         'ONPC_CHILD_SHELL_PYTHON': sys.executable,
         'ONPC_CHILD_SHELL_SCENARIO': 'e2e-search',

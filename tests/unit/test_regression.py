@@ -417,6 +417,36 @@ def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_
         assert 'Host branch 4 — running' in output
 
 
+@pytest.mark.parametrize('continue_on_errors', [False, True])
+@pytest.mark.parametrize('events', [False, True])
+def test_first_failure_cancels_and_finalizes_with_prompt(
+        tmp_path, monkeypatch, capsys, continue_on_errors, events):
+    runs = []
+
+    def execute(run):
+        runs.append(run)
+        item = run.categories[0]
+        execution = regression.Execution(run, item, events=events)
+        if events:
+            execution.output((regression.PREFIX + json.dumps(dict(
+                kind='collection', total=1)) + '\n').encode())
+            execution.output((regression.PREFIX + json.dumps(dict(
+                kind='failure', nodeid='case', when='call')) + '\n').encode())
+            assert run.control.stopped.is_set() is not continue_on_errors
+            assert json.loads((run.report.directory / 'progress.json').read_text())[0]['failures'] == 1
+        execution.output(b'normal owned cleanup finished\n')
+        execution.finish(1)
+        assert run.control.stopped.is_set() is not continue_on_errors
+
+    monkeypatch.setattr(regression.Run, 'run', execute)
+    assert regression.main(tmp_path, continue_on_errors=continue_on_errors) == (1 if continue_on_errors else 130)
+    run = runs[0]
+    assert run.categories[0].state == 'Failed'
+    assert run.report.stream.closed
+    assert 'normal owned cleanup finished' in (run.report.directory / 'report.md').read_text()
+    assert 'Copy this prompt into a new Codex session:' in capsys.readouterr().out
+
+
 def test_partial_failure_is_durable_before_cancellation(report, tmp_path):
     item = regression.Category('Fixture', 1)
     control = Control()
@@ -715,7 +745,7 @@ def test_independent_builds_finish_in_reverse_order_with_host_and_publishing_act
                                        '/tmp/onpc-test-artifacts-build-b']
             return int(key == failure)
 
-    run = regression.Run(tmp_path, report, Commands(), host_builds=True)
+    run = regression.Run(tmp_path, report, Commands(), host_builds=True, continue_on_errors=True)
     run.dashboard.stream = io.StringIO()
     run.admission = SimpleNamespace(allows=lambda *_: True)
     publishing = regression.Category('Publishing', 1)
@@ -897,6 +927,8 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         def run(self, command, *, output, **kwargs):
             self.calls.append(command)
             category = 'ui' if command[0].endswith('run-ui-tests') else command[1]
+            if category == 'ui':
+                assert command[command.index('-m') + 1] == 'not live_e2e'
             ui_ids = ['tests/ui/test_preview_smoke.py::test_one',
                       'tests/ui/test_request_form_component.py::test_two']
             safety_ids = ['tests/unit/test_fixture_cleanup_safety.py::test_one',
@@ -940,7 +972,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
     control = Commands()
     run = regression.Run(tmp_path, report, control, verify_backing_bytes=verify_backing_bytes,
                          host_only=host_only, host_builds=host_builds,
-                         serial_builds=scope == 'host-builds-serial')
+                         serial_builds=scope == 'host-builds-serial', continue_on_errors=True)
     if fail_safety:
         with pytest.raises(ValueError, match='cleanup safety prerequisites failed'):
             run.run()

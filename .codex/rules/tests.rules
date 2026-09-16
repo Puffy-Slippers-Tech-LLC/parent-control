@@ -42,7 +42,7 @@ prefix_rule(
 )
 
 # Operator authorization: direct execution of every executable project tool
-# is preapproved, including all slice-launcher actions and argument orders.
+# is preapproved, with validated arguments.
 # Setup expands this placeholder to exact tools/, ./tools/ and checkout-absolute
 # paths. Prefix rules have no filename glob; new executables need a rules refresh.
 # This trusts the tools and their future edits. It does not validate arguments
@@ -52,9 +52,6 @@ prefix_rule(
         "tools/cleanup-screenshots",
         "./tools/cleanup-screenshots",
         "/Data/Code/PST/parent-control/tools/cleanup-screenshots",
-        "tools/codex_slices.py",
-        "./tools/codex_slices.py",
-        "/Data/Code/PST/parent-control/tools/codex_slices.py",
         "tools/diagnose",
         "./tools/diagnose",
         "/Data/Code/PST/parent-control/tools/diagnose",
@@ -93,13 +90,8 @@ prefix_rule(
         "/Data/Code/PST/parent-control/tools/watch-e2e"
     ]],
     decision = "allow",
-    justification = "The user preapproves direct execution of this project's tools, including unattended slice controls, without repeated command approval.",
+    justification = "The user preapproves direct execution of this project's tools, without repeated command approval.",
     match = [
-        "tools/codex_slices.py run --max-slices 1",
-        "./tools/codex_slices.py --max-slices=1 start",
-        "tools/codex_slices.py restart",
-        "tools/codex_slices.py kill",
-        "tools/codex_slices.py status",
         "tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' -q",
         "tools/cleanup-screenshots /tmp/onpc-selected.png",
         "tools/run-tests component 'tests/component/test_*.py' -q",
@@ -112,8 +104,8 @@ prefix_rule(
         "tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500",
         "tools/test-vm send-key 28",
         "tools/read-only search --fixed-strings test_runner tests tools",
-        "tools/read-only links docs/TestAutomation/Continuation.md tests/e2e/README.md",
-        "tools/read-only words --after '### Active handoff' docs/TestAutomation/Task-19.md",
+        "tools/read-only links docs/TestAutomation/E2E-Building-Blocks.md tests/e2e/README.md",
+        "tools/read-only words --after '## Ordered building-block catalogue' docs/TestAutomation/E2E-Building-Blocks.md",
         "tools/read-only fetch 'https://example.com/path?key=value'",
     ],
     not_match = ["tools/random-script", "pkexec tools/test-vm start", "bash -lc 'tools/run-tests all'"],

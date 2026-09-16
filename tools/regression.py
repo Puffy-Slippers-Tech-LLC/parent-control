@@ -19,7 +19,7 @@ import test_launcher as host
 from regression_schedule import Job, run_jobs
 from regression_inputs import identity as source_identity
 from regression_resources import Admission, HOST_WORKERS, PRESSURE_RECOVERY_SECONDS, vm_demand
-from regression_ui import buckets as ui_buckets
+from regression_ui import HOST_ARGS as UI_HOST_ARGS, buckets as ui_buckets
 from regression_cleanup import buckets as cleanup_buckets
 
 
@@ -440,6 +440,8 @@ class Execution:
             self.run.report.snapshot(self.run.categories, force=event['kind'] == 'failure')
             if event['kind'] == 'failure':
                 self.run.report.checkpoint(force=True)
+                if not self.run.continue_on_errors:
+                    self.run.control.stop()
             self.run.dashboard.draw()
             if self.fixture_failed:
                 # Refuse new branches as soon as the durable event arrives.
@@ -480,7 +482,7 @@ class Execution:
                                  if self.units is not None else item.total or 1)
                     if status:
                         item.failures += item.done - before
-                item.state = ('Failed' if self.fixture_failed else
+                item.state = ('Failed' if self.fixture_failed or item.failures else
                               'Interrupted' if run.control.stopped.is_set() else
                               'Failed' if status or item.failures else
                               'Passed' if item.done == item.total else
@@ -495,6 +497,9 @@ class Execution:
                 from test_retention import preserve_for_recovery
                 preserve_for_recovery()
                 raise ValueError('test infrastructure failed; further host work refused')
+            if item.state == 'Failed' and not run.continue_on_errors:
+                run.report.checkpoint(force=True)
+                run.control.stop()
             return status, '\n'.join(self.captured)
         finally:
             self.close()
@@ -510,8 +515,9 @@ class Execution:
 
 class Run:
     def __init__(self, root, report, control, *, verify_backing_bytes=True, host_only=False,
-                 host_builds=False, serial_builds=False):
+                 host_builds=False, serial_builds=False, continue_on_errors=False):
         self.root, self.report, self.control = root, report, control
+        self.continue_on_errors = continue_on_errors
         self.verify_backing_bytes = verify_backing_bytes
         self.host_only = host_only
         self.host_builds, self.serial_builds = host_builds, serial_builds
@@ -699,7 +705,7 @@ class Run:
         discovery = self.categories[0]
         suites = [('Unit and contracts', 'unit', []),
                   ('Private D-Bus components', 'component', []),
-                  ('UI inventory', 'ui', ['--timeout', '1800s']),
+                  ('UI inventory', 'ui', list(UI_HOST_ARGS)),
                   ('Fixture runtime', 'fixture-runtime', [])]
         suite_items = [Category(name) for name, _, _ in suites]
         fixed = [('Source and traceability', 'source'), ('Static checks', 'static'),
@@ -755,7 +761,7 @@ class Run:
         jobs = [Job(kind, item, self.command(kind, *args, '-q'), events=True,
                     estimate=estimates[kind]) for (_, kind, args), item in zip(suites, suite_items)
                 if kind != 'ui']
-        jobs.extend(Job(bucket.kind, item, self.command('ui', '--timeout', '1800s',
+        jobs.extend(Job(bucket.kind, item, self.command('ui', *UI_HOST_ARGS,
                         *bucket.paths, '-q', '--durations=0'), events=True, estimate=bucket.estimate)
                     for bucket, item in zip(buckets, bucket_items))
         jobs.extend(Job(kind, item, self.command(kind), estimate=1)
@@ -895,7 +901,8 @@ def recover_initial_checks(root, state):
     return True
 
 
-def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False):
+def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
+         continue_on_errors=False):
     import test_retention
     root = root or Path(__file__).resolve().parents[1]
     # Keep repeated interrupts cooperative through storage rotation/finalization,
@@ -907,11 +914,12 @@ def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=F
                 return 130
             status = retained_main(root, verify_backing_bytes=verify_backing_bytes,
                                    host_only=host_only, host_builds=host_builds,
-                                   serial_builds=serial_builds)
+                                   serial_builds=serial_builds, continue_on_errors=continue_on_errors)
         return 130 if storage_control.stopped.is_set() else status
 
 
-def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False):
+def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
+                  continue_on_errors=False):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -921,7 +929,8 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
         try:
             report = Report(root)
             run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes, host_only=host_only,
-                      host_builds=host_builds, serial_builds=serial_builds)
+                      host_builds=host_builds, serial_builds=serial_builds,
+                      continue_on_errors=continue_on_errors)
             run.run()
             status = 0 if all(item.state == 'Passed' for item in run.categories) else 1
         except (Exception, KeyboardInterrupt) as error:
@@ -979,5 +988,7 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
               f'{(report.directory / "report.md").resolve()}. '
               'Read the adjacent progress.json for category results and follow '
               'any detailed evidence paths in the report. Fix the root causes, '
-              'rerun the relevant checks, and report anything still unresolved.')
+              'rerun the relevant checks, and report anything still unresolved. '
+              'If the run was manually interrupted, ignore the interruption, and just fix the recorded failures. '
+              'Do necessary clean-up of the garbage of the interrupted / failed run, so next run would not be blocked.')
     return status

@@ -1,4 +1,4 @@
-"""Reconnectable aggregate owner; terminals only observe its durable output."""
+"""Reconnectable test owner; terminals only observe its durable output."""
 
 from contextlib import contextmanager
 import fcntl
@@ -64,7 +64,7 @@ def prepare(root):
     return directory
 
 
-def select(root, category):
+def select(root, argv):
     directory = prepare(root)
     with lock(directory / 'gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
@@ -78,10 +78,11 @@ def select(root, category):
             with lock(run / 'owner') as owner:
                 active = busy(owner)
             if active or not (run / 'delivered').exists():
-                if record['category'] != category:
-                    raise ValueError(f'existing make test-{record["category"]} run; '
-                                     'rerun that target to reconnect and receive its result')
                 return run, False
+        # Reconnection wins over all new arguments, including help and invalid
+        # selections. Validate only when starting a new run, under the same gate.
+        from test_commands import validate
+        validate(root, argv)
         # The regular activity lock also excludes older runners and other tests.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
         with test_activity.activity(root):
@@ -89,12 +90,12 @@ def select(root, category):
             run.mkdir(mode=0o700)
             with lock(run / 'owner') as owner, (run / 'output').open('xb') as output:
                 fcntl.flock(owner, fcntl.LOCK_EX)
-                command = ['/usr/bin/python3', '-B', str(Path(__file__).resolve()),
-                           str(root), category, str(run), str(owner)]
+                command = ['/usr/bin/python3', '-u', '-B', str(Path(__file__).resolve()),
+                           str(root), str(run), str(owner), *argv]
                 # Publish before spawning: terminal loss immediately after
                 # Popen must not leave a live worker without reconnect metadata.
                 temporary = directory / 'current.tmp'
-                temporary.write_text(json.dumps({'run': run.name, 'category': category}))
+                temporary.write_text(json.dumps({'run': run.name, 'argv': argv}))
                 temporary.replace(current)
                 subprocess.Popen(command, cwd=root, env=test_launcher.environment(root),
                                  stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
@@ -123,7 +124,7 @@ def follow(run, stream=None):
                         result = run / 'result'
                         status = int(result.read_text()) if result.exists() else 1
                         if not result.exists():
-                            stream.write('\nAggregate owner stopped without a final result; run is incomplete.\n')
+                            stream.write('\nTest owner stopped without a final result; run is incomplete.\n')
                         stream.flush()
                         (run / 'delivered').touch(mode=0o600)
                         return status
@@ -138,10 +139,15 @@ def follow(run, stream=None):
         dashboard.restore_terminal()
 
 
-def main(root, category):
-    run, started = select(root, category)
-    print(f'{"Started" if started else "Reconnected to"} make test-{category}: {run.name}', flush=True)
-    print('Closing this terminal detaches; rerun the same target to reconnect.', flush=True)
+def main(root, argv):
+    run, started = select(root, argv)
+    if not started:
+        print('WARNING: A previous run is in the background or has an unread result; '
+              'ignoring all new arguments and attaching to it.', file=sys.stderr, flush=True)
+    print(f'{"Started" if started else "Attached to"} run-tests session: {run.name}',
+          file=sys.stderr, flush=True)
+    print('Closing this terminal detaches; invoke tools/run-tests again to attach.',
+          file=sys.stderr, flush=True)
     requested = False
 
     def cancel(*_):
@@ -157,7 +163,7 @@ def main(root, category):
         signal.signal(signal.SIGINT, previous)
 
 
-def worker(root, category, run, owner):
+def worker(root, argv, run, owner):
     # setsid in Popen disconnects the controlling terminal before this exec.
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     import regression_process
@@ -178,7 +184,7 @@ def worker(root, category, run, owner):
     try:
         from test_commands import _main
         with test_activity.activity(root):
-            status = _main([category])
+            status = _main(argv, detached=True)
     finally:
         finished.set()
         watcher.join()
@@ -192,4 +198,4 @@ def worker(root, category, run, owner):
 
 
 if __name__ == '__main__':
-    sys.exit(worker(Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]), int(sys.argv[4])))
+    sys.exit(worker(Path(sys.argv[1]), sys.argv[4:], Path(sys.argv[2]), int(sys.argv[3])))

@@ -9,6 +9,7 @@ markers = [
     "component: host-safe component tests",
     "fixture: real fixture runtime checks requiring unprivileged kernel namespaces",
     "ui: semantic graphical component tests",
+    "live_e2e: spectator acceptance requiring a separately running E2E attempt",
     "system: installed-system tests in a disposable guest",
     "e2e: graphical end-to-end tests in a disposable guest",
     "slow: tests that exceed the normal local feedback budget",

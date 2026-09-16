@@ -41,6 +41,7 @@ def active_attempt():
         pytest.skip('Select during an active E2E attempt for live acceptance')
 
 
+@pytest.mark.live_e2e
 def test_live_window_can_close_during_automation(launch_ui, tmp_path):
     active_attempt()
     result, _ = run_probe(launch_ui, tmp_path, live=True, cycle=True)
@@ -48,6 +49,7 @@ def test_live_window_can_close_during_automation(launch_ui, tmp_path):
     active_attempt()
 
 
+@pytest.mark.live_e2e
 def test_live_attempt_keeps_window_open_after_shutdown(launch_ui, tmp_path):
     active_attempt()
     result, _ = run_probe(launch_ui, tmp_path, live=True)

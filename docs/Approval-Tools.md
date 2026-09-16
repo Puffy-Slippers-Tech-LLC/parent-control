@@ -216,8 +216,8 @@ argument; the launcher expands file patterns without a shell.
 | Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
 | Established regressions | `make test-all` / `tools/run-tests all` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors |
-| Host regression branches | `tools/run-tests host` | Same discovery, cleanup gate and host queue; stops after joining branches, without VM discovery/authorization, publishing or package builds; no arguments |
-| Host and build qualification | `tools/run-tests host-builds [--serial-builds]` | Same host tests plus publishing, two fresh builds and comparison; no VM discovery/authorization or execution; the sole optional flag retains builds after the host join for a serial comparison |
+| Host regression branches | `tools/run-tests host [--continue-on-errors]` | Same discovery, cleanup gate and host queue; stops after joining branches, without VM discovery/authorization, publishing or package builds |
+| Host and build qualification | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same host tests plus publishing, two fresh builds and comparison; no VM discovery/authorization or execution; `--serial-builds` retains builds after the host join for a serial comparison |
 | Local publishing checks | `tools/run-tests publish` | Shared source/sbuild/Lintian module included in `test-all` and `test-all-verify`; no selectors or publication |
 | Future fast suite | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
 
@@ -240,7 +240,25 @@ prompt. After changing rules, run `./setup.sh --codex-rules-only` and restart
 Codex with this checkout trusted. Setup maintains these target grants for clean
 machines without changing personal user rules.
 
-System and E2E listings run as the ordinary user without safety tests, privilege
+The `all`, `all-verify`, `host` and `host-builds` aggregates stop on the first
+reported test failure by default, using the Ctrl+C cooperative shutdown path:
+owned children finish cleanup, evidence is finalized, and the failure investigation
+prompt is printed. Add the valueless `--continue-on-errors` flag to continue
+independent tests after failures. Cleanup, infrastructure and prerequisite safety
+refusals still apply. Reattachment preserves the original flags. `host-builds` also
+accepts `--serial-builds` alongside this flag.
+
+Every `tools/run-tests` category runs in a terminal-independent session. Closing
+the terminal detaches; Ctrl+C requests owned cancellation and cleanup. While a
+session is active or its final result remains unread, any new invocation warns
+and attaches to it before interpreting arguments. All new arguments, including
+help, listing, different categories and invalid selections, are ignored. After
+the result is delivered, the next invocation validates and starts fresh work.
+Internal workers inherit the verified checkout activity lock and execute their
+assigned work without reattaching to their own session. Older runs without
+session metadata still refuse competing launches through that lock.
+
+When starting a new run, system and E2E listings run as the ordinary user without safety tests, privilege
 or VM mutation. `fast --list` forwards `LIST=1` once its target exists. `all`
 accepts no narrowing arguments. Reserved entry points do not claim that the
 corresponding suite is implemented or passing. Future aggregate work must reuse these routes

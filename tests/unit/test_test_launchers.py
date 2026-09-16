@@ -12,6 +12,60 @@ import test_launcher as host
 import test_commands as commands
 
 
+@pytest.mark.parametrize('argv', [[], ['--help'], ['--list'], ['e2e', '--list'],
+                                  ['unknown', '--invalid'], ['unit', '-q']])
+def test_external_invocation_reaches_session_before_argument_validation(monkeypatch, argv):
+    import regression_session
+    import test_activity
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    monkeypatch.delenv(test_activity.VARIABLE, raising=False)
+    monkeypatch.setattr(test_activity, '_descriptor', None)
+    attach = Mock(return_value=7)
+    monkeypatch.setattr(regression_session, 'main', attach)
+    monkeypatch.setattr(commands, 'validate', Mock(side_effect=AssertionError('premature validation')))
+    assert commands.main(argv) == 7
+    attach.assert_called_once_with(ROOT, argv)
+
+
+def test_internal_worker_uses_verified_activity_instead_of_attaching(tmp_path, monkeypatch):
+    import regression_session
+    import test_activity
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(commands, '__file__', str(tmp_path / 'tools/test_commands.py'))
+    monkeypatch.setattr(commands, 'validate', Mock())
+    attach = Mock(side_effect=AssertionError('worker attached to its own session'))
+    monkeypatch.setattr(regression_session, 'main', attach)
+    execute = Mock(return_value=7)
+    monkeypatch.setattr(commands, '_main', execute)
+    with test_activity.activity(tmp_path):
+        assert commands.main(['static', 'shell']) == 7
+    execute.assert_called_once_with(['static', 'shell'])
+
+
+def test_detached_coverage_keeps_report_configuration(tmp_path, monkeypatch):
+    import regression_process
+    monkeypatch.setattr(commands, 'plan', lambda *_: ([['pytest', '--', 'tests/unit']], False))
+    monkeypatch.setattr('tempfile.mkdtemp', lambda **_: str(tmp_path))
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    assert regression_process.category_run(ROOT, 'coverage', [], pipe=False) == 0
+    assert execute.call_args.args[0] == [
+        'pytest', '--cov-report=xml:' + str(tmp_path) + '/coverage.xml', '--', 'tests/unit']
+    assert execute.call_args.kwargs['env']['COVERAGE_FILE'] == str(tmp_path) + '/.coverage'
+
+
+def test_detached_e2e_failed_build_never_starts_privileged_runner(tmp_path, monkeypatch):
+    import regression_process
+    monkeypatch.setattr(commands, 'plan', lambda *_: (
+        [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', 'e2e']], False))
+    monkeypatch.setattr('tempfile.mkdtemp', lambda **_: str(tmp_path))
+    execute = Mock(return_value=130)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    assert regression_process.category_run(ROOT, 'e2e', [], pipe=False) == 130
+    execute.assert_called_once()
+    assert execute.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')
+
+
 @pytest.fixture
 def checkout(tmp_path):
     for category in ('unit', 'component', 'ui', 'child'):
@@ -185,6 +239,27 @@ def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, ca
     execute.assert_not_called()
 
 
+@pytest.mark.parametrize('category', ['all', 'all-verify', 'host', 'host-builds'])
+def test_continue_on_errors_is_a_valueless_aggregate_flag(monkeypatch, category):
+    import regression
+    execute = Mock(return_value=7)
+    monkeypatch.setattr(regression, 'main', execute)
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    assert commands._main([category, '--continue-on-errors']) == 7
+    assert execute.call_args.kwargs['continue_on_errors'] is True
+    if category == 'host-builds':
+        assert execute.call_args.kwargs['serial_builds'] is False
+        for args in (['--serial-builds', '--continue-on-errors'],
+                     ['--continue-on-errors', '--serial-builds']):
+            assert commands._main([category, *args]) == 7
+            assert execute.call_args.kwargs['serial_builds'] is True
+    execute.reset_mock()
+    for args in (['--continue-on-errors=true'], ['--continue-on-errors', 'true'],
+                 ['--continue-on-errors', '--continue-on-errors']):
+        assert commands._main([category, *args]) == 2
+    execute.assert_not_called()
+
+
 def test_host_aggregate_dispatch_and_invalid_arguments(monkeypatch):
     import regression
     execute = Mock(return_value=7)
@@ -194,7 +269,7 @@ def test_host_aggregate_dispatch_and_invalid_arguments(monkeypatch):
     execute.assert_called_once_with(ROOT, host_only=True)
     execute.reset_mock()
     for args in (['--skip-backing-verification'], ['--component=ui'], ['--unattended']):
-        assert commands.main(['host', *args]) == 2
+        assert commands._main(['host', *args]) == 2
     execute.assert_not_called()
 
 
@@ -210,5 +285,5 @@ def test_host_build_qualification_is_fixed_and_never_dispatches_vm(monkeypatch, 
     execute.reset_mock()
     for extra in (['--serial'], ['--serial-builds', '--serial-builds'], ['--area', 'session'],
                   ['--skip-backing-verification'], ['--command=id']):
-        assert commands.main(['host-builds', *extra]) == 2
+        assert commands._main(['host-builds', *extra]) == 2
     execute.assert_not_called()

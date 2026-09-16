@@ -28,6 +28,13 @@ with publishing/builds after the host join for an unchanged-input comparison.
 These are partial qualification results, not complete regression passes. No other
 arguments are accepted; both commands hold the same checkout activity lock.
 
+Aggregates (`all`, `all-verify`, `host`, `host-builds`) stop at the first reported
+failure by default, with the same cooperative cleanup, final evidence and failure
+investigation prompt as Ctrl+C. Use `tools/run-tests all --continue-on-errors`
+(or the corresponding aggregate) to continue independent tests after failures.
+Safety and infrastructure refusals still stop the run. Reattachment preserves
+the original options. The flag takes no value and can accompany `--serial-builds`.
+
 Run `make test-all` (`tools/run-tests all`) for development without backing-file
 byte scans, or `make test-all-verify` (`tools/run-tests all-verify`) for the
 existing full verification at each VM attempt boundary. Both retain ownership
@@ -40,13 +47,14 @@ the installed Parent About/license scenario. For E2E-only runs, use
 Parent About, replace `--ready` with `--scenario 'E2E-030/parent'`. The
 [E2E runner guide](e2e/README.md#run-e2e-scenarios) covers building inputs, listing,
 pending scope and prerequisites.
-Both aggregate targets run independently of their terminal. Closing the terminal
-detaches the display; tests continue. Ctrl+C still requests cancellation and waits
-for owned cleanup. Rerun the same target in
-a new terminal to reconnect to the existing progress and usual final summary,
-including its exit status. The two targets use different verification policies,
-so a different target refuses while an existing run awaits completion or delivery.
-A result completed while detached is replayed on the next matching invocation;
+Every `tools/run-tests` category runs independently of its terminal. Closing the
+terminal detaches the display; tests continue. Ctrl+C requests cancellation and
+waits for owned cleanup. Invoke `tools/run-tests` in a new terminal to attach to
+the existing progress and final output, including its exit status. While a run
+is active or has an unread result, every invocation warns and attaches to it,
+ignoring all new arguments—even another category, invalid options, `--help`,
+`--list`, or no arguments. The original selection and options remain in effect.
+A result completed while detached is replayed on the next invocation;
 after delivery, the next invocation starts a fresh run. Session output and ownership
 records live under `artifacts/test-sessions/`. Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
@@ -100,8 +108,16 @@ wait reasons. Estimates guide ordering without relaxing resource or test limits.
 UI bucket collection and completion must match the original discovered test IDs
 exactly; count-only matches cannot pass. New UI modules run exclusively until
 their isolation is reviewed in `tools/regression_ui.py`. Nested Shell stays in
-one bucket so its stable latest-evidence paths have one writer. The
-private compositor fixture is explicitly required by the nested-Shell module,
+one bucket so its stable latest-evidence paths have one writer. Accessible
+adapter and E2E spectator are separate parallel buckets: the adapter uses private
+compositors, buses, settings and attempt artifacts (including its Shell search),
+while the spectator uses process-local frame memory and per-test output. Host
+aggregates exclude `live_e2e` checks consistently during collection and execution:
+those need a separately active E2E attempt, and host jobs finish before VM stages.
+Select those checks explicitly with `tools/run-ui-tests --timeout 25m
+'tests/ui/test_e2e_watch.py' -m live_e2e` during live acceptance. Both buckets
+retain UI resource admission and exclusion from publishing.
+The private compositor fixture is explicitly required by the nested-Shell module,
 so its outer Devkit viewer never depends on a prior module's display setup. The
 checkout `dogtail_config.ini` disables Dogtail's shared `/tmp` debug file through
 supported configuration; captured console output and existing per-test
@@ -125,7 +141,8 @@ to host-only runs and every stage of both complete aggregates.
 
 The maintained launchers hold one checkout activity lock for the full command,
 including cleanup. Aggregate children join through an inherited locked file
-descriptor; another terminal's launcher refuses while the checkout is owned.
+descriptor; another terminal's `tools/run-tests` attaches to its session.
+Other launchers refuse competing execution while the checkout is owned.
 The VM's existing cross-controller lease remains independently authoritative.
 Ordinary pytest caches are disabled. The report labels every output fragment
 with its category and links separate private raw streams; one coordinator writes

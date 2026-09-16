@@ -9,7 +9,7 @@ import sys
 import threading
 
 
-# Only the detached aggregate owner installs this event. Its nested storage and
+# Only the detached test owner installs this event. Its nested storage and
 # command controllers must observe the same terminal-independent cancellation.
 session_stop = None
 
@@ -133,13 +133,15 @@ def safety_command(root):
     return ['/usr/bin/python3', '-B', '-m', 'pytest', '-p', 'no:cacheprovider', '-q', '--', *targets]
 
 
-def host_run(root, category, argv):
+def host_run(root, category, argv, *, pipe=True):
     import test_launcher as host
     import test_activity
-    with Control().installed(pipe=True) as control:
+    with Control().installed(pipe=pipe) as control:
         command = host.pytest_command(root, argv, category)
         env = host.test_environment(root)
-        env.update(ONPC_REGRESSION_EVENTS='1', PYTHONUNBUFFERED='1')
+        env['PYTHONUNBUFFERED'] = '1'
+        if pipe:
+            env['ONPC_REGRESSION_EVENTS'] = '1'
         targets = command[command.index('--') + 1:] if '--' in command else []
         cleanup = category == 'unit' and targets and all(
             target.partition('::')[0].endswith(('cleanup_safety.py', '/test_graphical_lease.py'))
@@ -160,7 +162,7 @@ def host_run(root, category, argv):
         return control.run(command, cwd=root, env=env)
 
 
-def category_run(root, category, argv):
+def category_run(root, category, argv, *, pipe=True):
     import tempfile
     import test_retention
     import test_commands
@@ -169,9 +171,17 @@ def category_run(root, category, argv):
     commands, safety = test_commands.plan(root, category, argv)
     env = host.environment(root)
     env['PYTHONUNBUFFERED'] = '1'
-    if category == 'fixture-runtime':
+    if category in ('fixture-runtime', 'coverage'):
         env = host.test_environment(root)
-        env['ONPC_REGRESSION_EVENTS'] = '1'
+        if pipe:
+            env['ONPC_REGRESSION_EVENTS'] = '1'
+        env['PYTHONUNBUFFERED'] = '1'
+    if category == 'coverage':
+        directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-coverage-', dir='/tmp')
+        command = commands[0]
+        command.insert(command.index('--'), '--cov-report=xml:' + directory + '/coverage.xml')
+        env['COVERAGE_FILE'] = directory + '/.coverage'
+        print('run-tests: output=' + directory, flush=True)
     if category in ('fixtures', 'artifacts') and (not argv or argv == ['build']):
         directory = test_retention.allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-', dir='/tmp')
         commands[0] += ['--output', directory]
@@ -181,7 +191,16 @@ def category_run(root, category, argv):
         for command in commands:
             command[1:1] = ['--coverage-prefix=' + str(root / 'child'),
                            '--coverage-output=' + directory]
-    with Control().installed(pipe=True) as control:
+    with Control().installed(pipe=pipe) as control:
+        if category == 'e2e' and '--list' not in argv and not any(
+                value.startswith('--artifacts=') for value in commands[0]):
+            directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-', dir='/tmp')
+            print('run-tests: output=' + directory, flush=True)
+            status = control.run(test_commands.python_file(
+                root, 'tools/build_test_artifacts.py', '--output', directory), cwd=root, env=env)
+            if status:
+                return status
+            commands, safety = test_commands.plan(root, category, [*argv, '--artifacts=' + directory])
         if safety:
             if category == 'fixture-runtime' and test_activity.cleanup_verified(root):
                 print('run-tests: reusing passed aggregate cleanup prerequisites; source verified',

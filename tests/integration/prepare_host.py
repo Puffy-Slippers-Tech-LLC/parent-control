@@ -392,6 +392,13 @@ def inspect_guest(guestfs, disk, script_digest):
         g.close()
 
 
+def baseline_lock_path(directory):
+    """All named baselines share the preparation and execution lease."""
+    root = guest_contract.vm_config.STATE_ROOT
+    directory = root if directory.parent == root else directory
+    return directory / '.lock'
+
+
 class Capture:
     def __init__(self, source, commands, inspect, *, anchor=ANCHOR, directory=BASELINES,
                  script_digest=None, verify_backing_bytes=True):
@@ -410,9 +417,7 @@ class Capture:
 
     @property
     def lock_path(self):
-        root = guest_contract.vm_config.STATE_ROOT
-        directory = root if self.directory.parent == root else self.directory
-        return directory / '.lock'
+        return baseline_lock_path(self.directory)
 
     def begin_backing_verification(self, owner):
         from backing_verification import BackingVerification

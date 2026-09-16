@@ -18,7 +18,7 @@ def test_partition_covers_all_cases_once_and_keeps_modules_together():
     nodes += ['tests/ui/future/test_new.py::test_future']
     plan = buckets(nodes)
     assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
-    assert len(plan) == 7
+    assert len(plan) == len(GROUPS) + 1
     assert plan[-1].kind == 'ui-exclusive'
     assert len({path for bucket in plan for path in bucket.paths}) == sum(len(b.paths) for b in plan)
     assert [b.paths for b in plan if b.name == 'UI — Nested Shell'] == [

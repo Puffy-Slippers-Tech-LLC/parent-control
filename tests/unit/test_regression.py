@@ -25,7 +25,6 @@ from system_progress import Progress
 
 @pytest.fixture
 def report(tmp_path):
-    (tmp_path / 'docs/TestAutomation/Evidence').mkdir(parents=True)
     result = regression.Report(tmp_path)
     yield result
     result.close()
@@ -438,7 +437,6 @@ def test_partial_failure_is_durable_before_cancellation(report, tmp_path):
 
 @pytest.mark.parametrize('outcome', ['passed', 'failed', 'error', 'interrupted', 'interrupted-failure'])
 def test_final_investigation_prompt_links_closed_report(tmp_path, monkeypatch, capsys, outcome):
-    (tmp_path / 'docs/TestAutomation/Evidence').mkdir(parents=True)
     runs = []
 
     def execute(run):
@@ -473,6 +471,27 @@ def test_final_investigation_prompt_links_closed_report(tmp_path, monkeypatch, c
         assert output.index(marker) > output.rindex('Overall - ')
         assert '## Final result' in (run.report.directory / 'report.md').read_text()
         assert '<pre>' in (run.report.directory / 'report.md').read_text()
+
+
+def test_report_initialization_failure_exposes_cause(tmp_path, monkeypatch, capsys):
+    def broken(_):
+        raise PermissionError('report directory is not writable')
+
+    monkeypatch.setattr(regression, 'Report', broken)
+    assert regression.main(tmp_path) == 1
+    output = capsys.readouterr()
+    assert 'Report initialization - 0% (0/1)' in output.out
+    assert ('Report initialization failed: PermissionError: '
+            'report directory is not writable') in output.err
+
+
+def test_report_rejects_symlinked_parent(tmp_path):
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (tmp_path / 'docs').symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError, match='report path contains a symlink'):
+        regression.Report(tmp_path)
+    assert not list(outside.iterdir())
 
 
 def test_new_fixture_test_is_discovered_without_runner_edit(tmp_path):

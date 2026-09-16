@@ -586,6 +586,33 @@ layers actually measured and include the separate child-language results.
 
 ## Maintaining regression coverage
 
+### Handling test failures
+
+Tests protect required behavior and catch regressions. Current app behavior is
+not sufficient evidence that a failing expectation is wrong. Investigate the
+failure against the authoritative specification/design requirement and any
+explicit behavior change authorized in the session.
+
+When a test detects changed app behavior or a behavioral mismatch, preserve the
+failure evidence and report a potential regression: identify the test, expected
+and actual results, and the relevant requirement. Ask the developer whether the
+change is intended before accepting the observed behavior or changing the
+expectation, unless that specific behavior change is already explicitly
+authorized. Do not weaken, skip, delete or rewrite checks, or alter requirements,
+merely to make current app behavior pass. If intent remains unclear, keep the
+behavioral failure unresolved while continuing independent work.
+
+Fix mechanical test issues automatically without asking for confirmation when
+the evidence shows a defect in test code, fixtures or the harness and the
+intended behavior check is preserved. Examples include a broken import, an
+incorrect test API call or a harness crash. A product crash, timeout or failed
+assertion can indicate a regression; its failure type alone does not establish
+a mechanical test issue. Report the cause, correction and verification in the
+normal work summary. A test's disagreement with the app alone never justifies
+classifying the test as broken.
+
+### Coverage maintenance workflow
+
 1. Identify the changed behavior and its authoritative specification/design
    requirement, or the necessary harness safety guarantee. Follow the
    [app scope and prerequisite rules](../docs/TestAutomation/E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope).

@@ -200,7 +200,7 @@ def test_dashboard_colors_counts_and_no_diagnostics():
     stream = io.StringIO()
     regression.Dashboard(categories, stream).draw(force=True)
     value = stream.getvalue()
-    assert '\033[32m[✓] Unit - 100% \033[0m(\033[32m4\033[0m/4)' in value
+    assert '\033[32m[✓] Unit - 100% (4/4) - 0s\033[0m' in value
     assert '\033[97;1m[Running] UI - 30% \033[0m(\033[32m3\033[0m/10)' in value
     assert '\033[90m[Pending] VM (2)\033[0m\n' in value
     assert 'Overall - 43% \033[0m(\033[32m7\033[0m/16)' in value
@@ -209,6 +209,12 @@ def test_dashboard_colors_counts_and_no_diagnostics():
     regression.Dashboard(categories, stream).draw(force=True)
     assert ('\033[31m[✗] Unit - 100% \033[0m(\033[32m3\033[0m/'
             '\033[31m1\033[0m/4)') in stream.getvalue()
+
+
+def test_completed_dashboard_summary_is_green():
+    dashboard = regression.Dashboard([regression.Category('Unit', 4, 4, 'Passed')], io.StringIO())
+    dashboard.started = 100
+    assert '\033[32mOverall - 100% (4/4) - 1.0m\033[0m' in dashboard.render(160)
 
 
 def test_branch_frame_shows_both_running_counts_queue_and_real_wall_time():
@@ -259,12 +265,25 @@ def test_branch_totals_and_join_time_freeze_before_later_work():
     assert '\n│\n└─ Join host branches — waiting for host work — 4.0m wall time' in running
     dashboard.host_elapsed = 180
     for now in (340, 700):
-        frame = dashboard.ANSI.sub('', '\n'.join(dashboard.render(now)))
+        styled = '\n'.join(dashboard.render(now))
+        assert '\033[32m├─ Host branch 2 — finished - 2.0m\033[0m' in styled
+        assert '\033[32m└─ Join host branches — passed — 4.0m wall time\033[0m' in styled
+        frame = dashboard.ANSI.sub('', styled)
         assert 'Host branch 1 — finished - 2.5m' in frame
         assert 'Host branch 2 — finished - 2.0m' in frame
         assert 'Host branch 3 — finished - 0.0m' in frame
         assert '\n│\n└─ Join host branches — passed — 4.0m wall time' in frame
         assert '\n\nOverall - 75% (3/4)' in frame
+    dashboard.cleanup_started = dashboard.started
+    dashboard.cleanup_elapsed = 48
+    cleanup = regression.Category('Cleanup', 1, 1, 'Passed', host=True, branch=1,
+                                  phase='cleanup')
+    assert ('\033[32m└─ Join cleanup prerequisites — passed — 0.8m wall time\033[0m'
+            in '\n'.join(dashboard.branches([cleanup], 340, 'cleanup')))
+    cleanup.state = 'Failed'
+    failed = '\n'.join(dashboard.branches([cleanup], 340, 'cleanup'))
+    assert '\033[1;31m├─ Host branch 1 — finished - 0.0m\033[0m' in failed
+    assert '\033[32m└─ Join cleanup prerequisites' not in failed
 
 
 def test_terminal_redraw_clips_long_names_and_erases_shrinking_queue(monkeypatch):

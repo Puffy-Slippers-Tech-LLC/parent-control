@@ -98,6 +98,10 @@ class Dashboard:
         percent = '?' if item.total is None else str(int(100 * item.done / max(item.total, 1)))
         label = {'Passed': '✓', 'Failed': '✗', 'Interrupted': '✗',
                  'Blocked': '✗'}.get(item.state, item.state)
+        if item.state == 'Passed':
+            return (f'\033[32m[{label}] {item.name} - {percent}% '
+                    f'({item.done}/{total}) - {item.duration(now)}'
+                    + (f' ({reason})' if reason else '') + '\033[0m')
         color = {'Passed': '32', 'Failed': '31', 'Interrupted': '31',
                  'Blocked': '31', 'Running': '97;1', 'Pending': '90'}[item.state]
         return (f'\033[{color}m[{label}] {item.name} - {percent}% '
@@ -116,7 +120,9 @@ class Dashboard:
                               key=lambda item: item.launch_order)
             active = any(item.state == 'Running' for item in assigned)
             state = 'running' if active else 'idle' if phase_elapsed is None else 'finished'
-            style = {'running': '\033[1m', 'idle': '\033[90m', 'finished': ''}[state]
+            style = {'running': '\033[1m', 'idle': '\033[90m',
+                     'finished': ('\033[32m' if all(item.state == 'Passed' for item in assigned)
+                                  else '\033[1;31m')}[state]
             elapsed = sum(item.elapsed + (now - item.started if item.started is not None else 0)
                           for item in assigned)
             lines.append(f'{style}├─ Host branch {branch} — {state} - {elapsed / 60:.1f}m\033[0m')
@@ -141,7 +147,8 @@ class Dashboard:
         timing = '' if elapsed is None else f' — {(elapsed / 60):.1f}m wall time'
         lines.append('│')
         join = 'Join cleanup prerequisites' if phase == 'cleanup' else 'Join host branches'
-        lines.append(f'└─ {join} — {state}{timing}')
+        summary = f'└─ {join} — {state}{timing}'
+        lines.append(f'\033[32m{summary}\033[0m' if state == 'passed' else summary)
         return lines
 
     def render(self, now):
@@ -168,9 +175,13 @@ class Dashboard:
             '32' if all(c.state == 'Passed' for c in self.categories) else '97;1')
         failures = sum(item.failures for item in self.categories)
         lines.append('')
-        lines.append(f'\033[{color}mOverall - {percent}% '
-                     + self.counts(done, failures, total if known else '?')
-                     + f' - {(now - self.started) / 60:.1f}m\033[0m')
+        if color == '32':
+            lines.append(f'\033[32mOverall - {percent}% ({done}/{total})'
+                         f' - {(now - self.started) / 60:.1f}m\033[0m')
+        else:
+            lines.append(f'\033[{color}mOverall - {percent}% '
+                         + self.counts(done, failures, total if known else '?')
+                         + f' - {(now - self.started) / 60:.1f}m\033[0m')
         if self.control is not None and (self.control.interrupted or
                                         self.control.stopped.is_set()):
             notice = ('Tests interrupted. Shutdown finished; see cleanup results above.'

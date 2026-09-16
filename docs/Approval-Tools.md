@@ -14,6 +14,13 @@ permission requests. Reuse authorization already given in the session; routine
 implementation choices, file names and tests within an established category do
 not require separate approval.
 
+Behavioral test failures follow the [regression failure contract](../tests/README.md#handling-test-failures):
+report the potential regression and ask the developer to confirm intended
+behavior before accepting a change or altering expectations, unless the specific
+behavior change is already explicitly authorized. Unattended execution does not
+authorize redefining expected product behavior to make tests pass. Mechanical
+test defects may be fixed automatically while preserving the intended checks.
+
 | Work | Unattended route |
 | --- | --- |
 | Repository reads and public research | Direct quoted reads under existing grants; `tools/read-only` for validated search, filters and fetches |

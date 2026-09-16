@@ -5,6 +5,7 @@ use testapi ();
 use onpc_password ();
 use onpc_gdm ();
 use onpc_install ();
+use onpc_harness ();
 
 my $attempted = 0;
 
@@ -30,7 +31,8 @@ sub run {
 }
 
 sub run_functional {
-    return _run($_[0], 0, scalar @_, 1);
+    require onpc_flow00;
+    return onpc_flow00::serial(@_);
 }
 
 sub run_install {
@@ -41,58 +43,155 @@ sub run_install_refusal {
     return _run($_[0], 2, scalar @_);
 }
 
-sub _run {
-    my ($exchange, $install, $count, $functional) = @_;
+# The original single-attempt and capture boundary surrounds all compositions,
+# including legacy installation/refusal consumers. It is never reset.
+sub attempt {
+    my ($exchange, $body) = @_;
     die "serial:already-attempted\n" if $attempted++;
     onpc_password::seal_capture();
-    my $reboot_stage;
+    my $state = {exchange => $exchange, phase => 'new'};
     my $ok = eval {
-        die 'serial:arguments' unless $count == 1 && ref($exchange) eq 'CODE';
+        die 'serial:arguments' unless @_ == 2 && ref($exchange) eq 'CODE' && ref($body) eq 'CODE';
         die 'serial:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
-        testapi::select_console('onpc-serial');
-        die 'serial:console' unless testapi::current_console() eq 'onpc-serial';
-        # A banner/command echo cannot satisfy a fresh password prompt. Do not
-        # log terminal output; it contains private guest/fixture identifiers.
-        die 'serial:login-prompt' unless testapi::wait_serial(qr/ login: \z/,
-            timeout => 30, quiet => 1, record_output => 0);
-        testapi::type_string("onpc-parent-jamie\n");
-        # login wipes argv's username for privacy. Require the exact real echo
-        # of our selected fixture and the subsequent password prompt together.
-        my $prompt = testapi::wait_serial(qr/Password: \z/,
-            timeout => 15, quiet => 1, record_output => 0);
-        die 'serial:password-prompt' unless defined($prompt) && length($prompt) <= 256;
-        # agetty writes CRLF with ONLCR enabled, producing CRCRLF. Public
-        # wait_serial normalizes one CRLF layer in its returned string. Match
-        # only the resulting LF/CRLF forms and the exact selected fixture.
-        my $cr_count = () = $prompt =~ /\r/g;
-        my $lf_count = () = $prompt =~ /\n/g;
-        testapi::record_info('serial-prompt', 'fixture-echo=' . ($prompt =~ /\Aonpc-parent-jamie/ ? 1 : 0)
+        $body->($state);
+        1;
+    };
+    $state->{phase} = 'closed';
+    die "serial:qualification-failed\n" unless $ok;
+    return 1;
+}
+
+sub _block {
+    my ($state, $before, $after, $body) = @_;
+    my $valid = ref($state) eq 'HASH'
+        && ref($state->{exchange}) eq 'CODE' && ($state->{phase} // '') eq $before;
+    # Consume before input: an uncertain operation cannot be retried even if a
+    # caller catches its exception. Successful blocks return explicit evidence.
+    $state->{phase} = 'failed' if ref($state) eq 'HASH';
+    die 'serial:block-order' unless $valid;
+    my $result = $body->();
+    $state->{phase} = $after;
+    return $result;
+}
+
+# HAR02: closed projections, fixed deadlines and private terminal output.
+sub observe_text {
+    my ($projection) = @_;
+    die 'serial:text-arguments' unless @_ == 1 && defined($projection);
+    die 'serial:console' unless testapi::current_console() eq 'onpc-serial';
+    my %profiles = (
+        login => [qr/ login: \z/, 30, 'login-prompt'],
+        password => [qr/Password: \z/, 15, 'password-prompt'],
+        shell => [qr/\$ \z/, 30, 'shell-prompt'],
+        command => [qr/ONPC-SERIAL-OK\r{0,2}\n/, 15, 'command-output'],
+        logout => [qr/ login: \z/, 30, 'logout'],
+    );
+    die 'serial:text-projection' unless exists $profiles{$projection};
+    my ($regex, $timeout, $error) = @{$profiles{$projection}};
+    my $value = testapi::wait_serial($regex, timeout => $timeout, quiet => 1, record_output => 0);
+    if ($projection eq 'password') {
+        die 'serial:password-prompt' unless defined($value) && length($value) <= 256;
+        # wait_serial normalizes one CRLF layer of agetty's CRCRLF output.
+        my $cr_count = () = $value =~ /\r/g;
+        my $lf_count = () = $value =~ /\n/g;
+        testapi::record_info('serial-prompt', 'fixture-echo=' . ($value =~ /\Aonpc-parent-jamie/ ? 1 : 0)
             . ' cr=' . $cr_count . ' lf=' . $lf_count);
-        die 'serial:fixture-echo' unless $prompt =~ /\Aonpc-parent-jamie\r?\nPassword: \z/;
-        my $proof = $exchange->('serial-password', undef);
-        die 'serial:password-boundary' unless $proof->{serial_login_process_verified}
-            && $proof->{terminal_echo_disabled};
+        die 'serial:fixture-echo' unless $value =~ /\Aonpc-parent-jamie\r?\nPassword: \z/;
+    } else {
+        die 'serial:' . $error unless $value;
+    }
+    return {projection => $projection, matched => 1};
+}
+
+# UI19, serial-only binding: no submission, no new authentication capability.
+sub type_fixture_secret {
+    my ($state, $reference, $proof) = @_;
+    return _block($state, 'password', 'secret-typed', sub {
+        die 'serial:secret-reference' unless $reference eq 'parent-serial';
+        die 'serial:console' unless testapi::current_console() eq 'onpc-serial';
+        die 'serial:password-boundary' unless ref($proof) eq 'HASH'
+            && $proof == $state->{password_proof}
+            && $proof->{serial_login_process_verified} && $proof->{terminal_echo_disabled};
         my $password = testapi::get_required_var('_SECRET_ONPC_PARENT_PASSWORD');
         die 'serial:password-value' unless defined($password) && !ref($password)
             && $password =~ /\A[\x20-\x7e]{1,256}\z/;
-        # Public secret-safe API, fixed options, no root-password shortcut.
         testapi::type_password($password);
+        return {secret_typed => 1};
+    });
+}
+
+# HAR05: login/session readiness is separate from command execution.
+sub login {
+    my ($state) = @_;
+    return _block($state, 'new', 'authenticated', sub {
+        onpc_password::seal_capture();
+        onpc_harness::select_console('sut', 'onpc-serial');
+        observe_text('login');
+        testapi::type_string("onpc-parent-jamie\n");
+        observe_text('password');
+        my $proof = $state->{exchange}->('serial-password', undef);
+        $state->{password_proof} = $proof;
+        $state->{phase} = 'password';
+        type_fixture_secret($state, 'parent-serial', $proof);
+        $state->{phase} = 'failed';
         testapi::type_string("\n");
-        $exchange->('serial-authenticated', undef);
-        # logind activation precedes the interactive shell. Wait for its real
-        # prompt before typing; login/PAM may still be initializing the tty.
-        die 'serial:shell-prompt' unless testapi::wait_serial(qr/\$ \z/,
-            timeout => 30, quiet => 1, record_output => 0);
+        my $session = $state->{exchange}->('serial-authenticated', undef);
+        observe_text('shell');
+        return $session;
+    });
+}
+
+# HAR06: split marker keeps command echo from satisfying actual stdout.
+sub command {
+    my ($state) = @_;
+    return _block($state, 'authenticated', 'command-observed', sub {
+        die 'serial:console' unless testapi::current_console() eq 'onpc-serial';
+        testapi::type_string("printf 'ONPC-SERIAL-%s\\n' 'OK'\n");
+        observe_text('command');
+        return $state->{exchange}->('serial-command', undef);
+    });
+}
+
+# HAR07: the returned acknowledgement is single-use evidence for HAR08.
+sub logout {
+    my ($state) = @_;
+    return _block($state, 'command-observed', 'logged-out', sub {
+        die 'serial:console' unless testapi::current_console() eq 'onpc-serial';
+        testapi::type_string("exit\n");
+        observe_text('logout');
+        my $proof = $state->{exchange}->('serial-logout', undef);
+        die 'serial:logout-proof' unless ref($proof) eq 'HASH'
+            && $proof->{active_graphical_greeter}
+            && exists($proof->{unexpected_user_session}) && !$proof->{unexpected_user_session};
+        $state->{logout_proof} = $proof;
+        testapi::record_info('serial-logout', 'Real serial logout independently acknowledged before graphical return.');
+        return $proof;
+    });
+}
+
+# HAR08: the exchange combines fresh HAR03(greeter) and GDM01 observations.
+sub return_graphics {
+    my ($state, $logout) = @_;
+    return _block($state, 'logged-out', 'returned', sub {
+        die 'serial:logout-proof' unless ref($logout) eq 'HASH'
+            && $logout == $state->{logout_proof};
+        onpc_harness::select_console('onpc-serial', 'sut');
+        return $state->{exchange}->('gdm-return', undef);
+    });
+}
+
+sub _run {
+    my ($exchange, $install, $count) = @_;
+    return attempt($exchange, sub {
+    my ($state) = @_;
+    my $reboot_stage;
+    my $ok = eval {
+        die 'serial:arguments' unless $count == 1 && ref($exchange) eq 'CODE';
+        login($state);
         if ($install) {
             $install == 2 ? onpc_install::run_refusal($exchange) : onpc_install::run($exchange);
         } else {
-            # Split the marker: terminal echo cannot pass the complete output
-            # assertion. Readline may emit controls immediately before stdout;
-            # a preceding LF is unnecessary and rejects valid terminals.
-            testapi::type_string("printf 'ONPC-SERIAL-%s\\n' 'OK'\n");
-            die 'serial:command-output' unless testapi::wait_serial(qr/ONPC-SERIAL-OK\r{0,2}\n/,
-                timeout => 15, quiet => 1, record_output => 0);
-            $exchange->('serial-command', undef);
+            command($state);
         }
         if ($install == 1) {
             $reboot_stage = 'ready';
@@ -121,6 +220,11 @@ sub _run {
             die 'serial:reboot-password-boundary' unless $proof->{sudo_reboot_process_verified}
                 && $proof->{terminal_echo_disabled};
             $reboot_stage = 'password-input';
+            # The extracted serial blocks return only semantic observations.
+            # Keep this legacy second challenge's secret local to its input.
+            my $password = testapi::get_required_var('_SECRET_ONPC_PARENT_PASSWORD');
+            die 'serial:password-value' unless defined($password) && !ref($password)
+                && $password =~ /\A[\x20-\x7e]{1,256}\z/;
             testapi::type_password($password);
             testapi::type_string("\n");
             testapi::record_info('reboot-password-submitted', 'One password submitted after independent reboot recipient proof.');
@@ -149,19 +253,12 @@ sub _run {
             testapi::record_info('reboot-serial-return',
                 'Fresh login prompt received on the held serial stream after changed boot acknowledgement.');
         } else {
-            testapi::type_string("exit\n");
-            die 'serial:logout' unless testapi::wait_serial(qr/ login: \z/,
-                timeout => 30, quiet => 1, record_output => 0);
-            $exchange->('serial-logout', undef);
-            testapi::record_info('serial-logout', 'Real serial logout independently acknowledged before graphical return.');
+            $state->{phase} = 'command-observed' if $install == 2;
+            logout($state);
         }
         $reboot_stage = 'gdm-return' if $install == 1;
         if ($install == 1) {
             onpc_gdm::return_after_reboot();
-        } elsif ($functional) {
-            die 'serial:return-console' unless testapi::current_console() eq 'onpc-serial';
-            testapi::select_console('sut');
-            die 'serial:return-console' unless testapi::current_console() eq 'sut';
         } else {
             onpc_gdm::return_from_serial();
         }
@@ -176,6 +273,7 @@ sub _run {
         die "serial:qualification-failed\n";
     }
     return 1;
+    });
 }
 
 1;

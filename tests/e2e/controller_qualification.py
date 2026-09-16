@@ -12,7 +12,8 @@ import sys
 from asset_transfer import AssetTransfer
 from private_artifacts import require
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'integration'))
-from check_graphical_smoke import Smoke, FUNCTIONAL_SERIAL_STAGES as SERIAL_STAGES, module_result
+from check_graphical_smoke import (Smoke, FUNCTIONAL_SERIAL_STAGES as SERIAL_STAGES,
+                                   module_result, harness_observation)
 from graphical_serial import provision_getty
 sys.path.pop(0)
 from installed_journey import JourneyPlan, matched_screens as reconcile_screens
@@ -36,6 +37,19 @@ def matched_screens(directory, observations):
     require(len(logout) == 1 and result[-2]['detail_index'] < logout[0] < result[-1]['detail_index'],
             'qualification:return-order')
     return result
+
+
+def validate_stages(directory, observations):
+    """HAR10's pre-shutdown callback: a zero worker exit cannot prove success."""
+    require([s['stage'] for s in observations] == list(SERIAL_STAGES),
+            'qualification:missing-stages')
+    module_result(directory)
+
+
+def validate_completion(directory, observations, worker):
+    """HAR10 after normal owned shutdown, before any terminal assertions."""
+    validate_stages(directory, observations)
+    require(worker['shutdown_verified'] is True, 'qualification:shutdown-unverified')
 
 
 def execute(recorder, context):
@@ -64,7 +78,7 @@ def execute(recorder, context):
         nonlocal active, boot, current_step, command_ref
         if observed is None:
             return
-        current = smoke.vm.read('boot')['boot_sha256']
+        current = harness_observation(smoke.vm, 'boot')['boot_sha256']
         require(boot is None or boot == current, 'qualification:boot-changed')
         boot = current
         recorder.continuity(boot=boot)
@@ -103,14 +117,12 @@ def execute(recorder, context):
                   progress=progress, transfer=transfer, authenticate=True, serial=True, functional=True)
 
     def validate():
-        require([s['stage'] for s in smoke.steps] == list(SERIAL_STAGES),
-                'qualification:missing-stages')
-        module_result(context.directory)
+        validate_stages(context.directory, smoke.steps)
 
     try:
         worker = context.run_worker(observe=smoke.step, validate=validate,
                                     authenticate=True, serial=True, timeout=600)
-        require(worker['shutdown_verified'] is True, 'qualification:shutdown-unverified')
+        validate_completion(context.directory, smoke.steps, worker)
         ref = artifact('matched-screens', 'screen', matched_screens(context.directory, smoke.steps))
         recorder.assertion('visible-result', artifact_ids=[ref])
         require(command_ref is not None, 'qualification:command-not-observed')

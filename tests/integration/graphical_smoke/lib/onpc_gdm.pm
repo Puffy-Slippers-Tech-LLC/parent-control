@@ -7,13 +7,36 @@ use onpc_pointer ();
 sub functional_selection {
     my ($journey) = @_;
     die 'gdm:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    my $prompt = select_prompt($journey, 'parent', 'prompt');
+    dismiss_observed_prompt($journey, $prompt);
+}
+
+# GDM02, fixed Parent/prompt binding. No secret recipient is authorized here.
+sub select_prompt {
+    my ($journey, $account, $destination) = @_;
+    die 'gdm:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && $account eq 'parent' && $destination eq 'prompt';
     die 'gdm:console' unless testapi::current_console() eq 'sut';
-    $journey->navigate_choice($journey->seen('gdm'));
-    $journey->seen('focused');
+    my $focused = $journey->highlight_choice($journey->seen('gdm'), 'gdm', 'focused');
+    $journey->consume_observation('focused', $focused);
     testapi::send_key('ret');
-    $journey->seen('selected');
+    return $journey->seen('selected');
+}
+
+# GDM09 accepts the explicitly supplied, freshly acknowledged prompt. The
+# controller owns ordering/freshness; this block has no prior-test dependency.
+sub dismiss_observed_prompt {
+    my ($journey, $prompt) = @_;
+    die 'gdm:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    die 'gdm:prompt-observation' unless ref($prompt) eq 'HASH'
+        && ref($prompt->{ui}) eq 'HASH'
+        && ($prompt->{ui}->{operation} // '') eq 'gdm-select-parent'
+        && ($prompt->{ui}->{outcome} // '') eq 'passed'
+        && ($prompt->{ui}->{interface} // '') eq 'AT-SPI';
+    die 'gdm:console' unless testapi::current_console() eq 'sut';
+    $journey->consume_observation('selected', $prompt);
     testapi::send_key('esc');
-    $journey->seen('dismissed');
+    return $journey->seen('dismissed');
 }
 
 # Small reviewed fixture regions, never clocks, whole-screen stillness or a

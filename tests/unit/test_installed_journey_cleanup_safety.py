@@ -95,9 +95,17 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     monkeypatch.setattr(journeys, 'InstalledSetup', Mock(return_value=SimpleNamespace(run=setup)))
     boot = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock(return_value=boot))
-    monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=SimpleNamespace(
-        observe=lambda operation: {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
-            **({'pointer': {'x': 700, 'y': 80}} if operation == 'standard-app-grid' else {})})))
+    def observe_ui(operation):
+        import accessible_ui
+        result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation == 'standard-app-grid':
+            result['pointer'] = {'x': 700, 'y': 80}
+        if operation in accessible_ui.SETTINGS_OPERATIONS:
+            result['settings'] = {'child': accessible_ui.CHILD_IDENTITIES[
+                accessible_ui.SETTINGS_OPERATIONS[operation]], 'limit_enabled': False,
+                'allowance': ['1 hour'] if operation.startswith('new-') else ['0 minutes']}
+        return result
+    monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=SimpleNamespace(observe=observe_ui)))
     boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')
     state = {'stage': None, 'stored': False}
     context = SimpleNamespace(directory=directory, host_key='fixture-key', commands=Mock(),
@@ -243,6 +251,30 @@ def test_stage_action_registry_refuses_missing_or_extra_actions(tmp_path):
     plan = replace(SYNTHETIC, stage_actions={"details": "create-account"})
     with pytest.raises(EvidenceError, match="stage-actions"):
         journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+
+
+@pytest.mark.parametrize('fault', ['changed', 'missing', 'missing-earlier'])
+def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
+    plan = parent_discovery.PLAN
+    action, progress = Mock(), Mock()
+    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), progress, plan,
+                                        actions={'create-account': action})
+    stage = 'fixture-requested'
+    journey.steps = [{'stage': name} for name in plan.stages[:plan.stages.index(stage)]]
+    earlier = journeys.SettingsObservation('existing-fixture-child', False, ('0 minutes',))
+    if fault != 'missing-earlier': journey.settings_observations['parent-selected'] = earlier
+    result = {'operation': 'discovery-ready', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    if fault != 'missing':
+        result['settings'] = {'child': earlier.child, 'limit_enabled': fault == 'changed',
+                              'allowance': ['0 minutes']}
+    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'a' * 64}))
+    journey.ui = SimpleNamespace(observe=Mock(return_value=result))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    with pytest.raises(EvidenceError): journey.step(Mock())
+    with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
+    action.assert_not_called()
+    progress.assert_not_called()
+    assert not (tmp_path / (stage + '.reply.json')).exists()
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'reused', 'reordered', 'wrong-operation'])

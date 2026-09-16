@@ -2,6 +2,7 @@
 
 from account_fixture import DynamicAccountFixture, EmptyAccountFixture
 from installed_journey import JourneyPlan, record_installed_journey
+from ui_observations import SettingsObservation
 
 
 PLAN = JourneyPlan(
@@ -16,6 +17,7 @@ PLAN = JourneyPlan(
         "recipient-rechecked": "ui:gdm-parent-recipient-rechecked",
         "desktop": "ui:desktop",
         "app-grid": "ui:app-grid",
+        "parent-window": "ui:parent-window",
         "child-picker-opened": "ui:discovery-child-picker-opened",
         "child-choice-highlighted": "ui:discovery-child-choice-highlighted",
         "parent-selected": "ui:discovery-selected",
@@ -36,6 +38,7 @@ PLAN = JourneyPlan(
         "other-parent-focused": "step-1", "wrong-recipient-refused": "step-1",
         "parent-list": "step-1", "parent-focused": "step-1", "recipient-rechecked": "step-1",
         "desktop": "step-1", "app-grid": "step-1", "parent-selected": "step-1",
+        "parent-window": "step-1",
         "child-picker-opened": "step-1", "child-choice-highlighted": "step-1",
         "existing-apps": "step-1",
         "fixture-requested": "step-2", "new-child-visible": "step-2",
@@ -46,6 +49,12 @@ PLAN = JourneyPlan(
     },
     advance_after={"installed-greeter": "step-1", "existing-apps": "step-2", "new-child-visible": "step-3"},
     stage_actions={"fixture-requested": "create-account"},
+    settings_checks={
+        "parent-selected": SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
+        "fixture-requested": "parent-selected",
+        "new-child-screen": "new-child-selected",
+        "existing-returned": "parent-selected",
+    },
 )
 
 EMPTY_PLAN = JourneyPlan(

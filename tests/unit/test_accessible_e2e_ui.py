@@ -471,14 +471,20 @@ def test_dynamic_child_requires_expansion_highlight_and_independent_selection(fa
 @pytest.mark.parametrize('fault', [None, 'new-identity', 'new-replay', 'new-return-changed',
                                   'existing-return-changed', 'private-text'])
 def test_discovery_controller_keeps_child_settings_separate_and_private(fault):
+    from installed_journey import InstalledJourney
+    from parent_discovery import PLAN
     existing = {'child': 'existing-fixture-child', 'limit_enabled': False, 'allowance': ['0 minutes']}
     new = {'child': 'new-fixture-child', 'limit_enabled': False, 'allowance': ['1 hour']}
     transport = SimpleNamespace(call=Mock())
     session = UiObservations(transport)
+    journey = InstalledJourney(SimpleNamespace(), Mock(), PLAN, actions={'create-account': Mock()})
     def observe(operation, settings):
         transport.call.return_value = json.dumps({'operation': operation, 'outcome': 'passed',
             'interface': 'AT-SPI', 'settings': settings}).encode()
-        return session.observe(operation)
+        result = session.observe(operation)
+        stage = next(stage for stage, tag in PLAN.screen_tags.items() if tag == 'ui:' + operation)
+        journey.check_settings(stage, {'ui': result})
+        return result
     observe('discovery-selected', existing)
     observe('discovery-ready', existing)
     if fault == 'new-identity': new['child'] = 'fixture-child'
@@ -506,12 +512,54 @@ def test_discovery_controller_keeps_child_settings_separate_and_private(fault):
 
 @pytest.mark.parametrize('enabled,allowance', [(True, ['0 minutes']), (False, ['30 minutes'])])
 def test_discovery_retains_original_zero_allowance_and_limits_off_expectation(enabled, allowance):
+    from installed_journey import InstalledJourney
+    from parent_discovery import PLAN
     result = {'operation': 'discovery-selected', 'outcome': 'passed', 'interface': 'AT-SPI',
               'settings': {'child': 'existing-fixture-child', 'limit_enabled': enabled,
                            'allowance': allowance}}
     session = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
-    with pytest.raises(EvidenceError, match='initial-settings'):
-        session.observe('discovery-selected')
+    journey = InstalledJourney(SimpleNamespace(), Mock(), PLAN, actions={'create-account': Mock()})
+    with pytest.raises(EvidenceError, match='settings-changed'):
+        journey.check_settings('parent-selected', {'ui': session.observe('discovery-selected')})
+
+
+def test_settings_comparison_is_immutable_and_independent_of_selection_history():
+    from ui_observations import SettingsObservation, compare_settings
+    values = {'child': 'new-fixture-child', 'limit_enabled': True, 'allowance': ['1 hour']}
+    earlier = SettingsObservation.from_settings(values)
+    assert compare_settings(SettingsObservation.from_settings(values), earlier)['outcome'] == 'passed'
+    values['allowance'][0] = '2 hours'
+    assert earlier.allowance == ('1 hour',)
+    with pytest.raises(EvidenceError, match='settings-changed:allowance'):
+        compare_settings(SettingsObservation.from_settings(values), earlier)
+
+
+@pytest.mark.parametrize('fault', [None, 'duplicate', 'stale', 'bound', 'unknown-target'])
+def test_child_collection_uses_an_independent_current_list(fault):
+    from accessible_ui import CHILD_IDENTITIES, CHILD, NEW_CHILD
+    rows = [Node('', 'list item', children=[Node(NEW_CHILD, 'label')]),
+            Node('', 'list item', children=[Node(CHILD, 'label')])]
+    if fault == 'duplicate': rows.append(Node('', 'list item', children=[Node(NEW_CHILD, 'label')]))
+    if fault == 'stale': rows[1].states.add('defunct')
+    root = Node('', 'list box', children=rows)
+    ui = ui_for(Node())
+    def collect():
+        return ui.choice_order(root, identities={} if fault == 'unknown-target' else CHILD_IDENTITIES,
+            maximum=1 if fault == 'bound' else 32, cardinality=(1, 1 if fault == 'bound' else 32),
+            projection='child-picker-order')
+    if fault:
+        with pytest.raises(UiError): collect()
+    else:
+        assert collect() == ('new-fixture-child', 'fixture-child')
+
+
+def test_closed_picker_cannot_hide_a_stale_subtree():
+    from accessible_ui import PRODUCT, NEW_CHILD
+    stale = Node('private-canary', states=('defunct',))
+    picker = Node('', 'combo box', children=[Node(NEW_CHILD, 'label')])
+    ui = ui_for(Node(PRODUCT, children=[picker, stale]))
+    with pytest.raises(UiError, match='picker-close'):
+        ui.observe_absence('parent', 'child-popup', name=NEW_CHILD, mode='snapshot')
 
 
 @pytest.mark.parametrize('operation', ['gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
@@ -825,6 +873,29 @@ def keyring_dialog():
     password = Node('', 'password text', states=('showing', 'visible', 'sensitive', 'focused'))
     password.get_text_iface = Mock(side_effect=AssertionError('never read password'))
     return Node('Unlock Login Keyring', 'dialog', children=[cancel, password])
+
+
+@pytest.mark.parametrize('prompt', [False, True])
+def test_prompt_scan_stays_bounded_with_a_large_installed_catalogue(prompt):
+    # The middleware must not scan all app labels again for every keyring title.
+    # This budget covers public reads, independent of elapsed host/VM speed.
+    rows = [Node('Application ' + str(index), 'label') for index in range(500)]
+    for row in rows:
+        row.get_name = Mock(side_effect=[row.name, AssertionError('repeated catalogue scan')])
+    dialog = keyring_dialog()
+    root = Node(role='desktop frame', children=[Node('catalogue', children=rows),
+                                               *([dialog] if prompt else [])])
+    ui = ui_for(root)
+    assert ui.system_prompt_control() is (dialog.children[0] if prompt else None)
+    assert all(row.get_name.call_count == 1 for row in rows)
+
+
+def test_prompt_scan_refuses_an_incomplete_catalogue_read():
+    stale = Node('private-canary', 'label')
+    stale.get_child_count = Mock(side_effect=LookupError('stale'))
+    ui = ui_for(Node(children=[stale]))
+    ui.query_errors = (LookupError,)
+    with pytest.raises(LookupError): ui.system_prompt_control()
 
 
 @pytest.mark.parametrize('timing', ['before-operation', 'during-wait', 'after-action'])

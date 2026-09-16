@@ -10,17 +10,78 @@ sub login_functional {
     my ($journey) = @_;
     die 'parent:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::reattach_functional();
-    $journey->navigate_choice($journey->seen('installed-greeter'));
-    $journey->seen('other-parent-focused');
-    testapi::send_key('ret');
-    $journey->seen('wrong-recipient-refused');
-    testapi::send_key('esc');
-    $journey->navigate_choice($journey->seen('parent-list'));
-    $journey->seen('parent-focused');
-    testapi::send_key('ret');
+    return sign_in($journey, 'parent', 'other-parent', 'success');
+}
+
+# GDM07: fixed fresh Parent binding; setup reattachment belongs to the envelope.
+sub sign_in {
+    my ($journey, $account, $wrong_account, $expected) = @_;
+    die 'parent:entry-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
+        && $account eq 'parent' && $wrong_account eq 'other-parent' && $expected eq 'success';
+    my $list = onpc_gdm::refuse_wrong_recipient($journey, $wrong_account, $account);
+    onpc_gdm::choose_account($journey, $account, $list, 'parent-list', 'parent-focused');
+    # GDM05 keeps both fresh controller recipient checks and the sealed UI19 API.
     onpc_password::enter_parent_gdm_password($journey);
     testapi::send_key('ret');
-    $journey->seen('desktop');
+    return $journey->seen('desktop');
+}
+
+# SEARCH06: explicit observed desktop; stop at the launchable result, before Enter.
+sub search_whole_query {
+    my ($journey, $desktop, $product, $result_stage) = @_;
+    die 'parent:search-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
+        && $product eq 'Oh No! Parent Control' && $result_stage eq 'app-grid';
+    $journey->consume_observation('desktop', $desktop);
+    testapi::send_key('super-a');
+    testapi::type_string($product);
+    return $journey->seen($result_stage);
+}
+
+# SEARCH05/PARENT01, only the registered Parent/whole-query/new-window binding.
+sub open_management {
+    my ($journey, $desktop, $route) = @_;
+    die 'parent:launch-binding' unless @_ == 3 && $route eq 'whole-query';
+    my $result = search_whole_query($journey, $desktop, 'Oh No! Parent Control', 'app-grid');
+    $journey->consume_observation('app-grid', $result);
+    testapi::send_key('ret');
+    return $journey->seen('parent-window');
+}
+
+# FLOW15's bounded GDM/fresh/Parent/success route. Other routes remain unsupported.
+sub enter_desktop {
+    my ($journey, $source, $account, $entry, $expected) = @_;
+    die 'parent:desktop-binding' unless @_ == 5 && $source eq 'gdm' && $account eq 'parent'
+        && $entry eq 'fresh' && $expected eq 'success';
+    return sign_in($journey, $account, 'other-parent', $expected);
+}
+
+# FLOW01: independently supplied greeter, new Parent window, explicit child.
+sub open_for_child {
+    my ($journey, $source, $entry, $window, $child) = @_;
+    die 'parent:flow-binding' unless @_ == 5 && $source eq 'gdm' && $entry eq 'fresh'
+        && $window eq 'new' && $child eq 'existing';
+    my $desktop = enter_desktop($journey, $source, 'parent', $entry, 'success');
+    open_management($journey, $desktop, 'whole-query');
+    return select_child($journey, $child, $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+}
+
+# PARENT02/UI15: opened public list -> UI14 -> Enter -> independent selection.
+# The caller may already hold the opened list at a recorder phase boundary.
+sub select_child {
+    my ($journey, $child, $opened, $list_stage, $highlight_stage, $selected_stage) = @_;
+    my %bindings = (
+        existing => 'child-picker-opened/child-choice-highlighted/parent-selected',
+        new => 'new-child-visible/new-child-choice-highlighted/new-child-selected',
+        returned => 'existing-child-picker-opened/existing-child-choice-highlighted/existing-returned',
+    );
+    die 'parent:selection-binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
+        && exists($bindings{$child})
+        && join('/', $list_stage, $highlight_stage, $selected_stage) eq $bindings{$child};
+    my $highlighted = $journey->highlight_choice($opened, $list_stage, $highlight_stage);
+    $journey->consume_observation($highlight_stage, $highlighted);
+    testapi::send_key('ret');
+    return $journey->seen($selected_stage);
 }
 
 sub login_standard_functional {

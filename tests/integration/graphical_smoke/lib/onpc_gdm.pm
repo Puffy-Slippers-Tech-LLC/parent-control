@@ -4,6 +4,36 @@ use warnings;
 use testapi ();
 use onpc_pointer ();
 
+# GDM02's functional credential binding. Prompt qualification is the caller's
+# immediately following GDM03 checkpoint; account focus alone authorizes no secret.
+sub choose_account {
+    my ($journey, $account, $list, $list_stage, $focused_stage) = @_;
+    my %bindings = (
+        parent => 'parent-list/parent-focused',
+        'other-parent' => 'installed-greeter/other-parent-focused',
+    );
+    die 'gdm:selection-binding' unless @_ == 5 && ref($journey) eq 'onpc_journey'
+        && exists($bindings{$account}) && join('/', $list_stage, $focused_stage) eq $bindings{$account};
+    die 'gdm:console' unless testapi::current_console() eq 'sut';
+    my $focused = $journey->highlight_choice($list, $list_stage, $focused_stage);
+    $journey->consume_observation($focused_stage, $focused);
+    testapi::send_key('ret');
+}
+
+# GDM04: positive wrong-account prompt and negative intended-recipient proof,
+# then a single dismissal and a fresh account-list observation.
+sub refuse_wrong_recipient {
+    my ($journey, $wrong, $intended) = @_;
+    die 'gdm:recipient-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && $wrong eq 'other-parent' && $intended eq 'parent';
+    choose_account($journey, $wrong, $journey->seen('installed-greeter'),
+                   'installed-greeter', 'other-parent-focused');
+    my $proof = $journey->seen('wrong-recipient-refused');
+    $journey->consume_observation('wrong-recipient-refused', $proof);
+    testapi::send_key('esc');
+    return $journey->seen('parent-list');
+}
+
 sub functional_selection {
     my ($journey) = @_;
     die 'gdm:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';

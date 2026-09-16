@@ -247,8 +247,9 @@ def test_functional_secret_input_requires_two_fresh_checks_and_is_single_use(mod
     if mode == 'success':
         variable = 'OTHER_CHILD' if surface == 'standard-functional' else 'PARENT'
         prefix = 'standard-' if surface == 'standard-functional' else ''
-        assert result['events'] == ['policy', 'variable:_SECRET_ONPC_' + variable + '_PASSWORD',
+        assert result['events'] == ['policy',
             'checkpoint:' + prefix + 'recipient-qualified',
-            'checkpoint:' + prefix + 'recipient-rechecked', 'password']
+            'checkpoint:' + prefix + 'recipient-rechecked', 'policy',
+            'variable:_SECRET_ONPC_' + variable + '_PASSWORD', 'password']
     else:
         assert result['error'] == 'secret:input-failed\n'

@@ -17,7 +17,7 @@ from private_artifacts import require
 from parent_needles import semantic_tag
 import system_runner as system
 from vm_transport import Transport
-from ui_observations import UiObservations
+from ui_observations import UiObservations, SettingsObservation, compare_settings
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ class JourneyPlan:
     advance_after: dict = field(default_factory=dict)
     stage_actions: dict = field(default_factory=dict)
     review_mode: str | None = None
+    settings_checks: dict = field(default_factory=dict)
 
     @property
     def stages(self):
@@ -101,6 +102,31 @@ class InstalledJourney:
         self.boot = None
         self.failed = False
         self.prompt_counts = {}
+        self.settings_observations = {}
+        for stage, expected in plan.settings_checks.items():
+            require(stage in plan.screen_tags and
+                    (type(expected) is SettingsObservation or
+                     type(expected) is str and expected in plan.screen_tags and
+                     list(plan.screen_tags).index(expected) < list(plan.screen_tags).index(stage)),
+                    plan.prefix + ':settings-plan')
+
+    def check_settings(self, stage, observed):
+        """Compare recipe-supplied values before fixture actions or durable reply."""
+        if not self.plan.settings_checks:
+            return
+        settings = observed.get('ui', {}).get('settings')
+        if settings is not None:
+            require(stage not in self.settings_observations, 'ui:selection-replay')
+            current = SettingsObservation.from_settings(settings)
+            expected = self.plan.settings_checks.get(stage)
+            if type(expected) is str:
+                require(expected in self.settings_observations, 'ui:missing-settings-observation')
+                expected = self.settings_observations[expected]
+            if expected is not None:
+                observed['comparison'] = compare_settings(current, expected)
+            self.settings_observations[stage] = current
+        else:
+            require(stage not in self.plan.settings_checks, 'ui:missing-settings-observation')
 
     def dismiss_system_prompt(self, stage, point, guard):
         """One ordered pointer request within the worker's existing rendezvous."""
@@ -191,6 +217,7 @@ class InstalledJourney:
                 reply['ui_keys'] = observed['ui']['navigation']
             if 'pointer' in observed.get('ui', {}):
                 reply['ui_pointer'] = observed['ui']['pointer']
+        self.check_settings(stage, observed)
         if stage in plan.stage_actions:
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)

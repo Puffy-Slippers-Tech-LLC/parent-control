@@ -44,6 +44,7 @@ sub mouse_set { push @main::events, ['pointer', @_]; }
 sub mouse_click {
     $main::selected = $main::matched;
     push @main::events, ['click', $main::legacy ? $main::matched : $_[0]];
+    die 'uncertain click' if $main::fault eq 'click-input';
 }
 sub mouse_hide { }
 sub get_var { $_[0] eq 'NOVIDEO' ? '1' : $_[1] }
@@ -55,6 +56,7 @@ sub type_password { push @main::events, ['secret']; }
 sub type_string {
     die 'unpaced query' unless @_ == 3 && $_[1] eq 'max_interval' && $_[2] == 20;
     push @main::events, ['text', $_[0]];
+    die 'uncertain typing' if $main::fault eq 'text-input-' . length($_[0]);
 }
 sub send_key {
     push @main::events, ['key', $_[0]];
@@ -124,7 +126,7 @@ def test_unqualified_standard_recipient_refuses_secret_and_launcher_input(fault,
 
 
 @pytest.mark.parametrize("review", ["0", "1"])
-@pytest.mark.parametrize("stage", ["desktop", "system-prompt", "app-grid", "search-focused", "search-started", "unavailable"])
+@pytest.mark.parametrize("stage", ["desktop", "system-prompt", "app-grid", "search-focused", "search-started", "search-entered", "unavailable"])
 def test_failed_functional_checkpoint_stops_without_replay_or_review_bypass(review, stage):
     result = json.loads(run_perl(PROBE, review, stage).stdout)
     assert not result["ok"]
@@ -136,16 +138,81 @@ def test_failed_functional_checkpoint_stops_without_replay_or_review_bypass(revi
     assert ["power", "off"] not in result["events"]
     if stage == 'search-started':
         assert [event for event in result['events'] if event[0] == 'text'] == [['text', 'O']]
-    elif stage != "unavailable":
+    elif stage not in ("search-entered", "unavailable"):
         assert not any(event[0] == "text" for event in result["events"])
+
+
+@pytest.mark.parametrize('fault', ['click-input', 'text-input-1', 'text-input-20'])
+def test_uncertain_search_input_stops_before_readback_and_never_replays(fault):
+    result = json.loads(run_perl(PROBE, '0', fault).stdout)
+    assert not result['ok']
+    inputs = [event for event in result['events'] if event[0] in ('click', 'text')]
+    expected = [['click', 'left']]
+    if fault != 'click-input': expected.append(['text', 'O'])
+    if fault == 'text-input-20': expected.append(['text', 'h No! Parent Control'])
+    assert inputs == expected
+    assert result['events'][-1] == expected[-1]
+
+
+@pytest.mark.parametrize('block', ['open', 'focus', 'query'])
+@pytest.mark.parametrize('fault', ['', 'stale', 'review', 'binding'])
+def test_search_blocks_accept_independent_entry_and_refuse_invalid_proof(block, fault):
+    result = json.loads(run_perl(r'''
+use strict;
+use warnings;
+use JSON::PP;
+our ($block, $fault) = @ARGV;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub current_console { 'sut' }
+sub send_key { push @main::events, ['key', $_[0]]; }
+sub type_string { push @main::events, ['text', $_[0]]; }
+sub mouse_set { }
+sub mouse_click { push @main::events, ['click']; }
+sub console { bless {}, 'Console' }
+package Console;
+sub mouse_width { 1024 }
+sub mouse_height { 768 }
+package main;
+require onpc_parent;
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'independent', review => $fault eq 'review' ? 1 : 0,
+    exchange => sub { push @events, ['stage', $_[0]]; return {ui_pointer => {x => 20, y => 30}}; });
+my $stage = $block eq 'open' ? 'desktop' : $block eq 'focus' ? 'app-grid' : 'search-focused';
+my $proof = $journey->seen($stage);
+$journey->seen('unrelated') if $fault eq 'stale';
+my $binding = $fault eq 'binding' ? 'unknown' : $block eq 'query' ? 'Oh No! Parent Control' : 'overview';
+my $ok = eval {
+    $block eq 'open' ? onpc_parent::open_search($journey, $proof, $binding)
+        : $block eq 'focus' ? onpc_parent::focus_search($journey, $proof, $binding)
+        : onpc_parent::enter_search_query($journey, $proof, $binding);
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', block, fault).stdout)
+    assert result['ok'] == (not fault)
+    inputs = [event for event in result['events'] if event[0] != 'stage']
+    assert inputs == ([] if fault else {
+        'open': [['key', 'super-a']], 'focus': [['click']],
+        'query': [['text', 'O'], ['text', 'h No! Parent Control']],
+    }[block])
 
 
 def test_keyring_handling_belongs_to_shared_checkpoint_without_worker_escape():
     result = json.loads(run_perl(PROBE, '0', '').stdout)
     events = result['events'][result['events'].index(['stage', 'system-prompt']) + 1:]
     assert result['ok']
-    assert events[0] == ['stage', 'app-grid']
+    assert events[:2] == [['key', 'super-a'], ['stage', 'app-grid']]
+    assert result['events'].count(['key', 'super-a']) == 1
     assert ['key', 'esc'] not in events
+
+
+def test_failed_prompt_dismissal_never_sends_the_overview_shortcut():
+    result = json.loads(run_perl(PROBE, '0', 'system-prompt').stdout)
+    assert not result['ok']
+    assert ['key', 'super-a'] not in result['events']
 
 
 @pytest.mark.parametrize('stage', ['installed-greeter', 'other-parent-focused',

@@ -10,16 +10,10 @@ sub run {
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-access', review => $review,
     );
-    onpc_parent::login_standard_functional($journey);
-    testapi::send_key('super-a');
-    $journey->seen('system-prompt');
-    $journey->click_target($journey->seen('app-grid'));
-    $journey->seen('search-focused');
-    # Use GNOME's normal type-to-search route. Independently observe its first
-    # character before continuing the query; no character is repaired/replayed.
-    testapi::type_string('O', max_interval => 20);
-    $journey->seen('search-started');
-    testapi::type_string('h No! Parent Control', max_interval => 20);
+    my $desktop = onpc_parent::login_standard_functional($journey);
+    my $field = onpc_parent::open_search($journey, $desktop, 'overview');
+    my $focused = onpc_parent::focus_search($journey, $field, 'overview');
+    onpc_parent::enter_search_query($journey, $focused, 'Oh No! Parent Control');
     # Independently observe the actual query and web-only result through public
     # accessibility. Enter would launch that unrelated web suggestion.
     $journey->seen('unavailable');

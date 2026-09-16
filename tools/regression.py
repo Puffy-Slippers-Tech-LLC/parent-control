@@ -294,7 +294,7 @@ class Report:
         for path in (parent, *parent.parents):
             if path.is_symlink():
                 raise ValueError('report path contains a symlink')
-        parent.mkdir(exist_ok=True)
+        parent.mkdir(parents=True, exist_ok=True)
         name = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex[:8]
         self.directory = parent / name
         self.directory.mkdir(mode=0o700)
@@ -926,6 +926,9 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
             status = 0 if all(item.state == 'Passed' for item in run.categories) else 1
         except (Exception, KeyboardInterrupt) as error:
             failed = not isinstance(error, KeyboardInterrupt)
+            if report is None and failed:
+                print(f'Report initialization failed: {type(error).__name__}: {error}',
+                      file=sys.stderr)
             if report is not None:
                 try:
                     report.write('\nRunner failure: ' + html.escape(str(error)) + '\n')

@@ -42,6 +42,16 @@
 
 # Customer acceptance
 
+- Tests must catch regressions. When a test detects changed app behavior or a
+  mismatch with expected behavior, preserve the failure evidence, report a
+  potential regression with expected and actual results, and ask the developer
+  whether the change is intended before accepting it or changing expectations.
+  Reuse explicit behavior-change authorization already given in the session.
+  Never change, weaken, skip or delete checks merely to match current app behavior.
+  Fix mechanical test issues automatically (such as broken test code, fixtures
+  or harness crashes) when evidence shows the intended behavior check is
+  preserved; a mismatch alone is not evidence that the test is wrong. See
+  [failure handling](tests/README.md#handling-test-failures).
 - Follow [E2E building blocks](docs/TestAutomation/E2E-Building-Blocks.md) and
   [E2E scenarios](tests/e2e/scenarios.json): operate and observe
   the installed app as a customer across all surfaces, without backend product
@@ -53,8 +63,9 @@
 - [Functional GUI acceptance](docs/TestAutomation/E2E-Building-Blocks.md#functional-validation)
   uses public accessibility names/roles/states and real UI actions to verify
   customer results. Cosmetic defects, resolution/scale, screenshot similarity
-  and fixed geometry cannot gate acceptance; fail only when interaction or access
-  to required information is blocked.
+  and fixed geometry cannot gate acceptance. Fail when required behavior or
+  results are incorrect, interaction is blocked, or required information is
+  inaccessible.
 
 # Reads and edits
 

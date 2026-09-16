@@ -1,6 +1,7 @@
 package onpc_journey;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use JSON::PP ();
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
@@ -17,6 +18,7 @@ sub new {
 # recipient, desktop and app-grid helpers always call their own strict matches.
 # Review never awards acceptance: the controller still reconciles every match.
 sub observe {
+    onpc_progress::operation('Waiting for the expected screen');
     my ($self, $tag, $timeout) = @_;
     return $self->{review} ? testapi::check_screen($tag, 5) : testapi::assert_screen($tag, $timeout);
 }
@@ -42,6 +44,7 @@ sub consume_observation {
 }
 
 sub navigate_choice {
+    onpc_progress::operation('Navigating the public list order');
     my ($self, $choice) = @_;
     my $keys = $choice->{ui_keys};
     die 'journey:choice-navigation' unless ref($keys) eq 'ARRAY' && @$keys >= 1
@@ -53,6 +56,7 @@ sub navigate_choice {
 # UI14: an explicit fresh list reply drives navigation; its separate checkpoint
 # must verify identity and focus before a caller may commit the selection.
 sub highlight_choice {
+    onpc_progress::operation('Highlighting the intended list choice');
     my ($self, $choice, $list_stage, $focused_stage) = @_;
     die 'journey:focus-stage' unless @_ == 4 && defined($focused_stage)
         && $focused_stage =~ /\A[a-z][a-z0-9-]*\z/;
@@ -62,6 +66,7 @@ sub highlight_choice {
 }
 
 sub finish {
+    onpc_progress::operation('Shutting down the test guest');
     my ($self) = @_;
     # No explicit captures after authentication. Automatic matcher results stay
     # private and are reconciled by the controller after shutdown.
@@ -101,6 +106,7 @@ sub service_system_prompt {
 }
 
 sub click_target {
+    onpc_progress::operation('Clicking the qualified public control');
     my ($self, $reply) = @_;
     die 'journey:pointer-console' unless testapi::current_console() eq 'sut';
     my $point = $reply->{ui_pointer};

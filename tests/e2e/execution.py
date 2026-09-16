@@ -22,6 +22,7 @@ from leased_recording import LeasedScenario
 from private_artifacts import EvidenceError, PrivateCollector, require
 from provenance import VerifiedInputs, preflight_source
 from recording import ScenarioRecorder
+from tools.e2e_progress import Progress
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
@@ -221,7 +222,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                             'execution:invocation-inputs-changed')
                     contract = verified.contract(run_id=run_id, selector=case['case_id'])
                     require(contract.plan['cases'] == [case], 'execution:selection-changed')
-                    recorder = ScenarioRecorder(contract, collector)
+                    recorder = ScenarioRecorder(contract, collector, progress=Progress(plan['cases']))
+                    lease.watch_progress = recorder.progress
                     context = ScenarioContext(recorder, verified, directory, commands,
                                               guestfs, host_key, credentials)
 

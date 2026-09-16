@@ -1,11 +1,13 @@
 package onpc_parent_access;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use onpc_journey ();
 use onpc_parent ();
 
 sub run {
+    onpc_progress::operation('Checking Parent access from a standard account');
     my ($exchange, $review) = @_;
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-access', review => $review,

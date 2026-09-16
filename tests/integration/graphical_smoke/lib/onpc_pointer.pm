@@ -1,12 +1,14 @@
 package onpc_pointer;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 
 # generalhw normalizes screenshots, but its public VNC pointer methods use
 # framebuffer coordinates. Derive every click from the positive match and
 # the public console dimensions; never fall back to a fixed screen position.
 sub click {
+    onpc_progress::operation('Clicking the matched control');
     my ($tag, $timeout) = @_;
     die 'pointer:click-arguments' unless @_ == 2 && defined($tag) && defined($timeout)
         && $tag =~ /\Aonpc-[a-z0-9]+(?:-[a-z0-9]+)*\z/

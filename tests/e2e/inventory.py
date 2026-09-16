@@ -312,6 +312,7 @@ def resolve_selection(document, scenario=None, *, coverage_id=None, ready_only=F
             if (variant['coverage_id'] in ids if coverage_id is not None
                     else scenario is None or scenario in (family['id'], cid)):
                 selected.append({'case_id': cid, 'coverage_id': variant['coverage_id'],
+                                 'title': family['title'],
                                  'scenario_id': family['id'],
                                  'category': family['category'], 'owner': variant['owner'],
                                  'environment': family['environment'],

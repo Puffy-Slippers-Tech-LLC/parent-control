@@ -8,6 +8,59 @@ from private_artifacts import require
 import system_runner as system
 
 
+# Fixed public descriptions only; never forward account labels, query text or
+# credentials from the observed desktop. New operations must declare prose here.
+OPERATION_LABELS = {
+    'gdm-list': 'Reading the greeter account list',
+    'gdm-focused': 'Checking the intended greeter account is focused',
+    'gdm-select-parent': 'Checking the Parent password prompt',
+    'gdm-dismissed': 'Checking the password prompt was dismissed',
+    'gdm-returned': 'Checking the greeter after returning to graphics',
+    'gdm-other-list': 'Reading the wrong-account qualification list',
+    'gdm-other-focused': 'Checking the wrong account is focused',
+    'gdm-wrong-recipient-refused': 'Rejecting the wrong-account password prompt',
+    'gdm-parent-recipient': 'Qualifying the empty masked Parent password field',
+    'gdm-parent-recipient-rechecked': 'Freshly rechecking the Parent password recipient',
+    'gdm-standard-list': 'Reading the standard-account greeter list',
+    'gdm-standard-focused': 'Checking the standard account is focused',
+    'gdm-standard-wrong-recipient-refused': 'Rejecting the wrong-account password prompt',
+    'gdm-standard-recipient': 'Qualifying the empty masked standard-account password field',
+    'gdm-standard-recipient-rechecked': 'Freshly rechecking the standard-account password recipient',
+    'desktop': 'Waiting for the Parent desktop',
+    'app-grid': 'Finding the launchable Parent result in public app search',
+    'parent-window': 'Waiting for the Parent window',
+    'parent-empty': 'Checking the explanation for no eligible children',
+    'child-picker-opened': 'Expanding the child selector for [Child user]',
+    'child-choice-highlighted': 'Checking [Child user] is highlighted',
+    'parent-selected': 'Checking the selected child and displayed settings',
+    'about': 'Opening About and reading product information',
+    'license': 'Opening and reading the installed license',
+    'license-closed': 'Checking the license window is closed',
+    'about-returned': 'Reading the About footer',
+    'parent-returned': 'Checking the returned child and unchanged settings',
+    'discovery-ready': 'Checking existing-child settings and remaining time',
+    'new-child-picker-opened': 'Expanding the child selector for [New child]',
+    'new-child-choice-highlighted': 'Checking [New child] is highlighted',
+    'new-child-selected': 'Checking the selected new child and displayed settings',
+    'existing-child-picker-opened': 'Expanding the child selector for [Existing child]',
+    'existing-child-choice-highlighted': 'Checking [Existing child] is highlighted',
+    'existing-returned': 'Checking the returned existing child and displayed settings',
+    'existing-apps': 'Reading App Limits for [Existing child]',
+    'new-child-apps': 'Reading App Limits for [New child]',
+    'new-child-screen': 'Reading screen-time settings for [New child]',
+    'discovery-child-picker-opened': 'Expanding the child selector for [Existing child]',
+    'discovery-child-choice-highlighted': 'Checking [Existing child] is highlighted',
+    'discovery-selected': 'Checking existing-child settings and remaining time',
+    'standard-desktop': 'Waiting for the standard-account desktop',
+    'standard-system-prompt': 'Checking for a login-keyring prompt',
+    'standard-app-grid': 'Opening public app search',
+    'standard-search-focused': 'Checking the app search field is focused',
+    'standard-search-started': 'Checking the first search character',
+    'standard-search-entered': 'Checking the complete Parent search query',
+    'standard-parent-unavailable': 'Checking Parent is unavailable to the standard account',
+}
+
+
 @dataclass(frozen=True)
 class SettingsObservation:
     """Immutable, sanitized UI values owned explicitly by a scenario."""
@@ -41,8 +94,9 @@ def compare_settings(observed, expected):
 
 
 class UiObservations:
-    def __init__(self, transport, *, system_prompt=None):
+    def __init__(self, transport, *, system_prompt=None, progress=None):
         self.transport = transport
+        self.progress = progress
         self.last_operation = None
         self.wrong_recipient_refused = False
         self.standard_wrong_recipient_refused = False
@@ -99,6 +153,8 @@ class UiObservations:
 
     def observe(self, operation):
         require(operation in accessible_ui.OPERATIONS, 'ui:operation')
+        if self.progress is not None:
+            self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
         version = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
         raw, prompts = self.call(['/usr/bin/python3', '-I', '-c', program, operation, version], operation)

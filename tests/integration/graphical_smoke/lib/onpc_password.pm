@@ -1,6 +1,7 @@
 package onpc_password;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 
 # Only public testapi entry points. The controller pins this source and keeps
@@ -23,10 +24,12 @@ my $functional_started = 0;
 my $functional_input_started = 0;
 
 sub enter_parent_gdm_password {
+    onpc_progress::operation('Qualifying the Parent password recipient');
     return _enter_functional_gdm_password('parent', @_);
 }
 
 sub enter_standard_gdm_password {
+    onpc_progress::operation('Qualifying the standard-account password recipient');
     return _enter_functional_gdm_password('other-child', @_);
 }
 
@@ -67,6 +70,7 @@ sub _enter_functional_gdm_password {
 # caller owns its two checks; the controller owns their wrong-recipient/order
 # qualification. This leaf neither submits nor infers authentication success.
 sub type_fixture_secret {
+    onpc_progress::operation('Entering the protected fixture credential');
     my ($role, $journey, $proof) = @_;
     die "secret:input-refused\n" if $failed || $functional_input_started;
     $authentication_started = 1;
@@ -94,6 +98,7 @@ sub type_fixture_secret {
 }
 
 sub enter_password {
+    onpc_progress::operation('Checking the password recipient before secret input');
     my ($role, $surface) = @_;
     die "secret:input-refused\n" if $failed;
     # Latch before any operation that might capture an authentication screen.
@@ -124,6 +129,7 @@ sub enter_password {
 }
 
 sub capture_before_authentication {
+    onpc_progress::operation('Capturing the unauthenticated screen');
     if ($failed || $authentication_started || @_) {
         $failed = 1;
         die "secret:capture-refused\n";

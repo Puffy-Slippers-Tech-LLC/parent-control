@@ -9,6 +9,17 @@ import time
 
 from e2e_watch_protocol import BASE, read_frame, receive_frames, require
 
+WAITING = 'Waiting for an E2E VM. You can leave this window open.'
+TITLE = 'E2E VM — View only'
+
+
+def progress_text(meta):
+    progress = meta.get('progress') or {}
+    if not progress:
+        return TITLE, '', ''
+    return (f"[{progress['current']}/{progress['total']}] [{progress['case_id']}]: {progress['title']}",
+            progress['step'], progress['operation'])
+
 
 class Feed:
     """Reconnect to subsequent attempts without any dependency on window life."""
@@ -72,7 +83,7 @@ def application(feed=None):
     gi.require_version('Gtk', '4.0')
     gi.require_version('Gdk', '4.0')
     gi.require_version('Graphene', '1.0')
-    from gi.repository import Gdk, Gio, GLib, Graphene, Gtk
+    from gi.repository import Gdk, Gio, GLib, Graphene, Gtk, Pango
 
     class Screen(Gtk.Widget):
         def __init__(self):
@@ -129,13 +140,27 @@ def application(feed=None):
         def do_activate(self):
             if self.window is not None:
                 return
-            self.window = Gtk.ApplicationWindow(application=self, title='E2E VM — View only')
+            self.window = Gtk.ApplicationWindow(application=self, title=TITLE)
             self.window.set_default_size(1050, 820)
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             self.screen = Screen()
-            self.status = Gtk.Label(label='Waiting for an E2E VM. You can leave this window open.')
+            self.step = Gtk.Label(xalign=0, yalign=0, wrap=True,
+                                  wrap_mode=Pango.WrapMode.WORD_CHAR,
+                                  ellipsize=Pango.EllipsizeMode.END, lines=3)
+            # Reserve exactly three font lines, including for short/empty steps.
+            metrics = self.step.get_pango_context().get_metrics(None, None)
+            line_height = (metrics.get_ascent() + metrics.get_descent()) / Pango.SCALE
+            self.step.set_size_request(-1, int(line_height * 3 + .999))
+            self.step.set_margin_start(8)
+            self.step.set_margin_end(8)
+            self.step.set_margin_top(8)
+            self.status = Gtk.Label(label=WAITING, xalign=0,
+                                    ellipsize=Pango.EllipsizeMode.END, single_line_mode=True)
+            self.status.set_margin_start(8)
+            self.status.set_margin_end(8)
             self.status.set_margin_top(8)
             self.status.set_margin_bottom(8)
+            box.append(self.step)
             box.append(self.screen)
             box.append(self.status)
             self.window.set_child(box)
@@ -146,12 +171,20 @@ def application(feed=None):
             frame = self.feed.poll()
             if frame is None:
                 return True
-            if frame == 'waiting' or frame[1]['state'] != 'live':
+            if frame == 'waiting':
                 self.screen.clear()
-                self.status.set_label('Waiting for an E2E VM. You can leave this window open.')
+                self.window.set_title(TITLE)
+                self.step.set_label('')
+                self.status.set_label(WAITING)
             else:
-                self.screen.update(frame)
-                self.status.set_label('Live · View only · Keyboard and mouse stay on your host')
+                title, step, operation = progress_text(frame[1])
+                self.window.set_title(title)
+                self.step.set_label(step)
+                self.status.set_label(operation or ('Live · View only' if frame[1]['state'] == 'live' else WAITING))
+                if frame[1]['state'] == 'live':
+                    self.screen.update(frame)
+                else:
+                    self.screen.clear()
             return True
 
         def do_shutdown(self):

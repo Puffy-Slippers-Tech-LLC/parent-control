@@ -224,7 +224,8 @@ class Smoke:
             transport = Transport(config, self.commands, guard=lambda _: self.lease.guard())
             transport.probe_ready(timeout=180)
             if self.functional:
-                self.ui = UiObservations(transport)
+                self.ui = UiObservations(transport,
+                    progress=getattr(self.lease, 'watch_progress', None))
             self.vm = ReadOnlyObservations(transport, on_diagnostic=(
                 lambda condition: self.progress(self.stages[len(self.steps)],
                     {'recipient_refusal': condition})) if self.progress is not None else None)

@@ -22,6 +22,29 @@ FORMATS = (0x20020888, 0x20028888, 0x20030888, 0x20038888)
 SEALS = fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL | 0x0010  # FUTURE_WRITE
 
 
+def progress_packet(value):
+    """Bound display prose independently of private logs and frame dimensions."""
+    require(type(value) is dict, 'progress-fields')
+    if not value:
+        return b'{}'
+    require(set(value) == {'current', 'total', 'case_id', 'title', 'step', 'operation'}, 'progress-fields')
+    require(type(value['current']) is int and type(value['total']) is int
+            and 0 < value['current'] <= value['total'] <= 100000, 'progress-count')
+    result = {key: value[key] for key in ('current', 'total')}
+    for key, limit in (('case_id', 64), ('title', 384), ('step', 2304), ('operation', 384)):
+        require(type(value[key]) is str, 'progress-text')
+        text = ' '.join(value[key].split())
+        text = ''.join(char for char in text if char.isprintable())
+        # Account for JSON quoting within each field's wire budget.
+        while len(json.dumps(text, ensure_ascii=False).encode('utf-8')) > limit:
+            text = text[:max(0, len(text) - max(1, (len(text.encode('utf-8')) - limit) // 4))]
+        result[key] = text
+    packet = json.dumps(result, ensure_ascii=False, separators=(',', ':')).encode()
+    # Quotes/backslashes may expand even otherwise bounded printable text.
+    require(len(packet) <= 3500, 'progress-size')
+    return packet
+
+
 def require(condition, code):
     if not condition:
         raise ValueError('watch:' + code)
@@ -55,7 +78,7 @@ class Frames:
 
     def publish(self, pixels=None, cursor=None, **meta):
         self.meta.update(meta, updated_ns=time.monotonic_ns())
-        data = json.dumps(self.meta, separators=(',', ':')).encode()
+        data = json.dumps(self.meta, ensure_ascii=False, separators=(',', ':')).encode()
         require(len(data) < HEADER - PREFIX.size, 'metadata-size')
         self.sequence += 2
         self.memory[:PREFIX.size] = PREFIX.pack(self.sequence - 1, len(data))

@@ -1,6 +1,7 @@
 package onpc_serial;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use onpc_password ();
 use onpc_gdm ();
@@ -27,25 +28,30 @@ sub _reboot_failure_diagnostic {
 }
 
 sub run {
+    onpc_progress::operation('Running serial console checks');
     return _run($_[0], 0, scalar @_);
 }
 
 sub run_functional {
+    onpc_progress::operation('Running functional serial console checks');
     require onpc_flow00;
     return onpc_flow00::serial(@_);
 }
 
 sub run_install {
+    onpc_progress::operation('Installing through the serial console');
     return _run($_[0], 1, scalar @_);
 }
 
 sub run_install_refusal {
+    onpc_progress::operation('Checking installation refusal through the serial console');
     return _run($_[0], 2, scalar @_);
 }
 
 # The original single-attempt and capture boundary surrounds all compositions,
 # including legacy installation/refusal consumers. It is never reset.
 sub attempt {
+    onpc_progress::operation('Starting the declared serial action');
     my ($exchange, $body) = @_;
     die "serial:already-attempted\n" if $attempted++;
     onpc_password::seal_capture();
@@ -76,6 +82,7 @@ sub _block {
 
 # HAR02: closed projections, fixed deadlines and private terminal output.
 sub observe_text {
+    onpc_progress::operation('Checking expected terminal text');
     my ($projection) = @_;
     die 'serial:text-arguments' unless @_ == 1 && defined($projection);
     die 'serial:console' unless testapi::current_console() eq 'onpc-serial';
@@ -105,6 +112,7 @@ sub observe_text {
 
 # UI19, serial-only binding: no submission, no new authentication capability.
 sub type_fixture_secret {
+    onpc_progress::operation('Entering the protected fixture credential');
     my ($state, $reference, $proof) = @_;
     return _block($state, 'password', 'secret-typed', sub {
         die 'serial:secret-reference' unless $reference eq 'parent-serial';
@@ -122,6 +130,7 @@ sub type_fixture_secret {
 
 # HAR05: login/session readiness is separate from command execution.
 sub login {
+    onpc_progress::operation('Signing in through the serial console');
     my ($state) = @_;
     return _block($state, 'new', 'authenticated', sub {
         onpc_password::seal_capture();
@@ -143,6 +152,7 @@ sub login {
 
 # HAR06: split marker keeps command echo from satisfying actual stdout.
 sub command {
+    onpc_progress::operation('Running the declared terminal command');
     my ($state) = @_;
     return _block($state, 'authenticated', 'command-observed', sub {
         die 'serial:console' unless testapi::current_console() eq 'onpc-serial';
@@ -154,6 +164,7 @@ sub command {
 
 # HAR07: the returned acknowledgement is single-use evidence for HAR08.
 sub logout {
+    onpc_progress::operation('Logging out of the serial console');
     my ($state) = @_;
     return _block($state, 'command-observed', 'logged-out', sub {
         die 'serial:console' unless testapi::current_console() eq 'onpc-serial';
@@ -171,6 +182,7 @@ sub logout {
 
 # HAR08: the exchange combines fresh HAR03(greeter) and GDM01 observations.
 sub return_graphics {
+    onpc_progress::operation('Returning to the graphical console');
     my ($state, $logout) = @_;
     return _block($state, 'logged-out', 'returned', sub {
         die 'serial:logout-proof' unless ref($logout) eq 'HASH'

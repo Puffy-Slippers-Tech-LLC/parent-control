@@ -135,14 +135,35 @@ def test_host_workers_reuse_only_verified_aggregate_cleanup(tmp_path, monkeypatc
 @pytest.mark.parametrize('category', ['fixture-runtime', 'publish', 'artifacts', 'system', 'e2e'])
 def test_aggregate_cleanup_reuse_does_not_replace_build_or_vm_prerequisites(tmp_path, monkeypatch, category):
     import test_activity
+    import test_retention
     calls = []
+    plans = []
+    def plan(root, selected_category, argv):
+        plans.append((root, selected_category, argv))
+        return [['selected']], True
+
+    if category == 'e2e':
+        # Model the artifact builder in the confined checkout without running it
+        # or allocating an untracked directory outside this test's fixture.
+        builder = tmp_path / 'tools/build_test_artifacts.py'
+        builder.parent.mkdir()
+        builder.touch()
+        artifacts = tmp_path / 'artifacts'
+        artifacts.mkdir()
+        monkeypatch.setattr(test_retention, 'allocate', lambda *args, **kwargs: str(artifacts))
     controller = SimpleNamespace(run=lambda command, **kwargs: calls.append(command) or 0)
     monkeypatch.setattr(regression_process.Control, 'installed', lambda *args, **kwargs: nullcontext(controller))
-    monkeypatch.setattr(test_commands, 'plan', lambda *args: ([['selected']], True))
+    monkeypatch.setattr(test_commands, 'plan', plan)
     monkeypatch.setattr(test_activity, 'cleanup_verified', lambda root: True)
     monkeypatch.setattr(regression_process, 'safety_command', lambda root: ['safety'])
     assert regression_process.category_run(tmp_path, category, ['verify']) == 0
-    assert calls == ([['selected']] if category == 'fixture-runtime' else [['safety'], ['selected']])
+    expected = [['selected']] if category == 'fixture-runtime' else [['safety'], ['selected']]
+    expected_plans = [(tmp_path, category, ['verify'])]
+    if category == 'e2e':
+        expected.insert(0, ['/usr/bin/python3', '-B', str(builder), '--output', str(artifacts)])
+        expected_plans.append((tmp_path, category, ['verify', '--artifacts=' + str(artifacts)]))
+    assert calls == expected
+    assert plans == expected_plans
 
 
 def test_failed_standalone_cleanup_prevents_host_worker(tmp_path, monkeypatch):

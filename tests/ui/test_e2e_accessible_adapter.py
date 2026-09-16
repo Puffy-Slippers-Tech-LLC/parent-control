@@ -29,6 +29,29 @@ def test_parent_functional_adapter_at_display_scales(
         rawinput.pressKey('Return')
         selected = ui.run('parent-selected', version)
         assert selected['settings']['child'] == 'fixture-child'
+        opened = ui.run('discovery-child-picker-opened', version)
+        for key in opened['navigation']:
+            rawinput.pressKey(key.title())
+        ui.run('discovery-child-choice-highlighted', version)
+        rawinput.pressKey('Return')
+        existing = ui.run('discovery-selected', version)
+        assert existing['settings']['child'] == 'existing-fixture-child'
+        ui.run('existing-apps', version)
+        assert ui.run('discovery-ready', version)['settings'] == existing['settings']
+        # Exercise the return picker as well; its highlight and final selection
+        # are separate fresh observations even when the same child is chosen.
+        opened = ui.run('existing-child-picker-opened', version)
+        for key in opened['navigation']:
+            rawinput.pressKey(key.title())
+        ui.run('existing-child-choice-highlighted', version)
+        rawinput.pressKey('Return')
+        assert ui.run('existing-returned', version)['settings'] == existing['settings']
+        opened = ui.run('child-picker-opened', version)
+        for key in opened['navigation']:
+            rawinput.pressKey(key.title())
+        ui.run('child-choice-highlighted', version)
+        rawinput.pressKey('Return')
+        assert ui.run('parent-selected', version)['settings'] == selected['settings']
         # The allowance remains readable when the switch normally disables it.
         toggle = ui.target('Screen time limit', ('switch',), root=ui.parent())
         if ui.has_state(toggle, Atspi.StateType.CHECKED):

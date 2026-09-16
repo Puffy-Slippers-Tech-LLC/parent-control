@@ -77,6 +77,33 @@ Report an unsupported locator/recipient as an automation limitation, not a
 cosmetic product failure. Legacy cases retain their existing behavior until
 migrated; they are not templates for new pixel-based customer acceptance.
 
+Case **3 / E2E-003/existing-and-new** reuses this contract for app search,
+existing-child selection, dynamic discovery and return. Preserve the original
+existing fixture's limits-off/zero-allowance expectation and the new child's
+visible remaining-time section. The fixed account fixture
+runs only after fresh visible settings and a durable phase boundary while Parent
+stays open. Each picker expansion derives navigation from the current public
+list; a separate checkpoint verifies the intended highlighted row before Enter,
+then another requires the closed picker and intended child's displayed settings.
+Both children expose App Limits search and rule-filter controls through normal
+tab navigation. Returning to Screen Limits and the original child must preserve
+their independently recorded switch and allowance values, including disabled
+allowance reads. This case changes no time policy and claims no child-session
+enforcement; E2E-005 owns settings changes followed by child use. Case 4 retains
+its legacy empty-state path until separately migrated.
+
+Case 3 also uses functional GDM account navigation. Its credential gate is
+separate from ordinary observations: select the other parent, positively verify
+that empty masked prompt and refuse it as the intended parent's recipient,
+dismiss, then independently focus/select the intended parent. The secret helper
+requires two consecutive fresh controller acknowledgements of the exact account
+label, hidden account list, sole showing/enabled/focused `password text` role and
+zero character count. It reads no password contents. The second acknowledgement
+immediately precedes the existing `type_password` API with fixed secret options.
+Wrong order/identity, nonempty or unmasked fields, review mode, uncertain typing,
+capture and replay refuse. The active local greeter and owned session socket
+remain qualified; no screenshot threshold or legacy credential gate is weakened.
+
 Case **1 / E2E-001/gdm-observation** uses the same `ui:` checkpoints for
 GDM account selection, the intended account's focused password prompt, Escape
 dismissal and fresh graphical return after serial logout. The adapter connects

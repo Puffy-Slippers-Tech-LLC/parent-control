@@ -63,13 +63,18 @@ sub return_after_reboot {
 
 sub reattach_after_setup {
     die "gdm:arguments\n" if @_;
+    reattach_functional();
+    testapi::assert_screen('onpc-gdm-parent-installed-account', 90)
+        or die "gdm:list-not-matched\n";
+}
+
+sub reattach_functional {
+    die "gdm:arguments\n" if @_;
     die "gdm:console\n" unless testapi::current_console() eq 'sut';
     # disable closes VNC but leaves the console activated. The documented
     # reboot reset makes select_console activate it again and obtain fresh pixels.
     testapi::reset_consoles();
     testapi::select_console('sut');
-    testapi::assert_screen('onpc-gdm-parent-installed-account', 90)
-        or die "gdm:list-not-matched\n";
 }
 
 # Installed input has a separate reviewed tag; the observation-only tag stays

@@ -130,6 +130,8 @@ our @events;
 our $canary = 'fixture-only-credential-9!';
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
+sub current_console { $main::mode eq 'wrong-console' ? 'onpc-serial' : 'sut' }
+sub record_info { }
 sub get_var {
     push @main::events, 'policy';
     return $main::mode eq 'video' ? 0 : 1;
@@ -158,20 +160,33 @@ sub save_screenshot {
 }
 package main;
 require onpc_password;
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'unit', review => $mode eq 'review' ? 1 : 0,
+    exchange => sub {
+        my ($stage) = @_;
+        push @events, 'checkpoint:' . $stage;
+        die $canary if $mode eq 'prompt-error' || ($mode eq 'recheck-error' && $stage eq 'recipient-rechecked');
+        return {observed => 'wrong-stage'} if $mode eq 'wrong-ack';
+        return {observed => $stage, extra => 1} if $mode eq 'extra-ack';
+        return {observed => $stage};
+    });
 my $capture_first = $mode =~ /^capture-/;
 my $ok = eval {
     onpc_password::capture_before_authentication() if $capture_first;
-    onpc_password::enter_password($role, $surface);
+    $surface eq 'functional' ? onpc_password::enter_parent_gdm_password($journey)
+        : onpc_password::enter_password($role, $surface);
     1;
 };
 my $error = $ok ? '' : "$@";
 my @first = @events;
+my $functional_retried = $surface eq 'functional'
+    ? eval { onpc_password::enter_parent_gdm_password($journey); 1; } : 0;
 my $captured = eval { onpc_password::capture_before_authentication(); 1; };
 my $capture_error = "$@";
 my $retried = eval { onpc_password::enter_password('parent', 'gdm'); 1; };
 print encode_json({ok => $ok ? 1 : 0, error => $error, first => \@first,
     events => \@events, captured => $captured ? 1 : 0, capture_error => $capture_error,
-    retried => $retried ? 1 : 0});
+    retried => $retried ? 1 : 0, functional_retried => $functional_retried ? 1 : 0});
 '''
 
 
@@ -217,3 +232,18 @@ def test_credential_free_capture_works_but_is_closed_before_password_input():
     assert result['first'][0] == 'capture'
     assert result['events'].count('capture') == 1
     assert result['captured'] == result['retried'] == 0
+
+
+@pytest.mark.parametrize('mode', ['success', 'video', 'missing', 'control', 'wrong-console',
+    'review', 'prompt-error', 'recheck-error', 'wrong-ack', 'extra-ack', 'typing-error'])
+def test_functional_secret_input_requires_two_fresh_checks_and_is_single_use(mode):
+    result = probe(mode, surface='functional')
+    assert result['ok'] == (mode == 'success')
+    assert result['captured'] == result['retried'] == result['functional_retried'] == 0
+    assert result['events'] == result['first']
+    assert ('password' in result['events']) == (mode in ('success', 'typing-error'))
+    if mode == 'success':
+        assert result['events'] == ['policy', 'variable:_SECRET_ONPC_PARENT_PASSWORD',
+            'checkpoint:recipient-qualified', 'checkpoint:recipient-rechecked', 'password']
+    else:
+        assert result['error'] == 'secret:input-failed\n'

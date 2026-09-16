@@ -39,7 +39,7 @@ def ui_for(root):
         get_action_name=lambda action, index: action.get_action_name(index),
         do_action=lambda action, index: action.do_action(index)), StateType=SimpleNamespace(
         SHOWING='showing', VISIBLE='visible', SENSITIVE='sensitive', DEFUNCT='defunct',
-        FOCUSED='focused')), timeout=0)
+        FOCUSED='focused', SELECTED='selected', CHECKED='checked')), timeout=0)
 
 
 @pytest.mark.parametrize('fault', [None, 'wrong-account', 'no-prompt', 'unfocused', 'list-remains'])
@@ -218,6 +218,14 @@ def test_dead_unrelated_subtree_does_not_hide_live_control():
     assert ui.target('About', ('button',)) is button
 
 
+def test_duplicate_tree_paths_are_one_control_but_distinct_matches_are_ambiguous():
+    button = Node('Search installed apps', 'entry')
+    ui = ui_for(Node(children=[Node(children=[button]), Node(children=[button])]))
+    assert ui.target(button.name, ('entry',)) is button
+    with pytest.raises(UiError, match='ambiguous-target'):
+        ui_for(Node(children=[button, Node(button.name, 'entry')])).target(button.name, ('entry',))
+
+
 @pytest.mark.parametrize('nested', [False, True])
 def test_search_result_supports_named_buttons_and_their_public_labels(nested):
     label = Node('Oh No! Parent Control', 'label')
@@ -272,7 +280,8 @@ def test_license_reads_the_text_interface_and_requires_actual_visible_content(fa
         ui.api.Text.get_text.assert_not_called()
 
 
-@pytest.mark.parametrize('operation', ['child-picker-opened', 'gdm-list'])
+@pytest.mark.parametrize('operation', ['child-picker-opened', 'discovery-child-picker-opened', 'new-child-picker-opened',
+                                     'existing-child-picker-opened', 'gdm-list', 'gdm-other-list'])
 @pytest.mark.parametrize('keys,valid', [
     (['home'], True), (['home', 'down', 'down'], True),
     ([], False), (['down'], False), (['home', 'ret'], False),
@@ -317,3 +326,151 @@ def test_return_compares_actual_displayed_settings(fault):
         with pytest.raises(EvidenceError): session.observe(operation)
     else:
         assert session.observe(operation)['settings'] == settings
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'wrong-highlight', 'hidden', 'disabled',
+                                  'wrong-selection', 'popup-remains'])
+def test_dynamic_child_requires_expansion_highlight_and_independent_selection(fault):
+    from accessible_ui import PRODUCT, CHILD, NEW_CHILD
+    selected = Node(CHILD, 'label')
+    toggle = Node('', 'toggle button')
+    picker = Node('', 'combo box', children=[selected, toggle])
+    allowance = Node('Daily time allowance', 'button', children=[Node('30 minutes', 'label')],
+                     states=('showing', 'visible'))
+    root = Node(PRODUCT, children=[picker, Node('Screen time limit', 'switch'), allowance,
+                                   Node("Today's Remaining Time", 'label')])
+    row = Node('', 'list item', children=[Node(NEW_CHILD, 'label')])
+    listing = Node('', 'list box', children=[Node('', 'list item', children=[Node(CHILD, 'label')]), row])
+    def expand(_index):
+        if fault != 'missing': root.children.append(listing)
+        return True
+    toggle.action.do_action.side_effect = expand
+    ui = ui_for(root)
+    if fault == 'disabled': row.states.remove('sensitive')
+    if fault == 'hidden': row.children[0].states.remove('showing')
+    if fault in ('missing', 'disabled', 'hidden'):
+        with pytest.raises(UiError): ui.run('new-child-picker-opened', '')
+    else:
+        assert ui.run('new-child-picker-opened', '')['navigation'] == ['home', 'down']
+        (listing.children[0] if fault == 'wrong-highlight' else row).states.add('selected')
+        if fault == 'wrong-highlight':
+            with pytest.raises(UiError, match='choice-highlight'):
+                ui.run('new-child-choice-highlighted', '')
+        else:
+            ui.run('new-child-choice-highlighted', '')
+            if fault != 'popup-remains': root.children.remove(listing)
+            if fault != 'wrong-selection': selected.name = NEW_CHILD
+            if fault:
+                with pytest.raises(UiError): ui.run('new-child-selected', '')
+            else:
+                assert ui.run('new-child-selected', '')['settings'] == {
+                    'child': 'new-fixture-child', 'limit_enabled': False, 'allowance': ['30 minutes']}
+    toggle.action.do_action.assert_called_once_with(0)
+
+
+@pytest.mark.parametrize('fault', [None, 'new-identity', 'new-replay', 'new-return-changed',
+                                  'existing-return-changed', 'private-text'])
+def test_discovery_controller_keeps_child_settings_separate_and_private(fault):
+    existing = {'child': 'existing-fixture-child', 'limit_enabled': False, 'allowance': ['0 minutes']}
+    new = {'child': 'new-fixture-child', 'limit_enabled': False, 'allowance': ['1 hour']}
+    transport = SimpleNamespace(call=Mock())
+    session = UiObservations(transport)
+    def observe(operation, settings):
+        transport.call.return_value = json.dumps({'operation': operation, 'outcome': 'passed',
+            'interface': 'AT-SPI', 'settings': settings}).encode()
+        return session.observe(operation)
+    observe('discovery-selected', existing)
+    observe('discovery-ready', existing)
+    if fault == 'new-identity': new['child'] = 'fixture-child'
+    if fault == 'private-text': new['allowance'] = ['private child information']
+    if fault in ('new-identity', 'private-text'):
+        with pytest.raises(EvidenceError): observe('new-child-selected', new)
+        return
+    observe('new-child-selected', new)
+    if fault == 'new-replay':
+        with pytest.raises(EvidenceError): observe('new-child-selected', new)
+        return
+    returned = dict(new)
+    if fault == 'new-return-changed': returned['limit_enabled'] = True
+    if fault == 'new-return-changed':
+        with pytest.raises(EvidenceError): observe('new-child-screen', returned)
+        return
+    observe('new-child-screen', returned)
+    returned = dict(existing)
+    if fault == 'existing-return-changed': returned['allowance'] = ['1 hour']
+    if fault:
+        with pytest.raises(EvidenceError): observe('existing-returned', returned)
+    else:
+        assert observe('existing-returned', returned)['settings'] == existing
+
+
+@pytest.mark.parametrize('enabled,allowance', [(True, ['0 minutes']), (False, ['30 minutes'])])
+def test_discovery_retains_original_zero_allowance_and_limits_off_expectation(enabled, allowance):
+    result = {'operation': 'discovery-selected', 'outcome': 'passed', 'interface': 'AT-SPI',
+              'settings': {'child': 'existing-fixture-child', 'limit_enabled': enabled,
+                           'allowance': allowance}}
+    session = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
+    with pytest.raises(EvidenceError, match='initial-settings'):
+        session.observe('discovery-selected')
+
+
+@pytest.mark.parametrize('operation', ['gdm-parent-recipient', 'gdm-parent-recipient-rechecked'])
+@pytest.mark.parametrize('fault', [None, 'wrong-identity', 'list-visible', 'unfocused', 'unmasked',
+                                  'hidden', 'disabled', 'nonempty', 'ambiguous', 'other-label'])
+def test_functional_password_recipient_requires_exact_identity_and_empty_masked_focus(operation, fault):
+    from accessible_ui import PARENT, OTHER_PARENT
+    label = Node(OTHER_PARENT if fault == 'wrong-identity' else PARENT, 'label')
+    field = Node('Password', 'text' if fault == 'unmasked' else 'password text',
+                 states=('showing', 'visible', 'sensitive', 'focused'))
+    if fault in ('hidden', 'disabled', 'unfocused'):
+        field.states.remove({'hidden': 'showing', 'disabled': 'sensitive', 'unfocused': 'focused'}[fault])
+    field.get_text_iface = lambda: field
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    root = Node(children=[label, field])
+    if fault == 'list-visible': root.children.append(Node(PARENT, 'push button'))
+    if fault == 'ambiguous': root.children.append(Node('Other password', 'password text'))
+    if fault == 'other-label': root.children.append(Node(OTHER_PARENT, 'label'))
+    ui = ui_for(root)
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: 1 if fault == 'nonempty' else 0,
+                                 get_text=Mock(side_effect=AssertionError('password text read')))
+    if fault:
+        with pytest.raises(UiError): ui.run(operation, '')
+    else:
+        assert ui.run(operation, '')['outcome'] == 'passed'
+    ui.api.Text.get_text.assert_not_called()
+    field.get_child_count.assert_not_called()
+
+
+def test_live_wrong_account_prompt_explicitly_refuses_parent_recipient():
+    from accessible_ui import PARENT, OTHER_PARENT
+    field = Node('Password', 'password text', states=('showing', 'visible', 'sensitive', 'focused'))
+    field.get_text_iface = lambda: field
+    ui = ui_for(Node(children=[Node(OTHER_PARENT, 'label'), field]))
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: 0)
+    assert ui.run('gdm-wrong-recipient-refused', '')['outcome'] == 'passed'
+    assert not ui.password_recipient(PARENT)
+
+
+@pytest.mark.parametrize('fault', [None, 'skip-wrong', 'skip-first', 'replay', 'intervening-state'])
+def test_controller_requires_ordered_wrong_recipient_then_fresh_parent_recheck(fault):
+    transport = SimpleNamespace(call=Mock())
+    ui = UiObservations(transport)
+    def observe(operation):
+        transport.call.return_value = json.dumps({
+            'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}).encode()
+        ui.observe(operation)
+    if fault != 'skip-wrong':
+        observe('gdm-other-focused')
+        observe('gdm-wrong-recipient-refused')
+    observe('gdm-focused')
+    if fault == 'skip-wrong':
+        with pytest.raises(EvidenceError, match='recipient-order'): observe('gdm-parent-recipient')
+        return
+    if fault != 'skip-first': observe('gdm-parent-recipient')
+    if fault == 'intervening-state': observe('gdm-focused')
+    if fault in ('skip-first', 'intervening-state'):
+        with pytest.raises(EvidenceError, match='recipient-order'): observe('gdm-parent-recipient-rechecked')
+        return
+    observe('gdm-parent-recipient-rechecked')
+    if fault == 'replay':
+        with pytest.raises(EvidenceError, match='recipient-order'): observe('gdm-parent-recipient-rechecked')

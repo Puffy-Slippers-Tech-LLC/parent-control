@@ -35,8 +35,9 @@ sub mouse_hide { }
 sub get_var { $_[0] eq 'NOVIDEO' ? '1' : $_[1] }
 sub get_required_var { 'unit-fixture-value' }
 sub type_password { push @main::events, ['secret']; }
-sub type_string { }
-sub send_key { }
+sub type_string { push @main::events, ['text', $_[0]]; }
+sub send_key { push @main::events, ['key', $_[0]]; }
+sub save_screenshot { die 'explicit capture forbidden'; }
 sub wait_still_screen { }
 sub record_info { }
 sub console { bless {}, 'Console' }
@@ -49,7 +50,12 @@ sub mouse_height { 768 }
 package main;
 require onpc_parent_discovery;
 my $ok = eval {
-    my $exchange = sub { push @events, ['stage', $_[0]]; };
+    my $exchange = sub {
+        push @events, ['stage', $_[0]];
+        die 'failed functional observation' if $fault eq $_[0];
+        return {observed => $_[0]} if $_[0] =~ /\Arecipient-(?:qualified|rechecked)\z/;
+        return {ui_keys => ['home', 'down']};
+    };
     $variant eq 'none' ? onpc_parent_discovery::run_none($exchange)
         : onpc_parent_discovery::run($exchange);
     1;
@@ -64,18 +70,27 @@ def test_customer_worker_selects_existing_and_new_children_in_order():
     result = json.loads(run_perl(PROBE, "existing", "").stdout)
     assert result["ok"], result
     stages = [event[1] for event in result["events"] if event[0] == "stage"]
-    assert stages[-5:] == [
-        "parent-selected", "fixture-requested", "new-child-visible",
-        "new-child-selected", "existing-returned",
-    ]
-    assert ["click", "onpc-parent-new-child-choice"] in result["events"]
+    from parent_discovery import PLAN
+    assert stages == list(PLAN.screen_tags)
+    assert not any(event[0] in ('assert', 'click') and event[1].startswith('onpc-parent-')
+                   for event in result['events'])
+    for stage in ('child-choice-highlighted', 'new-child-choice-highlighted',
+                  'existing-child-choice-highlighted'):
+        index = result['events'].index(['stage', stage])
+        assert result['events'][index + 1] == ['key', 'ret']
     assert result["events"][-1] == ["power", "off"]
 
 
-def test_missing_new_child_stops_before_new_child_input_or_shutdown():
-    result = json.loads(run_perl(PROBE, "existing", "new-choice").stdout)
+@pytest.mark.parametrize('stage', ['child-picker-opened', 'child-choice-highlighted',
+    'installed-greeter', 'other-parent-focused', 'wrong-recipient-refused',
+    'parent-list', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
+    'parent-selected', 'fixture-requested', 'new-child-visible',
+    'new-child-choice-highlighted', 'new-child-selected', 'new-child-apps',
+    'existing-child-choice-highlighted', 'existing-returned'])
+def test_failed_observation_stops_before_any_further_input_or_shutdown(stage):
+    result = json.loads(run_perl(PROBE, "existing", stage).stdout)
     assert not result["ok"]
-    assert ["click", "onpc-parent-new-child-choice"] not in result["events"]
+    assert result['events'][-1] == ['stage', stage]
     assert ["power", "off"] not in result["events"]
 
 

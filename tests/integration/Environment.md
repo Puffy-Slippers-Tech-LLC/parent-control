@@ -143,6 +143,14 @@ persistent domain configuration, and leaves the VM off. It creates no new
 snapshot, overlay or cloned VM. Reboot inside a journey changes the real boot
 identity and preserves the preceding steps' state.
 
+For multi-case E2E invocations, the exclusive lease spans the suite. Each case
+still starts from the accepted baseline. The final worker power-off callback
+force-reverts directly to its off state; no graceful shutdown wait or second
+restore separates cases. Full baseline and offline guest audits bracket the
+suite, while live ownership and isolation checks remain active throughout.
+Final acceptance requires the closing audit and actual lease release. No
+case may continue after a failure. See [suite controller](../e2e/suite_lease.py).
+
 The preparation `/Data` virtiofs share is outside VM disk state. A snapshot
 restore may reintroduce its saved domain configuration, so every test boot
 requires the runner's share-detachment checks. Do not manually restore and boot

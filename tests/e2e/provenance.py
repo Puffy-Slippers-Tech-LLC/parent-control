@@ -163,7 +163,7 @@ def baseline_inputs(lease):
     state = lease.capture.read_state()
     require(state == lease.capture.state and state['phase'] == 'finalized',
             'provenance:baseline-state-changed')
-    require(lease.capture.verify_snapshot() == state['proof'], 'provenance:baseline-proof-changed')
+    require(lease.verify_baseline() == state['proof'], 'provenance:baseline-proof-changed')
     baseline_sha256 = digest(state)
     require(baseline_sha256 == lease.state['baseline_sha256'],
             'provenance:baseline-identity-changed')

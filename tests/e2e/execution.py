@@ -1,7 +1,7 @@
 """Public selected attempts using the existing VM lease and evidence gate.
 
 Scenario modules are trusted checkout code, loaded only after independent input
-capture. Each case gets a complete outer attempt; no saved-state continuation.
+capture. Cases start from the baseline; multi-case runs retain one suite lease.
 """
 
 import copy
@@ -129,17 +129,21 @@ class ScenarioContext:
         return copy.deepcopy(self.worker)
 
 
-def attempt(plan, case, *, root=ROOT, expected_inputs=None):
+def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite=None):
     """Retain preparation failures even when no ScenarioRecorder can exist yet."""
     run_id = 'scenario-' + uuid.uuid4().hex
     ledger = system.RunLedger()
     source = lease = collector = context = host_before = bridge = None
-    commands = Commands()
+    commands = suite.commands if suite is not None else Commands()
     report = {'schema_version': 1, 'run_id': run_id, 'case_id': case['case_id'],
               'outcome': 'failed', 'acceptance_candidate': None, 'inputs': None,
               'first_failure': None, 'lease_phase': None,
               'scope': 'independent-scenario-attempt'}
+    if suite is not None:
+        report['verification_scope'] = 'suite-boundaries'
     sequence = 0
+    progress = progress if progress is not None else Progress(plan['cases'])
+    progress.prepare(case['case_id'])
 
     def fail(category, code):
         ledger.fail_outcome(category, code)
@@ -173,9 +177,15 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
             private = directory / 'private'
             private.mkdir(mode=0o700)
             commands.directory = private
-            graphical_backend.check(commands)
-            if 'fixture-credentials-via-secret-api' in case['preconditions']:
+            if suite is None or not suite.backend_checked:
+                graphical_backend.check(commands)
+                if suite is not None:
+                    suite.backend_checked = True
+            if ('fixture-credentials-via-secret-api' in case['preconditions'] and
+                    (suite is None or not suite.credentials_checked)):
                 credential_preflight(commands)
+                if suite is not None:
+                    suite.credentials_checked = True
             staged = directory / 'assets'
             system.stage_assets(system.artifact_source(Path(plan['artifacts'])), staged, commands)
             staged.chmod(0o700)
@@ -200,12 +210,15 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                     stream.flush()
                     os.fsync(stream.fileno())
             print('e2e:bootstrap-inputs-staged', file=sys.stderr, flush=True)
-            host_before = system.host_fingerprint(commands)
-            source, guestfs = open_source()
-            lease = system.Lease(source, commands,
-                lambda disk, digest: system.baseline.inspect_guest(guestfs, disk, digest),
-                ledger=ledger, graphics_type='vnc',
-                verify_backing_bytes=plan.get('verify_backing_bytes', True))
+            if suite is None:
+                host_before = system.host_fingerprint(commands)
+                source, guestfs = open_source()
+                lease = system.Lease(source, commands,
+                    lambda disk, digest: system.baseline.inspect_guest(guestfs, disk, digest),
+                    ledger=ledger, graphics_type='vnc',
+                    verify_backing_bytes=plan.get('verify_backing_bytes', True))
+            else:
+                source, guestfs, lease = suite.acquire(ledger)
         with lease:
             try:
                 with ledger.measure('preparation'):
@@ -215,6 +228,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                     lease.guard(off=True)
                     lease.save('isolated')
                     verified = VerifiedInputs(lease=lease, assets=staged, root=root)
+                    if suite is not None:
+                        suite.verified = verified
                     report['inputs'] = verified.inputs
                     require(verified.inputs['inventory_sha256'] == plan['inventory_sha256'],
                             'execution:selection-inputs-changed')
@@ -222,14 +237,15 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                             'execution:invocation-inputs-changed')
                     contract = verified.contract(run_id=run_id, selector=case['case_id'])
                     require(contract.plan['cases'] == [case], 'execution:selection-changed')
-                    recorder = ScenarioRecorder(contract, collector, progress=Progress(plan['cases']))
+                    recorder = ScenarioRecorder(contract, collector, progress=progress)
                     lease.watch_progress = recorder.progress
                     context = ScenarioContext(recorder, verified, directory, commands,
                                               guestfs, host_key, credentials)
 
                     def cleanup(_recorder, held):
-                        require(system.host_fingerprint(commands) == host_before,
-                                'execution:host-changed')
+                        if suite is None:
+                            require(system.host_fingerprint(commands) == host_before,
+                                    'execution:host-changed')
                         worker = context.worker or {}
                         return {'lease_phase': held.state['phase'], 'vm_off': True,
                                 'baseline_restored': held.state['phase'] == 'complete',
@@ -241,6 +257,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                     checkpoint('preparation-complete')
                 with ledger.measure('test'):
                     bridge.execute(lambda r: load_callback(case, verified)(r, context))
+                    progress.prepare_next()
             except BaseException as error:
                 # Persist before Lease.__exit__ starts restoration, including
                 # preparation failures before a recorder or finalizer exists.
@@ -280,7 +297,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None):
                             'execution:host-changed')
                 except BaseException:
                     fail('cleanup', 'execution:host-preservation-failed')
-            if source is not None:
+            if source is not None and suite is None:
                 try:
                     source.close()
                 except BaseException:
@@ -320,6 +337,14 @@ def main(plan):
               'excluded_pending_cases': plan.get('excluded_pending_cases', []),
               'expected_cases': [c['case_id'] for c in plan['cases']], 'attempts': []}
     collector = None
+    progress = Progress(plan['cases'])
+    from e2e_watch import ProgressPublication
+    publication = ProgressPublication(progress)
+    from suite_lease import Suite
+    suite = (Suite(open_source, verify_backing_bytes=plan.get('verify_backing_bytes', True))
+             if len(plan['cases']) > 1 else None)
+    previous_progress = system.watch_progress
+    system.watch_progress = progress
     try:
         # This final report owns the invocation outcome. Per-case acceptance
         # files are candidates until release, close and report validation pass.
@@ -328,13 +353,26 @@ def main(plan):
             report['evidence_directory'] = str(collector.path)
             collector.save_report('invocation-started', report)
             expected_inputs = None
-            for case in plan['cases']:
-                result = attempt(plan, case, expected_inputs=expected_inputs)
-                report['attempts'].append(result)
-                collector.save_report(f'attempt-{len(report["attempts"]):06d}', result)
-                if result['outcome'] != 'passed':
-                    break
-                expected_inputs = result['inputs']
+            try:
+                for case in plan['cases']:
+                    result = attempt(plan, case, expected_inputs=expected_inputs, progress=progress,
+                                     **({'suite': suite} if suite is not None else {}))
+                    report['attempts'].append(result)
+                    collector.save_report(f'attempt-{len(report["attempts"]):06d}', result)
+                    if result['outcome'] != 'passed':
+                        break
+                    expected_inputs = result['inputs']
+            finally:
+                if suite is not None:
+                    try:
+                        suite.close()
+                        report['suite_cleanup'] = {'outcome': 'passed'}
+                    except BaseException:
+                        report['suite_cleanup'] = {'outcome': 'failed'}
+                        raise
+                    finally:
+                        if suite.lease is not None:
+                            report['baseline_verification'] = dict(suite.lease.capture.verification_totals)
             require(report['expected_cases'] and
                     [a['case_id'] for a in report['attempts']] == report['expected_cases'] and
                     all(a['outcome'] == 'passed' for a in report['attempts']),
@@ -351,6 +389,8 @@ def main(plan):
         report['outcome'] = 'failed'
         report['failure'] = 'execution:invocation-report-failed'
     finally:
+        system.watch_progress = previous_progress
+        publication.close()
         if collector is not None:
             try:
                 collector.close()

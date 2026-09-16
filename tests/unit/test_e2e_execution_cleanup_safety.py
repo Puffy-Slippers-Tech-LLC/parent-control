@@ -516,6 +516,33 @@ def test_ready_cases_use_independent_attempts_and_stop_after_first_failure(publi
     assert execute.call_args_list[1].kwargs['expected_inputs'] == results[0]['inputs']
 
 
+@pytest.mark.parametrize('failure', [None, 'case', 'audit'])
+def test_suite_candidates_require_final_audit_before_invocation_acceptance(
+        public, monkeypatch, capsys, failure):
+    import suite_lease
+    plan = copy.deepcopy(public.plan)
+    plan['cases'] = [dict(public.case, case_id=f'E2E-00{i}/synthetic') for i in range(1, 4)]
+    suite = Mock(lease=None)
+    if failure == 'audit':
+        suite.close.side_effect = RuntimeError('private-canary')
+    factory = Mock(return_value=suite)
+    monkeypatch.setattr(suite_lease, 'Suite', factory)
+    def attempt(plan, case, **kwargs):
+        assert kwargs['suite'] is suite
+        suite.close.assert_not_called()
+        return {'case_id': case['case_id'], 'inputs': {'source_sha256': 'frozen'},
+                'outcome': 'failed' if failure == 'case' else 'passed'}
+    execute = Mock(side_effect=attempt)
+    monkeypatch.setattr(execution, 'attempt', execute)
+    assert execution.main(plan) == (0 if failure is None else 1)
+    result = json.loads(capsys.readouterr().out)
+    suite.close.assert_called_once()
+    assert execute.call_count == (1 if failure == 'case' else 3)
+    assert result['suite_cleanup']['outcome'] == ('failed' if failure == 'audit' else 'passed')
+    assert result['outcome'] == ('passed' if failure is None else 'failed')
+    assert 'private-canary' not in json.dumps(result)
+
+
 @pytest.mark.parametrize('fault', ['digest', 'symlink', 'edited-while-loading'])
 def test_callback_refuses_changed_or_replaced_frozen_code(harness, fault):
     marker = harness.root / 'callback-ran'

@@ -23,6 +23,7 @@ def lease():
     capture = SimpleNamespace(state=state, read_state=lambda: copy.deepcopy(state),
                               verify_snapshot=lambda: copy.deepcopy(state['proof']))
     return SimpleNamespace(fd=42, guard=Mock(), capture=capture,
+                           verify_baseline=lambda: capture.verify_snapshot(),
                            state={'baseline_sha256': provenance.digest(state)})
 
 

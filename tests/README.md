@@ -37,8 +37,8 @@ the original options. The flag takes no value and can accompany `--serial-builds
 
 Run `make test-all` (`tools/run-tests all`) for development without backing-file
 byte scans, or `make test-all-verify` (`tools/run-tests all-verify`) for the
-existing full verification at each VM attempt boundary. Both retain ownership
-locks, backing read leases, snapshot/chain checks, guest inspection and cleanup;
+full verification at system attempt and E2E suite boundaries. Both retain ownership
+locks, snapshot/chain checks, guest inspection and cleanup;
 reports explicitly record the verification policy. Direct system/E2E runs still
 verify backing bytes unless `--skip-backing-verification` is explicitly selected.
 Both aggregate targets automatically discover all ready E2E variants, including
@@ -155,11 +155,18 @@ checkout or prove immunity to an edit-and-revert between boundaries.
 
 Installed-system functional areas already share one package installation and
 one outer VM attempt, including the reboots their assertions require. Keep that
-full selection together. E2E retains independent attempts: the current sole
-ready case requires a product-free boot. Pending customer journeys are not
-made runnable or silently combined. Future explicit shared-setup groups must
-declare compatible starting states, boundary checks, individual evidence and
-group cleanup before reducing those attempts.
+full selection together. Multi-case E2E runs retain one exclusive VM lease and
+connection across fresh-baseline cases. Full baseline/chain verification and
+offline guest inspection run before the first case and after the last case or
+failure. At case completion, the runner force-reverts the recorded guest directly
+to the accepted off snapshot, without an ACPI shutdown wait; the next case
+uses that restored state without restoring it again. Live lock, domain instance,
+disk path/inode, snapshot metadata and isolation checks remain active. Each case
+still provisions its own declared inputs and gets its own worker and evidence;
+no product state continues between cases. Case results remain candidates until
+the suite audit, host preservation check and actual lock/connection release pass.
+Any case or transition failure stops the suite. Single-case and installed-system
+runs retain their full independent attempt lifecycle.
 
 The command collects current unit/contract, private-D-Bus, UI and fixture runtime
 cases; runs cleanup prerequisites in isolation before protected operations;

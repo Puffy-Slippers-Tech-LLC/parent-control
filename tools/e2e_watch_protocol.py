@@ -27,10 +27,22 @@ def progress_packet(value):
     require(type(value) is dict, 'progress-fields')
     if not value:
         return b'{}'
-    require(set(value) == {'current', 'total', 'case_id', 'title', 'step', 'operation'}, 'progress-fields')
+    fields = {'current', 'total', 'case_id', 'title', 'step', 'operation'}
+    timing = {'started_ns', 'case_started_ns'}
+    require(set(value) in (fields, fields | timing,
+                          fields | timing | {'operation_started_ns'}), 'progress-fields')
     require(type(value['current']) is int and type(value['total']) is int
             and 0 < value['current'] <= value['total'] <= 100000, 'progress-count')
     result = {key: value[key] for key in ('current', 'total')}
+    if timing <= value.keys():
+        require(all(type(value[key]) is int and 0 <= value[key] < 2**63 for key in timing)
+                and value['started_ns'] <= value['case_started_ns'], 'progress-time')
+        result.update({key: value[key] for key in timing})
+    if 'operation_started_ns' in value:
+        started = value['operation_started_ns']
+        require(type(started) is int and value['case_started_ns'] <= started < 2**63,
+                'progress-time')
+        result['operation_started_ns'] = started
     for key, limit in (('case_id', 64), ('title', 384), ('step', 2304), ('operation', 384)):
         require(type(value[key]) is str, 'progress-text')
         text = ' '.join(value[key].split())

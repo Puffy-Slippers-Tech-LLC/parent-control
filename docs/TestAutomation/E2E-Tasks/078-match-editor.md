@@ -13,11 +13,11 @@ Contract: the named [catalogue rows](../E2E-Building-Blocks.md#ordered-building-
 
 ## Work
 
-Open/read the real draft editor and apply explicit responses; compare Cancel with the supplied old rule, invalid Save with validation, and Reset with its actual UI commit behavior. Qualify deferred/absent-row behavior later with E2E-020.
+Open/read the real draft editor and apply explicit responses; compare Cancel with the supplied old rule, invalid Save with validation, and Reset with its actual UI commit behavior. Qualify retained-editor saves after app removal and the subsequent catalogue refresh later with E2E-020.
 
 ## Live VM acceptance
 
-In installed Parent, enter a synthetic valid rule, cancel and observe the old row, then save and observe the new rule. Exercise invalid Save and Reset. The editor stays open after invalid input; no saved-preference read.
+In installed Parent, enter a synthetic valid rule, cancel and observe the old row, then save and observe the new rule. Exercise invalid Save and Reset. Empty or unrelated precise input keeps the editor open. A broker-rejected wildcard closes the editor and reports a failed save; dismiss its report and compare the restored rule. The documented precise-override restoration limitation also applies during this recovery, so record that branch if the fixture has a suggested wildcard; it is not evidence of a correct precise-rule round trip. Reset saves the detected default immediately. Use no saved-preference read.
 
 Run affected safety/worker checks, then planned fixed qualification `tools/run-tests integration check_e2e_match_editor`, or the full named consumer if runnable. Reuse/create the fixed entry under the master's qualification contract. Every result above and owned cleanup must pass on the live VM; diagnostic success earns no scenario coverage.
 

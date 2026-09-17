@@ -164,7 +164,10 @@ make publish-status
 
 ## Diagnose failures
 
-Logs: `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log`.
+Structured logs: `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.events`.
+Feedback exports render these as readable dated `.log` files alongside
+`system-info.json`; legacy text logs are not collected. See
+[logging and feedback](docs/SystemDesign/Logging-and-Feedback.md).
 
 Use `tools/diagnose`; see [diagnostic commands](docs/Approval-Tools.md#system-reads). Preserve logs and failed artifacts. Redact personal information before sharing reports.
 

@@ -7,11 +7,19 @@ rules, running-app termination, or grant-expiry reconciliation.
 
 Implementation: [catalog.py](../../broker/oh_no_parent_control/catalog.py), [execution_policy.py](../../broker/oh_no_parent_control/execution_policy.py), [app_termination.py](../../broker/oh_no_parent_control/app_termination.py), [core.py](../../broker/oh_no_parent_control/core.py), [adapters.py](../../broker/oh_no_parent_control/adapters.py).
 
+The production policy path is the AccountsService adapter's `set_filter` →
+`FapolicydPolicy.reconcile`: compile and notify, with the acknowledgement limits
+below. The generation-witness sections describe deferred design and supporting
+probe modules/tests, not a witness used by production saves, grants or removal.
+Their qualification notes must not be read as stronger release guarantees.
+
 ## Application policy and enforcement
 
 The parent selects policy by desktop ID, but enforcement uses the corresponding
 native executable path, public Snap command path, or full Flatpak ref. The
-broker discovers launchers from the selected child's user XDG directories
+blocklist is the union of blocked targets across entries: an allowed desktop ID
+cannot override another entry's block on their shared executable or app identity.
+The broker discovers launchers from the selected child's user XDG directories
 before system directories, so the catalog reflects that child's app grid. The
 first file for each desktop ID takes precedence even if it is hidden or cannot
 be listed; a lower-priority launcher does not replace that child's override.
@@ -23,12 +31,19 @@ canonicalized before generic-wrapper exclusion. This fixed discovery policy
 does not evaluate account shell profiles or arbitrary session PATH changes.
 On every app-policy save it resolves each still-present desktop ID again; a
 self-updated executable is not replaced by a stale target, while a missing
-app's saved rule remains intact. After installing and verifying the complete
-policy, the broker stops applications
+app's saved rule remains intact. The Parent catalogue itself is a selection-time
+snapshot; a new Parent window or changing children refreshes its rows. This
+differs from the periodic account-list and enforcement-rule refreshes.
+After installing and verifying the complete policy, the broker stops applications
 whose effective policy just became more restrictive. It stops only matching
 processes owned by the selected child, across all of that child's retained
 sessions. Policy saves serialize with approvals, revocations, and session
 preparation so a concurrent grant cannot relax a newly saved hard block.
+
+The termination delta compares saved targets/patterns: newly blocked entries
+and soft-to-hard transitions. Restoring an already-saved soft block after a
+temporary exception updates launch policy but does not itself add that app to
+the termination delta.
 
 ## Running application identity
 
@@ -72,10 +87,22 @@ through a desktop file, file manager, or command, the broker mirrors live native
 targets into UID-scoped fapolicyd execute denials. Ordinary targets use exact
 paths. The rule renderer uses SHA-256 object identity for existing executable
 paths containing whitespace or commas, which its path-rule format cannot
-represent safely. Pattern rules put exact safe-file allowances before a denial
-for the guarded directory, so a matching new
-AppImage is denied before a later rescan while unrelated existing executables
-remain usable.
+represent safely. Such a hash clause matches identical bytes at other paths
+for the same UID too; the UI's precise-match label does not imply a path-only
+kernel clause in that case. Pattern rules put exact safe-file allowances before
+a denial for the guarded directory, so a matching new AppImage is denied before
+a later rescan while unrelated existing executables remain usable.
+
+Patterns are validated as absolute paths with `*` or `?` in the basename and
+the same canonical directory as a native target. The editor can expand a bare
+filename against an unambiguous target directory. Directory whitespace and
+unsupported rule characters are rejected. The renderer also refuses a pattern
+when an existing nonmatching executable's whitespace/comma path cannot be
+expressed as an allowance; it reports a failed save rather than silently
+blocking that existing nonmatch. Default patterns are suggested for recognized
+versioned `.AppImage` names; explicitly saving that detected default is not a
+custom override. Existing immediate subdirectories receive prefix allowances;
+new nonmatching files/directories require reconciliation before receiving them.
 
 Every broker `AppFilter` write synchronously reconciles the aggregate fapolicyd
 policy. The renderer skips replacement and reload only when the disk contents
@@ -919,6 +946,12 @@ therefore preserves the hard-only filter and every running application, while
 an approval that keeps soft blocks has already restored the complete filter and
 stopped blocked applications. Session preparation must not repeat or reverse
 either successful approval transaction.
+
+There is no product expiry worker that immediately rewrites `AppFilter` when
+a grant ends. The periodic execution-rule reconciler mirrors the existing live
+filter. If daily time still permits desktop use, natural grant expiry alone
+neither locks that desktop nor immediately restores omitted soft blocks; a
+subsequent session preparation or another strict-policy operation does so.
 
 ## Policy boundaries
 

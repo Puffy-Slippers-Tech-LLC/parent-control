@@ -111,8 +111,8 @@ A verified write establishes a new known baseline; repeat unchanged reads are
 suppressed, while verified app writes are recorded even when they are no-ops.
 Events include the local observation timestamp, previous/new remaining durations,
 and a boolean for expiry at local midnight. The observer compares absolute
-second-resolution expiry with the next local midnight, avoiding the fractional
-second rounding mismatch reproduced at 12:48:10.349 on September 12, 2026.
+second-resolution expiry with the next local midnight, avoiding fractional
+second rounding mismatches against the integer grant representation.
 An external increase expiring at midnight also emits `grant.external-rest-of-day`,
 explicitly describing the observed rest-of-day grant and that the click and
 authentication were not observed. Initial, ambiguous, and verified app writes
@@ -141,8 +141,9 @@ the live login-screen flow.
 
 ## Feedback and diagnostic export
 
-The shared feedback dialog in Parent App, Child App, and Kiosk App sends
-feedback from an unprivileged worker directly to
+The Parent App exposes ordinary Send Feedback; Parent, Child and Kiosk App
+errors use the same dialog for editable error reports. Submission runs in an
+unprivileged frontend worker directly to
 `https://tech.puffyslippers.com/api/oh-no-parent-control/feedback`. It sends
 plain text, optional semantic HTML, optional reply email, app version,
 user-selected attachment basenames and bytes, and an optional diagnostic ZIP.
@@ -211,8 +212,11 @@ navigation away from the editor is blocked. Editor content crosses the local
 message bridge as plain text, semantic HTML, and a Quill delta used to restore
 the draft after a web-process restart.
 
-Drafts, selected file bytes, and frozen retries remain in memory until app exit;
-closing the dialog preserves them and allows an in-flight worker to continue.
+Ordinary Parent feedback drafts, selected file bytes, and frozen retries remain
+in memory until app exit; closing that dialog preserves them and allows an
+in-flight worker to continue. Error reports have an exit callback instead:
+closing them ends that report, cancels pending sending and destroys the dialog.
+Repeated errors while a report is open preserve the active edited draft.
 Successful sending clears the draft and, while feedback is visible, immediately
 hides the feedback window and opens a modal thank-you confirmation on its owning
 window. The confirmation stays open until the user dismisses it with **Close**
@@ -221,10 +225,11 @@ report includes a reply email, it adds a note that support may contact the user
 with follow-up questions. Error-report close callbacks run only after the
 confirmation is dismissed. Background
 completion does not reopen feedback that the user already closed.
-The administrator can explicitly save a diagnostic ZIP to a chosen location.
+Parent and child-overlay feedback can explicitly save a diagnostic ZIP to a
+chosen location; the dedicated kiosk cannot open that file chooser.
 The broker's [collector](../../broker/oh_no_parent_control/diagnostics.py)
 reads only regular structured event files from each component's three newest
-available local dates (not necessarily consecutive calendar days), rejects symlinks and hard
+available UTC source-file dates (not necessarily consecutive calendar days), rejects symlinks and hard
 links, and limits input to 16 MiB, records to 12,000, and the ZIP to 2 MiB. The export method accepts no
 path, UID, date, or component selector. Collection runs off the dispatch thread,
 with one outstanding export through reply delivery. Collection errors expose
@@ -234,6 +239,14 @@ this method for both feedback and downloads, including from child accounts.
 The transport separately caps an attached log ZIP at 2 MiB,
 user attachments at five files of at most 5 MiB each, and all attachments plus
 logs at 8 MiB. Collection or size failures allow sending without diagnostics.
+Attachment selection reads all chosen files before adding that batch; an
+unreadable, invalid-name or oversized member rejects the whole new batch while
+preserving existing attachments. Names are normalized to basenames, limited
+to 180 characters and checked for Unicode control/format characters. Selected
+bytes are held in memory from that point, so later source-file edits do not
+alter a draft attachment. The diagnostic download uses the cached snapshot;
+cancel or save failure retains it. **Send without logs** removes the diagnostic
+attachment and immediately attempts the ordinary validated Send action.
 
 The schema-3 archive contains `system-info.json` and the four component folders,
 with readable `<component>/YYYY-MM-DD.log` files for each component's three
@@ -370,8 +383,10 @@ delivery limits, sanitizes HTML and attachment basenames, and forwards the
 client's content to its configured support mailbox. Future report formats
 change in the client without changing this API.
 
-The matching portal handler must be deployed before releasing this client:
-older handlers reject the generic multipart fields. A frozen submission retains
+Client sending is enabled (`SENDING_ENABLED = True`). The matching generic
+portal handler is a release dependency; this checkout cannot establish its
+current deployed behavior, and older handlers reject these multipart fields.
+A frozen submission retains
 all content and one `Idempotency-Key`
 through a bounded 15-minute retry window, with a 30-second request timeout.
 Each explicit Send action creates a new submission identity; automatic retries

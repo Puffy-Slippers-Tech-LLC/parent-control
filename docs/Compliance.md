@@ -34,7 +34,7 @@ The parent and kiosk/child-overlay About dialog must continue to display:
 
 - the product copyright holder;
 - GPL-3.0-only and the no-warranty statement;
-- a local path to the full license and legal notices; and
+- local License and Legal notices links in Parent and child-overlay About, with informational entries and external launches disabled in kiosk About; and
 - the Malcontent attribution and non-affiliation disclosure.
 
 ## Malcontent integration

@@ -117,6 +117,16 @@ Activation, migration, ownership, and uninstall records are removed only after
 successful cleanup. Failed cleanup keeps the records needed for retry; aborted
 first unpack removes only its attempt's bookkeeping.
 
+Retention means the Parent App can reload the saved choices. It does not mean
+reinstall replays all removal-cleared AccountsService values: broker startup
+reconciles live filters and extension enablement, not every saved restriction.
+One-time grants are not retained by removal. Reapply screen-time/app settings
+through the Parent App when restoring those restrictions.
+Purge does not remove selector defaults or the countdown-animation GSettings
+preference from ordinary users' home directories. Extension removal clears the
+product's enabled/disabled extension-list entries, not that personal setting.
+The package-created kiosk home is cleaned under the ownership rules above.
+
 ## Reboot notice
 
 Successful removal records Ubuntu's reboot requirement so existing

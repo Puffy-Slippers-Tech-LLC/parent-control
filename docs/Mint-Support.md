@@ -99,7 +99,7 @@ There is no target-image evidence here establishing that Malcontent is unstable 
 
 Timekpr-nExT documents Cinnamon among its previously tested desktops, but its maintainer reports limited proactive testing against new desktop and dependency releases. Its default expiry action terminates sessions. Its lock mode permits unlocking followed by relocking and is described as appropriate for self-control. Neither provides a demonstrated match for this application's retained-session, exhausted-time denial requirement. [Timekpr-nExT documentation](https://mjasnik.gitlab.io/timekpr-next/).
 
-If a timer replacement becomes necessary, evaluate it separately from Malcontent's application-filter integration. Replacing time accounting does not automatically justify replacing the AccountsService/Flatpak policy path. The application also reads usage in both the parent and broker helper flows, so a timer change would affect more than a single broker adapter. See [usage identities and grant arithmetic](SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
+If a timer replacement becomes necessary, evaluate it separately from Malcontent's application-filter integration. Replacing time accounting does not automatically justify replacing the AccountsService/Flatpak policy path. The Parent App now obtains time status through the broker, whose helper queries usage as the child for status and as the selected authenticated parent for approval. The child countdown also consumes the public timer estimate, so a replacement must cover both the broker helper and child estimate paths. See [usage identities and grant arithmetic](SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
 
 ## Cost and ongoing support
 

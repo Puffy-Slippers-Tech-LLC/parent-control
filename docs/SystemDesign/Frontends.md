@@ -43,8 +43,73 @@ Implementation: [parent main.py](../../parent/oh_no_parent_control_parent/main.p
    confirmation.
 
 The child overlay and kiosk deliberately use the same GTK request form and
-validation. Only account selection, mute surface, broker request method, and
-exit behavior differ.
+validation. They differ in child selection, remembered selector ownership,
+mute field, broker request method, exit behavior, and external Help/About/file
+actions. Both forms disable submission until accounts and preferences have
+loaded and the selected child's saved screen-time toggle is enabled. The
+broker's kiosk method has a broader contract; see
+[grant transactions](Broker.md#authorization-and-grant-transactions).
+
+## Parent controls and shared information
+
+Screen Limits offers presets 0, 15, 30 and 45 minutes, then half-hour increments
+from 60 through 1410, and custom whole minutes 0–1439. The broker/schema also
+accept 1440, but that is not an offered Parent UI value. Custom edits debounce
+for 350 ms and also commit on Enter or focus leave. Invalid edits retain the
+last saved value. The allowance picker and custom editor are insensitive while
+screen-time control is off; the saved value remains displayed. Time status uses
+`GetTimeStatus` with no direct cross-account AccountsService read, and retries
+temporary failures before showing unavailable.
+Revocation is enabled when the last loaded calculated total is positive and
+the form is idle, even if the grant balance itself is zero. The broker still
+restores strict app policy and terminates blocked apps in that case, leaving
+daily time unchanged.
+
+App Limits loads the selected child's catalogue asynchronously on child selection
+and creates rows in batches. Unlike the account list, it has no periodic refresh:
+reselect another child and back, or reopen Parent, to display installed/removed
+launchers. Save-time target resolution at the broker is independent of this UI
+snapshot. Search combines with independent match/access filters, each allowing
+multiple or no selected categories. Access-rule buttons autosave; the match-rule
+dialog has Save, Cancel and Reset to Default.
+Saved overrides survive a change to allowed at the storage boundary; disappeared
+launchers' saved policies survive later visible-row saves. A failed save rebuilds
+the controls from the last confirmed preferences using the restoration path
+described below. An irreversible termination failure may already have retained
+stricter broker preferences; reopening reloads the actual state.
+An empty or unrelated precise rule is rejected locally and leaves the editor
+open. A wildcard rule reaches broker validation after the dialog closes, so a
+rejected pattern uses the normal failed-save/report path. A basename without
+slashes is expanded against the app's sole native target directory. Save of
+the detected default and Reset to Default both clear the override; Reset saves
+immediately without a second confirmation.
+
+There is a current precise-override restoration limitation. A saved explicit
+precise choice has `user_saved_match_rule=true` and no patterns, but
+`_apply_app_policies` restores `_default_match_rule` for that combination.
+For an app with `suggested_patterns`, the displayed choice therefore becomes
+the suggested wildcard after child reselection, window reopening or failed-save
+restoration; a subsequent `_app_policy_value` can save that wildcard. Custom
+wildcard overrides restore from their saved pattern.
+The storage contract does not establish correct precise-choice round trips in
+this case, and existing E2E declarations do not qualify that branch.
+
+In both request forms, `_update_controls` gates Request on loaded accounts,
+preferences, the enabled toggle and no pending request, not custom-value
+validity. Invalid custom text displays validation feedback while Request stays
+enabled; `selected()` rejects it before preferences are saved or Polkit starts.
+Decimals use `.` and accepted fractional minutes are rounded to seconds. On a
+successful approval, both forms count down three seconds before their respective
+exit actions. Denial and cancellation restore the same editable choices.
+
+Parent and child overlay offer Help and active About website/privacy/support/
+license/legal links. Kiosk About is informational with external launches disabled.
+The parent has an ordinary Send Feedback action. All three roles share error
+reporting, including reporting-only startup failures. Request errors offer an
+initially enabled Report this error choice before exit; success and normal
+authentication cancellation do not. Kiosk reports hide file choosers and
+external privacy links. See [feedback](Logging-and-Feedback.md#feedback-and-diagnostic-export)
+for editor, draft, collection, privacy and delivery contracts.
 
 The Parent App's allowance and app-filter popovers use native menu buttons
 and scrollable contents that can shrink to the space supplied by the compositor.
@@ -59,6 +124,20 @@ allocated widths so the expanded card follows the wrapped content's height.
 The shared About window can resize and scroll so its
 legal notices remain reachable on scaled displays. These layout changes load
 with the next app process and do not change saved data.
+
+## Child panel preference
+
+The panel's primary action opens one request overlay. Its hover text reports the
+remaining time and identifies the primary and right-click actions. The latter
+opens **One minute count down animation**, backed by
+`com.puffyslippers.oh-no-parent-control.child`'s
+`one-minute-countdown-animation` key in the child's GSettings database. The
+[schema](../../child/schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml)
+defaults to false. The setting controls final-minute flashing and final-ten-second
+icon rotation, applies immediately and survives login/reboot. It neither changes
+enforcement nor enables the request form's disabled sound/lightning. There is
+no separate child preferences window. Persistence and operability are functional
+acceptance; rendering of the effect is outside the specification's scope.
 
 ## Responsive request layout
 
@@ -190,10 +269,11 @@ Parent remaining-time labels and the child/kiosk estimate use the shared
 `common.oh_no_parent_control_ui.duration.format_duration` formatter: `1h 17m`,
 `2h` for exact hours, and seconds when needed to preserve partial minutes.
 
-The Parent App's expandable explanation describes current remaining time. A
-configured daily allowance of zero shows only the one-time grant remaining.
-With a positive configured allowance, it shows both remaining amounts and says
-that the larger applies, including when today's allowance has been exhausted.
+The Parent App's expandable explanation always shows daily remaining, grant
+remaining and their maximum, including when the configured allowance is zero
+or today's allowance is exhausted. `_time_status_subtitle` does not branch on
+the configured allowance. With screen-time control off, the calculated daily
+operand is zero; a displayed zero total is not itself an access restriction.
 It does not show an additional request operand or internal property names.
 
 The shared child/kiosk form uses its existing footer for the estimated time
@@ -216,7 +296,17 @@ approver and always obtains its child from `GetOwnAccount`. Remembered UIDs
 are matched against current broker account lists, with the first eligible
 account used when a remembered account is unavailable. Local approver selection
 takes precedence over the broker's per-child request preference, including when
-preferences arrive asynchronously. Preview windows do not persist selections.
+preferences arrive asynchronously. With a production `SelectionStore`, an absent
+local approver does not fall back to `last_selected_approver_uid`; the initial
+eligible selection remains. Preview windows have no local store and may use
+the broker field, but do not persist selectors.
+
+Duration, custom minutes and the soft-app choice still come from the shared
+per-child record, so those values follow the child between surfaces. The kiosk's
+last selected child and approver instead belong to the kiosk OS user, and each
+child overlay has its own OS user's approver selection. Sound settings are
+stored separately per child/surface but are not actionable while media is
+disabled.
 
 ## Related design
 

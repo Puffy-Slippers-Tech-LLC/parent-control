@@ -165,6 +165,8 @@ installdeb:
 	deb_file="$(CURDIR)/output/oh-no-parent-control_$${version}_$${architecture}.deb"; \
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
+	step='refreshing APT package indexes'; \
+	$(APT) update -o APT::Update::Error-Mode=any; \
 	step='installing package with APT'; \
 	exec $(APT) install --reinstall "$$deb_file"
 

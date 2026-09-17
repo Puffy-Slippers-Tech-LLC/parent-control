@@ -33,7 +33,7 @@ STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
 })
 TERMINAL_OPERATIONS = frozenset({
-    'standard-terminal-search', 'standard-terminal-input',
+    'standard-terminal-input',
     'standard-terminal-focused', 'standard-terminal-wrong-surface',
     'standard-terminal-closed', 'standard-management-denied', 'standard-denial-closed',
 })
@@ -966,17 +966,14 @@ class AccessibleUI:
             self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
         elif operation == 'standard-system-prompt':
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
-        elif operation == 'standard-terminal-search':
-            self.wait_search(lambda: self.search_query('Terminal'), 'terminal-search-entered')
-            self.labelled_button('Terminal')
         elif operation == 'standard-terminal-input':
             field = self.wait(self.terminal_input, 'terminal-input')
             result['pointer'] = self.pointer_target(field)
         elif operation == 'standard-terminal-focused':
             self.wait(lambda: self.terminal_input(focused=True), 'terminal-focus')
         elif operation == 'standard-terminal-wrong-surface':
-            # Positive Overview evidence makes a missing terminal meaningful.
-            self.search_ready('overview', focused=True)
+            # Positive desktop evidence makes a missing terminal meaningful.
+            self.desktop_result(EXISTING_CHILD, 'success')
             require(self.terminal_input(focused=True) is None, 'ui:terminal-wrong-surface')
         elif operation == 'standard-terminal-closed':
             self.desktop_result(EXISTING_CHILD, 'success')

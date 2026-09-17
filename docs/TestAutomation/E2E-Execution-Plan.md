@@ -136,6 +136,10 @@ its stated acceptance on the guarded live VM; engineering tasks need their
 actual system fault/recovery qualification.
 
 Follow [functional validation](E2E-Building-Blocks.md#functional-validation).
+Apply [environment preparation and customer interaction](E2E-Building-Blocks.md#environment-preparation-and-customer-interaction)
+to every step: use the most reliable and efficient supported invocation for
+supporting tools and session preparation; use real graphical customer actions
+and public observations for product features and transitions under test.
 Use public accessibility, normal customer input and independent observations
 of required results. Backend product probes, synthetic grants, clock changes,
 internal faults and cosmetic/screenshot comparisons cannot pass customer cases.

@@ -174,6 +174,9 @@ def test_public_bus_discovery_is_owned_and_bounded(tmp_path, fault, monkeypatch)
 @pytest.mark.parametrize('fault', [None, 'duplicate', 'remote', 'inactive', 'desktop', 'wrong-seat', 'root'])
 def test_greeter_identity_uses_unique_active_local_session_not_legacy_uid(monkeypatch, fault):
     import accessible_ui
+    clock = [0.0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: clock.__setitem__(0, clock[0] + delay))
     props = {'Class': 'greeter', 'Active': 'yes', 'Remote': 'no', 'Type': 'wayland',
              'Seat': 'seat0', 'User': '61234'}
     if fault == 'remote': props['Remote'] = 'yes'
@@ -193,9 +196,67 @@ def test_greeter_identity_uses_unique_active_local_session_not_legacy_uid(monkey
     if fault:
         with pytest.raises(UiError): greeter_account()
         lookup.assert_not_called()
+        if fault in ('duplicate', 'root'):
+            assert clock[0] == 0
     else:
         assert greeter_account() is account
         lookup.assert_called_once_with(61234)
+
+
+@pytest.mark.parametrize('becomes_ready', [True, False])
+def test_greeter_discovery_waits_for_boot_readiness_with_a_deadline(monkeypatch, becomes_ready):
+    import accessible_ui
+    clock = [0.0]
+    reads = []
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: clock.__setitem__(0, clock[0] + delay))
+    def call(argv, **kwargs):
+        assert 0 < kwargs['timeout'] <= 5
+        if argv[1] == 'list-sessions':
+            reads.append(clock[0])
+            return SimpleNamespace(stdout='c1 private-name\n' if becomes_ready and clock[0] >= 30 else '')
+        return SimpleNamespace(stdout='Class=greeter\nActive=yes\nRemote=no\nType=wayland\nSeat=seat0\nUser=61234')
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', call)
+    account = SimpleNamespace(pw_uid=61234)
+    lookup = Mock(return_value=account)
+    monkeypatch.setattr(accessible_ui.pwd, 'getpwuid', lookup)
+    if becomes_ready:
+        assert greeter_account() is account
+        lookup.assert_called_once_with(61234)
+        assert reads[0] == 0 and reads[-1] >= 30
+    else:
+        with pytest.raises(UiError, match='ui:timeout:greeter-identity'):
+            greeter_account()
+        lookup.assert_not_called()
+        assert 300 <= clock[0] < 300.2
+
+
+def test_greeter_discovery_does_not_retry_failed_session_reads(monkeypatch):
+    import accessible_ui
+    error = accessible_ui.subprocess.CalledProcessError(1, '/usr/bin/loginctl')
+    call = Mock(side_effect=error)
+    sleep = Mock()
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', call)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    with pytest.raises(accessible_ui.subprocess.CalledProcessError):
+        greeter_account()
+    call.assert_called_once()
+    sleep.assert_not_called()
+
+
+@pytest.mark.parametrize('operation,timeout', [('gdm-other-list', 390), ('desktop', 90)])
+@pytest.mark.parametrize('streamed', [True, False])
+def test_ui_transport_allows_greeter_boot_wait_inside_worker_deadline(operation, timeout, streamed):
+    commands = SimpleNamespace(progress=None)
+    def call(argv, **kwargs):
+        assert kwargs['timeout'] == timeout < 420
+        if streamed:
+            kwargs['on_output'](b'{}\n')
+        return b'{}'
+    transport = SimpleNamespace(commands=commands, call=Mock(side_effect=call))
+    ui = UiObservations(transport, system_prompt=Mock() if streamed else None)
+    assert ui.call(['fixed-program'], operation) == (b'{}', [])
+    transport.call.assert_called_once()
 
 
 @pytest.mark.parametrize('appearance', [

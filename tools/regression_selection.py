@@ -1,9 +1,17 @@
 """Selected categories use the aggregate's execution, evidence and dashboard."""
 
+import runpy
 import time
 
 from regression import CATEGORY_NAMES, Category, Run
 from regression_inputs import identity as source_identity
+
+
+def e2e_case_ids(root, args):
+    """Resolve the same host-safe selection before build or VM preparation."""
+    runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
+    plan = runner['preflight'](args, root=root, allow_missing_artifacts=True)
+    return tuple(case['case_id'] for case in plan['cases'])
 
 
 class SelectedRun(Run):
@@ -21,13 +29,19 @@ class SelectedRun(Run):
                 name = ('Package reproducibility' if args[0] == 'compare' else
                         'Package verification' if kind == 'artifacts' else 'Test fixture verification')
             events = self.events(kind, args)
-            self.categories.append(Category(name, None if events else 1,
-                                            host=kind not in ('system', 'e2e', 'integration')))
+            item = Category(name, None if events else 1,
+                            host=kind not in ('system', 'e2e', 'integration'))
+            if kind == 'e2e' and events:
+                item.nodeids = e2e_case_ids(root, args)
+                item.total = len(item.nodeids)
+            self.categories.append(item)
         if includes_vm:
             self.verification_mode = ('selected command options; backing bytes verified by default')
 
     @staticmethod
     def events(kind, args):
+        if kind == 'e2e':
+            return not any(arg.startswith('--qualify-') for arg in args)
         return kind in ('unit', 'component', 'ui', 'fixture-runtime', 'coverage', 'system') and (
             '--collect-only' not in args)
 

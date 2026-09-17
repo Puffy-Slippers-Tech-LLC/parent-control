@@ -965,29 +965,39 @@ def greeter_account():
     Modern GDM can use a dynamic account instead of the legacy gdm UID. This
     selects only the public UI connection identity; it proves no product result.
     """
-    deadline = time.monotonic() + 15
+    # Installed boots gate GDM on enforcement readiness. Snapshot consumers
+    # enter here directly after SSH, without the former setup boot-complete
+    # wait. Observe the public greeter within its own finite boot budget.
+    deadline = time.monotonic() + 300
     def call(*args):
         remaining = deadline - time.monotonic()
         require(remaining > 0, 'ui:timeout:greeter-identity')
         return subprocess.run(['/usr/bin/loginctl', *args], capture_output=True,
                               text=True, check=True, timeout=min(5, remaining)).stdout
-    rows = call('list-sessions', '--no-legend', '--no-pager').splitlines()
-    require(len(rows) <= 32, 'ui:session-bound')
-    found = []
-    for row in rows:
-        session = row.split()[0]
-        import re
-        require(re.fullmatch(r'[a-zA-Z0-9]+', session), 'ui:session-id')
-        props = dict(line.split('=', 1) for line in call('show-session', session,
-            '-p', 'Class', '-p', 'Active', '-p', 'Remote', '-p', 'Type', '-p', 'Seat', '-p', 'User').splitlines())
-        if (props.get('Class') == 'greeter' and props.get('Active') == 'yes'
-                and props.get('Remote') == 'no' and props.get('Seat') == 'seat0'
-                and props.get('Type') in ('wayland', 'x11')):
-            require(props.get('User', '').isdecimal() and int(props['User']) > 0,
-                    'ui:greeter-user')
-            found.append(int(props['User']))
-    require(len(found) == 1, 'ui:greeter-identity')
-    return pwd.getpwuid(found[0])
+    while True:
+        rows = call('list-sessions', '--no-legend', '--no-pager').splitlines()
+        require(len(rows) <= 32, 'ui:session-bound')
+        found = []
+        for row in rows:
+            session = row.split()[0]
+            import re
+            require(re.fullmatch(r'[a-zA-Z0-9]+', session), 'ui:session-id')
+            props = dict(line.split('=', 1) for line in call('show-session', session,
+                '-p', 'Class', '-p', 'Active', '-p', 'Remote', '-p', 'Type', '-p', 'Seat', '-p', 'User').splitlines())
+            if (props.get('Class') == 'greeter' and props.get('Active') == 'yes'
+                    and props.get('Remote') == 'no' and props.get('Seat') == 'seat0'
+                    and props.get('Type') in ('wayland', 'x11')):
+                require(props.get('User', '').isdecimal() and int(props['User']) > 0,
+                        'ui:greeter-user')
+                found.append(int(props['User']))
+        require(len(found) <= 1, 'ui:greeter-identity')
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, 'ui:timeout:greeter-identity')
+        if found:
+            return pwd.getpwuid(found[0])
+        # SSH can become ready before GDM after an installed snapshot boots.
+        # Retry only absence, never an ambiguous identity or a failed read.
+        time.sleep(min(.2, remaining))
 
 
 def session_environment(account, *, runtime_root=Path('/run/user'), timeout=20):

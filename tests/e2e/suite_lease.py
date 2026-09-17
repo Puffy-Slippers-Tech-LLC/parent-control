@@ -227,6 +227,8 @@ class Suite:
         from vm_transport import Transport
         lease = self.lease
         system.log('stage:suite-installation')
+        if system.watch_progress is not None:
+            system.watch_progress.suite_preparation('Cleaning up previous runs')
         lease.prepare()
         version = self.commands.run(['dpkg-deb', '-f', str(assets / 'package.deb'),
                                      'Version']).decode().strip()
@@ -235,7 +237,12 @@ class Suite:
         lease.installed_name = 'onpc-' + version
         lease.state['e2e_snapshot'] = lease.installed_name
         lease.save('isolated')
+        if system.watch_progress is not None:
+            system.watch_progress.suite_preparation(
+                'Deleting existing snapshot ' + lease.installed_name)
         lease.delete_installed()  # prepare() restored baseline before deletion.
+        if system.watch_progress is not None:
+            system.watch_progress.suite_preparation('Installing app')
         setup = directory / 'suite-setup'
         setup.mkdir(mode=0o700)
         stage(setup, assets, selection)
@@ -255,8 +262,12 @@ class Suite:
         lease.capture.retire_backing_verification()
         lease.source.shutdown(lease.guard, requested=False)
         lease.guard(off=True)
+        if system.watch_progress is not None:
+            system.watch_progress.suite_preparation('Taking snapshot ' + lease.installed_name)
         lease.create_installed()
         self.prepared = True
+        if system.watch_progress is not None:
+            system.watch_progress.suite_prepared()
 
     def prepare_case(self, case, directory, assets, selection, *, root):
         if not self.prepared:

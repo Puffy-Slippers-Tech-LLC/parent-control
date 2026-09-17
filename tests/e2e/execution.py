@@ -328,6 +328,12 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
     return report
 
 
+def emit_progress(kind, **fields):
+    # Dashboard telemetry only; the post-close report and exit status remain
+    # authoritative, including failures after the last scenario completes.
+    print('\nONPC-TEST-EVENT ' + json.dumps(dict(kind=kind, **fields)), flush=True)
+
+
 def main(plan):
     require(os.geteuid() == os.getegid() == 0, 'execution:root-required')
     require(Path.cwd() == ROOT == system.baseline.guest_contract.CHECKOUT,
@@ -343,6 +349,7 @@ def main(plan):
               'expected_cases': [c['case_id'] for c in plan['cases']], 'attempts': []}
     collector = None
     progress = Progress(plan['cases'])
+    progress.suite_preparation('Checking prerequisites')
     from e2e_watch import ProgressPublication
     publication = ProgressPublication(progress)
     from suite_lease import Suite
@@ -356,6 +363,8 @@ def main(plan):
         try:
             report['evidence_directory'] = str(collector.path)
             collector.save_report('invocation-started', report)
+            emit_progress('collection', total=len(report['expected_cases']),
+                          nodeids=report['expected_cases'])
             expected_inputs = None
             try:
                 for index, case in enumerate(plan['cases']):
@@ -365,6 +374,10 @@ def main(plan):
                                      **({'suite': suite} if suite is not None else {}))
                     report['attempts'].append(result)
                     collector.save_report(f'attempt-{len(report["attempts"]):06d}', result)
+                    if result['outcome'] != 'passed':
+                        emit_progress('failure', nodeid=case['case_id'], when='call',
+                                      detail='E2E scenario failed; see retained attempt evidence.')
+                    emit_progress('finished', nodeid=case['case_id'])
                     if result['outcome'] != 'passed':
                         break
                     expected_inputs = result['inputs']

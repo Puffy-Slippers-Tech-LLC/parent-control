@@ -263,15 +263,15 @@ tools/run-tests e2e --scenario 'E2E-003/none' --artifacts '/tmp/onpc-test-artifa
 tools/run-tests e2e --scenario 'E2E-004/app-grid' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
 ```
 
-Suite preparation installs and reboots once per invocation to create a fresh,
-powered-off `onpc-v[version]` snapshot. Each installed-app case restores that
+Suite preparation reuses the powered-off `onpc-v[version]` snapshot when present,
+or installs and reboots once to create it when absent. Each installed-app case restores that
 snapshot without installing; package-lifecycle cases and product-free harness
 checks use baseline according to the enforced
 [case snapshot contract](../../docs/TestAutomation/E2E-Building-Blocks.md#parent-login-and-time-scenarios).
 A missing version snapshot fails immediately without reinstalling. The previous case's
 direct restore selects the next case's snapshot, preserving one restore per
 transition and the existing boundary-only audits. Final cleanup restores the
-clean baseline and deletes the version snapshot, including on case failure.
+clean baseline and preserves the version snapshot, including on case failure.
 The invocation stops after the first failed attempt, including evidence or cleanup
 failure, and retains the expected case list and pending exclusions in its report.
 After an installed snapshot boots, SSH readiness does not imply greeter readiness:

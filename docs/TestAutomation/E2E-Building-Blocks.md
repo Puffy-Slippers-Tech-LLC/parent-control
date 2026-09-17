@@ -109,9 +109,11 @@ for [generate_test_coverage.py](../../tools/generate_test_coverage.py), even whe
 declarations did not change. For a grouped scenario task, run each variant
 separately and refresh after its successful cleanup before starting the next.
 Generation is required close-out, not proof of a run.
-Update the callable, exact qualification scope and current status here, then
-check the completed task in the master. Retain only current blockers and remaining
-scope. Delete completed task files once enduring context is in maintained source
+Update the callable, exact qualification scope and current status here, and
+update the selected family's implementation-status line in the
+[scenario recipes](E2E-Scenario-Recipes.md). Keep the full scenario pending after
+only a block slice passes. Then check the completed task in the master. Retain
+only current blockers and remaining scope. Delete completed task files once enduring context is in maintained source
 or contracts, replacing master links with plain text. No later task may require
 a deleted task document or a previous attempt's VM state. No new evidence document
 or accumulated history is required.

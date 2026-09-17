@@ -1,37 +1,33 @@
-# 154 — Deferred qualification of a restored mute choice
+# 154 — Deferred qualification of restored mute
 
-Budget: 20–40 minutes, including a normal verification cycle; this is not a stop timer.
-Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
+This is future-feature scope, outside current-release completion. No active
+task depends on it. Reconsider only after a real product release restores the
+public mute control; current absence cannot qualify interaction.
 
-## Scope and entry
+## Scope and prerequisites
 
-Consumer: E2E-018 (58–61) and E2E-022 (116–125). Scope: REQUEST06 mute scope.
+Use qualified overlay/kiosk request entry and UI17 plus the restored feature's
+maintained contract. Preserve the saved-field obligations under
+[engineering reconciliation](../E2E-Building-Blocks.md#inventory-reconciliation).
+No old task document or VM state is required.
 
-Required implemented capabilities: DESK12/REQUEST02; shared overlay bindings. Use maintained callables and an independent public entry state, never an earlier task document or attempt.
+## Conditional live VM acceptance
 
-Contract: the named [catalogue rows](../E2E-Building-Blocks.md#ordered-building-block-catalogue) and consumer recipe. Qualify only the bindings named here.
-
-Prerequisite gate: **A future release restores the public mute feature**.
-The current specification documents silent request forms with no mute control
-(ONPC-CORE-REQUEST-018). This task retains the earlier interactive-mute
-obligation as deferred work; it is not a description of a current user feature.
-Keep its checkbox and affected inventory variants pending. Observing absence
-does not earn an interactive-mute pass.
-
-## Work
-
-Gate REQUEST06(mute) on the actual customer feature. Current
-REQUEST_MEDIA_ENABLED=False hides it. Do not enable a test switch or silently
-remove assertions. Supported duration/custom/soft-app persistence and user-local
-parent selection can be reviewed independently; the existing inventory's wider
-mute obligation remains unfulfilled until explicitly reconciled.
-
-## Live VM acceptance
-
-When the feature is publicly available, on live overlay and kiosk independently read initial mute, set a value and observe surface-specific behavior. Complete this implementation only after both routes qualify. An explicit decision to retire scope must instead mark that scope as excluded in the master and catalogue, preserve its obligation/owner, and never produce a passing checkbox or variant.
-
-Run affected safety/worker checks, then planned fixed qualification `tools/run-tests integration check_e2e_remembered_choices`, or the full named consumer if runnable. Reuse/create the fixed entry under the master's qualification contract. Every result above and owned cleanup must pass on the live VM; diagnostic success earns no scenario coverage.
+After restoration, qualify the real control on both installed VM forms: read
+initial state, set the explicit value and verify the specified surface-local
+behavior and persistence through normal public exits/re-entry. Do not enable a
+test-only feature switch. Require independent entry and owned cleanup. Plan this
+as a focused 20–40-minute slice; split new feature requirements before work if needed.
 
 ## Close out
 
-After successful cleanup, check this task in the [master](../E2E-Execution-Plan.md) and update [catalogue/scenario status](../E2E-Building-Blocks.md) using its readiness rules. Delete this task when no longer needed, replacing its master link with plain text. No new evidence/history document.
+Keep this row unchecked while deferred. After actual implementation and live
+acceptance, update the qualified scope in
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and applicable recipe status in
+[E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
+After any completed E2E scenario and cleanup, run
+`tools/generate_test_coverage.sh` (`tools/generate_test_coverage.py`).
+
+Only then check the [master](../E2E-Execution-Plan.md) and remove this brief when
+no longer needed, replacing its link with plain text. Validate Markdown with
+`tools/read-only links`. Preserve normal artifacts; no new history document.

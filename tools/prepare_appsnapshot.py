@@ -17,7 +17,8 @@ def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--overwrite', nargs='?', const='true', default='true',
                         choices=('true', 'false'),
-                        help='replace a matching version snapshot (default: true)')
+                        help='rebuild the current source before installing and replacing '
+                             'a matching version snapshot (default: true)')
     return parser.parse_args(argv)
 
 

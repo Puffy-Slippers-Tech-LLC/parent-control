@@ -286,15 +286,16 @@ def test_installed_suite_installs_once_and_restores_next_case_without_extra_audi
             lease.stop()
         assert lease.capture.verification_totals['calls'] == 1
         assert lease.inspect.call_count == 1
-    setup.run.assert_called_once_with(lease.guard, verify=False)
+    if stale:
+        setup.run.assert_not_called()
+    else:
+        setup.run.assert_called_once_with(lease.guard, verify=False)
     assert [event for event in events if event[0] == 'restore'] == [
         ('restore', baseline_name), ('restore', name), ('restore', name),
         ('restore', baseline_name), ('restore', name), ('restore', baseline_name)]
-    if stale:
-        assert events[:3] == [('restore', baseline_name), ('delete', name), ('install-reboot', False)]
     lease.audit()
-    assert name not in names and baseline_name in names
-    assert events[-1] == ('delete', name)
+    assert name in names and baseline_name in names
+    assert not [event for event in events if event[0] == 'delete']
     assert lease.capture.verification_totals['calls'] == 2
     assert lease.inspect.call_count == 2
     lease.source.domain.destroyFlags.assert_not_called()
@@ -389,10 +390,9 @@ def test_every_snapshot_mutation_reserves_footer_before_libvirt(prepared_suite, 
             progress.prepare(progress.cases[index + 1]['case_id'])
     lease.audit()
     assert observed == [
-        ('Restoring', baseline_name, 1), ('Deleting', name, 1), ('Taking', name, 1),
+        ('Restoring', baseline_name, 1),
         ('Restoring', name, 1), ('Restoring', name, 2),
-        ('Restoring', baseline_name, 3), ('Restoring', baseline_name, 3),
-        ('Deleting', name, 3)]
+        ('Restoring', baseline_name, 3), ('Restoring', baseline_name, 3)]
     assert progress.snapshot_value is None
 
 
@@ -432,7 +432,7 @@ def test_missing_current_version_is_created_and_other_versions_preserved(prepare
     assert not [event for event in events if event[0] == 'delete']
 
 
-def test_retention_is_not_committed_if_final_provenance_check_fails(prepared_suite):
+def test_failed_final_provenance_check_preserves_snapshot_and_restores_baseline(prepared_suite):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     with lease:
         owner.prepare_installed(directory, directory, {}, root=directory)
@@ -440,12 +440,13 @@ def test_retention_is_not_committed_if_final_provenance_check_fails(prepared_sui
         lease.audit(retain_installed=True,
                     validate=Mock(side_effect=ValueError('changed')))
     assert lease.fd is None
-    assert lease.state['e2e_snapshot'] == 'onpc-v1.1'
+    assert 'e2e_snapshot' not in lease.state
+    assert 'onpc-v1.1' in names
     assert lease._restored_name == baseline_name
 
 
 @pytest.mark.parametrize('fault', ['install', 'snapshot-create', 'case'])
-def test_suite_failure_restores_baseline_and_deletes_installed_snapshot(prepared_suite, fault):
+def test_suite_failure_restores_baseline_and_preserves_installed_snapshot(prepared_suite, fault):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     installed = {'preconditions': ['installed-digest-verified-product']}
     owner.next_case = installed
@@ -463,7 +464,9 @@ def test_suite_failure_restores_baseline_and_deletes_installed_snapshot(prepared
             lease.start()
             raise RuntimeError('injected failure')
     lease.audit()
-    assert list(names) == [baseline_name]
+    assert baseline_name in names
+    assert ('onpc-v1.1' in names) == (fault != 'install')
+    assert not [event for event in events if event[0] == 'delete']
     assert lease._restored_name == baseline_name
     assert lease.fd is None
 
@@ -541,7 +544,7 @@ def test_all_ready_cases_restore_their_declared_snapshot_without_case_install(pr
     assert [event for event in events if event[0] == 'restore'] == [
         ('restore', baseline_name), ('restore', baseline_name),
         *[('restore', 'onpc-v1.1')] * 5, ('restore', baseline_name)]
-    assert 'onpc-v1.1' not in names
+    assert 'onpc-v1.1' in names
 
 
 def test_wrong_transition_snapshot_refuses_before_case_provisioning(prepared_suite):

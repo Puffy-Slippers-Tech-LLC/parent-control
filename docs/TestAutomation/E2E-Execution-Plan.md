@@ -11,9 +11,11 @@ the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-- [ ] **001 — [Visible terminal launch, submission and denial](E2E-Tasks/001-terminal.md)**.
+- [x] **001 — Visible terminal launch, submission and denial**.
   Prerequisites: existing qualified source and the guarded attempt envelope.
-  Acceptance: the brief's live VM terminal qualification for FILE01, FILE02 and FILE06.
+  Acceptance: live VM terminal qualification for FILE01, FILE02 and FILE06 passed.
+
+Next task: **002 — [E2E-004: terminal](E2E-Tasks/002-case-6.md)**.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale
@@ -22,7 +24,7 @@ pointer never overrides the queue. Keep only current continuation information.
 ## Current scope
 
 The inventory has **252 cases in 50 families**: **240 customer cases**
-(4 ready, 236 pending), **11 engineering obligations (140–150)** and **1 ready
+(5 ready, 235 pending), **11 engineering obligations (140–150)** and **1 ready
 harness case**. Preserve runnable cases **1, 3, 4, 5 and 151**. The catalogue has
 **178 blocks: 60 ready and 118 pending**. These are declarations, not new VM passes.
 
@@ -145,6 +147,7 @@ desktop user for VM work.
 
 Each attempt starts with fresh declared state and its own session/window ledger.
 For post-installation work, run `./tools/prepare-appsnapshot --overwrite false`
+ (if app code is changed, `--overwrite` must be `true`. non-app code such as docs, tests don't count)
 under the [setup contract](E2E-Building-Blocks.md#parent-login-and-time-scenarios).
 Wait for completion without monitoring or reporting incremental output; proceed
 only on success. The normal dispatcher owns preparation/restoration. Package

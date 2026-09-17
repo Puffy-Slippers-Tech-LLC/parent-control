@@ -161,7 +161,12 @@ if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-attachments":
     parent_main.FeedbackDialog = AttachedFeedbackDialog
 
 
-application = Application(client_factory=ScriptedParentBroker)
+startup_error = None
+if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "startup-denied":
+    from gi.repository import Gio
+    startup_error = Gio.DBusError.new_for_dbus_error(
+        "com.puffyslippers.OhNoParentControl1.Error.AccessDenied", "private-account-detail")
+application = Application(client_factory=ScriptedParentBroker, startup_error=startup_error)
 if directory := os.environ.get("ONPC_PARENT_ALLOWANCE_LAYOUT_DIRECTORY"):
     from tests.ui.parent_allowance_probe import attach
     application.connect_after("activate", attach, directory)

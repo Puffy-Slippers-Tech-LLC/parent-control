@@ -6,18 +6,18 @@
 
 | Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">9956</span>/<span style="color: gray">0</span>/9956 | Collected pytest cases, including parameter combinations |
+| Unit, property and contract | <span style="color: green">9981</span>/<span style="color: gray">0</span>/9981 | Collected pytest cases, including parameter combinations |
 | Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
-| UI | <span style="color: green">150</span>/<span style="color: gray">0</span>/150 | Collected pytest cases, including parameter combinations |
+| UI | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Collected pytest cases, including parameter combinations |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Registered cases; repeated phases and prerequisites counted once |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | One check per executable test script; Node subtests not expanded |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One check per executable test script |
 | Integration qualification | <span style="color: green">18</span>/<span style="color: gray">0</span>/18 | One check per installed-runner check_*.py entry point |
-| E2E customer-journey | <span style="color: green">4</span>/<span style="color: gray">236</span>/240 | One exact scenario variant |
+| E2E customer-journey | <span style="color: green">5</span>/<span style="color: gray">235</span>/240 | One exact scenario variant |
 | E2E fault-recovery | <span style="color: green">0</span>/<span style="color: gray">11</span>/11 | One exact scenario variant |
 | E2E runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One exact scenario variant |
-| **Total** | **<span style="color: green">10516</span>/<span style="color: gray">247</span>/10763** | All entries above, including pending E2E |
+| **Total** | **<span style="color: green">10543</span>/<span style="color: gray">246</span>/10789** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -35,9 +35,9 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | [3](#scenario-3) | Parent discovery and navigation (children: existing and new) | `E2E-003/existing-and-new` | ready |
 | [4](#scenario-4) | Parent discovery and navigation (children: none) | `E2E-003/none` | ready |
 | [5](#scenario-5) | Standard user cannot manage policy (launch: app grid) | `E2E-004/app-grid` | ready |
+| [6](#scenario-6) | Standard user cannot manage policy (launch: terminal) | `E2E-004/terminal` | ready |
 | [151](#scenario-151) | Installed About and license access | `E2E-030/parent` | ready |
 | <span style="color: gray">[2](#scenario-2)</span> | <span style="color: gray">Install the app and begin managing a child</span> | <span style="color: gray">`E2E-002/clean`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -339,6 +339,19 @@ Variant: launch: app grid
 - Log in as a standard user and open the selected customer launch surface: app grid or terminal.
 - For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
 
+### Scenario 6
+
+**Standard user cannot manage policy (launch: terminal)**
+
+Case: `E2E-004/terminal` · Category: customer-journey · Status: **ready**
+
+Variant: launch: terminal
+
+**Steps:**
+
+- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
+- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
+
 ### Scenario 151
 
 **Installed About and license access**
@@ -369,25 +382,6 @@ Variant: installation: clean
 - Sign in as the parent, open Oh No! Parent Control, select a child and read fresh Screen Limits and App Limits settings. Switch User, enter the request station, read its form, and Cancel back to sign-in.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 6
-
-**Standard user cannot manage policy (launch: terminal)**
-
-Case: `E2E-004/terminal` · Category: customer-journey · Status: **pending**
-
-Variant: launch: terminal
-
-**Steps:**
-
-- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
-- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
-
-Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 

@@ -180,7 +180,9 @@ Escape review the report when enabled, then leave after feedback is closed.
 Turning it off leaves directly. Successful requests never offer error reporting.
 Other operation failures and uncaught Python callbacks/workers open feedback
 through the same handler. Parent startup failures show a reporting-only window,
-without exposing management controls. Repeated failures preserve the active
+except for an explicit broker management-access refusal, which shows the
+[administrator-access notice](Frontends.md#parent-controls-and-shared-information).
+Neither exposes management controls. Repeated failures preserve the active
 draft. Input validation and cancelled authorization remain normal form states.
 
 The child Shell extension's [errorHandler.js](../../child/errorHandler.js)

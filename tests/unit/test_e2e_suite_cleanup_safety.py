@@ -526,7 +526,7 @@ def test_all_ready_cases_restore_their_declared_snapshot_without_case_install(pr
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     document, _ = inventory.read_json(inventory.INVENTORY)
     cases = inventory.resolve_selection(document, ready_only=True)['cases']
-    assert len(cases) == 5
+    assert len(cases) == 6
     for index, case in enumerate(cases):
         owner.next_case = cases[index + 1] if index + 1 < len(cases) else None
         lease.ledger = system.RunLedger()
@@ -540,7 +540,7 @@ def test_all_ready_cases_restore_their_declared_snapshot_without_case_install(pr
     lease.audit()
     assert [event for event in events if event[0] == 'restore'] == [
         ('restore', baseline_name), ('restore', baseline_name),
-        *[('restore', 'onpc-v1.1')] * 4, ('restore', baseline_name)]
+        *[('restore', 'onpc-v1.1')] * 5, ('restore', baseline_name)]
     assert 'onpc-v1.1' not in names
 
 

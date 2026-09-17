@@ -29,7 +29,7 @@ from common.oh_no_parent_control_ui.errors import (
 )
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
-from .client import BrokerClient, configure_logging
+from .client import BrokerClient, configure_logging, management_access_denied
 
 LOG = get_logger("parent")
 APPLICATION_ICON_NAME = "com.puffyslippers.OhNoParentControl"
@@ -1939,6 +1939,9 @@ class Application(Adw.Application):
 
     def do_activate(self):
         if self._startup_error is not None:
+            if management_access_denied(self._startup_error):
+                self._show_management_denied()
+                return
             show_startup_error(self, "Parent App", self._startup_error)
             return
         window = self.get_active_window() or ParentWindow(
@@ -1953,6 +1956,25 @@ class Application(Adw.Application):
             )
         if self._preview:
             self._watch_preview_files()
+        window.present()
+
+    def _show_management_denied(self):
+        """Explain an explicit broker refusal without creating management UI."""
+        window = self.get_active_window()
+        if window is None:
+            window = Adw.ApplicationWindow(application=self,
+                title="Administrator access required", default_width=440,
+                default_height=180)
+            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18,
+                margin_top=24, margin_bottom=24, margin_start=24, margin_end=24)
+            content.append(Gtk.Label(
+                label="Only an administrator can manage parental controls. "
+                      "Sign in with an administrator account to open the Parent App.",
+                wrap=True))
+            close = Gtk.Button(label="Close", halign=Gtk.Align.END)
+            close.connect("clicked", lambda *_: self.quit())
+            content.append(close)
+            window.set_content(content)
         window.present()
 
 

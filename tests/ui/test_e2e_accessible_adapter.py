@@ -11,6 +11,22 @@ from tests.support.child_shell import run_child_shell
 pytestmark = pytest.mark.ui
 
 
+def test_standard_user_startup_denial_has_specific_public_result(launch_ui):
+    spec = importlib.util.spec_from_file_location('e2e_accessible_ui', ROOT / 'tests/e2e/accessible_ui.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    application, _log = launch_ui('parent_component_preview', environment_overrides={
+        'ONPC_PARENT_COMPONENT_SCENARIO': 'startup-denied'})
+    from gi.repository import Atspi, GLib
+    ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,),
+                            dispatch=lambda: GLib.MainContext.default().iteration(False))
+    ui.management_denied()
+    from dogtail import rawinput
+    rawinput.keyCombo('<Alt>F4')
+    ui.wait(lambda: ui.find('Administrator access required', ('frame',)) is None,
+            'denial-dismissed')
+
+
 @pytest.mark.usefixtures('hermetic_ui_session')
 def test_search_adapter_in_isolated_shell(render_artifacts):
     import os

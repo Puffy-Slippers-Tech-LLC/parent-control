@@ -16,6 +16,12 @@ INTERFACE = BUS_NAME
 LOG = get_logger("parent-client")
 
 
+def management_access_denied(error):
+    """Distinguish the broker's explicit authorization refusal from outages."""
+    return (isinstance(error, GLib.Error) and
+            Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.AccessDenied")
+
+
 class BrokerClient:
     def __init__(self, connection=None):
         self.connection = connection or Gio.bus_get_sync(Gio.BusType.SYSTEM, None)

@@ -1,16 +1,21 @@
 # 070a — Observe one prompt after an overlay double-click
 
-Budget: 20–40 minutes, including a normal verification cycle; this is not a stop timer.
-Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
+Estimate: 20–40 minutes for a focused implementation/validation cycle; not
+a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
-## Scope and entry
+## Scope and prerequisites
 
-Consumer: E2E-014/child-overlay (38–40). Scope: REQUEST10's overlay binding, reusing qualified UI20, UI22 and overlay authentication.
+Deliver **REQUEST10 overlay binding**. First scheduled consumer: [E2E-014, case 38](../E2E-Scenario-Recipes.md#e2e-014).
+Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form) and only the selected consumer's recipe.
 
-Use the completed capabilities in the master row, maintained callables and a fresh guarded VM attempt. No previous task document or VM state is an input.
-Read only the named [catalogue contracts](../E2E-Building-Blocks.md#ordered-building-block-catalogue) and selected consumer recipe.
+Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-## Work
+- **070** — UI20; REQUEST10 kiosk binding.
+- **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
+
+Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+
+## Implementation
 
 Bind the existing double-click and public trace projections to the overlay's Request control and desktop agent. Do not reimplement the gesture or widen the kiosk qualification.
 
@@ -18,15 +23,28 @@ Bind the existing double-click and public trace projections to the overlay's Req
 
 On a live child desktop with publicly prepared usable time, double-click Request once. Observe the declared inhibition trace and exactly one prompt/form, then finish through qualified approval and automatic overlay exit. Hidden/disabled controls must refuse the gesture.
 
-Run affected safety/worker checks, then the planned fixed qualification
-`tools/run-tests integration check_e2e_request_duration`, or the full named consumer
-if runnable. Reuse the master's guarded qualification route; require all the
-stated results and owned cleanup to pass. A diagnostic slice earns no scenario
-coverage.
+Run affected safety/adapter checks, then use the complete first consumer if runnable.
+Otherwise implement/reuse the planned fixed qualification:
+
+```sh
+tools/run-tests integration check_e2e_request_duration
+```
+
+This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
+before invocation. Require every stated result, independent valid entry, wrong-entry
+refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
+establish complete scenario coverage.
 
 ## Close out
 
-After successful cleanup, check this task in the [master](../E2E-Execution-Plan.md)
-and update the callable, qualified scope and remaining work in
-[the catalogue](../E2E-Building-Blocks.md). Delete this task when no longer needed,
-replacing its master link with plain text. No new evidence/history document.
+After live qualification and cleanup, update the callable, exact qualified scope
+and status in [E2E-Building-Blocks.md](../E2E-Building-Blocks.md), and reconcile
+the first consumer's status in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
+A slice alone leaves the full scenario pending. If any complete E2E scenario
+passed, run `tools/generate_test_coverage.sh` after that case's cleanup; it runs
+`tools/generate_test_coverage.py`. Require successful generation before check-off.
+
+Check this task in the [master](../E2E-Execution-Plan.md), then remove this brief
+when its enduring context is in source/contracts and replace its master link
+with plain text. Validate changed Markdown with `tools/read-only links`.
+Keep normal runner artifacts; no new evidence document or accumulated history.

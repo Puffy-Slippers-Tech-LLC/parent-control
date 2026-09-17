@@ -1,19 +1,21 @@
 # 052b — Prove countdown absence on other surfaces
 
-Budget: 20–40 minutes, including a normal verification cycle; this is not a stop timer.
-Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
+Estimate: 20–40 minutes for a focused implementation/validation cycle; not
+a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
-## Scope and entry
+## Scope and prerequisites
 
-Consumer: E2E-011/daily-only (27), then grant-only/combined (28, 29).
-Scope: TIME01's stable-absence projections on lock, GDM and another user's desktop.
+Deliver **TIME01 lock/GDM/other-user absence**. First scheduled consumer: [E2E-011, case 27](../E2E-Scenario-Recipes.md#e2e-011).
+Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries) and only the selected consumer's recipe.
 
-Required capabilities: child-desktop TIME01, FLOW02, intended-child fresh entry,
-DESK05/06/08/11 and the declared other-user entry. Resolve callables from the
-[catalogue](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries).
-No previous task document or attempt supplies context.
+Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-## Work
+- **052** — TIME01 child-desktop snapshots.
+- **043a** — GDM02 retained-child lock entry; DESK08/11.
+
+Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+
+## Implementation
 
 Bind complete, fresh absence observations to each positively identified surface.
 A disconnected observer, inaccessible tree or wrong surface cannot prove absence.
@@ -28,18 +30,28 @@ countdown again. Switch User to GDM and require absence, then enter the named
 other user and require absence on that desktop. Qualify independently reached
 entry states and wrong-surface refusal. No natural-expiry or tick claim is made.
 
-Run affected checks and the planned fixed qualification
-`tools/run-tests integration check_e2e_countdown` through the master's guarded
-envelope. Every stated result and owned cleanup must pass; this slice is not
-a complete customer scenario.
+Run affected safety/adapter checks, then use the complete first consumer if runnable.
+Otherwise implement/reuse the planned fixed qualification:
+
+```sh
+tools/run-tests integration check_e2e_countdown
+```
+
+This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
+before invocation. Require every stated result, independent valid entry, wrong-entry
+refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
+establish complete scenario coverage.
 
 ## Close out
 
-After live acceptance and owned cleanup pass, update the callable, qualified
-scope and remaining work in [the catalogue](../E2E-Building-Blocks.md), then
-check this task in the [master](../E2E-Execution-Plan.md). If a complete E2E
-consumer also passed, run `tools/generate_test_coverage.sh` (the approved launcher
-for `tools/generate_test_coverage.py`) before checking off its scenario.
-Delete this file when no longer needed and replace its master link with plain
-text. No new evidence/history document. Validate changed Markdown as the master
-requires.
+After live qualification and cleanup, update the callable, exact qualified scope
+and status in [E2E-Building-Blocks.md](../E2E-Building-Blocks.md), and reconcile
+the first consumer's status in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
+A slice alone leaves the full scenario pending. If any complete E2E scenario
+passed, run `tools/generate_test_coverage.sh` after that case's cleanup; it runs
+`tools/generate_test_coverage.py`. Require successful generation before check-off.
+
+Check this task in the [master](../E2E-Execution-Plan.md), then remove this brief
+when its enduring context is in source/contracts and replace its master link
+with plain text. Validate changed Markdown with `tools/read-only links`.
+Keep normal runner artifacts; no new evidence document or accumulated history.

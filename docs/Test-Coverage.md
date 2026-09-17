@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">9981</span>/<span style="color: gray">0</span>/9981 | Collected pytest cases, including parameter combinations |
+| Unit, property and contract | <span style="color: green">9984</span>/<span style="color: gray">0</span>/9984 | Collected pytest cases, including parameter combinations |
 | Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
 | UI | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Collected pytest cases, including parameter combinations |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
@@ -14,14 +14,18 @@
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | One check per executable test script; Node subtests not expanded |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One check per executable test script |
 | Integration qualification | <span style="color: green">18</span>/<span style="color: gray">0</span>/18 | One check per installed-runner check_*.py entry point |
-| E2E customer-journey | <span style="color: green">5</span>/<span style="color: gray">235</span>/240 | One exact scenario variant |
-| E2E fault-recovery | <span style="color: green">0</span>/<span style="color: gray">11</span>/11 | One exact scenario variant |
-| E2E runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One exact scenario variant |
-| **Total** | **<span style="color: green">10543</span>/<span style="color: gray">246</span>/10789** | All entries above, including pending E2E |
+| E2E | <span style="color: green">6</span>/<span style="color: gray">246</span>/252 | One exact scenario variant |
+| **Total** | **<span style="color: green">10546</span>/<span style="color: gray">246</span>/10792** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
 ## E2E scenarios
+
+| Subcategory | Count (Ready/Pending/Total) |
+| --- | ---: |
+| customer-journey | <span style="color: green">5</span>/<span style="color: gray">235</span>/240 |
+| fault-recovery | <span style="color: green">0</span>/<span style="color: gray">11</span>/11 |
+| runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
 

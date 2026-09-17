@@ -101,9 +101,10 @@ def render(document, counts, *, root=ROOT):
                    key=lambda item: (item[2]['status'] == 'pending', item[0]))
     totals = Counter((family['category'], variant['status']) for _, family, variant in cases)
     rows = [(title, count, 0, unit) for title, count, unit in counts]
-    for category in sorted({family['category'] for _, family, _ in cases}):
-        rows.append((f'E2E {category}', totals[category, 'ready'],
-                     totals[category, 'pending'], 'One exact scenario variant'))
+    categories = sorted({family['category'] for _, family, _ in cases})
+    rows.append(('E2E', sum(totals[category, 'ready'] for category in categories),
+                 sum(totals[category, 'pending'] for category in categories),
+                 'One exact scenario variant'))
     ready_total = sum(ready for _, ready, _, _ in rows)
     pending_total = sum(pending for _, _, pending, _ in rows)
     lines = [
@@ -119,6 +120,11 @@ def render(document, counts, *, root=ROOT):
         'Script-based checks count at the entry-point level shown above. '
         'Aggregate, build, static-analysis and prerequisite commands are not additional test cases.',
         '', '## E2E scenarios', '',
+        '| Subcategory | Count (Ready/Pending/Total) |',
+        '| --- | ---: |',
+        *[f'| {category} | {count_cell(totals[category, "ready"], totals[category, "pending"])} |'
+          for category in categories],
+        '',
         'Each number selects exactly one variant. IDs are stored in '
         '`tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. '
         'Assign new variants fresh IDs; never renumber or reuse an existing ID.',

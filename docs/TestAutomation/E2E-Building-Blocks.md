@@ -5,8 +5,10 @@ It covers all **50 families / 252 variants** in
 [scenarios.json](../../tests/e2e/scenarios.json).
 Use the [execution plan](E2E-Execution-Plan.md) for the dependency-ordered session
 queue and individual task files. A new session can start with “Implement the
-next task in docs/TestAutomation/E2E-Execution-Plan.md”. This catalogue remains
-the source of block contracts and current qualification status.
+next task in docs/TestAutomation/E2E-Execution-Plan.md”. Start with its Next task
+pointer and read only that brief's relevant catalogue rows and source callables;
+do not load the full queue, this catalogue or unrelated task briefs. This
+catalogue remains the source of block contracts and current qualification status.
 The inventory currently has five ready variants: cases **1, 3, 4, 5 and 151**.
 Case 1 qualifies the harness; the other four are customer journeys.
 Every catalogue row has an implementation status; existing
@@ -84,11 +86,14 @@ Follow the [master execution queue](E2E-Execution-Plan.md#ordered-task-queue).
 Implement each scoped prerequisite before its consumer, then run newly eligible
 scenario tasks before adding more blocks. Use numeric case order among eligible
 scenarios; do not delay an executable case for an unrelated lower-numbered case.
-Task IDs, including inserted suffixes, are stable; master table order determines
-execution order. Tasks normally fit a 20–60 minute session; the estimate is not
+Task IDs, including inserted suffixes, are stable; the master's linked queue
+determines execution order. Tasks normally fit a 20–60 minute session; the estimate is not
 a stop timer. Split separate implementation work before starting a task that is
 too broad, keeping live acceptance with each slice and continuous journeys intact.
-Qualify only the branch a consumer needs: kiosk account availability before duration editing,
+Qualify only the branch a consumer needs. Native fixture installation/catalogue
+reading precedes native launch qualification; real-game activity adapters precede
+APP05/FLOW10. Overlay and kiosk FLOW20 have separate slices and release their own
+scenarios immediately. Also keep kiosk account availability before duration editing,
 validation snapshots before collection tracing, dialog persistence before app-exit
 reset, file selection before export saving, desktop countdown before lock/GDM
 absence and tick measurement, native activity capture before retained-user visits,
@@ -112,9 +117,10 @@ Generation is required close-out, not proof of a run.
 Update the callable, exact qualification scope and current status here, and
 update the selected family's implementation-status line in the
 [scenario recipes](E2E-Scenario-Recipes.md). Keep the full scenario pending after
-only a block slice passes. Then check the completed task in the master. Retain
-only current blockers and remaining scope. Delete completed task files once enduring context is in maintained source
-or contracts, replacing master links with plain text. No later task may require
+only a block slice passes. Then check the task in the master's linked queue and
+refresh its Next task pointer. Retain only current blockers and remaining scope.
+Delete completed task files once enduring context is in maintained source
+or contracts, replacing queue links with plain text. No later task may require
 a deleted task document or a previous attempt's VM state. No new evidence document
 or accumulated history is required.
 

@@ -73,7 +73,8 @@ def test_probe_success_or_failure_never_cleans_builds_or_installs(launch, status
 
 
 @pytest.mark.parametrize('argv, results, calls', [([], [0, 0], 2),
-    (['--overwrite'], [0, 0], 2), (['--overwrite', 'false'], [3, 0, 0], 3)])
+    (['--overwrite'], [0, 0], 2), (['--overwrite', 'true'], [0, 0], 2),
+    (['--overwrite', 'false'], [3, 0, 0], 3)])
 def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, results, calls):
     control, cleanup, allocation = launch
     control.run.side_effect = results
@@ -81,11 +82,17 @@ def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, res
     cleanup.assert_called_once()
     allocation.assert_called_once()
     assert control.run.call_count == calls
+    build = control.run.call_args_list[-2].args[0]
+    assert build == ['/usr/bin/python3', '-B',
+                     str(control.run.call_args_list[-2].kwargs['cwd'] /
+                         'tools/build_test_artifacts.py'),
+                     '--output', allocation.return_value]
     command = control.run.call_args.args[0]
     assert command[1] == '--disable-internal-agent'
     assert '--retention-run=' + 'a' * 32 in command
     assert command[4:7] == ['--unattended', 'appsnapshot', '--overwrite']
     assert command[7] == ('false' if 'false' in argv else 'true')
+    assert command[8:] == ['--artifacts', allocation.return_value]
     assert control.run.call_args.kwargs['cooperative'] is True
 
 
@@ -97,10 +104,11 @@ def test_failed_cleanup_does_not_build_or_install(launch):
     control.run.assert_not_called()
 
 
-def test_failed_build_does_not_install(launch):
+@pytest.mark.parametrize('argv', [[], ['--overwrite'], ['--overwrite', 'true']])
+def test_failed_build_does_not_install(launch, argv):
     control, cleanup, allocation = launch
     control.run.return_value = 17
-    assert launcher.main([]) == 17
+    assert launcher.main(argv) == 17
     control.run.assert_called_once()
     assert control.run.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')
 

@@ -16,9 +16,10 @@ Present the shared request interface for the current child account instead of
 showing the kiosk account selector.
 .TP
 .B \-\-error-report-stdin
-Read an error message from standard input and open a prefilled feedback dialog.
-Requires \-\-child-overlay. Used by the child panel to keep error details out
-of process arguments. Nothing is sent until Send Feedback is selected.
+Open a prefilled Child App error report with a fixed public explanation.
+Requires \-\-child-overlay. This is an internal child-panel launch flag;
+arbitrary standard-input text is not imported into the report.
+Nothing is sent until Send Feedback is selected.
 .TP
 .BR \-h , " " \-\-help
 Show command-line help and exit.

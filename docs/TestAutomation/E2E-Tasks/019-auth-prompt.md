@@ -17,7 +17,7 @@ Implement Request submission once, then AUTH01 over the actual system agent: sel
 
 ## Live VM acceptance
 
-On the VM, prepare a valid kiosk request, submit once and inspect the real challenge. Refuse wrong parent/request and nonempty/stale field proofs; disabled invalid requests produce no prompt. Finish through the normal agent Cancel control.
+On the VM, prepare a valid kiosk request, submit once and inspect the real challenge. Refuse wrong parent/request and nonempty/stale field proofs; an otherwise ready form rejects an invalid custom duration with validation and no prompt when Request is selected, while unavailable forms keep Request disabled. Finish through the normal agent Cancel control.
 
 Run affected safety/worker checks, then planned fixed qualification `tools/run-tests integration check_e2e_kiosk_choices`, or the full named consumer if runnable. Reuse/create the fixed entry under the master's qualification contract. Every result above and owned cleanup must pass on the live VM; diagnostic success earns no scenario coverage.
 

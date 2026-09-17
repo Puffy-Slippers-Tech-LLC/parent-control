@@ -1,4 +1,4 @@
-# 040a — Resolve and qualify daily-allowance boundaries
+# 040a — Qualify daily-allowance boundaries
 
 Budget: 25–45 minutes for focused review and normal verification; this is not a stop timer.
 Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
@@ -18,19 +18,18 @@ document or retained VM state.
 
 ## Work
 
-Resolve the documented discrepancy before selecting the 1440 expectation:
-the screen-time model names 0–1440, while the current custom editor says
-0–1439. Determine whether these are intentionally different contracts. Preserve
-the existing requirement and finite case; current behavior alone is not
-authorization to redefine it. Reuse an explicit developer decision if present;
-otherwise prepare the concrete expected/actual comparison and request the
-missing decision under the repository's failure-handling contract. Keep this
-task pending while the decision is missing; ordinary time preparation remains
-available to independent tasks.
+The [functional specification](../../Specification.md#screen-time-setup-and-enforcement)
+documents the current Parent UI range, 0–1439, separately from the broker and
+saved-data range, 0–1440. The source-authoritative documentation review resolves
+that description; it does not establish live acceptance or change executable
+checks. Keep 1440 in the finite customer set as an invalid custom editor value.
+Test the broker's accepted 1440 boundary separately at its technical interface.
 
-Bind every value in 0, preset 15, 1439, 1440, -1, 1441, empty and `abc` to the
-resolved public expectation. Extend invalid-value observations without changing
-or weakening checks to fit observed behavior.
+Bind 0, preset 15 and custom 1439 to acceptance; bind custom 1440, -1, 1441,
+empty and `abc` to visible rejection with the prior saved allowance preserved.
+Retain the complete finite set. Existing executable checks are unchanged; if
+one conflicts with this documented UI/API distinction, preserve and report
+the mismatch under the repository failure contract before changing it.
 
 ## Live VM acceptance
 

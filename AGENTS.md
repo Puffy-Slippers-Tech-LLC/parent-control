@@ -84,7 +84,7 @@
   `rg -n`/`sed -n`/`curl -fsSL`, use
   `tools/read-only <search|files|slice|sort|unique|gzip|fetch>` instead of broad
   saved utility grants. See [Approval-Tools.md](docs/Approval-Tools.md).
-- Troubleshoot `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.log` with
+- Troubleshoot `/var/log/oh-no-parent-control/<component>/YYYY-MM-DD.events` with
   ordinary readers or `tools/diagnose`; never modify/delete logs or use raw
   privileged systemctl/journalctl. Use minimum necessary read-only escalation
   under existing grants. Recurring privileged diagnostics require reviewed,

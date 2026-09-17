@@ -67,9 +67,14 @@ the request-station operations allowed by the broker.
 
 The Parent App's `.desktop` entry is owned by `root:sudo` with mode `0640`,
 restricting its discovery to Ubuntu administrators. The executable launcher
-is separately installed with mode `0755`. The Parent App checks the live
-administrator role before showing its management window; the broker checks
-management operations independently.
+is separately installed with mode `0755`. Parent startup calls
+`ListManagedUsers`, which rejects an ordinary child but also permits the
+configured kiosk UID. Consequently `_can_start` is not an administrator-only
+gate: a directly launched Parent process under the kiosk identity can pass it,
+although the installed restricted session offers no such launch route.
+`ListApplications`, `SetPreferences`, `SetParentControl` and
+`RevokeOneTimeGrant` independently require management authorization at the
+broker. Do not equate window-startup permission with policy-write permission.
 
 Management authorization uses the live AccountsService administrator and local-account flags and
 also accepts UID 0. This is distinct from approver eligibility: root is not
@@ -104,6 +109,7 @@ the broker resolves and revalidates it.
 | `RequestAccess` | - | selected child | - |
 | `LogEvent` | child component | kiosk component | parent component |
 | `ExportDiagnosticLogs` | all product logs | all product logs | all product logs |
+| `GetStartupTimings` | read | read | read |
 
 `LogEvent` is intentionally role-scoped: a front end cannot choose another
 component's log, and no D-Bus caller may write the broker component log.
@@ -114,6 +120,11 @@ from the latest three available log dates. It never accepts arbitrary filesystem
 paths or grants direct log-directory access. The broker rechecks the caller's
 role before delivery and permits only one outstanding export. See
 [diagnostic export](Logging-and-Feedback.md#feedback-and-diagnostic-export).
+
+`GetStartupTimings` uses the same role check as diagnostic export and returns
+six monotonic startup timestamps. It is a read-only technical interface, not a
+parent-management operation or customer-facing timing screen. Those raw timing
+values do not enter the automatic feedback report.
 
 `SetRequestMuted` authorizes the target account as shown above and validates
 `surface` as `child` or `kiosk`; it does not bind that value to the caller role.
@@ -165,6 +176,8 @@ An approved request initializes `DailyLimit` from saved preferences and enables
 Malcontent limits if necessary before applying the filter and grant. Unlike the
 child request, the kiosk request does not require `parent_control_enabled` to
 be true. It does not change that saved toggle or activate the child extension.
+Both installed request forms nevertheless disable submission when that toggle
+is false. This UI guard is narrower than the kiosk D-Bus method's authorization.
 
 After approval, the broker confirms that the requesting bus name still exists
 and revalidates the child, approver, and preferences after authentication,
@@ -173,6 +186,15 @@ nonblocking broker lock permits only one app-policy save, approval, revocation,
 or session-entry reconciliation transaction at a time. The per-caller repeat
 interval is recorded only after a successful grant, so denial or cancellation
 does not consume it.
+The shipped interval is five seconds and is keyed by the requesting UID in
+broker memory. All children selected by the same kiosk therefore share its
+cooldown; different child callers have separate entries. Broker restart clears
+this transient history. The check runs before the authentication prompt.
+
+`SetParentControl`, `UpdateRequestPreferences` and `SetRequestMuted` do not take
+that shared lock. The parent serializes its own saves, and approval checks for
+stale preferences, but the lock is not a blanket serialization guarantee for
+every settings write or independent client.
 
 For a request that keeps soft blocks enabled, the broker writes and verifies the
 complete hard-and-soft filter, terminates matching apps owned by the selected
@@ -189,11 +211,21 @@ does not terminate any open process, including an already-open hard-blocked app.
 
 Parent revocation uses the same process-ownership boundary. It restores and
 verifies the complete filter, terminates matching apps for the selected child,
-and clears `ActiveExtension` last. Reversible failure before termination
+and clears `ActiveExtension` last. No active-grant precondition is required:
+revocation can reconcile strict policy with a zero or expired grant and leaves
+the daily allowance untouched. Reversible failure before termination
 restores the complete old account state. Once termination may have changed a
 process, that side effect cannot be rolled back; failure instead restores the
 old time values, keeps the strict filter active, and reports the failure. A
 rollback read-back failure is reported distinctly.
+
+App-policy save rollback has a different persistence boundary: before termination,
+failure restores the old preference record and filter; once termination starts,
+failure keeps the requested preferences and strict filter. Session preparation
+also keeps strict policy once termination starts and does not modify the grant.
+Account read-back and successful fapolicyd compile/reload commands are the current
+verification boundary. There is no active-generation acknowledgement in the
+production adapter; see [notification recovery](Applications.md#notification-recovery-and-acknowledgement-limit).
 
 ## Related design
 

@@ -353,7 +353,7 @@ tools/diagnose journal --kernel --boot=-1
 tools/diagnose systemctl show 'oh-no-parent-control*' --property=ActiveState
 tools/diagnose systemctl status 'libvirtd.service'
 tools/diagnose read '/etc/polkit-1/rules.d/50-onpc-test-runner.rules'
-tools/diagnose tail '/var/log/oh-no-parent-control/daemon/2026-09-07.log'
+tools/diagnose tail '/var/log/oh-no-parent-control/broker/2026-09-17.events'
 tools/diagnose processes
 ```
 

@@ -280,11 +280,11 @@ passes. SEC01/GDM10 remain the two intentionally consumerless legacy deferrals.
 
 | Task | Prerequisite | Completion rule |
 | --- | --- | --- |
-| 040a | Resolved public expectation for the documented 0–1440 model versus the 0–1439 editor | Inspect the existing requirements and prepare the expected/actual comparison in this task; unresolved intent blocks boundary acceptance and cases 7–12, not ordinary allowance editing. Complete only after the resolved finite set passes live. |
+| 040a | Qualified public boundary observations | The specification separates UI 0–1439 from broker/schema 0–1440. Retain 1440 as an invalid custom editor value and the complete finite set in task 040a. Documentation alignment is not live acceptance; keep cases 7–12 pending until qualification passes. |
 | 143 | Supported customer route to distinct same-child desktops or explicit ownership decision | Leave unchecked until its live acceptance passes; preserve the exact unfulfilled scope. |
 | 150 | Explicit sending authorization covering the reviewed qualification/scenario submissions and dedicated test-recipient profile | Leave unchecked until its live acceptance passes; preserve the exact unfulfilled scope. |
 | 152 | Supported customer connectivity route preserving safe observation | Leave unchecked until its live acceptance passes; preserve the exact unfulfilled scope. |
-| 154 | Public mute feature or explicit customer-scope decision | Leave unchecked until its live acceptance passes; preserve the exact unfulfilled scope. |
+| 154 | Deferred restoration of public mute | Current release forms are silent and expose no mute control. Retain interactive-mute work unchecked for a future public feature; absence supplies no pass and wider inventory obligations remain pending. |
 
 The allowance boundary task may start its contract review before the decision is
 available; it must not convert the current editor's behavior into the expected
@@ -460,9 +460,9 @@ current blocker directly to an affected row when necessary.
 | [ ] | 120 | [E2E-019: flatpak-command-allowed-enabled / flatpak-command-allowed-disabled](E2E-Tasks/120-case-104-105.md) | 079, 047, 041, 116 | Cases 104, 105 | 35–55 |
 | [ ] | 121 | [E2E-019: flatpak-command-hard-blocked-enabled / flatpak-command-hard-blocked-disabled](E2E-Tasks/121-case-106-107.md) | 079, 047, 041, 116 | Cases 106, 107 | 35–55 |
 | [ ] | 122 | [E2E-019: flatpak-command-soft-blocked-enabled / flatpak-command-soft-blocked-disabled](E2E-Tasks/122-case-108-109.md) | 079, 047, 041, 116 | Cases 108, 109 | 35–55 |
-| [ ] | 123 | [Keep an unsaved match draft across a fixture update](E2E-Tasks/123-catalog-change.md) | 079, 006, 044a | LIFE04 fixture update; PARENT15 present-row save | 25–45 |
+| [ ] | 123 | [Keep an unsaved match draft across a fixture update](E2E-Tasks/123-catalog-change.md) | 079, 006, 044a, 028 | LIFE04 fixture update; PARENT15 retained-editor save; LIFE01 catalogue refresh | 25–45 |
 | [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 079, 006, 044, 047, 123 | Cases 110 | 35–55 |
-| [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006, 044a | LIFE04 fixture remove/reinstall; PARENT15 absent-row save | 30–50 |
+| [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006, 044a, 028 | LIFE04 fixture remove/reinstall; PARENT15 retained-editor save; LIFE01 catalogue refresh | 30–50 |
 | [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 079, 006, 044, 047, 123a | Cases 111 | 35–55 |
 | [ ] | 126 | [Prepare and play a real offline game windowed](E2E-Tasks/126-game.md) | 062, 065 | Game APP01/02/03/04; APP05/FLOW10 windowed | 40–60 |
 | [ ] | 127 | [E2E-023: windowed](E2E-Tasks/127-case-126.md) | 126, 079, 043 | Cases 126 | 40–60 |
@@ -494,8 +494,8 @@ current blocker directly to an affected row when necessary.
 | [ ] | 151 | [E2E-032: success](E2E-Tasks/151-case-156.md) | 150 | Cases 156 | 35–55 |
 | [ ] | 152 | [Change connectivity through public network controls](E2E-Tasks/152-network.md) | 150, 003, 010, 044a | LIFE06; FEED09 public retry state | 35–55 | <!-- Gate: Supported customer connectivity route preserving safe observation -->
 | [ ] | 153 | [E2E-033: retry](E2E-Tasks/153-case-157.md) | 152 | Cases 157 | 35–55 |
-| [ ] | 154 | [Qualify the publicly available mute choice](E2E-Tasks/154-mute.md) | 048a | REQUEST06 mute scope | 20–40 | <!-- Gate: Public mute feature or explicit customer-scope decision -->
-| [ ] | 155 | [Compare per-child choices across request surfaces](E2E-Tasks/155-cross-surface.md) | 154, 048a, 048b, 021 | FLOW12 | 35–55 |
+| [ ] | 154 | [Deferred qualification of restored mute](E2E-Tasks/154-mute.md) | 048a | REQUEST06 future mute scope | 20–40 | <!-- Gate: A future release restores the public mute feature -->
+| [ ] | 155 | [Compare per-child choices across request surfaces](E2E-Tasks/155-cross-surface.md) | 048a, 048b, 021 | FLOW12 current choices; task 154 retains deferred mute qualification | 35–55 |
 | [ ] | 156 | [E2E-018: overlay-to-kiosk-first / overlay-to-kiosk-second](E2E-Tasks/156-case-58-59.md) | 155, 065 | Cases 58, 59 | 40–60 |
 | [ ] | 157 | [E2E-018: kiosk-to-overlay-first / kiosk-to-overlay-second](E2E-Tasks/157-case-60-61.md) | 155, 065 | Cases 60, 61 | 40–60 |
 | [ ] | 158 | [E2E-022: app-restart-active](E2E-Tasks/158-case-116.md) | 155, 079, 047, 065, 052a, 028 | Cases 116 | 40–60 |

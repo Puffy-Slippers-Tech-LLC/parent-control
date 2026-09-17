@@ -16,7 +16,7 @@ Reuse the shared form operations with explicit overlay selectors and the fixed c
 
 ## Live VM acceptance
 
-In separate live attempts with publicly prepared usable child time, record an app activity, open the overlay, change each declared choice and read it back. Cancel or Escape must close the form and return to the same usable activity. Invalid custom text disables Request without a prompt; child selection is refused.
+In separate live attempts with publicly prepared usable child time, record an app activity, open the overlay, change each declared choice and read it back. Cancel or Escape must close the form and return to the same usable activity. Invalid custom text shows validation while an otherwise ready Request remains enabled; selecting it preserves the form and starts no authentication prompt. Child selection is refused.
 
 Run affected safety/worker checks, then the planned fixed qualification
 `tools/run-tests integration check_e2e_request_exit`, or the full named consumer

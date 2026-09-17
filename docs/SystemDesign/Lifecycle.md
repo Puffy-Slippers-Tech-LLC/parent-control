@@ -17,6 +17,10 @@ missing or unverifiable release information are rejected with an explanatory
 message before package files, state, or services are changed. Aborted-upgrade
 recovery and removal remain available. This gate activates during package
 installation (`none`); it adds no runtime integration or saved-data migration.
+The child extension currently declares only GNOME Shell 50 in
+[metadata.json](../../child/metadata.json). OS-version admission and desktop
+compatibility are separate: acceptance remains Ubuntu 26.04/GNOME 50 until a
+later desktop is explicitly supported and qualified.
 
 Broker construction first reconciles the discovered accounts' current
 AccountsService filters into fapolicyd. It then reasserts the packaged extension's
@@ -27,6 +31,13 @@ execution-policy reconciliation or extension-activation failure prevents the
 service from becoming ready. Clearing stale session caps is best-effort:
 unavailable sessions may be skipped, and an exception at this stage is logged
 without preventing registration.
+
+Startup uses live AccountsService filters as its enforcement input and saved
+preferences for patterns and extension enablement. It does not restore every
+saved daily limit or app block after ordinary removal cleared AccountsService.
+Reinstallation can therefore show retained choices without having replayed those
+restrictions. Reapplying the corresponding Parent controls projects the choices
+back into live state; no removed one-time grant is recreated.
 
 Successful object registration emits fixed `onpc.service` elapsed phase timings.
 The role-checked read-only `GetStartupTimings` D-Bus method supplies six real
@@ -45,13 +56,22 @@ until a root-owned canary execution is denied by the live kernel policy. The
 display manager requires completed fapolicyd startup, so a managed graphical
 login cannot begin while the daemon rebuilds its trust database. Readiness
 failure therefore fails closed before the login manager starts.
+The display-manager drop-in depends on fapolicyd, not the product broker.
+Broker registration failure prevents product operations but is not a separate
+GDM startup gate.
 
 The PAM account stack exempts `systemd-user`, the kiosk account, and members
 of Ubuntu's `sudo` group from the Malcontent account check.
 For other accounts, the public AccountsService `LimitType` helper skips
 `pam_malcontent` only when the account is positively confirmed unrestricted;
 unknown or malformed state continues through the enforcing module. The kiosk
-account is additionally confined to the dedicated GNOME session.
+account is additionally confined to the dedicated GNOME session. The
+[login helper](../../tools/oh-no-parent-control-login-check) admits that account
+only for `gdm-password` and `systemd-user`; the owned
+[GDM hook](../../data/gdm3/PreSession/Default) checks the selected session.
+The product Polkit rule denies the station changing its own AccountsService
+metadata. These layers complement the kiosk compositor and disabled XDG
+autostart files; hiding desktop controls is not the account confinement mechanism.
 
 Saved-data migration completes before provisioning and package-update activation.
 See [Data migration](Data-Migration.md#package-lifecycle) for broker exclusion,
@@ -61,6 +81,12 @@ Package activation is selected from a generated digest manifest. Depending on
 the installed file that changed, an update needs no action, a broker restart, a
 new child/kiosk session, or a reboot at the PAM/display-manager boundary. See
 [Package update](../Publishing.md#package-update-activation) for the classification rules.
+In particular, replacing the native PAM module alone is `session-renewal`,
+whereas changing PAM profiles or login-routing integration is `reboot`.
+New request windows and Parent processes load their installed code when opened;
+session renewal is needed for a running Shell or dedicated kiosk session to
+consume the corresponding updated payload. Configuration does not forcibly
+log users out to achieve that renewal.
 
 Successful configuration prints a green completion line. If this package has
 requested a reboot, the helper then prints
@@ -94,6 +120,10 @@ configuration and triggers finish so later APT/dpkg lines cannot follow it.
 /usr/lib/systemd/system/{fapolicyd,display-manager}.service.d/
                                                        boot readiness ordering
 ```
+
+Current source logs are structured `YYYY-MM-DD.events` files with bounded
+rotations and incident files. Readable dated `.log` files are generated in
+diagnostic exports; retained legacy `.log` files are not imported by that pipeline.
 
 The [Makefile](../../Makefile) is the complete installation map, including
 assets, the compiled PAM module, integration templates, and package helpers.

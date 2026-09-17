@@ -1,4 +1,4 @@
-# 154 — Qualify the publicly available mute choice
+# 154 — Deferred qualification of a restored mute choice
 
 Budget: 20–40 minutes, including a normal verification cycle; this is not a stop timer.
 Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
@@ -11,11 +11,20 @@ Required implemented capabilities: DESK12/REQUEST02; shared overlay bindings. Us
 
 Contract: the named [catalogue rows](../E2E-Building-Blocks.md#ordered-building-block-catalogue) and consumer recipe. Qualify only the bindings named here.
 
-Prerequisite gate: **Public mute feature or explicit customer-scope decision**. If unavailable, leave this task unchecked with the concrete blocker/return condition in the master; continue independent work. An applicability check alone does not complete it.
+Prerequisite gate: **A future release restores the public mute feature**.
+The current specification documents silent request forms with no mute control
+(ONPC-CORE-REQUEST-018). This task retains the earlier interactive-mute
+obligation as deferred work; it is not a description of a current user feature.
+Keep its checkbox and affected inventory variants pending. Observing absence
+does not earn an interactive-mute pass.
 
 ## Work
 
-Gate REQUEST06(mute) on the actual customer feature. Current REQUEST_MEDIA_ENABLED=False hides it. Do not enable a test switch or silently remove assertions. If still unavailable record the blocker and return condition; product/scope decisions remain explicit.
+Gate REQUEST06(mute) on the actual customer feature. Current
+REQUEST_MEDIA_ENABLED=False hides it. Do not enable a test switch or silently
+remove assertions. Supported duration/custom/soft-app persistence and user-local
+parent selection can be reviewed independently; the existing inventory's wider
+mute obligation remains unfulfilled until explicitly reconciled.
 
 ## Live VM acceptance
 

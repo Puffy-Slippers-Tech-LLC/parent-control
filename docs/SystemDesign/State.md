@@ -36,6 +36,9 @@ request = {
 App states are `allowed`, `permanent` (hard blocked), and `conditional` (soft
 blocked). Normalization omits an allowed entry unless it carries a saved match
 rule that must survive later policy changes.
+This is a storage guarantee. The current Parent restoration path has a
+[precise-override display limitation](Frontends.md#parent-controls-and-shared-information)
+for apps with a suggested wildcard.
 
 Machine configuration is separate at
 `/etc/oh-no-parent-control/config.json`. It contains only its schema version,
@@ -53,15 +56,39 @@ The ownership of runtime state is deliberately split:
 | UID-scoped native deny rules | fapolicyd | Live execution policy derived from `AppFilter` and saved patterns |
 | Extension payload | System GNOME data directory | Immutable package content discovered when Shell starts |
 | Extension activation | Per-account GNOME settings | Derived enabled state for managed children |
+| Request selector defaults | Requesting user's XDG state directory | Last kiosk child/approver or child-overlay approver; validated against current lists |
+| Countdown-animation preference | Child user's GSettings database | Personal panel preference, default false; no time or app-policy authority |
+| Feedback draft, selected file bytes and retries | Frontend process memory | Optional report composition; no persistent outbox |
+| Structured diagnostic history | Broker-owned component event files | Bounded approved events, independent of child preferences |
 
 No measured usage, grant expiry, or generated execution state is imported into
 the preference record.
 
 A missing child record loads validated defaults; a record is created on save.
 Defaults disable screen-time control, set a zero daily limit, leave apps allowed,
-and select a 30-minute request with soft apps blocked and both surfaces muted.
+and select a 30-minute request with a 0.1-minute custom value, soft apps blocked,
+no saved approver, and both surfaces muted.
 The current validator normalizes omitted optional request fields and an omitted
 daily limit.
+
+Preference/API daily limits allow 0–1440 whole minutes; the Parent App editor
+currently accepts 0–1439. Request custom durations separately accept 0.1–1440
+minutes. The saved approver and mute fields remain supported, but production
+selector restoration prefers user-local state and request media is disabled.
+See [request selectors](Frontends.md#request-selector-state).
+
+The child panel's `one-minute-countdown-animation` boolean belongs to schema
+`com.puffyslippers.oh-no-parent-control.child`, not the root-owned JSON record.
+It survives disable/re-enable and is independent of `request.child_muted` and
+`request.kiosk_muted`. Product removal removes extension activation entries,
+not this preference; purge also leaves ordinary users' selector files and
+GSettings databases alone. Preference migration does not migrate those UI stores.
+
+Broker startup reconciles the current live app filters and enabled extension
+state; it does not replay all preference values into AccountsService. In
+particular, ordinary package removal clears derived restrictions while retaining
+preferences. Reinstallation preserves those choices without automatically
+reconstructing every cleared runtime limit/filter or one-time grant.
 
 The machine configuration also currently uses version 3, independently of the
 preference schema. Its example kiosk UID is not a fixed runtime identity;

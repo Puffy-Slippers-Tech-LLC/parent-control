@@ -15,8 +15,12 @@ activation when the saved toggle changes. `SetPreferences` can save a daily
 limit value but does not apply it to Malcontent. Grant approval can also
 initialize Malcontent `LimitType` and `DailyLimit`; see
 [grant transactions](Broker.md#authorization-and-grant-transactions).
-The daily limit is an integer from 0 through 1440 minutes; zero is grant-only
-mode. App policy remains independent of whether the daily limit is enabled.
+The saved-data validator and broker accept integer daily limits from 0 through
+1440 minutes; zero is grant-only mode. The current Parent App's public editor
+has a narrower range: custom values are 0–1439, with presets 0, 15, 30, 45,
+then half-hour increments from 60 through 1410. It does not offer a 1440-minute
+choice. These UI and storage/API bounds must not be conflated in customer tests.
+App policy remains independent of whether the daily limit is enabled.
 
 The package installs the extension system-wide so every GNOME Shell discovers
 it during startup, while the broker controls activation independently for each
@@ -33,6 +37,11 @@ restore the prior state. Live activation is accepted only when
 GNOME Shell reports the extension both enabled and active; deactivation is
 accepted only when it reports neither. Offline activation is verified against
 the durable settings that Shell will consume at next login.
+
+This operation reapplies the filter without terminating running applications.
+It does not take the shared app-policy/grant/session-preparation transaction
+lock. The Parent App serializes its own saves; request approvals separately
+revalidate the saved preference snapshot around their asynchronous work.
 
 Shell availability checks ownership of `org.gnome.Shell`. The separate
 `org.gnome.Shell.Extensions` proxy service starts on demand; its absence must
@@ -76,6 +85,18 @@ usage intervals; the root broker validates them and owns every write. A
 rest-of-day request instead computes the seconds to the next local midnight with
 timezone-aware epoch arithmetic.
 
+Rest-of-day replaces the current grant with that midnight deadline; it does
+not take the maximum with an existing later expiry. Fixed requests can carry
+past midnight. Grant time is elapsed wall-clock time, including time spent
+locked, signed out, suspended or powered off, rather than a paused usage bank.
+The broker captures issuance time before applying account changes and stopping
+required apps. `ActiveExtension` is written last, but the duration is already
+running by then; completion and the UI confirmation do not reset its start.
+
+Daily usage calculations clip intervals to the current local day and current
+time and merge overlaps before subtraction, so concurrent/overlapping recorded
+intervals are not counted twice. Unavailable usage is an error, not zero use.
+
 For `GetTimeStatus`, the broker first validates the caller and selected child,
 then runs the same fixed-purpose usage helper as that child to read only its own
 usage. Malcontent's public `QueryUsage` implementation permits self-reads and
@@ -107,11 +128,15 @@ The child extension uses GNOME Shell's supported time-limit manager and the
 public Malcontent estimate signal/query for the daily estimate. It passes that
 estimate to `CalculateOwnRemainingTime`; the broker derives the child from the
 caller and reads the live `ActiveExtension` itself. The panel counts down in
-minutes and then seconds, preserving its last verified estimate across a
+hours/minutes (compact hours or minutes on a vertical panel), then seconds at
+60 seconds or less, preserving its last verified estimate across a
 temporary read failure. At expiry, deduplicated diagnostics record whether the
 estimate and daily limit are loaded, whether Shell is already in lock/greeter
 mode, and whether a lock request is pending. These contain no account/session
 identifiers; a separate fixed message records each actual Lock request.
+The tooltip retains the full time explanation on compact panels. The
+[right-click preference](Frontends.md#child-panel-preference) controls only
+countdown effects, not the estimate, request action or enforcement.
 
 The public estimate API is `EstimatedTimesChanged` and `GetEstimatedTimes`.
 Estimate reads use bounded backoff for `Error.Busy`, which can occur while
@@ -119,9 +144,13 @@ another supported client has the user's timer database open. The extension
 does not modify GNOME Shell's private time-limit state or attach to the native
 lock-screen request flow.
 
-At zero usable time the extension invokes the public GNOME ScreenSaver `Lock`
-method and repeats enforcement if the retained desktop is unlocked without new
-time. `pam_malcontent` independently denies a fresh login at zero. GDM unlocks
+Once an estimate has been successfully loaded, at zero usable time with a daily
+limit enabled the extension invokes the public GNOME ScreenSaver `Lock` method.
+It reevaluates enforcement when the retained desktop is unlocked without new
+time. Grant expiry alone does not lock a desktop with daily time remaining.
+An initial failed estimate read is reported; the extension does not treat the
+uninitialized zero as confirmed exhaustion. `pam_malcontent` independently
+denies a fresh login at zero. GDM unlocks
 an existing session through PAM authentication without repeating PAM account
 management, so the product PAM profile applies Malcontent's public remaining-
 time check to `gdm-password` authentication as well. A confirmed zero-time
@@ -150,10 +179,16 @@ unlocked, the child component invokes the broker-owned `PrepareOwnSession`
 reconciliation in [Application policy](Applications.md#session-entry-reconciliation);
 the unprivileged component neither decides whether a grant is current nor
 signals processes itself.
+Session preparation is asynchronous: it is not a compositor admission barrier.
+Failures are reported and preparation is retried while the desktop is usable.
 
-The PAM module/profile change activates at `reboot`; extension-manager changes
-activate at `process-restart`, and child-extension diagnostics at
-`session-renewal`. No saved-data migration is needed. The PAM data
+The [package classifier](../../debian/package_activation.py) gives PAM profile
+and login-routing changes `reboot` activation. A replacement
+`pam_oh_no_parent_control.so` alone requires `session-renewal`; the external
+session-limit helper loads on each invocation (`none`). Extension-manager
+changes activate at `process-restart`, and child-extension code at
+`session-renewal`. A combined package takes every applicable impact. No
+saved-data migration is needed for these integration changes. The PAM data
 interface is documented in [pam_systemd](https://github.com/systemd/systemd/blob/main/man/pam_systemd.xml).
 
 ## Related design

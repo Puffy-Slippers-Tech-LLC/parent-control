@@ -33,7 +33,7 @@ The [state design](SystemDesign/State.md) defines current ownership. The protect
 | Timer usage | `malcontent-timerd` | Only validated usage obtained through the documented identity-scoped public query contributes to grant calculation. |
 | Generated execution rules | Broker-derived fapolicyd rule file | Rules are a verified, atomic projection of canonical app policy and apply only to the intended UID. |
 | Running blocked applications | Broker-derived app identities and kernel process ownership | An app-policy save, approved no-soft-app request, or parent revocation terminates matching processes only for its validated selected child UID; Snap processes additionally require the kernel-applied application security label, and identical applications owned by other UIDs are untouched. |
-| Audit logs | Root broker daily log writer | Logs are access-controlled, bounded, redacted, attributable to the correct component, and never writable directly by a child. |
+| Diagnostic history | Root broker structured event writer | Records are access-controlled, bounded, schema-validated and attributable to the permitted component. Arbitrary text and unknown fields are rejected; call-site provenance must exclude PII. A child cannot write the files directly. This is not a complete activity audit. |
 
 Preferences are canonical only for configured product policy. AccountsService policy and fapolicyd rules are derived enforcement state, `malcontent-timerd` is authoritative for measured usage, and AccountsService `ActiveExtension` is authoritative for a live grant. External or derived state must never be imported silently into preferences.
 

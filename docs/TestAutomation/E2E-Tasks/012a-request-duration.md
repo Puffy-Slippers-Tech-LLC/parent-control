@@ -26,8 +26,9 @@ In a fresh installed VM attempt, enable the declared child through Parent,
 observe saving, then Switch User to enter kiosk and select that child/approver.
 Select a preset, a valid fraction and Rest of the day; observe each selection
 and estimate with explicit elapsed-time bounds. Change the soft-app choice and
-read it back. Invalid custom input must show validation, disabled Request and
-no authentication prompt. Do not change the clock or submit authentication.
+read it back. Invalid custom input shows validation while an otherwise ready
+Request remains enabled. Selecting it keeps the same form open and starts no
+authentication prompt. Do not change the clock or submit authentication.
 
 Run affected checks, then the planned fixed qualification
 `tools/run-tests integration check_e2e_request_exit`, reusing the master's

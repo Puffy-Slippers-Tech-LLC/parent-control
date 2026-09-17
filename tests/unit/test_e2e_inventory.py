@@ -41,7 +41,8 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert [case['case_id'] for case in plan['cases']] == expected
     assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
                                      if case['status'] == 'pending']
-    assert len(plan['pending_cases']) == 152
+    # E2E-Scenario-Recipes.md retains cases 1–157 and adds 65 pending cases.
+    assert len(plan['pending_cases']) == 217
     assert plan['scope'] == 'full'
     assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
         'E2E-001/gdm-observation', 'E2E-003/existing-and-new', 'E2E-003/none',

@@ -1,20 +1,21 @@
 # 047a — Compose retained app visits for distinct users
 
-Budget: 30–50 minutes, including a normal verification cycle; this is not a stop timer.
-Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
+Estimate: 30–50 minutes for a focused implementation/validation cycle; not
+a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
-## Scope and entry
+## Scope and prerequisites
 
-Consumer: E2E-005/006 isolation and later retained-activity journeys.
-Scope: FLOW09 and FLOW14 for a finite set of distinct users.
+Deliver **FLOW09 and FLOW14 distinct-user retention**. First scheduled consumer: [E2E-010, case 25](../E2E-Scenario-Recipes.md#e2e-010).
+Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
-Required capabilities: APP04, FLOW08, DESK03/09/10 and FLOW15's fresh/retained
-entries. Resolve maintained callables from the
-[catalogue](../E2E-Building-Blocks.md#reusable-journey-fragments). Each attempt
-starts fresh with explicit public time/policy prerequisites; no previous task
-document or VM state is an input.
+Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-## Work
+- **047** — APP04; FLOW08 native usable-app scope.
+- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
+
+Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+
+## Implementation
 
 Compose FLOW09 from legitimate retained entry, APP04 comparison and APP03 use.
 Compose FLOW14 from the explicit per-user entry, FLOW08, activity capture and
@@ -31,18 +32,28 @@ usable. FLOW14 starts and ends at GDM; FLOW09 ends at the named usable activity.
 Independent retained entry must work; a missing prior observation or wrong
 entry mode refuses without recreating state.
 
-Run affected checks, then the planned fixed qualification
-`tools/run-tests integration check_e2e_allowance` in the master's guarded
-envelope. Require all stated results and owned cleanup. No partial scenario
-registration or backend activity probes.
+Run affected safety/adapter checks, then use the complete first consumer if runnable.
+Otherwise implement/reuse the planned fixed qualification:
+
+```sh
+tools/run-tests integration check_e2e_allowance
+```
+
+This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
+before invocation. Require every stated result, independent valid entry, wrong-entry
+refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
+establish complete scenario coverage.
 
 ## Close out
 
-After successful cleanup, update callable/scope/status in
-[the catalogue](../E2E-Building-Blocks.md) and check this task in the
-[master](../E2E-Execution-Plan.md). If a complete E2E consumer also passed, run
-`tools/generate_test_coverage.sh` (the launcher for
-`tools/generate_test_coverage.py`) before checking its scenario.
-Delete this file once enduring context is maintained elsewhere, replace its
-master link with plain text, and validate changed Markdown. No new evidence or
-history document.
+After live qualification and cleanup, update the callable, exact qualified scope
+and status in [E2E-Building-Blocks.md](../E2E-Building-Blocks.md), and reconcile
+the first consumer's status in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
+A slice alone leaves the full scenario pending. If any complete E2E scenario
+passed, run `tools/generate_test_coverage.sh` after that case's cleanup; it runs
+`tools/generate_test_coverage.py`. Require successful generation before check-off.
+
+Check this task in the [master](../E2E-Execution-Plan.md), then remove this brief
+when its enduring context is in source/contracts and replace its master link
+with plain text. Validate changed Markdown with `tools/read-only links`.
+Keep normal runner artifacts; no new evidence document or accumulated history.

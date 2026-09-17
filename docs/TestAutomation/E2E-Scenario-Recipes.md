@@ -9,11 +9,17 @@ task documents or silently substitute different inputs.
 
 There are **50 families and 252 persistent cases**: **240 customer cases**
 (4 ready, 236 pending), **11 engineering fault obligations**, and **1 ready
-harness qualification**. E2E-034 is a retired harness identifier and is not
-reused. Cases 223–252 add delayed approvals, temporary app access by launch
-route, and repeated household routines. IDs 1–222 and the five existing
-executable bindings retain their readiness. This review claims no new installed
-acceptance.
+harness qualification**. E2E-034 is retired and is not reused. Cases **3, 4, 5
+and 151** are the ready customer bindings; case **1** is ready harness
+qualification. No new installed acceptance is claimed here.
+
+Each family below records current implementation status. After a complete
+scenario and terminal cleanup pass, run `tools/generate_test_coverage.sh`
+(the approved launcher for `tools/generate_test_coverage.py`), update that
+family's ready/pending cases and these totals, update qualified scope in the
+[block catalogue](E2E-Building-Blocks.md), and check its master task. A block
+qualification alone leaves its scenario pending. Retain current status and
+remaining gates, not an accumulated run history.
 
 ## Independent entry, actions and observations
 
@@ -196,6 +202,8 @@ No step calls a product API, reads private state or invokes a fault control.
 
 ### E2E-002
 
+Implementation status: All cases pending.
+
 **Install the app and begin managing a child.** Cases 2.
 
 Bindings: installation = clean.
@@ -205,6 +213,8 @@ Bindings: installation = clean.
 3. P0 → PARENT03(defaults) → PARENT04(App Limits) → UI13(unblocked rows) → DESK03 → REQUEST01 → REQUEST03 → REQUEST12(cancel).
 
 ### E2E-003
+
+Implementation status: All cases ready (3, 4).
 
 **Parent discovery and navigation.** Cases 3, 4.
 
@@ -216,6 +226,8 @@ Bindings: children = existing-and-new / none.
 
 ### E2E-004
 
+Implementation status: Ready: 5; pending: 6.
+
 **Standard user cannot manage policy.** Cases 5, 6.
 
 Bindings: launch = app-grid / terminal.
@@ -224,6 +236,8 @@ Bindings: launch = app-grid / terminal.
 2. Grid: UI21 → SEARCH03 → SEARCH04(unavailable), no Enter. Terminal: FILE02(parent command) → FILE06(management denied) → UI11(management).
 
 ### E2E-005
+
+Implementation status: All cases pending.
 
 **Change screen limits while starting or returning to a child desktop.** Cases 7, 8, 9, 10, 11, 12.
 
@@ -236,6 +250,8 @@ Bindings: time = daily-only / grant-only / combined; session = new / retained.
 
 ### E2E-006
 
+Implementation status: All cases pending.
+
 **Change app rules while children use apps.** Cases 13, 14, 15, 16.
 
 Bindings: control = enabled / disabled; match = precise / pattern.
@@ -245,6 +261,8 @@ Bindings: control = enabled / disabled; match = precise / pattern.
 3. P → LIFE01(Parent) → PARENT02 → PARENT12 → UI12(final Allowed rule). This phase does not replay the transitions.
 
 ### E2E-007
+
+Implementation status: All cases pending.
 
 **Cancel then confirm revocation with open apps.** Cases 17, 18, 19, 20.
 
@@ -256,6 +274,8 @@ Bindings: daily = zero / remaining; sessions = single / multiple.
 
 ### E2E-008
 
+Implementation status: All cases pending.
+
 **Natural daily exhaustion, retained unlock and fresh login denial.** Cases 21, 22.
 
 Bindings: entry = retained-unlock / fresh-login.
@@ -265,6 +285,8 @@ Bindings: entry = retained-unlock / fresh-login.
 3. DESK08(time denial). Fresh-login only: DESK11 → FLOW06(temporary time) → C(retained) → DESK04 → P → PARENT17 → PARENT18(confirm) → PARENT09(D=G=0) → G → C(fresh,denied).
 
 ### E2E-009
+
+Implementation status: All cases pending.
 
 **Recover unfinished work after grant-only time runs out.** Cases 23, 24.
 
@@ -276,6 +298,8 @@ Bindings: soft-apps = excluded / included.
 
 ### E2E-010
 
+Implementation status: All cases pending.
+
 **Switch User while child time expires.** Cases 25, 26.
 
 Bindings: foreground = parent / other-child.
@@ -285,6 +309,8 @@ Bindings: foreground = parent / other-child.
 3. C(retained,denied) → DESK11 → FLOW09(foreground).
 
 ### E2E-011
+
+Implementation status: All cases pending.
 
 **Countdown and visibility transitions.** Cases 27, 28, 29.
 
@@ -296,6 +322,8 @@ Bindings: time = daily-only / grant-only / combined.
 
 ### E2E-012
 
+Implementation status: All cases pending.
+
 **Single child overlay and selected-parent approval.** Cases 30, 31, 32, 33.
 
 Bindings: soft-apps = excluded / included; approver = first / second.
@@ -305,6 +333,8 @@ Bindings: soft-apps = excluded / included; approver = first / second.
 3. AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic) → TIME01 → APP02(soft effect) → FLOW08(hard/soft). After TIME03(cooldown): REQUEST02 → REQUEST09 → AUTH02(cancel) → REQUEST11(cancel) → REQUEST12(cancel).
 
 ### E2E-013
+
+Implementation status: All cases pending.
 
 **Authentication denial and cancellation retry.** Cases 34, 35, 36, 37.
 
@@ -316,6 +346,8 @@ Bindings: surface = child-overlay / kiosk; outcome = wrong-password / cancel.
 
 ### E2E-014
 
+Implementation status: All cases pending.
+
 **Shared duration boundaries and duplicate submission.** Cases 38, 39, 40, 41, 42, 43.
 
 Bindings: surface = child-overlay / kiosk; choice = predefined / custom / rest-of-day.
@@ -326,6 +358,8 @@ Bindings: surface = child-overlay / kiosk; choice = predefined / custom / rest-o
 
 ### E2E-015
 
+Implementation status: All cases pending.
+
 **Request surface exit behavior.** Cases 44, 45, 46, 47, 48, 49.
 
 Bindings: surface = child-overlay / kiosk; exit = cancel / escape / approved.
@@ -334,6 +368,8 @@ Bindings: surface = child-overlay / kiosk; exit = cancel / escape / approved.
 2. REQUEST12(cancel|escape|approved-immediate). Overlay APP04(compare) → APP03; kiosk GDM01. Approved enters child if needed → TIME01.
 
 ### E2E-016
+
+Implementation status: All cases pending.
 
 **Restricted request station.** Cases 50, 51, 52.
 
@@ -345,6 +381,8 @@ Bindings: request = approved / denied / cancelled.
 
 ### E2E-017
 
+Implementation status: All cases pending.
+
 **Kiosk selection and unavailable requests.** Cases 53, 54, 55, 56, 57.
 
 Bindings: accounts = multiple / no-child / no-parent / ineligible-parent / disabled-child.
@@ -354,6 +392,8 @@ Bindings: accounts = multiple / no-child / no-parent / ineligible-parent / disab
 3. REQUEST03 → REQUEST08. Available: REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11. Unavailable: UI02(disabled) → UI11(prompt). No-parent specifically requires the missing-eligible-parent explanation and empty parent list; it makes no isolated screen-time enforcement claim with its also-disabled child.
 
 ### E2E-018
+
+Implementation status: All cases pending.
 
 **Remember each child's choices across both request forms.** Cases 58, 59, 60, 61.
 
@@ -365,6 +405,8 @@ Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / secon
 
 ### E2E-019
 
+Implementation status: All cases pending.
+
 **Use supported launch routes under each app rule.** Cases 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109.
 
 Bindings: route = native-grid / native-desktop / native-file-manager / native-command / snap-grid / snap-command / flatpak-grid / flatpak-command; policy = allowed / hard-blocked / soft-blocked; control = enabled / disabled.
@@ -374,6 +416,8 @@ Bindings: route = native-grid / native-desktop / native-file-manager / native-co
 3. V(Riley,fresh) → FLOW08(same target, corresponding route,usable).
 
 ### E2E-020
+
+Implementation status: All cases pending.
 
 **Catalog update/disappearance between display and save.** Cases 110, 111.
 
@@ -385,6 +429,8 @@ Bindings: change = update / remove.
 
 ### E2E-021
 
+Implementation status: All cases pending.
+
 **Apply an action across a child's distinct retained desktops.** Cases 112, 113, 114, 115.
 
 Bindings: transaction = save / approve-without-soft / approve-with-soft / revoke.
@@ -394,6 +440,8 @@ Bindings: transaction = save / approve-without-soft / approve-with-soft / revoke
 3. For each child desktop: C(retained) → APP02 → APP04 if preserved → FLOW08. FLOW09(Riley). No distinct public entry means pending.
 
 ### E2E-022
+
+Implementation status: All cases pending.
 
 **Customer lifecycle persistence and resume.** Cases 116, 117, 118, 119, 120, 121, 122, 123, 124, 125.
 
@@ -405,6 +453,8 @@ Bindings: boundary = app-restart / sign-out-in / reboot / idle / suspend-wake; g
 4. P → PARENT03/PARENT12 → UI12 before edits. request-entry → REQUEST03 → UI12 before editing. Expired child denial → DESK11 → REQUEST01 → REQUEST03 before FLOW06 replacement. C → TIME01 → FLOW08; APP04 only on retained desktops.
 
 ### E2E-023
+
+Implementation status: All cases pending.
 
 **Zero allowance to kiosk approval, real gameplay and expiry.** Cases 126, 127.
 
@@ -419,6 +469,8 @@ Bindings: gameplay = windowed / fullscreen.
 
 ### E2E-024
 
+Implementation status: All cases pending.
+
 **Additional time accumulates during gameplay.** Cases 128, 129, 130, 131.
 
 Bindings: time = daily-dominant / grant-dominant; gameplay = windowed / fullscreen.
@@ -428,6 +480,8 @@ Bindings: time = daily-dominant / grant-dominant; gameplay = windowed / fullscre
 3. DESK10(game) → APP04(compare) → APP03 → TIME04(extended natural expiry).
 
 ### E2E-025
+
+Implementation status: All cases pending.
 
 **Replace an expired grant before returning with daily time left.** Cases 132, 133, 134, 135.
 
@@ -439,6 +493,8 @@ Bindings: soft-apps = excluded / included; entry = new-login / retained-unlock.
 
 ### E2E-026
 
+Implementation status: All cases pending.
+
 **Customer package update and activation.** Cases 136, 137, 138.
 
 Bindings: activation = process / session / reboot.
@@ -448,6 +504,8 @@ Bindings: activation = process / session / reboot.
 3. P → PARENT03/PARENT12 → UI12 → ABOUT01(version) → UI18; request-entry(each) → REQUEST03 → UI12 before edits; C → TIME01 → FLOW08.
 
 ### E2E-027
+
+Implementation status: All cases pending.
 
 **Install through remove, reinstall and purge.** Cases 139.
 
@@ -460,6 +518,8 @@ Bindings: lifecycle = continuous.
 
 ### E2E-030
 
+Implementation status: All cases ready (151).
+
 **Installed About and license access.** Cases 151.
 
 Bindings: surface = parent.
@@ -468,6 +528,8 @@ Bindings: surface = parent.
 2. ABOUT03(previous child/settings observation). Established phase timing is unchanged.
 
 ### E2E-031
+
+Implementation status: All cases pending.
 
 **Feedback drafts, validation and attachment review.** Cases 152, 153, 154, 155.
 
@@ -478,6 +540,8 @@ Bindings: flow = draft-reopen / validation / attachments / diagnostic-export.
 
 ### E2E-032
 
+Implementation status: All cases pending.
+
 **Send reviewed feedback and read service acceptance.** Cases 156.
 
 Bindings: delivery = success.
@@ -486,6 +550,8 @@ Bindings: delivery = success.
 2. FEED09(sending,success) → TIME03(5 seconds with thanks still present) → FEED14 → FEED01 → FEED03(cleared).
 
 ### E2E-033
+
+Implementation status: All cases pending.
 
 **Recover feedback sending after reconnecting.** Cases 157.
 
@@ -499,6 +565,8 @@ Bindings: delivery = retry.
 
 ### E2E-035
 
+Implementation status: All cases pending.
+
 **Choose allowances and save edits.** Cases 158, 159.
 
 Bindings: flow = boundaries / save-order.
@@ -508,6 +576,8 @@ Bindings: flow = boundaries / save-order.
 3. LIFE01(Parent) → PARENT02(each child) → PARENT03 → UI12(last accepted values).
 
 ### E2E-036
+
+Implementation status: All cases pending.
 
 **Revoke when there is no active grant.** Cases 160, 161.
 
@@ -519,6 +589,8 @@ Bindings: balance = daily-positive / zero-total.
 
 ### E2E-037
 
+Implementation status: All cases pending.
+
 **Use and remember the child panel option.** Cases 162, 163.
 
 Bindings: boundary = sign-out-in / reboot.
@@ -528,6 +600,8 @@ Bindings: boundary = sign-out-in / reboot.
 3. C(second) → PANEL01(off) → UI05(Escape); C(first) → PANEL01 → PANEL02(off) → PANEL01 → PANEL02(on) → FLOW08(allowed) → TIME04.
 
 ### E2E-038
+
+Implementation status: All cases pending.
 
 **Keep daily access after a grant ends and restore soft-app blocks.** Cases 164, 165, 166, 167, 168, 169, 170.
 
@@ -539,6 +613,8 @@ Bindings: restore = none / unlock / fresh-login / allowance-edit / toggle / app-
 
 ### E2E-039
 
+Implementation status: All cases pending.
+
 **Leave a pending approval or request again too soon.** Cases 171, 172, 173, 174, 175, 176, 177, 178.
 
 Bindings: flow = overlay-lock / overlay-switch / overlay-signout / overlay-close / kiosk-close / overlay-cooldown / kiosk-cooldown-same / kiosk-cooldown-other.
@@ -548,6 +624,8 @@ Bindings: flow = overlay-lock / overlay-switch / overlay-signout / overlay-close
 3. Read Parent balances via PARENT09 before a new approval; return via request-entry → REQUEST03 → UI12. TIME03 only to finish cooldown; FLOW05(new authentication).
 
 ### E2E-040
+
+Implementation status: All cases pending.
 
 **Refresh accounts and remembered selections after account changes.** Cases 179, 180, 181, 182, 183.
 
@@ -559,6 +637,8 @@ Bindings: change = add-child / remove-selected / remove-last-child / ineligible-
 
 ### E2E-041
 
+Implementation status: All cases pending.
+
 **Search the app list and edit match rules.** Cases 184, 185, 186, 187, 188, 189.
 
 Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers / special-paths / pattern-files.
@@ -568,6 +648,8 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 3. PARENT12 → UI12(saved/expected rule) → C → FLOW08(declared positive and negative targets). Search-only checks compare rules without changing them.
 
 ### E2E-042
+
+Implementation status: All cases pending.
 
 **Read Help, About and command usage on each surface.** Cases 190, 191, 192, 193.
 
@@ -579,6 +661,8 @@ Bindings: surface = parent-links / child-overlay / kiosk / command-help.
 
 ### E2E-043
 
+Implementation status: All cases pending.
+
 **Use local controls and approvals while offline.** Cases 194, 195.
 
 Bindings: surface = child-overlay / kiosk.
@@ -588,6 +672,8 @@ Bindings: surface = child-overlay / kiosk.
 3. C → FLOW08(soft usable,hard denied) → TIME02 → P → PARENT17 → PARENT18(confirm) → C → FLOW08(soft denied) → P → LIFE06(reconnect).
 
 ### E2E-044
+
+Implementation status: All cases pending.
 
 **Use time across local day and daylight-saving boundaries.** Cases 196, 197, 198, 199, 200, 201, 202, 203, 204.
 
@@ -599,6 +685,8 @@ Bindings: calendar = ordinary / spring-forward / fall-back; time = daily-reset /
 
 ### E2E-045
 
+Implementation status: All cases pending.
+
 **Review or decline an error report.** Cases 205, 206, 207.
 
 Bindings: surface = parent / child-overlay / kiosk.
@@ -608,6 +696,8 @@ Bindings: surface = parent / child-overlay / kiosk.
 3. Repeat the same public error: FEED15(decline) where offered → UI11(report). Parent's report window simply closes; no nonexistent report switch is assumed.
 
 ### E2E-046
+
+Implementation status: All cases pending.
 
 **Recover unavailable diagnostic collection.** Cases 208, 209, 210, 211, 212, 213.
 
@@ -619,6 +709,8 @@ Bindings: surface = parent / child-overlay / kiosk; choice = retry / without-log
 
 ### E2E-047
 
+Implementation status: All cases pending.
+
 **Finish or stop feedback in different user flows.** Cases 214, 215, 216, 217, 218, 219, 220, 221, 222.
 
 Bindings: flow = no-reply / background / app-exit / retry-expired / overlay-stop / kiosk-stop / overlay-success / kiosk-success / parent-error-success.
@@ -628,6 +720,8 @@ Bindings: flow = no-reply / background / app-exit / retry-expired / overlay-stop
 3. Use FEED14 only for observed thanks; FEED03 checks cleared/preserved/reset draft as specified, and LIFE06 restores connectivity.
 
 ### E2E-048
+
+Implementation status: All cases pending.
 
 **Approve after the displayed estimate has aged.** Cases 223–230.
 
@@ -666,6 +760,8 @@ those station cases.
 
 ### E2E-049
 
+Implementation status: All cases pending.
+
 **Change temporary app permission on every supported launch route.** Cases 231–246.
 
 Bindings: route = native-grid / native-desktop / native-file-manager /
@@ -693,6 +789,8 @@ and fresh launches on that route. Do not reproduce every allowance boundary or
 game-display mode here.
 
 ### E2E-050
+
+Implementation status: All cases pending.
 
 **Alternate homework, games and time sources over repeated sessions.** Cases 247–250.
 
@@ -741,6 +839,8 @@ normal reveal route is mandatory. If navigation exhausts a required margin,
 preserve the failure instead of inserting an unplanned grant.
 
 ### E2E-051
+
+Implementation status: All cases pending.
 
 **Alternate two children's work and game routines without mixing their choices.**
 Cases 251–252; first child = Jordan / Riley.

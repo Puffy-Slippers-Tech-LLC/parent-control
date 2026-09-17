@@ -1,17 +1,21 @@
 # 044 — Visit retained users and existing windows
 
-Budget: 40–60 minutes, including a normal verification cycle; this is not a stop timer.
-Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
+Estimate: 40–60 minutes for a focused implementation/validation cycle; not
+a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
-## Scope and entry
+## Scope and prerequisites
 
-Consumer: E2E-005 retained visits; E2E-007 isolation. Scope: DESK09; FLOW15 and FLOW01 retained scopes. Reuse already-qualified DESK10 window switching.
+Deliver **DESK09; FLOW15 and FLOW01 retained scopes**. First scheduled consumer: [E2E-014, case 40](../E2E-Scenario-Recipes.md#e2e-014).
+Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-session-entry), [related block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
-Required implemented capabilities: DESK08, DESK11 and DESK10. Use maintained callables and an independent public entry state, never an earlier task document or attempt.
+Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-Contract: the named [catalogue rows](../E2E-Building-Blocks.md#ordered-building-block-catalogue) and consumer recipe. Qualify only the bindings named here.
+- **043a** — GDM02 retained-child lock entry; DESK08/11.
+- **044a** — DESK10 same-desktop window switching.
 
-## Work
+Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+
+## Implementation
 
 Implement retained-user routing, reusing normal DESK10 window switching and the qualified fresh-child FLOW15 branch. Extend FLOW15 for explicit same/retained/lock/denied entry, and FLOW01 for retained Parent windows without reselection hiding state. Qualify the additional account/recipient bindings required for these entries.
 
@@ -19,8 +23,28 @@ Implement retained-user routing, reusing normal DESK10 window switching and the 
 
 On the VM, leave recognizable windows on child and Parent desktops, switch between them, unlock normally and foreground the same windows. Wrong entry modes fail without repairing state; compare retained public activity before relaunching anything.
 
-Run affected safety/worker checks, then planned fixed qualification `tools/run-tests integration check_e2e_allowance`, or the full named consumer if runnable. Reuse/create the fixed entry under the master's qualification contract. Every result above and owned cleanup must pass on the live VM; diagnostic success earns no scenario coverage.
+Run affected safety/adapter checks, then use the complete first consumer if runnable.
+Otherwise implement/reuse the planned fixed qualification:
+
+```sh
+tools/run-tests integration check_e2e_allowance
+```
+
+This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
+before invocation. Require every stated result, independent valid entry, wrong-entry
+refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
+establish complete scenario coverage.
 
 ## Close out
 
-After successful cleanup, check this task in the [master](../E2E-Execution-Plan.md) and update [catalogue/scenario status](../E2E-Building-Blocks.md) using its readiness rules. Delete this task when no longer needed, replacing its master link with plain text. No new evidence/history document.
+After live qualification and cleanup, update the callable, exact qualified scope
+and status in [E2E-Building-Blocks.md](../E2E-Building-Blocks.md), and reconcile
+the first consumer's status in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
+A slice alone leaves the full scenario pending. If any complete E2E scenario
+passed, run `tools/generate_test_coverage.sh` after that case's cleanup; it runs
+`tools/generate_test_coverage.py`. Require successful generation before check-off.
+
+Check this task in the [master](../E2E-Execution-Plan.md), then remove this brief
+when its enduring context is in source/contracts and replace its master link
+with plain text. Validate changed Markdown with `tools/read-only links`.
+Keep normal runner artifacts; no new evidence document or accumulated history.

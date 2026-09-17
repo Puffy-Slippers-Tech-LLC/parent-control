@@ -1,19 +1,24 @@
 # 150 — Submit one authorized synthetic report and read success
 
-Budget: 30–50 minutes, including a normal verification cycle; this is not a stop timer.
-Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
+Estimate: 30–50 minutes for a focused implementation/validation cycle; not
+a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
-## Scope and entry
+## Scope and prerequisites
 
-Consumer: E2E-032/success (156). Scope: FEED11, FEED14.
+Deliver **FEED11, FEED09 sending/success and FEED14 Parent feedback**. First scheduled consumer: [E2E-032, case 156](../E2E-Scenario-Recipes.md#e2e-032).
+Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments) and only the selected consumer's recipe.
 
-Required implemented capabilities: FEED06, FEED07, FEED12, FEED13; FEED09; FEED05, FEED10. Use maintained callables and an independent public entry state, never an earlier task document or attempt.
+**Gate:** Explicit authorization must cover the reviewed synthetic content, dedicated recipient and this qualification's actual submissions. Reuse existing authorization; otherwise prepare reviewable inputs and leave sending pending.
 
-Contract: the named [catalogue rows](../E2E-Building-Blocks.md#ordered-building-block-catalogue) and consumer recipe. Qualify only the bindings named here.
+Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-Prerequisite gate: **Explicit sending authorization covering this qualification and the later case-156 run, plus a dedicated test-recipient profile**. If unavailable, leave this task unchecked with the concrete blocker/return condition in the master; continue independent work. An applicability check alone does not complete it.
+- **038** — FEED06, FEED07, FEED12, FEED13.
+- **031a** — FEED09 collection trace.
+- **052c** — TIME03.
 
-## Work
+Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+
+## Implementation
 
 Prepare the concrete synthetic report, attachments and dedicated recipient for review before any Send. Reuse existing authorization only if it covers these contents and the planned qualification/scenario submissions. Compose reviewed FEED03/Privacy evidence, one Send, FEED09 sending/success and FEED14 dismissal. Qualify these FEED09 projections only here.
 
@@ -21,8 +26,28 @@ Prepare the concrete synthetic report, attachments and dedicated recipient for r
 
 With authorized service configuration, submit once on the VM, observe the actual app response, dismiss confirmation and reopen feedback to observe clearing. No provider receipt probe or automatic repeat send. Planning is not sending authorization.
 
-Run affected safety/worker checks, then planned fixed qualification `tools/run-tests integration check_e2e_feedback_delivery`, or the full named consumer if runnable. Reuse/create the fixed entry under the master's qualification contract. Every result above and owned cleanup must pass on the live VM; diagnostic success earns no scenario coverage.
+Run affected safety/adapter checks, then use the complete first consumer if runnable.
+Otherwise implement/reuse the planned fixed qualification:
+
+```sh
+tools/run-tests integration check_e2e_feedback_delivery
+```
+
+This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
+before invocation. Require every stated result, independent valid entry, wrong-entry
+refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
+establish complete scenario coverage.
 
 ## Close out
 
-After successful cleanup, check this task in the [master](../E2E-Execution-Plan.md) and update [catalogue/scenario status](../E2E-Building-Blocks.md) using its readiness rules. Delete this task when no longer needed, replacing its master link with plain text. No new evidence/history document.
+After live qualification and cleanup, update the callable, exact qualified scope
+and status in [E2E-Building-Blocks.md](../E2E-Building-Blocks.md), and reconcile
+the first consumer's status in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
+A slice alone leaves the full scenario pending. If any complete E2E scenario
+passed, run `tools/generate_test_coverage.sh` after that case's cleanup; it runs
+`tools/generate_test_coverage.py`. Require successful generation before check-off.
+
+Check this task in the [master](../E2E-Execution-Plan.md), then remove this brief
+when its enduring context is in source/contracts and replace its master link
+with plain text. Validate changed Markdown with `tools/read-only links`.
+Keep normal runner artifacts; no new evidence document or accumulated history.

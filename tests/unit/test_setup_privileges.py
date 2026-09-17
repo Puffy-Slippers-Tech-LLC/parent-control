@@ -14,12 +14,12 @@ helper = runpy.run_path(str(ROOT / 'tools/onpc-setup'))
     ('codex-rules', 'tools/install_codex_rules.py', ['--system']),
     ('test-tools', 'tools/install_test_runner.py', []),
     ('graphical-policy', 'tools/install_graphical_test_policy.py', []),
-    ('prepare-host', 'tests/integration/prepare_host.py', []),
-    ('replace-missing-baseline', 'tests/integration/prepare_host.py', ['--replace-missing']),
+    ('prepare-baseline', 'tests/integration/prepare_baseline.py', []),
+    ('replace-missing-baseline', 'tests/integration/prepare_baseline.py', ['--replace-missing']),
 ])
 def test_only_fixed_modules_and_arguments_are_selected(operation, relative, options):
     selected = helper['command'](ROOT, [operation])
-    assert selected == ['/usr/bin/python3', '-B' if operation in ('prepare-host', 'replace-missing-baseline') else '-IB',
+    assert selected == ['/usr/bin/python3', '-B' if operation in ('prepare-baseline', 'replace-missing-baseline') else '-IB',
                         str(ROOT / relative), *options]
 
 
@@ -31,7 +31,7 @@ def test_host_dependencies_use_only_the_fixed_package_module():
 
 
 @pytest.mark.parametrize('args', [[], ['shell'], ['python3'], ['codex-rules', '/tmp/rules'],
-                                  ['test-tools', '--command', 'arbitrary'], ['prepare-host', '--reset'],
+                                  ['test-tools', '--command', 'arbitrary'], ['prepare-baseline', '--reset'],
                                   ['dependencies', '/tmp/install.sh'], ['ppa-build-tools', '--command', 'id'], ['checkout']])
 def test_arbitrary_operations_and_trailing_arguments_are_refused(args):
     with pytest.raises(ValueError):

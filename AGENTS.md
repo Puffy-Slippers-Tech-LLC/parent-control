@@ -137,10 +137,12 @@
 - `./setup.sh` is the sole public development/VM-host setup entry point. Keep
   changes in appropriate modes and specialist modules scoped; Make aliases only
   delegate. Builds/tests report missing prerequisites instead of installing them.
-- Modes must be idempotent/retryable, preserve unrelated configuration/accepted
-  baselines and stop on failed prerequisites. Cover orchestration repeat/failure
-  behavior and update master help/docs. `--prepare-host` needs explicit baseline
-  authorization; guest-only `--prepare-vm` never runs during ordinary host setup.
+- Modes must be retryable, preserve unrelated configuration and stop on failed
+  prerequisites. Ordinary setup preserves accepted baselines. Cover orchestration
+  repeat/failure behavior and update master help/docs. Explicit `--prepare-baseline`
+  requires an off VM, deletes the existing baseline without restoring it and
+  captures the current guest. Neither it nor guest-only `--prepare-vm` runs during
+  ordinary host setup.
 - Refresh helpers and Polkit/Codex rules with `./setup.sh --test-tools-only`;
   rules alone with `./setup.sh --codex-rules-only`. Global read rules live in
   `config/codex-read-only.rules`. Codex needs a restart with this checkout trusted;

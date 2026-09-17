@@ -32,7 +32,7 @@ sys.exit(7 if os.environ.get('ONPC_SETUP_FAIL') == name else 0)
 '''
     for name in ('install_test_runner.py', 'install_graphical_test_policy.py', 'install_codex_rules.py'):
         (root / 'tools' / name).write_text(stub)
-    (root / 'tests/integration/prepare_host.py').write_text(stub)
+    (root / 'tests/integration/prepare_baseline.py').write_text(stub)
     shutil.copy2(ROOT / 'tools/onpc-setup', root / 'tools/onpc-setup')
     (root / 'tools/setup_privileges.py').write_text('''import os, pathlib, runpy, sys
 if os.environ.get('ONPC_SETUP_DENIED'):
@@ -88,8 +88,8 @@ DEPS = [('setup_dependencies.sh.py', []), ('setup_checkout.sh.py', [])]
     (['--ppa-build-tools'], [('setup_dependencies.sh.py', ['--ppa-build-tools'])]),
     (['--test-tools-only'], TOOLS),
     (['--codex-rules-only'], RULES),
-    (['--prepare-host'], [('prepare_host.py', []), *TOOLS]),
-    (['--replace-missing-baseline'], [('prepare_host.py', ['--replace-missing']), *TOOLS]),
+    (['--prepare-baseline'], [('prepare_baseline.py', []), *TOOLS]),
+    (['--replace-missing-baseline'], [('prepare_baseline.py', ['--replace-missing']), *TOOLS]),
     (['--bootstrap-tools'], [('install_test_runner.py', []), *RULES]),
     (['--prepare-vm'], [('prepare-vm.py', [])]),
     (['--install-extension'], [('make', ['--no-print-directory', '_install-development-extension'])]),
@@ -103,8 +103,8 @@ def test_modes_repeat_complete_scope_from_any_working_directory(checkout, mode, 
 
 
 @pytest.mark.parametrize('mode,failure,expected', [
-    (['--prepare-host'], 'prepare_host.py', [('prepare_host.py', [])]),
-    (['--replace-missing-baseline'], 'prepare_host.py', [('prepare_host.py', ['--replace-missing'])]),
+    (['--prepare-baseline'], 'prepare_baseline.py', [('prepare_baseline.py', [])]),
+    (['--replace-missing-baseline'], 'prepare_baseline.py', [('prepare_baseline.py', ['--replace-missing'])]),
     ([], 'setup_dependencies.sh.py', DEPS[:1]),
     ([], 'setup_checkout.sh.py', DEPS),
     (['--dependencies-only'], 'setup_dependencies.sh.py', DEPS[:1]),
@@ -123,7 +123,7 @@ def test_failure_stops_dependent_setup_and_can_be_retried(checkout, mode, failur
 
 
 @pytest.mark.parametrize('args,code', [
-    (['--help'], 0), (['--unknown'], 2), (['--test-tools-only', '--prepare-host'], 2),
+    (['--help'], 0), (['--unknown'], 2), (['--test-tools-only', '--prepare-baseline'], 2),
 ])
 def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, code):
     result, events = run_setup(checkout, *args)
@@ -132,7 +132,7 @@ def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, c
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason='authorization gate applies to unprivileged callers')
-@pytest.mark.parametrize('mode', ['', '--test-tools-only', '--codex-rules-only', '--prepare-host',
+@pytest.mark.parametrize('mode', ['', '--test-tools-only', '--codex-rules-only', '--prepare-baseline',
                                   '--replace-missing-baseline', '--dependencies-only', '--ppa-build-tools', '--bootstrap-tools'])
 def test_denied_routine_setup_never_falls_back_to_authentication(checkout, mode):
     result, events = run_setup(checkout, mode, denied=True)
@@ -177,7 +177,7 @@ def test_unsafe_existing_installation_never_requests_authentication(checkout, mo
 
 
 @pytest.mark.parametrize('target,mode', [
-    ('prepare-host', '--prepare-host'),
+    ('prepare-baseline', '--prepare-baseline'),
     ('prepare-vm', '--prepare-vm'),
     ('install-extension', '--install-extension'),
 ])

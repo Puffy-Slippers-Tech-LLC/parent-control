@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-import prepare_host as host
+import prepare_baseline as host
 import prepare_vm as guest
 from tests.support.paths import ROOT
 
@@ -47,6 +47,7 @@ class Source:
         self.timeout = False
         self.baseline_xml = None
         self.creations = []
+        self.deletions = []
         self.after_create = lambda: None
 
     def snapshot(self):
@@ -61,6 +62,15 @@ class Source:
 
     def baseline(self):
         return self.baseline_xml
+
+    def delete_baseline(self, layout):
+        assert self.off
+        assert layout == self.layout
+        if self.baseline_xml is not None:
+            self.deletions.append(self.baseline_xml)
+            self.baseline_xml = None
+            self.commands.snapshots = [item for item in self.commands.snapshots
+                                      if item['name'] not in host.SNAPSHOT_NAMES]
 
     def create_baseline(self, layout, description):
         assert self.off

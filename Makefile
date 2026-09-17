@@ -172,10 +172,10 @@ uninstalldeb:
 	$(APT) remove oh-no-parent-control
 
 # Convenience aliases contain no setup logic; setup.sh is the integration point.
-prepare-host:
-	@./setup.sh --prepare-host
+prepare-baseline:
+	@./setup.sh --prepare-baseline
 
-.PHONY: prepare-host
+.PHONY: prepare-baseline
 
 # Host controller only. The package is installed and checked with pytest inside the
 # fixed snapshot-backed VM. Run from a root shell on the development/VM host.

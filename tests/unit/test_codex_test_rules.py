@@ -198,7 +198,7 @@ def test_tool_discovery_refuses_symlink_targets(tmp_path, target_kind):
     'virsh --connect qemu:///system start other-vm',
     '/usr/bin/python3 -B -m pytest /tmp/arbitrary.py',
     '.venv/onpc-ui-tests/bin/python -c arbitrary',
-    'make check-system SHELL=/tmp/arbitrary', 'make installdeb', 'make prepare-host',
+    'make check-system SHELL=/tmp/arbitrary', 'make installdeb', 'make prepare-baseline',
     'journalctl --vacuum-time=1s', 'systemctl restart sshd',
     'pkexec /usr/bin/head /etc/shadow', 'gdbus call --address unix:path=/tmp/bus',
     'rg --pre /tmp/arbitrary needle', 'sort input -o /tmp/output',
@@ -271,7 +271,7 @@ def test_routine_make_targets_are_allowed_without_saved_user_rules(executable, t
 @pytest.mark.parametrize('command', [
     'make', 'make arbitrary-target', 'make check-other',
     'make -f /tmp/Makefile check', 'make -C /tmp check',
-    'make installdeb', 'make uninstalldeb', 'make prepare-host', 'make prepare-vm',
+    'make installdeb', 'make uninstalldeb', 'make prepare-baseline', 'make prepare-vm',
     'make check-system', 'pkexec make check', 'pkexec /usr/bin/make check',
     "bash -lc 'make check'", "/bin/bash -lc 'make check'",
     "bash -lc 'make check && arbitrary-command'", 'env make check',

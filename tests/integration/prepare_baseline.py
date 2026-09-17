@@ -3,8 +3,9 @@
 """Create a reusable internal baseline snapshot of the configured test VM.
 
 Only main() selects real resources. Injectable adapters are for host-safe tests.
-The journal binds the named libvirt snapshot to the inspected guest. Repeated
-runs preserve that baseline, including after the VM has been used for testing.
+The journal binds the named libvirt snapshot to the inspected guest. Explicit
+preparation replaces the baseline from the powered-off guest without restoring it.
+Internal verification callers continue to preserve accepted baselines.
 """
 
 from __future__ import annotations
@@ -57,7 +58,7 @@ def require(condition, category):
 
 
 def log(stage):
-    print(f"prepare-host: [{stage}]", file=sys.stderr, flush=True)
+    print(f"prepare-baseline: [{stage}]", file=sys.stderr, flush=True)
 
 
 def canonical(path):
@@ -294,6 +295,16 @@ class LibvirtSource:
         self.domain.snapshotCreateXML(ET.tostring(root, encoding="unicode"),
                                       self.api.VIR_DOMAIN_SNAPSHOT_CREATE_ATOMIC)
 
+    def delete_baseline(self, layout):
+        current, off = self.snapshot()
+        require(off and current == layout, "snapshot:source-changed")
+        matches = [snapshot for snapshot in self.domain.listAllSnapshots(0)
+                   if snapshot.getName() in SNAPSHOT_NAMES]
+        require(len(matches) <= 1, "snapshot:ambiguous-baseline")
+        for snapshot in matches:
+            # No revert, metadata-only deletion, or recursive child deletion.
+            snapshot.delete(0)
+
 
 def snapshot_proof(xml, layout, description):
     require(xml is not None, "snapshot:metadata-missing")
@@ -494,7 +505,7 @@ class Capture:
                 stat.S_IMODE(info.st_mode) == 0o700, "guard:baseline-directory")
         return {"device": info.st_dev, "inode": info.st_ino}
 
-    def prepare_private_directory(self):
+    def prepare_private_directory(self, *, refresh=False):
         """Create, or safely repair, the empty controller-state directory.
 
         A source guest can expose the host's ``/Data`` share and maps its root
@@ -505,7 +516,8 @@ class Capture:
         """
         canonical(self.directory.parent)
         if not os.path.lexists(self.directory):
-            self.refuse_existing_snapshot()
+            if not refresh:
+                self.refuse_existing_snapshot()
             self.directory.mkdir(mode=0o700)
             sync_directory(self.directory.parent)
 
@@ -603,10 +615,12 @@ class Capture:
         self.save('validation')
         log('replacement:retired-record-preserved')
 
-    def run(self, *, replace_missing=False):
+    def run(self, *, replace_missing=False, refresh=False):
         # Resolve the existing disk and chain before filesystem writes/shutdown.
         inventory, _off = self.inventory()
-        self.directory_identity = self.prepare_private_directory()
+        if refresh:
+            require(_off, "guard:source-running")
+        self.directory_identity = self.prepare_private_directory(refresh=refresh)
         fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
             identity(self.lock_path, private=True, mode=0o600)
@@ -618,16 +632,30 @@ class Capture:
             if os.path.lexists(self.directory / "phase.json"):
                 self.state = self.read_state()
             else:
-                self.refuse_existing_snapshot()
+                if not refresh:
+                    self.refuse_existing_snapshot()
                 self.state = {"schema_version": 2, "phase": "validation", "directory": self.directory_identity,
                               "source": inventory, "source_digests": None, "guest": None,
                               "operation": uuid.uuid4().hex, "proof": None, "script_digest": self.script_digest}
                 self.save("validation")
-            self.revalidate()
+            self.revalidate(off=refresh)
+            if refresh:
+                attempt = self.directory / 'system-run.json'
+                if os.path.lexists(attempt):
+                    identity(attempt, private=True, mode=0o600)
+                    previous = parse_json(attempt.read_bytes())
+                    require(isinstance(previous, dict) and previous.get('phase') == 'complete',
+                            'state:interrupted-run; preserve state for recovery')
+                if self.state['phase'] in ('validation', 'finalized'):
+                    self.revalidate(off=True)
+                    self.source.delete_baseline(self.state['source']['layout'])
+                    self.refuse_existing_snapshot()
+                    if self.state['phase'] == 'finalized':
+                        self.replace_missing_baseline()
             if (replace_missing and self.state['phase'] == 'finalized'
                     and self.source.baseline() is None):
                 self.replace_missing_baseline()
-            self.execute()
+            self.execute(require_off=refresh)
         finally:
             self.commands.lock_fd = None
             os.close(fd)
@@ -709,15 +737,16 @@ class Capture:
             require(proof == self.state['proof'], 'snapshot:changed')
         return proof
 
-    def execute(self):
+    def execute(self, *, require_off=False):
         if self.state["phase"] == "finalized":
             require(self.verify_snapshot() == self.state["proof"], "snapshot:changed")
             log("outcome:baseline-snapshot-preserved")
             return
         if self.state["phase"] in ("validation", "shutdown-requested"):
             self.refuse_existing_snapshot()
-            self.save("shutdown-requested")
-            self.source.shutdown(self.revalidate, requested=False)
+            if not require_off:
+                self.save("shutdown-requested")
+                self.source.shutdown(self.revalidate, requested=False)
             self.revalidate(off=True)
             self.save("source-off")
         self.revalidate(off=True)
@@ -772,7 +801,7 @@ def main(argv=None):
     capture = None
     try:
         require(Path.cwd() == guest_contract.CHECKOUT and Path(__file__).resolve() ==
-                guest_contract.CHECKOUT / "tests/integration/prepare_host.py", "guard:checkout")
+                guest_contract.CHECKOUT / "tests/integration/prepare_baseline.py", "guard:checkout")
         require(shutil.which("qemu-img") is not None and shutil.which("virsh") is not None, "tools:missing; run ./setup.sh")
         modules = {}
         for name in ("libvirt", "guestfs"):
@@ -783,7 +812,7 @@ def main(argv=None):
         if args.check_tools:
             log("tools:available")
             return 0
-        require(os.geteuid() == os.getegid() == 0, "guard:root; run ./setup.sh --prepare-host on the development host")
+        require(os.geteuid() == os.getegid() == 0, "guard:root; run ./setup.sh --prepare-baseline on the development host")
         # libvirt requires continuous event dispatch to answer server keepalives,
         # including during hashing, libguestfs inspection and QEMU checks.
         # The process-lifetime daemon also drains callbacks after close().
@@ -798,23 +827,23 @@ def main(argv=None):
                     return
         threading.Thread(target=dispatch_events, name="libvirt-events", daemon=True).start()
         source = LibvirtSource(modules["libvirt"])
+        require(source.snapshot()[1], "guard:source-running")
         prepare_state_root()
         capture = Capture(source, Commands(), lambda disk, sha: inspect_guest(modules["guestfs"], disk, sha))
         if args.replace_missing:
             capture.run(replace_missing=True)
         else:
-            capture.run()
+            capture.run(refresh=True)
         return 0
     except (Exception, KeyboardInterrupt) as error:
         category = str(error) if isinstance(error, CaptureError) else "operation:failed-or-interrupted"
         phase = capture.state["phase"] if capture and capture.state else "before-validation"
         log(f"{category}; recovery-phase:{phase}")
         if category == "snapshot:metadata-missing":
-            print("prepare-host: the recorded baseline has no matching libvirt snapshot metadata; "
-                  "rerunning preparation cannot recover it. Retain the disk and controller state; "
-                  "recover the original baseline metadata from a verified backup or separately "
-                  "authorize baseline replacement", file=sys.stderr)
-        print("prepare-host: resolve the reported condition, then rerun ./setup.sh --prepare-host; retain snapshot and controller state",
+            print("prepare-baseline: the recorded baseline has no matching libvirt snapshot metadata; "
+                  "retain the disk and controller state; recover verified metadata or "
+                  "prepare the powered-off guest and explicitly replace the baseline", file=sys.stderr)
+        print("prepare-baseline: resolve the reported condition, then rerun ./setup.sh --prepare-baseline; retain snapshot and controller state",
               file=sys.stderr)
         return 1
     finally:

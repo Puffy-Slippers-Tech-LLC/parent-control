@@ -100,7 +100,7 @@ Reference: [test commands and artifacts](tests/README.md).
 
 ## Run VM and graphical E2E tests
 
-Follow [VM setup](tests/integration/Environment.md). Run `make prepare-vm` (`./setup.sh --prepare-vm`) inside the source guest to prepare accounts and reusable test tools before initial baseline capture with `./setup.sh --prepare-host` on the host. Reuse the accepted baseline; these commands do not silently replace an older accepted baseline.
+Follow [VM setup](tests/integration/Environment.md). Run `make prepare-vm` (`./setup.sh --prepare-vm`) inside the source guest to prepare accounts and reusable test tools, shut it down, then run `./setup.sh --prepare-baseline` on the host. This explicit command deletes the existing baseline without restoring it and captures the current guest state. Ordinary `./setup.sh` never prepares a baseline.
 For an explicitly authorized replacement after manual baseline deletion, prepare
 and shut down the guest, then run `./setup.sh --replace-missing-baseline`. This
 retains the old controller record and validates the new guest before capture.

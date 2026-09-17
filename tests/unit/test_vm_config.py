@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
-import prepare_host as host
+import prepare_baseline as host
 import prepare_vm as guest
 import vm_config
 import system_runner as runner

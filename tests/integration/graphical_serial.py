@@ -12,7 +12,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 from owned_commands import require
-from prepare_host import URI
+from prepare_baseline import URI
 
 LIMIT = 65536
 

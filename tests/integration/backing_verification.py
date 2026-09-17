@@ -13,7 +13,7 @@ from pathlib import Path
 import signal
 import stat
 
-from prepare_host import CaptureError, canonical, identity, require
+from prepare_baseline import CaptureError, canonical, identity, require
 
 
 def metadata(info):

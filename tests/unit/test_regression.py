@@ -42,7 +42,7 @@ def test_event_record_stays_complete_when_diagnostics_follow_each_write(
     item = regression.Category('Mixed output', 1)
     run.categories.append(item)
     execution = regression.Execution(run, item, events=True)
-    diagnostic = b'prepare-host: [connection:event-loop-failed]\n'
+    diagnostic = b'prepare-baseline: [connection:event-loop-failed]\n'
 
     class InterleavedOutput:
         def write(self, value):

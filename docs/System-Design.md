@@ -201,11 +201,13 @@ and feedback. Pending fault scenarios also retain separate engineering
 obligations. Follow the [E2E building blocks](TestAutomation/E2E-Building-Blocks.md)
 for public UI actions and observations; source review, scenario declarations,
 and local unit/component checks do not establish completed customer acceptance.
-The specification's [validation routes](Specification.md#3-end-to-end-validation-routes)
-also identify feature branches needing coverage, including the child panel
-preference and daily-only revocation. Legacy mute steps and UI/API allowance
-boundary wording must be read with the current
-[inventory reconciliation](TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation).
+The [customer recipes](TestAutomation/E2E-Scenario-Recipes.md) bind each scenario
+to public actions, finite inputs and observable results, including child panel
+preferences, daily-only revocation, account changes and natural day boundaries.
+The [inventory reconciliation](TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation)
+retains displaced engineering assertions and deferred interactive mute separately.
+Scenario declarations and documentation do not qualify an unimplemented route
+or establish installed acceptance.
 
 ## Package removal lifecycle
 

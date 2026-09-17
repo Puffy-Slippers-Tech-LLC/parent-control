@@ -282,7 +282,7 @@ The controller allows 390 seconds for that observation, within the worker's
 420-second checkpoint deadline; no input is replayed or product probe substituted.
 The current ready set contains the E2E-001 harness smoke,
 E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid and E2E-030/parent:
-**five runnable variants, four customer variants**. Another 152 variants are
+**five runnable variants, four customer variants**. Another 217 variants are
 pending. Readiness does not certify a passing run.
 
 E2E-004/app-grid composes the shared installed setup, standard-user login,
@@ -331,6 +331,14 @@ reordering and readiness changes. Allocate new numbers above the highest ever
 assigned; never reuse retired IDs. Regenerate
 [Test-Coverage.md](../../docs/Test-Coverage.md) after changing tests or scenario
 titles, steps, variants or readiness. Edit the source inventory, not that document.
+
+The [customer recipes](../../docs/TestAutomation/E2E-Scenario-Recipes.md) bind
+all customer steps to public actions, finite matrices and independent setup.
+The inventory has 222 cases: 210 customer cases, 11 retained engineering fault
+obligations and one harness case. Displaced backend assertions remain under the
+[engineering reconciliation](../../docs/TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation).
+Existing inventory-test fixture updates are tracked by
+[task 192](../../docs/TestAutomation/E2E-Execution-Plan.md#metadata-compatibility-follow-up).
 
 Run the canonical smoke with
 `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` using fresh
@@ -621,8 +629,9 @@ also join the automatic isolated safety prerequisites.
 
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
-VM provenance or customer behavior. E2E-034 supplies separate live public
-controller proof; 153 customer/fault variants remain pending.
+VM provenance or customer behavior. E2E-001 now owns the separate live public
+controller qualification formerly assigned to E2E-034; current readiness is
+listed above.
 
 ## Verify edits
 
@@ -1466,5 +1475,6 @@ lease is held, writes the diagnostic report, verifies its private copies and
 rechecks provenance before release. A `finalization-rejected` event is terminal,
 including after an earlier candidate pass. The final `result.json` also accounts
 for release/connection errors. These reports have diagnostic qualification scope,
-no scenario ID, no inventory override and no customer assertions. The 153 customer/fault variants remain pending. E2E-001 is the canonical
+no scenario ID, no inventory override and no customer assertions. Pending cases
+receive no credit from those diagnostics. E2E-001 is the canonical
 public scenario recorder and terminal invocation smoke, superseding E2E-034.

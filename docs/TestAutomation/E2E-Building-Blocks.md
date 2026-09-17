@@ -1,7 +1,7 @@
 # Reusable customer E2E building blocks
 
 This is the contract catalogue for composing customer scenarios.
-It covers all **33 families / 157 variants** in
+It covers all **46 families / 222 variants** in
 [scenarios.json](../../tests/e2e/scenarios.json).
 Use the [execution plan](E2E-Execution-Plan.md) for the dependency-ordered session
 queue and individual task files. A new session can start with “Implement the
@@ -11,16 +11,14 @@ The inventory currently has five ready variants: cases **1, 3, 4, 5 and 151**.
 Case 1 qualifies the harness; the other four are customer journeys.
 Every catalogue row has an implementation status; existing
 behavior that still needs extraction is `pending` even when its scenario is
-already `ready`. There are **153 blocks: 60 ready and 93 pending**, including
+already `ready`. There are **174 blocks: 60 ready and 114 pending**, including
 four fixture operations and explicitly scoped harness/credential-safety blocks.
 
-The review covers every step, variant parameter and assertion in all 33
-families. The recipes account for **144 customer variants**, the conditional
-customer retry route for **157**, harness case **1**, and the **11 internal-fault
-variants 140–150**. The remaining internal-fault declarations and legacy backend
-assertions cannot be fulfilled by customer UI blocks; their exact disposition
-is recorded under [inventory reconciliation](#inventory-reconciliation).
-Accounting for an assertion is not a claim that it has been implemented.
+The [recipes](E2E-Scenario-Recipes.md) account for **210 customer cases**,
+**11 engineering fault obligations (140–150)** and **harness case 1**.
+The five ready variants remain unchanged in readiness; all 65 added cases are
+pending. Declaration and block readiness do not establish an installed pass.
+The reconciliation below retains displaced engineering obligations separately.
 
 Retain shared-helper regressions for all five ready cases and require each
 migrated consumer's complete installed acceptance.
@@ -98,9 +96,9 @@ and each native launch route separately. Fullscreen expiry does not require a fu
 route. Entry-state operations are dependencies too: enable a child's controls
 through Parent and observe saving before qualifying its allowance or kiosk inputs.
 Allowed/blocked app assertions require public policy setup and qualified denial
-bindings before their scenario. Cases 7–12 therefore follow that scope as well as
-their allowance validation. Qualifying ordinary valid allowances does not settle
-the disputed maximum boundary; that separate task cannot block unrelated time
+bindings before their scenario. Cases 7–12 therefore follow that scope. Cases 158–159 own exhaustive
+allowance input and save-trigger validation. Qualifying ordinary valid allowances does not settle
+the separately scoped maximum-boundary qualification, which cannot block unrelated time
 preparation.
 
 A block task requires live VM qualification of its stated scope. Its catalogue
@@ -148,9 +146,12 @@ system-prompt handling and guarded recorder remain middleware for every block.
 | UI13 | A | Observe a bounded public collection: canonical choice identities/order, matching window count, or displayed row set. Inputs declare root, projection, maximum and expected cardinality (including zero). Require complete fresh traversal for exclusion/count claims; reject duplicate fixture identities and unknown requested targets. | `AccessibleUI.choice_order(root, identities, maximum, cardinality, projection)` supports registered greeter and child-picker order. Complete fresh traversal rejects duplicate fixture identities, stale reads and invalid bounds; unrelated labels remain private. `greeter_navigation` and `child_navigation` derive Home/Down. Harness and [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI19 | A | Type one fixture secret once through the unchanged secret-safe API for one freshly qualified challenge. Accept a registered secret reference and explicit recipient proof, never plaintext in stage data. Do not submit or infer authentication success. Capture remains sealed and uncertainty/failure forbids replay. | `onpc_serial::type_fixture_secret` retains its serial proof binding. `onpc_password::type_fixture_secret(role, journey, proof)` consumes a fresh registered GDM recheck reply before one sealed secret API call. Parent/GDM and serial are qualified; multiple authentications and other surfaces remain pending. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI20 | A | Perform one deliberate bounded native double-click gesture on a freshly qualified enabled target. Record it as one intended gesture; no retry or click repair. | Existing normal pointer API; new consumer is E2E-014. A disabled/hidden target cannot authorize a gesture. This is not two separately retried click blocks. | pending |
-| UI22 | A | Observe a bounded trace of registered public status/control states across one declared transition. Start before the triggering input, acknowledge observation readiness, then finish at the explicit terminal predicate/deadline. Return sanitized ordered samples and monotonic offsets. The caller owns the input between start and finish. | New read-only public observation for E2E-005 saving/control inhibition, E2E-014 duplicate submission and E2E-031 collection. Reuse guarded checkpoint transport; missing a required transient state is unproven, never inferred from the final state. No product hooks, fault delays or replay. | pending |
 | UI23 | A | Request one public scroll-to operation for a registered existing offscreen target, only when it is not already showing. Require a visible, nondefunct object and its public Component interface; return input completion only. | `AccessibleUI.scroll_target(name, roles, root=...)` issues the public scroll request; `reveal` independently reacquires the showing target. Qualified for Parent remaining-time/filter controls and About license/footer. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
 | UI24 | A | Read the public formatting attributes of one explicit bounded synthetic text range and compare the named expected format. Return semantic attributes only. | New FEED04 consumer using the editor's public accessibility Text attributes. A pressed toolbar button alone does not prove text formatting; unavailable attributes block that assertion. No DOM or saved-draft read. | pending |
+| UI25 | A | Start one bounded read-only public-state trace for registered selectors; return its explicit observation token after readiness. No customer input. | New leaf extracted from UI22; E2E-035/039/046 consumers. | pending |
+| UI26 | A | Finish that trace at its supplied public terminal predicate/deadline and return ordered semantic samples. No input, replay or private reads. | New leaf extracted from UI22; accepts only the caller's explicit token. | pending |
+| UI27 | A | Move the pointer once to a fresh public target to reveal hover information. Coordinates route input only. | Existing normal pointer interface; PANEL03 consumer. | pending |
+| UI28 | A | Perform one ordinary secondary-button click at a fresh public target. No implicit menu selection. | Existing normal pointer interface; PANEL01 consumer. | pending |
 | SEC01 | A | Observe one fixed legacy credential-safety predicate: reviewed needle present/absent, or the existing bounded settling check. Its profile, timeout and expected polarity are explicit; it authorizes no input by itself. | Retained checks in `onpc_parent::login` and `onpc_password::enter_password` remain intact for legacy qualification. Extraction requires a named consumer; current customer recipes use GDM07's functional recipient proofs. No new appearance gate. | pending |
 | SEC02 | A | Click one registered legacy account-input needle through its existing matched-pointer helper. Require current match and input eligibility; return input completion only. | `onpc_pointer::click` for the retained Parent/other-parent choices; qualification stays separate from the password recipient. No fixed-coordinate fallback or new needle. | ready |
 | UI09 | C | Reveal a named existing control/content, then independently require a fresh showing target. | `AccessibleUI.reveal` composes `scroll_target` (UI23) and a fresh `target` (UI01/UI02). Parent content/filter and About license/footer scope; other selectors need their consumers. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
@@ -160,6 +161,8 @@ system-prompt handling and guarded recorder remain middleware for every block.
 | UI16 | C | Replace text in one named nonsecret field: focus, select all, type once, then read the exact result. Empty input explicitly means clear. | UI21 → UI05(Ctrl-A) → UI06(value), or UI05(Backspace) for empty → UI03(exact value, including zero length). Selecting all alone does not clear a field. Register field-specific projections with their consumer. | pending |
 | UI17 | C | Set one named toggle to an explicit boolean. Read first, activate once only when different, then independently require the desired state. | UI01 → UI02 → conditional UI04 → UI02. Used directly for Parent screen limits and by request/network composites. | pending |
 | UI18 | C | Close the explicitly identified window with its declared Close action or Alt-F4. For keyboard close, first verify the window is active. Observe disappearance and the expected underlying surface. | `AccessibleUI.window_ready_to_close` → `onpc_parent_about::close_window` consumes the fresh proof and sends Alt-F4 once → `AccessibleUI.window_closed` requires complete fresh absence and the named destination. License→About and About→Parent are qualified; other windows/routes remain pending. [About contracts](#about-block-contracts). | ready |
+
+| UI22 | C | Bracket a declared caller-owned input with public-state observation. Start before input and finish at the supplied result/deadline; do not infer a transient from the final state. | UI25 → caller's explicitly listed input → UI26. `watch` is this composition, not a hidden callback that performs extra actions. | pending |
 
 ### Sign-in and desktop entry
 
@@ -240,14 +243,14 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | PARENT03 | C | Read the current selected child's identity, screen-limit switch, allowance and remaining-time section as a sanitized observation. Do not change selection; disabled allowance controls remain readable. | `AccessibleUI.settings(child)` reads the explicit child, switch and duration-label projection and reveals the remaining-time section. Scenario expectations remain in `parent_discovery.PLAN`, not the adapter. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | PARENT04 | C | Select Screen Limits or App Limits and require that page's named usable controls. | `AccessibleUI.parent_page(child, page)` checks the displayed child, selects one named page, then observes its controls. Reacquire the window after transition and reuse that local root for search/filter reads. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | PARENT05 | C | Open the daily-allowance picker and, when requested, its Custom amount editor. | UI01 → UI04 → optional UI04(Custom amount) → UI01. | pending |
-| PARENT06 | C | Choose a daily preset or type a custom allowance and commit through the normal UI. Return the displayed value/validation; saving is observed separately. | Preset: PARENT05(picker) → UI04(preset) → UI03. Custom: PARENT05(custom editor) → UI16(value) → UI05(commit) → UI03(value/validation). | pending |
-| PARENT08 | C | Observe loading, saving, saved, validation or unavailable state and availability of conflicting controls. Snapshot mode waits for the named result; transition mode surrounds the triggering input with a bounded trace. | Snapshot: UI01 → UI02 → UI03 → UI10. Transition: UI22 with those projections; caller supplies the input block between observer readiness and collection. E2E-005 needs this for transient saving. | pending |
+| PARENT06 | C | Choose a daily preset or type a custom allowance and commit through the normal UI. Return the displayed value/validation; saving is observed separately. | Preset: PARENT05(picker) → UI04(preset) → UI03. Custom: PARENT05(custom editor) → UI16(value); `commit=pause` adds no input, `enter` uses UI05(Enter), `focus-leave` uses UI05(Tab); then UI03(value/validation). PARENT08 independently observes saving. | pending |
+| PARENT08 | C | Observe loading, saving, saved, validation or unavailable state and availability of conflicting controls. Snapshot mode waits for the named result; transition mode surrounds the triggering input with a bounded trace. | Snapshot: UI01 → UI02 → UI03 → UI10. Transition: UI22 with those projections; caller supplies the input block between observer readiness and collection. E2E-035 uses this for save ordering and guarded controls; animation duration is not an acceptance result. | pending |
 | PARENT09 | C | Read the selected child's remaining-time explanation, expanding it only if currently collapsed. Return displayed daily, one-time and total values with formatting/rounding bounds. | UI01 → UI02(expanded) → UI04 only if collapsed → UI09 → UI03. Compare visible explanations, never stored time; repeated reads must not collapse the section. | pending |
 | PARENT12 | C | Read a displayed app row's identity, access choice and match choice. | UI01 → UI02 → UI03. No installed-catalogue or executable probe. | pending |
-| PARENT10 | C | Search the App Limits catalogue by name and observe the matching displayed rows, including an explicitly expected empty set. | PARENT04(App Limits) → UI16(search) → UI13(rows) → UI12(expected set). Row details use PARENT12 separately. | pending |
+| PARENT10 | C | Search the App Limits catalogue by name, description or launcher identifier and observe the matching displayed rows, including an explicitly expected empty set. | PARENT04(App Limits) → UI16(search) → UI13(rows) → UI12(expected set). Row details use PARENT12 separately. | pending |
 | PARENT11 | C | Set one named App Limits filter's explicit selection set and observe the exact displayed result set. Both access-rule and match-rule popovers use independently checked options. | UI01 → UI04(open) → UI17 for each declared option → UI05(Escape) → UI11(popover) → UI13(rows) → UI12(expected set). Same implementation for both filters. | pending |
 | PARENT13 | C | Open a named app's Edit Match Rule dialog and read its current rule. | UI01 → UI04 → UI01 → UI03. | pending |
-| PARENT15 | C | Apply Save, Cancel or Reset to the open match-rule editor. Empty/unrelated precise input keeps the editor open; a broker-rejected wildcard closes it and reports a failed save. Cancel preserves the earlier rule; Reset immediately saves the detected default. Observe validation or the resulting rule. | UI04(response) → PARENT08; closed editor then UI11 → PARENT12 → UI12, or invalid draft then UI03 → UI02. A removed app retains its old row until catalogue refresh; save through that retained editor, then use the recipe's refresh/reinstall observations. | pending |
+| PARENT15 | C | Apply Save, Cancel or Reset to the open match editor and observe the explicitly expected result. Empty/unrelated precise text stays in the editor; a rejected wildcard closes it and opens a failure report. Do not close that report implicitly. | UI04(response) → PARENT08; saved/cancelled: UI11(editor) → PARENT12 → UI12; invalid draft: UI03 → UI02(editor); failed save: UI11(editor) → UI01(report) → UI03(public error). Caller uses FEED15 or UI18 for report review/close before reading restored rows. | pending |
 | PARENT16 | C | Choose Allowed, Hard blocked or Soft blocked for one displayed app; observe save and displayed choice. | UI15(access choice group) → PARENT08 → PARENT12. | pending |
 | PARENT17 | C | Open revocation confirmation and read its target and warning about time, blocked apps and daily allowance. | UI01 → UI04 → UI01 → UI03. | pending |
 | PARENT18 | C | Cancel or confirm the open revocation dialog and observe its closure and displayed time/settings. Child effects are checked by later app/access blocks. | UI04 → UI11 → PARENT08 → PARENT03. | pending |
@@ -262,20 +265,20 @@ are unnecessary.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
+| AUTH01 | A | Qualify the real approval prompt's selected parent, displayed request/child/duration/app choice and sole empty masked focused field. No password contents or product authorization calls. | New public-UI contract over the actual system agent; preserve the [secret boundary](../../tests/e2e/README.md#credential-staging-and-password-capture-boundary). | pending |
+| AUTH02 | C | Approve, enter a declared wrong fixture password, or cancel authentication. For input, freshly qualify the same challenge twice and submit once. Observe acceptance, explicit rejection or dismissal; REQUEST11 separately reads the form result. | AUTH01 twice → UI19 → UI05, or UI04(Cancel) → UI01 → UI03 → UI11 as appropriate. A rejected prompt may need its normal Cancel action to return; never infer denial from timeout. A later retry needs a new challenge. | pending |
+| AUTH03 | A | Qualify a visible terminal administrator-authentication recipient for one declared package command, including the selected account and non-echoing input. | Reuse qualified terminal safety machinery only where its contract applies; a generic `Password:` string is insufficient. No policy/result probes. | pending |
 | REQUEST01 | C | Enter the dedicated request station from GDM and observe its request form. Use only the documented station/session selection, without a desktop-login shortcut. | GDM02(station) → UI15(session choice, only if offered) → UI01 → UI02. | pending |
 | REQUEST02 | C | Open or deliberately reopen the child overlay through its panel entry; observe one usable form and fixed child identity. | DESK12(request entry) → UI04 → UI01 → UI02 → UI13(form count=1). Repetition is deliberate customer input, not retry. | pending |
-| REQUEST03 | C | Read a form's child, approver, duration, custom text, soft-app choice, controls and messages; include mute only when available. Require exactly one showing form and the fixed child in overlay. | UI13(form count=1) → UI01 → UI02 → UI03. Return an immutable observation; unavailable mute has no value. Ineligible-choice exclusions use UI13 on each opened list. | pending |
+| REQUEST03 | C | Read a form's child, approver, duration, custom text, soft-app choice, controls and messages; observe the absence of mute in the current release. Require exactly one showing form and the fixed child in overlay. | UI13(form count=1) → UI01 → UI02 → UI03. Return an immutable observation; unavailable mute has no value. Ineligible-choice exclusions use UI13 on each opened list. | pending |
 | REQUEST04 | C | Select a named form field: child, approver or duration choice. Observe loaded selection and control availability. Reject child selection on the fixed-child overlay. | UI15(field, value) → REQUEST03. All offered durations are data, not separate blocks. | pending |
 | REQUEST05 | C | Type a custom duration, including deliberately invalid text, and observe validation/request availability. | UI16 → REQUEST03. Do not coerce or repair the customer's value. | pending |
-| REQUEST06 | C | Set one named request-form toggle (`soft-apps` or `mute`) to an explicit boolean and observe it. The surface and child are explicit. | UI17 → REQUEST03. One implementation for both choices; the mute binding remains blocked by hidden/disabled media controls. | pending |
+| REQUEST06 | C | Set the request form's soft-app choice to an explicit boolean and observe it. The surface and child are explicit. | UI17 → REQUEST03. Reuse UI17; interactive mute is deferred future-feature scope, not a prerequisite for current choices. | pending |
 | REQUEST08 | C | Read the visible estimate/footer for the chosen duration, including rest-of-day meaning, loading or unavailable estimates. | UI01 → UI03. Expected time comes from prior visible observations and elapsed time. | pending |
 | REQUEST09 | C | Activate an enabled Request once and observe the declared result: authentication for valid input or validation for invalid custom input. | UI01 → UI02(enabled) → UI04; valid then AUTH01, invalid then REQUEST03 → UI11(no prompt). Missing accounts, unloaded preferences or disabled limits instead require the disabled state and no activation. | pending |
 | REQUEST10 | C | Double-click an enabled Request control and observe exactly one in-progress prompt/form. | UI01 → UI07 → UI20, surrounded by UI22 tracking registered prompt/form counts and Request availability; UI13 independently confirms final counts. No second approval input or internal exactly-once claim. | pending |
 | REQUEST11 | C | Observe success confirmation, rejection, cancellation without an error, or validation feedback, with the explicitly expected preserved choices. | UI01 → UI03 → REQUEST03 where the form remains → UI12. Capture brief success before waiting for automatic exit. | pending |
-| REQUEST12 | C | Exit by Cancel, Escape, normal window close, or the already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. No authentication prompt may be active for form Cancel/Escape. | UI04, UI05, UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. | pending |
-| AUTH01 | A | Qualify the real approval prompt's selected parent, displayed request/child/duration/app choice and sole empty masked focused field. No password contents or product authorization calls. | New public-UI contract over the actual system agent; preserve the [secret boundary](../../tests/e2e/README.md#credential-staging-and-password-capture-boundary). | pending |
-| AUTH02 | C | Approve, enter a declared wrong fixture password, or cancel authentication. For input, freshly qualify the same challenge twice and submit once. Observe acceptance, explicit rejection or dismissal; REQUEST11 separately reads the form result. | AUTH01 twice → UI19 → UI05, or UI04(Cancel) → UI01 → UI03 → UI11 as appropriate. A rejected prompt may need its normal Cancel action to return; never infer denial from timeout. A later retry needs a new challenge. | pending |
-| AUTH03 | A | Qualify a visible terminal administrator-authentication recipient for one declared package command, including the selected account and non-echoing input. | Reuse qualified terminal safety machinery only where its contract applies; a generic `Password:` string is insufficient. No policy/result probes. | pending |
+| REQUEST12 | C | Exit by Cancel, Escape, normal window close, the approved immediate exit action, or the already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. No authentication prompt may be active for form Cancel/Escape. | UI04(Cancel or approved immediate exit), UI05, UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. | pending |
 
 ### Customer terminal, files and application use
 
@@ -312,17 +315,17 @@ these blocks, not copies of them.
 | LIFE03 | C | Suspend through customer controls, wait the declared real interval, wake through supported normal input and observe the actual return surface. | DESK02 → UI04 → TIME03 → UI05(wake) → UI01; subsequent unlock remains DESK08. | pending |
 | LIFE04 | C | Perform one declared install/update/remove/reinstall/purge through a visible administrator terminal. Submit once, observe challenge or completion, authenticate only if challenged, then observe completion and final notice. | FILE01 → FILE02 → FILE06(challenge or completion); challenge branch: AUTH03 twice → UI19 → UI05 → FILE06(completion/notice). Package, command, notice and permitted prompts are explicit data. No completion wait before servicing authentication. | pending |
 | LIFE05 | C | Follow the displayed activation requirement for the explicit finite list of affected apps/users: none, process reopen, session renewal, or reboot/login. | None: UI03(notice). Process: LIFE01 for each app. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | pending |
-| LIFE06 | C | Change connectivity through the customer's ordinary network UI and observe its displayed state. Only for an explicitly reconciled customer-reproducible feedback case. | DESK02 → UI04(network controls) → UI17 → UI02. No injected transport/provider fault. | pending |
+| LIFE06 | C | Change connectivity through the customer's ordinary network UI and observe its displayed state. Only for a named offline-use or feedback customer case. | DESK02 → UI04(network controls) → UI17 → UI02. No injected transport/provider fault. | pending |
 
 ### About, feedback and customer-selected attachments
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| ABOUT01 | C | Open Parent's app menu and About; read product/version and reach the license link. | `onpc_parent_about::open_about` binds `AccessibleUI.open_about(version)`: UI01 → UI04(menu) → UI04(About) → UI01 → UI03 → UI09. [About contracts](#about-block-contracts). | ready |
+| ABOUT01 | C | Open the declared surface's About entry; read product/version and reach the license information. Parent's established binding stays ready; overlay/kiosk bindings are pending. | `onpc_parent_about::open_about` binds `AccessibleUI.open_about(version)`: UI01 → UI04(menu) → UI04(About) → UI01 → UI03 → UI09. [About contracts](#about-block-contracts). | ready |
 | ABOUT02 | C | Follow the license link to the actual viewer and read the identifying license content. | `onpc_parent_about::open_license` binds `AccessibleUI.open_license`/`license_content`: UI04(link) → UI01(viewer) → UI03(GPL heading). Link existence alone is insufficient. [About contracts](#about-block-contracts). | ready |
 | ABOUT04 | C | Reach and read the About footer in the already open About window. The preliminary keyboard route is explicit. | `onpc_parent_about::read_footer(journey, returned, 'tab-end')` sends UI05(Tab/End), then `AccessibleUI.about_footer` performs UI09 → UI03(footer). The adapter also accepts independently opened About entry without preliminary keys. [About contracts](#about-block-contracts). | ready |
 | ABOUT03 | C | Close the license, read the About footer, close About and compare the selected child/settings with the supplied earlier observation. | `onpc_parent_about::return_to_parent` composes UI18(license) → ABOUT04 → UI18(About). The return adapter reads PARENT03 and `JourneyPlan.settings_checks` supplies the earlier immutable observation for UI12 before acknowledgement. [About contracts](#about-block-contracts). | ready |
-| FEED01 | C | Open Parent feedback and observe the editor and diagnostic-collection state. | UI01 → UI04(feedback entry) → UI01 → UI02 → UI03. | pending |
+| FEED01 | C | Open ordinary Parent feedback through its Feedback action and observe editor/collection state. Error-report entry uses FEED15; no hidden error creation. | UI01 → UI04(feedback entry) → UI01 → UI02 → UI03. | pending |
 | FEED03 | C | Read the visible synthetic draft, exact attachment list and validation/control state into an explicit observation. | UI01 → UI02 → UI03 → UI13(attachments). Only the declared synthetic content is eligible for comparison. | pending |
 | FEED04 | C | Apply one offered rich-text format to an explicit synthetic range and observe its public text attributes. Select the range through normal keyboard input, then use its toolbar/menu. | UI21(editor) → UI05 for bounded declared selection → UI04 or UI15(format) → UI24. No DOM bridge or direct text/selection assignment. | pending |
 | FEED05 | C | Open Privacy, read the disclosure/diagnostic explanation, then close it. | UI04 → UI09 → UI03 → UI18. | pending |
@@ -333,8 +336,31 @@ these blocks, not copies of them.
 | FEED08 | C | Explicitly save diagnostic output to a customer-selected location, open that saved output through the file manager/viewer and read the expected public contents. | UI04(download) → FILE03(save) → FILE04 → UI04(open) → UI03. Do not inspect original product logs or storage. | pending |
 | FEED09 | C | Observe collection, validation, sending, retry, error or thank-you state and control availability. Snapshot mode reads the current state; transition mode records required transient states around FEED01 or FEED11. | UI01 → UI02 → UI03 → UI10, or UI22 with the same projections. No provider receipt or delivery-internal assertion. | pending |
 | FEED10 | C | Close/reopen feedback and compare its in-memory draft. `dialog` preserves the supplied draft; `app-exit` explicitly closes/relaunches Parent and expects reset. Return with feedback open. | FEED03(before) → UI18(feedback) → LIFE01(Parent) only for app-exit → FEED01 → FEED03 → UI12(expected draft). Do not edit fields before comparison. | pending |
-| FEED11 | C | Submit one already reviewed synthetic report. Require explicit sending authorization and dedicated test-recipient configuration; activate Send once and return. Observe the outcome and dismiss confirmation separately. | UI01 → UI02(enabled) → UI04(Send). Prior FEED03 → FEED05 evidence is supplied, not repeated inside this block. This document grants no sending authorization. | pending |
+| FEED11 | C | Submit one already reviewed synthetic report. Require explicit sending authorization and dedicated test-recipient configuration; activate the explicit `Send` or `Send without logs` action once and return. Observe the outcome and dismiss confirmation separately. | UI01 → UI02(enabled) → UI04(Send). Prior FEED03 → FEED05 evidence is supplied, not repeated inside this block. This document grants no sending authorization. | pending |
 | FEED14 | C | Dismiss an observed success confirmation normally and observe the expected return surface. | UI01 → UI04(Close) → UI11(confirmation) → UI01(return surface). FEED09 supplies the earlier success observation. | pending |
+
+
+### Additional public surfaces
+
+These blocks supply the named new consumers in the
+[scenario recipes](E2E-Scenario-Recipes.md). All are pending; a documented
+binding does not extend an existing callable's qualified scope.
+
+| ID | Kind | Block and explicit contract | Callees / first consumer | Status |
+| --- | --- | --- | --- | --- |
+| AUTH04 | A | Qualify one ordinary Users-settings administrator challenge or one account-creation password field, binding the account, action, field role and fresh empty masked recipient. Read no secret content. | Existing secret boundary, new recipient qualification for ACCOUNT02; each field gets its own UI19 proof. | pending |
+| ACCOUNT01 | C | Open normal Settings → Users and read the declared account list. Authenticate only when the displayed Unlock action requires it. | SEARCH05(Settings) → UI04(Users); optional UI04(Unlock) → AUTH04 twice → UI19 → UI05(Enter); UI13(accounts). E2E-040. | pending |
+| ACCOUNT02 | C | Apply one explicitly declared add/remove/change-role action to a spare account in the open Users page and read the resulting account row/list. Never remove the active or last administrator, or the station account. | UI04(action) → UI16(nonsecret fields)/UI15(role) as declared; creation password fields each use AUTH04 twice → UI19; UI04(confirm) → UI13 → UI12. Exact wizard routes need qualification for E2E-040; no account-service calls. | pending |
+| PANEL01 | C | Open the child's countdown context menu and read the named animation choice. | DESK12(countdown) → UI07 → UI28 → UI01(menu) → UI02(choice). E2E-037. | pending |
+| PANEL02 | C | Set the animation choice in an already open menu, then close the menu and verify return to the desktop. | UI17(choice) → UI05(Escape) → UI11(menu) → DESK01. E2E-037. | pending |
+| PANEL03 | C | Reveal and read the countdown's hover explanation. | DESK12(countdown) → UI07 → UI27 → UI03(tooltip). E2E-011/037. | pending |
+| INFO01 | C | Follow one declared Help/About link and read the identifying browser, mail-composer or legal-viewer destination; return without submitting mail. Kiosk asserts unavailable external actions instead. | UI04(link) → UI01(destination) → UI03(identity) → UI18(destination); kiosk UI11 on recognized About. E2E-042. | pending |
+| INFO02 | C | Read one installed product help command or command manual in a normal terminal. | FILE01 → FILE02(fixed help/man command) → FILE06(content); UI11(product window); UI05(q) for a manual. E2E-042. | pending |
+| FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: UI01 → FEED03; decline UI11(report) → UI01(destination). E2E-045. | pending |
+| FEED16 | C | Retry an observed failed diagnostic collection and read its result and retained draft. | UI04(Retry collection) → FEED09 → FEED03 → UI12. Without-logs submission reuses FEED11; it is not hidden inside retry. E2E-046. | pending |
+| FEED17 | C | Attempt normal Close on a sending error report and read the stop-sending confirmation. Do not yet stop or exit. | UI04(Close) → UI01(confirmation) → UI03. E2E-047. | pending |
+| FEED18 | C | Choose the explicit Stop sending and close or stay-open response, then read the destination. | UI04(response) → UI11(confirmation) → UI01(destination); report closure uses UI11(report) separately. E2E-047. | pending |
+| TIME05 | C | Read local date/time from the desktop calendar and timezone from normal Date & Time settings, then return to the desktop without editing either. | DESK12(clock) → UI04 → UI03(date/time) → UI05(Escape); SEARCH05(Settings) → UI04(Date & Time) → UI03(timezone) → UI18(Settings). E2E-044. | pending |
 
 ### Reusable journey fragments
 
@@ -349,7 +375,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. | `onpc_parent::open_for_child(journey, 'gdm', 'fresh', 'new', child)` calls FLOW15, PARENT01 and PARENT02/PARENT03 with explicit existing/child bindings. Setup reattachment stays in the worker envelope. Retained-window and remembered-selection routes remain pending. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
 | FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | UI17(Screen time limit=true) if required → PARENT06 → PARENT08 → UI17(final boolean) → PARENT08 → PARENT03 → PARENT09. Disabling clears a grant; this is not a harmless navigation step. | pending |
 | FLOW03 | C | Configure one app's matching and access choices through Parent and read the saved row. | PARENT10 → PARENT11 if declared → PARENT13 → UI16(match draft) → PARENT15(save) → PARENT16 → PARENT12. | pending |
-| FLOW04 | C | Open the selected request surface and choose child/approver/duration/app access; read the estimate. | REQUEST01 or REQUEST02 → REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. | pending |
+| FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. | pending |
 | FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its surface-specific automatic exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic). | pending |
 | FLOW06 | C | Obtain time through kiosk from an existing GDM screen and return to GDM. | FLOW04(kiosk) → FLOW05. Child login/unlock is deliberately a later step. | pending |
 | FLOW07 | C | Reject/cancel one request and compare its preserved choices. Return with that form open; do not retry yet. | REQUEST03(before) → REQUEST09 → AUTH02(wrong/cancel) → REQUEST11 → UI12. The recipe can inspect restrictions before invoking FLOW05 for a successful retry, avoiding a second implementation of approval. | pending |
@@ -357,10 +383,14 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | FLOW15(entry=retained) → APP04(compare) → APP03. | pending |
 | FLOW10 | C | Launch the prepared real game, select mode/level and play to natural lock. | FLOW08(game, usable) → APP05 → APP04(record activity) → TIME04. | pending |
 | FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | DESK11 → FLOW06 → FLOW15(child, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. | pending |
-| FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: REQUEST12(cancel) → DESK03 → REQUEST01. Kiosk→overlay: REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02. Both then REQUEST03 → UI12(shared values and user-local selectors). The wider legacy mute obligation remains pending. | pending |
+| FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: REQUEST12(cancel) → DESK03 → REQUEST01. Kiosk→overlay: REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02. Both then REQUEST03 → UI12(shared values and user-local selectors). Interactive mute remains deferred outside this current-choice composite. | pending |
 | FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | FLOW01 → PARENT09 → PARENT17 → PARENT18(confirm) only if revocation is declared → PARENT09 → UI12(no grant) → FLOW02(initial allowance) → DESK03. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | For each user: FLOW15 → FLOW08 → APP04(capture) → DESK03. Earlier retained desktops must be revisited, not recreated. Multiple desktops for one identity require a supported customer route; see applicability notes. | pending |
 
+| FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | FLOW01(explicit source/entry/window/child) → PARENT04(Screen Limits) → FLOW02(initial state, allowance, final state). Finish in Parent; no implicit logout. E2E-035/036 and ordinary scenario setup. | pending |
+| FLOW17 | C | Leave a request with authentication pending by one declared supported user action, observe its destination, then return and read cancellation before a new request. | Lock: UI05(normal lock) → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI04/ UI05(normal app close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; unavailable routes remain gated, never force-killed. | pending |
+| FLOW18 | C | Prepare positive daily time that outlasts a soft-app grant without resetting its launch exception. Finish on the child desktop with both balances positive and daily dominant. | FLOW13(combined, soft included) → FLOW15(child) → FLOW08(soft app) → APP04 → DESK03 → FLOW01(parent retained) → PARENT09 → TIME03(wait until the declared remaining-grant window while child is away) → PARENT09 → UI12(D>G>0) → DESK03 → FLOW15(child retained) → TIME01. No allowance edit or app save after approval. E2E-038. | pending |
+| FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | pending |
 
 ### Canonical reuse and implementation checkpoints
 
@@ -372,7 +402,7 @@ The former duplicate wrappers are retired identifiers, not pending work:
 | PARENT07 | UI17 | Parent's Screen time limit switch |
 | PARENT14 | UI16 | Open match-rule draft field; do not Save |
 | FEED02 | UI16 | Synthetic feedback body or reply field |
-| REQUEST07 | REQUEST06 | `toggle=mute`, explicit surface; feature availability still required |
+| REQUEST07 | UI17 (future binding only) | Retired interactive mute wrapper; no current customer dependency |
 
 The split operations intentionally have separate checkpoints: UI23 scrolls and
 UI09 observes reachability; GDM08 observes a prompt, GDM03 qualifies a secret
@@ -383,7 +413,7 @@ removes; FEED11 submits and FEED09 observes before FEED14 dismisses success.
 Recipes own the order. This prevents a completion wait from blocking required
 authentication, and prevents reopening, editing or a second Send from hiding
 the state a scenario is supposed to inspect. FLOW07 now ends after rejection;
-FLOW05 owns the later approval. REQUEST06 parameterizes both request toggles.
+FLOW05 owns the later approval. REQUEST06 owns only the current soft-app control; future mute reuses UI17 after its separate feature gate.
 
 Every invocation binds `surface/account`, registered `target`, input values,
 expected output, deadline and immutable prior observations. It returns a fresh
@@ -426,8 +456,7 @@ authentication outcome or app behavior being tested.
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 
-Every recipe below has the same surrounding phases, already present in all 33
-inventory declarations:
+Every recipe has the same surrounding phases, already present in all inventory declarations:
 
 1. **Setup:** existing guarded baseline/account/credential/assets preparation;
    verified installed setup for ordinary feature cases. Use FIX04 for available
@@ -456,53 +485,15 @@ before adding repeated authentication or a customer reboot.
 
 ## Complete scenario decomposition
 
-Every listed numeric case is accounted for below. A range includes every
-existing variant in that range; Cartesian products use exactly the named
-inventory values, without adding combinations. The recipes are planned
-composites, not runnable code or newly earned coverage. Repeated values use the
-same blocks with distinct recorded invocations and expected observations.
+The [customer scenario recipes](E2E-Scenario-Recipes.md) now own all finite
+case bindings and ordered step compositions. The JSON inventory contains only
+customer actions and observations in customer families. Use the recipe together
+with these blocks; do not reintroduce old private witnesses from a task note.
+Ready callbacks retain their existing fixture, credential and phase contracts.
 
-Notation expands to catalogue calls; it adds no implementation:
-
-- `P0` = FLOW01 from GDM, parent fresh, new Parent window, named child.
-- `P` = FLOW01 from the explicitly recorded current surface, retained parent
-  desktop and retained Parent window, named child. After logout/reboot, use P0
-  or explicitly declare a fresh parent/new window.
-- `V(user, fresh|retained|same, result)` = FLOW15 with that entry and expected
-  result (success unless shown). Source is the previous block's observed
-  destination, passed explicitly. Never guess whether a session exists.
-- `repeat(values) { ... }` runs every finite listed value in order, with fresh
-  invocation IDs and observations. `watch(observer) { action }` uses UI22's
-  readiness/input/collection order.
-- Arrows mean sequence. Alternatives use `or` and their selecting argument.
-  A result claim names a fresh observation; hidden setup supplies no input.
-- An unqualified REQUEST06 call binds `toggle=soft-apps`; mute is always named
-  explicitly. SEARCH05/Parent launch bind `whole-query` for cases 3, 4 and 151;
-  unavailable-launcher recipes use SEARCH01 → UI21 → SEARCH03 → SEARCH04.
-
-Preconditions in a row are mandatory recipe prefixes, not fixtures that set
-product policy. Fresh fixture children have limits off: before a kiosk recipe
-edits duration/approver/soft-app choices or requests approval, use
-P0 → UI17(true) → PARENT08(saved) → DESK03 for its declared target. Keep empty
-and disabled-child branches in their explicitly unavailable state. REQUEST01
-and FLOW04 never enable policy implicitly. For each claimed continuing other-user activity, start at GDM
-with FLOW14 for the finite named users. If Parent's desktop exists but its
-management window does not, first use FLOW01(parent retained, window=new);
-P is valid only after both have been observed. Return with FLOW09 for each same
-observation after the change. Do not add user permutations
-where the scenario has no isolation claim. Do not append an internal
-"other-user unchanged" assertion. No continuation across logout/reboot is
-claimed for windows; after those boundaries, launch and use the app anew.
-
-Each recipe binds a current-surface/session ledger from its own observations:
-which fixture desktops exist, which windows/forms remain open, and which are
-active. Before a block requiring another surface, insert the declared route
-already in the catalogue: V for user entry, DESK10 for an existing window,
-DESK03/DESK11 for GDM, PARENT04 for a Parent page. Spell out these calls in the
-implementation plan; adapters must not repair missing preconditions themselves.
-Every close/approval/reboot updates the ledger. Read remembered values before
-any selection/edit that could conceal a persistence defect. A range of case IDs
-is recipe reuse with every original parameter binding, never sampling.
+The following index accounts for every family. A recipe range means every
+variant in that range, never sampling. Customer setup is part of each independent
+case. Harness case 1 and fault obligations 140–150 remain separate qualification.
 
 ### Parent, login and time scenarios
 
@@ -569,203 +560,189 @@ then proceed with the task's own job only on success. Installation is delegated
 to this tool. A retained snapshot is a setup prerequisite, not customer acceptance
 evidence; subsequent VM actions still use the guarded ownership interfaces.
 
-| Family / cases / variant parameters | Ordered recipe and visible finish line |
+
+| Family / cases | Contract and scope |
 | --- | --- |
-| E2E-001 / **1** / `gdm-observation` | **Harness qualification, no customer credit.** FLOW00 inside the unchanged setup/start/end/cleanup envelope. 1: HAR01(sut) → GDM02(parent, prompt) → GDM09. 2: HAR05(serial login) → HAR06(harmless command) → HAR07(logout). 3: HAR08(fresh graphics); after worker finish/shutdown, HAR10 → HAR09 and all three existing terminal assertions. The [stage contract](#case-1-stage-contract) fixes every acknowledgement and phase boundary. |
-| E2E-002 / **2** / `clean` | 1: GDM07(administrator, fresh success) → LIFE04(install), reading actual completion and final reboot-required notice. 2: LIFE02. 3: GDM01 → V(administrator, fresh) → DESK01. Product absence/package identity/startup ordering remain separate package/system qualification; usable GDM does not prove them. |
-| E2E-003 / **3** / `existing-and-new` | 1: FLOW01(existing child, functional login, whole-query search) → PARENT04(App Limits), checking search and both filters; retain the initial limits-off/zero-minute observation. 2: PARENT04(Screen Limits) → PARENT03 → FIX01 while Parent stays open → UI01(picker) → UI04(open) → UI13(new child). 3: UI14(new child) → UI05(Enter) → PARENT03 → PARENT04(App Limits) → PARENT04(Screen Limits) → PARENT03 → UI12(new child's own earlier values) → PARENT02(original child) → PARENT03 → UI12(original values). No time-policy change. |
-| E2E-003 / **4** / `none` | 1: GDM07(parent) → SEARCH06(Parent, whole query), stopping at the fresh launchable result before Enter. 2: FIX02 at the durable boundary, with a fresh SEARCH04(launchable) observation as in the existing fixture-requested checkpoint. 3: UI05(Enter) → PARENT19. The showing explanation and `(None)` picker must both be observed. |
-| E2E-004 / **5–6** / `app-grid`, `terminal` | 1: GDM07(standard user) → SEARCH01 for grid, or FILE01 for terminal. 2: grid: UI21 → SEARCH03 → SEARCH04(unavailable), preserving full query, web-only suggestion and stable absence; never Enter. Terminal: FILE02(Parent executable) → FILE06(expected management-denial output) → UI11(management window). No alternate-user state probe. |
-| E2E-005 / **7–12** / `{daily-only, grant-only, combined}` × `{new, retained}` | Prerequisite: qualified FLOW03 and native usable/denied FLOW08; prepare explicit Allowed and Hard blocked targets through Parent, preserving the declared isolation activities. 1–2: P0 → FLOW03(each target's policy) → FLOW02(enabled) → repeat(daily validation set below) { watch(PARENT08) { PARENT06(value) } → PARENT03 → PARENT09 }; after invalid input reopen the picker and UI12(last accepted value). Set the profile allowance → UI17(false) → PARENT08. Retained variant now V(child, fresh) → FLOW08 → APP04(capture) → P. 3–4: execute the finite transition plan below: enable, change allowance while enabled, disable, re-enable. Each action uses watch(PARENT08), then PARENT03 → PARENT09, V(child, variant entry, expected result), and FLOW08 for both declared targets when admitted (allowed usable, hard blocked denied). After each successful visit use DESK04 for new-session variants or DESK03 for retained; denied entry uses DESK11. Return via P. Grant-only/combined explicitly use DESK03 → FLOW06 → P after the enable check and before allowance edits. Reconcile the pending phase declaration to this reachable order; an already-enabled no-op earns no enable-transition credit. |
-| E2E-006 / **13–16** / `{enabled, disabled}` × `{precise, pattern}` | Prerequisite: permissive policy/usable child time, then FLOW14(child and named other-user apps). 1: P → UI17(control) → PARENT10 → PARENT11 → PARENT13 → UI16(match draft) → PARENT15(save). 2–3: repeat(Allowed, Hard blocked, Soft blocked) { P → PARENT16 → V(child, retained) → APP02(existing window result) → FLOW08(matching/nonmatching targets) → FLOW09(each other user's activity) }. Reopen test apps normally under a permissive rule before any later transition whose assertion requires an already-open app. |
-| E2E-007 / **17–20** / `{zero, remaining}` daily × `{single, multiple}` retained sessions | 1: FLOW13(real grant plus selected daily time) → FLOW14(child and other-user activities) → P. 2: PARENT03(before) → PARENT17 → PARENT18(cancel) → UI12(unchanged settings/time allowing elapsed time) → FLOW09(child and other users). 3: P → PARENT17 → PARENT18(confirm) → PARENT09. With daily time remaining, V(each supported child desktop, retained) → APP02(blocked windows closed) → FLOW08. With zero time, V(child, retained, time-limit denial) → DESK11; no invisible closure claim. FLOW09(other users). Multiple-same-child applicability is below. |
-| E2E-008 / **21** / `retained-unlock` | 1: FLOW13(short daily-only) → V(child, fresh) → FLOW08(usable app). 2: TIME04 natural exhaustion. 3: DESK08(correct password, time-limit denial). No Lock input creates expiry. |
-| E2E-008 / **22** / `fresh-login` | 1–2: FLOW13(short daily-only) → V(child, fresh) → FLOW08 → TIME04, preserving actual natural exhaustion. 3: DESK08(time-limit denial) → DESK11 → FLOW06(temporary legitimate time) → V(child, retained) → DESK04(normal logout) → P → PARENT17 → PARENT18(confirm removal of temporary grant) → PARENT09 → UI12(daily exhausted, no grant) → DESK03 → GDM07(child, fresh time-limit denial). The explicit temporary grant permits normal logout; it does not replace natural expiry or change daily allowance. Reconcile these additional public steps before registration. If normal logout is available directly on the qualified lock surface, document that supported route instead; never silently substitute configured-zero denial. |
-| E2E-009 / **23–24** / soft apps `{excluded, included}` | 1: FLOW13(grant-only, selected soft app initially usable) → V(child, fresh) → FLOW08 → APP04(capture). 2: TIME04. 3: FLOW11(replacement with variant soft choice) → FLOW08(hard/soft expectations). Legitimate unlock provides the retained-activity observation point. |
-| E2E-010 / **25–26** / foreground `{parent, other-child}` | 1: FLOW13(short grant) → V(child, fresh) → TIME01 → V(foreground user, retained for parent or fresh for other-child) → FLOW08 → APP04(capture). 2: bounded APP03 and TIME03 repetitions past the earlier displayed interval prove continued foreground use. 3: V(child, retained, time-limit denial). No hidden-session observer. |
-| E2E-011 / **27–29** / `{daily-only, grant-only, combined}` | 1: FLOW13(profile) → V(child, fresh). 2: TIME02 over minutes and final seconds. 3: DESK05 → TIME01(absent on lock); DESK08(success while time remains) → TIME01(refreshed); DESK03 → TIME01(absent at GDM); V(other user, declared entry) → TIME01(absent). Budget the final-second round trip before expiry, or explicitly use DESK11 → FLOW06 → V(child, retained) for a later return; never assume expired time permits unlock. |
+| E2E-001 / **1** | [Harness contract](#case-1-stage-contract) — Fresh boot and graphical/observation transport. No customer acceptance credit. |
+| E2E-002 / **2** | [Recipe](E2E-Scenario-Recipes.md#e2e-002) — Install the app and begin managing a child. Customer actions and public results. |
+| E2E-003 / **3–4** | [Recipe](E2E-Scenario-Recipes.md#e2e-003) — Parent discovery and navigation. Customer actions and public results. |
+| E2E-004 / **5–6** | [Recipe](E2E-Scenario-Recipes.md#e2e-004) — Standard user cannot manage policy. Customer actions and public results. |
+| E2E-005 / **7–12** | [Recipe](E2E-Scenario-Recipes.md#e2e-005) — Change screen limits while starting or returning to a child desktop. Customer actions and public results. |
+| E2E-006 / **13–16** | [Recipe](E2E-Scenario-Recipes.md#e2e-006) — Change app rules while children use apps. Customer actions and public results. |
+| E2E-007 / **17–20** | [Recipe](E2E-Scenario-Recipes.md#e2e-007) — Cancel then confirm revocation with open apps. Customer actions and public results. |
+| E2E-008 / **21–22** | [Recipe](E2E-Scenario-Recipes.md#e2e-008) — Natural daily exhaustion, retained unlock and fresh login denial. Customer actions and public results. |
+| E2E-009 / **23–24** | [Recipe](E2E-Scenario-Recipes.md#e2e-009) — Recover unfinished work after grant-only time runs out. Customer actions and public results. |
+| E2E-010 / **25–26** | [Recipe](E2E-Scenario-Recipes.md#e2e-010) — Switch User while child time expires. Customer actions and public results. |
+| E2E-011 / **27–29** | [Recipe](E2E-Scenario-Recipes.md#e2e-011) — Countdown and visibility transitions. Customer actions and public results. |
 
 ### Request forms and remembered choices
 
-| Family / cases / variant parameters | Ordered recipe and visible finish line |
+| Family / cases | Contract and scope |
 | --- | --- |
-| E2E-012 / **30–33** / soft apps `{excluded, included}` × approver `{first, second}` | 1: establish usable time, soft-app exception and open activities with FLOW13 → FLOW14; V(child, retained) → REQUEST02 twice → REQUEST03(one form, fixed child). 2: REQUEST04(approver/duration) → REQUEST06 → REQUEST08 → REQUEST09 → AUTH01(exact request/parent). 3: AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic) → TIME01 → APP02(existing app) → FLOW08(soft/hard expectations). Reopen with REQUEST02 → REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11(cancel) → REQUEST12(cancel), proving later authentication is still required. |
-| E2E-013 / **34–37** / `{child-overlay, kiosk}` × `{wrong-password, cancel}` | Prerequisite: enabled target and restricted app; overlay has positive daily time and a FILE01 terminal left open, kiosk has zero daily/no grant. 1–2: FLOW04(surface) → FLOW07(selected rejection/cancellation), with step-2 starting before AUTH02 input. Overlay restriction check: DESK10(terminal) → FILE02(restricted app command) → FILE06(expected denial) → UI11(app window) → DESK10(request form) → REQUEST03 → UI12(preserved choices). Kiosk: REQUEST12(cancel) → V(child, fresh, time-limit denial) → DESK11 → REQUEST01 → REQUEST03 → UI12. 3: FLOW05(new challenge) → child access/use via V if needed and FLOW08. Reconcile explicit kiosk exit/reopen with old same-form wording; no object-continuity claim. |
-| E2E-014 / **38–43** / `{child-overlay, kiosk}` × `{predefined, custom, rest-of-day}` | Prerequisite: enabled target and usable overlay time when needed; enter REQUEST01 from GDM or REQUEST02 from child desktop. 1–2: repeat(variant's finite duration values) { REQUEST04 → REQUEST05 if custom → REQUEST03 → REQUEST08 }. Invalid custom input keeps an otherwise ready Request enabled: REQUEST09(validation) → REQUEST03(same choices/form) → UI11(no prompt). 3: repeat(each declared valid value, reopened and selected again) { REQUEST10 → AUTH01 → AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic) }; observe one prompt and the declared confirmation/time result. Large values need no expiry wait. |
-| E2E-015 / **44–49** / `{child-overlay, kiosk}` × `{cancel, escape, approved}` | Prerequisite: APP04 captures child activity for overlay, and FLOW04 starts at the declared GDM/child desktop. 1: FLOW04 changes choices; approved branch REQUEST09 → AUTH02(correct) → REQUEST11(success); Cancel/Escape keeps authentication inactive. 2: REQUEST12(variant exit). Overlay: APP04(compare) → APP03, plus TIME01 after approval. Kiosk: GDM01, then V(child, declared fresh/retained entry) → TIME01 for approved access. Cancellation at zero time does not imply desktop access. |
-| E2E-016 / **50–52** / `{approved, denied, cancelled}` | 1: REQUEST01 → REQUEST03; repeat(finite restriction routes below) { UI05 or UI04 for that route → UI11(forbidden surface) → REQUEST03(form usable) }. 2: REQUEST04 → REQUEST05 if custom → REQUEST06 → REQUEST09 → AUTH02(outcome) → REQUEST11. Repeat restriction checks only if the kiosk remains open; observe approved exit immediately. 3: REQUEST12(cancel or automatic, selected by outcome) → GDM01. |
-| E2E-017 / **53–57** / `{multiple, no-child, no-parent, ineligible-parent, disabled-child}` | Setup: FIX03 for declared account eligibility; disabled-child instead P0 → UI17(false) → PARENT08 → DESK03. 1: REQUEST01. 2: for each offered child/approver selector, UI01 → UI02(enabled) → UI04(open) → UI13(exact eligible choices) → UI05(Escape) → UI11(popup), then REQUEST04 for every declared available target. Disabled/absent selectors instead use UI02/UI03(explanation), without activation. 3: REQUEST03 → REQUEST08 checks loading/empty/ineligible/disabled explanation and availability. Unavailable Request stays disabled with UI11(no prompt); a valid target uses REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11(cancel) to prove reachability. |
-| E2E-018 / **58–61** / `{overlay-to-kiosk, kiosk-to-overlay}` × child `{first, second}` | Prerequisite: usable time for both children. 1: enter the starting surface → REQUEST04(duration/approver) → REQUEST05(fraction) → REQUEST06(soft-apps) → REQUEST03(capture). 2: FLOW12 compares shared duration/custom/soft-app choices and that surface's independently remembered parent. 3: select the second child in kiosk, or REQUEST12 → V(second child, declared entry) → REQUEST02 for overlay; set distinct choices and compare before editing on return. The inventory also requires interactive mute: retain it as deferred scope while media is disabled, with no readiness or passing credit for the available subset. |
+| E2E-012 / **30–33** | [Recipe](E2E-Scenario-Recipes.md#e2e-012) — Single child overlay and selected-parent approval. Customer actions and public results. |
+| E2E-013 / **34–37** | [Recipe](E2E-Scenario-Recipes.md#e2e-013) — Authentication denial and cancellation retry. Customer actions and public results. |
+| E2E-014 / **38–43** | [Recipe](E2E-Scenario-Recipes.md#e2e-014) — Shared duration boundaries and duplicate submission. Customer actions and public results. |
+| E2E-015 / **44–49** | [Recipe](E2E-Scenario-Recipes.md#e2e-015) — Request surface exit behavior. Customer actions and public results. |
+| E2E-016 / **50–52** | [Recipe](E2E-Scenario-Recipes.md#e2e-016) — Restricted request station. Customer actions and public results. |
+| E2E-017 / **53–57** | [Recipe](E2E-Scenario-Recipes.md#e2e-017) — Kiosk selection and unavailable requests. Customer actions and public results. |
+| E2E-018 / **58–61** | [Recipe](E2E-Scenario-Recipes.md#e2e-018) — Remember each child's choices across both request forms. Customer actions and public results. |
 
 ### Application routes and complete customer journeys
 
-| Family / cases / variant parameters | Ordered recipe and visible finish line |
+| Family / cases | Contract and scope |
 | --- | --- |
-| E2E-019 / **62–109** / eight routes × `{allowed, hard-blocked, soft-blocked}` × `{enabled, disabled}` | Routes: native grid/desktop/file-manager/command, Snap grid/command, Flatpak grid/command. 1: P0 → FLOW02(usable allowance, selected control state) → FLOW03(policy/match). 2: V(child, fresh) → FLOW08(exact route), including precise nonmatches and applicable AppImage new-version/nonmatch examples; FILE05 supplies tested copy/rename input. A hidden blocked launcher uses APP02(hidden), then a declared command-route FLOW08 to prove denial; no grid-execution claim. 3: V(other user, fresh) → FLOW08(same app/route, usable). All 48 bindings reuse these blocks. |
-| E2E-020 / **110–111** / `{update, remove}` | 1: P0 → PARENT10 → PARENT13 → UI16(match draft), leaving it unsaved. 2: LIFE04(target app update/removal) in a separate administrator terminal. 3: DESK10(Parent/editor) → PARENT15(save in the retained editor) → LIFE01(Parent close/reopen) → PARENT02(same child). Update: PARENT10 → PARENT12 → V(child, fresh) → FLOW08(updated target). Removal: PARENT10 → UI13(refreshed catalogue excludes app); LIFE04(reinstall) → LIFE01(Parent close/reopen) → PARENT02(same child) → PARENT10 → PARENT12 → UI12(retained rule) → V(child, fresh) → FLOW08. Never freeze autosave or inspect saved rules. |
-| E2E-021 / **112–115** / `{save, approve-without-soft, approve-with-soft, revoke}` | Prerequisite: child has usable time/policy and any grant needed for revocation. 1: FLOW14(declared desktops/apps). 2: save branch P → FLOW03; approval branch V(child, retained) → FLOW04(overlay) → FLOW05; revoke branch P → PARENT17 → PARENT18(confirm). 3: V(each child desktop, retained) → APP02 → APP04(compare only if retained) → FLOW08; FLOW09(each other user). Use positive daily time when a post-revocation desktop visit is required. Same-child multiple-session support must be demonstrated, not inferred from repeated GDM selection. |
-| E2E-022 / **116–125** / `{app-restart, sign-out-in, reboot, idle, suspend-wake}` × `{active, expired}` grant | 1: P0 → FLOW02 → FLOW03 → V(child, fresh) → FLOW04(overlay) → REQUEST03(capture) → FLOW05 → TIME01 → FLOW08 → APP04(capture). Include REQUEST06(mute) and separate surface mute observations when the required feature becomes available. 2: app-restart explicitly closes/reopens Parent and both request surfaces via LIFE01 and their exit/entry blocks; sign-out uses DESK04 and defers login to step 4; reboot uses LIFE02; idle uses TIME03; suspend uses LIFE03. 3: expired variants wait the actual remaining interval with TIME03; active variants require positive remaining time. 4: attempt fresh login after logout/reboot or retained unlock otherwise; expired zero-daily variants prove denial before DESK11 → FLOW06 → V(child, declared entry). Reopen Parent/request surfaces through the declared user route, read PARENT03 → REQUEST03 before changing selections → UI12; TIME01 and FLOW08 prove resumed behavior. APP04 continuity applies only to retained sessions. |
-| E2E-023 / **126–127** / gameplay `{windowed, fullscreen}` | 1: P0 → FLOW02(enabled, zero daily/no grant) → FLOW03(game usable). 2: V(child, fresh, time-limit denial). 3: DESK11 → FLOW06(short grant). 4: V(child, fresh) → TIME01 → FLOW08(game) → APP05(mode/level) → APP03(actual play). 5: TIME04 → observe lock/loss of game input. 6: DESK08(correct password, time-limit denial). One continuous attempt; no hidden game-survival assertion. |
-| E2E-024 / **128–131** / `{daily-dominant, grant-dominant}` × gameplay `{windowed, fullscreen}` | 1: P0 → FLOW03(game usable) → DESK03 → FLOW13(dominant profile, parent/window retained) → V(child, fresh) → TIME01(before fullscreen) → FLOW08(game) → APP05(mode/level) → APP03 → APP04(capture). 2: REQUEST02(including qualified fullscreen panel route) → REQUEST04(duration) → REQUEST08 → FLOW05 → TIME01 → UI12(increase over the larger earlier balance allowing elapsed time). 3: DESK10(game) → APP04(compare) → APP03 → TIME04. If the post-approval countdown needs normal Shell reveal, use DESK12; it need not remain visible during fullscreen play. |
-| E2E-025 / **132–135** / soft apps `{excluded, included}` × entry `{new-login, retained-unlock}` | 1: P0 → FLOW03 → DESK03 → FLOW13(real grant, parent/window retained) → V(child, fresh) → FLOW08 → APP04(capture). 2: TIME04. 3: retained-unlock: FLOW11(replacement with variant soft choice) → FLOW08. New-login: DESK11 → FLOW06(temporary legitimate access) → V(child, retained) → DESK04 → FLOW06(declared replacement) → V(child, fresh) → FLOW08. The new-login route tests launches, not survival across logout; reconcile legacy shared wording. |
-| E2E-026 / **136–138** / activation `{process, session, reboot}` | 1: P0 → FLOW02 → FLOW03 → DESK03 → FLOW04(kiosk) → REQUEST03(capture) → REQUEST12(cancel) → V(child, fresh) → FLOW08. 2: P → LIFE04(product update) → LIFE05(activation), covering each affected frontend/session declared by the package profile. 3: enter/reopen Parent through that activation route, read PARENT03 and PARENT12 before changing values → UI12; enter each declared request surface → REQUEST03 → UI12; V(child, declared post-boundary entry) → FLOW08. Mechanical activation/migration qualification remains separate. |
-| E2E-027 / **139** / `continuous` | 1: product-free GDM07(administrator) → LIFE04(install) → LIFE02. 2: P0 → FLOW02 → FLOW03 → DESK03 → FLOW04(kiosk) → REQUEST03(capture) → REQUEST12(cancel) → V(child, fresh) → FLOW08. 3: P → LIFE04(remove) → LIFE02 → V(child, fresh) → FLOW08(previously restricted app, now usable). 4: V(administrator, fresh) → LIFE04(reinstall) → LIFE05(required activation); reopen Parent/request surfaces and UI12(retained observations). Return to the administrator → LIFE04(purge) → LIFE05(required notice) → ordinary child login/app use. Explicitly reinstall once more before asserting visible fresh defaults; never infer them from removed files. Mechanical cleanup qualification remains separate. |
+| E2E-019 / **62–109** | [Recipe](E2E-Scenario-Recipes.md#e2e-019) — Use supported launch routes under each app rule. Customer actions and public results. |
+| E2E-020 / **110–111** | [Recipe](E2E-Scenario-Recipes.md#e2e-020) — Catalog update/disappearance between display and save. Customer actions and public results. |
+| E2E-021 / **112–115** | [Recipe](E2E-Scenario-Recipes.md#e2e-021) — Apply an action across a child's distinct retained desktops. Customer actions and public results. |
+| E2E-022 / **116–125** | [Recipe](E2E-Scenario-Recipes.md#e2e-022) — Customer lifecycle persistence and resume. Customer actions and public results. |
+| E2E-023 / **126–127** | [Recipe](E2E-Scenario-Recipes.md#e2e-023) — Zero allowance to kiosk approval, real gameplay and expiry. Customer actions and public results. |
+| E2E-024 / **128–131** | [Recipe](E2E-Scenario-Recipes.md#e2e-024) — Additional time accumulates during gameplay. Customer actions and public results. |
+| E2E-025 / **132–135** | [Recipe](E2E-Scenario-Recipes.md#e2e-025) — Replace an expired grant before returning with daily time left. Customer actions and public results. |
+| E2E-026 / **136–138** | [Recipe](E2E-Scenario-Recipes.md#e2e-026) — Customer package update and activation. Customer actions and public results. |
+| E2E-027 / **139** | [Recipe](E2E-Scenario-Recipes.md#e2e-027) — Install through remove, reinstall and purge. Customer actions and public results. |
 
 ### Recovery, information and feedback
 
-| Family / cases / variant parameters | Ordered recipe and visible finish line |
+| Family / cases | Contract and scope |
 | --- | --- |
-| E2E-028 / **140–141** / `startup-enforcement`, `startup-broker` | Required **mechanical package/system qualification**, not customer E2E. Retain its declared fault/failure/recovery sequence and assertions in the system suite. GDM/Parent blocks may supply its visible portions; no customer block stops a service or probes readiness. |
-| E2E-028 / **142–144** / `zero-time-exposure`, `usage-read`, `kiosk-auth-agent` | The declared internal interventions are outside customer scope under the customer building-block contract. Retain/transfer them to separate system qualification. Customer denial, expiry, countdown and retry are composed in E2E-008–018. This disposition is not three completed cases. |
-| E2E-029 / **145–150** / `failed-save`, `stale-identity`, `disconnect`, `concurrent-transaction`, `policy-reload`, `partial-termination` | Preserve the six declared engineering obligations separately. Do not implement internal fault controls as building blocks. Customer close/cancel/reopen/retry uses UI18, REQUEST12, REQUEST01 → REQUEST02, REQUEST03 → UI12 and FLOW05 or FLOW07, or LIFE01 or FEED10. Reuse E2E-013/014/015/031 where identical; a distinct customer path must be reconciled explicitly before associating one of these old IDs. No transfer earns a pass. |
-| E2E-030 / **151** / `parent` | 1: FLOW01(child, functional GDM07 login, whole-query SEARCH06 route) → ABOUT01 → ABOUT02. 2: ABOUT03 using the explicit initial child/settings observation and Tab/End footer navigation. Open step-2 before permitting license-close input. |
-| E2E-031 / **152** / `draft-reopen` | 1: P0 → FEED01 → UI16(synthetic body/reply) → FEED04(format) → FEED03. 2: FEED05 → FEED10(dialog, preserved draft), then FEED10(app-exit, reset draft). Do not Send. |
-| E2E-031 / **153** / `validation` | 1: P0 → FEED01 → repeat(declared invalid/valid body/reply values) { UI16 → FEED03 → FEED09(validation/Send availability) }. 2: FEED05 → FEED10(dialog, retained draft). Disabled/invalid Send needs no external submission. |
-| E2E-031 / **154** / `attachments` | 1: P0 → FEED01 → UI16(synthetic body) → FEED06(finite file/count/size cases) → FEED07(review) → FEED12 only if preview is offered → FEED13(remove named attachment) → FEED03. 2: FEED05 → FEED10(dialog, retained attachments/draft). Do not Send. |
-| E2E-031 / **155** / `diagnostic-export` | 1: P0 → watch(FEED09 collection) { FEED01 } → FEED08(save/open through customer UI). 2: DESK10(feedback) → FEED05 → FEED10(dialog). Read the saved customer artifact, not original logs/collector internals. |
-| E2E-032 / **156** / `success` | With explicit sending authorization/test recipient: 1: P0 → FEED01 → UI16(synthetic body/reply) → FEED06(attachments) → FEED03 → FEED05 → FEED11. 2: FEED09(success) → FEED14 → FEED01 → FEED03(cleared draft). Observe the app response; no provider/recipient receipt probe or delivery claim. |
-| E2E-033 / **157** / `retry` | Injected transport interruptions remain separate integration work. Conditional customer route: 1: P0 → FEED01 → UI16 → FEED06 → FEED03 → FEED05. 2: LIFE06(disconnect through normal UI). 3: DESK10(feedback) → FEED11 → FEED09(retry). 4: LIFE06(reconnect). 5: DESK10(feedback) → FEED09(automatic success for the same submission) → FEED14. Never click Send again to fake automatic retry. Without a supported customer network route and sending authorization, retain pending and the original integration obligation. |
+| E2E-028 / **140–144** | [Retained engineering obligations](#inventory-reconciliation) — Startup, usage and authentication-agent failure recovery. No customer acceptance credit. |
+| E2E-029 / **145–150** | [Retained engineering obligations](#inventory-reconciliation) — Transactional failure, rollback and identity races. No customer acceptance credit. |
+| E2E-030 / **151** | [Recipe](E2E-Scenario-Recipes.md#e2e-030) — Installed About and license access. Customer actions and public results. |
+| E2E-031 / **152–155** | [Recipe](E2E-Scenario-Recipes.md#e2e-031) — Feedback drafts, validation and attachment review. Customer actions and public results. |
+| E2E-032 / **156** | [Recipe](E2E-Scenario-Recipes.md#e2e-032) — Send reviewed feedback and read service acceptance. Customer actions and public results. |
+| E2E-033 / **157** | [Recipe](E2E-Scenario-Recipes.md#e2e-033) — Recover feedback sending after reconnecting. Customer actions and public results. |
+
+### Additional customer coverage
+
+| Family / cases | Contract and scope |
+| --- | --- |
+| E2E-035 / **158–159** | [Recipe](E2E-Scenario-Recipes.md#e2e-035) — Choose allowances and save edits. Customer actions and public results. |
+| E2E-036 / **160–161** | [Recipe](E2E-Scenario-Recipes.md#e2e-036) — Revoke when there is no active grant. Customer actions and public results. |
+| E2E-037 / **162–163** | [Recipe](E2E-Scenario-Recipes.md#e2e-037) — Use and remember the child panel option. Customer actions and public results. |
+| E2E-038 / **164–170** | [Recipe](E2E-Scenario-Recipes.md#e2e-038) — Keep daily access after a grant ends and restore soft-app blocks. Customer actions and public results. |
+| E2E-039 / **171–178** | [Recipe](E2E-Scenario-Recipes.md#e2e-039) — Leave a pending approval or request again too soon. Customer actions and public results. |
+| E2E-040 / **179–183** | [Recipe](E2E-Scenario-Recipes.md#e2e-040) — Refresh accounts and remembered selections after account changes. Customer actions and public results. |
+| E2E-041 / **184–189** | [Recipe](E2E-Scenario-Recipes.md#e2e-041) — Search the app list and edit match rules. Customer actions and public results. |
+| E2E-042 / **190–193** | [Recipe](E2E-Scenario-Recipes.md#e2e-042) — Read Help, About and command usage on each surface. Customer actions and public results. |
+| E2E-043 / **194–195** | [Recipe](E2E-Scenario-Recipes.md#e2e-043) — Use local controls and approvals while offline. Customer actions and public results. |
+| E2E-044 / **196–204** | [Recipe](E2E-Scenario-Recipes.md#e2e-044) — Use time across local day and daylight-saving boundaries. Customer actions and public results. |
+| E2E-045 / **205–207** | [Recipe](E2E-Scenario-Recipes.md#e2e-045) — Review or decline an error report. Customer actions and public results. |
+| E2E-046 / **208–213** | [Recipe](E2E-Scenario-Recipes.md#e2e-046) — Recover unavailable diagnostic collection. Customer actions and public results. |
+| E2E-047 / **214–222** | [Recipe](E2E-Scenario-Recipes.md#e2e-047) — Finish or stop feedback in different user flows. Customer actions and public results. |
 
 ### Inventory reconciliation
 
-The specification now includes stable feedback, diagnostics and package-lifecycle
-requirements. Descriptive inventory references can identify these obligations
-without changing phases, assertions, fixtures, readiness or evidence. E2E-031
-covers the planned Parent draft/export paths; E2E-032/033 cover authorized service
-acceptance/retry. Kiosk/child reporting restrictions, error-report exits and
-privacy validation also need their own applicable coverage; a Parent-only
-scenario does not qualify all surfaces.
+This documentation rewrite reconciles the customer declarations now; it does
+not wait for implementation to remove private probes from their steps. All
+original numeric IDs, matrix values and five runnable bindings remain. New cases
+use IDs 158–222. Customer families have no backend assertions or delivery-receipt
+evidence. E2E-033 is now the ordinary network-controls customer retry route.
 
-Current source behavior also distinguishes UI/API allowance bounds, user-local
-approver selectors, disabled request media, irreversible termination and
-reinstall retention without full policy replay. The finite contracts below and
-owning design modules describe those distinctions. Pending legacy scenario
-assertions remain visible obligations, not evidence that an unavailable feature
-exists or that the scenario has passed.
+The exact displaced engineering assertions are retained below, grouped only
+when their original wording is identical. The listed source files are maintained
+owners, not a claim that every obligation already has an executable or passed
+case. Missing exact implementation stays pending under that owner; preserve all
+existing checks. Engineering completion requires its own complete qualification.
+Case 1 and cases 140–150 keep their original assertions in the inventory and
+tasks 169–179; they are never counted as customer passes.
 
-Request readiness does not validate custom duration text: an otherwise ready
-form leaves Request enabled, then rejects invalid input without authentication.
-Match-editor validation also has two outcomes: empty/unrelated precise input
-stays in the editor; rejected wildcard saves close it and report failure.
-App catalogue refresh requires changing the selected child or reopening Parent;
-save-time target resolution is not a visible-row refresh. The recipes above use
-those current paths without changing executable expectations or readiness.
-
-The specification additionally records the child panel's saved right-click
-animation preference and revocation with daily time but no grant. E2E-011 and
-E2E-007/021 are related families, but their current variants do not explicitly
-qualify these branches. The precise-override restoration limitation in
-[Front ends](../SystemDesign/Frontends.md#parent-controls-and-shared-information)
-also applies to failed-save recovery and needs its own retained observation
-before any implementation change.
-These coverage gaps earn no completion credit and do not alter the frozen
-variant count. Any future test mismatch still follows the repository's
-regression-failure contract.
-
-Descriptive requirement mappings do not change the JSON inventory's executable
-scenarios. Its five ready cases have no contract rewrite in this plan. Many pending declarations
-still combine customer actions with internal assertions; implementing only
-their visible recipe must not satisfy the unchanged larger declaration.
-Before registering a pending consumer, reconcile its phases, assertions and
-evidence with the following dispositions, preserving the engineering obligations
-in their existing unit/component/system owners. Do not silently delete them or
-count a transfer as completed coverage.
-
-| Declarations reviewed | Customer composition and retained obligation |
+| Scope | Maintained engineering owner |
 | --- | --- |
-| E2E-001 / 1 | FLOW00 covers every existing input and observation. HAR03/09/10 and the retained envelope cover its explicit harness assertions. These are allowed only in harness qualification; no scope reduction or new exception is needed. |
-| E2E-003 / 3–4, E2E-004 / 5, E2E-030 / 151 | Complete visible recipes map to the new blocks. Preserve IDs, phase timing, assertions, fixture boundaries and established input routes. Readiness alone is not new passing evidence. |
-| E2E-002 / 2, E2E-026 / 136–138, E2E-027 / 139 | LIFE04/05, FILE06 and the normal login/app blocks cover package commands, notices, activation and usable return. Package bytes/ownership, reboot-marker files, service/D-Bus publication order, canary execution, account cleanup and storage migration remain mechanical qualification. The required notice text/result is functional; red color is cosmetic and cannot gate customer acceptance. Keep package-install/removal checks under their existing owners. |
-| E2E-005–025 / 7–135 | PARENT/REQUEST/TIME/APP plus UI12 and retained-user FLOW09 cover displayed settings, balances, denial, app use and observed activity continuity. Saved preferences, process identities, component activation, internal transaction ordering/exactly-once counts and live filters remain unit/component/system assertions. A single visible prompt cannot prove one internal transaction; a later unlocked desktop cannot prove an invisible earlier process event. Public observations and these engineering claims are distinct obligations. |
-| E2E-005–029 and E2E-031–033 generic `other-user-result` | Preserve customer isolation with FLOW14 capture → the declared transaction → FLOW09 for each declared fixture activity. Where relevant, FLOW01/PARENT03/PARENT09/PARENT12 → UI12 compare other children's displayed settings without edits. Bind the actual users/apps before execution, including an unrelated fixture when the claim needs one; missing provisioning is a prerequisite gap. Internal policy/grant/process snapshots remain separate. Logout/reboot ends activity continuity; post-boundary normal login/use supplies the public result. |
-| E2E-028 / 140–144 and E2E-029 / 145–150 | These **11 variants cannot be composed as customer-only scenarios as currently written**: step-2 and step-4 require internal fault controls. Retain their exact failure-before-recovery, rollback and isolation requirements as engineering qualification. Their normal entry/retry UI can reuse this catalogue, but there is deliberately no service-stop, policy-write or fault-injection customer block. A future inventory ownership change must retain every numeric ID and obligation. |
-| E2E-031 / 152–155 | FEED/FILE blocks cover draft persistence, validation, attachment review and customer-selected export. Raw draft storage, private collector metadata and original product logs are not customer observations. Retain local privacy/size/transport checks separately; qualify UI24 before claiming rich-text formatting. |
-| E2E-032 / 156 | FEED11 → FEED09 → FEED14 proves the actual app's service response. Dedicated-recipient receipt and provider/idempotency evidence in the current declaration remain separately authorized integration verification. UI confirmation alone cannot satisfy that unchanged backend assertion. |
-| E2E-033 / 157 | The proposed customer route is LIFE06 disconnect → one FEED11 → FEED09(retry) → LIFE06 reconnect → FEED09(automatic success). Bind a supported normal network control and restoration deadline inside the real retry window. Replace the pending fault-phase wording only when this route is qualified; recipient receipt, frozen transport bytes and idempotency remain integration obligations. No second Send and no forged response. |
+| Package content, notices, startup, migration and removal | [installed package checks](../../tests/system/test_install_smoke.py), [installer](../../tests/unit/test_installer.py), [removal](../../tests/unit/test_package_removal.py), [APT notice](../../tests/unit/test_apt_removal_notice.py), [broker startup](../../tests/component/test_broker_startup.py) |
+| Identity, grants, transaction ordering, stale approvals and rollback | [core](../../tests/unit/test_core.py), [authorization lifecycle](../../tests/component/test_authorization_lifecycle.py), [installed authorization](../../tests/system/test_authorization.py) |
+| Time accounting, enforcement and retained process/session identity | [installed expiry](../../tests/system/test_session_expiry.py), [installed enforcement](../../tests/system/test_enforcement.py), [application termination](../../tests/unit/test_app_termination.py), [execution policy](../../tests/unit/test_execution_policy.py) |
+| Saved selectors and future mute fields | [preferences](../../tests/unit/test_preferences.py), [shared form](../../tests/ui/test_request_form_component.py); task 154 remains deferred future-feature qualification |
+| Diagnostics, draft bytes, privacy, retry transport and provider receipt | [diagnostic export](../../tests/unit/test_diagnostic_export.py), [privacy](../../tests/unit/test_diagnostic_privacy.py), [feedback transport](../../tests/unit/test_feedback_transport.py), [Parent feedback](../../tests/ui/test_parent_feedback.py), [error feedback](../../tests/ui/test_error_feedback.py). Actual recipient/provider work requires separately authorized integration; no portal change is authorized. |
 
-Every visible recipe step therefore has named customer or harness blocks. The
-11 fault variants are the explicit scenario-level exceptions; the table above
-also retains non-customer assertions embedded in other pending declarations.
-Do not report “all 157 are implementable as customer UI composites” or complete
-coverage until those declaration conflicts and feature prerequisites are resolved.
+| Original assertion identities | Retained wording |
+| --- | --- |
+| E2E-002/installation-result | Absence before installation, exact installed package digest and product-created reboot marker are independently observed. |
+| E2E-002/backend-result | Boot identity changes without a baseline restore; installed files, ownership, services, D-Bus, Polkit, PAM, sessions, configuration, extension payload, logs and execution policy match the release package. |
+| E2E-002/broker-readiness | Broker D-Bus object publication follows completed execution-policy reconciliation and required extension activation; a final active-service snapshot alone cannot prove ordering. |
+| E2E-002/login-readiness | The live-policy canary denial completes fapolicyd startup before display-manager startup; correlate same-boot backend ordering with the GDM screen. |
+| E2E-002/other-user-result | Compare existing child, parent and unrelated-account identities and unrelated settings before installation and after reboot, allowing only documented package provisioning and enforcement changes. Reboot ends sessions; do not claim foreground process continuity across it. |
+| E2E-005/backend-result | Verify saved allowance, grant preservation/clearing, child-component activation and app policy per transition; invalid values never commit. |
+| E2E-005/other-user-result, E2E-006/other-user-result, E2E-007/other-user-result, E2E-008/other-user-result, E2E-009/other-user-result, E2E-010/other-user-result, E2E-011/other-user-result, E2E-012/other-user-result, E2E-013/other-user-result, E2E-014/other-user-result, E2E-015/other-user-result, E2E-016/other-user-result, E2E-017/other-user-result, E2E-018/other-user-result, E2E-019/other-user-result, E2E-020/other-user-result, E2E-021/other-user-result, E2E-022/other-user-result, E2E-023/other-user-result, E2E-024/other-user-result, E2E-025/other-user-result, E2E-026/other-user-result, E2E-027/other-user-result, E2E-031/other-user-result, E2E-032/other-user-result, E2E-033/other-user-result | Compare other child, parent, and unrelated-user policy, grants, sessions and recorded process identities before and after; verify no unintended change or interruption of the other foreground user. |
+| E2E-006/backend-result | Current executable/filter/process identities and saved match patterns agree with visible effects. |
+| E2E-007/backend-result | Grant is removed, daily usage/allowance preserved and all selected-child session effects verified. |
+| E2E-008/backend-result | Measured usage exhausts daily allowance; expiry retains the session until the explicit logout and never ends another session. |
+| E2E-009/backend-result | Grant identity, retained session and replacement-policy/process effects agree with each approval. |
+| E2E-010/backend-result | The actual retained sessions survive with child-only lock enforcement. |
+| E2E-011/backend-result | Read-only daily/grant values and session identities explain the displayed maximum remaining time. |
+| E2E-012/backend-result | Time and app access commit together; excluded soft apps close required child apps before granting, included soft apps preserve open processes. |
+| E2E-013/backend-result | The denied/cancelled attempt grants no time or policy relaxation; only successful retry commits. |
+| E2E-014/backend-result | Exactly one grant transaction occurs per deliberate valid request; rejected values never grant access. |
+| E2E-015/backend-result | Only approved exit changes grant state; cancellation never logs out the child session. |
+| E2E-016/backend-result | The real dedicated session has no general desktop or management authority. |
+| E2E-017/backend-result | Displayed account identity and enabled state match real services; rejected requests do not mutate access. |
+| E2E-018/backend-result | Read-only preference identities corroborate choices and other-child isolation. |
+| E2E-019/backend-result | Actual executable or sandbox application identity, filter and process evidence explain each decision. |
+| E2E-020/backend-result | Verified before/after app identities and stored rule target match the real package operation. |
+| E2E-021/backend-result | Identity-recorded process and session evidence proves all selected-child sessions and other-user isolation. |
+| E2E-022/backend-result | Boot/session continuity records the actual transition; stored preferences and current grant explain enforcement. |
+| E2E-023/backend-result | Input digests, natural grant expiry, boot/session continuity and identity-recorded surviving game corroborate every transition. |
+| E2E-024/backend-result | Measured daily use, preexisting grant and approved duration corroborate accumulation without shortening expiry. |
+| E2E-025/backend-result | Current grant identity and live filter show session entry respects the replacement and does not apply stale expired-grant policy. |
+| E2E-026/backend-result | Release/supplemental package digests, actual activation transition and persisted settings agree. |
+| E2E-027/backend-result | Actual package transitions and read-only removal assertions corroborate file/account/policy cleanup without in-journey restore. |
+| E2E-031/backend-result | Read-only exported fixture metadata and local draft behavior match the declared contract without private preference/credential disclosure. |
+| E2E-032/backend-result | Dedicated recipient receipt and safe service/idempotency evidence corroborate delivery for this attempt. |
+| E2E-033/backend-result | Declared network failure/recovery and safe receipt/idempotency evidence establish retry of the same frozen report. |
 
-Reachability differences also require explicit phase wording when their pending
-consumer is implemented: allowance validation versus enable/save/child visits
-(7–12), natural expiry followed by a legitimate logout route (22), reopening
-the kiosk to check denied access (36–37), app preservation observed only after
-legitimate return (126–127, 132–135), and fresh-default observation after a final
-reinstall (139). Do not weaken natural-expiry or retained-activity assertions to
-make a shorter recipe pass. Hidden mute, unavailable same-child multi-desktop
-entry, public game/format locators and sending prerequisites remain the concrete
-gaps listed below. These are pending requirements, not permitted skips.
+Original installation-notice assertions in E2E-002/027 additionally required
+red final output. Their exact notice content and last-output contract remain;
+color has no customer acceptance authority. The existing notice tests are
+retained under package/UI qualification, not weakened to manufacture a pass.
+
+The original E2E-018 visible assertion, “Cross-surface selections persist per
+child; mute remains independent for each surface,” retains its interactive
+mute portion as deferred future-feature scope. Current ONPC-CORE-REQUEST-018
+requires no public mute control; E2E-018/022 now test available choices without
+waiting for that future feature. The saved-field engineering obligation remains.
+
+E2E-033's displaced engineering intervention and receipt sequence is retained
+under the feedback transport/integration owner:
+
+- step-2: Use the declared guest network control to interrupt the real delivery transport before Send; do not replace the server or forge responses.
+- step-4: Restore the real network connection within the documented retry window and record recovery.
+- Original visible-result: The real transport failure and eventual delivery are visible; no mock success is accepted.
+
+Each intervention retained its declared guarded guest actor and independent
+service/account/process and continuity evidence. The new customer case uses
+only displayed connectivity/retry/results and does not satisfy those internal
+or recipient assertions.
+
+No customer recipe secretly prepares an already-open hard-blocked app. The
+preservation of such an app by soft-included approval remains in core/application
+termination qualification until a real public setup is demonstrated. Similarly,
+same-child multiple desktops remain gated; repeated GDM resume is not a substitute.
+Package unsupported-OS/reserved-account failures, storage conversion/rollback,
+all-account authorization, diagnostic sanitization/retention and injected failures
+remain separate technical coverage. The complete original obligations do not
+disappear because their customer counterparts have visible outcomes.
 
 ### Bound recipe data before implementation
 
-Each implementation binds every route, account, app, selector, expected message,
-interval and comparison before running. Use registered fixture identities and
-synthetic content. Public reads supply actual observations; they must not select
-a more convenient expected outcome after a failure. A missing public locator,
-asset or product feature is a named pending prerequisite, not custom scenario
-code that bypasses a block.
-
-For time arithmetic, D and G mean the **displayed** daily and one-time remaining
-values from PARENT09 → REQUEST08, with declared rounding bounds; R is the selected
-fixed additional duration. UI12 compares intervals allowing measured elapsed
-time. The documented visible total is max(D, G), and a fixed approval adds R
-to that larger balance. Rest-of-day instead uses the displayed until-midnight
-meaning. These expectations come from the [time contract](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities);
-no runtime backend value is read.
-
-| FLOW13 profile | Ordered public preparation and required observation |
-| --- | --- |
-| Daily-only | Observe no grant (or revoke); FLOW02 with positive daily allowance. PARENT09 must show D > 0, no one-time balance. DESK03 finishes at GDM. |
-| Grant-only | No grant → FLOW02(enabled, daily=0) → DESK03 → FLOW06(R). Return via FLOW01(parent/window retained) → PARENT09 requiring D=0, G>0 → DESK03. |
-| Combined / grant-dominant | No grant → FLOW02(enabled, positive daily) → DESK03 → FLOW06(R>0). Return to Parent → PARENT09 requiring both positive, and G>D for grant-dominant → DESK03. A fixed approval already includes the prior larger balance. |
-| Daily-dominant | No grant → FLOW02(enabled, daily=0) → DESK03 → FLOW06(R). Return to Parent → PARENT06(larger daily allowance **while still enabled**) → PARENT08 → PARENT09 requiring D>G>0 → DESK03. Do not disable control, which clears G. |
-
-Select durations and display-rounding margins large enough to preserve the
-required inequality through login/game launch, and short enough for the
-scenario's real-time expiry deadline. Verify the inequality again at the
-request estimate; do not silently relabel a daily-dominant variant if G wins.
-
-| E2E-005 transition | Inputs and independently observed result |
-| --- | --- |
-| Preparation | Validate allowances while enabled, select the variant daily allowance, then visibly disable. For retained entry, create the child's usable session while unrestricted and return to Parent. At tested enable there is no grant. |
-| Enable | UI17(true), save observation, then child visit. Positive daily remaining admits; grant-only zero denies with the time-limit message. App hard/soft rules still apply. |
-| Edit while enabled | Daily-only has no request. Grant-only/combined first obtain real time with FLOW06 and record it. Daily-only/combined change positive allowance to a different positive value; grant-only uses 0 → positive → 0, checking **each** save/child visit. The one-time balance remains subject to elapsed time, not reset or extended by the allowance edit. |
-| Disable | UI17(false), save observation, child visit. Time becomes unrestricted and the one-time balance is cleared; saved app rules still apply. |
-| Re-enable | UI17(true), save observation, child visit. No old grant returns. Positive remaining daily time admits; grant-only zero denies. New variants log out after each admitted visit, retained variants preserve the original desktop. |
-
-Use PARENT09 and TIME01 where the values are public. If a zero-time screen
-prevents inspecting app windows, assert access denial there; do not claim
-unseen closure. Existing scenarios with retained-window assertions obtain
-legitimate time before inspecting them.
+Use the [finite data and budgets](E2E-Scenario-Recipes.md#finite-data-and-execution-budgets),
+[branch recipes](E2E-Scenario-Recipes.md#additional-finite-branch-recipes) and
+[coverage ownership](E2E-Scenario-Recipes.md#coverage-ownership-and-remaining-limits).
+Every required public route, fixture, selector, response, time margin and
+comparison must be bound before execution. No callback may choose a more
+convenient expected result after failure.
 
 ## Finite values and applicability constraints
 
-The following are explicit boundaries of the plan, not permission to skip an
-assertion. Block composition is defined even where a product/prerequisite gap
-currently prevents execution.
+The recipe document owns the complete finite value sets. UI allowance is
+0–1439; request custom duration is 0.1–1440 minutes. Interactive mute is deferred;
+case 154 (attachments) must not be confused with task 154 (future mute).
+Public same-child desktop entry, pending-prompt leave/close routes, genuine
+diagnostic-collection failures, calendar windows and external sending remain
+explicit gates. Missing gates keep only their dependent cases pending.
 
-| Area | Data or implementation constraint |
-| --- | --- |
-| Daily allowance | The [screen-time model](../SystemDesign/Screen-Time.md#screen-time-model) and [specification](../Specification.md#screen-time-setup-and-enforcement) distinguish the broker/schema range 0–1440 from the Parent editor range **0–1439**. Keep the finite set: 0, preset 15 and custom 1439 accepted; custom 1440, −1, 1441, empty and `abc` rejected with the saved value retained. The 1440 API boundary belongs to technical checks. Documentation alignment supplies no passing evidence and changes no executable expectation. Keep cases 7–12 pending until the full customer set passes; preserve/report conflicts with existing tests before altering them. |
-| Request durations | Predefined values are 5, 15, 30, 60, 120 and 240 minutes from [request-options.json](../../child/request-options.json); Rest of the day and Custom value belong to their separate variants. Custom valid values 0.1, 0.5, 1.25, 1440; invalid 0.09, 1440.1, empty and `abc`; rest-of-day's displayed until-midnight meaning. Invalid cases stop before authentication. Large valid grants test form/result behavior, not a 24-hour expiry wait. |
-| Time profiles and deadlines | Daily-only starts without a grant; grant-only sets daily to zero; combined/dominant profiles use actual UI approval and observed balances. Choose short supported values for expiry and adequate values for active-return cases. Carry elapsed time/tolerance explicitly; keep every recipe within its declared duration (currently 1800 seconds) or reconcile a justified duration before registration. Never change the guest clock. |
-| App expectations | Allowed/nonmatching targets must be usable. Hard blocks remain denied; soft blocks follow the explicitly approved choice. Screen-time enablement and app rules are separate customer controls. Test update/new-version/space/copy/rename examples using declared assets and actual launches, within the documented matching limits; do not invent universal copied-executable enforcement. Hidden launcher coverage and denied execution are separate observations. |
-| Kiosk restriction attempts | A finite route list: normal Overview/app-grid keys, normal terminal shortcut, and available settings/Parent launch controls. Require the request form still usable plus absence of the attempted forbidden surface. If no search UI appears, do not type an app query into the request form. No VT/service escape or containment probe is a customer action. |
-| Mute | The current specification requires silent request forms with no mute control (ONPC-CORE-REQUEST-018), matching `REQUEST_MEDIA_ENABLED = False` in [request main.py](../../kiosk/oh_no_parent_control_kiosk/main.py). REQUEST06(mute) and interactive mute assertions in E2E-018/022 are retained deferred scope for a future public feature, not implemented release functionality. Those wider inventory variants remain pending until explicitly reconciled; absence is not an interactive-mute pass. Do not edit private preferences or enable a test switch. |
-| Multiple sessions for one child | Repeated GDM selection can resume the existing session. E2E-007/multiple and E2E-021 need a demonstrated supported customer route to distinct desktops if they retain that claim. FLOW14 does not manufacture sessions with a backend helper. If unavailable, preserve the unfulfilled obligation and explicitly reconcile its system/customer ownership. Distinct-user retained desktops remain ordinary customer coverage. |
-| Save pause in E2E-020 | Access buttons autosave. The actual Edit Match Rule dialog has an editable draft and Save/Cancel, so PARENT13 → UI16 provide a real pause while the app is updated/removed. Do not suspend saves internally or treat a completed autosave as still pending. |
-| Rejection and replacement wording | Case 22 retains natural exhaustion, then needs a supported normal logout route; its planned temporary-grant/logout/revocation sequence is explicit. A request form exited for an access check must be reopened and its choices compared. A new login after logout cannot preserve the prior app window. Retained-activity cases must obtain legitimate access before comparing APP04 observations, without attributing later transaction effects to an unseen earlier event. Reconcile those pending declarations with their first consumer. |
-| Feedback | Use synthetic content/files and the actual privacy disclosure. Finite local cases: empty/whitespace/normal body, 5,000 and 5,001 ASCII characters; empty, valid synthetic and malformed reply address; 5 vs 6 selected files; 5 MiB vs 5 MiB + 1 per file. Total files plus diagnostics have an 8 MiB limit: bind public displayed diagnostic size when testing that boundary, otherwise retain that exact aggregate boundary in existing local tests rather than inspect private bytes. Bounds are in [feedback_transport.py](../../common/oh_no_parent_control_ui/feedback_transport.py). Do not transmit for validation. Sending cases require an available supported service profile and explicit authorization. Only the app's response is customer evidence. Existing injected transport/idempotency/provider tests remain separate. |
-| Game/app fixtures | Prepare real installed native/Snap/Flatpak apps and a pinned offline game/level through supported fixture setup. Their customer actions and public result locators must be qualified; no fake game window, internal game-state probe or screenshot-similarity acceptance. Missing public access to required information is a specific automation limitation, not a cosmetic failure or permission to pass. |
-
-The only non-customer recipe segments are the retained harness case, required
-mechanical package qualification, explicitly transferred internal fault cases,
-and declared account/asset setup. All in-scope customer steps map to the same
-catalogue. The current feature/applicability gaps above remain visible rather
-than being counted as implemented exceptions or completed coverage.
+Functional acceptance uses accessible meaning and real user input. It never
+gates on transient animation duration, color, fixed geometry, scale or image
+similarity. A read-only UI trace may establish a required disabled/pending state;
+no observer may pause the product to make that state last longer.
 
 ## Case 1 stage contract
 

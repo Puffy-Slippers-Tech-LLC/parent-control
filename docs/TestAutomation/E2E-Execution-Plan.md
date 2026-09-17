@@ -6,11 +6,12 @@ Use this prompt for each session:
 
 This is the execution queue for [E2E-Building-Blocks.md](E2E-Building-Blocks.md).
 The catalogue owns block contracts; [scenarios.json](../../tests/e2e/scenarios.json)
-owns variant identities. This plan owns session selection and completion.
+owns variant identities and user-readable steps. The [scenario recipes](E2E-Scenario-Recipes.md)
+own exact block compositions and finite values. This plan owns session selection and completion.
 An individual task needs this master, its linked current contracts and maintained
 source interfaces. It never needs a completed task's document or VM state.
 
-## Starting scope
+## Original baseline and current scope
 
 At plan creation, the catalogue has **153 blocks: 60 ready, 93 pending**.
 The queue covers **91 active pending blocks**, plus consumer-specific extensions
@@ -22,11 +23,34 @@ The inventory has **33 families / 157 persistent variant IDs**:
 five ready variants (**1, 3, 4, 5, 151**), **141 pending customer variants**
 (including conditional retry case 157), and **11 internal-fault obligations**
 (140–150). Case 1 is harness qualification; four ready cases are customer journeys.
-All 157 IDs are accounted for; these baseline statuses are not fresh test results.
+All original 157 IDs are accounted for; these baseline statuses are not fresh test results.
 
 There are **200 tasks: 82 block/capability tasks, 107 customer scenario tasks and
 11 separate system-qualification tasks**. All start unchecked. No implementation
 or live acceptance is claimed by writing this plan.
+
+The documentation rewrite expands the current inventory to **46 families /
+222 cases**: **210 customer cases** (4 ready, 206 pending), **11 retained
+engineering fault obligations**, and **1 ready harness case**. It adds 65
+pending customer cases without changing readiness or runnable bindings.
+The catalogue now has **174 blocks: 60 ready, 114 pending**. The queue has
+**293 rows**: the original 200 plus 27 scoped capabilities, one metadata-compatibility task and 65 customer
+scenario tasks. Task 154 is retained deferred future mute work and does not
+block completion of current-release customer scope. No row is completed by
+this document update.
+
+Current inventory steps and the [recipes](E2E-Scenario-Recipes.md) supersede
+older task-file copies of scenario wording and finite data. Existing task files
+still own their implementation/qualification scaffolding and stable task IDs.
+New rows link directly to enduring block/recipe sections: use that linked
+section as the task contract, with this master's implementation, verification
+and close-out rules; no duplicate task document is needed.
+For a new capability, qualify its stated route in the existing guarded consumer
+envelope; implement its leaves first. A full consumer is preferred, otherwise
+use the existing fixed qualification pattern with a named first consumer.
+For each new scenario task, run exactly its **Cases** number through
+`tools/run-tests e2e --id '<number>'`, then refresh coverage after cleanup.
+All branches and terminal outcomes in its recipe must pass.
 
 Task IDs are stable identifiers, not sort keys: read the table from top to
 bottom, including inserted suffix IDs. A completed capability supplies reusable
@@ -123,7 +147,7 @@ then empty-account profiles unlock 54–55, before duration editing or authentic
 Kiosk exits and prepared duration choices then unlock 47–48. Desktop countdown
 readback unlocks kiosk-approved case 49 before lock/retained-unlock qualification.
 Native activity capture and overlay exits unlock 44–45 before retained-user app
-visits. Cases 7–12 wait for both boundary validation and app-policy/denial support.
+visits. Cases 7–12 wait for app-policy/denial support; case 158 owns exhaustive allowance boundaries.
 
 Feedback collection tracing, app-exit reset, file-manager launch, desktop launch
 and fullscreen request entry each have their own consumer. Fullscreen expiry
@@ -195,7 +219,8 @@ the task. These names are future entries, not existing passing commands:
 For a **scenario task**, reconcile its current inventory declaration before
 registration using [inventory reconciliation](E2E-Building-Blocks.md#inventory-reconciliation).
 Preserve numeric IDs, all variant values and each displaced engineering
-assertion's owner. Do not fabricate backend evidence or silently narrow siblings.
+assertion's owner. The current documentation has reconciled customer declarations;
+validate the implemented recipe against it without restoring old backend witnesses. Do not fabricate backend evidence or silently narrow siblings.
 Register the complete callable, then run the task's exact
 `tools/run-tests e2e --id '...'` selection. This public route builds missing
 verified artifacts automatically; `--artifacts '<verified-directory>'` can reuse
@@ -273,24 +298,27 @@ After cleanup:
 The plan is finished when every active row is checked and all explicit gates
 have been resolved, with every original obligation either passing in its proper
 suite or explicitly retained under an agreed ownership/scope decision. Do not
-describe unresolved/merely transferred work as done, or all 157 IDs as customer
+describe unresolved/merely transferred work as done, or all 222 IDs as customer
 passes. SEC01/GDM10 remain the two intentionally consumerless legacy deferrals.
 
 ## Explicit gates
 
 | Task | Prerequisite | Completion rule |
 | --- | --- | --- |
-| 040a | Qualified public boundary observations | The specification separates UI 0–1439 from broker/schema 0–1440. Retain 1440 as an invalid custom editor value and the complete finite set in task 040a. Documentation alignment is not live acceptance; keep cases 7–12 pending until qualification passes. |
+| 040a | Qualified public boundary observations | The specification separates UI 0–1439 from broker/schema 0–1440. Retain 1440 as an invalid custom editor value and the complete finite set in task 040a. Documentation alignment is not live acceptance; keep boundary case 158 pending until qualification passes; cases 7–12 use ordinary valid allowances. |
 | 143 | Supported customer route to distinct same-child desktops or explicit ownership decision | Leave unchecked until its live acceptance passes; preserve the exact unfulfilled scope. |
 | 150 | Explicit sending authorization covering the reviewed qualification/scenario submissions and dedicated test-recipient profile | Leave unchecked until its live acceptance passes; preserve the exact unfulfilled scope. |
 | 152 | Supported customer connectivity route preserving safe observation | Leave unchecked until its live acceptance passes; preserve the exact unfulfilled scope. |
-| 154 | Deferred restoration of public mute | Current release forms are silent and expose no mute control. Retain interactive-mute work unchecked for a future public feature; absence supplies no pass and wider inventory obligations remain pending. |
+| 154 | Deferred restoration of public mute | Current release forms are silent and expose no mute control. Retain interactive-mute work unchecked for a future public feature; absence supplies no pass and future mute obligations remain deferred; current request choices do not depend on them. |
+| 183a–183e / 171–175 cases | Qualified public leave/close route while approval is pending | A modal that prevents the action is a concrete pending prerequisite; no forced process/session operation. |
+| 187o/187k / 176–178 cases | Public return within the five-second cooldown | Prove the interval from visible approval; do not change product timing. |
+| 188p–189k / 208–213 cases | Actual publicly reproducible diagnostic-collection failure and recovery | No established public trigger is assumed. Retry-only cases do not require sending authorization; without-logs cases do. |
+| 191 / 196–204 cases | Declared natural calendar window and readable time precision | Schedule before the attempt; never change the clock or exceed the declared run bound. |
 
-The allowance boundary task may start its contract review before the decision is
-available; it must not convert the current editor's behavior into the expected
-result. Reuse an existing explicit decision, or request only the missing decision
-with a concrete comparison. Record the resolved contract in the catalogue so no
-later task needs that task document. This review does not authorize a new boundary.
+The specification already defines the UI boundary as 0–1439. Task 040a qualifies
+that contract and supplies case 158; documentation is not live acceptance. A
+future observed app mismatch follows the regression contract, without changing
+the expected range to match the implementation.
 
 Mute is currently hidden by `REQUEST_MEDIA_ENABLED = False`; planning does not
 authorize a test-only switch. Distinct same-child desktops need a supported
@@ -309,6 +337,33 @@ false passing variant. If authorized scope is retired, label the row `excluded`
 with the current decision/owner instead of `[x]`, and update the active totals.
 A missing feature or failed applicability check alone never retires a row.
 
+## Metadata compatibility follow-up
+
+Task 192 is host-only maintenance for the changed inventory contract. Its
+completion requires the existing inventory regressions and coverage generation,
+not a VM run, and gives no block or customer acceptance credit.
+
+The documentation-only validation found three outdated expectations in
+[the inventory tests](../../tests/unit/test_e2e_inventory.py): 152 pending cases
+instead of 217, red-text customer acceptance, and E2E-033 classified as an
+injected-fault scenario. Ten fixture errors share a fixture that unconditionally
+removes backend evidence already absent from customer families. Its copied
+contract-file list must also include each selected family's current references.
+
+Reconcile those metadata assertions and fixtures in a code-authorized session,
+preserving matrix closure, stable IDs, ready selection, missing-file refusal,
+forbidden backend evidence, exact notice text and the separate fault obligations.
+Do not change product expectations or weaken ownership/credential checks.
+Run `tools/run-unit-tests 'tests/unit/test_e2e_inventory.py' -q`, then regenerate
+coverage. No test code is changed or skipped by this documentation session.
+
+Coverage regeneration is currently blocked because this checkout lacks its
+documented `.venv/onpc-ui-tests` environment. The generator stopped during UI
+collection and preserved the existing [coverage report](../Test-Coverage.md).
+After the normal development setup supplies that prerequisite, rerun
+`tools/generate_test_coverage.sh`; do not replace collected counts manually or
+substitute an interpreter from another checkout.
+
 ## Ordered task queue
 
 Prerequisite numbers refer to completed capability rows, not documents to read.
@@ -320,6 +375,7 @@ current blocker directly to an affected row when necessary.
 
 | Done | ID | Task | Prerequisites | Delivered scope | Minutes |
 | --- | --- | --- | --- | --- | --- |
+| [ ] | 192 | [Align inventory regression fixtures with the rewritten metadata](#metadata-compatibility-follow-up) | Existing baseline | Host-only metadata compatibility; no product readiness change | 25–45 |
 | [ ] | 001 | [Visible terminal launch, submission and denial](E2E-Tasks/001-terminal.md) | Existing baseline | FILE01, FILE02, FILE06 | 25–45 |
 | [ ] | 002 | [E2E-004: terminal](E2E-Tasks/002-case-6.md) | 001 | Cases 6 | 30–55 |
 | [ ] | 003 | [Open session controls and switch or sign out](E2E-Tasks/003-desktop-session.md) | Existing baseline | DESK02, DESK03, DESK04 | 35–55 |
@@ -398,23 +454,20 @@ current blocker directly to an affected row when necessary.
 | [ ] | 063 | [E2E-008: retained-unlock](E2E-Tasks/063-case-21.md) | 062, 043a | Cases 21 | 35–55 |
 | [ ] | 064 | [E2E-008: fresh-login](E2E-Tasks/064-case-22.md) | 062, 043a, 050, 021 | Cases 22 | 40–60 |
 | [ ] | 052b | [Prove countdown absence on other surfaces](E2E-Tasks/052b-countdown-absence.md) | 052, 043a | TIME01 lock/GDM/other-user absence | 20–40 |
-| [ ] | 059 | [E2E-011: daily-only](E2E-Tasks/059-case-27.md) | 052a, 043a, 051, 052b | Cases 27 | 35–55 |
 | [ ] | 065 | [Compose grant-only and combined time profiles](E2E-Tasks/065-time-profiles-grant.md) | 051 | FLOW13 grant-only/combined scope | 30–50 |
 | [ ] | 066 | [E2E-010: parent](E2E-Tasks/066-case-25.md) | 065, 052a, 047, 043a | Cases 25 | 35–55 |
 | [ ] | 067 | [E2E-010: other-child](E2E-Tasks/067-case-26.md) | 065, 052a, 047, 043a | Cases 26 | 35–55 |
-| [ ] | 068 | [E2E-011: grant-only](E2E-Tasks/068-case-28.md) | 052a, 043a, 065, 052b | Cases 28 | 35–55 |
-| [ ] | 069 | [E2E-011: combined](E2E-Tasks/069-case-29.md) | 052a, 043a, 065, 052b | Cases 29 | 35–55 |
 | [ ] | 017a | [Observe saving while a Parent control changes](E2E-Tasks/017a-parent-save-trace.md) | 017, 016 | PARENT08 transition mode | 25–45 |
 | [ ] | 040a | [Resolve and qualify daily-allowance boundaries](E2E-Tasks/040a-allowance-boundaries.md) | 040 | PARENT06 boundary/invalid values; PARENT08 validation | 25–45 |
 | [ ] | 077 | [Read and filter the public app catalogue](E2E-Tasks/077-catalogue.md) | 009, 010, 035 | PARENT12, PARENT10, PARENT11 | 35–55 |
 | [ ] | 078 | [Edit, save, cancel or reset one match rule](E2E-Tasks/078-match-editor.md) | 077, 017 | PARENT13, PARENT15 | 25–45 |
-| [ ] | 079 | [Choose app access and compose policy editing](E2E-Tasks/079-policy.md) | 078, 077, 041, 035, 047a, 036 | PARENT16, FLOW03; native APP02/FLOW08 policy results | 40–60 |
-| [ ] | 053 | [E2E-005: daily-only-new](E2E-Tasks/053-case-7.md) | 040a, 041, 017a, 021, 043a, 044, 047a, 052, 079 | Cases 7 | 40–60 |
-| [ ] | 054 | [E2E-005: daily-only-retained](E2E-Tasks/054-case-8.md) | 040a, 041, 017a, 021, 043a, 044, 047a, 052, 079 | Cases 8 | 40–60 |
-| [ ] | 055 | [E2E-005: grant-only-new](E2E-Tasks/055-case-9.md) | 040a, 041, 017a, 021, 043a, 044, 047a, 052, 079 | Cases 9 | 40–60 |
-| [ ] | 056 | [E2E-005: grant-only-retained](E2E-Tasks/056-case-10.md) | 040a, 041, 017a, 021, 043a, 044, 047a, 052, 079 | Cases 10 | 40–60 |
-| [ ] | 057 | [E2E-005: combined-new](E2E-Tasks/057-case-11.md) | 040a, 041, 017a, 021, 043a, 044, 047a, 052, 079 | Cases 11 | 40–60 |
-| [ ] | 058 | [E2E-005: combined-retained](E2E-Tasks/058-case-12.md) | 040a, 041, 017a, 021, 043a, 044, 047a, 052, 079 | Cases 12 | 40–60 |
+| [ ] | 079 | [Choose app access and compose policy editing](E2E-Tasks/079-policy.md) | 078, 077, 041, 035, 047a, 036 | PARENT16, FLOW03, FLOW19; native APP02/FLOW08 policy results | 40–60 |
+| [ ] | 053 | [E2E-005: daily-only-new](E2E-Tasks/053-case-7.md) | 041, 021, 043a, 044, 047a, 052, 079 | Cases 7 | 40–60 |
+| [ ] | 054 | [E2E-005: daily-only-retained](E2E-Tasks/054-case-8.md) | 041, 021, 043a, 044, 047a, 052, 079 | Cases 8 | 40–60 |
+| [ ] | 055 | [E2E-005: grant-only-new](E2E-Tasks/055-case-9.md) | 041, 021, 043a, 044, 047a, 052, 079 | Cases 9 | 40–60 |
+| [ ] | 056 | [E2E-005: grant-only-retained](E2E-Tasks/056-case-10.md) | 041, 021, 043a, 044, 047a, 052, 079 | Cases 10 | 40–60 |
+| [ ] | 057 | [E2E-005: combined-new](E2E-Tasks/057-case-11.md) | 041, 021, 043a, 044, 047a, 052, 079 | Cases 11 | 40–60 |
+| [ ] | 058 | [E2E-005: combined-retained](E2E-Tasks/058-case-12.md) | 041, 021, 043a, 044, 047a, 052, 079 | Cases 12 | 40–60 |
 | [ ] | 080 | [E2E-006: enabled-precise](E2E-Tasks/080-case-13.md) | 079, 047, 065 | Cases 13 | 40–60 |
 | [ ] | 081 | [E2E-006: enabled-pattern](E2E-Tasks/081-case-14.md) | 079, 047, 065 | Cases 14 | 40–60 |
 | [ ] | 082 | [E2E-006: disabled-precise](E2E-Tasks/082-case-15.md) | 079, 047, 065 | Cases 15 | 40–60 |
@@ -433,6 +486,9 @@ current blocker directly to an affected row when necessary.
 | [ ] | 101 | [E2E-019: native-command-soft-blocked-enabled / native-command-soft-blocked-disabled](E2E-Tasks/101-case-84-85.md) | 079, 047, 041, 036 | Cases 84, 85 | 35–55 |
 | [ ] | 105 | [E2E-025: excluded-new-login](E2E-Tasks/105-case-132.md) | 062, 079, 065, 021, 043, 047 | Cases 132 | 40–60 |
 | [ ] | 107 | [E2E-025: included-new-login](E2E-Tasks/107-case-134.md) | 062, 079, 065, 021, 043, 047 | Cases 134 | 40–60 |
+| [ ] | 226 | [E2E-041: search-filters](E2E-Scenario-Recipes.md#e2e-041) | 079 | Cases 184 | 30–55 |
+| [ ] | 229 | [E2E-041: shared-launchers](E2E-Scenario-Recipes.md#e2e-041) | 079, 047 | Cases 187 | 30–55 |
+| [ ] | 230 | [E2E-041: special-paths](E2E-Scenario-Recipes.md#e2e-041) | 079, 036 | Cases 188 | 30–55 |
 | [ ] | 036a | [Launch native fixtures from the file manager](E2E-Tasks/036a-native-file-routes.md) | 036, 035, 079 | APP01/02/03 native file-manager route | 30–50 |
 | [ ] | 096 | [E2E-019: native-file-manager-allowed-enabled / native-file-manager-allowed-disabled](E2E-Tasks/096-case-74-75.md) | 079, 047, 041, 036a | Cases 74, 75 | 35–55 |
 | [ ] | 097 | [E2E-019: native-file-manager-hard-blocked-enabled / native-file-manager-hard-blocked-disabled](E2E-Tasks/097-case-76-77.md) | 079, 047, 041, 036a | Cases 76, 77 | 35–55 |
@@ -492,9 +548,8 @@ current blocker directly to an affected row when necessary.
 | [ ] | 149 | [E2E-021: revoke](E2E-Tasks/149-case-115.md) | 143, 079, 048, 050, 047, 065 | Cases 115 | 40–60 |
 | [ ] | 150 | [Submit one authorized synthetic report and read success](E2E-Tasks/150-feedback-send.md) | 038, 031, 030 | FEED11, FEED14 | 30–50 | <!-- Gate: Explicit sending authorization and dedicated test-recipient profile -->
 | [ ] | 151 | [E2E-032: success](E2E-Tasks/151-case-156.md) | 150 | Cases 156 | 35–55 |
-| [ ] | 152 | [Change connectivity through public network controls](E2E-Tasks/152-network.md) | 150, 003, 010, 044a | LIFE06; FEED09 public retry state | 35–55 | <!-- Gate: Supported customer connectivity route preserving safe observation -->
-| [ ] | 153 | [E2E-033: retry](E2E-Tasks/153-case-157.md) | 152 | Cases 157 | 35–55 |
-| [ ] | 154 | [Deferred qualification of restored mute](E2E-Tasks/154-mute.md) | 048a | REQUEST06 future mute scope | 20–40 | <!-- Gate: A future release restores the public mute feature -->
+| [ ] | 256 | [E2E-047: no-reply](E2E-Scenario-Recipes.md#e2e-047) | 150 | Cases 214 | 30–55 |
+| [ ] | 154 | [Deferred qualification of restored mute](E2E-Tasks/154-mute.md) | 048a | Deferred future interactive mute only; no current customer dependency | 20–40 | <!-- Gate: A future release restores the public mute feature -->
 | [ ] | 155 | [Compare per-child choices across request surfaces](E2E-Tasks/155-cross-surface.md) | 048a, 048b, 021 | FLOW12 current choices; task 154 retains deferred mute qualification | 35–55 |
 | [ ] | 156 | [E2E-018: overlay-to-kiosk-first / overlay-to-kiosk-second](E2E-Tasks/156-case-58-59.md) | 155, 065 | Cases 58, 59 | 40–60 |
 | [ ] | 157 | [E2E-018: kiosk-to-overlay-first / kiosk-to-overlay-second](E2E-Tasks/157-case-60-61.md) | 155, 065 | Cases 60, 61 | 40–60 |
@@ -509,6 +564,99 @@ current blocker directly to an affected row when necessary.
 | [ ] | 166 | [Suspend and wake through normal controls](E2E-Tasks/166-suspend.md) | 052a, 003, 043a | LIFE03 | 35–55 |
 | [ ] | 167 | [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md) | 155, 079, 047, 065, 052a, 166 | Cases 124 | 40–60 |
 | [ ] | 168 | [E2E-022: suspend-wake-expired](E2E-Tasks/168-case-125.md) | 155, 079, 047, 065, 052a, 166 | Cases 125 | 40–60 |
+| [ ] | 180 | [Compose named-parent daily allowance setup](E2E-Building-Blocks.md#reusable-journey-fragments) | 041 | FLOW16; first consumer 158 | 25–55 |
+| [ ] | 200 | [E2E-035: boundaries](E2E-Scenario-Recipes.md#e2e-035) | 180, 040a, 028 | Cases 158 | 30–55 |
+| [ ] | 201 | [E2E-035: save-order](E2E-Scenario-Recipes.md#e2e-035) | 180, 040a, 028, 017a | Cases 159 | 30–55 |
+| [ ] | 202 | [E2E-036: daily-positive](E2E-Scenario-Recipes.md#e2e-036) | 180, 065, 050, 079, 047 | Cases 160 | 30–55 |
+| [ ] | 203 | [E2E-036: zero-total](E2E-Scenario-Recipes.md#e2e-036) | 180, 065, 050, 079, 047 | Cases 161 | 30–55 |
+| [ ] | 181h | [Read the countdown hover explanation](E2E-Building-Blocks.md#additional-public-surfaces) | 052 | UI27, PANEL03; first consumer 27 | 25–55 |
+| [ ] | 059 | [E2E-011: daily-only](E2E-Tasks/059-case-27.md) | 052a, 043a, 051, 052b, 181h | Cases 27 | 35–55 |
+| [ ] | 068 | [E2E-011: grant-only](E2E-Tasks/068-case-28.md) | 052a, 043a, 065, 052b, 181h | Cases 28 | 35–55 |
+| [ ] | 069 | [E2E-011: combined](E2E-Tasks/069-case-29.md) | 052a, 043a, 065, 052b, 181h | Cases 29 | 35–55 |
+| [ ] | 181m | [Operate the child panel context menu](E2E-Building-Blocks.md#additional-public-surfaces) | 181h, 010, 048a | UI28, PANEL01/02; first consumer 162 | 25–55 |
+| [ ] | 204 | [E2E-037: sign-out-in](E2E-Scenario-Recipes.md#e2e-037) | 181m, 065, 062, 044 | Cases 162 | 30–55 |
+| [ ] | 205 | [E2E-037: reboot](E2E-Scenario-Recipes.md#e2e-037) | 181m, 065, 062, 044, 007 | Cases 163 | 30–55 |
+| [ ] | 182 | [Keep a soft exception while daily time overtakes a grant](E2E-Building-Blocks.md#reusable-journey-fragments) | 065, 079, 052a, 044 | FLOW18; first consumer 164 | 25–55 |
+| [ ] | 206 | [E2E-038: none](E2E-Scenario-Recipes.md#e2e-038) | 182, 079, 050, 043a, 028 | Cases 164 | 30–55 |
+| [ ] | 207 | [E2E-038: unlock](E2E-Scenario-Recipes.md#e2e-038) | 182, 079, 050, 043a, 028 | Cases 165 | 30–55 |
+| [ ] | 208 | [E2E-038: fresh-login](E2E-Scenario-Recipes.md#e2e-038) | 182, 079, 050, 043a, 028 | Cases 166 | 30–55 |
+| [ ] | 209 | [E2E-038: allowance-edit](E2E-Scenario-Recipes.md#e2e-038) | 182, 079, 050, 043a, 028 | Cases 167 | 30–55 |
+| [ ] | 210 | [E2E-038: toggle](E2E-Scenario-Recipes.md#e2e-038) | 182, 079, 050, 043a, 028 | Cases 168 | 30–55 |
+| [ ] | 211 | [E2E-038: app-save](E2E-Scenario-Recipes.md#e2e-038) | 182, 079, 050, 043a, 028 | Cases 169 | 30–55 |
+| [ ] | 212 | [E2E-038: revoke](E2E-Scenario-Recipes.md#e2e-038) | 182, 079, 050, 043a, 028 | Cases 170 | 30–55 |
+| [ ] | 183a | [Leave pending approval by normal lock](E2E-Building-Blocks.md#reusable-journey-fragments) | 048b, 042, 043a | FLOW17 overlay lock; first consumer 171 | 25–55 |
+| [ ] | 213 | [E2E-039: overlay-lock](E2E-Scenario-Recipes.md#e2e-039) | 183a | Cases 171 | 30–55 |
+| [ ] | 183b | [Leave pending approval by Switch User](E2E-Building-Blocks.md#reusable-journey-fragments) | 048b, 044 | FLOW17 overlay switch; first consumer 172 | 25–55 |
+| [ ] | 214 | [E2E-039: overlay-switch](E2E-Scenario-Recipes.md#e2e-039) | 183b | Cases 172 | 30–55 |
+| [ ] | 183c | [Leave pending approval by normal sign-out](E2E-Building-Blocks.md#reusable-journey-fragments) | 048b, 003, 043 | FLOW17 overlay sign-out; first consumer 173 | 25–55 |
+| [ ] | 215 | [E2E-039: overlay-signout](E2E-Scenario-Recipes.md#e2e-039) | 183c | Cases 173 | 30–55 |
+| [ ] | 183d | [Close the requesting overlay during approval](E2E-Building-Blocks.md#reusable-journey-fragments) | 048b, 028 | FLOW17 overlay app-close; first consumer 174 | 25–55 |
+| [ ] | 216 | [E2E-039: overlay-close](E2E-Scenario-Recipes.md#e2e-039) | 183d | Cases 174 | 30–55 |
+| [ ] | 183e | [Close the requesting station during approval](E2E-Building-Blocks.md#reusable-journey-fragments) | 020, 013 | FLOW17 kiosk app-close; first consumer 175 | 25–55 |
+| [ ] | 217 | [E2E-039: kiosk-close](E2E-Scenario-Recipes.md#e2e-039) | 183e | Cases 175 | 30–55 |
+| [ ] | 184 | [Operate spare accounts through Users settings](E2E-Building-Blocks.md#additional-public-surfaces) | 004, 009, 003 | AUTH04, ACCOUNT01/02; first consumer 179 | 25–55 |
+| [ ] | 221 | [E2E-040: add-child](E2E-Scenario-Recipes.md#e2e-040) | 184, 017 | Cases 179 | 30–55 |
+| [ ] | 222 | [E2E-040: remove-selected](E2E-Scenario-Recipes.md#e2e-040) | 184, 017 | Cases 180 | 30–55 |
+| [ ] | 223 | [E2E-040: remove-last-child](E2E-Scenario-Recipes.md#e2e-040) | 184, 017 | Cases 181 | 30–55 |
+| [ ] | 224 | [E2E-040: ineligible-approver](E2E-Scenario-Recipes.md#e2e-040) | 184, 024a, 048a | Cases 182 | 30–55 |
+| [ ] | 225 | [E2E-040: missing-remembered-child](E2E-Scenario-Recipes.md#e2e-040) | 184, 012 | Cases 183 | 30–55 |
+| [ ] | 193 | [Qualify public connectivity controls for local offline use](E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries) | 003, 010, 044a | LIFE06 independent of sending; first consumer 194 | 30–50 |
+| [ ] | 236 | [E2E-043: child-overlay](E2E-Scenario-Recipes.md#e2e-043) | 193, 079, 048b, 050 | Cases 194 | 30–55 |
+| [ ] | 237 | [E2E-043: kiosk](E2E-Scenario-Recipes.md#e2e-043) | 193, 079, 021, 050 | Cases 195 | 30–55 |
+| [ ] | 152 | [Change connectivity through public network controls](E2E-Tasks/152-network.md) | 150, 193 | FEED09 retry state over qualified LIFE06; first consumer 157 | 35–55 | <!-- Gate: Supported customer connectivity route preserving safe observation -->
+| [ ] | 153 | [E2E-033: retry](E2E-Tasks/153-case-157.md) | 152 | Cases 157 | 35–55 |
+| [ ] | 257 | [E2E-047: background](E2E-Scenario-Recipes.md#e2e-047) | 150, 152 | Cases 215 | 30–55 |
+| [ ] | 258 | [E2E-047: app-exit](E2E-Scenario-Recipes.md#e2e-047) | 150, 030a, 152 | Cases 216 | 30–55 |
+| [ ] | 259 | [E2E-047: retry-expired](E2E-Scenario-Recipes.md#e2e-047) | 150, 152 | Cases 217 | 35–60 incl. retry |
+| [ ] | 185p | [Read Parent Help and information links](E2E-Building-Blocks.md#additional-public-surfaces) | 044a | INFO01 Parent links; first consumer 190 | 25–55 |
+| [ ] | 232 | [E2E-042: parent-links](E2E-Scenario-Recipes.md#e2e-042) | 185p | Cases 190 | 30–55 |
+| [ ] | 185o | [Read overlay About and information links](E2E-Building-Blocks.md#additional-public-surfaces) | 048a, 044a | ABOUT01/02 overlay, INFO01 overlay; first consumer 191 | 25–55 |
+| [ ] | 233 | [E2E-042: child-overlay](E2E-Scenario-Recipes.md#e2e-042) | 185o | Cases 191 | 30–55 |
+| [ ] | 185k | [Read restricted station About](E2E-Building-Blocks.md#additional-public-surfaces) | 014 | ABOUT01 kiosk and external-action absence; first consumer 192 | 25–55 |
+| [ ] | 234 | [E2E-042: kiosk](E2E-Scenario-Recipes.md#e2e-042) | 185k | Cases 192 | 30–55 |
+| [ ] | 185c | [Read installed command help and manuals](E2E-Building-Blocks.md#additional-public-surfaces) | 001 | INFO02; first consumer 193 | 25–55 |
+| [ ] | 235 | [E2E-042: command-help](E2E-Scenario-Recipes.md#e2e-042) | 185c | Cases 193 | 30–55 |
+| [ ] | 186 | [Read and close an automatically opened Parent error report](E2E-Building-Blocks.md#additional-public-surfaces) | 078, 029, 030 | FEED15 Parent; first consumer 185/205 | 25–55 |
+| [ ] | 227 | [E2E-041: match-editor](E2E-Scenario-Recipes.md#e2e-041) | 079, 186 | Cases 185 | 30–55 |
+| [ ] | 228 | [E2E-041: match-reopen](E2E-Scenario-Recipes.md#e2e-041) | 079, 028, 186 | Cases 186 | 30–55 |
+| [ ] | 231 | [E2E-041: pattern-files](E2E-Scenario-Recipes.md#e2e-041) | 079, 036, 186 | Cases 189 | 30–55 |
+| [ ] | 247 | [E2E-045: parent](E2E-Scenario-Recipes.md#e2e-045) | 186 | Cases 205 | 30–55 |
+| [ ] | 264 | [E2E-047: parent-error-success](E2E-Scenario-Recipes.md#e2e-047) | 150, 186 | Cases 222 | 30–55 |
+| [ ] | 187o | [Observe overlay cooldown and review or decline its error](E2E-Building-Blocks.md#additional-public-surfaces) | 048b, 052a, 029, 030 | REQUEST09 cooldown, FEED15 overlay; first consumer 176 | 25–55 |
+| [ ] | 218 | [E2E-039: overlay-cooldown](E2E-Scenario-Recipes.md#e2e-039) | 187o | Cases 176 | 30–55 |
+| [ ] | 248 | [E2E-045: child-overlay](E2E-Scenario-Recipes.md#e2e-045) | 187o | Cases 206 | 30–55 |
+| [ ] | 262 | [E2E-047: overlay-success](E2E-Scenario-Recipes.md#e2e-047) | 150, 187o | Cases 220 | 30–55 |
+| [ ] | 187k | [Observe station cooldown and review or decline its error](E2E-Building-Blocks.md#additional-public-surfaces) | 021, 052a, 029, 030 | REQUEST09 cooldown, FEED15 kiosk; first consumer 177 | 25–55 |
+| [ ] | 219 | [E2E-039: kiosk-cooldown-same](E2E-Scenario-Recipes.md#e2e-039) | 187k | Cases 177 | 30–55 |
+| [ ] | 220 | [E2E-039: kiosk-cooldown-other](E2E-Scenario-Recipes.md#e2e-039) | 187k, 024a | Cases 178 | 30–55 |
+| [ ] | 249 | [E2E-045: kiosk](E2E-Scenario-Recipes.md#e2e-045) | 187k | Cases 207 | 30–55 |
+| [ ] | 263 | [E2E-047: kiosk-success](E2E-Scenario-Recipes.md#e2e-047) | 150, 187k | Cases 221 | 30–55 |
+| [ ] | 188p | [Retry genuinely failed Parent diagnostic collection](E2E-Building-Blocks.md#additional-public-surfaces) | 186, 031a | FEED16 Parent; first consumer 208; public failure gate | 25–55 |
+| [ ] | 250 | [E2E-046: parent-retry](E2E-Scenario-Recipes.md#e2e-046) | 188p | Cases 208 | 30–55 |
+| [ ] | 188o | [Retry genuinely failed overlay diagnostic collection](E2E-Building-Blocks.md#additional-public-surfaces) | 187o, 031a | FEED16 overlay; first consumer 210; public failure gate | 25–55 |
+| [ ] | 252 | [E2E-046: child-overlay-retry](E2E-Scenario-Recipes.md#e2e-046) | 188o | Cases 210 | 30–55 |
+| [ ] | 188k | [Retry genuinely failed station diagnostic collection](E2E-Building-Blocks.md#additional-public-surfaces) | 187k, 031a | FEED16 kiosk; first consumer 212; public failure gate | 25–55 |
+| [ ] | 254 | [E2E-046: kiosk-retry](E2E-Scenario-Recipes.md#e2e-046) | 188k | Cases 212 | 30–55 |
+| [ ] | 189p | [Explicitly send Parent feedback without unavailable logs](E2E-Building-Blocks.md#additional-public-surfaces) | 188p, 150 | FEED11 without-logs Parent; first consumer 209; sending gate | 25–55 |
+| [ ] | 251 | [E2E-046: parent-without-logs](E2E-Scenario-Recipes.md#e2e-046) | 189p | Cases 209 | 30–55 |
+| [ ] | 189o | [Explicitly send an overlay report without unavailable logs](E2E-Building-Blocks.md#additional-public-surfaces) | 188o, 150 | FEED11 without-logs overlay; first consumer 211; sending gate | 25–55 |
+| [ ] | 253 | [E2E-046: child-overlay-without-logs](E2E-Scenario-Recipes.md#e2e-046) | 189o | Cases 211 | 30–55 |
+| [ ] | 189k | [Explicitly send a station report without unavailable logs](E2E-Building-Blocks.md#additional-public-surfaces) | 188k, 150 | FEED11 without-logs kiosk; first consumer 213; sending gate | 25–55 |
+| [ ] | 255 | [E2E-046: kiosk-without-logs](E2E-Scenario-Recipes.md#e2e-046) | 189k | Cases 213 | 30–55 |
+| [ ] | 190o | [Read and respond to an overlay stop-sending confirmation](E2E-Building-Blocks.md#additional-public-surfaces) | 187o, 152 | FEED17/18 overlay; first consumer 218 | 25–55 |
+| [ ] | 260 | [E2E-047: overlay-stop](E2E-Scenario-Recipes.md#e2e-047) | 150, 190o | Cases 218 | 30–55 |
+| [ ] | 190k | [Read and respond to a station stop-sending confirmation](E2E-Building-Blocks.md#additional-public-surfaces) | 187k, 152 | FEED17/18 kiosk; first consumer 219 | 25–55 |
+| [ ] | 261 | [E2E-047: kiosk-stop](E2E-Scenario-Recipes.md#e2e-047) | 150, 190k | Cases 219 | 30–55 |
+| [ ] | 191 | [Read local calendar and timezone without changing them](E2E-Building-Blocks.md#additional-public-surfaces) | 003, 044a, 052a | TIME05; first consumer 196 | 25–55 |
+| [ ] | 238 | [E2E-044: ordinary-daily-reset](E2E-Scenario-Recipes.md#e2e-044) | 191, 065, 062, 043a | Cases 196 | Scheduled window; ≤60 |
+| [ ] | 239 | [E2E-044: ordinary-rest-of-day](E2E-Scenario-Recipes.md#e2e-044) | 191, 065, 062, 043a | Cases 197 | Scheduled window; ≤60 |
+| [ ] | 240 | [E2E-044: ordinary-fixed-grant](E2E-Scenario-Recipes.md#e2e-044) | 191, 065, 062, 043a | Cases 198 | Scheduled window; ≤60 |
+| [ ] | 241 | [E2E-044: spring-forward-daily-reset](E2E-Scenario-Recipes.md#e2e-044) | 191, 065, 062, 043a | Cases 199 | Scheduled window; ≤60 |
+| [ ] | 242 | [E2E-044: spring-forward-rest-of-day](E2E-Scenario-Recipes.md#e2e-044) | 191, 065, 062, 043a | Cases 200 | Scheduled window; ≤60 |
+| [ ] | 243 | [E2E-044: spring-forward-fixed-grant](E2E-Scenario-Recipes.md#e2e-044) | 191, 065, 062, 043a | Cases 201 | Scheduled window; ≤60 |
+| [ ] | 244 | [E2E-044: fall-back-daily-reset](E2E-Scenario-Recipes.md#e2e-044) | 191, 065, 062, 043a | Cases 202 | Scheduled window; ≤60 |
+| [ ] | 245 | [E2E-044: fall-back-rest-of-day](E2E-Scenario-Recipes.md#e2e-044) | 191, 065, 062, 043a | Cases 203 | Scheduled window; ≤60 |
+| [ ] | 246 | [E2E-044: fall-back-fixed-grant](E2E-Scenario-Recipes.md#e2e-044) | 191, 065, 062, 043a | Cases 204 | Scheduled window; ≤60 |
 | [ ] | 169 | [Preserve and qualify E2E-028/startup-enforcement](E2E-Tasks/169-system-140.md) | Existing baseline | System obligation 140 | 30–60 |
 | [ ] | 170 | [Preserve and qualify E2E-028/startup-broker](E2E-Tasks/170-system-141.md) | Existing baseline | System obligation 141 | 30–60 |
 | [ ] | 171 | [Preserve and qualify E2E-028/zero-time-exposure](E2E-Tasks/171-system-142.md) | Existing baseline | System obligation 142 | 30–60 |

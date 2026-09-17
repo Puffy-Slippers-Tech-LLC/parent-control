@@ -14,7 +14,8 @@ There are **50 families and 252 persistent cases**: **240 customer cases**
 (4 ready, 236 pending), **11 engineering fault obligations**, and **1 ready
 harness qualification**. E2E-034 is retired and is not reused. Cases **3, 4, 5
 and 151** are the ready customer bindings; case **1** is ready harness
-qualification. No new installed acceptance is claimed here.
+qualification. Overall, **5 bindings are ready and 247 are pending**.
+No new installed acceptance is claimed here.
 
 Each family below records current implementation status. After a complete
 scenario and terminal cleanup pass, run `tools/generate_test_coverage.sh`

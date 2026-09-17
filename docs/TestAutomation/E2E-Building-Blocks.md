@@ -9,7 +9,8 @@ next task in docs/TestAutomation/E2E-Execution-Plan.md”. Start with its Next t
 pointer and read only that brief's relevant catalogue rows and source callables;
 do not load the full queue, this catalogue or unrelated task briefs. This
 catalogue remains the source of block contracts and current qualification status.
-The inventory currently has five ready variants: cases **1, 3, 4, 5 and 151**.
+The inventory currently has **5 ready and 247 pending variants**; ready cases
+are **1, 3, 4, 5 and 151**.
 Case 1 qualifies the harness; the other four are customer journeys.
 Every catalogue row has an implementation status; existing
 behavior that still needs extraction is `pending` even when its scenario is

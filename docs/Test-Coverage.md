@@ -6,18 +6,18 @@
 
 | Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">9438</span>/<span style="color: gray">0</span>/9438 | Collected pytest cases, including parameter combinations |
+| Unit, property and contract | <span style="color: green">9956</span>/<span style="color: gray">0</span>/9956 | Collected pytest cases, including parameter combinations |
 | Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
 | UI | <span style="color: green">150</span>/<span style="color: gray">0</span>/150 | Collected pytest cases, including parameter combinations |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Registered cases; repeated phases and prerequisites counted once |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | One check per executable test script; Node subtests not expanded |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One check per executable test script |
-| Integration qualification | <span style="color: green">17</span>/<span style="color: gray">0</span>/17 | One check per installed-runner check_*.py entry point |
-| E2E customer-journey | <span style="color: green">4</span>/<span style="color: gray">140</span>/144 | One exact scenario variant |
-| E2E fault-recovery | <span style="color: green">0</span>/<span style="color: gray">12</span>/12 | One exact scenario variant |
+| Integration qualification | <span style="color: green">18</span>/<span style="color: gray">0</span>/18 | One check per installed-runner check_*.py entry point |
+| E2E customer-journey | <span style="color: green">4</span>/<span style="color: gray">236</span>/240 | One exact scenario variant |
+| E2E fault-recovery | <span style="color: green">0</span>/<span style="color: gray">11</span>/11 | One exact scenario variant |
 | E2E runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One exact scenario variant |
-| **Total** | **<span style="color: green">9997</span>/<span style="color: gray">152</span>/10149** | All entries above, including pending E2E |
+| **Total** | **<span style="color: green">10516</span>/<span style="color: gray">247</span>/10763** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -36,26 +36,26 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | [4](#scenario-4) | Parent discovery and navigation (children: none) | `E2E-003/none` | ready |
 | [5](#scenario-5) | Standard user cannot manage policy (launch: app grid) | `E2E-004/app-grid` | ready |
 | [151](#scenario-151) | Installed About and license access | `E2E-030/parent` | ready |
-| <span style="color: gray">[2](#scenario-2)</span> | <span style="color: gray">Clean install, reboot and ready GDM</span> | <span style="color: gray">`E2E-002/clean`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[2](#scenario-2)</span> | <span style="color: gray">Install the app and begin managing a child</span> | <span style="color: gray">`E2E-002/clean`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[10](#scenario-10)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: retained; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-retained`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[11](#scenario-11)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: new; time: combined)</span> | <span style="color: gray">`E2E-005/combined-new`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[12](#scenario-12)</span> | <span style="color: gray">Allowance validation, automatic saves and live control (session: retained; time: combined)</span> | <span style="color: gray">`E2E-005/combined-retained`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[13](#scenario-13)</span> | <span style="color: gray">App policy editing and matching (control: enabled; match: precise)</span> | <span style="color: gray">`E2E-006/enabled-precise`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[14](#scenario-14)</span> | <span style="color: gray">App policy editing and matching (control: enabled; match: pattern)</span> | <span style="color: gray">`E2E-006/enabled-pattern`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[15](#scenario-15)</span> | <span style="color: gray">App policy editing and matching (control: disabled; match: precise)</span> | <span style="color: gray">`E2E-006/disabled-precise`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[16](#scenario-16)</span> | <span style="color: gray">App policy editing and matching (control: disabled; match: pattern)</span> | <span style="color: gray">`E2E-006/disabled-pattern`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[10](#scenario-10)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-retained`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[11](#scenario-11)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: combined)</span> | <span style="color: gray">`E2E-005/combined-new`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[12](#scenario-12)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: combined)</span> | <span style="color: gray">`E2E-005/combined-retained`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[13](#scenario-13)</span> | <span style="color: gray">Change app rules while children use apps (control: enabled; match: precise)</span> | <span style="color: gray">`E2E-006/enabled-precise`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[14](#scenario-14)</span> | <span style="color: gray">Change app rules while children use apps (control: enabled; match: pattern)</span> | <span style="color: gray">`E2E-006/enabled-pattern`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[15](#scenario-15)</span> | <span style="color: gray">Change app rules while children use apps (control: disabled; match: precise)</span> | <span style="color: gray">`E2E-006/disabled-precise`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[16](#scenario-16)</span> | <span style="color: gray">Change app rules while children use apps (control: disabled; match: pattern)</span> | <span style="color: gray">`E2E-006/disabled-pattern`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[17](#scenario-17)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: single)</span> | <span style="color: gray">`E2E-007/zero-single`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[19](#scenario-19)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: single)</span> | <span style="color: gray">`E2E-007/remaining-single`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[21](#scenario-21)</span> | <span style="color: gray">Natural daily exhaustion, retained unlock and fresh login denial (entry: retained unlock)</span> | <span style="color: gray">`E2E-008/retained-unlock`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[22](#scenario-22)</span> | <span style="color: gray">Natural daily exhaustion, retained unlock and fresh login denial (entry: fresh login)</span> | <span style="color: gray">`E2E-008/fresh-login`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[23](#scenario-23)</span> | <span style="color: gray">Grant expiry followed by kiosk approval and unlock (soft apps: excluded)</span> | <span style="color: gray">`E2E-009/excluded`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[24](#scenario-24)</span> | <span style="color: gray">Grant expiry followed by kiosk approval and unlock (soft apps: included)</span> | <span style="color: gray">`E2E-009/included`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[23](#scenario-23)</span> | <span style="color: gray">Recover unfinished work after grant-only time runs out (soft apps: excluded)</span> | <span style="color: gray">`E2E-009/excluded`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[24](#scenario-24)</span> | <span style="color: gray">Recover unfinished work after grant-only time runs out (soft apps: included)</span> | <span style="color: gray">`E2E-009/included`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[25](#scenario-25)</span> | <span style="color: gray">Switch User while child time expires (foreground: parent)</span> | <span style="color: gray">`E2E-010/parent`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[26](#scenario-26)</span> | <span style="color: gray">Switch User while child time expires (foreground: other child)</span> | <span style="color: gray">`E2E-010/other-child`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[27](#scenario-27)</span> | <span style="color: gray">Countdown and visibility transitions (time: daily only)</span> | <span style="color: gray">`E2E-011/daily-only`</span> | <span style="color: gray">pending</span> |
@@ -89,64 +89,64 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | <span style="color: gray">[55](#scenario-55)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: no parent)</span> | <span style="color: gray">`E2E-017/no-parent`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[56](#scenario-56)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: ineligible parent)</span> | <span style="color: gray">`E2E-017/ineligible-parent`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[57](#scenario-57)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: disabled child)</span> | <span style="color: gray">`E2E-017/disabled-child`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[58](#scenario-58)</span> | <span style="color: gray">Per-child cross-surface choices and separate mute (child: first; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-first`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[59](#scenario-59)</span> | <span style="color: gray">Per-child cross-surface choices and separate mute (child: second; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-second`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[60](#scenario-60)</span> | <span style="color: gray">Per-child cross-surface choices and separate mute (child: first; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-first`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[61](#scenario-61)</span> | <span style="color: gray">Per-child cross-surface choices and separate mute (child: second; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-second`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[62](#scenario-62)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[63](#scenario-63)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-allowed-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[64](#scenario-64)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[65](#scenario-65)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[66](#scenario-66)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[67](#scenario-67)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[68](#scenario-68)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-allowed-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[69](#scenario-69)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-allowed-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[70](#scenario-70)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[71](#scenario-71)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[72](#scenario-72)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[73](#scenario-73)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[74](#scenario-74)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-allowed-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[75](#scenario-75)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-allowed-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[76](#scenario-76)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[77](#scenario-77)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[78](#scenario-78)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[79](#scenario-79)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[80](#scenario-80)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[81](#scenario-81)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[82](#scenario-82)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[83](#scenario-83)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[84](#scenario-84)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[85](#scenario-85)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[86](#scenario-86)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[87](#scenario-87)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-allowed-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[88](#scenario-88)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[89](#scenario-89)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[90](#scenario-90)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[91](#scenario-91)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[92](#scenario-92)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[93](#scenario-93)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[94](#scenario-94)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[95](#scenario-95)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[96](#scenario-96)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[97](#scenario-97)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[98](#scenario-98)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[99](#scenario-99)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-allowed-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[100](#scenario-100)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[101](#scenario-101)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[102](#scenario-102)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[103](#scenario-103)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[104](#scenario-104)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: allowed; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[105](#scenario-105)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: allowed; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[106](#scenario-106)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[107](#scenario-107)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[108](#scenario-108)</span> | <span style="color: gray">Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[109](#scenario-109)</span> | <span style="color: gray">Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[58](#scenario-58)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: first; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-first`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[59](#scenario-59)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: second; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-second`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[60](#scenario-60)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: first; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-first`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[61](#scenario-61)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: second; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-second`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[62](#scenario-62)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[63](#scenario-63)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[64](#scenario-64)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[65](#scenario-65)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[66](#scenario-66)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[67](#scenario-67)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[68](#scenario-68)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[69](#scenario-69)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[70](#scenario-70)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[71](#scenario-71)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[72](#scenario-72)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[73](#scenario-73)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[74](#scenario-74)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[75](#scenario-75)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[76](#scenario-76)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[77](#scenario-77)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[78](#scenario-78)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[79](#scenario-79)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[80](#scenario-80)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[81](#scenario-81)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[82](#scenario-82)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[83](#scenario-83)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[84](#scenario-84)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[85](#scenario-85)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[86](#scenario-86)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[87](#scenario-87)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[88](#scenario-88)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[89](#scenario-89)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[90](#scenario-90)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[91](#scenario-91)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: snap grid)</span> | <span style="color: gray">`E2E-019/snap-grid-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[92](#scenario-92)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[93](#scenario-93)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[94](#scenario-94)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[95](#scenario-95)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[96](#scenario-96)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[97](#scenario-97)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[98](#scenario-98)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[99](#scenario-99)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[100](#scenario-100)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[101](#scenario-101)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[102](#scenario-102)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[103](#scenario-103)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[104](#scenario-104)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[105](#scenario-105)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[106](#scenario-106)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[107](#scenario-107)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[108](#scenario-108)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[109](#scenario-109)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[110](#scenario-110)</span> | <span style="color: gray">Catalog update/disappearance between display and save (change: update)</span> | <span style="color: gray">`E2E-020/update`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[111](#scenario-111)</span> | <span style="color: gray">Catalog update/disappearance between display and save (change: remove)</span> | <span style="color: gray">`E2E-020/remove`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[112](#scenario-112)</span> | <span style="color: gray">Multi-session child-only transaction effects (transaction: save)</span> | <span style="color: gray">`E2E-021/save`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[113](#scenario-113)</span> | <span style="color: gray">Multi-session child-only transaction effects (transaction: approve without soft)</span> | <span style="color: gray">`E2E-021/approve-without-soft`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[114](#scenario-114)</span> | <span style="color: gray">Multi-session child-only transaction effects (transaction: approve with soft)</span> | <span style="color: gray">`E2E-021/approve-with-soft`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[115](#scenario-115)</span> | <span style="color: gray">Multi-session child-only transaction effects (transaction: revoke)</span> | <span style="color: gray">`E2E-021/revoke`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[112](#scenario-112)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: save)</span> | <span style="color: gray">`E2E-021/save`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[113](#scenario-113)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve without soft)</span> | <span style="color: gray">`E2E-021/approve-without-soft`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[114](#scenario-114)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve with soft)</span> | <span style="color: gray">`E2E-021/approve-with-soft`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[115](#scenario-115)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: revoke)</span> | <span style="color: gray">`E2E-021/revoke`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[116](#scenario-116)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: app restart; grant: active)</span> | <span style="color: gray">`E2E-022/app-restart-active`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[117](#scenario-117)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: app restart; grant: expired)</span> | <span style="color: gray">`E2E-022/app-restart-expired`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[118](#scenario-118)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: sign out in; grant: active)</span> | <span style="color: gray">`E2E-022/sign-out-in-active`</span> | <span style="color: gray">pending</span> |
@@ -163,10 +163,10 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | <span style="color: gray">[129](#scenario-129)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: fullscreen; time: daily dominant)</span> | <span style="color: gray">`E2E-024/daily-dominant-fullscreen`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[130](#scenario-130)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: windowed; time: grant dominant)</span> | <span style="color: gray">`E2E-024/grant-dominant-windowed`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[131](#scenario-131)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant)</span> | <span style="color: gray">`E2E-024/grant-dominant-fullscreen`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[132](#scenario-132)</span> | <span style="color: gray">Replacement grant precedence at session entry (entry: new login; soft apps: excluded)</span> | <span style="color: gray">`E2E-025/excluded-new-login`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[133](#scenario-133)</span> | <span style="color: gray">Replacement grant precedence at session entry (entry: retained unlock; soft apps: excluded)</span> | <span style="color: gray">`E2E-025/excluded-retained-unlock`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[134](#scenario-134)</span> | <span style="color: gray">Replacement grant precedence at session entry (entry: new login; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-new-login`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[135](#scenario-135)</span> | <span style="color: gray">Replacement grant precedence at session entry (entry: retained unlock; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-retained-unlock`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[132](#scenario-132)</span> | <span style="color: gray">Replace an expired grant before returning with daily time left (entry: new login; soft apps: excluded)</span> | <span style="color: gray">`E2E-025/excluded-new-login`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[133](#scenario-133)</span> | <span style="color: gray">Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: excluded)</span> | <span style="color: gray">`E2E-025/excluded-retained-unlock`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[134](#scenario-134)</span> | <span style="color: gray">Replace an expired grant before returning with daily time left (entry: new login; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-new-login`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[135](#scenario-135)</span> | <span style="color: gray">Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-retained-unlock`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[136](#scenario-136)</span> | <span style="color: gray">Customer package update and activation (activation: process)</span> | <span style="color: gray">`E2E-026/process`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[137](#scenario-137)</span> | <span style="color: gray">Customer package update and activation (activation: session)</span> | <span style="color: gray">`E2E-026/session`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
@@ -186,8 +186,103 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[154](#scenario-154)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: attachments)</span> | <span style="color: gray">`E2E-031/attachments`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[155](#scenario-155)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: diagnostic export)</span> | <span style="color: gray">`E2E-031/diagnostic-export`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Authorized feedback delivery</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Authorized feedback retry after a real transport failure</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[158](#scenario-158)</span> | <span style="color: gray">Choose allowances and save edits (flow: boundaries)</span> | <span style="color: gray">`E2E-035/boundaries`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[159](#scenario-159)</span> | <span style="color: gray">Choose allowances and save edits (flow: save order)</span> | <span style="color: gray">`E2E-035/save-order`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[160](#scenario-160)</span> | <span style="color: gray">Revoke when there is no active grant (balance: daily positive)</span> | <span style="color: gray">`E2E-036/daily-positive`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[161](#scenario-161)</span> | <span style="color: gray">Revoke when there is no active grant (balance: zero total)</span> | <span style="color: gray">`E2E-036/zero-total`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[162](#scenario-162)</span> | <span style="color: gray">Use and remember the child panel option (boundary: sign out in)</span> | <span style="color: gray">`E2E-037/sign-out-in`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[163](#scenario-163)</span> | <span style="color: gray">Use and remember the child panel option (boundary: reboot)</span> | <span style="color: gray">`E2E-037/reboot`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[164](#scenario-164)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: none)</span> | <span style="color: gray">`E2E-038/none`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[165](#scenario-165)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: unlock)</span> | <span style="color: gray">`E2E-038/unlock`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[166](#scenario-166)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: fresh login)</span> | <span style="color: gray">`E2E-038/fresh-login`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[167](#scenario-167)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: allowance edit)</span> | <span style="color: gray">`E2E-038/allowance-edit`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[168](#scenario-168)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: toggle)</span> | <span style="color: gray">`E2E-038/toggle`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[169](#scenario-169)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: app save)</span> | <span style="color: gray">`E2E-038/app-save`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[170](#scenario-170)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: revoke)</span> | <span style="color: gray">`E2E-038/revoke`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[171](#scenario-171)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: overlay lock)</span> | <span style="color: gray">`E2E-039/overlay-lock`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[172](#scenario-172)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: overlay switch)</span> | <span style="color: gray">`E2E-039/overlay-switch`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[173](#scenario-173)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: overlay signout)</span> | <span style="color: gray">`E2E-039/overlay-signout`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[174](#scenario-174)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: overlay close)</span> | <span style="color: gray">`E2E-039/overlay-close`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[175](#scenario-175)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: kiosk close)</span> | <span style="color: gray">`E2E-039/kiosk-close`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[176](#scenario-176)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: overlay cooldown)</span> | <span style="color: gray">`E2E-039/overlay-cooldown`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[177](#scenario-177)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: kiosk cooldown same)</span> | <span style="color: gray">`E2E-039/kiosk-cooldown-same`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[178](#scenario-178)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: kiosk cooldown other)</span> | <span style="color: gray">`E2E-039/kiosk-cooldown-other`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[179](#scenario-179)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: add child)</span> | <span style="color: gray">`E2E-040/add-child`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[180](#scenario-180)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: remove selected)</span> | <span style="color: gray">`E2E-040/remove-selected`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[181](#scenario-181)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: remove last child)</span> | <span style="color: gray">`E2E-040/remove-last-child`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[182](#scenario-182)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: ineligible approver)</span> | <span style="color: gray">`E2E-040/ineligible-approver`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[183](#scenario-183)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: missing remembered child)</span> | <span style="color: gray">`E2E-040/missing-remembered-child`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[184](#scenario-184)</span> | <span style="color: gray">Search the app list and edit match rules (flow: search filters)</span> | <span style="color: gray">`E2E-041/search-filters`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[185](#scenario-185)</span> | <span style="color: gray">Search the app list and edit match rules (flow: match editor)</span> | <span style="color: gray">`E2E-041/match-editor`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[186](#scenario-186)</span> | <span style="color: gray">Search the app list and edit match rules (flow: match reopen)</span> | <span style="color: gray">`E2E-041/match-reopen`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[187](#scenario-187)</span> | <span style="color: gray">Search the app list and edit match rules (flow: shared launchers)</span> | <span style="color: gray">`E2E-041/shared-launchers`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[188](#scenario-188)</span> | <span style="color: gray">Search the app list and edit match rules (flow: special paths)</span> | <span style="color: gray">`E2E-041/special-paths`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[189](#scenario-189)</span> | <span style="color: gray">Search the app list and edit match rules (flow: pattern files)</span> | <span style="color: gray">`E2E-041/pattern-files`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[190](#scenario-190)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: parent links)</span> | <span style="color: gray">`E2E-042/parent-links`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[191](#scenario-191)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: child overlay)</span> | <span style="color: gray">`E2E-042/child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[192](#scenario-192)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: kiosk)</span> | <span style="color: gray">`E2E-042/kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[193](#scenario-193)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: command help)</span> | <span style="color: gray">`E2E-042/command-help`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[194](#scenario-194)</span> | <span style="color: gray">Use local controls and approvals while offline (surface: child overlay)</span> | <span style="color: gray">`E2E-043/child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[195](#scenario-195)</span> | <span style="color: gray">Use local controls and approvals while offline (surface: kiosk)</span> | <span style="color: gray">`E2E-043/kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[196](#scenario-196)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: daily reset)</span> | <span style="color: gray">`E2E-044/ordinary-daily-reset`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[197](#scenario-197)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: rest of day)</span> | <span style="color: gray">`E2E-044/ordinary-rest-of-day`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[198](#scenario-198)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: fixed grant)</span> | <span style="color: gray">`E2E-044/ordinary-fixed-grant`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[199](#scenario-199)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: spring forward; time: daily reset)</span> | <span style="color: gray">`E2E-044/spring-forward-daily-reset`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[200](#scenario-200)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: spring forward; time: rest of day)</span> | <span style="color: gray">`E2E-044/spring-forward-rest-of-day`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[201](#scenario-201)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: spring forward; time: fixed grant)</span> | <span style="color: gray">`E2E-044/spring-forward-fixed-grant`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[202](#scenario-202)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: fall back; time: daily reset)</span> | <span style="color: gray">`E2E-044/fall-back-daily-reset`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[203](#scenario-203)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: fall back; time: rest of day)</span> | <span style="color: gray">`E2E-044/fall-back-rest-of-day`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[204](#scenario-204)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: fall back; time: fixed grant)</span> | <span style="color: gray">`E2E-044/fall-back-fixed-grant`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[205](#scenario-205)</span> | <span style="color: gray">Review or decline an error report (surface: parent)</span> | <span style="color: gray">`E2E-045/parent`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[206](#scenario-206)</span> | <span style="color: gray">Review or decline an error report (surface: child overlay)</span> | <span style="color: gray">`E2E-045/child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[207](#scenario-207)</span> | <span style="color: gray">Review or decline an error report (surface: kiosk)</span> | <span style="color: gray">`E2E-045/kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[208](#scenario-208)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: retry; surface: parent)</span> | <span style="color: gray">`E2E-046/parent-retry`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[209](#scenario-209)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: without logs; surface: parent)</span> | <span style="color: gray">`E2E-046/parent-without-logs`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[210](#scenario-210)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: retry; surface: child overlay)</span> | <span style="color: gray">`E2E-046/child-overlay-retry`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[211](#scenario-211)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: without logs; surface: child overlay)</span> | <span style="color: gray">`E2E-046/child-overlay-without-logs`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[212](#scenario-212)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: retry; surface: kiosk)</span> | <span style="color: gray">`E2E-046/kiosk-retry`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[213](#scenario-213)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: without logs; surface: kiosk)</span> | <span style="color: gray">`E2E-046/kiosk-without-logs`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[214](#scenario-214)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: no reply)</span> | <span style="color: gray">`E2E-047/no-reply`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[215](#scenario-215)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: background)</span> | <span style="color: gray">`E2E-047/background`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[216](#scenario-216)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: app exit)</span> | <span style="color: gray">`E2E-047/app-exit`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[217](#scenario-217)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: retry expired)</span> | <span style="color: gray">`E2E-047/retry-expired`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[218](#scenario-218)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: overlay stop)</span> | <span style="color: gray">`E2E-047/overlay-stop`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[219](#scenario-219)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: kiosk stop)</span> | <span style="color: gray">`E2E-047/kiosk-stop`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[220](#scenario-220)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: overlay success)</span> | <span style="color: gray">`E2E-047/overlay-success`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[221](#scenario-221)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: kiosk success)</span> | <span style="color: gray">`E2E-047/kiosk-success`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[222](#scenario-222)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: parent error success)</span> | <span style="color: gray">`E2E-047/parent-error-success`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[223](#scenario-223)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily only; surface: child overlay)</span> | <span style="color: gray">`E2E-048/daily-only-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[224](#scenario-224)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily only; surface: kiosk)</span> | <span style="color: gray">`E2E-048/daily-only-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[225](#scenario-225)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: grant only; surface: child overlay)</span> | <span style="color: gray">`E2E-048/grant-only-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[226](#scenario-226)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: grant only; surface: kiosk)</span> | <span style="color: gray">`E2E-048/grant-only-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[227](#scenario-227)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily dominant; surface: child overlay)</span> | <span style="color: gray">`E2E-048/daily-dominant-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[228](#scenario-228)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily dominant; surface: kiosk)</span> | <span style="color: gray">`E2E-048/daily-dominant-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[229](#scenario-229)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: grant dominant; surface: child overlay)</span> | <span style="color: gray">`E2E-048/grant-dominant-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[230](#scenario-230)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk)</span> | <span style="color: gray">`E2E-048/grant-dominant-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[231](#scenario-231)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/native-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[232](#scenario-232)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native grid; surface: kiosk)</span> | <span style="color: gray">`E2E-049/native-grid-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[233](#scenario-233)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native desktop; surface: child overlay)</span> | <span style="color: gray">`E2E-049/native-desktop-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[234](#scenario-234)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native desktop; surface: kiosk)</span> | <span style="color: gray">`E2E-049/native-desktop-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[235](#scenario-235)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native file manager; surface: child overlay)</span> | <span style="color: gray">`E2E-049/native-file-manager-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[236](#scenario-236)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native file manager; surface: kiosk)</span> | <span style="color: gray">`E2E-049/native-file-manager-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[237](#scenario-237)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native command; surface: child overlay)</span> | <span style="color: gray">`E2E-049/native-command-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[238](#scenario-238)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/native-command-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[239](#scenario-239)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/snap-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[240](#scenario-240)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap grid; surface: kiosk)</span> | <span style="color: gray">`E2E-049/snap-grid-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[241](#scenario-241)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap command; surface: child overlay)</span> | <span style="color: gray">`E2E-049/snap-command-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[242](#scenario-242)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/snap-command-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[243](#scenario-243)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: flatpak grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/flatpak-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[244](#scenario-244)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: flatpak grid; surface: kiosk)</span> | <span style="color: gray">`E2E-049/flatpak-grid-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[245](#scenario-245)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: flatpak command; surface: child overlay)</span> | <span style="color: gray">`E2E-049/flatpak-command-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[246](#scenario-246)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: flatpak command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/flatpak-command-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[247](#scenario-247)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: overlay first)</span> | <span style="color: gray">`E2E-050/overlay-first-retained`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[248](#scenario-248)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: fresh; surface order: overlay first)</span> | <span style="color: gray">`E2E-050/overlay-first-fresh`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[249](#scenario-249)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: kiosk first)</span> | <span style="color: gray">`E2E-050/kiosk-first-retained`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[250](#scenario-250)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: fresh; surface order: kiosk first)</span> | <span style="color: gray">`E2E-050/kiosk-first-fresh`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[251](#scenario-251)</span> | <span style="color: gray">Alternate two children's work and game routines without mixing their choices (first child: jordan)</span> | <span style="color: gray">`E2E-051/jordan`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[252](#scenario-252)</span> | <span style="color: gray">Alternate two children's work and game routines without mixing their choices (first child: riley)</span> | <span style="color: gray">`E2E-051/riley`</span> | <span style="color: gray">pending</span> |
 
 ### Scenario 1
 
@@ -213,9 +308,9 @@ Variant: children: existing and new
 
 **Steps:**
 
-- For both variants, reject the wrong-account prompt, qualify and freshly recheck the intended empty masked focused field before secret input, and find the launchable Parent result through public app search. For existing-and-new, launch Parent, expand the child picker, navigate its public list order, verify the intended highlight and independently observe the selected existing child's limits-off/zero-minute settings, remaining-time section and App Limits controls. For none, pause at the launchable search result before launching Parent.
-- For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe it appear without restarting Parent. For none, pause before launching Parent while the fixed fixture makes only the child accounts ineligible.
-- For existing-and-new, verify the new child's highlight before Enter, then independently observe its selected identity and displayed settings. Navigate App Limits search and rule-filter controls, return to Screen Limits and verify preserved values, then select the original child and compare its displayed settings with the initial observation. For none, launch Parent with Enter after durable fixture preparation and independently require its showing no-eligible-account explanation and empty public child picker. Both variants use fresh public UI state without application image assertions or fixed coordinates. No time policy is changed or child-session enforcement claimed.
+- Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
+- For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, open Parent on the declared computer with no eligible child accounts.
+- For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, read the no-eligible-account explanation and (None) child selection.
 
 ### Scenario 4
 
@@ -227,9 +322,9 @@ Variant: children: none
 
 **Steps:**
 
-- For both variants, reject the wrong-account prompt, qualify and freshly recheck the intended empty masked focused field before secret input, and find the launchable Parent result through public app search. For existing-and-new, launch Parent, expand the child picker, navigate its public list order, verify the intended highlight and independently observe the selected existing child's limits-off/zero-minute settings, remaining-time section and App Limits controls. For none, pause at the launchable search result before launching Parent.
-- For existing-and-new, keep Parent open while the supported account fixture provisions another eligible local child, then observe it appear without restarting Parent. For none, pause before launching Parent while the fixed fixture makes only the child accounts ineligible.
-- For existing-and-new, verify the new child's highlight before Enter, then independently observe its selected identity and displayed settings. Navigate App Limits search and rule-filter controls, return to Screen Limits and verify preserved values, then select the original child and compare its displayed settings with the initial observation. For none, launch Parent with Enter after durable fixture preparation and independently require its showing no-eligible-account explanation and empty public child picker. Both variants use fresh public UI state without application image assertions or fixed coordinates. No time policy is changed or child-session enforcement claimed.
+- Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
+- For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, open Parent on the declared computer with no eligible child accounts.
+- For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, read the no-eligible-account explanation and (None) child selection.
 
 ### Scenario 5
 
@@ -242,7 +337,7 @@ Variant: launch: app grid
 **Steps:**
 
 - Log in as a standard user and open the selected customer launch surface: app grid or terminal.
-- For app-grid, type the full product name through normal input; independently read the exact query and web-only suggestion through public accessibility, and require fresh stable absence of the Parent launcher and management window. Appearance, resolution and scale do not gate acceptance. For terminal, invoke the executable and observe denial. No management controls become available through either route.
+- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
 
 ### Scenario 151
 
@@ -261,7 +356,7 @@ Variant: surface: parent
 
 ### Scenario 2
 
-**Clean install, reboot and ready GDM**
+**Install the app and begin managing a child**
 
 Case: `E2E-002/clean` · Category: customer-journey · Status: **pending**
 
@@ -269,11 +364,11 @@ Variant: installation: clean
 
 **Steps:**
 
-- Prove the product is absent; use a real administrator terminal and authentication to install the digest-verified package through the documented package command; retain private output and verify the product-created reboot marker.
-- Observe the reboot notice and perform the requested actual machine reboot.
-- Verify usable GDM and enforcement readiness before a managed sign-in.
+- On a supported computer without the app, sign in as a parent, open Terminal and install the supplied release with the documented package command. Authenticate if asked and read the completion and reboot notice.
+- Restart using the desktop controls. At sign-in, check that personal accounts remain available and the Oh No! Parent Control request station is offered.
+- Sign in as the parent, open Oh No! Parent Control, select a child and read fresh Screen Limits and App Limits settings. Switch User, enter the request station, read its form, and Cancel back to sign-in.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -290,7 +385,7 @@ Variant: launch: terminal
 **Steps:**
 
 - Log in as a standard user and open the selected customer launch surface: app grid or terminal.
-- For app-grid, type the full product name through normal input; independently read the exact query and web-only suggestion through public accessibility, and require fresh stable absence of the Parent launcher and management window. Appearance, resolution and scale do not gate acceptance. For terminal, invoke the executable and observe denial. No management controls become available through either route.
+- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
 
 Pending: Implementation must implement this complete journey and its assertions.
 
@@ -300,7 +395,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 7
 
-**Allowance validation, automatic saves and live control (session: new; time: daily only)**
+**Change screen limits while starting or returning to a child desktop (session: new; time: daily only)**
 
 Case: `E2E-005/daily-only-new` · Category: customer-journey · Status: **pending**
 
@@ -308,12 +403,12 @@ Variant: session: new; time: daily only
 
 **Steps:**
 
-- Log in as Parent and establish the selected time state through real allowance changes and, when needed, kiosk approval.
-- Exercise allowance 0 and 1440 minutes, values just outside both bounds, and invalid input; inspect loading, saving and remaining-time explanations.
-- Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
-- Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
+- Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
+- Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
+- While limits stay on, change the allowance and read both balances. Daily-only and combined visit 4, 5, 0 and 5 minutes; grant-only visits 0, 4 and 0. After every save check actual child access, blocked launches and any preserved grant deadline. Zero daily time denies daily-only access while an active grant still permits use.
+- Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -321,7 +416,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 8
 
-**Allowance validation, automatic saves and live control (session: retained; time: daily only)**
+**Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)**
 
 Case: `E2E-005/daily-only-retained` · Category: customer-journey · Status: **pending**
 
@@ -329,12 +424,12 @@ Variant: session: retained; time: daily only
 
 **Steps:**
 
-- Log in as Parent and establish the selected time state through real allowance changes and, when needed, kiosk approval.
-- Exercise allowance 0 and 1440 minutes, values just outside both bounds, and invalid input; inspect loading, saving and remaining-time explanations.
-- Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
-- Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
+- Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
+- Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
+- While limits stay on, change the allowance and read both balances. Daily-only and combined visit 4, 5, 0 and 5 minutes; grant-only visits 0, 4 and 0. After every save check actual child access, blocked launches and any preserved grant deadline. Zero daily time denies daily-only access while an active grant still permits use.
+- Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -342,7 +437,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 9
 
-**Allowance validation, automatic saves and live control (session: new; time: grant only)**
+**Change screen limits while starting or returning to a child desktop (session: new; time: grant only)**
 
 Case: `E2E-005/grant-only-new` · Category: customer-journey · Status: **pending**
 
@@ -350,12 +445,12 @@ Variant: session: new; time: grant only
 
 **Steps:**
 
-- Log in as Parent and establish the selected time state through real allowance changes and, when needed, kiosk approval.
-- Exercise allowance 0 and 1440 minutes, values just outside both bounds, and invalid input; inspect loading, saving and remaining-time explanations.
-- Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
-- Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
+- Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
+- Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
+- While limits stay on, change the allowance and read both balances. Daily-only and combined visit 4, 5, 0 and 5 minutes; grant-only visits 0, 4 and 0. After every save check actual child access, blocked launches and any preserved grant deadline. Zero daily time denies daily-only access while an active grant still permits use.
+- Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -363,7 +458,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 10
 
-**Allowance validation, automatic saves and live control (session: retained; time: grant only)**
+**Change screen limits while starting or returning to a child desktop (session: retained; time: grant only)**
 
 Case: `E2E-005/grant-only-retained` · Category: customer-journey · Status: **pending**
 
@@ -371,12 +466,12 @@ Variant: session: retained; time: grant only
 
 **Steps:**
 
-- Log in as Parent and establish the selected time state through real allowance changes and, when needed, kiosk approval.
-- Exercise allowance 0 and 1440 minutes, values just outside both bounds, and invalid input; inspect loading, saving and remaining-time explanations.
-- Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
-- Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
+- Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
+- Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
+- While limits stay on, change the allowance and read both balances. Daily-only and combined visit 4, 5, 0 and 5 minutes; grant-only visits 0, 4 and 0. After every save check actual child access, blocked launches and any preserved grant deadline. Zero daily time denies daily-only access while an active grant still permits use.
+- Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -384,7 +479,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 11
 
-**Allowance validation, automatic saves and live control (session: new; time: combined)**
+**Change screen limits while starting or returning to a child desktop (session: new; time: combined)**
 
 Case: `E2E-005/combined-new` · Category: customer-journey · Status: **pending**
 
@@ -392,12 +487,12 @@ Variant: session: new; time: combined
 
 **Steps:**
 
-- Log in as Parent and establish the selected time state through real allowance changes and, when needed, kiosk approval.
-- Exercise allowance 0 and 1440 minutes, values just outside both bounds, and invalid input; inspect loading, saving and remaining-time explanations.
-- Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
-- Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
+- Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
+- Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
+- While limits stay on, change the allowance and read both balances. Daily-only and combined visit 4, 5, 0 and 5 minutes; grant-only visits 0, 4 and 0. After every save check actual child access, blocked launches and any preserved grant deadline. Zero daily time denies daily-only access while an active grant still permits use.
+- Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -405,7 +500,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 12
 
-**Allowance validation, automatic saves and live control (session: retained; time: combined)**
+**Change screen limits while starting or returning to a child desktop (session: retained; time: combined)**
 
 Case: `E2E-005/combined-retained` · Category: customer-journey · Status: **pending**
 
@@ -413,12 +508,12 @@ Variant: session: retained; time: combined
 
 **Steps:**
 
-- Log in as Parent and establish the selected time state through real allowance changes and, when needed, kiosk approval.
-- Exercise allowance 0 and 1440 minutes, values just outside both bounds, and invalid input; inspect loading, saving and remaining-time explanations.
-- Enable control, change an enabled allowance while a grant is active where applicable, disable, then enable again; wait for each visible save.
-- Enter or resume the selected child session and attempt allowed and blocked apps after each transition.
+- Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
+- Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
+- While limits stay on, change the allowance and read both balances. Daily-only and combined visit 4, 5, 0 and 5 minutes; grant-only visits 0, 4 and 0. After every save check actual child access, blocked launches and any preserved grant deadline. Zero daily time denies daily-only access while an active grant still permits use.
+- Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -426,7 +521,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 13
 
-**App policy editing and matching (control: enabled; match: precise)**
+**Change app rules while children use apps (control: enabled; match: precise)**
 
 Case: `E2E-006/enabled-precise` · Category: customer-journey · Status: **pending**
 
@@ -434,11 +529,11 @@ Variant: control: enabled; match: precise
 
 **Steps:**
 
-- As Parent set the selected control mode, search/filter the child catalog and choose the selected match mode.
-- Sequentially save allowed, hard-blocked and soft-blocked rules while matching child apps and another user apps are open.
-- As the child try matching and nonmatching targets after each save; verify other-user use continues.
+- Give the child usable time, choose the declared screen-limit and match modes in Parent, and leave recognizable activities open for the child and another user. Include matching and existing nonmatching apps.
+- For each of the six directed changes among Always Allowed, Soft Blocked and Hard Blocked, prepare any required open activity through normal permission and approval, save that change, then revisit the child and other user's retained activities before making the next change. Try matching and existing nonmatching launches after every save.
+- Reopen Parent after the complete transition sequence and read the final Always Allowed rule. Each intermediate closure, preservation and launch result must already have been checked before a later edit can conceal it.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -446,7 +541,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 14
 
-**App policy editing and matching (control: enabled; match: pattern)**
+**Change app rules while children use apps (control: enabled; match: pattern)**
 
 Case: `E2E-006/enabled-pattern` · Category: customer-journey · Status: **pending**
 
@@ -454,11 +549,11 @@ Variant: control: enabled; match: pattern
 
 **Steps:**
 
-- As Parent set the selected control mode, search/filter the child catalog and choose the selected match mode.
-- Sequentially save allowed, hard-blocked and soft-blocked rules while matching child apps and another user apps are open.
-- As the child try matching and nonmatching targets after each save; verify other-user use continues.
+- Give the child usable time, choose the declared screen-limit and match modes in Parent, and leave recognizable activities open for the child and another user. Include matching and existing nonmatching apps.
+- For each of the six directed changes among Always Allowed, Soft Blocked and Hard Blocked, prepare any required open activity through normal permission and approval, save that change, then revisit the child and other user's retained activities before making the next change. Try matching and existing nonmatching launches after every save.
+- Reopen Parent after the complete transition sequence and read the final Always Allowed rule. Each intermediate closure, preservation and launch result must already have been checked before a later edit can conceal it.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -466,7 +561,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 15
 
-**App policy editing and matching (control: disabled; match: precise)**
+**Change app rules while children use apps (control: disabled; match: precise)**
 
 Case: `E2E-006/disabled-precise` · Category: customer-journey · Status: **pending**
 
@@ -474,11 +569,11 @@ Variant: control: disabled; match: precise
 
 **Steps:**
 
-- As Parent set the selected control mode, search/filter the child catalog and choose the selected match mode.
-- Sequentially save allowed, hard-blocked and soft-blocked rules while matching child apps and another user apps are open.
-- As the child try matching and nonmatching targets after each save; verify other-user use continues.
+- Give the child usable time, choose the declared screen-limit and match modes in Parent, and leave recognizable activities open for the child and another user. Include matching and existing nonmatching apps.
+- For each of the six directed changes among Always Allowed, Soft Blocked and Hard Blocked, prepare any required open activity through normal permission and approval, save that change, then revisit the child and other user's retained activities before making the next change. Try matching and existing nonmatching launches after every save.
+- Reopen Parent after the complete transition sequence and read the final Always Allowed rule. Each intermediate closure, preservation and launch result must already have been checked before a later edit can conceal it.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -486,7 +581,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 16
 
-**App policy editing and matching (control: disabled; match: pattern)**
+**Change app rules while children use apps (control: disabled; match: pattern)**
 
 Case: `E2E-006/disabled-pattern` · Category: customer-journey · Status: **pending**
 
@@ -494,11 +589,11 @@ Variant: control: disabled; match: pattern
 
 **Steps:**
 
-- As Parent set the selected control mode, search/filter the child catalog and choose the selected match mode.
-- Sequentially save allowed, hard-blocked and soft-blocked rules while matching child apps and another user apps are open.
-- As the child try matching and nonmatching targets after each save; verify other-user use continues.
+- Give the child usable time, choose the declared screen-limit and match modes in Parent, and leave recognizable activities open for the child and another user. Include matching and existing nonmatching apps.
+- For each of the six directed changes among Always Allowed, Soft Blocked and Hard Blocked, prepare any required open activity through normal permission and approval, save that change, then revisit the child and other user's retained activities before making the next change. Try matching and existing nonmatching launches after every save.
+- Reopen Parent after the complete transition sequence and read the final Always Allowed rule. Each intermediate closure, preservation and launch result must already have been checked before a later edit can conceal it.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -514,11 +609,11 @@ Variant: daily: zero; sessions: single
 
 **Steps:**
 
-- Establish the selected daily time, real grant and child sessions; open child and other-user apps.
-- Parent opens revocation confirmation, checks its warning, then cancels; confirm state is unchanged.
-- Parent confirms revocation and observes child blocked apps and time across the retained sessions.
+- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
+- Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
+- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -534,11 +629,11 @@ Variant: daily: zero; sessions: multiple
 
 **Steps:**
 
-- Establish the selected daily time, real grant and child sessions; open child and other-user apps.
-- Parent opens revocation confirmation, checks its warning, then cancels; confirm state is unchanged.
-- Parent confirms revocation and observes child blocked apps and time across the retained sessions.
+- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
+- Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
+- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -554,11 +649,11 @@ Variant: daily: remaining; sessions: single
 
 **Steps:**
 
-- Establish the selected daily time, real grant and child sessions; open child and other-user apps.
-- Parent opens revocation confirmation, checks its warning, then cancels; confirm state is unchanged.
-- Parent confirms revocation and observes child blocked apps and time across the retained sessions.
+- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
+- Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
+- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -574,11 +669,11 @@ Variant: daily: remaining; sessions: multiple
 
 **Steps:**
 
-- Establish the selected daily time, real grant and child sessions; open child and other-user apps.
-- Parent opens revocation confirmation, checks its warning, then cancels; confirm state is unchanged.
-- Parent confirms revocation and observes child blocked apps and time across the retained sessions.
+- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
+- Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
+- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -594,11 +689,11 @@ Variant: entry: retained unlock
 
 **Steps:**
 
-- Parent enables a short daily-only allowance; child signs in and uses the desktop.
-- Consume the actual allowance naturally; do not jump clocks, inject usage, or invoke Lock.
-- Verify lock without logout; for fresh-login log out via the normal interface, then attempt the selected entry with the correct password.
+- Set a short daily allowance with limits on and no one-time time displayed. Sign in as the child and use an allowed app.
+- Continue using the app until the allowance runs out and the desktop locks by itself.
+- Try the correct child password and read the time-limit restriction. For fresh-login, obtain temporary time at the station, unlock and log out normally, then have the parent revoke that temporary grant before trying fresh sign-in with exhausted daily time.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -614,11 +709,11 @@ Variant: entry: fresh login
 
 **Steps:**
 
-- Parent enables a short daily-only allowance; child signs in and uses the desktop.
-- Consume the actual allowance naturally; do not jump clocks, inject usage, or invoke Lock.
-- Verify lock without logout; for fresh-login log out via the normal interface, then attempt the selected entry with the correct password.
+- Set a short daily allowance with limits on and no one-time time displayed. Sign in as the child and use an allowed app.
+- Continue using the app until the allowance runs out and the desktop locks by itself.
+- Try the correct child password and read the time-limit restriction. For fresh-login, obtain temporary time at the station, unlock and log out normally, then have the parent revoke that temporary grant before trying fresh sign-in with exhausted daily time.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -626,7 +721,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 23
 
-**Grant expiry followed by kiosk approval and unlock (soft apps: excluded)**
+**Recover unfinished work after grant-only time runs out (soft apps: excluded)**
 
 Case: `E2E-009/excluded` · Category: customer-journey · Status: **pending**
 
@@ -634,11 +729,11 @@ Variant: soft apps: excluded
 
 **Steps:**
 
-- Obtain a short grant through real kiosk authentication and log into the child desktop with open apps.
-- Let the grant expire naturally and verify retained-session lock.
-- Obtain a replacement kiosk grant with the selected soft-app choice and unlock with the correct child password.
+- Set zero daily allowance and enable limits. Obtain a short station grant including soft apps, sign in as the child, and leave recognizable work in an allowed app and a soft-blocked app.
+- Use the desktop until it locks naturally. Try the correct password and read the time-limit restriction.
+- Approve replacement station time with the declared soft-app choice and unlock the retained desktop. Compare the allowed work with its earlier state. The soft activity remains when included and closes when excluded; try new hard- and soft-blocked launches.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -646,7 +741,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 24
 
-**Grant expiry followed by kiosk approval and unlock (soft apps: included)**
+**Recover unfinished work after grant-only time runs out (soft apps: included)**
 
 Case: `E2E-009/included` · Category: customer-journey · Status: **pending**
 
@@ -654,11 +749,11 @@ Variant: soft apps: included
 
 **Steps:**
 
-- Obtain a short grant through real kiosk authentication and log into the child desktop with open apps.
-- Let the grant expire naturally and verify retained-session lock.
-- Obtain a replacement kiosk grant with the selected soft-app choice and unlock with the correct child password.
+- Set zero daily allowance and enable limits. Obtain a short station grant including soft apps, sign in as the child, and leave recognizable work in an allowed app and a soft-blocked app.
+- Use the desktop until it locks naturally. Try the correct password and read the time-limit restriction.
+- Approve replacement station time with the declared soft-app choice and unlock the retained desktop. Compare the allowed work with its earlier state. The soft activity remains when included and closes when excluded; try new hard- and soft-blocked launches.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -674,11 +769,11 @@ Variant: foreground: parent
 
 **Steps:**
 
-- Give the child a short grant through the UI, sign in, then Switch User to the selected other foreground user.
-- Let the retained child grant expire naturally while interacting with the other desktop.
-- Switch back and attempt child unlock without new time.
+- Give the child a short grant with zero daily allowance, sign in and read the countdown. Switch User to the declared parent or other child and start a recognizable activity.
+- Keep using that foreground activity beyond the child's earlier remaining interval.
+- Switch back and try the correct child password without more time. Read the restriction, then return to the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -694,11 +789,11 @@ Variant: foreground: other child
 
 **Steps:**
 
-- Give the child a short grant through the UI, sign in, then Switch User to the selected other foreground user.
-- Let the retained child grant expire naturally while interacting with the other desktop.
-- Switch back and attempt child unlock without new time.
+- Give the child a short grant with zero daily allowance, sign in and read the countdown. Switch User to the declared parent or other child and start a recognizable activity.
+- Keep using that foreground activity beyond the child's earlier remaining interval.
+- Switch back and try the correct child password without more time. Read the restriction, then return to the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -714,11 +809,11 @@ Variant: time: daily only
 
 **Steps:**
 
-- Establish the selected time sources through Parent settings and real approval, then log in as child.
-- Observe actual minute ticks and final-second countdown with measured monotonic intervals.
-- Visit unlocked desktop, lock screen and GDM using normal controls; verify panel visibility and refresh on return.
+- Establish the declared daily-only, grant-only or combined time through Parent and actual approval. Read both Parent balances, sign in as the child, and read the countdown and hover explanation.
+- While time is ample, lock and unlock normally, visit sign-in and an unrestricted user's desktop, then return. Check countdown absence on other surfaces and its refreshed value on the child desktop.
+- Use the desktop through minute changes and the final minute, reading the seconds countdown against elapsed time. If time reaches zero, observe the normal lock.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -734,11 +829,11 @@ Variant: time: grant only
 
 **Steps:**
 
-- Establish the selected time sources through Parent settings and real approval, then log in as child.
-- Observe actual minute ticks and final-second countdown with measured monotonic intervals.
-- Visit unlocked desktop, lock screen and GDM using normal controls; verify panel visibility and refresh on return.
+- Establish the declared daily-only, grant-only or combined time through Parent and actual approval. Read both Parent balances, sign in as the child, and read the countdown and hover explanation.
+- While time is ample, lock and unlock normally, visit sign-in and an unrestricted user's desktop, then return. Check countdown absence on other surfaces and its refreshed value on the child desktop.
+- Use the desktop through minute changes and the final minute, reading the seconds countdown against elapsed time. If time reaches zero, observe the normal lock.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -754,11 +849,11 @@ Variant: time: combined
 
 **Steps:**
 
-- Establish the selected time sources through Parent settings and real approval, then log in as child.
-- Observe actual minute ticks and final-second countdown with measured monotonic intervals.
-- Visit unlocked desktop, lock screen and GDM using normal controls; verify panel visibility and refresh on return.
+- Establish the declared daily-only, grant-only or combined time through Parent and actual approval. Read both Parent balances, sign in as the child, and read the countdown and hover explanation.
+- While time is ample, lock and unlock normally, visit sign-in and an unrestricted user's desktop, then return. Check countdown absence on other surfaces and its refreshed value on the child desktop.
+- Use the desktop through minute changes and the final minute, reading the seconds countdown against elapsed time. If time reaches zero, observe the normal lock.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -774,11 +869,11 @@ Variant: approver: first; soft apps: excluded
 
 **Steps:**
 
-- In the enabled child desktop open the request panel repeatedly and confirm only one overlay with fixed child identity.
-- Select the chosen eligible parent, duration and soft-app option; open the real authentication prompt.
-- Enter only that parent credential through secret-safe input and observe atomic success, app effects and overlay closure.
+- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then repeatedly open the panel form to verify one form with this child fixed.
+- Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, request again, verify a new parent prompt is required and cancel.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -794,11 +889,11 @@ Variant: approver: second; soft apps: excluded
 
 **Steps:**
 
-- In the enabled child desktop open the request panel repeatedly and confirm only one overlay with fixed child identity.
-- Select the chosen eligible parent, duration and soft-app option; open the real authentication prompt.
-- Enter only that parent credential through secret-safe input and observe atomic success, app effects and overlay closure.
+- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then repeatedly open the panel form to verify one form with this child fixed.
+- Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, request again, verify a new parent prompt is required and cancel.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -814,11 +909,11 @@ Variant: approver: first; soft apps: included
 
 **Steps:**
 
-- In the enabled child desktop open the request panel repeatedly and confirm only one overlay with fixed child identity.
-- Select the chosen eligible parent, duration and soft-app option; open the real authentication prompt.
-- Enter only that parent credential through secret-safe input and observe atomic success, app effects and overlay closure.
+- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then repeatedly open the panel form to verify one form with this child fixed.
+- Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, request again, verify a new parent prompt is required and cancel.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -834,11 +929,11 @@ Variant: approver: second; soft apps: included
 
 **Steps:**
 
-- In the enabled child desktop open the request panel repeatedly and confirm only one overlay with fixed child identity.
-- Select the chosen eligible parent, duration and soft-app option; open the real authentication prompt.
-- Enter only that parent credential through secret-safe input and observe atomic success, app effects and overlay closure.
+- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then repeatedly open the panel form to verify one form with this child fixed.
+- Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, request again, verify a new parent prompt is required and cancel.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -854,11 +949,11 @@ Variant: outcome: wrong password; surface: child overlay
 
 **Steps:**
 
-- Open the selected request surface and submit a real request with explicit child, parent and choices.
-- Enter a wrong password or cancel the real authentication prompt as selected; inspect the preserved form and access.
-- Retry from the same form and authenticate successfully.
+- Enable limits and block a test app in Parent. Overlay has positive daily time and an open child terminal; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
+- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the existing terminal to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
+- Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -874,11 +969,11 @@ Variant: outcome: cancel; surface: child overlay
 
 **Steps:**
 
-- Open the selected request surface and submit a real request with explicit child, parent and choices.
-- Enter a wrong password or cancel the real authentication prompt as selected; inspect the preserved form and access.
-- Retry from the same form and authenticate successfully.
+- Enable limits and block a test app in Parent. Overlay has positive daily time and an open child terminal; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
+- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the existing terminal to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
+- Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -894,11 +989,11 @@ Variant: outcome: wrong password; surface: kiosk
 
 **Steps:**
 
-- Open the selected request surface and submit a real request with explicit child, parent and choices.
-- Enter a wrong password or cancel the real authentication prompt as selected; inspect the preserved form and access.
-- Retry from the same form and authenticate successfully.
+- Enable limits and block a test app in Parent. Overlay has positive daily time and an open child terminal; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
+- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the existing terminal to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
+- Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -914,11 +1009,11 @@ Variant: outcome: cancel; surface: kiosk
 
 **Steps:**
 
-- Open the selected request surface and submit a real request with explicit child, parent and choices.
-- Enter a wrong password or cancel the real authentication prompt as selected; inspect the preserved form and access.
-- Retry from the same form and authenticate successfully.
+- Enable limits and block a test app in Parent. Overlay has positive daily time and an open child terminal; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
+- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the existing terminal to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
+- Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -934,11 +1029,11 @@ Variant: choice: predefined; surface: child overlay
 
 **Steps:**
 
-- Open the selected surface. For predefined test each offered duration; for custom test 0.1 and 1440, interior fractions, just outside bounds, empty and nonnumeric values; for rest-of-day select that choice.
-- Check invalid values are refused before authentication; for valid values compare the footer and request details.
-- Submit valid choices with rapid duplicate clicks and authenticate the one real request.
+- Enable limits in Parent and provide daily time for overlay entry. Open the selected form and exercise every preset or every listed custom valid/invalid value, or Rest of the day, as declared.
+- Read each footer and prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details and cancel except for the representative successful value. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
+- Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -954,11 +1049,11 @@ Variant: choice: custom; surface: child overlay
 
 **Steps:**
 
-- Open the selected surface. For predefined test each offered duration; for custom test 0.1 and 1440, interior fractions, just outside bounds, empty and nonnumeric values; for rest-of-day select that choice.
-- Check invalid values are refused before authentication; for valid values compare the footer and request details.
-- Submit valid choices with rapid duplicate clicks and authenticate the one real request.
+- Enable limits in Parent and provide daily time for overlay entry. Open the selected form and exercise every preset or every listed custom valid/invalid value, or Rest of the day, as declared.
+- Read each footer and prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details and cancel except for the representative successful value. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
+- Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -974,11 +1069,11 @@ Variant: choice: rest of day; surface: child overlay
 
 **Steps:**
 
-- Open the selected surface. For predefined test each offered duration; for custom test 0.1 and 1440, interior fractions, just outside bounds, empty and nonnumeric values; for rest-of-day select that choice.
-- Check invalid values are refused before authentication; for valid values compare the footer and request details.
-- Submit valid choices with rapid duplicate clicks and authenticate the one real request.
+- Enable limits in Parent and provide daily time for overlay entry. Open the selected form and exercise every preset or every listed custom valid/invalid value, or Rest of the day, as declared.
+- Read each footer and prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details and cancel except for the representative successful value. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
+- Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -994,11 +1089,11 @@ Variant: choice: predefined; surface: kiosk
 
 **Steps:**
 
-- Open the selected surface. For predefined test each offered duration; for custom test 0.1 and 1440, interior fractions, just outside bounds, empty and nonnumeric values; for rest-of-day select that choice.
-- Check invalid values are refused before authentication; for valid values compare the footer and request details.
-- Submit valid choices with rapid duplicate clicks and authenticate the one real request.
+- Enable limits in Parent and provide daily time for overlay entry. Open the selected form and exercise every preset or every listed custom valid/invalid value, or Rest of the day, as declared.
+- Read each footer and prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details and cancel except for the representative successful value. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
+- Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1014,11 +1109,11 @@ Variant: choice: custom; surface: kiosk
 
 **Steps:**
 
-- Open the selected surface. For predefined test each offered duration; for custom test 0.1 and 1440, interior fractions, just outside bounds, empty and nonnumeric values; for rest-of-day select that choice.
-- Check invalid values are refused before authentication; for valid values compare the footer and request details.
-- Submit valid choices with rapid duplicate clicks and authenticate the one real request.
+- Enable limits in Parent and provide daily time for overlay entry. Open the selected form and exercise every preset or every listed custom valid/invalid value, or Rest of the day, as declared.
+- Read each footer and prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details and cancel except for the representative successful value. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
+- Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1034,11 +1129,11 @@ Variant: choice: rest of day; surface: kiosk
 
 **Steps:**
 
-- Open the selected surface. For predefined test each offered duration; for custom test 0.1 and 1440, interior fractions, just outside bounds, empty and nonnumeric values; for rest-of-day select that choice.
-- Check invalid values are refused before authentication; for valid values compare the footer and request details.
-- Submit valid choices with rapid duplicate clicks and authenticate the one real request.
+- Enable limits in Parent and provide daily time for overlay entry. Open the selected form and exercise every preset or every listed custom valid/invalid value, or Rest of the day, as declared.
+- Read each footer and prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details and cancel except for the representative successful value. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
+- Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1054,10 +1149,10 @@ Variant: exit: cancel; surface: child overlay
 
 **Steps:**
 
-- Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
-- Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
+- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
+- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1073,10 +1168,10 @@ Variant: exit: escape; surface: child overlay
 
 **Steps:**
 
-- Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
-- Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
+- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
+- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1092,10 +1187,10 @@ Variant: exit: approved; surface: child overlay
 
 **Steps:**
 
-- Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
-- Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
+- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
+- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1111,10 +1206,10 @@ Variant: exit: cancel; surface: kiosk
 
 **Steps:**
 
-- Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
-- Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
+- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
+- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1130,10 +1225,10 @@ Variant: exit: escape; surface: kiosk
 
 **Steps:**
 
-- Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
-- Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
+- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
+- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1149,10 +1244,10 @@ Variant: exit: approved; surface: kiosk
 
 **Steps:**
 
-- Open the selected request form, change choices and perform the selected exit with no authentication prompt active for Cancel/Escape.
-- Verify only overlay closure in a child session or return to GDM from kiosk, including the brief approval confirmation and refreshed child countdown.
+- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
+- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1168,11 +1263,11 @@ Variant: request: approved
 
 **Steps:**
 
-- Enter the dedicated kiosk from GDM; attempt desktop, terminal, settings and Parent access through available UI routes.
-- Perform the selected real request outcome and repeat restricted-session checks where the kiosk remains active.
-- Use the normal exit to return to GDM.
+- Enable limits in Parent, return to sign-in and enter the station without an account password. Try ordinary Overview and terminal shortcuts and inspect available controls; no general desktop, terminal or management window appears.
+- Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears.
+- Exit normally or observe automatic exit after approval and verify usable sign-in.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1188,11 +1283,11 @@ Variant: request: denied
 
 **Steps:**
 
-- Enter the dedicated kiosk from GDM; attempt desktop, terminal, settings and Parent access through available UI routes.
-- Perform the selected real request outcome and repeat restricted-session checks where the kiosk remains active.
-- Use the normal exit to return to GDM.
+- Enable limits in Parent, return to sign-in and enter the station without an account password. Try ordinary Overview and terminal shortcuts and inspect available controls; no general desktop, terminal or management window appears.
+- Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears.
+- Exit normally or observe automatic exit after approval and verify usable sign-in.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1208,11 +1303,11 @@ Variant: request: cancelled
 
 **Steps:**
 
-- Enter the dedicated kiosk from GDM; attempt desktop, terminal, settings and Parent access through available UI routes.
-- Perform the selected real request outcome and repeat restricted-session checks where the kiosk remains active.
-- Use the normal exit to return to GDM.
+- Enable limits in Parent, return to sign-in and enter the station without an account password. Try ordinary Overview and terminal shortcuts and inspect available controls; no general desktop, terminal or management window appears.
+- Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears.
+- Exit normally or observe automatic exit after approval and verify usable sign-in.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1228,11 +1323,11 @@ Variant: accounts: multiple
 
 **Steps:**
 
-- Enter kiosk with the declared account fixtures; for disabled-child disable control through Parent before entering.
-- Switch among offered children and approvers where available and try to submit a request.
-- Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
+- Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off and inspects the missing eligible-parent explanation and empty list; it needs no hidden enabled-policy setup. Enter the station normally.
+- Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
+- For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1248,11 +1343,11 @@ Variant: accounts: no child
 
 **Steps:**
 
-- Enter kiosk with the declared account fixtures; for disabled-child disable control through Parent before entering.
-- Switch among offered children and approvers where available and try to submit a request.
-- Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
+- Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off and inspects the missing eligible-parent explanation and empty list; it needs no hidden enabled-policy setup. Enter the station normally.
+- Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
+- For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1268,11 +1363,11 @@ Variant: accounts: no parent
 
 **Steps:**
 
-- Enter kiosk with the declared account fixtures; for disabled-child disable control through Parent before entering.
-- Switch among offered children and approvers where available and try to submit a request.
-- Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
+- Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off and inspects the missing eligible-parent explanation and empty list; it needs no hidden enabled-policy setup. Enter the station normally.
+- Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
+- For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1288,11 +1383,11 @@ Variant: accounts: ineligible parent
 
 **Steps:**
 
-- Enter kiosk with the declared account fixtures; for disabled-child disable control through Parent before entering.
-- Switch among offered children and approvers where available and try to submit a request.
-- Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
+- Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off and inspects the missing eligible-parent explanation and empty list; it needs no hidden enabled-policy setup. Enter the station normally.
+- Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
+- For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1308,11 +1403,11 @@ Variant: accounts: disabled child
 
 **Steps:**
 
-- Enter kiosk with the declared account fixtures; for disabled-child disable control through Parent before entering.
-- Switch among offered children and approvers where available and try to submit a request.
-- Inspect loaded choices, empty/ineligible/disabled explanations and request availability.
+- Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off and inspects the missing eligible-parent explanation and empty list; it needs no hidden enabled-policy setup. Enter the station normally.
+- Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
+- For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1320,7 +1415,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 58
 
-**Per-child cross-surface choices and separate mute (child: first; direction: overlay to kiosk)**
+**Remember each child's choices across both request forms (child: first; direction: overlay to kiosk)**
 
 Case: `E2E-018/overlay-to-kiosk-first` · Category: customer-journey · Status: **pending**
 
@@ -1328,11 +1423,11 @@ Variant: child: first; direction: overlay to kiosk
 
 **Steps:**
 
-- In the starting surface select the child, duration, fractional custom value, approver, soft-app choice and mute.
-- Exit normally and visit the other request surface for that child; inspect remembered selections and its separately remembered mute.
-- Visit another child and return to verify choices are independent per child and shared only as specified.
+- Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice.
+- Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing. Check the absence of a mute control.
+- Set distinct choices for the other child and return to both children on both surfaces. Read before editing and compare per-child values and independent surface selectors.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -1340,7 +1435,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 59
 
-**Per-child cross-surface choices and separate mute (child: second; direction: overlay to kiosk)**
+**Remember each child's choices across both request forms (child: second; direction: overlay to kiosk)**
 
 Case: `E2E-018/overlay-to-kiosk-second` · Category: customer-journey · Status: **pending**
 
@@ -1348,11 +1443,11 @@ Variant: child: second; direction: overlay to kiosk
 
 **Steps:**
 
-- In the starting surface select the child, duration, fractional custom value, approver, soft-app choice and mute.
-- Exit normally and visit the other request surface for that child; inspect remembered selections and its separately remembered mute.
-- Visit another child and return to verify choices are independent per child and shared only as specified.
+- Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice.
+- Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing. Check the absence of a mute control.
+- Set distinct choices for the other child and return to both children on both surfaces. Read before editing and compare per-child values and independent surface selectors.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -1360,7 +1455,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 60
 
-**Per-child cross-surface choices and separate mute (child: first; direction: kiosk to overlay)**
+**Remember each child's choices across both request forms (child: first; direction: kiosk to overlay)**
 
 Case: `E2E-018/kiosk-to-overlay-first` · Category: customer-journey · Status: **pending**
 
@@ -1368,11 +1463,11 @@ Variant: child: first; direction: kiosk to overlay
 
 **Steps:**
 
-- In the starting surface select the child, duration, fractional custom value, approver, soft-app choice and mute.
-- Exit normally and visit the other request surface for that child; inspect remembered selections and its separately remembered mute.
-- Visit another child and return to verify choices are independent per child and shared only as specified.
+- Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice.
+- Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing. Check the absence of a mute control.
+- Set distinct choices for the other child and return to both children on both surfaces. Read before editing and compare per-child values and independent surface selectors.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -1380,7 +1475,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 61
 
-**Per-child cross-surface choices and separate mute (child: second; direction: kiosk to overlay)**
+**Remember each child's choices across both request forms (child: second; direction: kiosk to overlay)**
 
 Case: `E2E-018/kiosk-to-overlay-second` · Category: customer-journey · Status: **pending**
 
@@ -1388,11 +1483,11 @@ Variant: child: second; direction: kiosk to overlay
 
 **Steps:**
 
-- In the starting surface select the child, duration, fractional custom value, approver, soft-app choice and mute.
-- Exit normally and visit the other request surface for that child; inspect remembered selections and its separately remembered mute.
-- Visit another child and return to verify choices are independent per child and shared only as specified.
+- Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice.
+- Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing. Check the absence of a mute control.
+- Set distinct choices for the other child and return to both children on both surfaces. Read before editing and compare per-child values and independent surface selectors.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -1400,7 +1495,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 62
 
-**Supported launch routes and policy matches (control: enabled; policy: allowed; route: native grid)**
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native grid)**
 
 Case: `E2E-019/native-grid-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1408,11 +1503,11 @@ Variant: control: enabled; policy: allowed; route: native grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1420,7 +1515,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 63
 
-**Supported launch routes and policy matches (control: disabled; policy: allowed; route: native grid)**
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native grid)**
 
 Case: `E2E-019/native-grid-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1428,11 +1523,11 @@ Variant: control: disabled; policy: allowed; route: native grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1440,7 +1535,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 64
 
-**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native grid)**
+**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid)**
 
 Case: `E2E-019/native-grid-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1448,11 +1543,11 @@ Variant: control: enabled; policy: hard blocked; route: native grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1460,7 +1555,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 65
 
-**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native grid)**
+**Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native grid)**
 
 Case: `E2E-019/native-grid-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1468,11 +1563,11 @@ Variant: control: disabled; policy: hard blocked; route: native grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1480,7 +1575,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 66
 
-**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native grid)**
+**Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native grid)**
 
 Case: `E2E-019/native-grid-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1488,11 +1583,11 @@ Variant: control: enabled; policy: soft blocked; route: native grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1500,7 +1595,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 67
 
-**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native grid)**
+**Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: native grid)**
 
 Case: `E2E-019/native-grid-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1508,11 +1603,11 @@ Variant: control: disabled; policy: soft blocked; route: native grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1520,7 +1615,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 68
 
-**Supported launch routes and policy matches (control: enabled; policy: allowed; route: native desktop)**
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native desktop)**
 
 Case: `E2E-019/native-desktop-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1528,11 +1623,11 @@ Variant: control: enabled; policy: allowed; route: native desktop
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1540,7 +1635,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 69
 
-**Supported launch routes and policy matches (control: disabled; policy: allowed; route: native desktop)**
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native desktop)**
 
 Case: `E2E-019/native-desktop-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1548,11 +1643,11 @@ Variant: control: disabled; policy: allowed; route: native desktop
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1560,7 +1655,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 70
 
-**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native desktop)**
+**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native desktop)**
 
 Case: `E2E-019/native-desktop-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1568,11 +1663,11 @@ Variant: control: enabled; policy: hard blocked; route: native desktop
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1580,7 +1675,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 71
 
-**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native desktop)**
+**Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native desktop)**
 
 Case: `E2E-019/native-desktop-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1588,11 +1683,11 @@ Variant: control: disabled; policy: hard blocked; route: native desktop
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1600,7 +1695,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 72
 
-**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native desktop)**
+**Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native desktop)**
 
 Case: `E2E-019/native-desktop-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1608,11 +1703,11 @@ Variant: control: enabled; policy: soft blocked; route: native desktop
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1620,7 +1715,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 73
 
-**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native desktop)**
+**Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: native desktop)**
 
 Case: `E2E-019/native-desktop-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1628,11 +1723,11 @@ Variant: control: disabled; policy: soft blocked; route: native desktop
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1640,7 +1735,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 74
 
-**Supported launch routes and policy matches (control: enabled; policy: allowed; route: native file manager)**
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1648,11 +1743,11 @@ Variant: control: enabled; policy: allowed; route: native file manager
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1660,7 +1755,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 75
 
-**Supported launch routes and policy matches (control: disabled; policy: allowed; route: native file manager)**
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1668,11 +1763,11 @@ Variant: control: disabled; policy: allowed; route: native file manager
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1680,7 +1775,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 76
 
-**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native file manager)**
+**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1688,11 +1783,11 @@ Variant: control: enabled; policy: hard blocked; route: native file manager
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1700,7 +1795,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 77
 
-**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native file manager)**
+**Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1708,11 +1803,11 @@ Variant: control: disabled; policy: hard blocked; route: native file manager
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1720,7 +1815,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 78
 
-**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native file manager)**
+**Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1728,11 +1823,11 @@ Variant: control: enabled; policy: soft blocked; route: native file manager
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1740,7 +1835,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 79
 
-**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native file manager)**
+**Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: native file manager)**
 
 Case: `E2E-019/native-file-manager-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1748,11 +1843,11 @@ Variant: control: disabled; policy: soft blocked; route: native file manager
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1760,7 +1855,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 80
 
-**Supported launch routes and policy matches (control: enabled; policy: allowed; route: native command)**
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native command)**
 
 Case: `E2E-019/native-command-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1768,11 +1863,11 @@ Variant: control: enabled; policy: allowed; route: native command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1780,7 +1875,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 81
 
-**Supported launch routes and policy matches (control: disabled; policy: allowed; route: native command)**
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native command)**
 
 Case: `E2E-019/native-command-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1788,11 +1883,11 @@ Variant: control: disabled; policy: allowed; route: native command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1800,7 +1895,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 82
 
-**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: native command)**
+**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native command)**
 
 Case: `E2E-019/native-command-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1808,11 +1903,11 @@ Variant: control: enabled; policy: hard blocked; route: native command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1820,7 +1915,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 83
 
-**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: native command)**
+**Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native command)**
 
 Case: `E2E-019/native-command-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1828,11 +1923,11 @@ Variant: control: disabled; policy: hard blocked; route: native command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1840,7 +1935,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 84
 
-**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: native command)**
+**Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native command)**
 
 Case: `E2E-019/native-command-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1848,11 +1943,11 @@ Variant: control: enabled; policy: soft blocked; route: native command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1860,7 +1955,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 85
 
-**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: native command)**
+**Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: native command)**
 
 Case: `E2E-019/native-command-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1868,11 +1963,11 @@ Variant: control: disabled; policy: soft blocked; route: native command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1880,7 +1975,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 86
 
-**Supported launch routes and policy matches (control: enabled; policy: allowed; route: snap grid)**
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: snap grid)**
 
 Case: `E2E-019/snap-grid-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1888,11 +1983,11 @@ Variant: control: enabled; policy: allowed; route: snap grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1900,7 +1995,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 87
 
-**Supported launch routes and policy matches (control: disabled; policy: allowed; route: snap grid)**
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: snap grid)**
 
 Case: `E2E-019/snap-grid-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1908,11 +2003,11 @@ Variant: control: disabled; policy: allowed; route: snap grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1920,7 +2015,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 88
 
-**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: snap grid)**
+**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: snap grid)**
 
 Case: `E2E-019/snap-grid-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1928,11 +2023,11 @@ Variant: control: enabled; policy: hard blocked; route: snap grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1940,7 +2035,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 89
 
-**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: snap grid)**
+**Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: snap grid)**
 
 Case: `E2E-019/snap-grid-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1948,11 +2043,11 @@ Variant: control: disabled; policy: hard blocked; route: snap grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1960,7 +2055,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 90
 
-**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: snap grid)**
+**Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: snap grid)**
 
 Case: `E2E-019/snap-grid-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -1968,11 +2063,11 @@ Variant: control: enabled; policy: soft blocked; route: snap grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -1980,7 +2075,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 91
 
-**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: snap grid)**
+**Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: snap grid)**
 
 Case: `E2E-019/snap-grid-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -1988,11 +2083,11 @@ Variant: control: disabled; policy: soft blocked; route: snap grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2000,7 +2095,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 92
 
-**Supported launch routes and policy matches (control: enabled; policy: allowed; route: snap command)**
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: snap command)**
 
 Case: `E2E-019/snap-command-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -2008,11 +2103,11 @@ Variant: control: enabled; policy: allowed; route: snap command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2020,7 +2115,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 93
 
-**Supported launch routes and policy matches (control: disabled; policy: allowed; route: snap command)**
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: snap command)**
 
 Case: `E2E-019/snap-command-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -2028,11 +2123,11 @@ Variant: control: disabled; policy: allowed; route: snap command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2040,7 +2135,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 94
 
-**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: snap command)**
+**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: snap command)**
 
 Case: `E2E-019/snap-command-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -2048,11 +2143,11 @@ Variant: control: enabled; policy: hard blocked; route: snap command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2060,7 +2155,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 95
 
-**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: snap command)**
+**Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: snap command)**
 
 Case: `E2E-019/snap-command-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -2068,11 +2163,11 @@ Variant: control: disabled; policy: hard blocked; route: snap command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2080,7 +2175,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 96
 
-**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: snap command)**
+**Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: snap command)**
 
 Case: `E2E-019/snap-command-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -2088,11 +2183,11 @@ Variant: control: enabled; policy: soft blocked; route: snap command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2100,7 +2195,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 97
 
-**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: snap command)**
+**Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: snap command)**
 
 Case: `E2E-019/snap-command-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -2108,11 +2203,11 @@ Variant: control: disabled; policy: soft blocked; route: snap command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2120,7 +2215,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 98
 
-**Supported launch routes and policy matches (control: enabled; policy: allowed; route: flatpak grid)**
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -2128,11 +2223,11 @@ Variant: control: enabled; policy: allowed; route: flatpak grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2140,7 +2235,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 99
 
-**Supported launch routes and policy matches (control: disabled; policy: allowed; route: flatpak grid)**
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -2148,11 +2243,11 @@ Variant: control: disabled; policy: allowed; route: flatpak grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2160,7 +2255,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 100
 
-**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: flatpak grid)**
+**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -2168,11 +2263,11 @@ Variant: control: enabled; policy: hard blocked; route: flatpak grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2180,7 +2275,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 101
 
-**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: flatpak grid)**
+**Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -2188,11 +2283,11 @@ Variant: control: disabled; policy: hard blocked; route: flatpak grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2200,7 +2295,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 102
 
-**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: flatpak grid)**
+**Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -2208,11 +2303,11 @@ Variant: control: enabled; policy: soft blocked; route: flatpak grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2220,7 +2315,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 103
 
-**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: flatpak grid)**
+**Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: flatpak grid)**
 
 Case: `E2E-019/flatpak-grid-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -2228,11 +2323,11 @@ Variant: control: disabled; policy: soft blocked; route: flatpak grid
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2240,7 +2335,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 104
 
-**Supported launch routes and policy matches (control: enabled; policy: allowed; route: flatpak command)**
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-allowed-enabled` · Category: customer-journey · Status: **pending**
 
@@ -2248,11 +2343,11 @@ Variant: control: enabled; policy: allowed; route: flatpak command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2260,7 +2355,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 105
 
-**Supported launch routes and policy matches (control: disabled; policy: allowed; route: flatpak command)**
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-allowed-disabled` · Category: customer-journey · Status: **pending**
 
@@ -2268,11 +2363,11 @@ Variant: control: disabled; policy: allowed; route: flatpak command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2280,7 +2375,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 106
 
-**Supported launch routes and policy matches (control: enabled; policy: hard blocked; route: flatpak command)**
+**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -2288,11 +2383,11 @@ Variant: control: enabled; policy: hard blocked; route: flatpak command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2300,7 +2395,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 107
 
-**Supported launch routes and policy matches (control: disabled; policy: hard blocked; route: flatpak command)**
+**Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-hard-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -2308,11 +2403,11 @@ Variant: control: disabled; policy: hard blocked; route: flatpak command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2320,7 +2415,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 108
 
-**Supported launch routes and policy matches (control: enabled; policy: soft blocked; route: flatpak command)**
+**Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
@@ -2328,11 +2423,11 @@ Variant: control: enabled; policy: soft blocked; route: flatpak command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2340,7 +2435,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 109
 
-**Supported launch routes and policy matches (control: disabled; policy: soft blocked; route: flatpak command)**
+**Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: flatpak command)**
 
 Case: `E2E-019/flatpak-command-soft-blocked-disabled` · Category: customer-journey · Status: **pending**
 
@@ -2348,11 +2443,11 @@ Variant: control: disabled; policy: soft blocked; route: flatpak command
 
 **Steps:**
 
-- Parent configures the selected control and application policy through the real app; use the verified native/Snap/Flatpak identity implied by route.
-- As child launch via the selected grid, desktop launcher, file manager or typed terminal command; include precise positive/negative targets and AppImage pattern new-version/nonmatch boundaries where supported.
-- Repeat the corresponding launch as another user and verify continued use.
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2368,11 +2463,11 @@ Variant: change: update
 
 **Steps:**
 
-- Parent displays a child application and selects a rule without completing the save interaction.
-- Use a real supported package operation in another administrator terminal to update or remove the application.
-- Complete the rule edit and inspect the catalog; attempt the updated app when present.
+- Give the child usable time. In Parent set the app to Hard Blocked, open its Edit Match Rule dialog and enter the declared rule covering its updated target without saving.
+- Update or remove that app using its normal package command in another administrator terminal, leaving the editor open.
+- Return and Save, then reopen Parent to refresh the list. For update, inspect the row and try the updated app as the child. For removal, observe the missing row, reinstall, refresh, read its retained rule before editing and try launching.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2388,11 +2483,11 @@ Variant: change: remove
 
 **Steps:**
 
-- Parent displays a child application and selects a rule without completing the save interaction.
-- Use a real supported package operation in another administrator terminal to update or remove the application.
-- Complete the rule edit and inspect the catalog; attempt the updated app when present.
+- Give the child usable time. In Parent set the app to Hard Blocked, open its Edit Match Rule dialog and enter the declared rule covering its updated target without saving.
+- Update or remove that app using its normal package command in another administrator terminal, leaving the editor open.
+- Return and Save, then reopen Parent to refresh the list. For update, inspect the row and try the updated app as the child. For removal, observe the missing row, reinstall, refresh, read its retained rule before editing and try launching.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2400,7 +2495,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 112
 
-**Multi-session child-only transaction effects (transaction: save)**
+**Apply an action across a child's distinct retained desktops (transaction: save)**
 
 Case: `E2E-021/save` · Category: customer-journey · Status: **pending**
 
@@ -2408,11 +2503,11 @@ Variant: transaction: save
 
 **Steps:**
 
-- Use real repeated login and Switch User operations to retain multiple child and other-user sessions with real apps open.
-- Perform the selected Parent save, real approval or confirmed revocation through its customer interface.
-- Visit each retained desktop to inspect required process closure/preservation and continued other-user use.
+- Use the declared supported sign-in route to retain distinct desktops for one child and another user, each with recognizable activities. Give positive daily time so all child desktops can be revisited.
+- Perform the declared app-rule save, approval excluding soft apps, approval including soft apps or confirmed revocation through its normal interface.
+- Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
 
 </div>
 
@@ -2420,7 +2515,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 113
 
-**Multi-session child-only transaction effects (transaction: approve without soft)**
+**Apply an action across a child's distinct retained desktops (transaction: approve without soft)**
 
 Case: `E2E-021/approve-without-soft` · Category: customer-journey · Status: **pending**
 
@@ -2428,11 +2523,11 @@ Variant: transaction: approve without soft
 
 **Steps:**
 
-- Use real repeated login and Switch User operations to retain multiple child and other-user sessions with real apps open.
-- Perform the selected Parent save, real approval or confirmed revocation through its customer interface.
-- Visit each retained desktop to inspect required process closure/preservation and continued other-user use.
+- Use the declared supported sign-in route to retain distinct desktops for one child and another user, each with recognizable activities. Give positive daily time so all child desktops can be revisited.
+- Perform the declared app-rule save, approval excluding soft apps, approval including soft apps or confirmed revocation through its normal interface.
+- Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
 
 </div>
 
@@ -2440,7 +2535,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 114
 
-**Multi-session child-only transaction effects (transaction: approve with soft)**
+**Apply an action across a child's distinct retained desktops (transaction: approve with soft)**
 
 Case: `E2E-021/approve-with-soft` · Category: customer-journey · Status: **pending**
 
@@ -2448,11 +2543,11 @@ Variant: transaction: approve with soft
 
 **Steps:**
 
-- Use real repeated login and Switch User operations to retain multiple child and other-user sessions with real apps open.
-- Perform the selected Parent save, real approval or confirmed revocation through its customer interface.
-- Visit each retained desktop to inspect required process closure/preservation and continued other-user use.
+- Use the declared supported sign-in route to retain distinct desktops for one child and another user, each with recognizable activities. Give positive daily time so all child desktops can be revisited.
+- Perform the declared app-rule save, approval excluding soft apps, approval including soft apps or confirmed revocation through its normal interface.
+- Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
 
 </div>
 
@@ -2460,7 +2555,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 115
 
-**Multi-session child-only transaction effects (transaction: revoke)**
+**Apply an action across a child's distinct retained desktops (transaction: revoke)**
 
 Case: `E2E-021/revoke` · Category: customer-journey · Status: **pending**
 
@@ -2468,11 +2563,11 @@ Variant: transaction: revoke
 
 **Steps:**
 
-- Use real repeated login and Switch User operations to retain multiple child and other-user sessions with real apps open.
-- Perform the selected Parent save, real approval or confirmed revocation through its customer interface.
-- Visit each retained desktop to inspect required process closure/preservation and continued other-user use.
+- Use the declared supported sign-in route to retain distinct desktops for one child and another user, each with recognizable activities. Give positive daily time so all child desktops can be revisited.
+- Perform the declared app-rule save, approval excluding soft apps, approval including soft apps or confirmed revocation through its normal interface.
+- Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
 
 </div>
 
@@ -2488,12 +2583,12 @@ Variant: boundary: app restart; grant: active
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2509,12 +2604,12 @@ Variant: boundary: app restart; grant: expired
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2530,12 +2625,12 @@ Variant: boundary: sign out in; grant: active
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2551,12 +2646,12 @@ Variant: boundary: sign out in; grant: expired
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2572,12 +2667,12 @@ Variant: boundary: reboot; grant: active
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2593,12 +2688,12 @@ Variant: boundary: reboot; grant: expired
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2614,12 +2709,12 @@ Variant: boundary: idle; grant: active
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2635,12 +2730,12 @@ Variant: boundary: idle; grant: expired
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2656,12 +2751,12 @@ Variant: boundary: suspend wake; grant: active
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2677,12 +2772,12 @@ Variant: boundary: suspend wake; grant: expired
 
 **Steps:**
 
-- Configure allowance/app rules and remembered choices through UI, then approve a real short grant.
-- Perform the selected actual lifecycle boundary through supported customer controls; plan the grant duration for active or naturally expired return.
-- Where expiry is selected, wait the real remaining duration without changing the guest clock.
-- Resume use or obtain new time through kiosk if needed; inspect persisted choices, countdown and launch enforcement.
+- Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
+- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
+- Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 
@@ -2698,14 +2793,14 @@ Variant: gameplay: windowed
 
 **Steps:**
 
-- Log in as Parent from GDM, open Parent from the app grid, select the child, enable control and save zero daily minutes; make the real game usable.
-- Use Switch User preserving the parent session; attempt correct-password child login and verify time-limit denial with no child desktop.
-- Enter kiosk from GDM, select child and approver, request a short supported grant, authenticate through the real secret-safe system prompt and return normally to GDM.
-- Log in as child, verify desktop/countdown, launch the pinned game from app grid, enter the reproducible offline level in the selected display mode and play using real input.
-- Continue gameplay until the real grant expires; verify lock, inaccessible game input, surviving child session/game and uninterrupted parent/other-user sessions.
-- Attempt unlock with the correct password and verify zero-time denial before ending and collecting the attempt.
+- Sign in as a parent, select the child in Parent, enable limits and save zero daily minutes. Keep the real offline game Always Allowed.
+- Switch User and try correct-password child sign-in; read the time-limit restriction.
+- Enter the station, choose the child and parent, request short time and obtain actual approval. Observe return to sign-in.
+- Sign in as the child, read the countdown, open the real game, choose the declared mode and play the declared offline level.
+- Keep playing until the desktop locks naturally. Confirm normal input now reaches the lock screen and cannot continue the game.
+- Try the correct password and read the time restriction. Obtain replacement time normally, unlock, and continue the recognizable earlier game to check retention.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2721,14 +2816,14 @@ Variant: gameplay: fullscreen
 
 **Steps:**
 
-- Log in as Parent from GDM, open Parent from the app grid, select the child, enable control and save zero daily minutes; make the real game usable.
-- Use Switch User preserving the parent session; attempt correct-password child login and verify time-limit denial with no child desktop.
-- Enter kiosk from GDM, select child and approver, request a short supported grant, authenticate through the real secret-safe system prompt and return normally to GDM.
-- Log in as child, verify desktop/countdown, launch the pinned game from app grid, enter the reproducible offline level in the selected display mode and play using real input.
-- Continue gameplay until the real grant expires; verify lock, inaccessible game input, surviving child session/game and uninterrupted parent/other-user sessions.
-- Attempt unlock with the correct password and verify zero-time denial before ending and collecting the attempt.
+- Sign in as a parent, select the child in Parent, enable limits and save zero daily minutes. Keep the real offline game Always Allowed.
+- Switch User and try correct-password child sign-in; read the time-limit restriction.
+- Enter the station, choose the child and parent, request short time and obtain actual approval. Observe return to sign-in.
+- Sign in as the child, read the countdown, open the real game, choose the declared mode and play the declared offline level.
+- Keep playing until the desktop locks naturally. Confirm normal input now reaches the lock screen and cannot continue the game.
+- Try the correct password and read the time restriction. Obtain replacement time normally, unlock, and continue the recognizable earlier game to check retention.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2744,11 +2839,11 @@ Variant: gameplay: windowed; time: daily dominant
 
 **Steps:**
 
-- Through Parent settings and real approval establish the selected dominant time source, then log in as child and play the real offline game.
-- While time remains request additional time in the child overlay and authenticate successfully.
-- Resume actual gameplay through the extended interval and observe eventual natural expiry and lock.
+- Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
+- While time remains, reveal the normal panel entry, request additional time and approve. Read the new countdown against the earlier larger balance and elapsed navigation time.
+- Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2764,11 +2859,11 @@ Variant: gameplay: fullscreen; time: daily dominant
 
 **Steps:**
 
-- Through Parent settings and real approval establish the selected dominant time source, then log in as child and play the real offline game.
-- While time remains request additional time in the child overlay and authenticate successfully.
-- Resume actual gameplay through the extended interval and observe eventual natural expiry and lock.
+- Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
+- While time remains, reveal the normal panel entry, request additional time and approve. Read the new countdown against the earlier larger balance and elapsed navigation time.
+- Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2784,11 +2879,11 @@ Variant: gameplay: windowed; time: grant dominant
 
 **Steps:**
 
-- Through Parent settings and real approval establish the selected dominant time source, then log in as child and play the real offline game.
-- While time remains request additional time in the child overlay and authenticate successfully.
-- Resume actual gameplay through the extended interval and observe eventual natural expiry and lock.
+- Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
+- While time remains, reveal the normal panel entry, request additional time and approve. Read the new countdown against the earlier larger balance and elapsed navigation time.
+- Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2804,11 +2899,11 @@ Variant: gameplay: fullscreen; time: grant dominant
 
 **Steps:**
 
-- Through Parent settings and real approval establish the selected dominant time source, then log in as child and play the real offline game.
-- While time remains request additional time in the child overlay and authenticate successfully.
-- Resume actual gameplay through the extended interval and observe eventual natural expiry and lock.
+- Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
+- While time remains, reveal the normal panel entry, request additional time and approve. Read the new countdown against the earlier larger balance and elapsed navigation time.
+- Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2816,7 +2911,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 132
 
-**Replacement grant precedence at session entry (entry: new login; soft apps: excluded)**
+**Replace an expired grant before returning with daily time left (entry: new login; soft apps: excluded)**
 
 Case: `E2E-025/excluded-new-login` · Category: customer-journey · Status: **pending**
 
@@ -2824,11 +2919,11 @@ Variant: entry: new login; soft apps: excluded
 
 **Steps:**
 
-- Configure app rules, obtain a real grant and use the child session with relevant apps open.
-- Let that grant expire naturally and observe lock with retained apps alive.
-- Before the selected session entry obtain a real replacement grant with the selected soft-app choice, then enter through GDM/unlock normally.
+- Set zero daily time, approve a short grant including soft apps and open recognizable soft-blocked work. While it remains open, return to Parent and raise the daily allowance above the grant without toggling limits. The running app remains, although new soft launches are blocked.
+- Switch away, or sign out for new-login, and let the grant expire while daily time remains. Read zero grant and positive daily balance in Parent before requesting replacement.
+- Approve replacement station time with the declared soft-app choice before fresh sign-in or retained unlock. Check hard/soft launches. Retained cases compare earlier soft work: included preserves it and excluded closes it.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2836,7 +2931,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 133
 
-**Replacement grant precedence at session entry (entry: retained unlock; soft apps: excluded)**
+**Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: excluded)**
 
 Case: `E2E-025/excluded-retained-unlock` · Category: customer-journey · Status: **pending**
 
@@ -2844,11 +2939,11 @@ Variant: entry: retained unlock; soft apps: excluded
 
 **Steps:**
 
-- Configure app rules, obtain a real grant and use the child session with relevant apps open.
-- Let that grant expire naturally and observe lock with retained apps alive.
-- Before the selected session entry obtain a real replacement grant with the selected soft-app choice, then enter through GDM/unlock normally.
+- Set zero daily time, approve a short grant including soft apps and open recognizable soft-blocked work. While it remains open, return to Parent and raise the daily allowance above the grant without toggling limits. The running app remains, although new soft launches are blocked.
+- Switch away, or sign out for new-login, and let the grant expire while daily time remains. Read zero grant and positive daily balance in Parent before requesting replacement.
+- Approve replacement station time with the declared soft-app choice before fresh sign-in or retained unlock. Check hard/soft launches. Retained cases compare earlier soft work: included preserves it and excluded closes it.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2856,7 +2951,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 134
 
-**Replacement grant precedence at session entry (entry: new login; soft apps: included)**
+**Replace an expired grant before returning with daily time left (entry: new login; soft apps: included)**
 
 Case: `E2E-025/included-new-login` · Category: customer-journey · Status: **pending**
 
@@ -2864,11 +2959,11 @@ Variant: entry: new login; soft apps: included
 
 **Steps:**
 
-- Configure app rules, obtain a real grant and use the child session with relevant apps open.
-- Let that grant expire naturally and observe lock with retained apps alive.
-- Before the selected session entry obtain a real replacement grant with the selected soft-app choice, then enter through GDM/unlock normally.
+- Set zero daily time, approve a short grant including soft apps and open recognizable soft-blocked work. While it remains open, return to Parent and raise the daily allowance above the grant without toggling limits. The running app remains, although new soft launches are blocked.
+- Switch away, or sign out for new-login, and let the grant expire while daily time remains. Read zero grant and positive daily balance in Parent before requesting replacement.
+- Approve replacement station time with the declared soft-app choice before fresh sign-in or retained unlock. Check hard/soft launches. Retained cases compare earlier soft work: included preserves it and excluded closes it.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2876,7 +2971,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 135
 
-**Replacement grant precedence at session entry (entry: retained unlock; soft apps: included)**
+**Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: included)**
 
 Case: `E2E-025/included-retained-unlock` · Category: customer-journey · Status: **pending**
 
@@ -2884,11 +2979,11 @@ Variant: entry: retained unlock; soft apps: included
 
 **Steps:**
 
-- Configure app rules, obtain a real grant and use the child session with relevant apps open.
-- Let that grant expire naturally and observe lock with retained apps alive.
-- Before the selected session entry obtain a real replacement grant with the selected soft-app choice, then enter through GDM/unlock normally.
+- Set zero daily time, approve a short grant including soft apps and open recognizable soft-blocked work. While it remains open, return to Parent and raise the daily allowance above the grant without toggling limits. The running app remains, although new soft launches are blocked.
+- Switch away, or sign out for new-login, and let the grant expire while daily time remains. Read zero grant and positive daily balance in Parent before requesting replacement.
+- Approve replacement station time with the declared soft-app choice before fresh sign-in or retained unlock. Check hard/soft launches. Retained cases compare earlier soft work: included preserves it and excluded closes it.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2904,11 +2999,11 @@ Variant: activation: process
 
 **Steps:**
 
-- Parent configures policy and request choices through real UI; child uses the app under that policy.
-- Use the documented real package update operation and follow its required process, session or reboot activation notice.
-- Log in or resume as required and use the installed product with preserved settings and enforced rules.
+- Install this case's declared earlier release and follow its notice. Save distinct settings and request choices through Parent and both forms, approve a grant long enough for the update, and use the child desktop.
+- Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface.
+- Read retained Parent/request values before editing, read the installed version and reduced grant balance, and enter the child desktop to verify allowed use and blocked launches.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2924,11 +3019,11 @@ Variant: activation: session
 
 **Steps:**
 
-- Parent configures policy and request choices through real UI; child uses the app under that policy.
-- Use the documented real package update operation and follow its required process, session or reboot activation notice.
-- Log in or resume as required and use the installed product with preserved settings and enforced rules.
+- Install this case's declared earlier release and follow its notice. Save distinct settings and request choices through Parent and both forms, approve a grant long enough for the update, and use the child desktop.
+- Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface.
+- Read retained Parent/request values before editing, read the installed version and reduced grant balance, and enter the child desktop to verify allowed use and blocked launches.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2944,11 +3039,11 @@ Variant: activation: reboot
 
 **Steps:**
 
-- Parent configures policy and request choices through real UI; child uses the app under that policy.
-- Use the documented real package update operation and follow its required process, session or reboot activation notice.
-- Log in or resume as required and use the installed product with preserved settings and enforced rules.
+- Install this case's declared earlier release and follow its notice. Save distinct settings and request choices through Parent and both forms, approve a grant long enough for the update, and use the child desktop.
+- Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface.
+- Read retained Parent/request values before editing, read the installed version and reduced grant balance, and enter the child desktop to verify allowed use and blocked launches.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -2964,12 +3059,12 @@ Variant: lifecycle: continuous
 
 **Steps:**
 
-- From the product-free baseline install through the real package command and reboot normally.
-- Configure policy and preferences through UI and use the child account under that policy.
-- Remove through the real package command, reboot and verify ordinary usable login.
-- Reinstall and use retained settings, then purge through the actual package command and verify the documented clean state.
+- Install the supplied release on a clean supported computer, read its completion/reboot notice and restart.
+- Save distinct Parent/request choices and app blocks, approve time and use the child desktop. Leave the request station before removal.
+- Remove with the normal package command, read the notice and restart as directed. Check personal accounts remain usable and formerly blocked app launches work.
+- Reinstall, follow activation and read retained choices and zero one-time time before editing. Reapply restrictions in Parent and verify them. Purge, follow its notice, reinstall again and read fresh parent-policy/shared-request defaults; personal selectors and the child's animation option may remain.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -3227,10 +3322,10 @@ Variant: flow: draft reopen
 
 **Steps:**
 
-- Open installed Parent feedback with synthetic nonpersonal test content; exercise the selected draft, validation, attachment review/removal or explicit diagnostic export flow.
-- Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case.
+- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
+- Inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Do not Send.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -3246,10 +3341,10 @@ Variant: flow: validation
 
 **Steps:**
 
-- Open installed Parent feedback with synthetic nonpersonal test content; exercise the selected draft, validation, attachment review/removal or explicit diagnostic export flow.
-- Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case.
+- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
+- Inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Do not Send.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -3265,10 +3360,10 @@ Variant: flow: attachments
 
 **Steps:**
 
-- Open installed Parent feedback with synthetic nonpersonal test content; exercise the selected draft, validation, attachment review/removal or explicit diagnostic export flow.
-- Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case.
+- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
+- Inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Do not Send.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -3284,10 +3379,10 @@ Variant: flow: diagnostic export
 
 **Steps:**
 
-- Open installed Parent feedback with synthetic nonpersonal test content; exercise the selected draft, validation, attachment review/removal or explicit diagnostic export flow.
-- Inspect the privacy disclosure, cancel/close and reopen; verify in-memory draft behavior. Do not send externally in this case.
+- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
+- Inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Do not Send.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -3295,7 +3390,7 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 156
 
-**Authorized feedback delivery**
+**Send reviewed feedback and read service acceptance**
 
 Case: `E2E-032/success` · Category: customer-journey · Status: **pending**
 
@@ -3303,10 +3398,10 @@ Variant: delivery: success
 
 **Steps:**
 
-- Open installed feedback, compose synthetic content, review attachments/privacy disclosure and explicitly send to the authorized dedicated test recipient on the supported real service.
-- Observe the actual service confirmation and corroborate the dedicated recipient receipt without substituting a mock transport.
+- Open Parent feedback, enter authorized synthetic text and reply address, add reviewed files, inspect Privacy and select Send once with the authorized service profile.
+- Observe unavailable edits and duplicate Send while sending. Read acceptance and the reply-address follow-up; leave thanks until manually dismissing it. Reopen feedback and read the cleared draft and files.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 
@@ -3314,20 +3409,1920 @@ Pending: Implementation must implement this complete journey and its assertions.
 
 ### Scenario 157
 
-**Authorized feedback retry after a real transport failure**
+**Recover feedback sending after reconnecting**
 
-Case: `E2E-033/retry` · Category: fault-recovery · Status: **pending**
+Case: `E2E-033/retry` · Category: customer-journey · Status: **pending**
 
 Variant: delivery: retry
 
 **Steps:**
 
-- Compose synthetic feedback and review the authorized real service and dedicated recipient profile.
-- Use the declared guest network control to interrupt the real delivery transport before Send; do not replace the server or forge responses.
-- Send through the actual feedback UI and observe its retry state.
-- Restore the real network connection within the documented retry window and record recovery.
-- Observe bounded automatic retry, confirmed success and the dedicated recipient receipt for the frozen submission.
+- Compose authorized synthetic feedback and files in Parent and review Privacy and submission contents.
+- Disconnect the declared connection using desktop network controls, preserving the independent observation channel.
+- Return to feedback, select Send once and read retry progress and unavailable editing/duplicate Send.
+- Reconnect through those same normal controls within the retry period.
+- Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft.
 
-Pending: Implementation must implement this complete journey and its assertions.
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 158
+
+**Choose allowances and save edits (flow: boundaries)**
+
+Case: `E2E-035/boundaries` · Category: customer-journey · Status: **pending**
+
+Variant: flow: boundaries
+
+**Steps:**
+
+- Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent.
+- For boundaries, exercise every offered preset and the finite valid/invalid custom table. For save-order, commit by pause, Enter and focus leave, then make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values.
+- Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 159
+
+**Choose allowances and save edits (flow: save order)**
+
+Case: `E2E-035/save-order` · Category: customer-journey · Status: **pending**
+
+Variant: flow: save order
+
+**Steps:**
+
+- Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent.
+- For boundaries, exercise every offered preset and the finite valid/invalid custom table. For save-order, commit by pause, Enter and focus leave, then make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values.
+- Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 160
+
+**Revoke when there is no active grant (balance: daily positive)**
+
+Case: `E2E-036/daily-positive` · Category: customer-journey · Status: **pending**
+
+Variant: balance: daily positive
+
+**Steps:**
+
+- For daily-positive, approve soft-app access, open the soft app, then toggle limits off and on with a positive allowance; read zero one-time time. For zero-total, set zero daily time with no grant.
+- Read Revoke availability in Parent. Daily-positive opens the warning, cancels and checks unchanged activity, then confirms. Zero-total observes the unavailable action with limits on and off.
+- With daily time left, revisit the child: the earlier soft app closes, blocked launches fail and allowed work remains usable. Daily time stays unchanged.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 161
+
+**Revoke when there is no active grant (balance: zero total)**
+
+Case: `E2E-036/zero-total` · Category: customer-journey · Status: **pending**
+
+Variant: balance: zero total
+
+**Steps:**
+
+- For daily-positive, approve soft-app access, open the soft app, then toggle limits off and on with a positive allowance; read zero one-time time. For zero-total, set zero daily time with no grant.
+- Read Revoke availability in Parent. Daily-positive opens the warning, cancels and checks unchanged activity, then confirms. Zero-total observes the unavailable action with limits on and off.
+- With daily time left, revisit the child: the earlier soft app closes, blocked launches fail and allowed work remains usable. Daily time stays unchanged.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 162
+
+**Use and remember the child panel option (boundary: sign out in)**
+
+Case: `E2E-037/sign-out-in` · Category: customer-journey · Status: **pending**
+
+Variant: boundary: sign out in
+
+**Steps:**
+
+- Give both children six daily minutes and verify enough remains for the declared boundary. On the first child's desktop read the hover explanation, open the countdown's right-click menu, read the initially off animation choice and turn it on.
+- Close the menu, open and cancel a normal request, and compare unchanged access. Perform the declared sign-out/sign-in or reboot, then read the remembered choice before editing.
+- Visit the other child's independent off choice. Return to the first child, exercise off and on, then use an allowed app to natural expiry and verify normal locking.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 163
+
+**Use and remember the child panel option (boundary: reboot)**
+
+Case: `E2E-037/reboot` · Category: customer-journey · Status: **pending**
+
+Variant: boundary: reboot
+
+**Steps:**
+
+- Give both children six daily minutes and verify enough remains for the declared boundary. On the first child's desktop read the hover explanation, open the countdown's right-click menu, read the initially off animation choice and turn it on.
+- Close the menu, open and cancel a normal request, and compare unchanged access. Perform the declared sign-out/sign-in or reboot, then read the remembered choice before editing.
+- Visit the other child's independent off choice. Return to the first child, exercise off and on, then use an allowed app to natural expiry and verify normal locking.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 164
+
+**Keep daily access after a grant ends and restore soft-app blocks (restore: none)**
+
+Case: `E2E-038/none` · Category: customer-journey · Status: **pending**
+
+Variant: restore: none
+
+**Steps:**
+
+- Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity.
+- Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
+- On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 165
+
+**Keep daily access after a grant ends and restore soft-app blocks (restore: unlock)**
+
+Case: `E2E-038/unlock` · Category: customer-journey · Status: **pending**
+
+Variant: restore: unlock
+
+**Steps:**
+
+- Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity.
+- Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
+- On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 166
+
+**Keep daily access after a grant ends and restore soft-app blocks (restore: fresh login)**
+
+Case: `E2E-038/fresh-login` · Category: customer-journey · Status: **pending**
+
+Variant: restore: fresh login
+
+**Steps:**
+
+- Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity.
+- Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
+- On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 167
+
+**Keep daily access after a grant ends and restore soft-app blocks (restore: allowance edit)**
+
+Case: `E2E-038/allowance-edit` · Category: customer-journey · Status: **pending**
+
+Variant: restore: allowance edit
+
+**Steps:**
+
+- Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity.
+- Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
+- On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 168
+
+**Keep daily access after a grant ends and restore soft-app blocks (restore: toggle)**
+
+Case: `E2E-038/toggle` · Category: customer-journey · Status: **pending**
+
+Variant: restore: toggle
+
+**Steps:**
+
+- Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity.
+- Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
+- On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 169
+
+**Keep daily access after a grant ends and restore soft-app blocks (restore: app save)**
+
+Case: `E2E-038/app-save` · Category: customer-journey · Status: **pending**
+
+Variant: restore: app save
+
+**Steps:**
+
+- Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity.
+- Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
+- On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 170
+
+**Keep daily access after a grant ends and restore soft-app blocks (restore: revoke)**
+
+Case: `E2E-038/revoke` · Category: customer-journey · Status: **pending**
+
+Variant: restore: revoke
+
+**Steps:**
+
+- Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity.
+- Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
+- On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 171
+
+**Leave a pending approval or request again too soon (flow: overlay lock)**
+
+Case: `E2E-039/overlay-lock` · Category: customer-journey · Status: **pending**
+
+Variant: flow: overlay lock
+
+**Steps:**
+
+- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation.
+- Return normally and read choices and unchanged access before retrying. Interruption requires a new request and authentication; cooldown permits one after it ends. Station cooldown also covers the other child.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 172
+
+**Leave a pending approval or request again too soon (flow: overlay switch)**
+
+Case: `E2E-039/overlay-switch` · Category: customer-journey · Status: **pending**
+
+Variant: flow: overlay switch
+
+**Steps:**
+
+- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation.
+- Return normally and read choices and unchanged access before retrying. Interruption requires a new request and authentication; cooldown permits one after it ends. Station cooldown also covers the other child.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 173
+
+**Leave a pending approval or request again too soon (flow: overlay signout)**
+
+Case: `E2E-039/overlay-signout` · Category: customer-journey · Status: **pending**
+
+Variant: flow: overlay signout
+
+**Steps:**
+
+- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation.
+- Return normally and read choices and unchanged access before retrying. Interruption requires a new request and authentication; cooldown permits one after it ends. Station cooldown also covers the other child.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 174
+
+**Leave a pending approval or request again too soon (flow: overlay close)**
+
+Case: `E2E-039/overlay-close` · Category: customer-journey · Status: **pending**
+
+Variant: flow: overlay close
+
+**Steps:**
+
+- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation.
+- Return normally and read choices and unchanged access before retrying. Interruption requires a new request and authentication; cooldown permits one after it ends. Station cooldown also covers the other child.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 175
+
+**Leave a pending approval or request again too soon (flow: kiosk close)**
+
+Case: `E2E-039/kiosk-close` · Category: customer-journey · Status: **pending**
+
+Variant: flow: kiosk close
+
+**Steps:**
+
+- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation.
+- Return normally and read choices and unchanged access before retrying. Interruption requires a new request and authentication; cooldown permits one after it ends. Station cooldown also covers the other child.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 176
+
+**Leave a pending approval or request again too soon (flow: overlay cooldown)**
+
+Case: `E2E-039/overlay-cooldown` · Category: customer-journey · Status: **pending**
+
+Variant: flow: overlay cooldown
+
+**Steps:**
+
+- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation.
+- Return normally and read choices and unchanged access before retrying. Interruption requires a new request and authentication; cooldown permits one after it ends. Station cooldown also covers the other child.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 177
+
+**Leave a pending approval or request again too soon (flow: kiosk cooldown same)**
+
+Case: `E2E-039/kiosk-cooldown-same` · Category: customer-journey · Status: **pending**
+
+Variant: flow: kiosk cooldown same
+
+**Steps:**
+
+- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation.
+- Return normally and read choices and unchanged access before retrying. Interruption requires a new request and authentication; cooldown permits one after it ends. Station cooldown also covers the other child.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 178
+
+**Leave a pending approval or request again too soon (flow: kiosk cooldown other)**
+
+Case: `E2E-039/kiosk-cooldown-other` · Category: customer-journey · Status: **pending**
+
+Variant: flow: kiosk cooldown other
+
+**Steps:**
+
+- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation.
+- Return normally and read choices and unchanged access before retrying. Interruption requires a new request and authentication; cooldown permits one after it ends. Station cooldown also covers the other child.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 179
+
+**Refresh accounts and remembered selections after account changes (change: add child)**
+
+Case: `E2E-040/add-child` · Category: customer-journey · Status: **pending**
+
+Variant: change: add child
+
+**Steps:**
+
+- Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
+- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 180
+
+**Refresh accounts and remembered selections after account changes (change: remove selected)**
+
+Case: `E2E-040/remove-selected` · Category: customer-journey · Status: **pending**
+
+Variant: change: remove selected
+
+**Steps:**
+
+- Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
+- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 181
+
+**Refresh accounts and remembered selections after account changes (change: remove last child)**
+
+Case: `E2E-040/remove-last-child` · Category: customer-journey · Status: **pending**
+
+Variant: change: remove last child
+
+**Steps:**
+
+- Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
+- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 182
+
+**Refresh accounts and remembered selections after account changes (change: ineligible approver)**
+
+Case: `E2E-040/ineligible-approver` · Category: customer-journey · Status: **pending**
+
+Variant: change: ineligible approver
+
+**Steps:**
+
+- Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
+- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 183
+
+**Refresh accounts and remembered selections after account changes (change: missing remembered child)**
+
+Case: `E2E-040/missing-remembered-child` · Category: customer-journey · Status: **pending**
+
+Variant: change: missing remembered child
+
+**Steps:**
+
+- Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
+- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 184
+
+**Search the app list and edit match rules (flow: search filters)**
+
+Case: `E2E-041/search-filters` · Category: customer-journey · Status: **pending**
+
+Variant: flow: search filters
+
+**Steps:**
+
+- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 185
+
+**Search the app list and edit match rules (flow: match editor)**
+
+Case: `E2E-041/match-editor` · Category: customer-journey · Status: **pending**
+
+Variant: flow: match editor
+
+**Steps:**
+
+- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 186
+
+**Search the app list and edit match rules (flow: match reopen)**
+
+Case: `E2E-041/match-reopen` · Category: customer-journey · Status: **pending**
+
+Variant: flow: match reopen
+
+**Steps:**
+
+- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 187
+
+**Search the app list and edit match rules (flow: shared launchers)**
+
+Case: `E2E-041/shared-launchers` · Category: customer-journey · Status: **pending**
+
+Variant: flow: shared launchers
+
+**Steps:**
+
+- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 188
+
+**Search the app list and edit match rules (flow: special paths)**
+
+Case: `E2E-041/special-paths` · Category: customer-journey · Status: **pending**
+
+Variant: flow: special paths
+
+**Steps:**
+
+- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 189
+
+**Search the app list and edit match rules (flow: pattern files)**
+
+Case: `E2E-041/pattern-files` · Category: customer-journey · Status: **pending**
+
+Variant: flow: pattern files
+
+**Steps:**
+
+- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 190
+
+**Read Help, About and command usage on each surface (surface: parent links)**
+
+Case: `E2E-042/parent-links` · Category: customer-journey · Status: **pending**
+
+Variant: surface: parent links
+
+**Steps:**
+
+- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, open the normal desktop terminal.
+- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help runs both help commands and reads both manuals.
+- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 191
+
+**Read Help, About and command usage on each surface (surface: child overlay)**
+
+Case: `E2E-042/child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: surface: child overlay
+
+**Steps:**
+
+- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, open the normal desktop terminal.
+- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help runs both help commands and reads both manuals.
+- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 192
+
+**Read Help, About and command usage on each surface (surface: kiosk)**
+
+Case: `E2E-042/kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: surface: kiosk
+
+**Steps:**
+
+- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, open the normal desktop terminal.
+- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help runs both help commands and reads both manuals.
+- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 193
+
+**Read Help, About and command usage on each surface (surface: command help)**
+
+Case: `E2E-042/command-help` · Category: customer-journey · Status: **pending**
+
+Variant: surface: command help
+
+**Steps:**
+
+- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, open the normal desktop terminal.
+- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help runs both help commands and reads both manuals.
+- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 194
+
+**Use local controls and approvals while offline (surface: child overlay)**
+
+Case: `E2E-043/child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: surface: child overlay
+
+**Steps:**
+
+- Disconnect the declared connection through desktop network controls. In Parent enable limits and save the allowance and hard/soft app rules.
+- Enter the selected form, read its estimate and approve additional time including soft apps through the selected local parent's prompt.
+- Use the child desktop: soft launches work, hard launches fail and time advances. Revoke through Parent, check the corresponding restriction and restore the connection.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 195
+
+**Use local controls and approvals while offline (surface: kiosk)**
+
+Case: `E2E-043/kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: surface: kiosk
+
+**Steps:**
+
+- Disconnect the declared connection through desktop network controls. In Parent enable limits and save the allowance and hard/soft app rules.
+- Enter the selected form, read its estimate and approve additional time including soft apps through the selected local parent's prompt.
+- Use the child desktop: soft launches work, hard launches fail and time advances. Revoke through Parent, check the corresponding restriction and restore the connection.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 196
+
+**Use time across local day and daylight-saving boundaries (calendar: ordinary; time: daily reset)**
+
+Case: `E2E-044/ordinary-daily-reset` · Category: customer-journey · Status: **pending**
+
+Variant: calendar: ordinary; time: daily reset
+
+**Steps:**
+
+- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
+- Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 197
+
+**Use time across local day and daylight-saving boundaries (calendar: ordinary; time: rest of day)**
+
+Case: `E2E-044/ordinary-rest-of-day` · Category: customer-journey · Status: **pending**
+
+Variant: calendar: ordinary; time: rest of day
+
+**Steps:**
+
+- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
+- Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 198
+
+**Use time across local day and daylight-saving boundaries (calendar: ordinary; time: fixed grant)**
+
+Case: `E2E-044/ordinary-fixed-grant` · Category: customer-journey · Status: **pending**
+
+Variant: calendar: ordinary; time: fixed grant
+
+**Steps:**
+
+- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
+- Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 199
+
+**Use time across local day and daylight-saving boundaries (calendar: spring forward; time: daily reset)**
+
+Case: `E2E-044/spring-forward-daily-reset` · Category: customer-journey · Status: **pending**
+
+Variant: calendar: spring forward; time: daily reset
+
+**Steps:**
+
+- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
+- Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 200
+
+**Use time across local day and daylight-saving boundaries (calendar: spring forward; time: rest of day)**
+
+Case: `E2E-044/spring-forward-rest-of-day` · Category: customer-journey · Status: **pending**
+
+Variant: calendar: spring forward; time: rest of day
+
+**Steps:**
+
+- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
+- Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 201
+
+**Use time across local day and daylight-saving boundaries (calendar: spring forward; time: fixed grant)**
+
+Case: `E2E-044/spring-forward-fixed-grant` · Category: customer-journey · Status: **pending**
+
+Variant: calendar: spring forward; time: fixed grant
+
+**Steps:**
+
+- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
+- Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 202
+
+**Use time across local day and daylight-saving boundaries (calendar: fall back; time: daily reset)**
+
+Case: `E2E-044/fall-back-daily-reset` · Category: customer-journey · Status: **pending**
+
+Variant: calendar: fall back; time: daily reset
+
+**Steps:**
+
+- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
+- Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 203
+
+**Use time across local day and daylight-saving boundaries (calendar: fall back; time: rest of day)**
+
+Case: `E2E-044/fall-back-rest-of-day` · Category: customer-journey · Status: **pending**
+
+Variant: calendar: fall back; time: rest of day
+
+**Steps:**
+
+- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
+- Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 204
+
+**Use time across local day and daylight-saving boundaries (calendar: fall back; time: fixed grant)**
+
+Case: `E2E-044/fall-back-fixed-grant` · Category: customer-journey · Status: **pending**
+
+Variant: calendar: fall back; time: fixed grant
+
+**Steps:**
+
+- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
+- Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 205
+
+**Review or decline an error report (surface: parent)**
+
+Case: `E2E-045/parent` · Category: customer-journey · Status: **pending**
+
+Variant: surface: parent
+
+**Steps:**
+
+- Open the declared surface and encounter its customer-reproducible error: a rejected Parent match pattern or actual too-soon request. Read the public failure and initially selected Report this error option where offered.
+- Review the report, edit synthetic text and read Privacy. Parent/overlay expose file and diagnostic-save controls; station hides them and external links. Close without sending and check the original flow's destination.
+- Repeat the error and decline reporting where offered, checking direct exit. Successful requests and cancelled authentication must not offer this error-report step.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 206
+
+**Review or decline an error report (surface: child overlay)**
+
+Case: `E2E-045/child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: surface: child overlay
+
+**Steps:**
+
+- Open the declared surface and encounter its customer-reproducible error: a rejected Parent match pattern or actual too-soon request. Read the public failure and initially selected Report this error option where offered.
+- Review the report, edit synthetic text and read Privacy. Parent/overlay expose file and diagnostic-save controls; station hides them and external links. Close without sending and check the original flow's destination.
+- Repeat the error and decline reporting where offered, checking direct exit. Successful requests and cancelled authentication must not offer this error-report step.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 207
+
+**Review or decline an error report (surface: kiosk)**
+
+Case: `E2E-045/kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: surface: kiosk
+
+**Steps:**
+
+- Open the declared surface and encounter its customer-reproducible error: a rejected Parent match pattern or actual too-soon request. Read the public failure and initially selected Report this error option where offered.
+- Review the report, edit synthetic text and read Privacy. Parent/overlay expose file and diagnostic-save controls; station hides them and external links. Close without sending and check the original flow's destination.
+- Repeat the error and decline reporting where offered, checking direct exit. Successful requests and cancelled authentication must not offer this error-report step.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 208
+
+**Recover unavailable diagnostic collection (choice: retry; surface: parent)**
+
+Case: `E2E-046/parent-retry` · Category: customer-journey · Status: **pending**
+
+Variant: choice: retry; surface: parent
+
+**Steps:**
+
+- Open the declared report during a real, independently observed collection failure. Read its unavailable/partial explanation without changing product files or services to create the failure.
+- Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft.
+- Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success.
+
+Pending: Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 209
+
+**Recover unavailable diagnostic collection (choice: without logs; surface: parent)**
+
+Case: `E2E-046/parent-without-logs` · Category: customer-journey · Status: **pending**
+
+Variant: choice: without logs; surface: parent
+
+**Steps:**
+
+- Open the declared report during a real, independently observed collection failure. Read its unavailable/partial explanation without changing product files or services to create the failure.
+- Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft.
+- Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success.
+
+Pending: Requires a genuine publicly reproducible collection failure and qualified recovery; explicit reviewed sending authorization and dedicated real service profile are also required.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 210
+
+**Recover unavailable diagnostic collection (choice: retry; surface: child overlay)**
+
+Case: `E2E-046/child-overlay-retry` · Category: customer-journey · Status: **pending**
+
+Variant: choice: retry; surface: child overlay
+
+**Steps:**
+
+- Open the declared report during a real, independently observed collection failure. Read its unavailable/partial explanation without changing product files or services to create the failure.
+- Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft.
+- Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success.
+
+Pending: Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 211
+
+**Recover unavailable diagnostic collection (choice: without logs; surface: child overlay)**
+
+Case: `E2E-046/child-overlay-without-logs` · Category: customer-journey · Status: **pending**
+
+Variant: choice: without logs; surface: child overlay
+
+**Steps:**
+
+- Open the declared report during a real, independently observed collection failure. Read its unavailable/partial explanation without changing product files or services to create the failure.
+- Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft.
+- Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success.
+
+Pending: Requires a genuine publicly reproducible collection failure and qualified recovery; explicit reviewed sending authorization and dedicated real service profile are also required.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 212
+
+**Recover unavailable diagnostic collection (choice: retry; surface: kiosk)**
+
+Case: `E2E-046/kiosk-retry` · Category: customer-journey · Status: **pending**
+
+Variant: choice: retry; surface: kiosk
+
+**Steps:**
+
+- Open the declared report during a real, independently observed collection failure. Read its unavailable/partial explanation without changing product files or services to create the failure.
+- Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft.
+- Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success.
+
+Pending: Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 213
+
+**Recover unavailable diagnostic collection (choice: without logs; surface: kiosk)**
+
+Case: `E2E-046/kiosk-without-logs` · Category: customer-journey · Status: **pending**
+
+Variant: choice: without logs; surface: kiosk
+
+**Steps:**
+
+- Open the declared report during a real, independently observed collection failure. Read its unavailable/partial explanation without changing product files or services to create the failure.
+- Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft.
+- Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success.
+
+Pending: Requires a genuine publicly reproducible collection failure and qualified recovery; explicit reviewed sending authorization and dedicated real service profile are also required.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 214
+
+**Finish or stop feedback in different user flows (flow: no reply)**
+
+Case: `E2E-047/no-reply` · Category: customer-journey · Status: **pending**
+
+Variant: flow: no reply
+
+**Steps:**
+
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 215
+
+**Finish or stop feedback in different user flows (flow: background)**
+
+Case: `E2E-047/background` · Category: customer-journey · Status: **pending**
+
+Variant: flow: background
+
+**Steps:**
+
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 216
+
+**Finish or stop feedback in different user flows (flow: app exit)**
+
+Case: `E2E-047/app-exit` · Category: customer-journey · Status: **pending**
+
+Variant: flow: app exit
+
+**Steps:**
+
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 217
+
+**Finish or stop feedback in different user flows (flow: retry expired)**
+
+Case: `E2E-047/retry-expired` · Category: customer-journey · Status: **pending**
+
+Variant: flow: retry expired
+
+**Steps:**
+
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 218
+
+**Finish or stop feedback in different user flows (flow: overlay stop)**
+
+Case: `E2E-047/overlay-stop` · Category: customer-journey · Status: **pending**
+
+Variant: flow: overlay stop
+
+**Steps:**
+
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 219
+
+**Finish or stop feedback in different user flows (flow: kiosk stop)**
+
+Case: `E2E-047/kiosk-stop` · Category: customer-journey · Status: **pending**
+
+Variant: flow: kiosk stop
+
+**Steps:**
+
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 220
+
+**Finish or stop feedback in different user flows (flow: overlay success)**
+
+Case: `E2E-047/overlay-success` · Category: customer-journey · Status: **pending**
+
+Variant: flow: overlay success
+
+**Steps:**
+
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 221
+
+**Finish or stop feedback in different user flows (flow: kiosk success)**
+
+Case: `E2E-047/kiosk-success` · Category: customer-journey · Status: **pending**
+
+Variant: flow: kiosk success
+
+**Steps:**
+
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 222
+
+**Finish or stop feedback in different user flows (flow: parent error success)**
+
+Case: `E2E-047/parent-error-success` · Category: customer-journey · Status: **pending**
+
+Variant: flow: parent error success
+
+**Steps:**
+
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+
+Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 223
+
+**Approve after the displayed estimate has aged (balance: daily only; surface: child overlay)**
+
+Case: `E2E-048/daily-only-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: balance: daily only; surface: child overlay
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 224
+
+**Approve after the displayed estimate has aged (balance: daily only; surface: kiosk)**
+
+Case: `E2E-048/daily-only-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: balance: daily only; surface: kiosk
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 225
+
+**Approve after the displayed estimate has aged (balance: grant only; surface: child overlay)**
+
+Case: `E2E-048/grant-only-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: balance: grant only; surface: child overlay
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 226
+
+**Approve after the displayed estimate has aged (balance: grant only; surface: kiosk)**
+
+Case: `E2E-048/grant-only-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: balance: grant only; surface: kiosk
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 227
+
+**Approve after the displayed estimate has aged (balance: daily dominant; surface: child overlay)**
+
+Case: `E2E-048/daily-dominant-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: balance: daily dominant; surface: child overlay
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 228
+
+**Approve after the displayed estimate has aged (balance: daily dominant; surface: kiosk)**
+
+Case: `E2E-048/daily-dominant-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: balance: daily dominant; surface: kiosk
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 229
+
+**Approve after the displayed estimate has aged (balance: grant dominant; surface: child overlay)**
+
+Case: `E2E-048/grant-dominant-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: balance: grant dominant; surface: child overlay
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 230
+
+**Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk)**
+
+Case: `E2E-048/grant-dominant-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: balance: grant dominant; surface: kiosk
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 231
+
+**Change temporary app permission on every supported launch route (route: native grid; surface: child overlay)**
+
+Case: `E2E-049/native-grid-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: route: native grid; surface: child overlay
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 232
+
+**Change temporary app permission on every supported launch route (route: native grid; surface: kiosk)**
+
+Case: `E2E-049/native-grid-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: route: native grid; surface: kiosk
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 233
+
+**Change temporary app permission on every supported launch route (route: native desktop; surface: child overlay)**
+
+Case: `E2E-049/native-desktop-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: route: native desktop; surface: child overlay
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 234
+
+**Change temporary app permission on every supported launch route (route: native desktop; surface: kiosk)**
+
+Case: `E2E-049/native-desktop-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: route: native desktop; surface: kiosk
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 235
+
+**Change temporary app permission on every supported launch route (route: native file manager; surface: child overlay)**
+
+Case: `E2E-049/native-file-manager-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: route: native file manager; surface: child overlay
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 236
+
+**Change temporary app permission on every supported launch route (route: native file manager; surface: kiosk)**
+
+Case: `E2E-049/native-file-manager-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: route: native file manager; surface: kiosk
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 237
+
+**Change temporary app permission on every supported launch route (route: native command; surface: child overlay)**
+
+Case: `E2E-049/native-command-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: route: native command; surface: child overlay
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 238
+
+**Change temporary app permission on every supported launch route (route: native command; surface: kiosk)**
+
+Case: `E2E-049/native-command-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: route: native command; surface: kiosk
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 239
+
+**Change temporary app permission on every supported launch route (route: snap grid; surface: child overlay)**
+
+Case: `E2E-049/snap-grid-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: route: snap grid; surface: child overlay
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 240
+
+**Change temporary app permission on every supported launch route (route: snap grid; surface: kiosk)**
+
+Case: `E2E-049/snap-grid-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: route: snap grid; surface: kiosk
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 241
+
+**Change temporary app permission on every supported launch route (route: snap command; surface: child overlay)**
+
+Case: `E2E-049/snap-command-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: route: snap command; surface: child overlay
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 242
+
+**Change temporary app permission on every supported launch route (route: snap command; surface: kiosk)**
+
+Case: `E2E-049/snap-command-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: route: snap command; surface: kiosk
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 243
+
+**Change temporary app permission on every supported launch route (route: flatpak grid; surface: child overlay)**
+
+Case: `E2E-049/flatpak-grid-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: route: flatpak grid; surface: child overlay
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 244
+
+**Change temporary app permission on every supported launch route (route: flatpak grid; surface: kiosk)**
+
+Case: `E2E-049/flatpak-grid-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: route: flatpak grid; surface: kiosk
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 245
+
+**Change temporary app permission on every supported launch route (route: flatpak command; surface: child overlay)**
+
+Case: `E2E-049/flatpak-command-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: route: flatpak command; surface: child overlay
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 246
+
+**Change temporary app permission on every supported launch route (route: flatpak command; surface: kiosk)**
+
+Case: `E2E-049/flatpak-command-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: route: flatpak command; surface: kiosk
+
+**Steps:**
+
+- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
+- On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 247
+
+**Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: overlay first)**
+
+Case: `E2E-050/overlay-first-retained` · Category: customer-journey · Status: **pending**
+
+Variant: departure: retained; surface order: overlay first
+
+**Steps:**
+
+- Independently configure Jordan's allowed work editor, soft-blocked real offline game and hard-blocked app through Parent. Start with limits on, zero allowance and no grant. Leave Riley's separate recognizable work open. Use a synthetic notes file for saved work.
+- Complete all eight recipe rows in each of three cycles: daily homework; included game approval; another included addition on the other form; excluded homework approval; included approval followed by allowance increase then zero; limits off then on; a short station-approved visit to natural lock; replacement approval and revocation. Alternate the two parents and both forms. Cycle 2 plays fullscreen; cycles 1 and 3 play windowed. After every row verify the stated time, app access and work result before proceeding. Switch User for retained departures or sign out for fresh departures; read saved work after a fresh login and compare old windows only after retained return. Require fresh authentication for every request and inspect remembered choices before editing. Each cycle ends with zero usable time and a visit to Riley's same unaffected work.
+- After all three complete cycles reopen Parent and read Jordan's final enabled zero allowance, zero grant and original app rules. Revisit Riley's work, then finish. No reset, hidden grant or restart from a later cycle is allowed.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 248
+
+**Alternate homework, games and time sources over repeated sessions (departure: fresh; surface order: overlay first)**
+
+Case: `E2E-050/overlay-first-fresh` · Category: customer-journey · Status: **pending**
+
+Variant: departure: fresh; surface order: overlay first
+
+**Steps:**
+
+- Independently configure Jordan's allowed work editor, soft-blocked real offline game and hard-blocked app through Parent. Start with limits on, zero allowance and no grant. Leave Riley's separate recognizable work open. Use a synthetic notes file for saved work.
+- Complete all eight recipe rows in each of three cycles: daily homework; included game approval; another included addition on the other form; excluded homework approval; included approval followed by allowance increase then zero; limits off then on; a short station-approved visit to natural lock; replacement approval and revocation. Alternate the two parents and both forms. Cycle 2 plays fullscreen; cycles 1 and 3 play windowed. After every row verify the stated time, app access and work result before proceeding. Switch User for retained departures or sign out for fresh departures; read saved work after a fresh login and compare old windows only after retained return. Require fresh authentication for every request and inspect remembered choices before editing. Each cycle ends with zero usable time and a visit to Riley's same unaffected work.
+- After all three complete cycles reopen Parent and read Jordan's final enabled zero allowance, zero grant and original app rules. Revisit Riley's work, then finish. No reset, hidden grant or restart from a later cycle is allowed.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 249
+
+**Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: kiosk first)**
+
+Case: `E2E-050/kiosk-first-retained` · Category: customer-journey · Status: **pending**
+
+Variant: departure: retained; surface order: kiosk first
+
+**Steps:**
+
+- Independently configure Jordan's allowed work editor, soft-blocked real offline game and hard-blocked app through Parent. Start with limits on, zero allowance and no grant. Leave Riley's separate recognizable work open. Use a synthetic notes file for saved work.
+- Complete all eight recipe rows in each of three cycles: daily homework; included game approval; another included addition on the other form; excluded homework approval; included approval followed by allowance increase then zero; limits off then on; a short station-approved visit to natural lock; replacement approval and revocation. Alternate the two parents and both forms. Cycle 2 plays fullscreen; cycles 1 and 3 play windowed. After every row verify the stated time, app access and work result before proceeding. Switch User for retained departures or sign out for fresh departures; read saved work after a fresh login and compare old windows only after retained return. Require fresh authentication for every request and inspect remembered choices before editing. Each cycle ends with zero usable time and a visit to Riley's same unaffected work.
+- After all three complete cycles reopen Parent and read Jordan's final enabled zero allowance, zero grant and original app rules. Revisit Riley's work, then finish. No reset, hidden grant or restart from a later cycle is allowed.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 250
+
+**Alternate homework, games and time sources over repeated sessions (departure: fresh; surface order: kiosk first)**
+
+Case: `E2E-050/kiosk-first-fresh` · Category: customer-journey · Status: **pending**
+
+Variant: departure: fresh; surface order: kiosk first
+
+**Steps:**
+
+- Independently configure Jordan's allowed work editor, soft-blocked real offline game and hard-blocked app through Parent. Start with limits on, zero allowance and no grant. Leave Riley's separate recognizable work open. Use a synthetic notes file for saved work.
+- Complete all eight recipe rows in each of three cycles: daily homework; included game approval; another included addition on the other form; excluded homework approval; included approval followed by allowance increase then zero; limits off then on; a short station-approved visit to natural lock; replacement approval and revocation. Alternate the two parents and both forms. Cycle 2 plays fullscreen; cycles 1 and 3 play windowed. After every row verify the stated time, app access and work result before proceeding. Switch User for retained departures or sign out for fresh departures; read saved work after a fresh login and compare old windows only after retained return. Require fresh authentication for every request and inspect remembered choices before editing. Each cycle ends with zero usable time and a visit to Riley's same unaffected work.
+- After all three complete cycles reopen Parent and read Jordan's final enabled zero allowance, zero grant and original app rules. Revisit Riley's work, then finish. No reset, hidden grant or restart from a later cycle is allowed.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 251
+
+**Alternate two children's work and game routines without mixing their choices (first child: jordan)**
+
+Case: `E2E-051/jordan` · Category: customer-journey · Status: **pending**
+
+Variant: first child: jordan
+
+**Steps:**
+
+- Independently configure allowed work, a soft-blocked game and a hard-blocked app for Jordan and Riley. Leave distinct saved work and retained desktops for both children. Set different custom request choices and the declared remembered parents on the two forms.
+- Complete four recipe rounds, visiting both children in the declared order and reversing that order on even rounds. Alternate Jamie and Sam's Parent windows, reselecting the intended child and reading current values before each change. Alternate daily homework, grant-only access and included/excluded game approvals exactly as the table specifies. After each child's change, revisit the peer's same work, current balances, app choices and remembered request values before editing that peer. Only the selected child's allowance, grant and temporary app permission may change, allowing ordinary elapsed time. Every request authenticates its displayed selected parent.
+- After round four revoke only the grant-only child's time and check its time-limit denial. The daily-only peer continues its original work with its own app restrictions. Read both children's final choices before ending this continuous attempt.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 252
+
+**Alternate two children's work and game routines without mixing their choices (first child: riley)**
+
+Case: `E2E-051/riley` · Category: customer-journey · Status: **pending**
+
+Variant: first child: riley
+
+**Steps:**
+
+- Independently configure allowed work, a soft-blocked game and a hard-blocked app for Jordan and Riley. Leave distinct saved work and retained desktops for both children. Set different custom request choices and the declared remembered parents on the two forms.
+- Complete four recipe rounds, visiting both children in the declared order and reversing that order on even rounds. Alternate Jamie and Sam's Parent windows, reselecting the intended child and reading current values before each change. Alternate daily homework, grant-only access and included/excluded game approvals exactly as the table specifies. After each child's change, revisit the peer's same work, current balances, app choices and remembered request values before editing that peer. Only the selected child's allowance, grant and temporary app permission may change, allowing ordinary elapsed time. Every request authenticates its displayed selected parent.
+- After round four revoke only the grant-only child's time and check its time-limit denial. The daily-only peer continues its original work with its own app restrictions. Read both children's final choices before ending this continuous attempt.
+
+Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
 
 </div>

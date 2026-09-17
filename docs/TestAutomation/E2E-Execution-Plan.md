@@ -11,9 +11,9 @@ the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-- [ ] **192 — [Align inventory regression fixtures with the current metadata](E2E-Tasks/192-inventory-compatibility.md)**.
-  Prerequisites: existing source only. Acceptance: the brief's host checks.
-  This task earns no customer or block readiness.
+- [ ] **001 — [Visible terminal launch, submission and denial](E2E-Tasks/001-terminal.md)**.
+  Prerequisites: existing qualified source and the guarded attempt envelope.
+  Acceptance: the brief's live VM terminal qualification for FILE01, FILE02 and FILE06.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale

@@ -3,6 +3,13 @@
 Estimate: 25–45 minutes. Follow the
 [master](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
 
+## Read only this context
+
+Use the [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
+Read the inventory declaration schema and named regression fixtures. Obtain
+counts with a narrow JSON projection; read only recipe clauses referenced by
+those assertions. No other task brief or full customer catalogue is required.
+
 ## Scope and implementation
 
 Repair only [inventory regression fixtures/assertions](../../../tests/unit/test_e2e_inventory.py)
@@ -38,7 +45,7 @@ Reconcile the current inventory totals in
 [E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and
 [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
 Keep all block/scenario readiness unchanged: this earns no live acceptance.
-Check task 192 in the [master](../E2E-Execution-Plan.md), remove any resolved
-blocker, and delete this brief when its context is in maintained source/contracts.
-Replace its master link with plain text and validate changed Markdown through
+Check task 192 in the [master's queue](../E2E-Task-Queue.md), refresh the
+master's **Next task** pointer, remove any resolved blocker, and delete this brief when its context is in maintained source/contracts.
+Replace its queue link with plain text and validate changed Markdown through
 `tools/read-only links`. No new evidence document or accumulated history.

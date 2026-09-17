@@ -1,15 +1,23 @@
-# 126 — Prepare and play a real offline game windowed
+# 126 — Compose windowed gameplay through natural expiry
 
-Estimate: 40–60 minutes for a focused implementation/validation cycle; not
+Estimate: 25–45 minutes for a focused implementation/validation cycle; not
 a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+
+## Read only this context
+
+Use the [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
+Read only the named block rows/callables, this recipe's selected cases and
+applicable finite-data rows. Prerequisite IDs are completion checks; do not open
+their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
 
 ## Scope and prerequisites
 
-Deliver **Game APP01/02/03/04; APP05/FLOW10 windowed**. First scheduled consumer: [E2E-023, case 126](../E2E-Scenario-Recipes.md#e2e-023).
+Deliver **APP05/FLOW10 windowed game**. First scheduled consumer: [E2E-023, case 126](../E2E-Scenario-Recipes.md#e2e-023).
 Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use), [related block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
+Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
 
+- **126a** — FIX04 game asset; game APP01/02/03/04 and FLOW08.
 - **062** — TIME04.
 - **065** — FLOW13 grant-only/combined; retained entry and explicit revoke preparation.
 
@@ -17,7 +25,7 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Pin a real offline game/level through FIX04 with meaningful public locators. Qualify APP05 windowed mode/level and actual gameplay, then FLOW10. Use real normal input and bounded public results; no fake game, timer or private state probe.
+Reuse the qualified real-game launch, usability and activity callables. Bind its offered windowed mode/level controls, compose APP05 from UI15 and APP03 plus independent gameplay observations, then compose FLOW10 from game FLOW08, APP05, APP04 and TIME04. Use real normal input and bounded public results; no fake game, timer or private state probe.
 
 ## Live VM acceptance
 
@@ -37,14 +45,15 @@ establish complete scenario coverage.
 
 ## Close out
 
-After live qualification and cleanup, update the callable, exact qualified scope
-and status in [E2E-Building-Blocks.md](../E2E-Building-Blocks.md), and reconcile
-the first consumer's status in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
-A slice alone leaves the full scenario pending. If any complete E2E scenario
-passed, run `tools/generate_test_coverage.sh` after that case's cleanup; it runs
-`tools/generate_test_coverage.py`. Require successful generation before check-off.
+After this slice's live qualification and cleanup, follow the
+[master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
+If a complete E2E scenario passed, refresh coverage immediately after that case.
+Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
 
-Check this task in the [master](../E2E-Execution-Plan.md), then remove this brief
-when its enduring context is in source/contracts and replace its master link
-with plain text. Validate changed Markdown with `tools/read-only links`.
-Keep normal runner artifacts; no new evidence document or accumulated history.
+Update the relevant callable/scope/status in
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
+in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+Check **126** in the [master's queue](../E2E-Task-Queue.md), update the master's
+**Next task** pointer, then delete this brief once its enduring context is maintained
+in source/contracts. Validate changed Markdown. Keep normal runner artifacts;
+no task archive, evidence document or accumulated history.

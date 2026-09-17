@@ -5,7 +5,10 @@ persistent case IDs, matrices and readiness. This document supplies their exact
 block compositions and finite data. The [block catalogue](E2E-Building-Blocks.md)
 owns atomic operations and composites; the [execution plan](E2E-Execution-Plan.md)
 owns implementation order and live completion. Do not copy these recipes into
-task documents or silently substitute different inputs.
+task documents or silently substitute different inputs. In an implementation
+session, read only the selected family's variant branches, applicable finite-data
+rows and common entry/time rules it uses; the master's Next task pointer avoids
+loading unrelated task briefs or the full scheduling queue.
 
 There are **50 families and 252 persistent cases**: **240 customer cases**
 (4 ready, 236 pending), **11 engineering fault obligations**, and **1 ready

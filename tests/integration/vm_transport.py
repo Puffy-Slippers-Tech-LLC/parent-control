@@ -113,16 +113,19 @@ class Transport:
 
     def call(self, argv, *, input=None, timeout=120, check=True, attempts=1, on_output=None):
         self.guard(self.config)
-        if on_output is None:
-            return self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
-                                     input=input, timeout=timeout, check=check, merge_stderr=False)
-        previous = self.commands.progress
-        self.commands.progress = on_output
+        from watch_activity import remote_command
+        previous_watch = getattr(self.commands, 'watch_command', None)
+        self.commands.watch_command = remote_command(argv, input is not None)
+        previous = getattr(self.commands, 'progress', None)
+        if on_output is not None:
+            self.commands.progress = on_output
         try:
             return self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
                                      input=input, timeout=timeout, check=check, merge_stderr=False)
         finally:
-            self.commands.progress = previous
+            if on_output is not None:
+                self.commands.progress = previous
+            self.commands.watch_command = previous_watch
 
     def ready(self):
         self.probe_ready()
@@ -210,6 +213,8 @@ class Transport:
                 event.clear()
 
     def reboot(self):
+        from watch_activity import event
+        event('Requesting VM reboot; waiting for a new boot')
         before = self.call(['/usr/bin/python3', '-c', BOOT_SHA256_PROBE])
         require(isinstance(before, bytes) and re.fullmatch(rb'[0-9a-f]{64}\n', before),
                 'transport:invalid-boot-output')

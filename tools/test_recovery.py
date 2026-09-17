@@ -24,6 +24,14 @@ def before_run(root, argv, *, categories=None):
              for kind in (categories or [argv[0]]))
     if not pending and not vm:
         return 0
+    return cleanup(root)
+
+
+def cleanup(root):
+    """Reconcile recorded leftovers under the caller's checkout activity lock."""
+    if not test_activity.descriptors():
+        raise ValueError('retention: checkout activity ownership required')
+    store = test_retention.Store(root / 'artifacts/test-retention')
     # This runs only recovery plus its mandatory cleanup-safety prerequisite;
     # it does not rerun a product category or create another detached session.
     from regression_process import category_run
@@ -34,7 +42,7 @@ def before_run(root, argv, *, categories=None):
         if status:
             raise ValueError(f'retention: automatic recovery failed (status={status}); '
                              'see diagnostics above; previous evidence preserved')
-    if pending:
+    if store.path.exists():
         store.reconcile(guard)
     else:
         guard()

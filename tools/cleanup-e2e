@@ -1,0 +1,10 @@
+#!/usr/bin/python3 -IB
+"""Clean recorded leftovers from previous E2E runs, preserving evidence."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from cleanup_e2e import main
+
+if __name__ == '__main__':
+    sys.exit(main())

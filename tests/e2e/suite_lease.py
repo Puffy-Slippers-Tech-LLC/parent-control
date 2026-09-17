@@ -7,7 +7,6 @@ Case results remain candidates until the final audit and actual lock release suc
 """
 
 from pathlib import Path
-import re
 import xml.etree.ElementTree as ET
 
 import system_runner as system
@@ -52,7 +51,8 @@ class SuiteLease(system.Lease):
         root = ET.Element('domainsnapshot')
         ET.SubElement(root, 'name').text = self.installed_name
         ET.SubElement(root, 'memory', snapshot='no')
-        snap = self.source.domain.snapshotCreateXML(ET.tostring(root, encoding='unicode'), 0)
+        with self.snapshot_status('Taking', self.installed_name):
+            snap = self.source.domain.snapshotCreateXML(ET.tostring(root, encoding='unicode'), 0)
         self.installed_xml = snap.getXMLDesc(0)
         self.source.connection.defineXML(self.test_xml)
         self.view.run = self.state['run']
@@ -143,7 +143,8 @@ class SuiteLease(system.Lease):
         system.require(snap.getXMLDesc(0) == expected, 'suite:snapshot-metadata-changed')
         # FORCE permits replacing QEMU when the saved XML differs. The saved
         # baseline is off: do not boot until shares have been removed again.
-        self.source.domain.revertToSnapshot(snap, self.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
+        with self.snapshot_status('Restoring', name):
+            self.source.domain.revertToSnapshot(snap, self.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
         self.view.run = None
         self.view.domain_id = None
         self.guard(off=True)
@@ -174,18 +175,21 @@ class SuiteLease(system.Lease):
             value['outcome'] == 'failed' for value in self.ledger.outcomes.values())
         # The suite retains the actual lock, including through case reporting.
 
-    def audit(self, *, validate=None):
+    def audit(self, *, validate=None, retain_installed=False):
         """No acceptance or next invocation can bypass this final full audit."""
         if not self._held:
             return
         try:
             system.require(self._case_released and self.state['phase'] == 'complete',
                            'suite:cleanup-incomplete')
+            if not self.mutated:
+                return
             if self._restored_name != self.capture.state['proof']['name']:
                 self.restore_installed = False
                 self._restored = self._reset_attempted = False
                 self.finish()
-            self.delete_installed()
+            if not retain_installed:
+                self.delete_installed()
             self._fast = False
             self.guard(off=True)
             system.log('stage:restored-baseline-verification')
@@ -202,6 +206,18 @@ class SuiteLease(system.Lease):
                 # use the proof just audited rather than scanning twice.
                 self._fast = True
                 validate()
+            if retain_installed:
+                # The standalone tool leaves the powered-off app state ready.
+                # Audit the outer baseline first, then restore the exact snapshot
+                # created here while ownership and metadata checks still apply.
+                self._fast = True
+                self.restore_installed = True
+                self._restored = self._reset_attempted = False
+                self.finish()
+                # Commit retention only after restoration and provenance checks.
+                # Interrupted/failed preparations keep their cleanup obligation.
+                self.state.pop('e2e_snapshot', None)
+                self.save('complete')
         finally:
             self._fast = False
             self._held = False
@@ -220,58 +236,13 @@ class Suite:
         self.prepared = False
         self.next_case = None
 
-    def prepare_installed(self, directory, assets, selection, *, root):
-        """Always rebuild once, before the first case (including clean cases)."""
-        from installed_setup import stage, InstalledSetup
-        from provenance import VerifiedInputs
-        from vm_transport import Transport
-        lease = self.lease
-        system.log('stage:suite-installation')
-        if system.watch_progress is not None:
-            system.watch_progress.suite_preparation('Cleaning up previous runs')
-        lease.prepare()
-        version = self.commands.run(['dpkg-deb', '-f', str(assets / 'package.deb'),
-                                     'Version']).decode().strip()
-        system.require(re.fullmatch(r'[0-9][A-Za-z0-9.+:~\-]*', version) is not None,
-                       'suite:invalid-package-version')
-        lease.installed_name = 'onpc-' + version
-        lease.state['e2e_snapshot'] = lease.installed_name
-        lease.save('isolated')
-        if system.watch_progress is not None:
-            system.watch_progress.suite_preparation(
-                'Deleting existing snapshot ' + lease.installed_name)
-        lease.delete_installed()  # prepare() restored baseline before deletion.
-        if system.watch_progress is not None:
-            system.watch_progress.suite_preparation('Installing app')
-        setup = directory / 'suite-setup'
-        setup.mkdir(mode=0o700)
-        stage(setup, assets, selection)
-        host_key = system.bootstrap(self.commands, lease, setup, self.guestfs)
-        lease.save('isolated')
-        verified = VerifiedInputs(lease=lease, assets=assets, root=root)
-        self.verified = verified
-        lease.start()
-        hostname = system.address(lease.source)
-        (setup / 'known-hosts').write_text(f'{hostname} {host_key}\n')
-        transport = Transport({'directory': str(setup), 'hostname': hostname,
-            'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
-            'run': lease.state['run']}, self.commands, guard=lambda _: lease.guard())
-        transport.probe_ready()
-        InstalledSetup(setup, verified, transport).run(lease.guard, verify=False)
-        # Actual shutdown here only; case transitions retain direct reverts.
-        lease.capture.retire_backing_verification()
-        lease.source.shutdown(lease.guard, requested=False)
-        lease.guard(off=True)
-        if system.watch_progress is not None:
-            system.watch_progress.suite_preparation('Taking snapshot ' + lease.installed_name)
-        lease.create_installed()
-        self.prepared = True
-        if system.watch_progress is not None:
-            system.watch_progress.suite_prepared()
+    def prepare_installed(self, directory, assets, selection, *, root, overwrite=True):
+        from app_snapshot import prepare
+        return prepare(self, directory, assets, selection, root=root, overwrite=overwrite)
 
     def prepare_case(self, case, directory, assets, selection, *, root):
         if not self.prepared:
-            self.prepare_installed(directory, assets, selection, root=root)
+            self.prepare_installed(directory, assets, selection, root=root, overwrite=True)
             self.lease.restore_installed = needs_installed(case)
             self.lease.stop()
         self.lease.prepare()
@@ -287,10 +258,12 @@ class Suite:
         self.lease.ledger = ledger
         return self.source, self.guestfs, self.lease
 
-    def close(self):
+    def close(self, *, retain_installed=False):
         try:
             if self.lease is not None:
-                self.lease.audit(validate=self.verified.recheck if self.verified is not None else None)
+                options = {'retain_installed': True} if retain_installed else {}
+                self.lease.audit(validate=self.verified.recheck if self.verified is not None else None,
+                                 **options)
         finally:
             try:
                 if self.host_before is not None:

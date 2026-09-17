@@ -17,6 +17,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/integration'
 import vm_config
 
 
+def watch_terminal_available():
+    try:
+        import gi
+        gi.require_version('Vte', '3.91')
+        return True
+    except (ImportError, ValueError):
+        return False
+
+
 def install_missing_dependencies():
     """Fill missing launcher prerequisites with no requested upgrades or removals."""
     packages = [package for executable, package in
@@ -24,6 +33,8 @@ def install_missing_dependencies():
                 if not os.access(executable, os.X_OK)]
     if importlib.util.find_spec('pytest_cov') is None:
         packages.append('python3-pytest-cov')
+    if not watch_terminal_available():
+        packages.append('gir1.2-vte-3.91')
     if packages:
         print('test-runner-install: installing missing launcher dependencies', flush=True)
         subprocess.run(['/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=300', 'install',

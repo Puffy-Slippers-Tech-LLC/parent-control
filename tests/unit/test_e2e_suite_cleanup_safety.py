@@ -4,13 +4,15 @@ import fcntl
 import os
 import xml.etree.ElementTree as ET
 from contextlib import nullcontext
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
 import graphical_lease
 import suite_lease
 import system_runner as system
+from e2e_watch_viewer import progress_text
+from tools.e2e_progress import Progress
 from tests.support.vm_baseline import rig
 from tests.support.vm_runner import lease_rig
 
@@ -268,7 +270,7 @@ def prepared_suite(snapshots, tmp_path, monkeypatch):
 @pytest.mark.parametrize('stale', [False, True])
 def test_installed_suite_installs_once_and_restores_next_case_without_extra_audits(prepared_suite, stale):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
-    name = 'onpc-1.1+test~26.04'
+    name = 'onpc-v1.1'
     if stale:
         add(name, '<stale/>')
     installed = {'preconditions': ['installed-digest-verified-product']}
@@ -300,14 +302,14 @@ def test_installed_suite_installs_once_and_restores_next_case_without_extra_audi
 
 def test_suite_progress_precedes_slow_operations(prepared_suite, monkeypatch):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
-    progress = Mock()
+    progress = MagicMock()
     monkeypatch.setattr(system, 'watch_progress', progress)
-    name = 'onpc-1.1+test~26.04'
+    name = 'onpc-v1.1'
     add(name, '<stale/>')
     originals = {}
     for method, label in (
-            ('prepare', 'Cleaning up previous runs'),
-            ('delete_installed', 'Deleting existing snapshot ' + name),
+            ('prepare', 'Restoring onpc-baseline'),
+            ('delete_installed', 'Deleting existing snapshot ' + name + ' (overwrite=true)'),
             ('create_installed', 'Taking snapshot ' + name)):
         original = getattr(lease, method)
         originals[method] = original
@@ -321,11 +323,125 @@ def test_suite_progress_precedes_slow_operations(prepared_suite, monkeypatch):
         owner.prepare_installed(directory, directory, {}, root=directory)
         progress.suite_prepared.assert_called_once_with()
         assert [call.args[0] for call in progress.suite_preparation.call_args_list] == [
-            'Cleaning up previous runs', 'Deleting existing snapshot ' + name,
+            'Restoring onpc-baseline', 'Deleting existing snapshot ' + name + ' (overwrite=true)',
             'Installing app', 'Taking snapshot ' + name]
     for method, original in originals.items():
         monkeypatch.setattr(lease, method, original)
     lease.audit()
+
+
+def test_every_snapshot_mutation_reserves_footer_before_libvirt(prepared_suite, monkeypatch):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    progress = Progress([dict(case_id='first', coverage_id=1, title='First'),
+                         dict(case_id='next', coverage_id=2, title='Next'),
+                         dict(case_id='last', coverage_id=3, title='Last')])
+    progress.prepare('first')
+    monkeypatch.setattr(system, 'watch_progress', progress)
+    published = []
+    progress.publish_progress = lambda: published.append(progress.snapshot(display=True))
+    observed = []
+
+    def checked(action, name, original, *args):
+        label = f'{action} snapshot "{name}"'
+        shown = progress.snapshot(display=True)
+        assert published[-1]['operation'] == shown['operation'] == label
+        started = shown['operation_started_ns']
+        system.log('stage:other-controller-output')
+        progress.operation('Unrelated worker preparation')
+        shown = progress.snapshot(display=True)
+        assert progress_text({'progress': shown}, now_ns=started + 61_000_000_000)[2] == (
+            label + ' - (1m 1s)')
+        result = original(*args)
+        assert progress.snapshot(display=True)['operation'] == label
+        observed.append((action, name, shown['current']))
+        return result
+
+    def watch_delete(name, snap):
+        original = snap.delete.side_effect
+        snap.delete.side_effect = lambda flags: checked('Deleting', name, original, flags)
+
+    domain = lease.source.domain
+    restore = domain.revertToSnapshot.side_effect
+    domain.revertToSnapshot.side_effect = lambda snap, flags: checked('Restoring',
+        next(name for name, value in names.items() if value is snap), restore, snap, flags)
+    create = domain.snapshotCreateXML.side_effect
+    def watch_create(xml, flags):
+        name = ET.fromstring(xml).findtext('name')
+        snap = checked('Taking', name, create, xml, flags)
+        watch_delete(name, snap)
+        return snap
+    domain.snapshotCreateXML.side_effect = watch_create
+    name = 'onpc-v1.1'
+    watch_delete(name, add(name, '<stale/>'))
+    installed = {'preconditions': ['installed-digest-verified-product']}
+    clean = {'preconditions': ['accepted-product-free-baseline']}
+    cases = (installed, installed, clean)
+    for index, case in enumerate(cases):
+        owner.next_case = cases[index + 1] if index + 1 < len(cases) else None
+        lease.ledger = system.RunLedger()
+        with lease:
+            owner.prepare_case(case, directory, directory, {}, root=directory)
+            lease.start()
+            if owner.next_case is not None:
+                progress.prepare_next()
+            lease.stop()
+        if owner.next_case is not None:
+            progress.prepare(progress.cases[index + 1]['case_id'])
+    lease.audit()
+    assert observed == [
+        ('Restoring', baseline_name, 1), ('Deleting', name, 1), ('Taking', name, 1),
+        ('Restoring', name, 1), ('Restoring', name, 2),
+        ('Restoring', baseline_name, 3), ('Restoring', baseline_name, 3),
+        ('Deleting', name, 3)]
+    assert progress.snapshot_value is None
+
+
+def test_overwrite_false_existing_snapshot_is_a_logged_noop(prepared_suite, capsys):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    name = 'onpc-v1.1'
+    existing = add(name, '<existing/>')
+    with lease:
+        assert owner.prepare_installed(directory, directory, {}, root=directory,
+                                       overwrite=False) is False
+        assert not lease.mutated
+        assert lease.installed_name is None
+        assert 'e2e_snapshot' not in lease.state
+    lease.audit(retain_installed=True)
+    assert events == []
+    assert names[name] is existing and baseline_name in names
+    assert not (directory / 'suite-setup').exists()
+    setup.run.assert_not_called()
+    assert 'Keeping existing snapshot ' + name in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('overwrite', [False, True])
+def test_missing_current_version_is_created_and_other_versions_preserved(prepared_suite, overwrite):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    unrelated = add('onpc-0.9', '<unrelated/>')
+    with lease:
+        assert owner.prepare_installed(directory, directory, {}, root=directory,
+                                       overwrite=overwrite) is True
+    lease.audit(retain_installed=True)
+    assert 'onpc-v1.1' in names
+    assert names['onpc-0.9'] is unrelated and baseline_name in names
+    assert 'e2e_snapshot' not in lease.state
+    assert lease.state['phase'] == 'complete' and lease.fd is None
+    assert lease.source.off and lease._restored_name == 'onpc-v1.1'
+    assert lease.capture.verification_totals['calls'] == 2
+    setup.run.assert_called_once_with(lease.guard, verify=False)
+    assert not [event for event in events if event[0] == 'delete']
+
+
+def test_retention_is_not_committed_if_final_provenance_check_fails(prepared_suite):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    with lease:
+        owner.prepare_installed(directory, directory, {}, root=directory)
+    with pytest.raises(ValueError, match='changed'):
+        lease.audit(retain_installed=True,
+                    validate=Mock(side_effect=ValueError('changed')))
+    assert lease.fd is None
+    assert lease.state['e2e_snapshot'] == 'onpc-v1.1'
+    assert lease._restored_name == baseline_name
 
 
 @pytest.mark.parametrize('fault', ['install', 'snapshot-create', 'case'])

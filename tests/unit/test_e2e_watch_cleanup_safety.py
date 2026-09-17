@@ -87,3 +87,32 @@ def test_optional_failure_keeps_automation_running():
     adapter.open_display.assert_called_once_with(index=1)
     adapter.close_display.assert_not_called()
     adapter.lease.stop.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', [None, 'body', 'close'])
+def test_setup_display_closes_its_observer_without_vm_lifecycle(failure):
+    lease, observer = Mock(), Mock()
+    if failure == 'close':
+        observer.close.side_effect = RuntimeError('cleanup-failed')
+    with patch('graphical_lease.Adapter') as adapter, patch.object(watch, 'start', return_value=observer):
+        def invoke():
+            with watch.running_display(lease):
+                if failure == 'body':
+                    raise RuntimeError('body-failed')
+        if failure:
+            with pytest.raises(RuntimeError):
+                invoke()
+        else:
+            invoke()
+    adapter.assert_called_once_with(lease, running=True)
+    observer.close.assert_called_once()
+    lease.start.assert_not_called()
+    lease.stop.assert_not_called()
+
+
+def test_failed_setup_display_start_cannot_swallow_collector_cleanup_failure():
+    with patch('graphical_lease.Adapter'), patch.object(watch, 'start',
+            side_effect=RuntimeError('collector-cleanup-failed')):
+        with pytest.raises(RuntimeError, match='collector-cleanup-failed'):
+            with watch.running_display(Mock()):
+                pytest.fail('Cannot proceed past unfinished collector cleanup')

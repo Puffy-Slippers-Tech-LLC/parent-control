@@ -2,11 +2,13 @@
 """Bounded commands; cleanup signals only a pidfd opened for the spawned child."""
 
 import json
+from contextlib import ExitStack
 import os
 from pathlib import Path
 import signal
 import subprocess
 import tempfile
+import termios
 import time
 
 
@@ -28,21 +30,69 @@ class Commands:
         self.sequence = 0
         self.last_returncode = None
         self.progress = None
+        self.watch_command = None
 
-    def run(self, args, *, timeout=120, check=True, input=None, merge_stderr=True):
+    def run(self, args, *, timeout=120, check=True, input=None, merge_stderr=True,
+            on_output=None, terminal=False):
+        require(not terminal or input is None, 'command:terminal-input-unsupported')
         self.sequence += 1
         sequence = self.sequence
+        self.last_returncode = None
+        # The guest payload also uses this module without host spectator code.
+        try:
+            import watch_activity
+        except ModuleNotFoundError:
+            watch_activity = None
+        watch = watch_activity.command(args, self.watch_command) if watch_activity else None
+        output_failed = False
+
+        def forward(data, stream):
+            nonlocal output_failed
+            if watch is not None:
+                watch.output(data, stream)
+            if data and on_output is not None and not output_failed:
+                try:
+                    on_output(data, stream)
+                except BaseException:
+                    output_failed = True
+                    raise
+
         # Command diagnostics stay private; only fixed categories reach the console.
-        with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
+        with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors, ExitStack() as stack:
+            master = slave = None
+            if terminal:
+                master, slave = os.openpty()
+                stack.callback(os.close, master)
+                stack.callback(os.close, slave)
+                os.set_blocking(master, False)
+                termios.tcsetwinsize(slave, (24, 100))
+
+            def drain_terminal():
+                if master is not None:
+                    # Bound each drain so a continuously writing child cannot
+                    # prevent deadline/ownership processing. Retain raw bytes.
+                    for _ in range(16):
+                        try:
+                            data = os.read(master, 65536)
+                        except BlockingIOError:
+                            break
+                        if not data:
+                            break
+                        output.write(data)
+                    output.flush()
+
             child = subprocess.Popen(args, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
-                                     stdout=output, stderr=subprocess.STDOUT if merge_stderr else errors,
-                                     pass_fds=(() if self.lock_fd is None else (self.lock_fd,)))
+                                     stdout=slave if terminal else output,
+                                     stderr=slave if terminal else subprocess.STDOUT if merge_stderr else errors,
+                                     pass_fds=(() if self.lock_fd is None else (self.lock_fd,)),
+                                     **({'env': {**os.environ, 'TERM': 'xterm-256color'}} if terminal else {}))
             pidfd = os.pidfd_open(child.pid)
             offset = 0
+            error_offset = 0
             progress_failed = False
             try:
                 try:
-                    if self.progress is None:
+                    if self.progress is None and watch is None and on_output is None and not terminal:
                         child.communicate(input=input, timeout=timeout)
                     else:
                         # Keep raw command diagnostics private. The caller's
@@ -56,9 +106,16 @@ class Commands:
                             except subprocess.TimeoutExpired:
                                 complete = False
                             input = None
+                            drain_terminal()
                             data = os.pread(output.fileno(), os.fstat(output.fileno()).st_size - offset, offset)
                             offset += len(data)
-                            if data:
+                            if watch is not None or on_output is not None:
+                                forward(data, 'stdout')
+                                error_data = os.pread(errors.fileno(),
+                                    os.fstat(errors.fileno()).st_size - error_offset, error_offset)
+                                error_offset += len(error_data)
+                                forward(error_data, 'stderr')
+                            if data and self.progress is not None:
                                 try:
                                     self.progress(data)
                                 except BaseException:
@@ -84,6 +141,7 @@ class Commands:
                     raise
             finally:
                 os.close(pidfd)
+                drain_terminal()
                 output.seek(0)
                 raw = output.read()
                 errors.seek(0)
@@ -98,6 +156,10 @@ class Commands:
                         with path.open('xb') as stream:
                             stream.write(error_bytes)
                         path.chmod(0o600)
+                forward(raw[offset:], 'stdout')
+                forward(error_bytes[error_offset:], 'stderr')
+                if watch is not None:
+                    watch.finish(child.returncode)
                 if self.progress is not None and not progress_failed and len(raw) > offset:
                     self.progress(raw[offset:])
             self.last_returncode = child.returncode

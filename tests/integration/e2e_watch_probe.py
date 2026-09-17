@@ -33,6 +33,11 @@ def main():
     os.setuid(uid)
     from e2e_watch_viewer import Feed
     feed = Feed()
+    activity = feed.activity()
+    require(activity is not None and 'SSH $ printf' in activity['text']
+            and 'ONPC-WATCH-SSH-STDOUT\n' in activity['text']
+            and 'ls:' in activity['text']
+            and '/onpc-watch-missing-entry' in activity['text'], 'probe-no-ssh-transcript')
     deadline = time.monotonic() + 25
     first = None
     while time.monotonic() < deadline:
@@ -42,6 +47,11 @@ def main():
             break
         time.sleep(.03)
     require(first is not None, 'probe-no-live-frame')
+    progress = first[1].get('progress', {})
+    require(progress.get('title') == 'Spectator harness'
+            and progress.get('step') == 'Observe VM frames and command output'
+            and {'started_ns', 'case_started_ns', 'operation_started_ns'} <= progress.keys(),
+            'probe-no-timed-progress')
     path = BASE / str(uid) / (first[1]['run'] + '.sock')
     ages = []
     for index in range(60):
@@ -62,7 +72,8 @@ def main():
             and time.monotonic_ns() - current[1]['updated_ns'] < 1_000_000_000, 'probe-writer-stopped')
     feed.close()
     print(json.dumps({'connections': 60, 'frame_size': [first[1]['width'], first[1]['height']],
-                      'max_frame_age_ms': round(max(ages), 2), 'read_only': True}))
+                      'max_frame_age_ms': round(max(ages), 2), 'read_only': True,
+                      'ssh_command_stdout_stderr': True, 'timed_progress_with_frames': True}))
 
 
 if __name__ == '__main__':

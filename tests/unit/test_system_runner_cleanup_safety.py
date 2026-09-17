@@ -1,6 +1,7 @@
 """Run in isolation before any live system runner: all process/VM calls mocked."""
 
 import signal
+import os
 import subprocess
 from unittest.mock import Mock, patch
 
@@ -9,6 +10,23 @@ import pytest
 import system_runner as runner
 from tests.support.vm_baseline import local_preparation_source, rig
 from tests.support.vm_runner import lease_rig
+
+
+def test_terminal_spawn_failure_closes_both_owned_descriptors(monkeypatch):
+    descriptors = []
+    openpty = os.openpty
+    def recorded():
+        pair = openpty()
+        descriptors.extend(pair)
+        return pair
+    monkeypatch.setattr(runner.os, 'openpty', recorded)
+    monkeypatch.setattr(runner.subprocess, 'Popen', Mock(side_effect=OSError('spawn-refused')))
+    with pytest.raises(OSError, match='spawn-refused'):
+        runner.Commands().run(['apt-get', 'update'], terminal=True)
+    assert len(descriptors) == 2
+    for descriptor in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
 
 
 def test_outdated_preparation_refuses_before_disk_audit_or_vm_mutation(lease_rig):

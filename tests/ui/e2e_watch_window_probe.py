@@ -19,6 +19,10 @@ source = None
 
 class FixtureFeed(Feed):
     invocation_progress = None
+    invocation_activity = None
+
+    def activity(self):
+        return self.invocation_activity
 
     def progress(self):
         return self.invocation_progress
@@ -33,7 +37,7 @@ class FixtureFeed(Feed):
 
 feed = Feed() if live else FixtureFeed()
 app = application(feed)
-from gi.repository import GLib
+from gi.repository import GLib, Vte
 started = time.monotonic()
 stage = 0
 evidence = {'live': live, 'frames': 0, 'reconnects': 0, 'max_age_ms': 0}
@@ -93,6 +97,9 @@ def inspect():
             feed.invocation_progress = dict(current=4, total=5, case_id='4',
                 title='Next case', step='', operation='Preparing VM: check-system: [stage:isolated]',
                 started_ns=now - 3660_000_000_000, case_started_ns=now - 120_000_000_000)
+            feed.invocation_activity = dict(run='a' * 32, sequence=1,
+                offset=0, text='SSH $ apt-get install\n\x1b[1;32mPASS\x1b[0m\n'
+                    '\x1b[1;31mREBOOT REQUIRED\x1b[0m\n')
             stage = 2
         elif stage == 2 and app.screen.texture is None:
             assert app.window.get_mapped()
@@ -100,8 +107,20 @@ def inspect():
             assert app.step.get_text() == ''
             assert app.status.get_text() == feed.invocation_progress['operation'] + ' - (2m 0s)'
             evidence['preparation_visible_without_vm'] = True
+            text = app.terminal.get_text_format(Vte.Format.TEXT)
+            if not text or 'REBOOT REQUIRED' not in text:
+                assert elapsed < 15, 'Terminal did not render command output'
+                return True
+            assert text.rstrip() == 'SSH $ apt-get install\nPASS\nREBOOT REQUIRED'
+            assert not app.terminal.get_input_enabled()
+            assert app.terminal.get_pty() is None
+            html = app.terminal.get_text_format(Vte.Format.HTML)
+            assert '#EF2929' in html.upper() and '#8AE234' in html.upper(), html
+            evidence['terminal_colors_rendered'] = True
+            evidence['ssh_visible_without_vm'] = True
             evidence['stopped_window_still_open'] = True
             feed.invocation_progress = None
+            feed.invocation_activity = None
             source = Frames('b' * 32)
             now = time.monotonic_ns()
             source.publish(b'\xff\0\0\0' * 12, state='live', width=4, height=3,

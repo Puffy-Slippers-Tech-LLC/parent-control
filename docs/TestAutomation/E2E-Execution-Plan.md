@@ -78,6 +78,10 @@ acceptance intact. Do not use a short estimate to omit required verification.
 5. Run the verification contract below. Keep source and documents unchanged
    during guarded attempts through collection and cleanup. Finish functional
    edits before building/qualifying final inputs.
+   Keep VM work observable through the [viewer and shared command/progress
+   interfaces](E2E-Building-Blocks.md#add-a-consumer), including installed tests,
+   SSH setup, customer actions and cleanup. `tools/watch-e2e` may remain open
+   across tasks; its command pane also works when no graphical frame is available.
 6. Perform the close-out below after cleanup has released the attempt. Report
    the completed task, validation result and next eligible row. The next simple
    prompt repeats this process.

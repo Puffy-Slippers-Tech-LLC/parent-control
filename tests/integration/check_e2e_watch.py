@@ -61,7 +61,12 @@ class RFBProbe:
         return round((time.monotonic() - started) * 1000, 2)
 
 
-def probe(lease, commands):
+def probe(lease, commands, directory, host_key):
+    from e2e_progress import Progress
+    lease.watch_progress = Progress([dict(case_id='spectator-harness', coverage_id=1,
+                                         title='Spectator harness')])
+    lease.watch_progress.case('spectator-harness')
+    lease.watch_progress.step('Observe VM frames and command output')
     adapter = Adapter(lease)
     try:
         adapter.request('off', adapter.run)
@@ -70,6 +75,17 @@ def probe(lease, commands):
         require(observer is not None and observer.ready.is_set(), 'watch:collector-unavailable')
         vnc = RFBProbe(adapter.request('graphics', adapter.run))
         before = vnc.frame()
+        from vm_transport import Transport
+        hostname = runner.address(lease.source)
+        (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
+        vm = Transport(dict(directory=str(directory), hostname=hostname,
+            run=lease.state['run'], domain_uuid=lease.source.uuid,
+            domain_id=lease.view.domain_id), commands, guard=lambda _: lease.guard())
+        vm.ready()
+        require(vm.call(['printf', 'ONPC-WATCH-SSH-STDOUT\\n']) == b'ONPC-WATCH-SSH-STDOUT\n',
+                'watch:ssh-stdout')
+        vm.call(['ls', '--', '/onpc-watch-missing-entry'], check=False)
+        require(commands.last_returncode != 0, 'watch:ssh-stderr')
         result = json.loads(commands.run(['/usr/bin/python3', '-B',
             str(Path(__file__).with_name('e2e_watch_probe.py'))], timeout=40))
         result['rfb_before_ms'] = before
@@ -116,7 +132,12 @@ def main():
             ledger=ledger, graphics_type='vnc')
         with lease:
             lease.prepare()
-            result['probe'] = probe(lease, commands)
+            inputs = directory / 'input'
+            inputs.mkdir(mode=0o700)
+            (inputs / 'selected-inputs.json').write_text(json.dumps({'scope': 'spectator-harness'}))
+            host_key = runner.bootstrap(commands, lease, directory, guestfs, observation_only=True)
+            lease.save('isolated')
+            result['probe'] = probe(lease, commands, directory, host_key)
             ledger.pass_outcome('infrastructure')
             ledger.pass_outcome('collection')
         result['outcome'] = 'passed'

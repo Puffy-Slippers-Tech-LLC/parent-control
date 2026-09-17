@@ -22,6 +22,8 @@ from prepare_host import URI
 
 
 def log(event):
+    from watch_activity import event as activity
+    activity(event)
     # Never include socket paths, run tokens, XML, or backend output.
     print('graphical-lease: [' + event + ']', file=sys.stderr, flush=True)
 
@@ -29,14 +31,14 @@ def log(event):
 class Adapter:
     """Accept one generalhw off/on/off attempt; never restore within it."""
 
-    def __init__(self, lease):
-        require(lease.fd is not None and lease.state['phase'] == 'isolated' and
+    def __init__(self, lease, *, running=False):
+        require(lease.fd is not None and lease.state['phase'] == ('running' if running else 'isolated') and
                 lease.view.run == lease.state['run'] and
                 lease.view.graphics_type == 'vnc', 'graphics:unprepared-lease')
-        lease.guard(off=True)
+        lease.guard(off=not running)
         self.lease = lease
         self.run = lease.state['run']
-        self.phase = 'initial'
+        self.phase = 'running' if running else 'initial'
         self.events = []
         self.display = None
         self.serial = None

@@ -263,12 +263,12 @@ tools/run-tests e2e --scenario 'E2E-003/none' --artifacts '/tmp/onpc-test-artifa
 tools/run-tests e2e --scenario 'E2E-004/app-grid' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
 ```
 
-Each invocation installs and reboots once, then captures a powered-off
-`onpc-v[version]` snapshot using the app release without package revisions. An existing
-same-name snapshot is deleted after restoring `onpc-baseline`, then rebuilt.
-Each case gets its own guarded attempt: installed-app prerequisites restore the
-version snapshot; installation/removal cases restore `onpc-baseline`. A missing
-version snapshot fails immediately without reinstalling. The previous case's
+Suite preparation installs and reboots once per invocation to create a fresh,
+powered-off `onpc-v[version]` snapshot. Each installed-app case restores that
+snapshot without installing; package-lifecycle cases and product-free harness
+checks use baseline according to the enforced
+[case snapshot contract](../../docs/TestAutomation/E2E-Building-Blocks.md#parent-login-and-time-scenarios).
+A missing version snapshot fails immediately without reinstalling. The previous case's
 direct restore selects the next case's snapshot, preserving one restore per
 transition and the existing boundary-only audits. Final cleanup restores the
 clean baseline and deletes the version snapshot, including on case failure.

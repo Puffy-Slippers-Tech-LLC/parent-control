@@ -10,6 +10,7 @@ import pytest
 
 import evidence
 import installed_journey as journeys
+import installed_setup
 import parent_about
 import parent_access
 import parent_discovery
@@ -62,9 +63,8 @@ def test_shared_system_prompt_rendezvous_retains_request_and_refuses_uncertain_i
                                  parent_discovery.EMPTY_PLAN, parent_access.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty', 'standard-access'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
-@pytest.mark.parametrize('installed_snapshot', [None, 'onpc-1.1'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
-        tmp_path, monkeypatch, plan, failure, installed_snapshot):
+        tmp_path, monkeypatch, plan, failure):
     # A different trusted plan exercises the same recorder phase shape without
     # registering a synthetic scenario or awarding it any customer coverage.
     inventory = ROOT / 'tests/e2e/scenarios.json'
@@ -93,7 +93,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     monkeypatch.setattr(journeys.system, 'address', Mock(return_value='fixture-host'))
     monkeypatch.setattr(journeys, 'Transport', Mock())
     setup = Mock(return_value={'package_verified': True, 'setup_reboot_verified': True})
-    monkeypatch.setattr(journeys, 'InstalledSetup', Mock(return_value=SimpleNamespace(run=setup)))
+    monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock(return_value=SimpleNamespace(run=setup)))
     boot = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock(return_value=boot))
     def observe_ui(operation):
@@ -110,7 +110,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')
     state = {'stage': None, 'stored': False}
     context = SimpleNamespace(directory=directory, host_key='fixture-key', commands=Mock(),
-        installed_snapshot=installed_snapshot,
+        installed_snapshot='onpc-v1.1',
         guestfs=Mock(), credentials=Mock(), verified=SimpleNamespace(inputs=inputs),
         lease=SimpleNamespace(source=SimpleNamespace(uuid='fixture-uuid'),
             view=SimpleNamespace(domain_id=7), state={'run': 'a' * 32}, guard=Mock()))
@@ -191,11 +191,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             assert all(s['outcome'] == 'passed' for s in steps)
             assert steps[-2]['assertion_ids'] == ['visible-result']
         assert recorder._active is None
-        if installed_snapshot:
-            setup.assert_not_called()
-            journeys.Transport.return_value.reboot.assert_not_called()
-        else:
-            setup.assert_called_once()
+        setup.assert_not_called()
+        journeys.Transport.return_value.reboot.assert_not_called()
         assert boot.read.call_args_list and all(call.args == ('boot',) for call in boot.read.call_args_list)
 
 
@@ -205,6 +202,27 @@ def test_invalid_phase_plan_refuses_before_credentials_or_worker(tmp_path):
         journeys.record_installed_journey(Mock(), context, replace(SYNTHETIC, phases={}))
     context.credentials.provision.assert_not_called()
     context.run_worker.assert_not_called()
+
+
+@pytest.mark.parametrize('snapshot', [None, ''])
+def test_missing_snapshot_refuses_without_installation_or_setup_reply(tmp_path, monkeypatch, snapshot):
+    setup = Mock()
+    transport = Mock()
+    monkeypatch.setattr(installed_setup, 'InstalledSetup', setup)
+    monkeypatch.setattr(journeys, 'Transport', transport)
+    context = SimpleNamespace(directory=tmp_path, installed_snapshot=snapshot)
+    journey = journeys.InstalledJourney(context, Mock(), SYNTHETIC)
+    for stage in ('ready', 'setup-detached'):
+        (tmp_path / (stage + '.request.json')).write_text(
+            json.dumps({'stage': stage, 'screenshot': None}))
+    journey.step(Mock())
+    with pytest.raises(EvidenceError, match='installed-snapshot-required'):
+        journey.step(Mock())
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        journey.step(Mock())
+    setup.assert_not_called()
+    transport.assert_not_called()
+    assert not (tmp_path / 'setup-detached.reply.json').exists()
 
 
 def test_review_requires_a_named_qualification_mode(tmp_path):
@@ -223,11 +241,10 @@ def test_stage_action_runs_after_worker_guard_and_before_durable_reply(tmp_path,
     monkeypatch.setattr(journeys.system, "address", Mock(return_value="fixture-host"))
     transport = Mock()
     monkeypatch.setattr(journeys, "Transport", Mock(return_value=transport))
-    monkeypatch.setattr(journeys, "InstalledSetup", Mock(return_value=SimpleNamespace(
-        run=Mock(return_value={"package_verified": True}))))
     monkeypatch.setattr(journeys, "ReadOnlyObservations", Mock(return_value=SimpleNamespace(
         read=Mock(return_value={"boot_sha256": "b" * 64}))))
     context = SimpleNamespace(directory=directory, host_key="fixture-key", commands=Mock(),
+        installed_snapshot='onpc-v1.1',
         verified=Mock(), lease=SimpleNamespace(source=SimpleNamespace(uuid="fixture-uuid"),
         view=SimpleNamespace(domain_id=7), state={"run": "a" * 32}, guard=Mock()))
     events = []

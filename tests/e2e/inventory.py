@@ -111,6 +111,15 @@ def _validate_inventory(document, *, root):
                 'scenario:category')
         for key in ('owners', 'contract_refs', 'components', 'preconditions', 'expected_evidence'):
             strings(scenario[key], 'scenario:' + key)
+        installed = 'installed-digest-verified-product' in scenario['preconditions']
+        lifecycle = 'declared-package-lifecycle-fixture' in scenario['preconditions']
+        product_free_harness = (scenario['category'] == 'runner-smoke'
+                                and scenario['components'] == ['runner'])
+        # A missing prerequisite must never silently select a clean baseline
+        # and turn feature validation into another installation attempt.
+        require(installed or lifecycle or product_free_harness,
+                'scenario:installed-snapshot-required')
+        require(not (installed and lifecycle), 'scenario:conflicting-snapshot-prerequisites')
         require(all(re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', owner) for owner in scenario['owners']),
                 'scenario:owner')
         strings(scenario['requirements'], 'scenario:requirements', empty=True)

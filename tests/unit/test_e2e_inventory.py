@@ -78,6 +78,33 @@ def test_no_ready_cases_refuses_instead_of_passing_an_empty_suite(document):
         inventory.resolve_selection(document, ready_only=True, require_runnable=True)
 
 
+@pytest.mark.parametrize('sid', ['E2E-003', 'E2E-004', 'E2E-005', 'E2E-028', 'E2E-030'])
+def test_feature_cases_cannot_omit_installed_snapshot_even_while_pending(document, sid):
+    family(document, sid)['preconditions'].remove('installed-digest-verified-product')
+    with pytest.raises(inventory.InventoryError, match='installed-snapshot-required'):
+        inventory.validate_inventory(document)
+
+
+@pytest.mark.parametrize('sid', ['E2E-002', 'E2E-026', 'E2E-027'])
+def test_clean_package_cases_require_explicit_lifecycle_declaration(document, sid):
+    chosen = family(document, sid)
+    chosen['preconditions'].remove('declared-package-lifecycle-fixture')
+    with pytest.raises(inventory.InventoryError, match='installed-snapshot-required'):
+        inventory.validate_inventory(document)
+
+
+def test_snapshot_prerequisites_cannot_conflict(document):
+    family(document, 'E2E-003')['preconditions'].append('declared-package-lifecycle-fixture')
+    with pytest.raises(inventory.InventoryError, match='conflicting-snapshot-prerequisites'):
+        inventory.validate_inventory(document)
+
+
+def test_product_case_cannot_use_runner_smoke_baseline_exception(document):
+    family(document, 'E2E-001')['components'].append('parent')
+    with pytest.raises(inventory.InventoryError, match='installed-snapshot-required'):
+        inventory.validate_inventory(document)
+
+
 def test_specific_variant_selects_once_and_keeps_pending_reason(document):
     plan = inventory.resolve_selection(document, 'E2E-023/fullscreen')
     assert len(plan['cases']) == 1

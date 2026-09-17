@@ -143,6 +143,16 @@ def documents(harness):
             for path in sorted(collector.path.glob('*.json'))]
 
 
+def test_installed_case_without_suite_refuses_before_vm_acquisition(harness):
+    harness.case['preconditions'].append('installed-digest-verified-product')
+    result = run(harness)
+    assert result['outcome'] == 'failed'
+    assert result['first_failure']['code'] == 'execution:installed-snapshot-suite-required'
+    execution.open_source.assert_not_called()
+    execution.system.bootstrap.assert_not_called()
+    harness.worker.assert_not_called()
+
+
 @pytest.mark.parametrize('verify_backing_bytes', [True, False])
 def test_public_ready_plan_executes_real_callback_and_finalizes_after_lease_exit(harness, verify_backing_bytes):
     args = ['--artifacts=' + harness.plan['artifacts']]
@@ -249,11 +259,20 @@ def test_installed_preparation_uses_customer_prerequisites_without_a_case_id_swi
     harness.case['category'] = category
     harness.case['preconditions'] = ['installed-digest-verified-product'] if installed else []
     execution.system.bootstrap.side_effect = RuntimeError('stop after inspecting bootstrap inputs')
-    result = run(harness)
+    suite = SimpleNamespace(commands=execution.Commands(), backend_checked=False,
+                            credentials_checked=False, prepare_case=Mock())
+    def acquire(ledger):
+        source, guestfs = execution.open_source()
+        lease = execution.system.Lease(source, suite.commands, Mock(), ledger=ledger,
+                                       graphics_type='vnc', verify_backing_bytes=True)
+        return source, guestfs, lease
+    suite.acquire = acquire
+    result = run(harness, suite=suite)
     assert result['outcome'] == 'failed'
     expected = installed
     assert execution.system.bootstrap.call_args.kwargs['observation_only'] is not expected
     assert stage.call_count == int(expected)
+    suite.prepare_case.assert_called_once()
     if expected:
         assert stage.call_args.args[2]['case'] == harness.case
     harness.leases[0].finish.assert_called_once()

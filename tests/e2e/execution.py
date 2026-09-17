@@ -1,7 +1,7 @@
 """Public selected attempts using the existing VM lease and evidence gate.
 
 Scenario modules are trusted checkout code, loaded only after independent input
-capture. Cases start from the baseline; multi-case runs retain one suite lease.
+capture. Cases restore their declared snapshot under one suite lease.
 """
 
 import copy
@@ -48,6 +48,7 @@ def attempt_failure(error):
         'provenance:file-replaced', 'provenance:tree-changed',
         'provenance:source-preflight-failed', 'provenance:capture-failed',
         'provenance:recheck-failed',
+        'execution:installed-snapshot-suite-required',
     }
     if isinstance(error, EvidenceError) and len(error.args) == 1:
         code = error.args[0]
@@ -199,6 +200,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             input_directory = directory / 'input'
             from suite_lease import needs_installed
             installed_consumer = needs_installed(case)
+            require(not installed_consumer or suite is not None,
+                    'execution:installed-snapshot-suite-required')
             if installed_consumer:
                 from installed_setup import stage
                 stage(directory, staged, bootstrap_inputs)

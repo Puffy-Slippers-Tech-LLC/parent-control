@@ -11,7 +11,6 @@ import sys
 import time
 
 from check_graphical_smoke import module_result, screenshot
-from installed_setup import InstalledSetup
 from observation_transport import ReadOnlyObservations
 from private_artifacts import require
 from parent_needles import semantic_tag
@@ -191,6 +190,8 @@ class InstalledJourney:
             if self.review:
                 reply[plan.review_mode] = True
         elif stage == 'setup-detached':
+            require(getattr(context, 'installed_snapshot', None),
+                    plan.prefix + ':installed-snapshot-required')
             if self.watch_progress is not None:
                 self.watch_progress.operation('Preparing the application connection')
             hostname = system.address(context.lease.source, timeout=90)
@@ -200,10 +201,7 @@ class InstalledJourney:
                 'run': context.lease.state['run']}
             transport = Transport(config, context.commands, guard=lambda _: context.lease.guard())
             transport.probe_ready(timeout=180)
-            if getattr(context, 'installed_snapshot', None):
-                observed['setup'] = {'installed_snapshot': context.installed_snapshot}
-            else:
-                observed['setup'] = InstalledSetup(context.directory, context.verified, transport).run(guard)
+            observed['setup'] = {'installed_snapshot': context.installed_snapshot}
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
             reply = {'setup_complete': True}

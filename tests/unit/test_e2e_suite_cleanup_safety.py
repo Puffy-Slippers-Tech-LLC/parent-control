@@ -519,3 +519,42 @@ def test_inventory_package_lifecycle_cases_use_clean_baseline():
         assert not suite_lease.needs_installed(families[name])
     for name in ('E2E-003', 'E2E-004', 'E2E-028', 'E2E-030'):
         assert suite_lease.needs_installed(families[name])
+
+
+def test_all_ready_cases_restore_their_declared_snapshot_without_case_install(prepared_suite):
+    import inventory
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    document, _ = inventory.read_json(inventory.INVENTORY)
+    cases = inventory.resolve_selection(document, ready_only=True)['cases']
+    assert len(cases) == 5
+    for index, case in enumerate(cases):
+        owner.next_case = cases[index + 1] if index + 1 < len(cases) else None
+        lease.ledger = system.RunLedger()
+        with lease:
+            owner.prepare_case(case, directory, directory, {}, root=directory)
+            expected = baseline_name if case['category'] == 'runner-smoke' else 'onpc-v1.1'
+            assert lease._restored_name == expected
+            setup.run.assert_called_once_with(lease.guard, verify=False)
+            lease.start()
+            lease.stop()
+    lease.audit()
+    assert [event for event in events if event[0] == 'restore'] == [
+        ('restore', baseline_name), ('restore', baseline_name),
+        *[('restore', 'onpc-v1.1')] * 4, ('restore', baseline_name)]
+    assert 'onpc-v1.1' not in names
+
+
+def test_wrong_transition_snapshot_refuses_before_case_provisioning(prepared_suite):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    installed = {'preconditions': ['installed-digest-verified-product']}
+    # A scheduler that forgot the next installed case restores baseline.
+    with lease:
+        owner.prepare_case(installed, directory, directory, {}, root=directory)
+        lease.start()
+        lease.stop()
+    assert lease._restored_name == baseline_name
+    with pytest.raises(RuntimeError, match='case-snapshot-not-restored'):
+        with lease:
+            owner.prepare_case(installed, directory, directory, {}, root=directory)
+    setup.run.assert_called_once()
+    lease.audit()

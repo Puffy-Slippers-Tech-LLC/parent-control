@@ -125,6 +125,9 @@ def shadow(g):
 class FixtureCredentials:
     def __init__(self):
         self.__passwords = {role: secrets.token_hex(24) for role in PASSWORD_VARIABLES}
+        from watch_activity import secret
+        for password in self.__passwords.values():
+            secret(password)
         self.variables = SecretVariables(self.__passwords)
         self._attempted = False
         self._lease = None

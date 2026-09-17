@@ -4,8 +4,11 @@ import json
 import os
 import re
 import socket
+import subprocess
+import sys
 import threading
 import time
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -124,6 +127,45 @@ def test_next_case_visible_during_cleanup_and_preparation_without_resetting_tota
     assert progress.snapshot(display=True)['operation'] == 'Opening About'
 
 
+@pytest.mark.parametrize('phase', ['suite', 'next-case', 'case'])
+@pytest.mark.parametrize('fails', [False, True])
+def test_snapshot_footer_is_reserved_until_return_or_failure(monkeypatch, phase, fails):
+    clock = Mock(return_value=10_000_000_000)
+    monkeypatch.setattr('tools.e2e_progress.time.monotonic_ns', clock)
+    progress = Progress(cases()[:2])
+    progress.prepare(progress.cases[0]['case_id'])
+    if phase == 'suite':
+        progress.suite_preparation('Installing app')
+    elif phase == 'next-case':
+        progress.prepare_next()
+    else:
+        progress.step('Current step')
+    published = []
+    progress.publish_progress = lambda: published.append(
+        json.loads(progress_packet(progress.snapshot(display=True))))
+    label = 'Restoring snapshot "onpc-baseline"'
+    with pytest.raises(RuntimeError, match='snapshot failed') if fails else nullcontext():
+        with progress.snapshot_operation(label):
+            assert published[-1]['operation'] == label  # Published before yielding.
+            assert published[-1]['current'] == (2 if phase == 'next-case' else 1)
+            started = published[-1]['operation_started_ns']
+            for seconds, elapsed in ((1, '1s'), (61, '1m 1s')):
+                clock.return_value = started + seconds * 1_000_000_000
+                progress.preparation_output('Another controller stage')
+                progress.operation('Unrelated controller action')
+                progress.suite_preparation('Another suite milestone')
+                monkeypatch.setattr(progress, 'worker_value',
+                    lambda: dict(sequence=999, operation='Another worker action'))
+                for display in (False, True):
+                    shown = progress.snapshot(display=display)
+                    assert progress_text({'progress': shown})[2] == label + f' - ({elapsed})'
+                    assert shown['operation_started_ns'] == started
+            if fails:
+                raise RuntimeError('snapshot failed')
+    assert published[-1]['operation'] == 'Preparing e2e suite: Another suite milestone'
+    assert progress.snapshot_value is None
+
+
 def test_invocation_heartbeat_survives_without_display_and_expires(tmp_path, monkeypatch):
     # Model root ownership only; use real atomic files, the publisher thread,
     # bounded reader and monotonic expiry without touching the host registry.
@@ -158,9 +200,29 @@ def test_invocation_heartbeat_survives_without_display_and_expires(tmp_path, mon
         progress.preparation_output('check-system: [stage:restored-baseline-verification]')
         assert wait_for(2)['operation'].startswith('Preparing VM: check-system: ')
         assert feed.memory is None
+        # Snapshot milestones must reach the footer even when the background
+        # heartbeat cannot run before the controller enters its blocking call.
+        publisher.stop.set()
+        publisher.thread.join(timeout=2)
+        assert not publisher.thread.is_alive()
+        for label in ('Deleting existing snapshot onpc-v1.1 (overwrite=true)',
+                      'Installing app', 'Taking snapshot onpc-v1.1'):
+            progress.suite_preparation(label)
+            shown = feed.progress()
+            assert shown is not None
+            assert progress_text({'progress': shown},
+                now_ns=shown['operation_started_ns'])[2] == (
+                'Preparing e2e suite: ' + label + ' - (0s)')
+        for label in ('Restoring snapshot "onpc-v1.1"', 'Restoring snapshot "onpc-baseline"'):
+            with progress.snapshot_operation(label):
+                assert feed.progress()['operation'] == label
+                progress.suite_preparation('Unrelated controller stage')
+                assert feed.progress()['operation'] == label
+            assert feed.progress()['operation'] == 'Preparing e2e suite: Unrelated controller stage'
     finally:
         publisher.close()
     assert not publisher.thread.is_alive()
+    assert progress.publish_progress is None
     value = json.loads(publisher.path.read_text())
     monkeypatch.setattr('e2e_watch_viewer.time.monotonic_ns',
                         lambda: value['updated_ns'] + 3_000_000_000)
@@ -290,6 +352,33 @@ def test_controller_progress_crosses_actual_socket_and_read_only_frame_copy():
             assert meta['state'] == 'waiting'  # Works even without display pixels.
             assert meta['progress'] == progress.snapshot()
             assert progress_text(meta)[0].startswith('[3/5] ')
+    finally:
+        frames.close()
+
+
+@pytest.mark.parametrize('hash_seed', ['0', '1', '2', '3'])
+def test_progress_from_another_process_keeps_collector_connected(hash_seed):
+    progress = Progress(cases()[:1])
+    progress.case(progress.cases[0]['case_id'])
+    progress.step('Begin the graphical attempt')
+    value = progress.snapshot()
+    # Real controllers and collectors use independent Python hash seeds.
+    # A same-process round trip cannot detect set-dependent JSON field order.
+    packet = subprocess.run(
+        [sys.executable, '-B', '-c',
+         'import json, sys; from e2e_watch_protocol import progress_packet; '
+         'sys.stdout.buffer.write(progress_packet(json.load(sys.stdin)))'],
+        input=json.dumps(value).encode(), stdout=subprocess.PIPE,
+        check=True, timeout=10, cwd=ROOT / 'tools',
+        env={**os.environ, 'PYTHONHASHSEED': hash_seed},
+    ).stdout
+    sender, receiver = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    frames = Frames('a' * 32)
+    try:
+        with sender, receiver:
+            sender.send(packet)
+            assert receive_progress(receiver, frames)
+            assert read_frame(frames.memory)[1]['progress'] == value
     finally:
         frames.close()
 

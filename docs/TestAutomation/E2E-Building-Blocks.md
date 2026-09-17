@@ -509,7 +509,7 @@ is recipe reuse with every original parameter binding, never sampling.
 Every E2E invocation, including a single-case selection, holds one exclusive VM
 lease. Before any case, restore `onpc-baseline`, delete an existing snapshot of
 the selected package version, install that package, reboot, shut down and create
-`onpc-[version]` (the full Debian package version, for example `onpc-1.1`). This
+`onpc-v[version]` (the app release without package revisions, for example `onpc-v1.1`). This
 setup always runs; the old snapshot is never reused or validated as a cache.
 Cases declaring `installed-digest-verified-product` start from this snapshot.
 Installation, removal and other clean-start cases use `onpc-baseline`.
@@ -525,7 +525,32 @@ deletes the version snapshot before the final audit. The journal records its
 exact name for interrupted-run cleanup. Per-case evidence is
 provisional until the final suite audit and release; failures stop subsequent
 cases. This changes runner transitions, not any customer action or assertion.
-See [suite lease](../../tests/e2e/suite_lease.py).
+See [suite lease](../../tests/e2e/suite_lease.py) and the shared
+[app snapshot module](../../tests/e2e/app_snapshot.py). `run-tests` calls it with
+`overwrite=True` and uses the shared [cleanup module](../../tools/test_recovery.py)
+before starting the E2E run.
+
+The same preparation is available independently:
+
+- `./tools/cleanup-e2e` reconciles previous recorded run leftovers and preserves
+  evidence under the existing checkout and VM ownership checks.
+- `./tools/prepare-appsnapshot [--overwrite true|false]` builds and installs the
+  current Debian version and retains its `onpc-[version]` snapshot. It leaves the
+  VM powered off in that installed state after auditing the outer baseline.
+  Missing `--overwrite` or a missing value means `true`. When a matching snapshot
+  exists, `true` replaces it and `false` logs that it is retained and returns
+  success without cleanup, building, restoration or installation. When none
+  exists, either value prepares it. Other version snapshots are left alone.
+  Preparation performs the shared cleanup before building when work is needed.
+
+If the task being implemented requires the app to be pre-installed as a
+prerequisite and the task's job itself is post-installation operations (for
+example, a building block that clicks a control in the Parent app), call
+`./tools/prepare-appsnapshot --overwrite false`. Do not monitor the tool's output
+or report incremental progress; wait for it to complete with success or failure,
+then proceed with the task's own job only on success. Installation is delegated
+to this tool. A retained snapshot is a setup prerequisite, not customer acceptance
+evidence; subsequent VM actions still use the guarded ownership interfaces.
 
 | Family / cases / variant parameters | Ordered recipe and visible finish line |
 | --- | --- |
@@ -1099,6 +1124,30 @@ choose a customer's expected result or query internal product state.
 
 ## Add a consumer
 
+Open `tools/watch-e2e` as the desktop user before starting a VM task. Its
+resizable command pane follows the shared guarded command runner independently
+of graphical frames: installed-system tests (including the pre-E2E test run),
+app-snapshot preparation, SSH work, VM lifecycle stages and cleanup are visible.
+Reviewed text commands show the guest command, live stdout/stderr and exit status.
+The installed guest helper forwards APT update/install/upgrade command text and
+both output streams while each command runs, including suite preparation.
+Package commands use a guest PTY with `TERM=xterm-256color`, so the package's own
+colored notices are emitted. A read-only GTK 4 VTE terminal renders ANSI colors,
+carriage returns and display controls with an Ubuntu terminal palette. The viewer
+has no shell/PTY or input channel; clipboard/title control payloads are discarded.
+The pane keeps a bounded recent transcript; the runner's private artifacts retain
+complete diagnostics. Password input, binary transfers and private observation
+programs/replies are omitted and labelled. The spectator receives no input route
+or SSH/libvirt connection. Only the authenticated invoking user receives command
+text; opening or closing the viewer cannot cancel or control the task.
+Setup and installed-system runs also attach the existing display collector while
+their VM runs. Graphical customer actions continue through the existing frame feed.
+New task implementations must reuse these command, lease and progress interfaces
+so their VM work remains visible without launching a second terminal or viewer.
+Development activation is `none`; `./setup.sh --test-tools-only` installs the GTK 4
+VTE dependency (`gir1.2-vte-3.91`) on existing hosts. Reopen an already running viewer
+after code changes. Refresh installed dispatcher changes through the same setup mode.
+
 The recorder automatically publishes each selected case's numeric ID, title,
 invocation position/total and current phase description to `tools/watch-e2e`.
 The title appends `- (case time/total time)` in whole minutes, or hours and
@@ -1107,6 +1156,11 @@ from invocation startup. An independent progress heartbeat keeps the next case
 visible during outer cleanup and leasing, with `Preparing VM: ` followed by
 the latest controller stage output until its first step starts. Display feed
 loss still clears stale VM pixels, and expired progress returns to waiting.
+Snapshot creation, deletion and restoration publish their action and snapshot
+name before the operation starts. That message reserves the footer until the
+operation returns or fails, with its own elapsed duration; controller logs and
+worker messages cannot replace it. This includes both app and baseline snapshot
+restores between cases and during cleanup.
 Keep descriptions in `scenarios.json` complete: the viewer uses that same text.
 Before a Perl building block acts, call
 `onpc_progress::operation('Fixed nonsecret description')`; use literal prose and

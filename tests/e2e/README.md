@@ -264,7 +264,7 @@ tools/run-tests e2e --scenario 'E2E-004/app-grid' --artifacts '/tmp/onpc-test-ar
 ```
 
 Each invocation installs and reboots once, then captures a powered-off
-`onpc-[version]` snapshot using the full Debian package version. An existing
+`onpc-v[version]` snapshot using the app release without package revisions. An existing
 same-name snapshot is deleted after restoring `onpc-baseline`, then rebuilt.
 Each case gets its own guarded attempt: installed-app prerequisites restore the
 version snapshot; installation/removal cases restore `onpc-baseline`. A missing

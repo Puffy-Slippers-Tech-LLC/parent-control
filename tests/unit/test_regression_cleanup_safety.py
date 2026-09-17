@@ -226,13 +226,14 @@ finally:
         os.close(sentinel_fd)
 
 
-def test_guest_command_events_arrive_before_exit_and_survive_interrupt(tmp_path):
+@pytest.mark.parametrize('channel', ['progress', 'stdout', 'stderr', 'terminal'])
+def test_guest_command_events_arrive_before_exit_and_survive_interrupt(tmp_path, channel):
     from owned_commands import Commands
     marker = tmp_path / 'ready'
     script = tmp_path / 'worker.py'
-    script.write_text(f'''import pathlib,time
+    script.write_text(f'''import pathlib,sys,time
 try:
-    print('immediate event', flush=True)
+    print('immediate event', file=sys.{'stderr' if channel == 'stderr' else 'stdout'}, flush=True)
     time.sleep(30)
 finally:
     pathlib.Path({str(marker)!r}).write_text('cleaned')
@@ -244,12 +245,21 @@ finally:
         raise KeyboardInterrupt
     commands = Commands()
     commands.directory = tmp_path
-    commands.progress = interrupt
+    options = {}
+    if channel == 'progress':
+        commands.progress = interrupt
+    else:
+        def observe(data, stream):
+            assert stream == ('stdout' if channel == 'terminal' else channel)
+            interrupt(data)
+        options = {'on_output': observe, 'merge_stderr': False, 'terminal': channel == 'terminal'}
     with pytest.raises(KeyboardInterrupt):
-        commands.run([sys.executable, str(script)])
+        commands.run([sys.executable, str(script)], **options)
     assert marker.read_text() == 'cleaned'
-    assert (tmp_path / 'command-0001.txt').read_bytes().startswith(b'immediate event\n')
-    assert calls == [b'immediate event\n']
+    artifact = 'command-0001-stderr.txt' if channel == 'stderr' else 'command-0001.txt'
+    expected = b'immediate event\r\n' if channel == 'terminal' else b'immediate event\n'
+    assert (tmp_path / artifact).read_bytes().startswith(expected)
+    assert calls == [expected]
 
 
 def test_nested_prompt_ownership_guard_keeps_each_command_artifact_identity(tmp_path):

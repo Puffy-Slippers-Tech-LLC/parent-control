@@ -1,0 +1,10 @@
+#!/usr/bin/python3 -IB
+"""Prepare the current app version's snapshot on the guarded test VM."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from prepare_appsnapshot import main
+
+if __name__ == '__main__':
+    sys.exit(main())

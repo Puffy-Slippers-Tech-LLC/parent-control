@@ -176,7 +176,10 @@ def main():
                     frames.publish()
                 control.send(b'beat')
                 last_beat = time.monotonic()
-        except (OSError, ValueError):
+        except (OSError, ValueError) as error:
+            category = (str(error) if isinstance(error, ValueError) and str(error).startswith('watch:')
+                        else type(error).__name__)
+            print('watch-collector: transport-failed ' + category, flush=True)
             loop.quit()
             return False
         return True

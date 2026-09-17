@@ -187,6 +187,21 @@ def test_rules_render_for_a_checkout_with_spaces(tmp_path):
         rules['render'](root)
 
 
+def test_project_tool_allow_covers_new_nested_executables_without_manual_inventory(tmp_path):
+    root = tmp_path / 'checkout with spaces'
+    nested = root / 'tools/future'
+    nested.mkdir(parents=True)
+    executable = nested / 'new-tool'
+    executable.write_text('#!/usr/bin/python3\n')
+    executable.chmod(0o755)
+    (nested / 'support.py').write_text('# import-only module\n')
+    assert rules['project_tool_paths'](root) == [
+        'tools/future/new-tool', './tools/future/new-tool', str(executable)]
+    executable.chmod(0o644)
+    with pytest.raises(ValueError, match='no executable project tools'):
+        rules['project_tool_paths'](root)
+
+
 @pytest.mark.parametrize('replacement', [
     ('<allow_active>no</allow_active>', '<allow_active>auth_admin</allow_active>'),
     ('/usr/local/libexec/onpc-test-runner', '/usr/bin/python3'),
@@ -205,12 +220,14 @@ def test_action_policy_refuses_prompts_or_generic_programs(tmp_path, replacement
 def test_only_missing_fixed_dependencies_are_installed_without_upgrades(monkeypatch, missing):
     monkeypatch.setattr(installer['os'], 'access', lambda *args: not missing)
     monkeypatch.setattr(installer['importlib'].util, 'find_spec', lambda *args: None if missing else object())
+    monkeypatch.setitem(installer['install_missing_dependencies'].__globals__,
+                        'watch_terminal_available', lambda: not missing)
     execute = Mock()
     monkeypatch.setattr(installer['subprocess'], 'run', execute)
     installer['install_missing_dependencies']()
     if missing:
         command = execute.call_args.args[0]
-        assert command[-3:] == ['ripgrep', 'curl', 'python3-pytest-cov']
+        assert command[-4:] == ['ripgrep', 'curl', 'python3-pytest-cov', 'gir1.2-vte-3.91']
         assert '--no-upgrade' in command
         assert '--no-remove' in command
         assert '--no-install-recommends' in command

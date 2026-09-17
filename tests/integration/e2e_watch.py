@@ -1,6 +1,7 @@
 """Lease-owned display collector. It never owns or launches a viewer window."""
 
 import json
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import re
@@ -24,6 +25,7 @@ class ProgressPublication:
         self.stop = threading.Event()
         self.thread = None
         self.path = None
+        self.publish_lock = threading.Lock()
         uid = os.environ.get('PKEXEC_UID', '')
         if os.geteuid() != 0 or not uid.isdecimal() or int(uid) <= 0:
             return
@@ -40,18 +42,20 @@ class ProgressPublication:
                         and stat.S_IMODE(info.st_mode) == 0o755
                         and parent.resolve() == parent, 'registry-owner')
             self.path = directory / 'progress.json'
+            self.progress.publish_progress = self.publish
             self.thread = threading.Thread(target=self._publish, daemon=True,
                                            name='e2e-watch-progress')
             self.thread.start()
         except Exception:
             log('progress-disabled')
 
-    def _publish(self):
+    def publish(self):
+        """Flush a milestone immediately, serialized with periodic heartbeats."""
         from e2e_watch_protocol import progress_packet
         import uuid
-        temporary = self.path.with_name(uuid.uuid4().hex + '.progress')
-        try:
-            while not self.stop.is_set():
+        with self.publish_lock:
+            temporary = self.path.with_name(uuid.uuid4().hex + '.progress')
+            try:
                 value = dict(updated_ns=time.monotonic_ns(),
                              progress=json.loads(progress_packet(self.progress.snapshot(display=True))))
                 fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
@@ -59,14 +63,25 @@ class ProgressPublication:
                     os.fchmod(stream.fileno(), 0o644)
                     json.dump(value, stream)
                 temporary.replace(self.path)
-                self.stop.wait(.25)
-        except Exception:
-            log('progress-disabled')
-        finally:
-            # Expire our heartbeat; a subsequent invocation may already own the path.
-            temporary.unlink(missing_ok=True)
+            except Exception:
+                log('progress-disabled')
+                return False
+            finally:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            return True
+
+    def _publish(self):
+        while not self.stop.is_set():
+            if not self.publish():
+                break
+            self.stop.wait(.25)
 
     def close(self):
+        if self.progress.publish_progress == self.publish:
+            self.progress.publish_progress = None
         self.stop.set()
         if self.thread is not None:
             self.thread.join(timeout=2)
@@ -79,7 +94,7 @@ def log(event):
 class Publication:
     """Root-owned registry and socket; only the invoking user receives frames."""
 
-    def __init__(self, uid, run):
+    def __init__(self, uid, run, *, registry='current.json'):
         require(os.geteuid() == 0 and type(uid) is int and uid > 0
                 and re.fullmatch('[0-9a-f]{32}', run), 'publication-context')
         self.run = run
@@ -95,7 +110,8 @@ class Publication:
                     and stat.S_IMODE(info.st_mode) == 0o755
                     and directory.resolve() == directory, 'registry-owner')
         self.path = self.directory / (run + '.sock')
-        self.current = self.directory / 'current.json'
+        require(registry in ('current.json', 'activity.json'), 'publication-registry')
+        self.current = self.directory / registry
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         try:
             self.server.bind(str(self.path))
@@ -278,3 +294,21 @@ def start(adapter):
         if observer is not None:
             observer.close()
         raise
+
+
+@contextmanager
+def running_display(lease):
+    """Observe an already started setup/system guest without lifecycle input."""
+    observer = None
+    try:
+        try:
+            from graphical_lease import Adapter
+            adapter = Adapter(lease, running=True)
+        except Exception:
+            log('disabled')
+        else:
+            observer = start(adapter)
+        yield
+    finally:
+        if observer is not None:
+            observer.close()

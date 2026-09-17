@@ -28,6 +28,7 @@ test defects may be fixed automatically while preserving the intended checks.
 | Builds and checks | Approved plain Make targets or validated `tools/run-tests`, `tools/run-unit-tests` and `tools/run-ui-tests` selections |
 | Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
 | Setup refresh and VM maintenance | `./setup.sh` modes and `tools/test-vm` within their existing grants and authorized scope |
+| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; `tools/prepare-appsnapshot [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
 | Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
 
 Invoke approved commands directly. Correct quoting and command shape before
@@ -64,8 +65,8 @@ does not require new approvals. A clean machine uses full `./setup.sh` for
 dependencies and host policies. Explicit baseline preparation is also routed
 through the master: `./setup.sh --prepare-host`; see
 [VM prerequisites](../tests/integration/Environment.md).
-The tools-only refresh also fills missing `curl`, `ripgrep` and Python coverage
-plugin packages without requesting package upgrades; ordinary test commands
+The tools-only refresh also fills missing `curl`, `ripgrep`, Python coverage
+plugin and GTK 4 VTE viewer packages without requesting package upgrades; ordinary test commands
 never install dependencies. Full setup includes these prerequisites too.
 
 The [rules renderer](../tools/install_codex_rules.py) validates its required
@@ -106,6 +107,10 @@ that context before reinstalling or interpreting it as a host-policy denial.
 
 Development activation is `none`: installed helpers change on their next
 invocation, Polkit watches its rule directory, and Codex loads rules on restart.
+The standalone app-snapshot route requires the current installed test dispatcher;
+refresh it with `./setup.sh --test-tools-only` when adding these tools. It shares
+the existing test-runner Polkit action, cleanup gate and fixed VM UUID, without
+adding general snapshot or libvirt permissions.
 There is no product package, service restart, reboot, or saved-data migration.
 Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 `--test-tools-only`. Host package dependencies belong to full setup or

@@ -49,6 +49,9 @@ prefix_rule(
 # or grant unrelated task scope, general interpreters, shells or root wrappers.
 prefix_rule(
     pattern = [[
+        "tools/cleanup-e2e",
+        "./tools/cleanup-e2e",
+        "/Data/Code/PST/parent-control/tools/cleanup-e2e",
         "tools/cleanup-screenshots",
         "./tools/cleanup-screenshots",
         "/Data/Code/PST/parent-control/tools/cleanup-screenshots",
@@ -61,6 +64,9 @@ prefix_rule(
         "tools/onpc-diagnostics",
         "./tools/onpc-diagnostics",
         "/Data/Code/PST/parent-control/tools/onpc-diagnostics",
+        "tools/prepare-appsnapshot",
+        "./tools/prepare-appsnapshot",
+        "/Data/Code/PST/parent-control/tools/prepare-appsnapshot",
         "tools/prepare-e2e-needle",
         "./tools/prepare-e2e-needle",
         "/Data/Code/PST/parent-control/tools/prepare-e2e-needle",
@@ -93,6 +99,9 @@ prefix_rule(
     justification = "The user preapproves direct execution of this project's tools, without repeated command approval.",
     match = [
         "tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' -q",
+        "./tools/cleanup-e2e",
+        "./tools/prepare-appsnapshot --overwrite false",
+        "tools/publishing/signing.py --help",
         "tools/cleanup-screenshots /tmp/onpc-selected.png",
         "tools/run-tests component 'tests/component/test_*.py' -q",
         "tools/run-tests child-node 'tests/child/**/*.test.mjs'",

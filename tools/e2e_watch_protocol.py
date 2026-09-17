@@ -51,7 +51,9 @@ def progress_packet(value):
         while len(json.dumps(text, ensure_ascii=False).encode('utf-8')) > limit:
             text = text[:max(0, len(text) - max(1, (len(text.encode('utf-8')) - limit) // 4))]
         result[key] = text
-    packet = json.dumps(result, ensure_ascii=False, separators=(',', ':')).encode()
+    # The collector checks canonical bytes in a separate Python process.
+    # Set-derived field order must not depend on either process's hash seed.
+    packet = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
     # Quotes/backslashes may expand even otherwise bounded printable text.
     require(len(packet) <= 3500, 'progress-size')
     return packet

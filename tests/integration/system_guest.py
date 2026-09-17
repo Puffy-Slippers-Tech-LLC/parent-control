@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import stat
 import sys
 import tempfile
@@ -35,7 +36,24 @@ def require(condition, category):
 
 
 def run(argv, timeout=120):
-    return commands.run(argv, timeout=timeout, merge_stderr=False).decode('utf-8').strip()
+    if argv[0] != 'apt-get':
+        return commands.run(argv, timeout=timeout, merge_stderr=False).decode('utf-8').strip()
+    # Only package operations expose text. Identity/account probes and their
+    # replies remain in private artifacts. Flush both APT streams over SSH while
+    # it runs; the host spectator applies its normal redaction and size bounds.
+    print('$ ' + shlex.join(argv), flush=True)
+
+    def forward(data, stream):
+        output = getattr(sys, stream).buffer
+        output.write(data)
+        output.flush()
+
+    try:
+        return commands.run(argv, timeout=timeout, merge_stderr=False,
+                            on_output=forward, terminal=True).decode('utf-8').strip()
+    finally:
+        if commands.last_returncode is not None:
+            print(f'[exit {commands.last_returncode}]', flush=True)
 
 
 def enable_diagnostics():

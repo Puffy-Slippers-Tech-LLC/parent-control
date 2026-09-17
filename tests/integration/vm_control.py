@@ -154,6 +154,8 @@ def main(argv=None):
                          all(1 <= key <= 255 for key in args.keys)) or
                         (args.action != 'send-key' and not args.keys)), 'vm-control:arguments')
         os.umask(0o077)
+        from watch_activity import event
+        event('Maintenance: ' + args.action)
         api = importlib.import_module('libvirt')
         if args.action in ('status', 'xml'):
             connection = api.openReadOnly('qemu:///system')
@@ -164,6 +166,7 @@ def main(argv=None):
             print(domain.XMLDesc(0) if args.action == 'xml' else
                   json.dumps({'state': domain.state()[0], 'id': domain.ID(),
                               'scope': 'pinned-test-vm'}))
+            event('Maintenance: ' + args.action + ' complete')
             return 0
         api.virEventRegisterDefaultImpl()
         def events():
@@ -180,6 +183,7 @@ def main(argv=None):
                              graphics_type='vnc')
         print('vm-control: validated operation starting', file=sys.stderr, flush=True)
         operate(lease, args.action, args.keys)
+        event('Maintenance: ' + args.action + ' complete')
         print('vm-control: operation complete', file=sys.stderr, flush=True)
         return 0
     except (Exception, KeyboardInterrupt) as error:

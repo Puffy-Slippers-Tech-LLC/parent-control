@@ -47,6 +47,7 @@ add-apt-repository -y universe
     gnupg \
     gir1.2-adw-1 \
     gir1.2-gtk-4.0 \
+    gir1.2-vte-3.91 \
     gir1.2-webkit-6.0 \
     gnome-shell=50.1-0ubuntu1.2 \
     inotify-tools=4.25.9.0-1 \

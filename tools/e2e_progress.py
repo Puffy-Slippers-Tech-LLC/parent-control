@@ -1,6 +1,7 @@
 """Safe spectator progress, separate from scenario evidence and acceptance."""
 
 import json
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import re
@@ -30,6 +31,8 @@ class Progress:
         self.operation_key = None
         self.operation_started_ns = None
         self.suite_value = None
+        self.publish_progress = None
+        self.snapshot_value = None
 
     def suite_preparation(self, label):
         """Coarse controller milestones take precedence over detailed VM logs."""
@@ -41,6 +44,27 @@ class Progress:
                     case_id=str(case['coverage_id']), title=case['title'], step='',
                     operation=operation, started_ns=self.started_ns,
                     case_started_ns=self.started_ns, operation_started_ns=time.monotonic_ns())
+        # Publish before entering a blocking snapshot operation; the heartbeat
+        # thread may not get scheduled between this milestone and the next one.
+        if self.publish_progress is not None:
+            self.publish_progress()
+
+    @contextmanager
+    def snapshot_operation(self, label):
+        """Reserve the footer, with its own timer, until the operation returns."""
+        with self.lock:
+            previous = self.snapshot_value
+            self.snapshot_value = dict(operation=label,
+                                       operation_started_ns=time.monotonic_ns())
+        try:
+            if self.publish_progress is not None:
+                self.publish_progress()
+            yield
+        finally:
+            with self.lock:
+                self.snapshot_value = previous
+            if self.publish_progress is not None:
+                self.publish_progress()
 
     def suite_prepared(self):
         with self.lock:
@@ -130,18 +154,20 @@ class Progress:
     def snapshot(self, *, display=False):
         with self.lock:
             if self.suite_value is not None:
-                return dict(self.suite_value)
-            if display and self.next_value is not None:
+                result = dict(self.suite_value)
+            elif display and self.next_value is not None:
                 result = dict(self.next_value)
                 result['operation_started_ns'] = result['case_started_ns']
-                return result
-            result = dict(self.value)
-            value = self.worker_value()
-            if value.get('sequence', 0) > self.after:
-                result['operation'] = value['operation']
-            self._time_operation(result)
-            if result:
-                result['operation_started_ns'] = self.operation_started_ns
+            else:
+                result = dict(self.value)
+                value = self.worker_value()
+                if value.get('sequence', 0) > self.after:
+                    result['operation'] = value['operation']
+                self._time_operation(result)
+                if result:
+                    result['operation_started_ns'] = self.operation_started_ns
+            if result and self.snapshot_value is not None:
+                result.update(self.snapshot_value)
             return result
 
     def _time_operation(self, value):

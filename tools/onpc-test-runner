@@ -85,11 +85,30 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-transfer', action='store_true')
     qualification.add_argument('--qualify-install', action='store_true')
     qualification.add_argument('--qualify-install-refusal', action='store_true')
+    appsnapshot = categories.add_parser('appsnapshot', allow_abbrev=False)
+    appsnapshot.add_argument('--probe', action='store_true')
+    appsnapshot.add_argument('--artifacts', type=Path)
+    appsnapshot.add_argument('--overwrite', choices=('true', 'false'), default='true',
+                            nargs='?', const='true')
     vm = categories.add_parser('vm', allow_abbrev=False)
     vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key'))
     vm.add_argument('keys', nargs='*', type=int)
     args = parser.parse_args(argv)
+    if args.category == 'appsnapshot':
+        if VM_UUID is None:
+            raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
+        target = confined_file(root, 'tests/e2e/prepare_snapshot.py')
+        command = ['/usr/bin/python3', '-B', str(target), '--expected-uuid', VM_UUID]
+        if args.probe:
+            if args.artifacts is not None:
+                raise ValueError('test-runner:probe-does-not-use-artifacts')
+            return [*command, '--probe']
+        runner = runpy.run_path(str(confined_file(root, 'tests/e2e/runner.py')))
+        runner['validate_artifact_path'](args.artifacts)
+        if not args.artifacts.is_dir():
+            raise ValueError('test-runner:missing-artifact-directory')
+        return [*command, '--overwrite', args.overwrite, '--artifacts', str(args.artifacts)]
     if args.category == 'vm':
         if (args.action == 'send-key' and not 1 <= len(args.keys) <= 16) or (
                 args.action != 'send-key' and args.keys) or any(not 1 <= key <= 255 for key in args.keys):
@@ -179,7 +198,7 @@ def run(root, argv, caller):
         # cancellation channel, never a command or privileged path source.
         argv = argv[1:]
         command = selection(root, argv)
-        if argv[0] not in ('integration', 'system', 'e2e') or '--list' in argv:
+        if argv[0] not in ('integration', 'system', 'e2e', 'appsnapshot') or '--list' in argv or '--probe' in argv:
             raise ValueError('test-runner:invalid-unattended-category')
         if retention_run and argv[0] == 'integration':
             raise ValueError('test-runner:invalid-retention-category')
@@ -218,6 +237,9 @@ def run(root, argv, caller):
                               extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid),
                               check=False).returncode
     if argv[:2] in (['vm', 'status'], ['vm', 'xml'], ['vm', 'screenshot']):
+        environment['PKEXEC_UID'] = str(caller.pw_uid)
+        return subprocess.run(command, cwd=root, env=environment, check=False).returncode
+    if argv[0] == 'appsnapshot' and '--probe' in argv:
         return subprocess.run(command, cwd=root, env=environment, check=False).returncode
     safety = sorted((root / 'tests/unit').glob('test_*cleanup_safety.py'))
     if not safety:

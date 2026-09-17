@@ -53,6 +53,9 @@ prefix_rule(
     justification = "The user preapproves direct execution of this project's tools, without repeated command approval.",
     match = [
         "tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' -q",
+        "./tools/cleanup-e2e",
+        "./tools/prepare-appsnapshot --overwrite false",
+        "tools/publishing/signing.py --help",
         "tools/cleanup-screenshots /tmp/onpc-selected.png",
         "tools/run-tests component 'tests/component/test_*.py' -q",
         "tools/run-tests child-node 'tests/child/**/*.test.mjs'",

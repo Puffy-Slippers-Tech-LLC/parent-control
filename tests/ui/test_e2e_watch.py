@@ -27,7 +27,8 @@ def test_window_survives_stop_reconnect_and_resize(launch_ui, tmp_path):
     result, output = run_probe(launch_ui, tmp_path)
     for name in ('waiting_window_open', 'stopped_window_still_open',
                  'resumed_same_window', 'resize_did_not_change_guest',
-                 'progress_visible_and_truncated', 'preparation_visible_without_vm'):
+                 'progress_visible_and_truncated', 'preparation_visible_without_vm',
+                 'ssh_visible_without_vm', 'terminal_colors_rendered'):
         assert result[name]
     from PIL import Image
     image = Image.open(output.with_suffix('.png')).convert('RGB')

@@ -97,6 +97,8 @@ watch_progress = None
 
 
 def log(stage):
+    from watch_activity import event
+    event(stage)
     print(f'check-system: [{stage}]', file=sys.stderr, flush=True)
     if watch_progress is not None:
         watch_progress.preparation_output(f'check-system: [{stage}]')
@@ -520,12 +522,20 @@ class Lease:
         self.guard(off=True)
         self.save('isolated')
 
+    @contextmanager
+    def snapshot_status(self, action, name):
+        progress = getattr(self, 'watch_progress', None) or watch_progress
+        label = f'{action} snapshot "{name}"'
+        with progress.snapshot_operation(label) if progress is not None else nullcontext():
+            yield
+
     def restore(self):
         # snapshot revert defaults to its saved shutoff state; never pass RUNNING.
         self.guard(off=True)
         snap = self.source.domain.snapshotLookupByName(self.capture.state['proof']['name'], 0)
         require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
-        self.source.domain.revertToSnapshot(snap, 0)
+        with self.snapshot_status('Restoring', self.capture.state['proof']['name']):
+            self.source.domain.revertToSnapshot(snap, 0)
         self.view.run = None
         self.view.domain_id = None
         self.guard(off=True)
@@ -597,11 +607,12 @@ class Lease:
         if name is None:
             return
         require(isinstance(name, str) and
-                re.fullmatch(r'onpc-[0-9][A-Za-z0-9.+:~\-]*', name),
+                re.fullmatch(r'onpc-(?:v[0-9]+(?:\.[0-9]+)*|[0-9][A-Za-z0-9.+:~\-]*)', name),
                 'suite:invalid-snapshot-name')
         self.guard(off=True)
         if name in self.source.domain.snapshotListNames(0):
-            self.source.domain.snapshotLookupByName(name, 0).delete(0)
+            with self.snapshot_status('Deleting', name):
+                self.source.domain.snapshotLookupByName(name, 0).delete(0)
 
     def release(self):
         pending = None
@@ -666,7 +677,7 @@ class Lease:
                 'recovery:journal-identity')
             require('e2e_snapshot' not in state or (
                 self.view.graphics_type == 'vnc' and isinstance(state['e2e_snapshot'], str) and
-                re.fullmatch(r'onpc-[0-9][A-Za-z0-9.+:~\-]*', state['e2e_snapshot'])),
+                re.fullmatch(r'onpc-(?:v[0-9]+(?:\.[0-9]+)*|[0-9][A-Za-z0-9.+:~\-]*)', state['e2e_snapshot'])),
                 'recovery:snapshot-identity')
             maintenance = self.directory / 'vm-control.json'
             if os.path.lexists(maintenance):
@@ -1424,7 +1435,8 @@ def main(argv=None):
         threading.Thread(target=events, daemon=True, name='libvirt-events').start()
         source = baseline.LibvirtSource(api)
         lease = Lease(source, commands, lambda disk, digest: baseline.inspect_guest(guestfs, disk, digest),
-                      ledger=ledger, verify_backing_bytes=not args.skip_backing_verification)
+                      ledger=ledger, graphics_type='vnc',
+                      verify_backing_bytes=not args.skip_backing_verification)
         # SIGTERM follows the same finally/lease cleanup as an interactive interruption.
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1444,7 +1456,9 @@ def main(argv=None):
             from vm_transport import Transport
             vm = Transport(config, commands, guard=lambda _: lease.guard())
             lease.guard()
-            installed_run(vm, lease, directory, selection, ledger)
+            from e2e_watch import running_display
+            with running_display(lease):
+                installed_run(vm, lease, directory, selection, ledger)
             try:
                 result = json.loads((directory / 'guest-results/result.json').read_text())
                 require(result['outcome'] == 'passed' and result['package_sha256'] ==

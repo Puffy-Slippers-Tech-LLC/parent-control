@@ -1947,6 +1947,12 @@ class Application(Adw.Application):
         window = self.get_active_window() or ParentWindow(
             self, client_factory=self._client_factory,
         )
+        self._ensure_stylesheet(window)
+        if self._preview:
+            self._watch_preview_files()
+        window.present()
+
+    def _ensure_stylesheet(self, window):
         if self._css_provider is None:
             self._css_provider = Gtk.CssProvider()
             self._load_stylesheet()
@@ -1954,27 +1960,47 @@ class Application(Adw.Application):
                 window.get_display(), self._css_provider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
             )
-        if self._preview:
-            self._watch_preview_files()
-        window.present()
 
     def _show_management_denied(self):
         """Explain an explicit broker refusal without creating management UI."""
         window = self.get_active_window()
         if window is None:
             window = Adw.ApplicationWindow(application=self,
-                title="Administrator access required", default_width=440,
-                default_height=180)
-            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18,
-                margin_top=24, margin_bottom=24, margin_start=24, margin_end=24)
-            content.append(Gtk.Label(
-                label="Only an administrator can manage parental controls. "
+                title="Administrator access required", default_width=820,
+                default_height=356, css_classes=["management-denied"])
+            self._ensure_stylesheet(window)
+            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=48,
+                margin_top=64, margin_bottom=42, margin_start=36, margin_end=32)
+            message = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=24,
+                vexpand=True, valign=Gtk.Align.CENTER)
+            logo = Gtk.Image.new_from_file(str(branding_asset_path("app_logo.png")))
+            logo.set_pixel_size(96)
+            logo.set_valign(Gtk.Align.CENTER)
+            message.append(logo)
+            message.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL,
+                css_classes=["management-denied-divider"]))
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                hexpand=True, valign=Gtk.Align.CENTER)
+            text.append(Gtk.Label(label=app_name(), xalign=0, wrap=True,
+                margin_bottom=6, css_classes=["management-denied-brand"]))
+            text.append(Gtk.Label(label="Administrator Required", xalign=0,
+                wrap=True, css_classes=["management-denied-title"]))
+            explanation = Gtk.Label(
+                label="Only an administrator can manage parental controls.\n"
                       "Sign in with an administrator account to open the Parent App.",
-                wrap=True))
-            close = Gtk.Button(label="Close", halign=Gtk.Align.END)
+                xalign=0, wrap=True, css_classes=["management-denied-message"])
+            explanation.update_property([Gtk.AccessibleProperty.LABEL], [
+                "Only an administrator can manage parental controls. "
+                "Sign in with an administrator account to open the Parent App."])
+            text.append(explanation)
+            message.append(text)
+            content.append(message)
+            close = Gtk.Button(label="Close", halign=Gtk.Align.END,
+                css_classes=["management-denied-close"])
             close.connect("clicked", lambda *_: self.quit())
             content.append(close)
             window.set_content(content)
+            window.set_default_widget(close)
         window.present()
 
 

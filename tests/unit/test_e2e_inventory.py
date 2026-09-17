@@ -41,8 +41,8 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert [case['case_id'] for case in plan['cases']] == expected
     assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
                                      if case['status'] == 'pending']
-    # E2E-Scenario-Recipes.md retains cases 1–157 and adds 65 pending cases.
-    assert len(plan['pending_cases']) == 217
+    # E2E-Scenario-Recipes.md retains cases 1–222 and adds 30 pending cases.
+    assert len(plan['pending_cases']) == 247
     assert plan['scope'] == 'full'
     assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
         'E2E-001/gdm-observation', 'E2E-003/existing-and-new', 'E2E-003/none',
@@ -132,7 +132,9 @@ def test_pending_selection_cannot_run(document, selector):
         inventory.resolve_selection(document, selector, require_runnable=True)
 
 
-def test_package_reboot_notices_require_last_printed_red_output(document):
+def test_package_reboot_notices_require_last_printed_output(document):
+    # Functional acceptance retains notice content and ordering. Terminal color
+    # remains covered by test_package_transaction_notice and test_apt_removal_notice.
     install = '*** REBOOT REQUIRED: reboot before using the kiosk session. ***'
     removal = '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***'
     notices = {
@@ -145,7 +147,6 @@ def test_package_reboot_notices_require_last_printed_red_output(document):
                     if assertion['id'] == assertion_id)
         assert notice in item['description']
         assert 'last printed output' in item['description']
-        assert 'is red' in item['description']
 
 
 def test_startup_selection_keeps_independent_failure_boundaries(document):
@@ -302,7 +303,7 @@ def test_expected_screen_evidence_cannot_be_replaced_by_backend_only(document):
 def ready_document(document, tmp_path):
     """A declared executable is only inspected, never imported or executed."""
     document['scenarios'] = [family(document)]
-    for relative in ['tests/requirements.json', 'docs/TestAutomation/E2E-Building-Blocks.md']:
+    for relative in ['tests/requirements.json', *document['scenarios'][0]['contract_refs']]:
         destination = tmp_path / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes((ROOT / relative).read_bytes())
@@ -310,8 +311,8 @@ def ready_document(document, tmp_path):
     executable.parent.mkdir(parents=True)
     executable.write_text('raise RuntimeError("inventory must never execute this")\n')
     variant = document['scenarios'][0]['variants'][0]
-    document['scenarios'][0]['assertions']['backend'] = []
-    document['scenarios'][0]['expected_evidence'].remove('backend')
+    assert document['scenarios'][0]['assertions']['backend'] == []
+    assert 'backend' not in document['scenarios'][0]['expected_evidence']
     variant.update(status='ready', pending_reason=None,
                    executable={'path': 'tests/e2e/tests/example.py', 'test_id': 'test_example'})
     return document, tmp_path, variant
@@ -445,10 +446,22 @@ def test_parent_about_maps_customer_information_without_internal_product_evidenc
     assert 'fixture-credentials-via-secret-api' in chosen['preconditions']
 
 
-def test_external_retry_is_declared_fault_recovery_and_requires_delivery_profile(document):
+def test_external_retry_is_customer_journey_and_requires_delivery_profile(document):
     chosen = family(document, 'E2E-033')
-    assert chosen['category'] == 'fault-recovery'
-    assert chosen['interventions']
+    # Inventory reconciliation assigns network controls to the public UI route.
+    # Displaced engineering interventions remain in E2E-Building-Blocks.md.
+    assert chosen['category'] == 'customer-journey'
+    assert chosen['interventions'] == []
+    assert {'explicit-external-delivery-authorization', 'dedicated-test-recipient',
+            'supported-real-feedback-service-profile'} <= set(chosen['preconditions'])
+
+
+def test_delivery_evidence_requires_authorized_profile(document):
+    # Exercise the separate receipt-evidence guard without requiring receipts
+    # in the customer journey's public observations.
+    chosen = family(document, 'E2E-033')
+    chosen['expected_evidence'].append('delivery')
+    inventory.validate_inventory(document)
     chosen['preconditions'].remove('explicit-external-delivery-authorization')
     with pytest.raises(inventory.InventoryError, match='delivery-prerequisites'):
         inventory.validate_inventory(document)

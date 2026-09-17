@@ -240,7 +240,8 @@ def test_every_inventory_case_exposes_title_and_exact_step_descriptions():
                 packet = progress_packet(progress.snapshot())
                 assert json.loads(packet)['step'] == step['description']
     case = next(case for case in selected if case['coverage_id'] == 3)
-    assert case['phases']['steps'][0]['description'].startswith('For both variants, reject the wrong-account prompt')
+    assert case['phases']['steps'][0]['description'].startswith(
+        'Sign in as a parent and find Oh No! Parent Control in the app grid.')
 
 
 def test_recorder_publishes_description_before_step_body_and_checkpoint(session):

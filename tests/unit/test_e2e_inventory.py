@@ -41,8 +41,13 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert [case['case_id'] for case in plan['cases']] == expected
     assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
                                      if case['status'] == 'pending']
-    # E2E-Scenario-Recipes.md retains cases 1–222 and adds 30 pending cases.
+    assert len(document['scenarios']) == 50
+    assert len(plan['cases']) == 252
+    assert sorted(v['coverage_id'] for item in document['scenarios']
+                  for v in item['variants']) == list(range(1, 253))
     assert len(plan['pending_cases']) == 247
+    assert [v['coverage_id'] for item in document['scenarios']
+            for v in item['variants'] if v['status'] == 'ready'] == [1, 3, 4, 5, 151]
     assert plan['scope'] == 'full'
     assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
         'E2E-001/gdm-observation', 'E2E-003/existing-and-new', 'E2E-003/none',
@@ -328,6 +333,19 @@ def test_ready_exact_case_resolves_but_family_does_not_drop_pending(ready_docume
         inventory.resolve_selection(document, 'E2E-012', require_runnable=True, root=root)
 
 
+@pytest.mark.parametrize('contract', [
+    'docs/TestAutomation/E2E-Building-Blocks.md',
+    'docs/TestAutomation/E2E-Scenario-Recipes.md',
+])
+def test_ready_fixture_requires_each_referenced_contract(ready_document, contract):
+    document, root, _ = ready_document
+    assert contract in document['scenarios'][0]['contract_refs']
+    inventory.validate_inventory(document, root=root)
+    (root / contract).unlink()
+    with pytest.raises(inventory.InventoryError, match='scenario:missing-contract'):
+        inventory.validate_inventory(document, root=root)
+
+
 def test_ready_customer_family_cannot_restore_backend_product_evidence(ready_document):
     document, root, _ = ready_document
     chosen = document['scenarios'][0]
@@ -452,6 +470,12 @@ def test_external_retry_is_customer_journey_and_requires_delivery_profile(docume
     # Displaced engineering interventions remain in E2E-Building-Blocks.md.
     assert chosen['category'] == 'customer-journey'
     assert chosen['interventions'] == []
+    assert [step['operation'] for step in chosen['phases']['steps']] == [
+        'ui', 'ui', 'ui', 'ui', 'observe']
+    assert chosen['assertions']['visible']
+    assert chosen['assertions']['backend'] == chosen['assertions']['other_user'] == []
+    assert not {'backend', 'other-user', 'intervention', 'delivery'} & set(
+        chosen['expected_evidence'])
     assert {'explicit-external-delivery-authorization', 'dedicated-test-recipient',
             'supported-real-feedback-service-profile'} <= set(chosen['preconditions'])
 

@@ -76,6 +76,28 @@ def test_operation_timer_ticks_and_groups_preparation_messages(monkeypatch):
     assert progress_text({'progress': progress.snapshot()})[2] == ''
 
 
+def test_suite_preparation_ticks_without_frames_and_resets_each_milestone(monkeypatch):
+    clock = Mock(return_value=10_000_000_000)
+    monkeypatch.setattr('tools.e2e_progress.time.monotonic_ns', clock)
+    progress = Progress(cases()[:2])
+    for label in ('Checking prerequisites', 'Cleaning up previous runs',
+                  'Deleting existing snapshot onpc-1.2', 'Installing app',
+                  'Taking snapshot onpc-1.2'):
+        progress.suite_preparation(label)
+        progress.prepare(progress.cases[0]['case_id'])
+        progress.preparation_output('detailed VM log')
+        started = clock.return_value
+        for seconds, expected in ((0, '0s'), (1, '1s'), (59, '59s'),
+                                  (60, '1m 0s'), (61, '1m 1s')):
+            clock.return_value = started + seconds * 1_000_000_000
+            progress.suite_preparation(label)  # Repeated status must not reset time.
+            shown = json.loads(progress_packet(progress.snapshot(display=True)))
+            assert progress_text({'progress': shown})[2] == (
+                f'Preparing e2e suite: {label} - ({expected})')
+    progress.suite_prepared()
+    assert progress.snapshot()['operation'] == 'Preparing VM: detailed VM log'
+
+
 def test_next_case_visible_during_cleanup_and_preparation_without_resetting_total(monkeypatch):
     clock = Mock(return_value=10_000_000_000)
     monkeypatch.setattr('tools.e2e_progress.time.monotonic_ns', clock)

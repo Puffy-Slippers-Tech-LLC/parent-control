@@ -21,6 +21,7 @@ from tests.support.vm_runner import bootstrap_guest
 import evidence
 import execution
 import e2e_worker
+import suite_lease
 from private_artifacts import EvidenceError, PrivateCollector
 REAL_BOOTSTRAP = execution.system.bootstrap
 
@@ -447,7 +448,6 @@ def public(harness, monkeypatch):
         'geteuid': lambda: 0, 'getegid': lambda: 0, 'umask': Mock()})))
     # Substitute suite VM operations using this fixture's existing fake lease.
     # The real suite lifecycle is exercised with real locks in suite tests.
-    import suite_lease
     def suite_factory(opener, *, verify_backing_bytes):
         suite = Mock(lease=None, backend_checked=False, credentials_checked=False,
                      commands=execution.Commands())
@@ -468,7 +468,7 @@ def public(harness, monkeypatch):
 
 def test_public_main_runs_selected_callback_and_emits_post_close_result(public, capsys):
     assert public.runner['main'](['--artifacts=' + public.plan['artifacts']]) == 0
-    result = json.loads(capsys.readouterr().out)
+    result = json.loads(capsys.readouterr().out.splitlines()[-1])
     assert result['outcome'] == 'passed'
     assert result['expected_cases'] == [public.case['case_id']]
     assert result['attempts'][0]['case_id'] == public.case['case_id']
@@ -502,7 +502,7 @@ def test_public_failure_is_terminal_and_retains_original_attempt(public, monkeyp
             return collector
         monkeypatch.setattr(execution, 'PrivateCollector', broken)
     assert public.runner['main'](['--artifacts=' + public.plan['artifacts']]) == 1
-    result = json.loads(capsys.readouterr().out)
+    result = json.loads(capsys.readouterr().out.splitlines()[-1])
     assert result['outcome'] == 'failed'
     assert result['attempts'][0]['outcome'] == (
         'failed' if failure in ('action', 'preparation') else 'passed')
@@ -522,7 +522,16 @@ def test_ready_cases_use_independent_attempts_and_stop_after_first_failure(publi
     execute = Mock(side_effect=results)
     monkeypatch.setattr(execution, 'attempt', execute)
     assert execution.main(plan) == (0 if failure is None else 1)
-    result = json.loads(capsys.readouterr().out)
+    output = capsys.readouterr().out.splitlines()
+    result = json.loads(output[-1])
+    events = [json.loads(line.removeprefix('ONPC-TEST-EVENT '))
+              for line in output if line.startswith('ONPC-TEST-EVENT ')]
+    assert events[0] == dict(kind='collection', total=3,
+                             nodeids=[case['case_id'] for case in plan['cases']])
+    assert [event['nodeid'] for event in events if event['kind'] == 'finished'] == [
+        case['case_id'] for case in plan['cases'][:3 if failure is None else 2]]
+    assert [event['nodeid'] for event in events if event['kind'] == 'failure'] == (
+        [] if failure is None else [plan['cases'][failure]['case_id']])
     assert len(result['expected_cases']) == 3
     assert len(result['attempts']) == (3 if failure is None else 2)
     assert result['scope'] == 'partial' and result['ready_only'] is True
@@ -534,7 +543,6 @@ def test_ready_cases_use_independent_attempts_and_stop_after_first_failure(publi
 @pytest.mark.parametrize('failure', [None, 'case', 'audit'])
 def test_suite_candidates_require_final_audit_before_invocation_acceptance(
         public, monkeypatch, capsys, failure):
-    import suite_lease
     plan = copy.deepcopy(public.plan)
     plan['cases'] = [dict(public.case, case_id=f'E2E-00{i}/synthetic') for i in range(1, 4)]
     suite = Mock(lease=None)
@@ -550,7 +558,7 @@ def test_suite_candidates_require_final_audit_before_invocation_acceptance(
     execute = Mock(side_effect=attempt)
     monkeypatch.setattr(execution, 'attempt', execute)
     assert execution.main(plan) == (0 if failure is None else 1)
-    result = json.loads(capsys.readouterr().out)
+    result = json.loads(capsys.readouterr().out.splitlines()[-1])
     suite.close.assert_called_once()
     assert execute.call_count == (1 if failure == 'case' else 3)
     assert result['suite_cleanup']['outcome'] == ('failed' if failure == 'audit' else 'passed')

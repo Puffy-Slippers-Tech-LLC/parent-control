@@ -274,6 +274,12 @@ transition and the existing boundary-only audits. Final cleanup restores the
 clean baseline and deletes the version snapshot, including on case failure.
 The invocation stops after the first failed attempt, including evidence or cleanup
 failure, and retains the expected case list and pending exclusions in its report.
+After an installed snapshot boots, SSH readiness does not imply greeter readiness:
+GDM waits for enforcement startup. Public greeter discovery waits up to 300 seconds
+for exactly one active local graphical greeter, then retains the owned session-bus
+and accessibility checks. Ambiguous identities and failed reads stop immediately.
+The controller allows 390 seconds for that observation, within the worker's
+420-second checkpoint deadline; no input is replayed or product probe substituted.
 The current ready set contains the E2E-001 harness smoke,
 E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid and E2E-030/parent:
 **five runnable variants, four customer variants**. Another 152 variants are

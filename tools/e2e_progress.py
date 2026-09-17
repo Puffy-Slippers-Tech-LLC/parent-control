@@ -29,6 +29,22 @@ class Progress:
         self.next_value = None
         self.operation_key = None
         self.operation_started_ns = None
+        self.suite_value = None
+
+    def suite_preparation(self, label):
+        """Coarse controller milestones take precedence over detailed VM logs."""
+        with self.lock:
+            operation = 'Preparing e2e suite: ' + label
+            if self.suite_value is None or self.suite_value['operation'] != operation:
+                case = self.cases[0]
+                self.suite_value = dict(current=1, total=len(self.cases),
+                    case_id=str(case['coverage_id']), title=case['title'], step='',
+                    operation=operation, started_ns=self.started_ns,
+                    case_started_ns=self.started_ns, operation_started_ns=time.monotonic_ns())
+
+    def suite_prepared(self):
+        with self.lock:
+            self.suite_value = None
 
     def prepare(self, case_id):
         self.case(case_id)
@@ -113,6 +129,8 @@ class Progress:
 
     def snapshot(self, *, display=False):
         with self.lock:
+            if self.suite_value is not None:
+                return dict(self.suite_value)
             if display and self.next_value is not None:
                 result = dict(self.next_value)
                 result['operation_started_ns'] = result['case_started_ns']

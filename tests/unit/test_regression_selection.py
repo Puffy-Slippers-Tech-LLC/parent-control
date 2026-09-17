@@ -114,15 +114,51 @@ def test_selected_summary_counts_timing_evidence_and_failure(tmp_path, monkeypat
         assert 'Join host branches — passed' in terminal
 
 
-def test_vm_only_summary_has_no_host_branches(tmp_path, monkeypatch, capsys, source_identity):
+@pytest.mark.parametrize('args, count', [(['--id', '151'], 1),
+                                       (['--scenario', 'E2E-003'], 2),
+                                       ([], 5)])
+@pytest.mark.parametrize('failure', [None, 'case', 'cleanup'])
+def test_vm_only_summary_counts_scenarios(tmp_path, monkeypatch, capsys, source_identity,
+                                        args, count, failure):
     monkeypatch.setattr(regression.Run, 'wait_for_resources', lambda *_: None)
-    monkeypatch.setattr(regression.Control, 'run', lambda *_, **__: 0)
-    assert regression.retained_main(tmp_path, selections=[('e2e', ['--id', '30'])]) == 0
+    resolve = regression_selection.e2e_case_ids
+    monkeypatch.setattr(regression_selection, 'e2e_case_ids',
+                        lambda root, args: resolve(ROOT, args))
+    ids = list(resolve(ROOT, args))
+    assert len(ids) == count
+    completed = ids[:1] if failure == 'case' else ids
+    def execute(self, command, *, output, **kwargs):
+        # This is before the child builds packages, checks prerequisites, or
+        # emits its first inventory event. The running display must know scope.
+        terminal = regression.Dashboard.ANSI.sub('', capsys.readouterr().out)
+        assert f'[Running] Ready E2E scenarios - 0% (0/{count})' in terminal
+        assert f'Overall - 0% (0/{count})' in terminal
+        assert '0/?' not in terminal
+        events = [dict(kind='collection', total=count, nodeids=ids)]
+        if failure == 'case':
+            events.append(dict(kind='failure', nodeid=ids[0], when='call'))
+        events.extend(dict(kind='finished', nodeid=nodeid) for nodeid in completed)
+        for event in events:
+            output((regression.PREFIX + json.dumps(event) + '\n').encode())
+        return int(failure is not None)
+    monkeypatch.setattr(regression.Control, 'run', execute)
+    assert regression.retained_main(tmp_path, selections=[('e2e', args)]) == int(failure is not None)
     output = regression.Dashboard.ANSI.sub('', capsys.readouterr().out)
-    assert 'Ready E2E scenarios - 100% (1/1)' in output
-    assert 'Overall - 100% (1/1)' in output
+    if failure is None:
+        assert f'Ready E2E scenarios - 100% ({count}/{count})' in output
+        assert f'Overall - 100% ({count}/{count})' in output
+    report_dir, = (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').iterdir()
+    item, = json.loads((report_dir / 'progress.json').read_text())
+    assert item['total'] == count
+    assert item['done'] == len(completed)
+    assert item['state'] == ('Passed' if failure is None else 'Failed')
+    assert item['failures'] == int(failure == 'case')
     assert 'Host branch' not in output
     assert 'Join host' not in output
+
+
+def test_e2e_qualification_remains_one_command_check():
+    assert not regression_selection.SelectedRun.events('e2e', ['--qualify-install'])
 
 
 def test_later_vm_selection_still_requires_startup_recovery(tmp_path, monkeypatch):

@@ -298,6 +298,36 @@ def test_installed_suite_installs_once_and_restores_next_case_without_extra_audi
     lease.source.domain.destroyFlags.assert_not_called()
 
 
+def test_suite_progress_precedes_slow_operations(prepared_suite, monkeypatch):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    progress = Mock()
+    monkeypatch.setattr(system, 'watch_progress', progress)
+    name = 'onpc-1.1+test~26.04'
+    add(name, '<stale/>')
+    originals = {}
+    for method, label in (
+            ('prepare', 'Cleaning up previous runs'),
+            ('delete_installed', 'Deleting existing snapshot ' + name),
+            ('create_installed', 'Taking snapshot ' + name)):
+        original = getattr(lease, method)
+        originals[method] = original
+        def checked(*args, original=original, label=label, **kwargs):
+            progress.suite_preparation.assert_called_with(label)
+            return original(*args, **kwargs)
+        monkeypatch.setattr(lease, method, checked)
+    setup.run.side_effect = lambda *args, **kwargs: (
+        progress.suite_preparation.assert_called_with('Installing app'))
+    with lease:
+        owner.prepare_installed(directory, directory, {}, root=directory)
+        progress.suite_prepared.assert_called_once_with()
+        assert [call.args[0] for call in progress.suite_preparation.call_args_list] == [
+            'Cleaning up previous runs', 'Deleting existing snapshot ' + name,
+            'Installing app', 'Taking snapshot ' + name]
+    for method, original in originals.items():
+        monkeypatch.setattr(lease, method, original)
+    lease.audit()
+
+
 @pytest.mark.parametrize('fault', ['install', 'snapshot-create', 'case'])
 def test_suite_failure_restores_baseline_and_deletes_installed_snapshot(prepared_suite, fault):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite

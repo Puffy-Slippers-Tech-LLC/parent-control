@@ -110,8 +110,11 @@ class UiObservations:
         return value
 
     def call(self, argv, operation):
+        # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
+        # margin; still inside the worker's 420s checkpoint deadline.
+        timeout = 390 if operation in accessible_ui.GREETER_OPERATIONS else 90
         if self.system_prompt is None:
-            return self.transport.call(argv, timeout=90), []
+            return self.transport.call(argv, timeout=timeout), []
         commands = self.transport.commands
         previous = commands.progress
         pending = bytearray()
@@ -145,7 +148,7 @@ class UiObservations:
                     require(not results, 'ui:response-replay')
                     results.append(bytes(line))
         try:
-            self.transport.call(argv, timeout=90, on_output=output)
+            self.transport.call(argv, timeout=timeout, on_output=output)
             require(not pending and len(results) == 1, 'ui:response-incomplete')
             return results[0], prompts
         finally:

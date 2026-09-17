@@ -1,26 +1,50 @@
 # 078 — Edit, save, cancel or reset one match rule
 
-Budget: 25–45 minutes, including a normal verification cycle; this is not a stop timer.
-Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
+Estimate: 25–45 minutes for a focused implementation/validation cycle; not
+a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
-## Scope and entry
+## Scope and prerequisites
 
-Consumer: E2E-006; E2E-020. Scope: PARENT13, PARENT15.
+Deliver **PARENT13/15 ordinary Save/Cancel/Reset and local invalid drafts**. First scheduled consumer: [E2E-041, case 185](../E2E-Scenario-Recipes.md#e2e-041).
+Read the named [block contracts](../E2E-Building-Blocks.md#app-grid-search-and-parent-launch) and only the selected consumer's recipe.
 
-Required implemented capabilities: PARENT12, PARENT10, PARENT11; PARENT08. Use maintained callables and an independent public entry state, never an earlier task document or attempt.
+Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-Contract: the named [catalogue rows](../E2E-Building-Blocks.md#ordered-building-block-catalogue) and consumer recipe. Qualify only the bindings named here.
+- **077** — PARENT12, PARENT10, PARENT11.
+- **017** — PARENT08 snapshot saved/control states.
 
-## Work
+Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
-Open/read the real draft editor and apply explicit responses; compare Cancel with the supplied old rule, invalid Save with validation, and Reset with its actual UI commit behavior. Qualify retained-editor saves after app removal and the subsequent catalogue refresh later with E2E-020.
+## Implementation
+
+Implement PARENT13 first, then PARENT15 Save, Cancel, Reset and local invalid-draft results. Compare Cancel with the supplied old rule and Reset with its immediate default save. Broker-rejected wildcard reporting is qualified separately with FEED15.
 
 ## Live VM acceptance
 
-In installed Parent, enter a synthetic valid rule, cancel and observe the old row, then save and observe the new rule. Exercise invalid Save and Reset. Empty or unrelated precise input keeps the editor open. A broker-rejected wildcard closes the editor and reports a failed save; dismiss its report and compare the restored rule. The documented precise-override restoration limitation also applies during this recovery, so record that branch if the fixture has a suggested wildcard; it is not evidence of a correct precise-rule round trip. Reset saves the detected default immediately. Use no saved-preference read.
+In installed Parent, enter a valid same-directory wildcard, Cancel and read the old rule; reopen, Save and read the new rule. Empty/unrelated precise input must leave the editor open with validation. Reset saves the detected default immediately. Bind inputs before execution and use no preference reads.
 
-Run affected safety/worker checks, then planned fixed qualification `tools/run-tests integration check_e2e_match_editor`, or the full named consumer if runnable. Reuse/create the fixed entry under the master's qualification contract. Every result above and owned cleanup must pass on the live VM; diagnostic success earns no scenario coverage.
+Run affected safety/adapter checks, then use the complete first consumer if runnable.
+Otherwise implement/reuse the planned fixed qualification:
+
+```sh
+tools/run-tests integration check_e2e_match_editor
+```
+
+This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
+before invocation. Require every stated result, independent valid entry, wrong-entry
+refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
+establish complete scenario coverage.
 
 ## Close out
 
-After successful cleanup, check this task in the [master](../E2E-Execution-Plan.md) and update [catalogue/scenario status](../E2E-Building-Blocks.md) using its readiness rules. Delete this task when no longer needed, replacing its master link with plain text. No new evidence/history document.
+After live qualification and cleanup, update the callable, exact qualified scope
+and status in [E2E-Building-Blocks.md](../E2E-Building-Blocks.md), and reconcile
+the first consumer's status in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
+A slice alone leaves the full scenario pending. If any complete E2E scenario
+passed, run `tools/generate_test_coverage.sh` after that case's cleanup; it runs
+`tools/generate_test_coverage.py`. Require successful generation before check-off.
+
+Check this task in the [master](../E2E-Execution-Plan.md), then remove this brief
+when its enduring context is in source/contracts and replace its master link
+with plain text. Validate changed Markdown with `tools/read-only links`.
+Keep normal runner artifacts; no new evidence document or accumulated history.

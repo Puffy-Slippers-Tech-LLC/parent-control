@@ -1,26 +1,50 @@
 # 004 — Allow distinct single-use authentication challenges
 
-Budget: 40–60 minutes, including a normal verification cycle; this is not a stop timer.
-Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task) and repository approvals.
+Estimate: 40–60 minutes for a focused implementation/validation cycle; not
+a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
-## Scope and entry
+## Scope and prerequisites
 
-Consumer: E2E-002 (2), then all returning-user journeys. Scope: UI19/GDM05 challenge context; JourneyPlan repeated stages/assertions.
+Deliver **UI19/GDM05 distinct single-use authentication challenges**. First scheduled consumer: [E2E-002, case 2](../E2E-Scenario-Recipes.md#e2e-002).
+Read the named [block contracts](../E2E-Building-Blocks.md#public-observations-and-individual-inputs), [related block contracts](../E2E-Building-Blocks.md#sign-in-and-desktop-entry), [related block contracts](../E2E-Building-Blocks.md#refactoring-the-established-cases) and only the selected consumer's recipe.
 
-Required implemented capabilities: DESK02, DESK03, DESK04. Use maintained callables and an independent public entry state, never an earlier task document or attempt.
+Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-Contract: the named [catalogue rows](../E2E-Building-Blocks.md#ordered-building-block-catalogue) and consumer recipe. Qualify only the bindings named here.
+- **003** — DESK02, DESK03, DESK04.
+- **004a** — JourneyPlan repeated invocation IDs and assertion placement.
 
-## Work
+Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
-Replace the one-authentication-per-worker limitation with explicit challenge context for UI19/GDM05. Preserve two fresh recipient checks, wrong-recipient refusal, sealed captures, single use and terminal failure. Add unique repeated-stage IDs and per-assertion placement to JourneyPlan only as needed.
+## Implementation
+
+Replace the one-authentication-per-worker limitation with explicit, single-use challenge context for UI19/GDM05. Use the qualified repeated-stage interface. Preserve wrong-recipient refusal, two fresh intended-recipient checks, sealed capture, fixed secret input and a terminal failure latch; never clear the latch to authenticate again.
 
 ## Live VM acceptance
 
 In one guarded VM attempt, authenticate the Parent, log out through the normal UI, then authenticate again with a new challenge. Reject stale/reused proofs in safety regressions; no reset of the existing failure latch. Run affected credential safety and ready cases 1, 3, 4, 5, 151.
 
-Run affected safety/worker checks, then planned fixed qualification `tools/run-tests integration check_e2e_install`, or the full named consumer if runnable. Reuse/create the fixed entry under the master's qualification contract. Every result above and owned cleanup must pass on the live VM; diagnostic success earns no scenario coverage.
+Run affected safety/adapter checks, then use the complete first consumer if runnable.
+Otherwise implement/reuse the planned fixed qualification:
+
+```sh
+tools/run-tests integration check_e2e_install
+```
+
+This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
+before invocation. Require every stated result, independent valid entry, wrong-entry
+refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
+establish complete scenario coverage.
 
 ## Close out
 
-After successful cleanup, check this task in the [master](../E2E-Execution-Plan.md) and update [catalogue/scenario status](../E2E-Building-Blocks.md) using its readiness rules. Delete this task when no longer needed, replacing its master link with plain text. No new evidence/history document.
+After live qualification and cleanup, update the callable, exact qualified scope
+and status in [E2E-Building-Blocks.md](../E2E-Building-Blocks.md), and reconcile
+the first consumer's status in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
+A slice alone leaves the full scenario pending. If any complete E2E scenario
+passed, run `tools/generate_test_coverage.sh` after that case's cleanup; it runs
+`tools/generate_test_coverage.py`. Require successful generation before check-off.
+
+Check this task in the [master](../E2E-Execution-Plan.md), then remove this brief
+when its enduring context is in source/contracts and replace its master link
+with plain text. Validate changed Markdown with `tools/read-only links`.
+Keep normal runner artifacts; no new evidence document or accumulated history.

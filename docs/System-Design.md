@@ -204,6 +204,10 @@ and local unit/component checks do not establish completed customer acceptance.
 The [customer recipes](TestAutomation/E2E-Scenario-Recipes.md) bind each scenario
 to public actions, finite inputs and observable results, including child panel
 preferences, daily-only revocation, account changes and natural day boundaries.
+They also cover approval after a decision delay, temporary app access by launch
+route, and bounded repeated work/game routines with independent child state.
+Those histories observe each intermediate result through the public interfaces;
+switching away and returning is an action that can itself restore app blocks.
 The [inventory reconciliation](TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation)
 retains displaced engineering assertions and deferred interactive mute separately.
 Scenario declarations and documentation do not qualify an unimplemented route

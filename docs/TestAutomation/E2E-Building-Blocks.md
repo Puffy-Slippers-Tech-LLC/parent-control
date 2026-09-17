@@ -1,7 +1,7 @@
 # Reusable customer E2E building blocks
 
 This is the contract catalogue for composing customer scenarios.
-It covers all **46 families / 222 variants** in
+It covers all **50 families / 252 variants** in
 [scenarios.json](../../tests/e2e/scenarios.json).
 Use the [execution plan](E2E-Execution-Plan.md) for the dependency-ordered session
 queue and individual task files. A new session can start with “Implement the
@@ -11,12 +11,12 @@ The inventory currently has five ready variants: cases **1, 3, 4, 5 and 151**.
 Case 1 qualifies the harness; the other four are customer journeys.
 Every catalogue row has an implementation status; existing
 behavior that still needs extraction is `pending` even when its scenario is
-already `ready`. There are **174 blocks: 60 ready and 114 pending**, including
+already `ready`. There are **178 blocks: 60 ready and 118 pending**, including
 four fixture operations and explicitly scoped harness/credential-safety blocks.
 
-The [recipes](E2E-Scenario-Recipes.md) account for **210 customer cases**,
+The [recipes](E2E-Scenario-Recipes.md) account for **240 customer cases**,
 **11 engineering fault obligations (140–150)** and **harness case 1**.
-The five ready variants remain unchanged in readiness; all 65 added cases are
+The five ready variants remain unchanged in readiness; cases 158–252 are
 pending. Declaration and block readiness do not establish an installed pass.
 The reconciliation below retains displaced engineering obligations separately.
 
@@ -245,7 +245,8 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | PARENT05 | C | Open the daily-allowance picker and, when requested, its Custom amount editor. | UI01 → UI04 → optional UI04(Custom amount) → UI01. | pending |
 | PARENT06 | C | Choose a daily preset or type a custom allowance and commit through the normal UI. Return the displayed value/validation; saving is observed separately. | Preset: PARENT05(picker) → UI04(preset) → UI03. Custom: PARENT05(custom editor) → UI16(value); `commit=pause` adds no input, `enter` uses UI05(Enter), `focus-leave` uses UI05(Tab); then UI03(value/validation). PARENT08 independently observes saving. | pending |
 | PARENT08 | C | Observe loading, saving, saved, validation or unavailable state and availability of conflicting controls. Snapshot mode waits for the named result; transition mode surrounds the triggering input with a bounded trace. | Snapshot: UI01 → UI02 → UI03 → UI10. Transition: UI22 with those projections; caller supplies the input block between observer readiness and collection. E2E-035 uses this for save ordering and guarded controls; animation duration is not an acceptance result. | pending |
-| PARENT09 | C | Read the selected child's remaining-time explanation, expanding it only if currently collapsed. Return displayed daily, one-time and total values with formatting/rounding bounds. | UI01 → UI02(expanded) → UI04 only if collapsed → UI09 → UI03. Compare visible explanations, never stored time; repeated reads must not collapse the section. | pending |
+| PARENT20 | C | Read an already expanded, showing remaining-time explanation for the explicitly selected child. Return daily, one-time and total values, public display precision and observation time. Perform no navigation or expansion. | UI01(child and explanation) → UI03(each declared balance). UI12 owns arithmetic/elapsed comparisons. Split from PARENT09; first consumers E2E-005/048. | pending |
+| PARENT09 | C | Reach the selected child's remaining-time explanation, expanding it only if currently collapsed, then read its balances. | UI01 → UI02(expanded) → UI04 only if collapsed → UI09 → PARENT20. Repeated reads must not collapse the section. Use PARENT20 when an observer must be read-only; neither block visits another user's desktop implicitly. | pending |
 | PARENT12 | C | Read a displayed app row's identity, access choice and match choice. | UI01 → UI02 → UI03. No installed-catalogue or executable probe. | pending |
 | PARENT10 | C | Search the App Limits catalogue by name, description or launcher identifier and observe the matching displayed rows, including an explicitly expected empty set. | PARENT04(App Limits) → UI16(search) → UI13(rows) → UI12(expected set). Row details use PARENT12 separately. | pending |
 | PARENT11 | C | Set one named App Limits filter's explicit selection set and observe the exact displayed result set. Both access-rule and match-rule popovers use independently checked options. | UI01 → UI04(open) → UI17 for each declared option → UI05(Escape) → UI11(popover) → UI13(rows) → UI12(expected set). Same implementation for both filters. | pending |
@@ -296,6 +297,8 @@ these blocks, not copies of them.
 | FILE03 | C | Choose files, save a named file, or cancel in an already open chooser. Mode and selected files are explicit. Observe selection/closure; the caller observes its later result separately. | Open: FILE07(directory) → UI14(first file) → UI05 for declared additional modifier/navigation selection → UI13(exact selected set) → UI04(Open) → UI11(chooser). Save: FILE07 → UI16(filename) → UI04(Save) → UI11. Cancel: UI04(Cancel) → UI11. No unmodified second selection that silently drops earlier files. | pending |
 | FILE04 | C | Open the file manager, navigate to a customer directory and observe its declared named entries. | SEARCH05(file manager) → FILE07(directory) → UI13(entries). | pending |
 | FILE05 | C | Copy or rename one fixture file through normal file-manager input and observe the resulting entry. Explicit inputs include source, destination/name and expected entry set. | UI01 → UI07 → UI08 → UI02(selected). Copy: UI05(Copy) → FILE07(destination) → UI05(Paste). Rename: UI05(Rename) → UI16(name) → UI04(confirm). Both: UI13(entries) → UI12. | pending |
+| FILE08 | C | Open one declared customer-selected file in its normal registered editor/archive viewer and observe the file identity and window. The file manager starts open or is opened explicitly by FILE04. | FILE04 or FILE07 according to declared entry → UI01(file) → UI04(Open) → UI01(handler window) → UI03(registered synthetic identity). Split from FEED08's open stage; reused by attachment-original editing and E2E-050/051 saved work. No private product files. | pending |
+| FILE09 | C | Replace the contents of an already open synthetic text document and save through the editor's normal Save action. Observe the entered text and saved/clean state. Input declares an existing writable document; new-file/save-as dialogs are a separate FILE03 operation. | UI16(document) → UI05(Ctrl-S) → UI03(expected text) → UI02/03(public saved state). No direct file write; unavailable public saved state blocks this binding. First consumer E2E-031/attachments, reused by E2E-050/051. | pending |
 | APP01 | C | Attempt a launch by the declared route without waiting for its result. A hidden launcher is a distinct observation, not an execution attempt. | Grid: SEARCH01 → UI21 → SEARCH03 → SEARCH04 → UI05 only if the expected launcher is offered. Desktop: UI01 → UI04. File: FILE04 → UI04. Terminal: FILE01 → FILE02. No silent route substitution. | pending |
 | APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | UI01 → UI03 for presence; FILE06 for terminal denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | pending |
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | pending |
@@ -333,7 +336,7 @@ these blocks, not copies of them.
 | FEED07 | C | Read one attachment's displayed synthetic name/size and list position. Does not preview or remove it. | UI01 → UI03. | pending |
 | FEED12 | C | Open an offered attachment preview, read declared synthetic contents and close it, returning to feedback. | UI01 → UI04 → UI03 → UI18. An unoffered preview does not authorize private storage inspection. | pending |
 | FEED13 | C | Remove one explicitly identified attachment and observe the remaining list. | UI01 → UI04(Remove) → FEED03 → UI12(expected list). | pending |
-| FEED08 | C | Explicitly save diagnostic output to a customer-selected location, open that saved output through the file manager/viewer and read the expected public contents. | UI04(download) → FILE03(save) → FILE04 → UI04(open) → UI03. Do not inspect original product logs or storage. | pending |
+| FEED08 | C | Explicitly save diagnostic output to a customer-selected location, open that saved output through the file manager/viewer and read the expected public contents. | UI04(download) → FILE03(save) → FILE08(archive) → UI03(registered public entries/contents). Caller may instead stop after FILE03(cancel) and inspect its retained draft. Do not inspect original product logs or storage. | pending |
 | FEED09 | C | Observe collection, validation, sending, retry, error or thank-you state and control availability. Snapshot mode reads the current state; transition mode records required transient states around FEED01 or FEED11. | UI01 → UI02 → UI03 → UI10, or UI22 with the same projections. No provider receipt or delivery-internal assertion. | pending |
 | FEED10 | C | Close/reopen feedback and compare its in-memory draft. `dialog` preserves the supplied draft; `app-exit` explicitly closes/relaunches Parent and expects reset. Return with feedback open. | FEED03(before) → UI18(feedback) → LIFE01(Parent) only for app-exit → FEED01 → FEED03 → UI12(expected draft). Do not edit fields before comparison. | pending |
 | FEED11 | C | Submit one already reviewed synthetic report. Require explicit sending authorization and dedicated test-recipient configuration; activate the explicit `Send` or `Send without logs` action once and return. Observe the outcome and dismiss confirmation separately. | UI01 → UI02(enabled) → UI04(Send). Prior FEED03 → FEED05 evidence is supplied, not repeated inside this block. This document grants no sending authorization. | pending |
@@ -373,7 +376,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW00 | C | Run case 1's complete graphical/serial qualification within the unchanged harness envelope. Its step boundaries and terminal assertions are fixed below. | `onpc_flow00::run(journey, exchange)` calls HAR01 → GDM02 → GDM09 and its `serial(exchange)` fragment calls HAR05 → HAR06 → HAR07 → HAR08 within `onpc_serial::attempt`. Normal finish/shutdown stays in `smoke.pm`; `controller_qualification.execute` then calls HAR10 → HAR09 with unchanged evidence/phase middleware. | ready |
 | FLOW15 | C | Reach an explicit user's desktop from the declared source surface. `entry=fresh` requires no retained session; `retained` requires an earlier observed desktop; `same` requires the current user already matches. Return the observed desktop or expected time-limit denial. | `onpc_parent::enter_desktop(journey, 'gdm', 'parent', 'fresh', 'success')` calls GDM07. Only this explicit route is ready; retained, same-user, lock and denial routes remain pending. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. | `onpc_parent::open_for_child(journey, 'gdm', 'fresh', 'new', child)` calls FLOW15, PARENT01 and PARENT02/PARENT03 with explicit existing/child bindings. Setup reattachment stays in the worker envelope. Retained-window and remembered-selection routes remain pending. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
-| FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | UI17(Screen time limit=true) if required → PARENT06 → PARENT08 → UI17(final boolean) → PARENT08 → PARENT03 → PARENT09. Disabling clears a grant; this is not a harmless navigation step. | pending |
+| FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | PARENT04(Screen Limits) → UI17(Screen time limit=true) if required → PARENT06 → PARENT08 → UI17(final boolean) → PARENT08 → PARENT03 → PARENT09. Disabling clears a grant; this is not a harmless navigation step. | pending |
 | FLOW03 | C | Configure one app's matching and access choices through Parent and read the saved row. | PARENT10 → PARENT11 if declared → PARENT13 → UI16(match draft) → PARENT15(save) → PARENT16 → PARENT12. | pending |
 | FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. | pending |
 | FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its surface-specific automatic exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic). | pending |
@@ -386,11 +389,11 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: REQUEST12(cancel) → DESK03 → REQUEST01. Kiosk→overlay: REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02. Both then REQUEST03 → UI12(shared values and user-local selectors). Interactive mute remains deferred outside this current-choice composite. | pending |
 | FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | FLOW01 → PARENT09 → PARENT17 → PARENT18(confirm) only if revocation is declared → PARENT09 → UI12(no grant) → FLOW02(initial allowance) → DESK03. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | For each user: FLOW15 → FLOW08 → APP04(capture) → DESK03. Earlier retained desktops must be revisited, not recreated. Multiple desktops for one identity require a supported customer route; see applicability notes. | pending |
-
-| FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | FLOW01(explicit source/entry/window/child) → PARENT04(Screen Limits) → FLOW02(initial state, allowance, final state). Finish in Parent; no implicit logout. E2E-035/036 and ordinary scenario setup. | pending |
+| FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | FLOW01(explicit source/entry/window/child) → FLOW02(initial state, allowance, final state). FLOW02 owns navigation to Screen Limits. Finish in Parent; no implicit logout. E2E-035/036 and ordinary scenario setup. | pending |
 | FLOW17 | C | Leave a request with authentication pending by one declared supported user action, observe its destination, then return and read cancellation before a new request. | Lock: UI05(normal lock) → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI04/ UI05(normal app close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; unavailable routes remain gated, never force-killed. | pending |
 | FLOW18 | C | Prepare positive daily time that outlasts a soft-app grant without resetting its launch exception. Finish on the child desktop with both balances positive and daily dominant. | FLOW13(combined, soft included) → FLOW15(child) → FLOW08(soft app) → APP04 → DESK03 → FLOW01(parent retained) → PARENT09 → TIME03(wait until the declared remaining-grant window while child is away) → PARENT09 → UI12(D>G>0) → DESK03 → FLOW15(child retained) → TIME01. No allowance edit or app save after approval. E2E-038. | pending |
 | FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | pending |
+| FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). Overlay returns to its existing desktop. Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | pending |
 
 ### Canonical reuse and implementation checkpoints
 
@@ -405,15 +408,28 @@ The former duplicate wrappers are retired identifiers, not pending work:
 | REQUEST07 | UI17 (future binding only) | Retired interactive mute wrapper; no current customer dependency |
 
 The split operations intentionally have separate checkpoints: UI23 scrolls and
-UI09 observes reachability; GDM08 observes a prompt, GDM03 qualifies a secret
+UI09 observes reachability; PARENT09 expands/navigates and PARENT20 only reads
+an already showing explanation; GDM08 observes a prompt, GDM03 qualifies a secret
 recipient and GDM09 dismisses; HAR05/06/07/08 separate serial login, command,
 logout and return; FILE02 submits
 and FILE06 observes; FEED07 reads an attachment, FEED12 previews and FEED13
 removes; FEED11 submits and FEED09 observes before FEED14 dismisses success.
+FILE08 opens a customer-selected file, FILE09 edits/saves its already-open
+document, and FEED08 composes download, chooser and archive viewing. An atomic
+block never hides any of those extra inputs. Existing multi-action rows remain
+explicit composites; do not relabel an entire sign-in or approval as atomic.
 Recipes own the order. This prevents a completion wait from blocking required
 authentication, and prevents reopening, editing or a second Send from hiding
 the state a scenario is supposed to inspect. FLOW07 now ends after rejection;
 FLOW05 owns the later approval. REQUEST06 owns only the current soft-app control; future mute reuses UI17 after its separate feature gate.
+
+FLOW01's pending retained-window and other-parent bindings must reach Screen
+Limits with PARENT04 before their PARENT03 settings capture if the remembered
+window is on App Limits. Its established fresh/new binding still uses the
+initial Screen Limits page. A selected child is not proof that the controls
+being read are showing. Qualify the second administrator's own desktop/window
+with E2E-051; selecting that administrator in an approval prompt does not qualify
+management entry under that account.
 
 Every invocation binds `surface/account`, registered `target`, input values,
 expected output, deadline and immutable prior observations. It returns a fresh
@@ -629,13 +645,17 @@ evidence; subsequent VM actions still use the guarded ownership interfaces.
 | E2E-045 / **205–207** | [Recipe](E2E-Scenario-Recipes.md#e2e-045) — Review or decline an error report. Customer actions and public results. |
 | E2E-046 / **208–213** | [Recipe](E2E-Scenario-Recipes.md#e2e-046) — Recover unavailable diagnostic collection. Customer actions and public results. |
 | E2E-047 / **214–222** | [Recipe](E2E-Scenario-Recipes.md#e2e-047) — Finish or stop feedback in different user flows. Customer actions and public results. |
+| E2E-048 / **223–230** | [Recipe](E2E-Scenario-Recipes.md#e2e-048) — Approve after the displayed estimate has aged, for four balances on both request surfaces. |
+| E2E-049 / **231–246** | [Recipe](E2E-Scenario-Recipes.md#e2e-049) — Alternate temporary app permission on eight launch routes and both request surfaces. |
+| E2E-050 / **247–250** | [Recipe](E2E-Scenario-Recipes.md#e2e-050) — Three continuous work/game/time-source cycles, with both form orders and retained/fresh departures. |
+| E2E-051 / **251–252** | [Recipe](E2E-Scenario-Recipes.md#e2e-051) — Four rounds of two-child management, independent choices and retained work. |
 
 ### Inventory reconciliation
 
 This documentation rewrite reconciles the customer declarations now; it does
 not wait for implementation to remove private probes from their steps. All
 original numeric IDs, matrix values and five runnable bindings remain. New cases
-use IDs 158–222. Customer families have no backend assertions or delivery-receipt
+use IDs 158–252. Customer families have no backend assertions or delivery-receipt
 evidence. E2E-033 is now the ordinary network-controls customer retry route.
 
 The exact displaced engineering assertions are retained below, grouped only
@@ -729,6 +749,16 @@ Use the [finite data and budgets](E2E-Scenario-Recipes.md#finite-data-and-execut
 Every required public route, fixture, selector, response, time margin and
 comparison must be bound before execution. No callback may choose a more
 convenient expected result after failure.
+
+Each repeated-routine row has its own immutable public observations and unique
+checkpoint names (case/cycle/row/child). Preserve the complete prefix of a failed
+run in existing runner artifacts; there is no resume from cycle 2 and no terminal
+state that can substitute for a missing cycle. Limits, permissions and window
+lifetimes come from that case's public actions. Read-only observation does not
+include switching users: a return after grant expiry may itself restore blocks.
+E2E-038 performs its no-restoration checks before leaving the child desktop.
+FLOW13 uses the [explicit time preparation table](E2E-Scenario-Recipes.md#explicit-time-preparation);
+positive daily allowance must never be assumed to mean positive remaining time.
 
 ## Finite values and applicability constraints
 

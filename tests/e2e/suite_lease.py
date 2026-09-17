@@ -188,8 +188,6 @@ class SuiteLease(system.Lease):
                 self.restore_installed = False
                 self._restored = self._reset_attempted = False
                 self.finish()
-            if not retain_installed:
-                self.delete_installed()
             self._fast = False
             self.guard(off=True)
             system.log('stage:restored-baseline-verification')
@@ -215,7 +213,7 @@ class SuiteLease(system.Lease):
                 self._restored = self._reset_attempted = False
                 self.finish()
                 # Commit retention only after restoration and provenance checks.
-                # Interrupted/failed preparations keep their cleanup obligation.
+                # Incomplete snapshot creation keeps its cleanup obligation.
                 self.state.pop('e2e_snapshot', None)
                 self.save('complete')
         finally:
@@ -242,7 +240,18 @@ class Suite:
 
     def prepare_case(self, case, directory, assets, selection, *, root):
         if not self.prepared:
-            self.prepare_installed(directory, assets, selection, root=root, overwrite=True)
+            created = self.prepare_installed(directory, assets, selection, root=root, overwrite=False)
+            if not created:
+                from app_snapshot import snapshot_name
+                version = self.commands.run(['dpkg-deb', '-f', str(assets / 'package.deb'),
+                                             'Version']).decode().strip()
+                self.lease.installed_name = snapshot_name(version)
+                self.lease.installed_xml = self.lease.source.domain.snapshotLookupByName(
+                    self.lease.installed_name, 0).getXMLDesc(0)
+                self.lease.prepare()
+                self.prepared = True
+                if system.watch_progress is not None:
+                    system.watch_progress.suite_prepared()
             self.lease.restore_installed = needs_installed(case)
             self.lease.stop()
         expected = (self.lease.installed_name if needs_installed(case)

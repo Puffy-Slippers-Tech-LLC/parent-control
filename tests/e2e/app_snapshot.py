@@ -65,6 +65,9 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True):
     lease.guard(off=True)
     preparation('Taking snapshot ' + name)
     lease.create_installed()
+    # A completed snapshot is reusable across runs, including interrupted runs.
+    lease.state.pop('e2e_snapshot', None)
+    lease.save('isolated')
     suite.prepared = True
     if system.watch_progress is not None:
         system.watch_progress.suite_prepared()

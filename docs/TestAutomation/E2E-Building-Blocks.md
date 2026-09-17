@@ -523,11 +523,11 @@ case. Harness case 1 and fault obligations 140–150 remain separate qualificati
 ### Parent, login and time scenarios
 
 Every E2E invocation, including a single-case selection, holds one exclusive VM
-lease. Suite preparation runs once, before the first case: restore
-`onpc-baseline`, replace any existing snapshot of the selected package version,
-install the package, reboot, shut down and capture `onpc-v[version]` (the app
-release without package revisions, for example `onpc-v1.1`). Each invocation
-creates a fresh snapshot; this installation belongs to suite preparation.
+lease. Suite preparation runs once, before the first case, reusing an existing
+`onpc-v[version]` snapshot (the app release without package revisions, for example
+`onpc-v1.1`). When absent, preparation restores `onpc-baseline`, installs the
+package, reboots, shuts down and captures the version snapshot. This installation
+belongs to suite preparation.
 
 Each case then starts from the snapshot required by its purpose:
 
@@ -554,13 +554,15 @@ for ACPI. The next case provisions its declared inputs on that snapshot, removes
 host sharing and boots, without a second restore. Live ownership, disk identity,
 snapshot metadata and isolation checks still apply; transitions add no package
 validation, installation or reboot. Suite cleanup restores `onpc-baseline` and
-deletes the version snapshot before the final audit. The journal records its
-exact name for interrupted-run cleanup. Per-case evidence is
+preserves the version snapshot through the final audit. The journal records its
+exact name during creation for interrupted-preparation cleanup; successful creation
+clears that deletion obligation so completed snapshots survive interrupted runs.
+Per-case evidence is
 provisional until the final suite audit and release; failures stop subsequent
 cases. This changes runner transitions, not any customer action or assertion.
 See [suite lease](../../tests/e2e/suite_lease.py) and the shared
 [app snapshot module](../../tests/e2e/app_snapshot.py). `run-tests` calls it with
-`overwrite=True` and uses the shared [cleanup module](../../tools/test_recovery.py)
+`overwrite=False` to reuse an existing version snapshot and uses the shared [cleanup module](../../tools/test_recovery.py)
 before starting the E2E run.
 
 The same preparation is available independently:
